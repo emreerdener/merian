@@ -1,22 +1,17 @@
 // deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { normalizeLimit, requireUuid } from "../_shared/explore.ts";
+import {
+  normalizeCursorTimestamp,
+  normalizeLimit,
+  requireUuid,
+} from "../_shared/explore.ts";
 import { fetchExploreFeed } from "./db.ts";
 
 function makeHttpError(status: number, message: string): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
-}
-
-function normalizeBeforeSharedAt(rawValue: unknown): string | null {
-  if (rawValue == null) return null;
-  if (typeof rawValue !== "string" || !Number.isFinite(Date.parse(rawValue))) {
-    throw makeHttpError(400, "before_shared_at must be a valid ISO 8601 timestamp.");
-  }
-
-  return rawValue;
 }
 
 serve((req: Request) =>
@@ -29,7 +24,7 @@ serve((req: Request) =>
     }
 
     const limit = normalizeLimit(body.limit, 20, 100);
-    const beforeSharedAt = normalizeBeforeSharedAt(body.before_shared_at);
+    const beforeSharedAt = normalizeCursorTimestamp(body.before_shared_at, "before_shared_at");
     const beforePostId = body.before_post_id == null
       ? null
       : requireUuid(body.before_post_id, "before_post_id");

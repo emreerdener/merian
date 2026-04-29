@@ -633,6 +633,7 @@ Current shipped state on `ExploreMapViewModel`:
 - `selectedPostId`
 - `visibleCount`
 - `isOffline`
+- an in-memory recent-region cache with capped eviction
 
 State machine:
 
@@ -640,11 +641,12 @@ State machine:
 2. While the user pans or zooms, update `visibleRegion`
 3. Once the camera movement settles, compare `visibleRegion` against `lastCommittedRegion`
 4. If the delta is meaningful, set `needsSearchInArea = true`
-5. When the user taps `Search This Area`, call `get-explore-map-points`
-6. If the response is `clusters`, render clusters and clear any selected post
-7. If the response is `posts`, render point annotations
-8. On point tap, set `selectedPost`
-9. On preview-card tap, route to `ExplorePostDetailView(postId:)`
+5. If the same area was fetched recently, reuse the cached response immediately and only hit the network again once that cache entry is stale
+6. When the user taps `Search This Area`, call `get-explore-map-points`
+7. If the response is `clusters`, render clusters and clear any selected post
+8. If the response is `posts`, render point annotations
+9. On point tap, set `selectedPost`
+10. On preview-card tap, route to `ExplorePostDetailView(postId:)`
 
 Technical notes:
 
@@ -662,10 +664,10 @@ Current shipped V1 behavior:
 - Only replace results after a successful "search this area" fetch
 - Cap rendered individual post annotations to a strict upper bound such as 500
 - If map fetches fail because the device is offline, show an explicit offline banner rather than silently leaving the map in a stale state
+- Cache recent region payloads in memory and evict old or off-screen regions aggressively so revisiting nearby areas feels faster without letting long-distance panning grow memory unbounded
 
 Fast-follow opportunities:
 
-- Cache recent map queries in memory by coarse bounding box plus filter state
 - Eagerly evict point annotations that fall outside an expanded region around the last committed viewport to reduce long-distance panning memory growth
 - Prefetch `get-explore-post` for the selected marker if we want instant detail transitions later
 
@@ -705,6 +707,7 @@ Notifications:
 - Comment notifications should create one row per visible comment.
 - Self-likes and self-comments should never create notifications.
 - Opening the notifications sheet should mark the fetched rows as read only after the initial fetch succeeds.
+- Notifications pagination should be cursor-based on `(updated_at, notification_id)`, not offset-based.
 - Users can independently opt into remote Explore activity pushes without enabling discovery-result alerts.
 
 Blocking:
@@ -751,11 +754,13 @@ Client behavior:
 - Explore is online-only in V1
 - Likes/comments/shares do not use the offline queue
 - Feed pagination is cursor-based on `(shared_at, post_id)`
+- Notifications pagination is cursor-based on `(updated_at, notification_id)`
 - Like and comment counts should update optimistically
 - Feed cards can single-tap into detail and double-tap the image to like
 - The map should use a dedicated spatial endpoint rather than piggybacking on feed pagination
 - The map should keep stale results visible while the user pans and only refetch on an explicit `Search This Area` action
 - Marker selection should open a preview card first and only then open full detail
+- The map should emit lightweight telemetry for tab open, explicit area search, cluster tap, waypoint preview open, and detail open
 - Feed comment taps present `ExploreCommentsSheet`; detail-page comments render inline with the thread
 - Explore feed share uses the system share sheet with species text plus the current hero image URL
 - The detail page uses a separate public species payload so it can render safe `Taxonomy` and `Habitat & distribution` cards without loading private scan state

@@ -50,6 +50,7 @@ struct ExploreMapView: View {
             ForEach(viewModel.clusters) { cluster in
                 Annotation("", coordinate: cluster.coordinate, anchor: .center) {
                     Button {
+                        AppTelemetry.trackExploreMapClusterTapped()
                         registerAnnotationTap()
                         viewModel.zoomIntoCluster(cluster)
                     } label: {
@@ -63,6 +64,11 @@ struct ExploreMapView: View {
             ForEach(viewModel.posts) { post in
                 Annotation("", coordinate: post.coordinate, anchor: .bottom) {
                     Button {
+                        if viewModel.selectedPostId != post.id {
+                            AppTelemetry.trackExploreMapPreviewOpened(
+                                coordinateVisibility: post.coordinateVisibility.rawValue
+                            )
+                        }
                         registerAnnotationTap()
                         withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
                             viewModel.selectPost(post.id)
@@ -108,6 +114,7 @@ struct ExploreMapView: View {
 
             if viewModel.needsSearchInArea {
                 Button {
+                    AppTelemetry.trackExploreMapSearchTriggered(reason: "search_this_area")
                     Task { await viewModel.searchCurrentArea() }
                 } label: {
                     HStack(spacing: 10) {
@@ -189,6 +196,7 @@ struct ExploreMapView: View {
 
     private var recenterButton: some View {
         Button {
+            AppTelemetry.trackExploreMapSearchTriggered(reason: "recenter")
             Task { await viewModel.recenter(using: environmentContextManager) }
         } label: {
             Image(systemName: "location")
@@ -264,6 +272,7 @@ struct ExploreMapView: View {
 
     private func openSelectedPost(focusCommentComposer: Bool) {
         guard let selectedPost = resolvedSelectedPost else { return }
+        AppTelemetry.trackExploreMapDetailOpened(entryPoint: focusCommentComposer ? "comments" : "preview")
         feedViewModel.upsertPost(selectedPost)
         onOpenDetail(selectedPost, focusCommentComposer)
     }

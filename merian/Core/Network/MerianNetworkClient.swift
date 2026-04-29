@@ -940,12 +940,19 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExplorePostDetailResponse.self, from: data).data
     }
 
-    func getExploreNotifications(limit: Int = 50, offset: Int = 0) async throws -> [ExploreNotification] {
+    func getExploreNotifications(
+        limit: Int = 50,
+        beforeUpdatedAt: String? = nil,
+        beforeNotificationId: String? = nil
+    ) async throws -> [ExploreNotification] {
         let functionUrl = try endpointURL("get-explore-notifications")
-        let payload: [String: Any] = [
-            "limit": limit,
-            "offset": offset
-        ]
+        var payload: [String: Any] = ["limit": limit]
+
+        if let beforeUpdatedAt, let beforeNotificationId {
+            payload["before_updated_at"] = beforeUpdatedAt
+            payload["before_notification_id"] = beforeNotificationId
+        }
+
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(ExploreNotificationsResponse.self, from: data).data

@@ -164,3 +164,165 @@ Deno.test("Explore map DB - obscured geoprivacy projects rounded public coordina
     assertEquals(mapRows.rows[0].coordinate_visibility, "obscured");
   });
 });
+
+Deno.test("Explore map DB - wrapped longitude queries return discoveries across the dateline", async () => {
+  await withExploreDbTest("exploreMapDb.test", async (client: Client) => {
+    const ownerId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    const easternScanId = crypto.randomUUID();
+    const westernScanId = crypto.randomUUID();
+    const easternPostId = crypto.randomUUID();
+    const westernPostId = crypto.randomUUID();
+
+    await insertUser(client, ownerId, "Dateline Owner");
+    await insertUser(client, viewerId, "Dateline Viewer");
+    await insertSpecies(client, speciesId, "Rosa datelinis");
+
+    await insertScan(client, {
+      id: easternScanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 15.0,
+      longitude: 179.6,
+      geoprivacy: "open",
+    });
+    await insertScan(client, {
+      id: westernScanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 12.0,
+      longitude: -179.7,
+      geoprivacy: "open",
+    });
+
+    await insertExplorePost(client, {
+      id: easternPostId,
+      userId: ownerId,
+      scanId: easternScanId,
+    });
+    await insertExplorePost(client, {
+      id: westernPostId,
+      userId: ownerId,
+      scanId: westernScanId,
+    });
+
+    const mapRows = await client.queryObject<ExploreMapRow>(
+      `
+        SELECT post_id, latitude, longitude, coordinate_visibility
+        FROM public.get_explore_map_posts(
+          $1,
+          20,
+          5,
+          -170,
+          170,
+          100
+        )
+      `,
+      [viewerId],
+    );
+
+    assertEquals(
+      new Set(mapRows.rows.map((row) => row.post_id)),
+      new Set([easternPostId, westernPostId]),
+    );
+  });
+});
+
+Deno.test("Explore map DB - blocked authors and media-cleared scans are excluded from map results", async () => {
+  await withExploreDbTest("exploreMapDb.test", async (client: Client) => {
+    const viewerId = crypto.randomUUID();
+    const visibleOwnerId = crypto.randomUUID();
+    const blockedOwnerId = crypto.randomUUID();
+    const mediaClearedOwnerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+
+    await insertUser(client, viewerId, "Map Viewer");
+    await insertUser(client, visibleOwnerId, "Visible Map Owner");
+    await insertUser(client, blockedOwnerId, "Blocked Map Owner");
+    await insertUser(client, mediaClearedOwnerId, "Media Cleared Map Owner");
+    await insertSpecies(client, speciesId, "Rosa mapensis");
+
+    const visibleScanId = crypto.randomUUID();
+    const blockedScanId = crypto.randomUUID();
+    const mediaClearedScanId = crypto.randomUUID();
+    const visiblePostId = crypto.randomUUID();
+    const blockedPostId = crypto.randomUUID();
+    const mediaClearedPostId = crypto.randomUUID();
+
+    await insertScan(client, {
+      id: visibleScanId,
+      userId: visibleOwnerId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "open",
+    });
+    await insertScan(client, {
+      id: blockedScanId,
+      userId: blockedOwnerId,
+      speciesId,
+      latitude: 30.2772,
+      longitude: -97.7531,
+      geoprivacy: "open",
+    });
+    await insertScan(client, {
+      id: mediaClearedScanId,
+      userId: mediaClearedOwnerId,
+      speciesId,
+      latitude: 30.2872,
+      longitude: -97.7631,
+      geoprivacy: "open",
+    });
+
+    await insertExplorePost(client, {
+      id: visiblePostId,
+      userId: visibleOwnerId,
+      scanId: visibleScanId,
+    });
+    await insertExplorePost(client, {
+      id: blockedPostId,
+      userId: blockedOwnerId,
+      scanId: blockedScanId,
+    });
+    await insertExplorePost(client, {
+      id: mediaClearedPostId,
+      userId: mediaClearedOwnerId,
+      scanId: mediaClearedScanId,
+    });
+
+    await client.queryArray(
+      `
+        INSERT INTO public.user_blocks (blocker_id, blocked_id)
+        VALUES ($1, $2)
+      `,
+      [viewerId, blockedOwnerId],
+    );
+
+    await client.queryArray(
+      `
+        UPDATE public.scans
+        SET image_storage_urls = '{}'::text[]
+        WHERE id = $1
+      `,
+      [mediaClearedScanId],
+    );
+
+    const mapRows = await client.queryObject<ExploreMapRow>(
+      `
+        SELECT post_id, latitude, longitude, coordinate_visibility
+        FROM public.get_explore_map_posts(
+          $1,
+          31,
+          30,
+          -97.4,
+          -98.0,
+          100
+        )
+      `,
+      [viewerId],
+    );
+
+    assertEquals(mapRows.rows.map((row) => row.post_id), [visiblePostId]);
+  });
+});

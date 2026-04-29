@@ -71,6 +71,11 @@ struct ExploreView: View {
         .task {
             await viewModel.loadInitialFeed()
         }
+        .onChange(of: activeTab) { _, newValue in
+            if newValue == .map {
+                AppTelemetry.trackExploreMapOpened()
+            }
+        }
         .task {
             await viewModel.startUnreadNotificationUpdates()
 

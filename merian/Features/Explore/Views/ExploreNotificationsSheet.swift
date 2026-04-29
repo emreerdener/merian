@@ -53,6 +53,15 @@ struct ExploreNotificationsSheet: View {
                             Task { await openNotification(notification) }
                         }
                     )
+                    .onAppear {
+                        Task { await viewModel.loadMoreIfNeeded(currentNotification: notification) }
+                    }
+                }
+
+                if viewModel.isLoadingMore {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .padding(.vertical, 8)
                 }
             }
             .padding(.horizontal, 16)
@@ -60,7 +69,7 @@ struct ExploreNotificationsSheet: View {
             .padding(.bottom, 24)
         }
         .refreshable {
-            await fetchNotifications()
+            await fetchNotifications(force: true)
         }
     }
 
@@ -90,7 +99,7 @@ struct ExploreNotificationsSheet: View {
             message: message
         ) {
             Button {
-                Task { await fetchNotifications() }
+                Task { await fetchNotifications(force: true) }
             } label: {
                 Text("Try again")
                     .font(.subheadline)
@@ -100,8 +109,8 @@ struct ExploreNotificationsSheet: View {
         }
     }
 
-    private func fetchNotifications() async {
-        let didClearUnread = await viewModel.fetchNotifications()
+    private func fetchNotifications(force: Bool = false) async {
+        let didClearUnread = await viewModel.fetchNotifications(force: force)
         if didClearUnread {
             onUnreadNotificationsCleared()
         }

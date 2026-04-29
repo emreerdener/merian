@@ -1,3 +1,7 @@
+-- Kept for remote migration-history compatibility.
+-- Some environments already applied this intermediate feed cursor RPC before the
+-- canonical replacement migration below landed. The follow-up migration
+-- `20260428231500_replace_explore_feed_with_cursor_rpc.sql` safely replaces it.
 CREATE INDEX IF NOT EXISTS idx_explore_posts_active_shared_at_id
     ON public.explore_posts(shared_at DESC, id DESC)
     WHERE unshared_at IS NULL;

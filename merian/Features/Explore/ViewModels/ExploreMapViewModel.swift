@@ -4,6 +4,16 @@ import MapKit
 import Observation
 import SwiftUI
 
+private struct ExploreMapCacheEntry {
+    var region: MKCoordinateRegion
+    var response: ExploreMapPointsResponse
+    var lastAccessedAt: Date
+
+    var itemCount: Int {
+        response.posts.count + response.clusters.count
+    }
+}
+
 @MainActor
 @Observable
 final class ExploreMapViewModel {
@@ -21,10 +31,14 @@ final class ExploreMapViewModel {
     var visibleCount = 0
 
     @ObservationIgnored private let maxPostLimit = 500
+    @ObservationIgnored private let maxCachedRegions = 8
+    @ObservationIgnored private let maxCachedItems = 1_400
+    @ObservationIgnored private let freshCacheTTL: TimeInterval = 90
     @ObservationIgnored private let fallbackRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 20, longitude: 0),
         span: MKCoordinateSpan(latitudeDelta: 90, longitudeDelta: 120)
     )
+    @ObservationIgnored private var cachedResponses: [ExploreMapCacheEntry] = []
 
     var selectedPost: ExploreMapPost? {
         guard let selectedPostId else { return nil }
@@ -135,6 +149,12 @@ final class ExploreMapViewModel {
     private func fetchMapPoints(for region: MKCoordinateRegion) async {
         guard !isLoading else { return }
 
+        let now = Date()
+        let cachedWasFresh = applyCachedResponseIfAvailable(for: region, now: now)
+        if cachedWasFresh {
+            return
+        }
+
         isLoading = true
         defer { isLoading = false }
 
@@ -147,19 +167,8 @@ final class ExploreMapViewModel {
                 zoomLevel: zoomLevel(for: region),
                 limit: maxPostLimit
             )
-
-            mode = response.mode
-            clusters = response.clusters
-            posts = Array(response.posts.prefix(maxPostLimit))
-            visibleCount = response.visibleCount
-            errorMessage = nil
-            isOffline = false
-            needsSearchInArea = false
-            lastCommittedRegion = region
-
-            if let selectedPostId, posts.contains(where: { $0.id == selectedPostId }) == false {
-                self.selectedPostId = nil
-            }
+            storeCachedResponse(response, for: region, now: now)
+            apply(response: response, for: region)
         } catch let urlError as URLError {
             if isOfflineError(urlError) {
                 isOffline = true
@@ -177,6 +186,21 @@ final class ExploreMapViewModel {
             errorMessage = posts.isEmpty && clusters.isEmpty
                 ? ExploreErrorFormatter.message(for: error)
                 : nil
+        }
+    }
+
+    private func apply(response: ExploreMapPointsResponse, for region: MKCoordinateRegion) {
+        mode = response.mode
+        clusters = response.clusters
+        posts = Array(response.posts.prefix(maxPostLimit))
+        visibleCount = response.visibleCount
+        errorMessage = nil
+        isOffline = false
+        needsSearchInArea = false
+        lastCommittedRegion = region
+
+        if let selectedPostId, posts.contains(where: { $0.id == selectedPostId }) == false {
+            self.selectedPostId = nil
         }
     }
 
@@ -202,8 +226,72 @@ final class ExploreMapViewModel {
         let zoomDelta = abs(lhs.span.longitudeDelta - rhs.span.longitudeDelta) / max(rhs.span.longitudeDelta, 0.000_01)
 
         return abs(lhs.center.latitude - rhs.center.latitude) > latitudeThreshold
-            || abs(lhs.center.longitude - rhs.center.longitude) > longitudeThreshold
+            || wrappedLongitudeDelta(lhs.center.longitude, rhs.center.longitude) > longitudeThreshold
             || zoomDelta > 0.22
+    }
+
+    private func applyCachedResponseIfAvailable(for region: MKCoordinateRegion, now: Date) -> Bool {
+        guard let cacheIndex = cachedResponseIndex(for: region) else { return false }
+
+        let cachedEntry = cachedResponses[cacheIndex]
+        cachedResponses[cacheIndex].lastAccessedAt = now
+        apply(response: cachedEntry.response, for: region)
+        pruneCachedResponses(around: region)
+
+        return now.timeIntervalSince(cachedEntry.lastAccessedAt) < freshCacheTTL
+    }
+
+    private func cachedResponseIndex(for region: MKCoordinateRegion) -> Int? {
+        cachedResponses.indices
+            .filter { regionsAreCacheCompatible(cachedResponses[$0].region, region) }
+            .max(by: { cachedResponses[$0].lastAccessedAt < cachedResponses[$1].lastAccessedAt })
+    }
+
+    private func storeCachedResponse(_ response: ExploreMapPointsResponse, for region: MKCoordinateRegion, now: Date) {
+        let entry = ExploreMapCacheEntry(region: region, response: response, lastAccessedAt: now)
+
+        if let existingIndex = cachedResponseIndex(for: region) {
+            cachedResponses[existingIndex] = entry
+        } else {
+            cachedResponses.append(entry)
+        }
+
+        pruneCachedResponses(around: region)
+    }
+
+    private func pruneCachedResponses(around region: MKCoordinateRegion) {
+        let expandedRegion = region.expanded(by: 2.5)
+        cachedResponses.removeAll { expandedRegion.contains($0.region.center) == false }
+        cachedResponses.sort { $0.lastAccessedAt > $1.lastAccessedAt }
+
+        if cachedResponses.count > maxCachedRegions {
+            cachedResponses = Array(cachedResponses.prefix(maxCachedRegions))
+        }
+
+        var totalItems = cachedResponses.reduce(0) { $0 + $1.itemCount }
+        while totalItems > maxCachedItems, let lastEntry = cachedResponses.last {
+            cachedResponses.removeLast()
+            totalItems -= lastEntry.itemCount
+        }
+    }
+
+    private func regionsAreCacheCompatible(_ lhs: MKCoordinateRegion, _ rhs: MKCoordinateRegion) -> Bool {
+        let latitudeThreshold = max(max(lhs.span.latitudeDelta, rhs.span.latitudeDelta) * 0.12, 0.01)
+        let longitudeThreshold = max(max(lhs.span.longitudeDelta, rhs.span.longitudeDelta) * 0.12, 0.01)
+        let latitudeSpanRatio = max(lhs.span.latitudeDelta, rhs.span.latitudeDelta)
+            / max(min(lhs.span.latitudeDelta, rhs.span.latitudeDelta), 0.000_01)
+        let longitudeSpanRatio = max(lhs.span.longitudeDelta, rhs.span.longitudeDelta)
+            / max(min(lhs.span.longitudeDelta, rhs.span.longitudeDelta), 0.000_01)
+
+        return abs(lhs.center.latitude - rhs.center.latitude) <= latitudeThreshold
+            && wrappedLongitudeDelta(lhs.center.longitude, rhs.center.longitude) <= longitudeThreshold
+            && latitudeSpanRatio <= 1.18
+            && longitudeSpanRatio <= 1.18
+    }
+
+    private func wrappedLongitudeDelta(_ lhs: Double, _ rhs: Double) -> Double {
+        let delta = abs(lhs - rhs).truncatingRemainder(dividingBy: 360)
+        return min(delta, 360 - delta)
     }
 
     private func isOfflineError(_ error: URLError) -> Bool {
@@ -231,6 +319,27 @@ private extension MKCoordinateRegion {
 
     var westLongitude: Double {
         wrappedLongitude(center.longitude - (span.longitudeDelta / 2))
+    }
+
+    func expanded(by factor: Double) -> MKCoordinateRegion {
+        MKCoordinateRegion(
+            center: center,
+            span: MKCoordinateSpan(
+                latitudeDelta: min(span.latitudeDelta * factor, 180),
+                longitudeDelta: min(span.longitudeDelta * factor, 360)
+            )
+        )
+    }
+
+    func contains(_ coordinate: CLLocationCoordinate2D) -> Bool {
+        let latitudeContains = coordinate.latitude >= southLatitude && coordinate.latitude <= northLatitude
+        guard latitudeContains else { return false }
+
+        if westLongitude <= eastLongitude {
+            return coordinate.longitude >= westLongitude && coordinate.longitude <= eastLongitude
+        }
+
+        return coordinate.longitude >= westLongitude || coordinate.longitude <= eastLongitude
     }
 
     private func wrappedLongitude(_ value: Double) -> Double {

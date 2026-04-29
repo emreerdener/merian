@@ -1,3 +1,7 @@
+-- Canonical Explore feed cursor migration.
+-- This replaces the earlier temporary cursor RPC experiment while preserving
+-- a safe forward migration path for any local environments that may already
+-- have applied it.
 CREATE INDEX IF NOT EXISTS idx_explore_posts_active_shared_at_id
     ON public.explore_posts(shared_at DESC, id DESC)
     WHERE unshared_at IS NULL;

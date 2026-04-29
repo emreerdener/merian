@@ -40,6 +40,15 @@ export function normalizeOffset(rawValue: unknown): number {
   return Math.max(0, Math.floor(rawValue));
 }
 
+export function normalizeCursorTimestamp(rawValue: unknown, fieldName: string): string | null {
+  if (rawValue == null) return null;
+  if (typeof rawValue !== "string" || !Number.isFinite(Date.parse(rawValue))) {
+    throw makeHttpError(400, `${fieldName} must be a valid ISO 8601 timestamp.`);
+  }
+
+  return rawValue;
+}
+
 export async function syncPublicAuthorIdentity(
   userId: string,
   supabaseAdmin: SupabaseClient,

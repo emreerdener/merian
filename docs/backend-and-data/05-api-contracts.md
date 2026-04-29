@@ -525,14 +525,21 @@ Returns the viewer's in-app Explore activity feed. The request body is optional:
 
 ```json
 {
-  "limit": 50,
-  "offset": 0
+  "limit": 50
 }
 ```
 
 - `limit` defaults to `50` and is capped server-side.
-- `offset` defaults to `0`.
 - The read path mirrors Explore visibility rules: unshared posts, tombstoned scans, posts with no remaining media, private-geoprivacy scans, shadowbanned owners, blocked actors, and soft-deleted comments are filtered out.
+- Pagination is cursor-based on `(updated_at DESC, notification_id DESC)`. Follow-up page requests send:
+
+```json
+{
+  "limit": 50,
+  "before_updated_at": "2026-04-27T12:05:00.000Z",
+  "before_notification_id": "uuid"
+}
+```
 
 Current response shape:
 
@@ -648,6 +655,7 @@ The Explore detail page additionally uses:
 - `weather_condition` + `weather_temperature_f` for optional public weather telemetry
 - `/get-explore-comments` for the inline thread and composer state
 - `/get-explore-unread-notification-count` for the bell badge and `/get-explore-notifications` plus `/mark-explore-notifications-read` for the in-app activity sheet
+- cursor-based activity pagination on `(updated_at, notification_id)` so the notifications sheet does not skip or duplicate rows during active usage
 - `/register-push-device` to sync the APNs token plus the Explore-specific push preference
 
 The Explore map additionally uses:

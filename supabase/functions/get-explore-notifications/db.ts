@@ -15,16 +15,22 @@ export interface ExploreNotificationRow {
   updated_at: string;
 }
 
+interface ExploreNotificationsCursor {
+  beforeUpdatedAt: string | null;
+  beforeNotificationId: string | null;
+}
+
 export async function fetchExploreNotifications(
   userId: string,
   limit: number,
-  offset: number,
+  cursor: ExploreNotificationsCursor,
   supabaseAdmin: SupabaseClient,
 ): Promise<ExploreNotificationRow[]> {
   const { data, error } = await supabaseAdmin.rpc("get_explore_notifications", {
     self_id: userId,
     max_limit: limit,
-    notification_offset: offset,
+    before_updated_at: cursor.beforeUpdatedAt,
+    before_notification_id: cursor.beforeNotificationId,
   });
 
   if (error) {

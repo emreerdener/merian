@@ -65,6 +65,31 @@ enum AppTelemetry {
         send("ExploreNotificationsFetchFailed", with: ["context": context])
     }
 
+    /// Records the user opening the Explore map tab.
+    static func trackExploreMapOpened() {
+        send("ExploreMapOpened")
+    }
+
+    /// Records an explicit map-area search action.
+    static func trackExploreMapSearchTriggered(reason: String) {
+        send("ExploreMapSearchTriggered", with: ["reason": reason])
+    }
+
+    /// Records tapping a cluster on the Explore map.
+    static func trackExploreMapClusterTapped() {
+        send("ExploreMapClusterTapped")
+    }
+
+    /// Records opening a map preview from a waypoint tap.
+    static func trackExploreMapPreviewOpened(coordinateVisibility: String) {
+        send("ExploreMapPreviewOpened", with: ["coordinateVisibility": coordinateVisibility])
+    }
+
+    /// Records opening the Explore detail flow from the map preview.
+    static func trackExploreMapDetailOpened(entryPoint: String) {
+        send("ExploreMapDetailOpened", with: ["entryPoint": entryPoint])
+    }
+
     /// Records a failed attempt to open an Explore notification target.
     static func trackExploreNotificationOpenFailed(type: String) {
         send("ExploreNotificationOpenFailed", with: ["type": type])

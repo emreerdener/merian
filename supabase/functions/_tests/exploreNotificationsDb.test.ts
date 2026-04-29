@@ -161,6 +161,12 @@ type PushPayloadRow = {
   recent_actor_names: string[];
 };
 
+type NotificationCursorRow = {
+  notification_id: string;
+  updated_at: string;
+  type: "like_aggregated" | "comment";
+};
+
 Deno.test("Explore notifications DB - like aggregation, RPC fetch, mark read, and unlike cleanup", async () => {
   await withDbTest(async (client) => {
     const { ownerId, postId } = await seedVisibleExplorePost(client);
@@ -213,7 +219,7 @@ Deno.test("Explore notifications DB - like aggregation, RPC fetch, mark read, an
     const feedResult = await client.queryObject<NotificationFeedRow>(
       `
         SELECT *
-        FROM public.get_explore_notifications($1, 50, 0)
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
         WHERE type = 'like_aggregated'
       `,
       [ownerId],
@@ -313,7 +319,7 @@ Deno.test("Explore notifications DB - comment lifecycle suppresses self and recr
     let feedResult = await client.queryObject<NotificationFeedRow>(
       `
         SELECT *
-        FROM public.get_explore_notifications($1, 50, 0)
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
         WHERE type = 'comment'
       `,
       [ownerId],
@@ -347,7 +353,7 @@ Deno.test("Explore notifications DB - comment lifecycle suppresses self and recr
     feedResult = await client.queryObject<NotificationFeedRow>(
       `
         SELECT *
-        FROM public.get_explore_notifications($1, 50, 0)
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
         WHERE type = 'comment'
       `,
       [ownerId],
@@ -375,7 +381,7 @@ Deno.test("Explore notifications DB - comment lifecycle suppresses self and recr
     feedResult = await client.queryObject<NotificationFeedRow>(
       `
         SELECT *
-        FROM public.get_explore_notifications($1, 50, 0)
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
         WHERE type = 'comment'
       `,
       [ownerId],
@@ -441,7 +447,7 @@ Deno.test("Explore notifications DB - blocked comment actors are filtered and un
     let feedResult = await client.queryObject<NotificationFeedRow>(
       `
         SELECT *
-        FROM public.get_explore_notifications($1, 50, 0)
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
         WHERE type = 'comment'
       `,
       [ownerId],
@@ -490,5 +496,131 @@ Deno.test("Explore notifications DB - blocked comment actors are filtered and un
       [ownerId],
     );
     assertEquals(notificationCountResult.rows[0]?.count, 0);
+  });
+});
+
+Deno.test("Explore notifications DB - cursor pagination preserves stable ordering across updated_at ties", async () => {
+  await withDbTest(async (client) => {
+    const { ownerId, postId } = await seedVisibleExplorePost(client, "Cursor Owner");
+    const actorOneId = crypto.randomUUID();
+    const actorTwoId = crypto.randomUUID();
+    const actorThreeId = crypto.randomUUID();
+    const commentOneId = crypto.randomUUID();
+    const commentTwoId = crypto.randomUUID();
+
+    await insertUser(client, actorOneId, "Cursor Actor One");
+    await insertUser(client, actorTwoId, "Cursor Actor Two");
+    await insertUser(client, actorThreeId, "Cursor Actor Three");
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, user_id, body, created_at)
+        VALUES
+          ($1, $2, $3, 'First cursor comment', '2026-04-28T12:00:00Z'),
+          ($4, $2, $5, 'Second cursor comment', '2026-04-28T12:01:00Z')
+      `,
+      [commentOneId, postId, actorOneId, commentTwoId, actorTwoId],
+    );
+
+    const notificationIdOne = "00000000-0000-0000-0000-000000000010";
+    const notificationIdTwo = "00000000-0000-0000-0000-000000000020";
+    const notificationIdThree = "00000000-0000-0000-0000-000000000030";
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_notifications (
+          id,
+          user_id,
+          post_id,
+          type,
+          comment_id,
+          triggering_user_id,
+          recent_actor_ids,
+          action_count,
+          is_read,
+          created_at,
+          updated_at
+        )
+        VALUES
+          (
+            $1,
+            $2,
+            $3,
+            'comment',
+            $4,
+            $5,
+            ARRAY[]::UUID[],
+            1,
+            FALSE,
+            '2026-04-28T12:00:00Z',
+            '2026-04-28T12:10:00Z'
+          ),
+          (
+            $6,
+            $2,
+            $3,
+            'comment',
+            $7,
+            $8,
+            ARRAY[]::UUID[],
+            1,
+            FALSE,
+            '2026-04-28T12:01:00Z',
+            '2026-04-28T12:10:00Z'
+          ),
+          (
+            $9,
+            $2,
+            $3,
+            'like_aggregated',
+            NULL,
+            $10,
+            ARRAY[$10, $5]::UUID[],
+            2,
+            FALSE,
+            '2026-04-28T11:59:00Z',
+            '2026-04-28T12:05:00Z'
+          )
+      `,
+      [
+        notificationIdOne,
+        ownerId,
+        postId,
+        commentOneId,
+        actorOneId,
+        notificationIdTwo,
+        commentTwoId,
+        actorTwoId,
+        notificationIdThree,
+        actorThreeId,
+      ],
+    );
+
+    const firstPage = await client.queryObject<NotificationCursorRow>(
+      `
+        SELECT notification_id, updated_at::text AS updated_at, type
+        FROM public.get_explore_notifications($1, 2, NULL, NULL)
+      `,
+      [ownerId],
+    );
+
+    assertEquals(
+      firstPage.rows.map((row) => row.notification_id),
+      [notificationIdTwo, notificationIdOne],
+    );
+
+    const cursor = firstPage.rows[1];
+    const secondPage = await client.queryObject<NotificationCursorRow>(
+      `
+        SELECT notification_id, updated_at::text AS updated_at, type
+        FROM public.get_explore_notifications($1, 2, $2::timestamptz, $3::uuid)
+      `,
+      [ownerId, cursor.updated_at, cursor.notification_id],
+    );
+
+    assertEquals(
+      secondPage.rows.map((row) => row.notification_id),
+      [notificationIdThree],
+    );
   });
 });
