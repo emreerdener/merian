@@ -7,6 +7,7 @@ import SwiftUI
 @ModelActor
 actor ProfileDatabaseActor {
     private struct ProfileAnalyticsProjection: AchievementRecordRepresentable {
+        let id: String
         let scientificName: String
         let taxonomyKingdom: String?
         let taxonomyClass: String?
@@ -23,7 +24,7 @@ actor ProfileDatabaseActor {
     private func fetchAnalyticsProjection() -> [ProfileAnalyticsProjection] {
         var descriptor = FetchDescriptor<LocalScanRecord>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         descriptor.propertiesToFetch = [
-            \.scientificName, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType,
+            \.id, \.scientificName, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType,
             \.weatherTemperatureF, \.gpsElevation, \.timestamp, \.isInvasive,
             \.iucnRedListStatus, \.hazardType, \.confidenceScore
         ]
@@ -31,6 +32,7 @@ actor ProfileDatabaseActor {
         guard let records = try? modelContext.fetch(descriptor) else { return [] }
         return records.map {
             ProfileAnalyticsProjection(
+                id: $0.id,
                 scientificName: $0.scientificName,
                 taxonomyKingdom: $0.taxonomyKingdom,
                 taxonomyClass: $0.taxonomyClass,
@@ -196,6 +198,10 @@ actor ProfileDatabaseActor {
 
     func calculateAwardsProjection() -> [AwardPayload] {
         AchievementsCalculator.calculate(from: fetchAnalyticsProjection())
+    }
+
+    func calculateAchievementDetail(for type: String) -> AchievementDetailPayload? {
+        AchievementsCalculator.detail(for: type, from: fetchAnalyticsProjection())
     }
     
 }

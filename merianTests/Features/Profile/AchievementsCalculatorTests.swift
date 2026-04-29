@@ -174,4 +174,48 @@ final class AchievementsCalculatorTests: XCTestCase {
         let awards = AchievementsCalculator.calculate(from: scans)
         XCTAssertEqual(awards.first { $0.type == "conservationist" }?.currentCount, 2, "Only legitimate IUCN vulnerability layers trigger Conservationist mathematically")
     }
+
+    func testAchievementDetailDeduplicatesContributingScans() {
+        let newest = Date()
+        let older = newest.addingTimeInterval(-3600)
+        let oldest = newest.addingTimeInterval(-7200)
+
+        let scans = [
+            mockScan(id: "fungi_latest", scientificName: "Amanita muscaria", timestamp: newest, taxonomyKingdom: "fungi"),
+            mockScan(id: "fungi_duplicate", scientificName: "Amanita muscaria", timestamp: older, taxonomyKingdom: "fungi"),
+            mockScan(id: "fungi_second", scientificName: "Boletus edulis", timestamp: oldest, taxonomyKingdom: "fungi")
+        ]
+
+        let detail = AchievementsCalculator.detail(for: "fungi", from: scans)
+
+        XCTAssertEqual(detail?.award.currentCount, 2)
+        XCTAssertEqual(detail?.contributions.map(\.id), ["fungi_latest", "fungi_second"])
+    }
+
+    func testFirstScanDetailUsesOldestScanInHistory() {
+        let newest = Date()
+        let middle = newest.addingTimeInterval(-3600)
+        let oldest = newest.addingTimeInterval(-7200)
+
+        let scans = [
+            mockScan(id: "newest", scientificName: "Latest Species", timestamp: newest),
+            mockScan(id: "middle", scientificName: "Middle Species", timestamp: middle),
+            mockScan(id: "oldest", scientificName: "First Species", timestamp: oldest)
+        ]
+
+        let detail = AchievementsCalculator.detail(for: "first_scan", from: scans)
+
+        XCTAssertEqual(detail?.contributions.map(\.id), ["oldest"])
+        XCTAssertEqual(detail?.award.lastInteractionDate, oldest)
+    }
+
+    func testPerfectLensDetailIncludesQualifyingReason() {
+        let scans = [
+            mockScan(id: "perfect", scientificName: "Sharp Plant", confidenceScore: 0.991)
+        ]
+
+        let detail = AchievementsCalculator.detail(for: "perfect_lens", from: scans)
+
+        XCTAssertEqual(detail?.contributions.first?.reasonText, "99% AI confidence")
+    }
 }

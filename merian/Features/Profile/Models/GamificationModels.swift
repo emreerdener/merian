@@ -2,12 +2,27 @@ import Foundation
 
 // MARK: - Gamification Payloads
 public struct AwardPayload: Sendable, Identifiable {
-    public let id = UUID()
     public let title: String
     public let type: String
     public let currentCount: Int
     public let targetCount: Int
     public let lastInteractionDate: Date?
+
+    public var id: String { type }
+}
+
+public struct AchievementContribution: Sendable, Identifiable, Hashable {
+    public let id: String
+    public let scientificName: String
+    public let timestamp: Date
+    public let reasonText: String
+}
+
+public struct AchievementDetailPayload: Sendable, Identifiable {
+    public let award: AwardPayload
+    public let contributions: [AchievementContribution]
+
+    public var id: String { award.id }
 }
 
 extension AwardPayload {
