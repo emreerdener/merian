@@ -35,6 +35,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/features-and-hardware/10-watchos-integration.md`](./features-and-hardware/10-watchos-integration.md)** — watchOS companion target: acoustic capture pipeline, WatchConnectivity delivery, and iOS receiver status.
 - **[`/features-and-hardware/11-describe-and-voice-dictation.md`](./features-and-hardware/11-describe-and-voice-dictation.md)** — Describe capture mode: `ObservationContext` state ownership, `SpeechManager` AVAudioEngine + SFSpeechRecognizer pipeline, dictation task lifecycle, and Swift 6 concurrency guarantees.
 - **[`/features-and-hardware/12-audio-listen-mode.md`](./features-and-hardware/12-audio-listen-mode.md)** — Audio Listen Mode: `SpectrogramActor` FFT/mel-scale DSP, `AudioCaptureManager` 12-second recording pipeline, live `SpectrogramView` Canvas UI, SNR gauge, and `OfflineQueueManager.enqueueAudio` durability path.
+- **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map product/RPC architecture, including the shipped V1 map implementation and follow-up recommendations.
 - **[`/rfcs/geological-expansions.md`](./rfcs/geological-expansions.md)** — Roadmap for extending inference to rocks, minerals, and fossils.
 
 ### Development Guides

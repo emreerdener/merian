@@ -365,6 +365,89 @@ This endpoint exists so Explore can render public species cards on the detail pa
 
 That means the Explore detail page automatically hides the reasoning if the user later flags the identification or overrides it, while still allowing AI-confirmed scans to show the original per-photo reasoning.
 
+### `/get-explore-map-points`
+
+Returns privacy-safe Explore map data for the currently visible bounds. The request body is:
+
+```json
+{
+  "north_latitude": 30.489,
+  "south_latitude": 30.139,
+  "east_longitude": -97.517,
+  "west_longitude": -98.001,
+  "zoom_level": 10.7,
+  "limit": 500
+}
+```
+
+- `north_latitude`, `south_latitude`, `east_longitude`, and `west_longitude` are required numeric bounds.
+- `zoom_level` is used only to decide whether the response should be clustered or return individual posts.
+- `limit` is optional and capped at `500`.
+
+The Edge Function reads `public.get_explore_map_posts(...)` and then applies zoom-aware clustering in `supabase/functions/get-explore-map-points/cluster.ts`. The shipped behavior is:
+
+- when the visible result set is small, return `mode: "posts"`
+- when the viewport is broad or dense, return `mode: "clusters"`
+- at close zooms, individual posts are still capped to prevent annotation overload
+
+Current response shapes:
+
+```json
+{
+  "mode": "clusters",
+  "visible_count": 243,
+  "clusters": [
+    {
+      "id": "3015:2057",
+      "latitude": 30.267,
+      "longitude": -97.743,
+      "post_count": 36
+    }
+  ],
+  "posts": []
+}
+```
+
+```json
+{
+  "mode": "posts",
+  "visible_count": 24,
+  "clusters": [],
+  "posts": [
+    {
+      "post_id": "uuid",
+      "scan_id": "uuid",
+      "latitude": 30.267,
+      "longitude": -97.743,
+      "coordinate_visibility": "obscured",
+      "hero_image_url": "https://...",
+      "shared_at": "2026-04-28T21:18:00.000Z",
+      "author_user_id": "uuid",
+      "author_name": "Nina P.",
+      "author_avatar_url": "https://...",
+      "species_common_name": "Monarch Butterfly",
+      "species_scientific_name": "Danaus plexippus",
+      "public_location_label": "Austin, TX",
+      "time_of_day": "afternoon",
+      "current_month": 4,
+      "weather_condition": "clear",
+      "weather_temperature_f": 78.2,
+      "like_count": 12,
+      "comment_count": 3,
+      "viewer_has_liked": false,
+      "is_owned_by_viewer": false
+    }
+  ]
+}
+```
+
+Privacy and filtering rules:
+
+- the map excludes unshared posts, tombstoned scans, scans with no remaining image URLs, private geoprivacy scans, shadowbanned authors, and both directions of user blocking
+- `coordinate_visibility` communicates whether a point is exact or approximate
+- the shipped map projection currently comes from `public.scans.gps_lat_public` / `gps_long_public`, not from stored coordinates on `explore_posts`
+- migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added the `trg_sync_scan_public_coordinates` trigger plus a server-side fallback in `public.get_explore_map_posts(...)`, preventing newly shared scans with only exact coordinates from disappearing from the map
+
 ### `/get-explore-comments`
 
 Returns comment rows for a single Explore post. The read path enforces the same private-geoprivacy and mutual-block filters as the feed. Comment rows include the public author label plus three viewer capability flags:
@@ -380,6 +463,7 @@ This endpoint powers both the feed's bottom-sheet comments view and the inline c
 - `share-scan-to-explore` creates or reactivates a manual-share Explore post for an eligible biological image scan.
 - `unshare-explore-post` soft-removes the post from the public feed via `unshared_at` without deleting the underlying scan.
 - Unsharing also purges any Explore notifications tied to that post so the activity feed cannot route into hidden content.
+- The current Explore map reads privacy-safe coordinates from the backing `scans` row. `trg_sync_scan_public_coordinates` ensures those public coordinates are derived or backfilled even when a scan was originally inserted with only exact GPS fields.
 
 ### `/set-explore-post-like`
 
@@ -523,9 +607,12 @@ The Explore client decodes these endpoints via:
 - `merian/Core/Network/ExploreAPIModels.swift`
 - `merian/Core/Network/MerianNetworkClient.swift`
 - `merian/Features/Explore/ViewModels/ExploreFeedViewModel.swift`
+- `merian/Features/Explore/ViewModels/ExploreFeedViewModel+Interactions.swift`
 - `merian/Features/Explore/ViewModels/ExploreFeedViewModel+Notifications.swift`
+- `merian/Features/Explore/ViewModels/ExploreMapViewModel.swift`
 - `merian/Features/Explore/ViewModels/ExploreNotificationsViewModel.swift`
 - `merian/Features/Explore/Models/ExploreNotification.swift`
+- `merian/Features/Explore/Views/ExploreMapView.swift`
 
 The current feed UI uses only a subset of the payload for visible card rendering:
 
@@ -548,6 +635,13 @@ The Explore detail page additionally uses:
 - `/get-explore-comments` for the inline thread and composer state
 - `/get-explore-unread-notification-count` for the bell badge and `/get-explore-notifications` plus `/mark-explore-notifications-read` for the in-app activity sheet
 - `/register-push-device` to sync the APNs token plus the Explore-specific push preference
+
+The Explore map additionally uses:
+
+- `/get-explore-map-points` for cluster or waypoint payloads in the current visible region
+- `ExploreMapPointsResponse`, `ExploreMapCluster`, and `ExploreMapPost` from `ExploreAPIModels.swift`
+- `ExploreFeedViewModel` as the current shared in-memory mutation source, so likes, unshares, reports, and blocks stay synchronized between the feed tab and the map preview card
+- a two-step interaction in `ExploreMapView`: tap a waypoint to select and preview, then open `ExplorePostDetailView`
 
 Time and weather metadata remain in the contract for future Explore presentation experiments, but are not currently rendered on the primary feed card.
 

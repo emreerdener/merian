@@ -63,12 +63,16 @@ The `/identify-multimodal` Edge Function is the primary client-facing inference 
 Explore uses a dedicated set of Edge Functions and SQL RPCs rather than sharing the identify pipeline. The current shipped surface includes:
 
 - feed + detail reads: `get-explore-feed`, `get-explore-post`, `get-explore-post-detail`, `get-explore-comments`
+- map reads: `get-explore-map-points`
 - mutations: `share-scan-to-explore`, `unshare-explore-post`, `set-explore-post-like`, `create-explore-comment`, `delete-explore-comment`, `report-explore-comment`
 - activity reads: `get-explore-notifications`, `get-explore-unread-notification-count`, `mark-explore-notifications-read`
+- device registration: `register-push-device`
 
 The in-app notifications feed is backed by `public.explore_post_notifications`, not by local client state. Like notifications are recomputed from the authoritative `explore_post_likes` table after each insert/delete so concurrency cannot drift the aggregate count, comment notifications are created and removed via triggers on `explore_post_comments`, self-notifications are suppressed server-side, and notification rows are pruned when a post is unshared or a comment is author-deleted or owner-moderated.
 
 `get-explore-post` is an important routing helper for the iOS client: it returns a single feed-card projection so notification taps and future deep links do not depend on the target post already existing in the currently paged `ExploreFeedViewModel.posts` array.
+
+The map path is intentionally split into two layers. `public.get_explore_map_posts(...)` is the privacy-safe SQL projection over `explore_posts`, `scans`, `users`, and `species_dictionary`; `get-explore-map-points` adds zoom-aware clustering and returns either clusters or individual post rows. The current shipped implementation does not store map coordinates on `explore_posts`. Instead, `public.scans.gps_lat_public` / `gps_long_public` are normalized by the `trg_sync_scan_public_coordinates` trigger and backfilled by migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql`, which also fixed the regression where newly shared scans with only exact coordinates could be invisible on the Explore map.
 
 Explore activity now supports optional remote APNs delivery on top of the in-app feed. The app registers APNs device tokens through `register-push-device`, stores them in `public.user_push_devices`, and a Postgres trigger on `public.explore_post_notifications` uses `pg_net` to invoke `send-push-notification` whenever a visible notification row is inserted or a like aggregate count increases.
 

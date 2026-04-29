@@ -49,6 +49,17 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 - Complex ranking beyond reverse chronological order
 - Public species pages in this scope
 
+## Shipped V1 Snapshot (2026-04-28)
+
+The Explore feed and map shell are now live. The current shipped implementation is:
+
+- `ExploreView` uses a segmented `Feed` / `Map` toolbar control plus a horizontally paged shell. While the map tab is active, the outer pager swipe is intentionally disabled so map pans win over parent horizontal gestures.
+- `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction.
+- Publication state still lives on `explore_posts`, but the shipped map does not store coordinates on `explore_posts`. Spatial reads currently project privacy-safe coordinates from `public.scans.gps_lat_public` / `gps_long_public` through `public.get_explore_map_posts(...)` and the `get-explore-map-points` edge function.
+- Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` and a server-side fallback so newly shared scans with exact coordinates are normalized/backfilled correctly and do not disappear from the map.
+- `ExploreFeedViewModel` is the current shared in-memory mutation source across feed and map. There is no separate shipped `ExplorePostStore` yet.
+- The feed/map architecture is ahead of the feed pagination architecture: the current shipped feed still pages with `limit + offset`, while cursor paging on `(shared_at, post_id)` remains the recommended next step.
+
 ## Recommended Product Model
 
 Explore should be treated as a publishing layer on top of scans, not as a direct view over every public scan.
@@ -137,13 +148,14 @@ Interaction model:
 
 ## Public Metadata Rules
 
-Explore should never expose exact coordinates.
+Explore feed and detail surfaces should never expose exact coordinates. The map may expose privacy-safe public coordinates only when the underlying scan is eligible for exact public display.
 
 Location:
 
 - Use the scan's existing semantic location data, but sanitize it down to `City, ST` or just `State`.
 - Do not expose exact coordinates, neighborhoods, trails, landmarks, or small-site labels.
 - The feed response should omit latitude and longitude entirely.
+- The map response may include only privacy-safe public coordinates: exact for eligible `open` scans, obscured for protected or obscured scans, and no coordinates at all for `private` scans.
 
 Time:
 
@@ -206,18 +218,27 @@ Suggested fields:
 - `unshared_at TIMESTAMPTZ`
 - `like_count INTEGER NOT NULL DEFAULT 0`
 - `comment_count INTEGER NOT NULL DEFAULT 0`
-- `public_latitude DOUBLE PRECISION NULL`
-- `public_longitude DOUBLE PRECISION NULL`
-- `public_coordinate_visibility TEXT NULL`
-  - Allowed values: `exact`, `obscured`
-- `public_coordinate_version SMALLINT NOT NULL DEFAULT 1`
 
 Suggested constraints:
 
 - Unique active share per scan in V1
 - Query only rows where `unshared_at IS NULL`
 
-Coordinate rules:
+Current shipped note:
+
+- The live Explore map does not currently persist coordinates on `explore_posts`.
+- Spatial reads project from the backing `scans.gps_lat_public` / `gps_long_public` fields through `public.get_explore_map_posts(...)`.
+- `trg_sync_scan_public_coordinates` keeps those scan-layer public coordinates normalized from exact coordinates, geoprivacy, and uncertainty.
+
+Future map-coordinate extension if Explore needs a dedicated post-owned spatial projection:
+
+- `public_latitude DOUBLE PRECISION NULL`
+- `public_longitude DOUBLE PRECISION NULL`
+- `public_coordinate_visibility TEXT NULL`
+  - Allowed values: `exact`, `obscured`
+- `public_coordinate_version SMALLINT NOT NULL DEFAULT 1`
+
+Coordinate rules for that future extension:
 
 - `public_latitude` and `public_longitude` must never store the raw private scan coordinate unless the post is safe to expose as `open`.
 - `public_latitude` and `public_longitude` should be computed at share time from the underlying scan's already-enforced geoprivacy result.
@@ -343,6 +364,7 @@ Pagination:
   - `before_shared_at`
   - `before_post_id`
   - `limit`
+- Current shipped note: the live implementation still uses `limit` + `offset`; this cursor model remains the recommended upgrade path.
 
 Recommended response fields:
 
@@ -388,6 +410,11 @@ Product principle:
 - Map is for spatial browsing.
 - Both must open the same public Explore detail page.
 
+Current backend note:
+
+- `explore_posts` remains the publication state model.
+- The shipped map projection currently comes from `public.scans.gps_lat_public` / `gps_long_public`, joined through `public.get_explore_map_posts(...)`, rather than stored coordinate fields on `explore_posts`.
+
 ### Why Merian Can Beat A Basic Pin Map
 
 The main weakness of competitor-style maps is "pin soup." Once the user zooms out, the product becomes visually dense but informationally weak.
@@ -411,6 +438,7 @@ The Explore sheet already has feed and map tabs. Map V1 should behave like this:
 - Tapping a cluster zooms the camera inward.
 - Tapping an individual point selects it and reveals a compact preview card anchored above the bottom tab bar.
 - Tapping the preview card opens `ExplorePostDetailView` for the same `post_id`.
+- When no results are in view, the shipped empty state uses a top banner only so the map remains fully interactive underneath.
 
 Recommended V1 controls:
 
@@ -459,20 +487,25 @@ Marker treatment:
 
 ### Public Coordinate Strategy
 
-V1 should prefer stored public coordinates over computing fresh jitter in every response.
+The shipped V1 currently normalizes privacy-safe coordinates at the scan layer.
 
-Recommended approach:
+Current approach:
 
-- At share time, read the scan's exact coordinate and geoprivacy
-- If `open`, copy the coordinate into `explore_posts.public_latitude/public_longitude`
-- If `obscured`, compute one stable public display coordinate inside the obscured cell and store that result
-- If `private`, reject the share as already implemented
+- `public.scans.gps_lat_public` / `gps_long_public` are the authoritative Explore map coordinates today.
+- `trg_sync_scan_public_coordinates` derives them from `gps_lat_exact` / `gps_long_exact`, `geoprivacy`, `coordinate_uncertainty_in_meters`, and species safety context.
+- `private` scans produce `NULL` public coordinates and remain absent from the map.
+- `obscured` scans are rounded into a stable coarse public cell rather than re-jittered on every request.
+- `public.get_explore_map_posts(...)` still derives a privacy-safe fallback server-side if a row has not been normalized yet.
 
-Why store the public display point:
+Why this shipped scan-layer approach works:
 
 - Repeated re-jittering creates privacy leakage over multiple requests
 - Stable points make the map feel consistent when users pan away and back
-- The spatial endpoint becomes simpler and faster because it reads directly from `explore_posts`
+- The fallback path fixed the regression where newly shared exact-coordinate scans could exist in Explore but remain invisible on the map
+
+Future refinement:
+
+- If Explore later needs a fully post-owned spatial projection for moderation, archival, or ranking reasons, we can add stored public coordinates to `explore_posts` without changing the current client contract.
 
 ### Backend Query Model
 
@@ -491,11 +524,7 @@ Request shape:
   "east_longitude": -87.568,
   "west_longitude": -87.742,
   "zoom_level": 12.3,
-  "limit": 300,
-  "filters": {
-    "scope": "all",
-    "time_window": "recent"
-  }
+  "limit": 300
 }
 ```
 
@@ -507,12 +536,10 @@ Response shape:
   "visible_count": 243,
   "clusters": [
     {
-      "id": "12:-327:791",
+      "id": "3015:2057",
       "latitude": 41.873,
       "longitude": -87.632,
-      "count": 36,
-      "sample_species_common_name": "Monarch Butterfly",
-      "sample_hero_image_url": "https://..."
+      "post_count": 36
     }
   ],
   "posts": []
@@ -532,12 +559,17 @@ Response shape:
       "longitude": -87.632,
       "coordinate_visibility": "obscured",
       "hero_image_url": "https://...",
+      "author_user_id": "UUID",
       "author_name": "Nina P.",
       "author_avatar_url": "https://...",
       "species_common_name": "Monarch Butterfly",
       "species_scientific_name": "Danaus plexippus",
       "public_location_label": "Chicago, IL",
       "shared_at": "2026-04-28T21:18:00.000Z",
+      "time_of_day": "afternoon",
+      "current_month": 4,
+      "weather_condition": "clear",
+      "weather_temperature_f": 72.4,
       "like_count": 12,
       "comment_count": 3,
       "viewer_has_liked": false,
@@ -560,7 +592,7 @@ Clustering strategy:
 - Plain Postgres bounding-box filtering plus zoom-dependent grid bucketing is sufficient
 - Bucket coordinates using a zoom-dependent snapped grid such as rounded lat/lon cells or `width_bucket`
 - A cluster ID can be derived from the zoom bucket and snapped cell coordinates
-- Add a partial index on public coordinates for active map-visible posts, e.g. rows where `unshared_at IS NULL` and `public_latitude/public_longitude IS NOT NULL`
+- The shipped SQL path already uses a partial public-coordinate index at the scan layer (`idx_scans_public_coordinates_active`); if we ever move to stored post-owned coordinates, add the equivalent index on that projection too
 
 ### Map Preview Payload
 
@@ -584,11 +616,10 @@ Recommended additions:
 
 - `merian/Features/Explore/Views/ExploreMapView.swift`
 - `merian/Features/Explore/ViewModels/ExploreMapViewModel.swift`
-- `merian/Features/Explore/ViewModels/ExplorePostStore.swift`
-- `merian/Features/Explore/Models/ExploreMapPoint.swift`
-- `merian/Features/Explore/Components/ExploreMapPreviewCard.swift`
+- `merian/Core/Network/ExploreAPIModels.swift`
+- `merian/Features/Explore/ViewModels/ExploreFeedViewModel+Interactions.swift`
 
-Recommended state on `ExploreMapViewModel`:
+Current shipped state on `ExploreMapViewModel`:
 
 - `cameraPosition`
 - `visibleRegion`
@@ -599,10 +630,8 @@ Recommended state on `ExploreMapViewModel`:
 - `mode`
 - `clusters`
 - `posts`
-- `selectedPost`
-- `selectedCluster`
+- `selectedPostId`
 - `visibleCount`
-- `activeFilters`
 - `isOffline`
 
 State machine:
@@ -623,19 +652,22 @@ Technical notes:
 - Debounce camera-driven fetch eligibility rather than firing a network request on every frame
 - Reuse the existing Explore detail route already owned by `ExploreView`
 - Keep selection state local to the map view model so the feed view model does not absorb spatial UI concerns
-- Feed and map mutations should converge through a lightweight in-memory `ExplorePostStore` so likes, comment counts, unshares, and moderation changes stay synchronized across tabs
+- In the shipped V1, feed and map mutations converge through `ExploreFeedViewModel`, which acts as the current shared in-memory mutation source for likes, comment counts, unshares, reports, and blocks
 
 ### Search And Caching Behavior
 
-Recommended V1 behavior:
+Current shipped V1 behavior:
 
 - Keep the last successful result set on screen while the user pans
 - Only replace results after a successful "search this area" fetch
-- Cache recent map queries in memory by coarse bounding box plus filter state
-- Prefetch `get-explore-post` only for the selected marker if we want instant detail transitions later
 - Cap rendered individual post annotations to a strict upper bound such as 500
-- Eagerly evict point annotations that fall outside an expanded region around the last committed viewport to prevent unbounded map memory growth during long-distance panning
 - If map fetches fail because the device is offline, show an explicit offline banner rather than silently leaving the map in a stale state
+
+Fast-follow opportunities:
+
+- Cache recent map queries in memory by coarse bounding box plus filter state
+- Eagerly evict point annotations that fall outside an expanded region around the last committed viewport to reduce long-distance panning memory growth
+- Prefetch `get-explore-post` for the selected marker if we want instant detail transitions later
 
 ### Rollout Strategy
 
@@ -693,14 +725,12 @@ Recommended feature module:
 - `merian/Features/Explore/Views/ExploreMapView.swift`
 - `merian/Features/Explore/ViewModels/ExploreFeedViewModel.swift`
 - `merian/Features/Explore/ViewModels/ExploreMapViewModel.swift`
-- `merian/Features/Explore/ViewModels/ExplorePostStore.swift`
+- `merian/Features/Explore/ViewModels/ExploreFeedViewModel+Interactions.swift`
 - `merian/Features/Explore/ViewModels/ExploreFeedViewModel+Notifications.swift`
 - `merian/Features/Explore/ViewModels/ExploreNotificationsViewModel.swift`
 - `merian/Features/Explore/Models/ExploreNotification.swift`
-- `merian/Features/Explore/Models/ExploreMapPoint.swift`
 - `merian/Core/Network/ExploreAPIModels.swift`
 - `merian/Features/Explore/Components/ExplorePostCard.swift`
-- `merian/Features/Explore/Components/ExploreMapPreviewCard.swift`
 - `merian/Features/Explore/Components/ExploreCommentsSheet.swift`
 - `merian/Features/Explore/Components/NotificationRowView.swift`
 - `merian/Features/Explore/Views/ExploreNotificationsSheet.swift`
@@ -720,7 +750,7 @@ Client behavior:
 
 - Explore is online-only in V1
 - Likes/comments/shares do not use the offline queue
-- Feed pagination should be incremental and cursor-based
+- Feed pagination is currently incremental via `limit + offset`; cursor pagination on `(shared_at, post_id)` remains the recommended follow-up
 - Like and comment counts should update optimistically
 - Feed cards can single-tap into detail and double-tap the image to like
 - The map should use a dedicated spatial endpoint rather than piggybacking on feed pagination
@@ -770,10 +800,10 @@ Client behavior:
 ### Phase 6: Explore Map
 
 - Add `get-explore-map-points`
-- Persist privacy-safe public coordinates on `explore_posts`
+- Normalize privacy-safe public coordinates on `scans` through `trg_sync_scan_public_coordinates` and `public.get_explore_map_posts(...)`
 - Add cluster and point rendering in `ExploreMapView`
 - Add a preview-card selection model that routes into `ExplorePostDetailView`
-- Reuse the existing Explore tab shell so users can swipe between feed and map
+- Reuse the existing Explore tab shell; while the map tab is active, disable outer pager swipe so map panning wins over parent gestures
 
 ### Phase 7: Fast Follow Ups
 
@@ -799,7 +829,7 @@ When the public species-page project exists:
 - Authenticated authors can show a public avatar when a provider avatar URL is available.
 - Ghost users can participate with stable aliases.
 - Authenticated users show a safe public author label.
-- Exact coordinates never appear in Explore payloads.
+- Feed and detail payloads never include coordinates; map payloads include only privacy-safe public coordinates.
 - Users can like and comment on posts.
 - Users can externally share posts from the feed.
 - Tapping a feed post opens a public post detail page.
@@ -809,7 +839,7 @@ When the public species-page project exists:
 - Broad zoom levels render clusters instead of pin soup.
 - Tapping a map point opens a compact preview card before opening full detail.
 - Tapping a map preview card opens the same public Explore detail page used by feed posts.
-- `obscured` posts render only with privacy-safe stored public coordinates.
+- `obscured` posts render only with privacy-safe public coordinates derived server-side from scan geoprivacy rules.
 - The bell icon shows an unread count and opens an in-app notifications sheet for likes and comments on the viewer's posts.
 - The bell unread count is refreshed on foreground, on a lightweight fallback poll, and by a Supabase realtime subscription to the viewer's notification rows.
 - Users can opt into remote Explore activity pushes separately from discovery-result alerts.
