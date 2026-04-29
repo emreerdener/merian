@@ -108,6 +108,28 @@ final class ScansManagerTests: XCTestCase {
 
         XCTAssertEqual(searchManager.filteredScans.map(\.id), [taggedBird.id])
     }
+
+    func testSubstringSearchFilteringPreservesContainsSemantics() async throws {
+        let taggedBird = createTestScan(
+            commonName: "Backyard Finch",
+            scientificName: "Haemorhous mexicanus",
+            ecologyType: "wild"
+        )
+        let mushroom = createTestScan(
+            commonName: "Forest Mushroom",
+            scientificName: "Amanita muscaria",
+            ecologyType: "fungus",
+            taxonomyKingdom: "Fungi"
+        )
+
+        searchManager.allScans = [taggedBird, mushroom]
+        try await waitForIndexing()
+
+        searchManager.performSearch(query: "yard")
+        try await waitForSearchCompletion(for: "yard")
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [taggedBird.id])
+    }
     
     func testTaxonomicCategoryFiltering() async throws {
         let bird = createTestScan(

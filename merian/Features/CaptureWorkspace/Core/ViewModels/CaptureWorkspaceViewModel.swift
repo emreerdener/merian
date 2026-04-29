@@ -7,6 +7,70 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
+struct HistoricalEnvironmentContextSnapshot: Sendable, Equatable {
+    let latitude: CLLocationDegrees?
+    let longitude: CLLocationDegrees?
+    let locationName: String?
+    let weatherCondition: String?
+    let weatherTemperature: Double?
+    let captureDate: Date?
+
+    init(context: EnvironmentContext) {
+        latitude = context.location?.coordinate.latitude
+        longitude = context.location?.coordinate.longitude
+        locationName = context.locationName
+        weatherCondition = context.weatherCondition
+        weatherTemperature = context.weatherTemperature
+        captureDate = context.captureDate
+    }
+
+    init(captureDate: Date) {
+        latitude = nil
+        longitude = nil
+        locationName = nil
+        weatherCondition = nil
+        weatherTemperature = nil
+        self.captureDate = captureDate
+    }
+
+    func makeEnvironmentContext() -> EnvironmentContext {
+        let location: CLLocation?
+        if let latitude, let longitude {
+            location = CLLocation(latitude: latitude, longitude: longitude)
+        } else {
+            location = nil
+        }
+
+        return EnvironmentContext(
+            location: location,
+            locationName: locationName,
+            weatherCondition: weatherCondition,
+            weatherTemperature: weatherTemperature,
+            captureDate: captureDate
+        )
+    }
+}
+
+enum PreparedDisplayDataStrategy: Sendable, Equatable {
+    case reencodeDisplaySized
+    case memoryMapOriginalFile
+}
+
+struct PreparedStagedImage: Sendable, Equatable {
+    let compressedData: Data
+    let displayData: Data
+    let historicalContext: HistoricalEnvironmentContextSnapshot?
+}
+
+struct PreparedStagedImageRequest: Sendable, Equatable {
+    let fileURL: URL
+    let isPro: Bool
+    let historicalContext: HistoricalEnvironmentContextSnapshot?
+    let displayDataStrategy: PreparedDisplayDataStrategy
+}
+
+typealias PreparedStagedImageLoader = @Sendable (PreparedStagedImageRequest) throws -> PreparedStagedImage?
+
 @Observable
 @MainActor
 final class CaptureWorkspaceViewModel {
@@ -21,64 +85,10 @@ final class CaptureWorkspaceViewModel {
         let availableSlots: Int
         let canPerformScan: Bool
     }
-
-    private struct HistoricalEnvironmentContextSnapshot: Sendable {
-        let latitude: CLLocationDegrees?
-        let longitude: CLLocationDegrees?
-        let locationName: String?
-        let weatherCondition: String?
-        let weatherTemperature: Double?
-        let captureDate: Date?
-
-        init(context: EnvironmentContext) {
-            latitude = context.location?.coordinate.latitude
-            longitude = context.location?.coordinate.longitude
-            locationName = context.locationName
-            weatherCondition = context.weatherCondition
-            weatherTemperature = context.weatherTemperature
-            captureDate = context.captureDate
-        }
-
-        init(captureDate: Date) {
-            latitude = nil
-            longitude = nil
-            locationName = nil
-            weatherCondition = nil
-            weatherTemperature = nil
-            self.captureDate = captureDate
-        }
-
-        func makeEnvironmentContext() -> EnvironmentContext {
-            let location: CLLocation?
-            if let latitude, let longitude {
-                location = CLLocation(latitude: latitude, longitude: longitude)
-            } else {
-                location = nil
-            }
-
-            return EnvironmentContext(
-                location: location,
-                locationName: locationName,
-                weatherCondition: weatherCondition,
-                weatherTemperature: weatherTemperature,
-                captureDate: captureDate
-            )
-        }
-    }
-
-    private enum PreparedDisplayDataStrategy: Sendable {
-        case reencodeDisplaySized
-        case memoryMapOriginalFile
-    }
-
-    private struct PreparedStagedImage: Sendable {
-        let compressedData: Data
-        let displayData: Data
-        let historicalContext: HistoricalEnvironmentContextSnapshot?
-    }
     
     // MARK: - Dependencies
-    @ObservationIgnored let diContainer = AppDIContainer.shared
+    @ObservationIgnored let diContainer: AppDIContainer
+    @ObservationIgnored private let preparedImageLoader: PreparedStagedImageLoader
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     
     // MARK: - UI & Navigation State
@@ -125,12 +135,29 @@ final class CaptureWorkspaceViewModel {
     @ObservationIgnored var pendingAnalyzeScanId: String?
     
     // MARK: - Lifecycle
-    init() {
+    convenience init() {
+        self.init(
+            diContainer: AppDIContainer.shared,
+            preparedImageLoader: CaptureWorkspaceViewModel.livePreparedImageLoader,
+            prewarmHeadersOnInit: true
+        )
+    }
+
+    init(
+        diContainer: AppDIContainer,
+        preparedImageLoader: @escaping PreparedStagedImageLoader,
+        prewarmHeadersOnInit: Bool = true
+    ) {
+        self.diContainer = diContainer
+        self.preparedImageLoader = preparedImageLoader
+
         // Pre-warm the HTTPS connection to Supabase and refresh the auth token while the
         // user composes their shot. Eliminates TCP/TLS handshake (~200–400ms) and token
         // refresh latency from the scan critical path on cold app launch.
-        Task {
-            _ = try? await SupabaseManager.shared.getValidAuthHeaders()
+        if prewarmHeadersOnInit {
+            Task {
+                _ = try? await diContainer.supabaseManager.getValidAuthHeaders()
+            }
         }
 
         // Centralized System Event Routing (AppEventPublisher)
@@ -157,6 +184,41 @@ final class CaptureWorkspaceViewModel {
                 }
             }
             .store(in: &cancellables)
+    }
+
+    nonisolated private static let livePreparedImageLoader: PreparedStagedImageLoader = { request in
+        // Inference payload: tier-conditional longest edge — 768 px for Flash (free),
+        // 1024 px for Pro. Matches the camera shutter path for consistent token costs per tier.
+        guard let inferenceCGImage = ImageDownsampler.downsample(
+            url: request.fileURL,
+            maxSize: MerianConfig.inferenceImageMaxSize(isProActive: request.isPro)
+        ) else { return nil }
+
+        let compressedData = ImageCropProcessor.encode(inferenceCGImage) ?? Data()
+        guard !compressedData.isEmpty else { return nil }
+
+        let displayData: Data
+        switch request.displayDataStrategy {
+        case .reencodeDisplaySized:
+            displayData = autoreleasepool {
+                guard let displayCGImage = ImageDownsampler.downsample(
+                    url: request.fileURL,
+                    maxSize: MerianConfig.displayImageMaxSize
+                ) else {
+                    return compressedData
+                }
+                return ImageCropProcessor.encode(displayCGImage) ?? compressedData
+            }
+        case .memoryMapOriginalFile:
+            displayData = try Data(contentsOf: request.fileURL, options: [.mappedIfSafe])
+        }
+
+        guard !displayData.isEmpty else { return nil }
+        return PreparedStagedImage(
+            compressedData: compressedData,
+            displayData: displayData,
+            historicalContext: request.historicalContext
+        )
     }
     
     // MARK: - Background Reset Policy
@@ -244,12 +306,13 @@ final class CaptureWorkspaceViewModel {
                     defer { try? FileManager.default.removeItem(at: validUrl) }
 
                     let historicalContext = await self.historicalContextSnapshot(for: newItem.itemIdentifier)
-                    guard let preparedImport = try self.prepareStagedImage(
-                        from: validUrl,
+                    let request = PreparedStagedImageRequest(
+                        fileURL: validUrl,
                         isPro: isPro,
                         historicalContext: historicalContext,
                         displayDataStrategy: .reencodeDisplaySized
-                    ) else { continue }
+                    )
+                    guard let preparedImport = try self.preparedImageLoader(request) else { continue }
                     preparedImports.append(preparedImport)
                 }
             }
@@ -285,46 +348,6 @@ final class CaptureWorkspaceViewModel {
         }
 
         return nil
-    }
-
-    private nonisolated func prepareStagedImage(
-        from fileURL: URL,
-        isPro: Bool,
-        historicalContext: HistoricalEnvironmentContextSnapshot?,
-        displayDataStrategy: PreparedDisplayDataStrategy
-    ) throws -> PreparedStagedImage? {
-        // Inference payload: tier-conditional longest edge — 768 px for Flash (free),
-        // 1024 px for Pro. Matches the camera shutter path for consistent token costs per tier.
-        guard let inferenceCGImage = ImageDownsampler.downsample(
-            url: fileURL,
-            maxSize: MerianConfig.inferenceImageMaxSize(isProActive: isPro)
-        ) else { return nil }
-
-        let compressedData = ImageCropProcessor.encode(inferenceCGImage) ?? Data()
-        guard !compressedData.isEmpty else { return nil }
-
-        let displayData: Data
-        switch displayDataStrategy {
-        case .reencodeDisplaySized:
-            displayData = autoreleasepool {
-                guard let displayCGImage = ImageDownsampler.downsample(
-                    url: fileURL,
-                    maxSize: MerianConfig.displayImageMaxSize
-                ) else {
-                    return compressedData
-                }
-                return ImageCropProcessor.encode(displayCGImage) ?? compressedData
-            }
-        case .memoryMapOriginalFile:
-            displayData = try Data(contentsOf: fileURL, options: [.mappedIfSafe])
-        }
-
-        guard !displayData.isEmpty else { return nil }
-        return PreparedStagedImage(
-            compressedData: compressedData,
-            displayData: displayData,
-            historicalContext: historicalContext
-        )
     }
 
     private func commitPreparedStagedImages(_ preparedImports: [PreparedStagedImage]) {
@@ -378,12 +401,13 @@ final class CaptureWorkspaceViewModel {
             let fileURL = URL.documentsDirectory.appendingPathComponent(localPath)
             
             do {
-                guard let preparedRefinement = try self.prepareStagedImage(
-                    from: fileURL,
+                let request = PreparedStagedImageRequest(
+                    fileURL: fileURL,
                     isPro: isPro,
                     historicalContext: nil,
                     displayDataStrategy: .memoryMapOriginalFile
-                ) else {
+                )
+                guard let preparedRefinement = try self.preparedImageLoader(request) else {
                     await MainActor.run { self.isStagingRefinement = false }
                     return
                 }

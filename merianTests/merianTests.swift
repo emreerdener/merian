@@ -1,5 +1,6 @@
 import XCTest
 import CoreData
+import UIKit
 @testable import Merian
 
 final class merianTests: XCTestCase {
@@ -42,5 +43,98 @@ final class merianTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: quarantineDirectory.appendingPathComponent("default.store").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: quarantineDirectory.appendingPathComponent("default.store-shm").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: quarantineDirectory.appendingPathComponent("default.store-wal").path))
+    }
+}
+
+@MainActor
+final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
+    private func makePNGData(color: UIColor = .systemTeal) -> Data {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
+        return renderer.pngData { context in
+            color.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        }
+    }
+
+    private func waitUntil(
+        timeoutNanoseconds: UInt64 = 1_000_000_000,
+        pollingIntervalNanoseconds: UInt64 = 10_000_000,
+        _ condition: @escaping @MainActor () -> Bool
+    ) async throws {
+        var elapsed: UInt64 = 0
+
+        while elapsed < timeoutNanoseconds {
+            if condition() {
+                return
+            }
+
+            try await Task.sleep(nanoseconds: pollingIntervalNanoseconds)
+            elapsed += pollingIntervalNanoseconds
+        }
+
+        XCTFail("Timed out waiting for refinement staging to settle")
+    }
+
+    func testStartRefinementScanStagesPreparedHistoricalImage() async throws {
+        let expectedCompressedData = makePNGData()
+        let expectedFileURL = URL.documentsDirectory.appendingPathComponent("historical-refinement.webp")
+        let expectedDisplaySignature = Data("\(expectedFileURL.path)|memory-map".utf8)
+
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { request in
+                let strategyLabel = switch request.displayDataStrategy {
+                case .reencodeDisplaySized:
+                    "reencode"
+                case .memoryMapOriginalFile:
+                    "memory-map"
+                }
+
+                return PreparedStagedImage(
+                    compressedData: expectedCompressedData,
+                    displayData: Data("\(request.fileURL.path)|\(strategyLabel)".utf8),
+                    historicalContext: request.historicalContext
+                )
+            },
+            prewarmHeadersOnInit: false
+        )
+
+        let record = LocalScanRecord(
+            speciesId: "species-1",
+            scientificName: "Haemorhous mexicanus",
+            commonName: "House Finch",
+            coverImagePath: "historical-refinement.webp"
+        )
+
+        viewModel.startRefinementScan(from: record)
+        try await waitUntil { !viewModel.isStagingRefinement }
+
+        XCTAssertEqual(viewModel.baseRefinementRecord?.id, record.id)
+        XCTAssertEqual(viewModel.requestedCaptureMode, .describe)
+        XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
+        XCTAssertEqual(viewModel.stagedCapture.images.first?.compressedData, expectedCompressedData)
+        XCTAssertEqual(viewModel.stagedCapture.images.first?.displayData, expectedDisplaySignature)
+    }
+
+    func testStartRefinementScanClearsLoadingStateWhenPreparationFails() async throws {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+
+        let record = LocalScanRecord(
+            speciesId: "species-2",
+            scientificName: "Quercus alba",
+            commonName: "White Oak",
+            coverImagePath: "missing-refinement.webp"
+        )
+
+        viewModel.startRefinementScan(from: record)
+        try await waitUntil { !viewModel.isStagingRefinement }
+
+        XCTAssertEqual(viewModel.baseRefinementRecord?.id, record.id)
+        XCTAssertTrue(viewModel.stagedCapture.images.isEmpty)
+        XCTAssertEqual(viewModel.requestedCaptureMode, .describe)
     }
 }

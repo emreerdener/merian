@@ -65,7 +65,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         didSet { rebuildSearchCaches(oldScans: oldValue) }
     }
     
-    @ObservationIgnored private var searchableData: [SearchableScan] = []
+    @ObservationIgnored private var searchIndexSnapshot = SearchIndexSnapshot.empty
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var indexingTask: Task<Void, Never>?
     @ObservationIgnored private var scanIndexById: [String: Int] = [:]
@@ -106,28 +106,26 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     private func updateSearchableData(oldScans: [LocalScanRecord]) {
         indexingTask?.cancel()
         
-        guard let firstScan = allScans.first, let container = firstScan.modelContext?.container else {
-            self.searchableData = []
-            return
-        }
-        
         let oldIds = Set(oldScans.map { $0.id })
         let newIds = Set(allScans.map { $0.id })
 
         let addedScans = allScans.filter { !oldIds.contains($0.id) }
         let removedIds = oldIds.subtracting(newIds)
-        
-        // 1. Instantly prune deleted UUIDs out of the string cache natively without touching the background thread!
+
         if !removedIds.isEmpty {
-            self.searchableData.removeAll { removedIds.contains($0.id) }
+            searchIndexSnapshot = searchIndexSnapshot.removing(ids: removedIds)
         }
-        
-        // 2. Short circuit if there are no new scans explicitly needing heavy String Extraction!
-        if addedScans.isEmpty && self.searchableData.count == allScans.count {
+
+        guard let firstScan = allScans.first, let container = firstScan.modelContext?.container else {
+            self.searchIndexSnapshot = .empty
             return
         }
-        
-        let needsFullRebuild = self.searchableData.isEmpty && !allScans.isEmpty
+
+        if addedScans.isEmpty && self.searchIndexSnapshot.count == allScans.count {
+            return
+        }
+
+        let needsFullRebuild = self.searchIndexSnapshot.isEmpty && !allScans.isEmpty
 
         if needsFullRebuild {
             // Full rebuild: allScans is already resident in @MainActor memory via @Query.
@@ -161,9 +159,10 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             }
             indexingTask = Task.detached(priority: .utility) { [weak self] in
                 let processed = SearchDatabaseActor.buildSearchablePayloads(from: snapshots)
+                let snapshot = SearchIndexSnapshot(searchableScans: processed)
                 guard !Task.isCancelled else { return }
                 await MainActor.run { [weak self] in
-                    self?.searchableData = processed
+                    self?.searchIndexSnapshot = snapshot
                 }
             }
         } else {
@@ -177,7 +176,8 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 let processedNewScans = await dbActor.extractSearchablePayloads(from: idsToExtract)
                 guard !Task.isCancelled else { return }
                 await MainActor.run { [weak self] in
-                    self?.searchableData.append(contentsOf: processedNewScans)
+                    guard let self else { return }
+                    self.searchIndexSnapshot = self.searchIndexSnapshot.upserting(processedNewScans)
                 }
             }
         }
@@ -186,7 +186,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     // MARK: - Dedicated Reindexing
     private func forceReindex(scanId: String) {
         guard let scan = allScans.first(where: { $0.id == scanId }), let container = scan.modelContext?.container else { return }
-        self.searchableData.removeAll { $0.id == scanId }
+        self.searchIndexSnapshot = self.searchIndexSnapshot.removing(ids: Set([scanId]))
 
         // Cancel any prior reindex so two rapid calls cannot both append to searchableData,
         // which would produce duplicate SearchableScan entries in the search index.
@@ -197,7 +197,8 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             if Task.isCancelled { return }
 
             await MainActor.run { [weak self] in
-                self?.searchableData.append(contentsOf: newPayload)
+                guard let self else { return }
+                self.searchIndexSnapshot = self.searchIndexSnapshot.upserting(newPayload)
             }
         }
     }
@@ -241,8 +242,8 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 return
             }
             
-            let searchData = self.searchableData
-            if searchData.isEmpty {
+            let searchIndex = self.searchIndexSnapshot
+            if searchIndex.isEmpty {
                 withAnimation {
                     self.filteredScans = []
                     self.isFiltering = false
@@ -251,7 +252,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             }
             
             let filterActor = SearchFilterActor()
-            let matchingIds = await filterActor.filter(text: text, searchData: searchData, catMatch: catMatch)
+            let matchingIds = await filterActor.filter(text: text, searchIndex: searchIndex, catMatch: catMatch)
             
             if Task.isCancelled { return }
             
@@ -590,47 +591,42 @@ actor SearchDatabaseActor {
 }
 
 actor SearchFilterActor {
-    func filter(text: String, searchData: [SearchableScan], catMatch: String) -> [String] {
-        let tokens = text.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-        let matched = searchData.filter { scan in
-            if Task.isCancelled { return false }
-            let matchesCategory: Bool
-            switch catMatch {
-            case "all": 
-                matchesCategory = true
-            case "plants": 
-                matchesCategory = scan.kingdom == "plantae"
-            case "fungi": 
-                matchesCategory = scan.kingdom == "fungi"
-            case "insects": 
-                matchesCategory = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
-            case "birds": 
-                matchesCategory = scan.className == "aves"
-            case "mammals": 
-                matchesCategory = scan.className == "mammalia"
-            case "reptiles": 
-                matchesCategory = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
-            case "other":
-                let isP = scan.kingdom == "plantae"
-                let isF = scan.kingdom == "fungi"
-                let isI = scan.className == "insecta" || scan.className == "entognatha" || scan.className == "arachnida"
-                let isB = scan.className == "aves"
-                let isM = scan.className == "mammalia"
-                let isR = scan.className == "reptilia" || scan.className == "squamata" || scan.className == "amphibia"
-                matchesCategory = !(isP || isF || isI || isB || isM || isR)
-            default: 
-                matchesCategory = false
+    func filter(text: String, searchIndex: SearchIndexSnapshot, catMatch: String) -> [String] {
+        let tokens = SearchIndexTokenizer.queryTokens(from: text)
+        let categoryMatches = searchIndex.ids(matching: catMatch)
+
+        if tokens.isEmpty {
+            return Task.isCancelled ? [] : categoryMatches
+        }
+
+        let categorySet = catMatch == "all" ? nil : Set(categoryMatches)
+        var candidateSet: Set<String>?
+
+        for token in tokens {
+            if Task.isCancelled { return [] }
+
+            var tokenMatches = Set(searchIndex.candidateIDs(matching: token))
+            guard !tokenMatches.isEmpty else { return [] }
+
+            if let categorySet {
+                tokenMatches.formIntersection(categorySet)
+                guard !tokenMatches.isEmpty else { return [] }
             }
-            
-            if !matchesCategory { return false }
-            if tokens.isEmpty { return true }
-            
-            return tokens.allSatisfy { token in
-                scan.searchString.contains(token)
+
+            if let existingCandidateSet = candidateSet {
+                let narrowed = existingCandidateSet.intersection(tokenMatches)
+                guard !narrowed.isEmpty else { return [] }
+                candidateSet = narrowed
+            } else {
+                candidateSet = tokenMatches
             }
         }
-        
-        if Task.isCancelled { return [] }
-        return matched.map { $0.id }
+
+        guard let candidateSet, !Task.isCancelled else { return [] }
+
+        return candidateSet.filter { id in
+            guard let scan = searchIndex.documentsById[id] else { return false }
+            return tokens.allSatisfy { scan.searchString.contains($0) }
+        }
     }
 }
