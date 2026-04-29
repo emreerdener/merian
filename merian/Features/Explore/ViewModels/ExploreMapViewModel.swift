@@ -47,6 +47,7 @@ final class ExploreMapViewModel {
 
         if regionMeaningfullyDiffers(region, from: lastCommittedRegion) {
             needsSearchInArea = true
+            selectedPostId = nil
         }
     }
 

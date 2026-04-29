@@ -5,6 +5,7 @@ struct ExploreMapView: View {
     @Bindable var viewModel: ExploreMapViewModel
     @Bindable var feedViewModel: ExploreFeedViewModel
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
+    @State private var ignoreNextBackgroundTap = false
 
     let onOpenDetail: (ExplorePost, Bool) -> Void
 
@@ -49,6 +50,7 @@ struct ExploreMapView: View {
             ForEach(viewModel.clusters) { cluster in
                 Annotation("", coordinate: cluster.coordinate, anchor: .center) {
                     Button {
+                        registerAnnotationTap()
                         viewModel.zoomIntoCluster(cluster)
                     } label: {
                         ExploreMapClusterBubble(postCount: cluster.postCount)
@@ -61,6 +63,7 @@ struct ExploreMapView: View {
             ForEach(viewModel.posts) { post in
                 Annotation("", coordinate: post.coordinate, anchor: .bottom) {
                     Button {
+                        registerAnnotationTap()
                         withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
                             viewModel.selectPost(post.id)
                         }
@@ -76,6 +79,9 @@ struct ExploreMapView: View {
             }
         }
         .mapStyle(.standard)
+        .onTapGesture {
+            dismissSelectedPostIfNeeded()
+        }
         .onMapCameraChange(frequency: .onEnd) { context in
             viewModel.markCameraChanged(region: context.region)
         }
@@ -282,6 +288,23 @@ struct ExploreMapView: View {
         guard await feedViewModel.report(post) else { return }
         viewModel.removePost(id: post.id)
     }
+
+    private func dismissSelectedPostIfNeeded() {
+        guard !ignoreNextBackgroundTap, viewModel.selectedPostId != nil else { return }
+
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
+            viewModel.selectPost(nil)
+        }
+    }
+
+    private func registerAnnotationTap() {
+        ignoreNextBackgroundTap = true
+
+        Task { @MainActor in
+            await Task.yield()
+            ignoreNextBackgroundTap = false
+        }
+    }
 }
 
 private struct ExploreMapWaypoint: View {
@@ -418,6 +441,7 @@ private struct ExploreMapPreviewCard: View {
                     action: onShare
                 )
             }
+            .fixedSize(horizontal: false, vertical: true)
 
             Button(action: onOpen) {
                 HStack {
@@ -432,7 +456,7 @@ private struct ExploreMapPreviewCard: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    Capsule(style: .continuous)
                         .fill(Color.accentColor)
                 )
             }
@@ -477,6 +501,7 @@ private struct ExploreMapPreviewCard: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
+            .frame(maxHeight: .infinity)
             .background(Color(uiColor: .secondarySystemBackground))
             .clipShape(Capsule(style: .continuous))
         }
