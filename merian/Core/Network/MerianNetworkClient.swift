@@ -914,13 +914,23 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreMapPointsResponse.self, from: data)
     }
 
-    func getExploreComments(postId: String, limit: Int = 100, offset: Int = 0) async throws -> [ExploreComment] {
+    func getExploreComments(
+        postId: String,
+        limit: Int = 100,
+        afterCreatedAt: String? = nil,
+        afterCommentId: String? = nil
+    ) async throws -> [ExploreComment] {
         let functionUrl = try endpointURL("get-explore-comments")
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "post_id": postId,
-            "limit": limit,
-            "offset": offset
+            "limit": limit
         ]
+
+        if let afterCreatedAt, let afterCommentId {
+            payload["after_created_at"] = afterCreatedAt
+            payload["after_comment_id"] = afterCommentId
+        }
+
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(ExploreCommentsResponse.self, from: data).data

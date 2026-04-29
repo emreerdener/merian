@@ -12,18 +12,24 @@ export interface ExploreCommentRow {
   viewer_can_report: boolean;
 }
 
+interface ExploreCommentsCursor {
+  afterCreatedAt: string | null;
+  afterCommentId: string | null;
+}
+
 export async function fetchExploreComments(
   userId: string,
   postId: string,
   limit: number,
-  offset: number,
+  cursor: ExploreCommentsCursor,
   supabaseAdmin: SupabaseClient,
 ): Promise<ExploreCommentRow[]> {
   const { data, error } = await supabaseAdmin.rpc("get_explore_comments", {
     self_id: userId,
     target_post_id: postId,
     max_limit: limit,
-    comment_offset: offset,
+    after_created_at: cursor.afterCreatedAt,
+    after_comment_id: cursor.afterCommentId,
   });
 
   if (error) {

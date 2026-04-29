@@ -18,6 +18,7 @@ final class ExploreFeedViewModel {
     var activeCommentsPostId: String?
     var comments: [ExploreComment] = []
     var isCommentsLoading = false
+    var isLoadingMoreComments = false
     var isSubmittingComment = false
     var commentDraft = ""
     var commentErrorMessage: String?
@@ -33,6 +34,10 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var nextFeedCursorPostId: String?
     @ObservationIgnored var hasLoadedFeedOnce = false
     @ObservationIgnored var hasReachedEndOfFeed = false
+    @ObservationIgnored var nextCommentsCursorCreatedAt: String?
+    @ObservationIgnored var nextCommentsCursorCommentId: String?
+    @ObservationIgnored var hasLoadedCommentsOnce = false
+    @ObservationIgnored var hasReachedEndOfComments = false
     @ObservationIgnored var activeCommentsRequestId = UUID()
     @ObservationIgnored var likeRequestsInFlight = Set<String>()
     @ObservationIgnored var isRefreshingUnreadNotificationCount = false

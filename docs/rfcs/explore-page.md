@@ -708,6 +708,7 @@ Notifications:
 - Self-likes and self-comments should never create notifications.
 - Opening the notifications sheet should mark the fetched rows as read only after the initial fetch succeeds.
 - Notifications pagination should be cursor-based on `(updated_at, notification_id)`, not offset-based.
+- Comments pagination should be cursor-based on `(created_at, comment_id)`, not offset-based.
 - Users can independently opt into remote Explore activity pushes without enabling discovery-result alerts.
 
 Blocking:
@@ -754,6 +755,7 @@ Client behavior:
 - Explore is online-only in V1
 - Likes/comments/shares do not use the offline queue
 - Feed pagination is cursor-based on `(shared_at, post_id)`
+- Comments pagination is cursor-based on `(created_at, comment_id)`
 - Notifications pagination is cursor-based on `(updated_at, notification_id)`
 - Like and comment counts should update optimistically
 - Feed cards can single-tap into detail and double-tap the image to like

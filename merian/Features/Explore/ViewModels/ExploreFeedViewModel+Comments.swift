@@ -24,7 +24,12 @@ extension ExploreFeedViewModel {
         commentDraft = ""
         commentErrorMessage = nil
         isCommentsLoading = false
+        isLoadingMoreComments = false
         isSubmittingComment = false
+        nextCommentsCursorCreatedAt = nil
+        nextCommentsCursorCommentId = nil
+        hasLoadedCommentsOnce = false
+        hasReachedEndOfComments = false
     }
 
     func loadCommentsForActivePost(requestId: UUID? = nil) async {
@@ -38,13 +43,15 @@ extension ExploreFeedViewModel {
         do {
             let loadedComments = try await MerianNetworkClient.shared.getExploreComments(
                 postId: activeCommentsPostId,
-                limit: commentsPageSize,
-                offset: 0
+                limit: commentsPageSize
             )
             guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
                 return
             }
             comments = loadedComments
+            hasLoadedCommentsOnce = true
+            hasReachedEndOfComments = loadedComments.count < commentsPageSize
+            updateCommentsCursor(using: loadedComments)
         } catch {
             guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
                 return
@@ -54,6 +61,48 @@ extension ExploreFeedViewModel {
 
         if activeCommentsRequestId == resolvedRequestId {
             isCommentsLoading = false
+        }
+    }
+
+    func loadMoreCommentsIfNeeded(currentComment: ExploreComment) async {
+        guard hasLoadedCommentsOnce, !isCommentsLoading, !isLoadingMoreComments, !hasReachedEndOfComments else { return }
+        guard let activeCommentsPostId else { return }
+        guard let currentIndex = comments.firstIndex(where: { $0.id == currentComment.id }) else { return }
+
+        let triggerIndex = max(comments.count - 8, 0)
+        guard currentIndex >= triggerIndex else { return }
+        guard let nextCommentsCursorCreatedAt, let nextCommentsCursorCommentId else {
+            hasReachedEndOfComments = true
+            return
+        }
+
+        let resolvedRequestId = activeCommentsRequestId
+        isLoadingMoreComments = true
+        defer { isLoadingMoreComments = false }
+
+        do {
+            let nextPage = try await MerianNetworkClient.shared.getExploreComments(
+                postId: activeCommentsPostId,
+                limit: commentsPageSize,
+                afterCreatedAt: nextCommentsCursorCreatedAt,
+                afterCommentId: nextCommentsCursorCommentId
+            )
+            guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
+                return
+            }
+
+            appendUniqueComments(nextPage)
+            hasReachedEndOfComments = nextPage.count < commentsPageSize
+            updateCommentsCursor(using: nextPage)
+        } catch is CancellationError {
+            // Absorb cancellation while comments are being dismissed.
+        } catch let error as URLError where error.code == .cancelled {
+            // Absorb URLSession cancellation.
+        } catch {
+            guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
+                return
+            }
+            commentErrorMessage = ExploreErrorFormatter.message(for: error)
         }
     }
 
@@ -77,6 +126,13 @@ extension ExploreFeedViewModel {
                 body: trimmed
             )
             comments.append(response.comment)
+            hasLoadedCommentsOnce = true
+            if hasReachedEndOfComments {
+                updateCommentsCursor(using: comments)
+            } else if nextCommentsCursorCreatedAt == nil || nextCommentsCursorCommentId == nil {
+                updateCommentsCursor(using: comments)
+                hasReachedEndOfComments = comments.count < commentsPageSize
+            }
             updateCommentCount(postId: activeCommentsPostId, commentCount: response.commentCount)
             HapticManager.shared.triggerSelectionPulse()
         } catch {
@@ -117,6 +173,10 @@ extension ExploreFeedViewModel {
         commentErrorMessage = nil
         let requestId = UUID()
         activeCommentsRequestId = requestId
+        nextCommentsCursorCreatedAt = nil
+        nextCommentsCursorCommentId = nil
+        hasLoadedCommentsOnce = false
+        hasReachedEndOfComments = false
         return requestId
     }
 
@@ -130,5 +190,17 @@ extension ExploreFeedViewModel {
         if posts.contains(where: { $0.id == activeCommentsPostId }) == false {
             dismissComments()
         }
+    }
+
+    private func updateCommentsCursor(using page: [ExploreComment]) {
+        nextCommentsCursorCreatedAt = page.last?.createdAt
+        nextCommentsCursorCommentId = page.last?.id
+    }
+
+    private func appendUniqueComments(_ nextPage: [ExploreComment]) {
+        guard !nextPage.isEmpty else { return }
+
+        let existingIds = Set(comments.map(\.id))
+        comments.append(contentsOf: nextPage.filter { existingIds.contains($0.id) == false })
     }
 }

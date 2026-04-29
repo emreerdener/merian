@@ -472,6 +472,26 @@ Returns comment rows for a single Explore post. The read path enforces the same 
 
 This endpoint powers both the feed's bottom-sheet comments view and the inline comment thread on the Explore detail page.
 
+The request body supports cursor pagination on `(created_at ASC, comment_id ASC)`:
+
+```json
+{
+  "post_id": "uuid",
+  "limit": 100
+}
+```
+
+Follow-up page requests send:
+
+```json
+{
+  "post_id": "uuid",
+  "limit": 100,
+  "after_created_at": "2026-04-28T10:00:00.000Z",
+  "after_comment_id": "uuid"
+}
+```
+
 ### `/share-scan-to-explore` and `/unshare-explore-post`
 
 - `share-scan-to-explore` creates or reactivates a manual-share Explore post for an eligible biological image scan.
@@ -654,6 +674,7 @@ The Explore detail page additionally uses:
 - `time_of_day` + `current_month` to derive broad public observation context such as `Morning • April`
 - `weather_condition` + `weather_temperature_f` for optional public weather telemetry
 - `/get-explore-comments` for the inline thread and composer state
+- cursor-based comment pagination on `(created_at, comment_id)` so long threads page safely in both the sheet and detail view
 - `/get-explore-unread-notification-count` for the bell badge and `/get-explore-notifications` plus `/mark-explore-notifications-read` for the in-app activity sheet
 - cursor-based activity pagination on `(updated_at, notification_id)` so the notifications sheet does not skip or duplicate rows during active usage
 - `/register-push-device` to sync the APNs token plus the Explore-specific push preference

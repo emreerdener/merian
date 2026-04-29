@@ -63,6 +63,15 @@ struct ExploreCommentsSheet: View {
             LazyVStack(spacing: 14) {
                 ForEach(viewModel.comments) { comment in
                     commentRow(comment)
+                        .onAppear {
+                            Task { await viewModel.loadMoreCommentsIfNeeded(currentComment: comment) }
+                        }
+                }
+
+                if viewModel.isLoadingMoreComments {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .padding(.vertical, 8)
                 }
             }
             .padding(.horizontal, 16)

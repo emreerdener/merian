@@ -2,8 +2,18 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
-import { normalizeLimit, normalizeOffset, requireUuid } from "../_shared/explore.ts";
+import {
+  normalizeCursorTimestamp,
+  normalizeLimit,
+  requireUuid,
+} from "../_shared/explore.ts";
 import { fetchExploreComments } from "./db.ts";
+
+function makeHttpError(status: number, message: string): Error & { status: number } {
+  const error = new Error(message) as Error & { status: number };
+  error.status = status;
+  return error;
+}
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -19,9 +29,25 @@ serve((req: Request) =>
 
     const postId = requireUuid(body.post_id, "post_id");
     const limit = normalizeLimit(body.limit, 50, 100);
-    const offset = normalizeOffset(body.offset);
+    const afterCreatedAt = normalizeCursorTimestamp(body.after_created_at, "after_created_at");
+    const afterCommentId = body.after_comment_id == null
+      ? null
+      : requireUuid(body.after_comment_id, "after_comment_id");
 
-    const data = await fetchExploreComments(user.id, postId, limit, offset, supabaseAdmin);
+    if ((afterCreatedAt == null) != (afterCommentId == null)) {
+      throw makeHttpError(400, "after_created_at and after_comment_id must be provided together.");
+    }
+
+    const data = await fetchExploreComments(
+      user.id,
+      postId,
+      limit,
+      {
+        afterCreatedAt,
+        afterCommentId,
+      },
+      supabaseAdmin,
+    );
     return jsonResponse({ data }, 200);
   }),
 );
