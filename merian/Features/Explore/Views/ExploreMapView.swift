@@ -23,17 +23,6 @@ struct ExploreMapView: View {
                     action: { Task { await viewModel.searchCurrentArea() } }
                 )
                 .padding(.horizontal, 20)
-            } else if !viewModel.isLoading,
-                      viewModel.posts.isEmpty,
-                      viewModel.clusters.isEmpty,
-                      viewModel.lastCommittedRegion != nil {
-                stateCard(
-                    title: "No discoveries here yet",
-                    message: "Pan somewhere new or zoom out to explore more shared posts nearby.",
-                    actionTitle: "Search again",
-                    action: { Task { await viewModel.searchCurrentArea() } }
-                )
-                .padding(.horizontal, 20)
             }
 
             overlayChrome
@@ -107,6 +96,10 @@ struct ExploreMapView: View {
                 offlineBanner
             }
 
+            if showsEmptyBanner {
+                emptyBanner
+            }
+
             if viewModel.needsSearchInArea {
                 Button {
                     Task { await viewModel.searchCurrentArea() }
@@ -160,6 +153,14 @@ struct ExploreMapView: View {
         .animation(.easeInOut(duration: 0.18), value: viewModel.isOffline)
     }
 
+    private var showsEmptyBanner: Bool {
+        !viewModel.isLoading
+            && viewModel.errorMessage == nil
+            && viewModel.posts.isEmpty
+            && viewModel.clusters.isEmpty
+            && viewModel.lastCommittedRegion != nil
+    }
+
     private var resolvedSelectedPost: ExplorePost? {
         guard let mapPost = viewModel.selectedPost else { return nil }
         return feedViewModel.posts.first(where: { $0.id == mapPost.id }) ?? mapPost.asExplorePost
@@ -200,6 +201,23 @@ struct ExploreMapView: View {
             Image(systemName: "wifi.slash")
                 .font(.system(size: 14, weight: .semibold))
             Text("Offline. Cached map tiles may still show, but new discoveries won’t load.")
+                .font(.footnote)
+                .fontWeight(.medium)
+                .multilineTextAlignment(.leading)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, 16)
+    }
+
+    private var emptyBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "binoculars")
+                .font(.system(size: 14, weight: .semibold))
+            Text("No discoveries here yet. Pan somewhere new or zoom out to explore more shared posts nearby.")
                 .font(.footnote)
                 .fontWeight(.medium)
                 .multilineTextAlignment(.leading)
