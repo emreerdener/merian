@@ -2,6 +2,7 @@ import Foundation
 
 extension ExploreFeedViewModel {
     func toggleLike(for post: ExplorePost) async {
+        upsertPost(post)
         guard let index = indexForPost(id: post.id) else { return }
         guard !likeRequestsInFlight.contains(post.id) else { return }
 
@@ -34,25 +35,25 @@ extension ExploreFeedViewModel {
         }
     }
 
-    func unshare(_ post: ExplorePost) async {
-        guard post.isOwnedByViewer else { return }
+    @discardableResult
+    func unshare(_ post: ExplorePost) async -> Bool {
+        guard post.isOwnedByViewer else { return false }
 
         do {
             try await MerianNetworkClient.shared.unshareExplorePost(postId: post.id)
-            posts.removeAll { $0.id == post.id }
-            if activeCommentsPostId == post.id {
-                dismissComments()
-            }
-            reconcileActiveCommentsPost()
+            removePost(id: post.id)
             HapticManager.shared.triggerSuccessPulse()
             toastMessage = "Removed from Explore"
+            return true
         } catch {
             HapticManager.shared.triggerErrorThump()
             toastMessage = ExploreErrorFormatter.message(for: error)
+            return false
         }
     }
 
-    func report(_ post: ExplorePost) async {
+    @discardableResult
+    func report(_ post: ExplorePost) async -> Bool {
         let userId = SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId
 
         do {
@@ -62,27 +63,29 @@ extension ExploreFeedViewModel {
                 userSuggestion: "Reported from Explore feed",
                 userId: userId
             )
+            removePost(id: post.id)
             HapticManager.shared.triggerSuccessPulse()
             toastMessage = "Report submitted. Thanks!"
+            return true
         } catch {
             HapticManager.shared.triggerErrorThump()
             toastMessage = ExploreErrorFormatter.message(for: error)
+            return false
         }
     }
 
-    func blockAuthor(of post: ExplorePost) async {
+    @discardableResult
+    func blockAuthor(of post: ExplorePost) async -> Bool {
         let targetUserId = post.authorUserId
         await SocialGuardManager.shared.blockUser(targetUserId: targetUserId)
 
         if SocialGuardManager.shared.blockedUserIds.contains(targetUserId) {
-            posts.removeAll { $0.authorUserId == targetUserId }
-            if activeCommentsPost?.authorUserId == targetUserId {
-                dismissComments()
-            }
-            reconcileActiveCommentsPost()
+            removePosts(byAuthorUserId: targetUserId)
             toastMessage = "User blocked"
+            return true
         } else {
             toastMessage = "Could not block this user right now."
+            return false
         }
     }
 
@@ -107,6 +110,31 @@ extension ExploreFeedViewModel {
 
     func indexForPost(id: String) -> Int? {
         posts.firstIndex(where: { $0.id == id })
+    }
+
+    func upsertPost(_ post: ExplorePost) {
+        if let index = posts.firstIndex(where: { $0.id == post.id }) {
+            posts[index] = post
+        } else {
+            posts.append(post)
+        }
+        reconcileActiveCommentsPost()
+    }
+
+    func removePost(id: String) {
+        posts.removeAll { $0.id == id }
+        if activeCommentsPostId == id {
+            dismissComments()
+        }
+        reconcileActiveCommentsPost()
+    }
+
+    func removePosts(byAuthorUserId authorUserId: String) {
+        posts.removeAll { $0.authorUserId == authorUserId }
+        if activeCommentsPost?.authorUserId == authorUserId {
+            dismissComments()
+        }
+        reconcileActiveCommentsPost()
     }
 
     func applyLikeState(postId: String, likeCount: Int, viewerHasLiked: Bool) {

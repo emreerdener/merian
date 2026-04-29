@@ -472,6 +472,9 @@ verify_jwt = false
 [functions.get-explore-feed]
 verify_jwt = false
 
+[functions.get-explore-map-points]
+verify_jwt = false
+
 [functions.get-explore-comments]
 verify_jwt = false
 

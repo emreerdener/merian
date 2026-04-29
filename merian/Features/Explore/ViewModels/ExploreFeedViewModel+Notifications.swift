@@ -48,22 +48,17 @@ extension ExploreFeedViewModel {
     func preparePostForNavigation(postId: String) async throws -> ExplorePost {
         if posts.contains(where: { $0.id == postId }) {
             let refreshedPost = try await MerianNetworkClient.shared.getExplorePost(postId: postId)
-            upsertPostForNotifications(refreshedPost)
+            upsertPost(refreshedPost)
             return refreshedPost
         }
 
         let loadedPost = try await MerianNetworkClient.shared.getExplorePost(postId: postId)
-        upsertPostForNotifications(loadedPost)
+        upsertPost(loadedPost)
         return loadedPost
     }
 
     func upsertPostForNotifications(_ post: ExplorePost) {
-        if let index = posts.firstIndex(where: { $0.id == post.id }) {
-            posts[index] = post
-        } else {
-            posts.append(post)
-        }
-        reconcileActiveCommentsPost()
+        upsertPost(post)
     }
 
     private func startRealtimeUnreadNotificationUpdates() async {

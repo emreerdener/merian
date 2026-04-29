@@ -85,6 +85,12 @@ Rules:
 
 This gives us the "show a user if logged in, otherwise show an alias" behavior without coupling Explore to private identity fields.
 
+Normalization rule:
+
+- Public author identity should remain normalized on `public.users`.
+- Feed, map, and comment payloads should join `public.users` at read time rather than copying `public_author_name` or `public_avatar_url` into `explore_posts`.
+- This allows public alias and avatar updates to flow through to historical Explore content automatically.
+
 ## Feed Card Anatomy
 
 Each Explore card should contain:
@@ -200,11 +206,33 @@ Suggested fields:
 - `unshared_at TIMESTAMPTZ`
 - `like_count INTEGER NOT NULL DEFAULT 0`
 - `comment_count INTEGER NOT NULL DEFAULT 0`
+- `public_latitude DOUBLE PRECISION NULL`
+- `public_longitude DOUBLE PRECISION NULL`
+- `public_coordinate_visibility TEXT NULL`
+  - Allowed values: `exact`, `obscured`
+- `public_coordinate_version SMALLINT NOT NULL DEFAULT 1`
 
 Suggested constraints:
 
 - Unique active share per scan in V1
 - Query only rows where `unshared_at IS NULL`
+
+Coordinate rules:
+
+- `public_latitude` and `public_longitude` must never store the raw private scan coordinate unless the post is safe to expose as `open`.
+- `public_latitude` and `public_longitude` should be computed at share time from the underlying scan's already-enforced geoprivacy result.
+- `obscured` posts should store a stable public display coordinate, not a fresh random jitter on every request.
+- `private` scans remain ineligible for Explore and therefore never produce map coordinates.
+- `public_coordinate_version` gives Merian a forward path to reprocess stored public map coordinates if the obscuring algorithm changes later.
+
+Eligibility synchronization rules:
+
+- Explore visibility must stay synchronized with the underlying scan after share time.
+- A trigger on `scans` updates should hide or unshare the related `explore_posts` row if the scan becomes ineligible, including:
+  - `geoprivacy` changing to `private`
+  - the scan becoming tombstoned
+  - the scan losing all publicly available media
+- The same trigger path may also refresh stored public coordinates if a scan changes between `open` and `obscured`.
 
 ### `explore_post_likes`
 
@@ -272,6 +300,8 @@ Recommended V1 endpoints:
   - Returns public species-detail data for a single Explore post, including conditional per-scan `ai_reasoning` when the underlying identification has not been flagged or overridden
 - `get-explore-comments`
   - Returns paginated comments for a post
+- `get-explore-map-points`
+  - Returns privacy-safe map clusters or individual map points for the current visible area
 - `get-explore-notifications`
   - Returns the viewer's Explore activity feed
 - `get-explore-unread-notification-count`
@@ -305,6 +335,15 @@ The in-app notifications feed is the Explore source of truth. Remote APNs fan-ou
 - Order by `shared_at DESC`
 - Return only the fields the Explore UI needs
 
+Pagination:
+
+- `get-explore-feed` should use cursor pagination, not offset pagination
+- The cursor should be `(shared_at, post_id)` so feed paging remains stable while new posts are inserted above the viewer
+- Recommended request fields:
+  - `before_shared_at`
+  - `before_post_id`
+  - `limit`
+
 Recommended response fields:
 
 - `post_id`
@@ -331,6 +370,284 @@ The Explore payload should not include:
 - Email
 - Raw auth metadata
 - Full telemetry columns
+
+Implementation note:
+
+- Media availability must be cheap to filter.
+- If the scan-media visibility check becomes a hot path, prefer a trigger-maintained post-level boolean such as `has_active_media` on `explore_posts`, or at minimum an expression/partial index that prevents repeated full-table scans over media arrays.
+
+`get-explore-feed` should remain card-oriented and reverse-chronological. The map should use a separate endpoint rather than overloading feed pagination with spatial query logic.
+
+## Explore Map Addendum
+
+The Explore map should be a second discovery surface over the same `explore_posts` model, not a separate content system.
+
+Product principle:
+
+- Feed is for passive browsing.
+- Map is for spatial browsing.
+- Both must open the same public Explore detail page.
+
+### Why Merian Can Beat A Basic Pin Map
+
+The main weakness of competitor-style maps is "pin soup." Once the user zooms out, the product becomes visually dense but informationally weak.
+
+Merian should improve on that by:
+
+- Showing clusters or density at broad zoom levels instead of rendering every post as an equal pin
+- Showing individual waypoints only when the camera is close enough for selection to feel intentional
+- Using a compact preview card after tap, then opening the full Explore post detail page only on explicit expansion
+- Making privacy visible through marker treatment so `obscured` posts look meaningfully different from exact public posts
+- Surfacing "what is interesting here?" summaries such as counts, dominant groups, or recent activity rather than only exposing raw coordinates
+
+### Map V1 UX
+
+The Explore sheet already has feed and map tabs. Map V1 should behave like this:
+
+- User opens the `Map` tab.
+- The camera starts on either the user's current region or a sensible fallback world/continent view.
+- The server returns clusters at broad zoom levels and individual posts at closer zoom levels.
+- Panning the map does not immediately destroy the current results. Instead, the UI marks the region as stale and shows a `Search This Area` action.
+- Tapping a cluster zooms the camera inward.
+- Tapping an individual point selects it and reveals a compact preview card anchored above the bottom tab bar.
+- Tapping the preview card opens `ExplorePostDetailView` for the same `post_id`.
+
+Recommended V1 controls:
+
+- `Nearby`
+- `Search This Area`
+- `Recenter`
+- `Map` or `Hybrid` style toggle if we want a fast-follow visual upgrade
+
+Recommended V1 filters:
+
+- `All`
+- `Recent`
+- `Nearby`
+
+Taxonomic chips such as `Plants`, `Fungi`, `Birds`, and `Insects` are a good phase-two extension, but the initial map does not need to solve every taxonomy slice on day one.
+
+### Map Selection Model
+
+Map taps should not push full detail immediately.
+
+Recommended interaction sequence:
+
+- First tap selects a point and opens a compact preview card
+- Second tap on the selected point, or tap on the preview card, opens `ExplorePostDetailView`
+- Deselecting the point collapses the preview card
+
+This keeps the map browsable and prevents the "tap anything, lose your place" problem.
+
+### Map Privacy Model
+
+Explore map coordinates must be stricter than the scan library's private map usage.
+
+Rules:
+
+- `private` scans remain entirely absent from Explore, including the map
+- `open` scans may render with exact public coordinates
+- `obscured` scans may render only with server-generated public coordinates that represent the obscured area, never the original capture coordinate
+- If Merian applies an endangered-species safety offset, the Explore map must use that already-sanitized public coordinate rather than the original point
+- The client should never receive raw coordinates for `obscured` posts
+- The client should receive a display hint such as `coordinate_visibility: exact|obscured`
+
+Marker treatment:
+
+- `exact` can use a standard pinpoint or image-backed marker
+- `obscured` should use a softer glyph or halo so the user understands the location is approximate
+
+### Public Coordinate Strategy
+
+V1 should prefer stored public coordinates over computing fresh jitter in every response.
+
+Recommended approach:
+
+- At share time, read the scan's exact coordinate and geoprivacy
+- If `open`, copy the coordinate into `explore_posts.public_latitude/public_longitude`
+- If `obscured`, compute one stable public display coordinate inside the obscured cell and store that result
+- If `private`, reject the share as already implemented
+
+Why store the public display point:
+
+- Repeated re-jittering creates privacy leakage over multiple requests
+- Stable points make the map feel consistent when users pan away and back
+- The spatial endpoint becomes simpler and faster because it reads directly from `explore_posts`
+
+### Backend Query Model
+
+The map should not be powered by `get-explore-feed`.
+
+Recommended new endpoint:
+
+- `get-explore-map-points`
+
+Request shape:
+
+```json
+{
+  "north_latitude": 41.947,
+  "south_latitude": 41.748,
+  "east_longitude": -87.568,
+  "west_longitude": -87.742,
+  "zoom_level": 12.3,
+  "limit": 300,
+  "filters": {
+    "scope": "all",
+    "time_window": "recent"
+  }
+}
+```
+
+Response shape:
+
+```json
+{
+  "mode": "clusters",
+  "visible_count": 243,
+  "clusters": [
+    {
+      "id": "12:-327:791",
+      "latitude": 41.873,
+      "longitude": -87.632,
+      "count": 36,
+      "sample_species_common_name": "Monarch Butterfly",
+      "sample_hero_image_url": "https://..."
+    }
+  ],
+  "posts": []
+}
+```
+
+```json
+{
+  "mode": "posts",
+  "visible_count": 24,
+  "clusters": [],
+  "posts": [
+    {
+      "post_id": "UUID",
+      "scan_id": "UUID",
+      "latitude": 41.873,
+      "longitude": -87.632,
+      "coordinate_visibility": "obscured",
+      "hero_image_url": "https://...",
+      "author_name": "Nina P.",
+      "author_avatar_url": "https://...",
+      "species_common_name": "Monarch Butterfly",
+      "species_scientific_name": "Danaus plexippus",
+      "public_location_label": "Chicago, IL",
+      "shared_at": "2026-04-28T21:18:00.000Z",
+      "like_count": 12,
+      "comment_count": 3,
+      "viewer_has_liked": false,
+      "is_owned_by_viewer": false
+    }
+  ]
+}
+```
+
+Implementation notes:
+
+- Broad zooms should return cluster rows rather than individual posts
+- Close zooms should return individual posts
+- The endpoint should keep the same blocking, shadowban, media-availability, and `private` geoprivacy exclusions as `get-explore-feed`
+- The endpoint should enforce a hard row cap to prevent pathological city-scale payloads
+
+Clustering strategy:
+
+- V1 does not require PostGIS
+- Plain Postgres bounding-box filtering plus zoom-dependent grid bucketing is sufficient
+- Bucket coordinates using a zoom-dependent snapped grid such as rounded lat/lon cells or `width_bucket`
+- A cluster ID can be derived from the zoom bucket and snapped cell coordinates
+- Add a partial index on public coordinates for active map-visible posts, e.g. rows where `unshared_at IS NULL` and `public_latitude/public_longitude IS NOT NULL`
+
+### Map Preview Payload
+
+The map point payload should be rich enough to render a compact card immediately, without an extra round trip.
+
+The preview card needs:
+
+- Hero image
+- Common name
+- Scientific name
+- Public location label
+- Author label
+- Like/comment counts
+- Coordinate visibility
+
+The full detail page can still use the existing `get-explore-post` and `get-explore-post-detail` path after the user commits to the post.
+
+### iOS Client Architecture For Map
+
+Recommended additions:
+
+- `merian/Features/Explore/Views/ExploreMapView.swift`
+- `merian/Features/Explore/ViewModels/ExploreMapViewModel.swift`
+- `merian/Features/Explore/ViewModels/ExplorePostStore.swift`
+- `merian/Features/Explore/Models/ExploreMapPoint.swift`
+- `merian/Features/Explore/Components/ExploreMapPreviewCard.swift`
+
+Recommended state on `ExploreMapViewModel`:
+
+- `cameraPosition`
+- `visibleRegion`
+- `lastCommittedRegion`
+- `needsSearchInArea`
+- `isLoading`
+- `errorMessage`
+- `mode`
+- `clusters`
+- `posts`
+- `selectedPost`
+- `selectedCluster`
+- `visibleCount`
+- `activeFilters`
+- `isOffline`
+
+State machine:
+
+1. On first appearance, request a starting camera position and perform an initial fetch
+2. While the user pans or zooms, update `visibleRegion`
+3. Once the camera movement settles, compare `visibleRegion` against `lastCommittedRegion`
+4. If the delta is meaningful, set `needsSearchInArea = true`
+5. When the user taps `Search This Area`, call `get-explore-map-points`
+6. If the response is `clusters`, render clusters and clear any selected post
+7. If the response is `posts`, render point annotations
+8. On point tap, set `selectedPost`
+9. On preview-card tap, route to `ExplorePostDetailView(postId:)`
+
+Technical notes:
+
+- Use SwiftUI `Map` and `MapCameraPosition`
+- Debounce camera-driven fetch eligibility rather than firing a network request on every frame
+- Reuse the existing Explore detail route already owned by `ExploreView`
+- Keep selection state local to the map view model so the feed view model does not absorb spatial UI concerns
+- Feed and map mutations should converge through a lightweight in-memory `ExplorePostStore` so likes, comment counts, unshares, and moderation changes stay synchronized across tabs
+
+### Search And Caching Behavior
+
+Recommended V1 behavior:
+
+- Keep the last successful result set on screen while the user pans
+- Only replace results after a successful "search this area" fetch
+- Cache recent map queries in memory by coarse bounding box plus filter state
+- Prefetch `get-explore-post` only for the selected marker if we want instant detail transitions later
+- Cap rendered individual post annotations to a strict upper bound such as 500
+- Eagerly evict point annotations that fall outside an expanded region around the last committed viewport to prevent unbounded map memory growth during long-distance panning
+- If map fetches fail because the device is offline, show an explicit offline banner rather than silently leaving the map in a stale state
+
+### Rollout Strategy
+
+Recommended delivery order:
+
+- Phase 1: feed ships first
+- Phase 2: map tab placeholder ships
+- Phase 3: map endpoint plus static preview card
+- Phase 4: clustering and privacy-aware marker system
+- Phase 5: map polish such as summaries, taxon chips, and richer nearby UX
+
+This sequencing keeps the map from blocking the already-valuable feed surface.
 
 ## Interaction Rules
 
@@ -366,18 +683,24 @@ Blocking:
 Reporting:
 
 - V1 should support reporting both posts and comments for safety review.
+- After a successful report, the client should locally hide the reported post or comment for that reporting user immediately rather than waiting for a full feed refresh.
 
 ## iOS Architecture
 
 Recommended feature module:
 
 - `merian/Features/Explore/Views/ExploreView.swift`
+- `merian/Features/Explore/Views/ExploreMapView.swift`
 - `merian/Features/Explore/ViewModels/ExploreFeedViewModel.swift`
+- `merian/Features/Explore/ViewModels/ExploreMapViewModel.swift`
+- `merian/Features/Explore/ViewModels/ExplorePostStore.swift`
 - `merian/Features/Explore/ViewModels/ExploreFeedViewModel+Notifications.swift`
 - `merian/Features/Explore/ViewModels/ExploreNotificationsViewModel.swift`
 - `merian/Features/Explore/Models/ExploreNotification.swift`
+- `merian/Features/Explore/Models/ExploreMapPoint.swift`
 - `merian/Core/Network/ExploreAPIModels.swift`
 - `merian/Features/Explore/Components/ExplorePostCard.swift`
+- `merian/Features/Explore/Components/ExploreMapPreviewCard.swift`
 - `merian/Features/Explore/Components/ExploreCommentsSheet.swift`
 - `merian/Features/Explore/Components/NotificationRowView.swift`
 - `merian/Features/Explore/Views/ExploreNotificationsSheet.swift`
@@ -397,9 +720,12 @@ Client behavior:
 
 - Explore is online-only in V1
 - Likes/comments/shares do not use the offline queue
-- Feed pagination should be incremental
+- Feed pagination should be incremental and cursor-based
 - Like and comment counts should update optimistically
 - Feed cards can single-tap into detail and double-tap the image to like
+- The map should use a dedicated spatial endpoint rather than piggybacking on feed pagination
+- The map should keep stale results visible while the user pans and only refetch on an explicit `Search This Area` action
+- Marker selection should open a preview card first and only then open full detail
 - Feed comment taps present `ExploreCommentsSheet`; detail-page comments render inline with the thread
 - Explore feed share uses the system share sheet with species text plus the current hero image URL
 - The detail page uses a separate public species payload so it can render safe `Taxonomy` and `Habitat & distribution` cards without loading private scan state
@@ -441,7 +767,15 @@ Client behavior:
 - Reuse public-safe Insight visuals such as `TaxonomyCard`
 - Add the in-app notifications sheet, unread badge, and single-post fetch path used by notification taps
 
-### Phase 6: Fast Follow Ups
+### Phase 6: Explore Map
+
+- Add `get-explore-map-points`
+- Persist privacy-safe public coordinates on `explore_posts`
+- Add cluster and point rendering in `ExploreMapView`
+- Add a preview-card selection model that routes into `ExplorePostDetailView`
+- Reuse the existing Explore tab shell so users can swipe between feed and map
+
+### Phase 7: Fast Follow Ups
 
 - Public species page route from Explore cards
 - Public user profile pages
@@ -471,6 +805,11 @@ When the public species-page project exists:
 - Tapping a feed post opens a public post detail page.
 - Tapping the feed comment icon opens a bottom-sheet comment view.
 - The detail page shows inline comments plus privacy-safe telemetry and public species cards.
+- The Explore surface includes a map tab backed by the same `explore_posts` model.
+- Broad zoom levels render clusters instead of pin soup.
+- Tapping a map point opens a compact preview card before opening full detail.
+- Tapping a map preview card opens the same public Explore detail page used by feed posts.
+- `obscured` posts render only with privacy-safe stored public coordinates.
 - The bell icon shows an unread count and opens an in-app notifications sheet for likes and comments on the viewer's posts.
 - The bell unread count is refreshed on foreground, on a lightweight fallback poll, and by a Supabase realtime subscription to the viewer's notification rows.
 - Users can opt into remote Explore activity pushes separately from discovery-result alerts.

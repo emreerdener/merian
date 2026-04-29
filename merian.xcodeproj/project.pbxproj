@@ -36,6 +36,8 @@
 		1A3235395220BD080416A2A8 /* ZoomSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0D559CDA6F3F1B368761675 /* ZoomSliderView.swift */; };
 		1AF43A34D958F0AD5B596EC8 /* InferenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1044C34325AE2EFB4EC21358 /* InferenceEngine.swift */; };
 		1B1CD14D538E4F4C31CDF2F1 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDCED1906350CA652F84C8E /* ExploreView.swift */; };
+		1B1CD14D538E4F4C31CDF2F2 /* ExploreMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F708192A3B4E /* ExploreMapView.swift */; };
+		1B1CD14D538E4F4C31CDF2F3 /* ExploreMapViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F708192A3B4F /* ExploreMapViewModel.swift */; };
 		1B24CE3DB82C58CA835665D5 /* OnboardingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 261F0BA802A906A13D6B118B /* OnboardingViewModelTests.swift */; };
 		1B395B6577F08196EDF81C8D /* ObservationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61EADC8CCCE5DD165B300B9E /* ObservationContext.swift */; };
 		1B6BFA65E4FD0F69771A22F5 /* InferenceEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BED795DDD156C8FE18D565B /* InferenceEngineTests.swift */; };
@@ -733,6 +735,8 @@
 		CC35E14BA5AABD47F71C3291 /* CaptureActionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureActionCoordinator.swift; sourceTree = "<group>"; };
 		CD2F826786333CB7FACE40CB /* ScanCollection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCollection.swift; sourceTree = "<group>"; };
 		CDDCED1906350CA652F84C8E /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6F708192A3B4E /* ExploreMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreMapView.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6F708192A3B4F /* ExploreMapViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreMapViewModel.swift; sourceTree = "<group>"; };
 		CEDDFC2BE211CBF973BF691C /* UnderReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnderReviewView.swift; sourceTree = "<group>"; };
 		CF124E8F88CCF61F4F474368 /* AppTelemetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTelemetryTests.swift; sourceTree = "<group>"; };
 		D05932FD4CA01A30440F1D79 /* OnboardingStepWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStepWrapper.swift; sourceTree = "<group>"; };
@@ -1107,6 +1111,7 @@
 			isa = PBXGroup;
 			children = (
 				539D3FFA3AC0E18095BD6873 /* ExploreFeedViewModel.swift */,
+				F1A2B3C4D5E6F708192A3B4F /* ExploreMapViewModel.swift */,
 				D3CAFA0808C0D81B320545DE /* ExploreFeedViewModel+Comments.swift */,
 				D070C892403FF1F13363B8B1 /* ExploreFeedViewModel+Feed.swift */,
 				628CF83AC518207E95C83DEA /* ExploreFeedViewModel+Interactions.swift */,
@@ -1824,6 +1829,7 @@
 		CA581D680847F6B4F4CE5CDE /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				F1A2B3C4D5E6F708192A3B4E /* ExploreMapView.swift */,
 				FADAE89AF7FA28EDC09FE381 /* ExploreNotificationsSheet.swift */,
 				CB6CCD277A637D4EA882A10C /* ExplorePostDetailView.swift */,
 				CDDCED1906350CA652F84C8E /* ExploreView.swift */,
@@ -2526,7 +2532,9 @@
 				4C4278CEE932DFCFFFAB382A /* ExploreFeedViewModel.swift in Sources */,
 				2371ACABF2A085BA0F105111 /* ExploreHabitatDistributionCard.swift in Sources */,
 				9F4BFBF1BE6CC7278F1F2548 /* ExploreLoadingInsightCard.swift in Sources */,
+				1B1CD14D538E4F4C31CDF2F3 /* ExploreMapViewModel.swift in Sources */,
 				F0C4DE3F84C33FA00CC22441 /* ExploreNotification.swift in Sources */,
+				1B1CD14D538E4F4C31CDF2F2 /* ExploreMapView.swift in Sources */,
 				DE7EC21527D1CCD009CF0394 /* ExploreNotificationsSheet.swift in Sources */,
 				45D3FD50D0DA6B52993E38FC /* ExploreNotificationsViewModel.swift in Sources */,
 				DA4CED8FAD3B8B42A5EB7049 /* ExploreObservationContextCard.swift in Sources */,

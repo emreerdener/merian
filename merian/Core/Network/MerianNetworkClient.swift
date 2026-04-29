@@ -885,6 +885,28 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreFeedResponse.self, from: data).data
     }
 
+    func getExploreMapPoints(
+        northLatitude: Double,
+        southLatitude: Double,
+        eastLongitude: Double,
+        westLongitude: Double,
+        zoomLevel: Double,
+        limit: Int = 500
+    ) async throws -> ExploreMapPointsResponse {
+        let functionUrl = try endpointURL("get-explore-map-points")
+        let payload: [String: Any] = [
+            "north_latitude": northLatitude,
+            "south_latitude": southLatitude,
+            "east_longitude": eastLongitude,
+            "west_longitude": westLongitude,
+            "zoom_level": zoomLevel,
+            "limit": limit
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreMapPointsResponse.self, from: data)
+    }
+
     func getExploreComments(postId: String, limit: Int = 100, offset: Int = 0) async throws -> [ExploreComment] {
         let functionUrl = try endpointURL("get-explore-comments")
         let payload: [String: Any] = [

@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 
 struct ExploreFeedResponse: Decodable {
@@ -33,6 +34,87 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     var sharedAtDate: Date? {
         DateUtilities.iso8601FractionalFormatter.date(from: sharedAt)
             ?? DateUtilities.iso8601Formatter.date(from: sharedAt)
+    }
+}
+
+enum ExploreMapMode: String, Decodable {
+    case clusters
+    case posts
+}
+
+enum ExploreCoordinateVisibility: String, Decodable {
+    case exact
+    case obscured
+}
+
+struct ExploreMapPointsResponse: Decodable {
+    let mode: ExploreMapMode
+    let visibleCount: Int
+    let clusters: [ExploreMapCluster]
+    let posts: [ExploreMapPost]
+}
+
+struct ExploreMapCluster: Decodable, Identifiable, Equatable {
+    let id: String
+    let latitude: Double
+    let longitude: Double
+    let postCount: Int
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
+struct ExploreMapPost: Decodable, Identifiable, Equatable {
+    let postId: String
+    let scanId: String
+    let latitude: Double
+    let longitude: Double
+    let coordinateVisibility: ExploreCoordinateVisibility
+    let heroImageUrl: String
+    let sharedAt: String
+    let authorUserId: String
+    let authorName: String
+    let authorAvatarUrl: String?
+    let speciesCommonName: String
+    let speciesScientificName: String
+    let publicLocationLabel: String?
+    let timeOfDay: String?
+    let currentMonth: Int?
+    let weatherCondition: String?
+    let weatherTemperatureF: Double?
+    var likeCount: Int
+    var commentCount: Int
+    var viewerHasLiked: Bool
+    let isOwnedByViewer: Bool
+
+    var id: String { postId }
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    var asExplorePost: ExplorePost {
+        ExplorePost(
+            postId: postId,
+            scanId: scanId,
+            heroImageUrl: heroImageUrl,
+            sharedAt: sharedAt,
+            authorUserId: authorUserId,
+            authorName: authorName,
+            authorAvatarUrl: authorAvatarUrl,
+            speciesCommonName: speciesCommonName,
+            speciesScientificName: speciesScientificName,
+            publicLocationLabel: publicLocationLabel,
+            timeOfDay: timeOfDay,
+            currentMonth: currentMonth,
+            weatherCondition: weatherCondition,
+            weatherTemperatureF: weatherTemperatureF,
+            likeCount: likeCount,
+            commentCount: commentCount,
+            viewerHasLiked: viewerHasLiked,
+            isOwnedByViewer: isOwnedByViewer
+        )
     }
 }
 

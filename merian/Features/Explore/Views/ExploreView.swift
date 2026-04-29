@@ -1,10 +1,24 @@
 import SwiftUI
 import UIKit
 
+enum ExploreTab: Hashable {
+    case feed
+    case map
+}
+
 struct ExploreView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = ExploreFeedViewModel()
+    @State private var mapViewModel = ExploreMapViewModel()
     @State private var selectedPostRoute: ExplorePostRoute?
+    @State private var activeTab: ExploreTab = .feed
+
+    private var tabSelectionBinding: Binding<ExploreTab?> {
+        Binding(
+            get: { activeTab },
+            set: { if let value = $0 { activeTab = value } }
+        )
+    }
 
     init(initialPostId: String? = nil) {
         if let postId = initialPostId {
@@ -14,19 +28,29 @@ struct ExploreView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if viewModel.isLoadingInitialFeed && viewModel.posts.isEmpty {
-                    loadingState
-                } else if let errorMessage = viewModel.errorMessage, viewModel.posts.isEmpty {
-                    errorState(message: errorMessage)
-                } else if viewModel.posts.isEmpty {
-                    emptyState
-                } else {
-                    feedScrollView
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    ExploreFeedTabContent(
+                        viewModel: viewModel,
+                        onOpenPostDetail: { openPostDetail(for: $0) }
+                    )
+                    .id(ExploreTab.feed)
+
+                    ExploreMapView(
+                        viewModel: mapViewModel,
+                        feedViewModel: viewModel,
+                        onOpenDetail: { post, focusCommentComposer in
+                            openPostDetail(for: post, focusCommentComposer: focusCommentComposer)
+                        }
+                    )
+                        .id(ExploreTab.map)
                 }
+                .scrollTargetLayout()
             }
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: tabSelectionBinding)
+            .scrollDisabled(activeTab == .map)
             .background(Color(uiColor: .systemBackground))
-            .navigationTitle("Explore")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(
                 isPresented: Binding(
@@ -42,18 +66,7 @@ struct ExploreView: View {
                     )
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
-                    }
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    bellButton
-                }
-            }
+            .toolbar { exploreToolbar }
         }
         .task {
             await viewModel.loadInitialFeed()
@@ -110,6 +123,116 @@ struct ExploreView: View {
         )
     }
 
+    @ToolbarContentBuilder
+    private var exploreToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .bold))
+            }
+        }
+
+        ToolbarItem(placement: .principal) {
+            Picker("View", selection: $activeTab) {
+                Text("Feed").tag(ExploreTab.feed)
+                Text("Map").tag(ExploreTab.map)
+            }
+            .pickerStyle(.segmented)
+            .padding(.bottom, 1)
+            .background(Capsule().fill(.regularMaterial))
+            .clipShape(Capsule())
+            .frame(width: 180)
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
+            bellButton
+        }
+    }
+
+    private func openPostDetail(for post: ExplorePost, focusCommentComposer: Bool = false) {
+        selectedPostRoute = ExplorePostRoute(
+            postId: post.id,
+            shouldFocusCommentComposer: focusCommentComposer
+        )
+    }
+
+    private var bellButton: some View {
+        Button(action: { viewModel.presentNotifications() }) {
+            Image(systemName: "bell")
+                .font(.system(size: 16, weight: .bold))
+        }
+        .overlay(alignment: .topTrailing) {
+            if viewModel.unreadNotificationCount > 0 {
+                Text(badgeText)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, viewModel.unreadNotificationCount > 9 ? 5 : 0)
+                    .frame(minWidth: 18, minHeight: 18)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.red)
+                    )
+                    .offset(x: 4, y: -4)
+            }
+        }
+        .accessibilityLabel(accessibilityNotificationLabel)
+    }
+
+    private var badgeText: String {
+        if viewModel.unreadNotificationCount > 99 {
+            return "99+"
+        }
+        return "\(viewModel.unreadNotificationCount)"
+    }
+
+    private var accessibilityNotificationLabel: String {
+        if viewModel.unreadNotificationCount == 0 {
+            return "Notifications"
+        }
+        return "Notifications, \(viewModel.unreadNotificationCount) unread"
+    }
+
+    private func openNotification(_ notification: ExploreNotification) async {
+        do {
+            let post = try await viewModel.preparePostForNavigation(postId: notification.postId)
+            viewModel.dismissNotifications()
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            openPostDetail(for: post, focusCommentComposer: notification.type == .comment)
+        } catch {
+            MerianLog.network.error(
+                "Failed to open Explore notification \(notification.id, privacy: .private): \(error.localizedDescription, privacy: .private)"
+            )
+            AppTelemetry.trackExploreNotificationOpenFailed(type: notification.type.rawValue)
+            HapticManager.shared.triggerErrorThump()
+            viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+}
+
+private struct ExploreFeedTabContent: View {
+    @Bindable var viewModel: ExploreFeedViewModel
+    let onOpenPostDetail: (ExplorePost) -> Void
+
+    var body: some View {
+        ZStack {
+            Color(uiColor: .systemBackground)
+                .ignoresSafeArea()
+
+            Group {
+                if viewModel.isLoadingInitialFeed && viewModel.posts.isEmpty {
+                    loadingState
+                } else if let errorMessage = viewModel.errorMessage, viewModel.posts.isEmpty {
+                    errorState(message: errorMessage)
+                } else if viewModel.posts.isEmpty {
+                    emptyState
+                } else {
+                    feedScrollView
+                }
+            }
+        }
+        .containerRelativeFrame(.horizontal)
+    }
+
     private var feedScrollView: some View {
         ScrollView {
             LazyVStack(spacing: 24) {
@@ -120,7 +243,7 @@ struct ExploreView: View {
                         onLike: { Task { await viewModel.toggleLike(for: post) } },
                         onComments: { Task { await viewModel.openCommentsSheet(for: post) } },
                         onShare: { viewModel.share(post) },
-                        onOpenDetail: { openPostDetail(for: post) },
+                        onOpenDetail: { onOpenPostDetail(post) },
                         onUnshare: { Task { await viewModel.unshare(post) } },
                         onBlock: { Task { await viewModel.blockAuthor(of: post) } },
                         onReport: { Task { await viewModel.report(post) } }
@@ -181,65 +304,6 @@ struct ExploreView: View {
                     .fontWeight(.semibold)
             }
             .buttonStyle(.borderedProminent)
-        }
-    }
-
-    private func openPostDetail(for post: ExplorePost, focusCommentComposer: Bool = false) {
-        selectedPostRoute = ExplorePostRoute(
-            postId: post.id,
-            shouldFocusCommentComposer: focusCommentComposer
-        )
-    }
-
-    private var bellButton: some View {
-        Button(action: { viewModel.presentNotifications() }) {
-            Image(systemName: "bell")
-                .font(.system(size: 16, weight: .bold))
-        }
-        .overlay(alignment: .topTrailing) {
-            if viewModel.unreadNotificationCount > 0 {
-                Text(badgeText)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, viewModel.unreadNotificationCount > 9 ? 5 : 0)
-                    .frame(minWidth: 18, minHeight: 18)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color.red)
-                    )
-                    .offset(x: 4, y: -4)
-            }
-        }
-        .accessibilityLabel(accessibilityNotificationLabel)
-    }
-
-    private var badgeText: String {
-        if viewModel.unreadNotificationCount > 99 {
-            return "99+"
-        }
-        return "\(viewModel.unreadNotificationCount)"
-    }
-
-    private var accessibilityNotificationLabel: String {
-        if viewModel.unreadNotificationCount == 0 {
-            return "Notifications"
-        }
-        return "Notifications, \(viewModel.unreadNotificationCount) unread"
-    }
-
-    private func openNotification(_ notification: ExploreNotification) async {
-        do {
-            let post = try await viewModel.preparePostForNavigation(postId: notification.postId)
-            viewModel.dismissNotifications()
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            openPostDetail(for: post, focusCommentComposer: notification.type == .comment)
-        } catch {
-            MerianLog.network.error(
-                "Failed to open Explore notification \(notification.id, privacy: .private): \(error.localizedDescription, privacy: .private)"
-            )
-            AppTelemetry.trackExploreNotificationOpenFailed(type: notification.type.rawValue)
-            HapticManager.shared.triggerErrorThump()
-            viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
         }
     }
 }
