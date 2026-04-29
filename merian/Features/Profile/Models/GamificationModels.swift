@@ -149,7 +149,7 @@ enum AchievementType: String, CaseIterable, Sendable, Identifiable {
                 tintToken: .night,
                 difficultyLevel: 1,
                 contributionKind: .uniqueSpecies { record in
-                    let hour = Calendar.current.component(.hour, from: record.timestamp)
+                    let hour = Calendar.current.component(.hour, from: record.observationDate)
                     guard hour >= 22 || hour <= 5 else { return nil }
                     return "Captured after dark"
                 }
@@ -232,6 +232,7 @@ protocol AchievementRecordRepresentable {
     var userIdentificationOverride: String? { get }
     var confirmedSpeciesId: String? { get }
     var timestamp: Date { get }
+    var captureDate: Date? { get }
     var taxonomyKingdom: String? { get }
     var taxonomyClass: String? { get }
     var ecologyType: String { get }
@@ -257,6 +258,10 @@ extension AchievementRecordRepresentable {
 
     var displayScientificName: String {
         trimmedNonEmpty(userIdentificationOverride) ?? scientificName
+    }
+
+    var observationDate: Date {
+        captureDate ?? timestamp
     }
 
     var canonicalSpeciesKey: String {

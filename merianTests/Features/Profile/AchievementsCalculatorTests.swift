@@ -11,6 +11,7 @@ final class AchievementsCalculatorTests: XCTestCase {
         scientificName: String = "Test Species",
         commonName: String? = nil,
         timestamp: Date = Date(),
+        captureDate: Date? = nil,
         weatherTemperatureF: Double? = nil,
         gpsElevation: Double? = nil,
         taxonomyKingdom: String? = nil,
@@ -29,6 +30,7 @@ final class AchievementsCalculatorTests: XCTestCase {
             scientificName: scientificName,
             commonName: commonName ?? "Common \(scientificName)",
             timestamp: timestamp,
+            captureDate: captureDate,
             hazardType: hazardType,
             isInvasive: isInvasive,
             ecologyType: ecologyType,
@@ -169,6 +171,27 @@ final class AchievementsCalculatorTests: XCTestCase {
         let awards = AchievementsCalculator.calculate(from: scans)
 
         XCTAssertEqual(awards.first { $0.type == .nocturnal }?.currentCount, 2, "Hours strictly >= 22 or <= 5 evaluate mapping correctly")
+    }
+
+    func testNocturnalUsesCaptureDateWhenAvailable() {
+        let calendar = Calendar.current
+        let saveTime = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+        let captureTime = calendar.date(bySettingHour: 23, minute: 30, second: 0, of: Date())!
+
+        let scans = [
+            mockScan(
+                id: "historic_night_scan",
+                scientificName: "Night Bloom",
+                timestamp: saveTime,
+                captureDate: captureTime,
+                taxonomyKingdom: "plantae"
+            )
+        ]
+
+        let detail = AchievementsCalculator.detail(for: .nocturnal, from: scans)
+
+        XCTAssertEqual(detail?.award.currentCount, 1, "After-dark qualification must use the observation capture time when available")
+        XCTAssertEqual(detail?.contributions.first?.timestamp, captureTime, "Achievement detail rows must display the observation capture time, not the save time")
     }
 
     func testConservationist() {

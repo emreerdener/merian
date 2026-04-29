@@ -12,6 +12,7 @@ actor ProfileDatabaseActor {
         let scientificName: String
         let userIdentificationOverride: String?
         let confirmedSpeciesId: String?
+        let captureDate: Date?
         let taxonomyKingdom: String?
         let taxonomyClass: String?
         let ecologyType: String
@@ -31,6 +32,7 @@ actor ProfileDatabaseActor {
         let userIdentificationOverride: String?
         let confirmedSpeciesId: String?
         let timestamp: Date
+        let captureDate: Date?
         let taxonomyKingdom: String?
         let taxonomyClass: String?
         let ecologyType: String
@@ -50,7 +52,7 @@ actor ProfileDatabaseActor {
     private func fetchAnalyticsProjection() -> [ProfileAnalyticsProjection] {
         var descriptor = FetchDescriptor<LocalScanRecord>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         descriptor.propertiesToFetch = [
-            \.id, \.speciesId, \.scientificName, \.userIdentificationOverride, \.confirmedSpeciesId,
+            \.id, \.speciesId, \.scientificName, \.userIdentificationOverride, \.confirmedSpeciesId, \.captureDate,
             \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
             \.gpsElevation, \.timestamp, \.isInvasive, \.iucnRedListStatus, \.hazardType,
             \.confidenceScore
@@ -64,6 +66,7 @@ actor ProfileDatabaseActor {
                 scientificName: $0.scientificName,
                 userIdentificationOverride: $0.userIdentificationOverride,
                 confirmedSpeciesId: $0.confirmedSpeciesId,
+                captureDate: $0.captureDate,
                 taxonomyKingdom: $0.taxonomyKingdom,
                 taxonomyClass: $0.taxonomyClass,
                 ecologyType: $0.ecologyType,
@@ -82,7 +85,7 @@ actor ProfileDatabaseActor {
         var descriptor = FetchDescriptor<LocalScanRecord>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         descriptor.propertiesToFetch = [
             \.id, \.speciesId, \.scientificName, \.userIdentificationOverride, \.confirmedSpeciesId,
-            \.timestamp, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
+            \.timestamp, \.captureDate, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
             \.gpsElevation, \.isInvasive, \.iucnRedListStatus, \.hazardType, \.confidenceScore,
             \.commonName, \.locationName, \.coverImagePath, \.capturedMediaJSON, \.referenceImageUrl,
             \.isBiological, \.isLocallyArchived
@@ -98,6 +101,7 @@ actor ProfileDatabaseActor {
                 userIdentificationOverride: record.userIdentificationOverride,
                 confirmedSpeciesId: record.confirmedSpeciesId,
                 timestamp: record.timestamp,
+                captureDate: record.captureDate,
                 taxonomyKingdom: record.taxonomyKingdom,
                 taxonomyClass: record.taxonomyClass,
                 ecologyType: record.ecologyType,

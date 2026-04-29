@@ -92,7 +92,7 @@ struct AchievementsCalculator {
             scanID: record.id,
             commonName: record.displayCommonName,
             scientificName: record.displayScientificName,
-            timestamp: record.timestamp,
+            timestamp: record.observationDate,
             reasonText: reasonText,
             imagePath: record.imagePath,
             fallbackImageUrl: record.fallbackImageUrl,
