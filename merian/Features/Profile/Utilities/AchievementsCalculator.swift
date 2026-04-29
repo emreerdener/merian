@@ -1,21 +1,10 @@
 import Foundation
 
-protocol AchievementRecordRepresentable {
-    var id: String { get }
-    var scientificName: String { get }
-    var timestamp: Date { get }
-    var taxonomyKingdom: String? { get }
-    var taxonomyClass: String? { get }
-    var ecologyType: String { get }
-    var weatherTemperatureF: Double? { get }
-    var gpsElevation: Double? { get }
-    var isInvasive: Bool { get }
-    var iucnRedListStatus: String? { get }
-    var hazardType: String { get }
-    var confidenceScore: Double? { get }
+extension LocalScanRecord: AchievementRecordRepresentable {
+    var imagePath: String? { scanThumbnailPresentation.imagePath }
+    var fallbackImageUrl: String? { scanThumbnailPresentation.fallbackImageUrl }
+    var placeholderStyle: ScanThumbnailPlaceholderStyle { scanThumbnailPresentation.placeholderStyle }
 }
-
-extension LocalScanRecord: AchievementRecordRepresentable {}
 
 struct AchievementsCalculator {
     static func calculate<Record: AchievementRecordRepresentable>(from allRecords: [Record]) -> [AwardPayload] {
@@ -23,7 +12,7 @@ struct AchievementsCalculator {
     }
 
     static func detail<Record: AchievementRecordRepresentable>(
-        for type: String,
+        for type: AchievementType,
         from allRecords: [Record]
     ) -> AchievementDetailPayload? {
         evaluations(from: allRecords).first { $0.award.type == type }
@@ -32,201 +21,123 @@ struct AchievementsCalculator {
     private static func evaluations<Record: AchievementRecordRepresentable>(
         from allRecords: [Record]
     ) -> [AchievementDetailPayload] {
-        var explorer = AchievementAccumulator(
-            title: "The Naturalist",
-            type: "explorer",
-            targetCount: 5
-        )
-        var plants = AchievementAccumulator(
-            title: "The Botanist",
-            type: "plantae",
-            targetCount: 10
-        )
-        var insects = AchievementAccumulator(
-            title: "The Zoologist",
-            type: "insecta",
-            targetCount: 10
-        )
-        var fungi = AchievementAccumulator(
-            title: "The Mycologist",
-            type: "fungi",
-            targetCount: 10
-        )
-        var urban = AchievementAccumulator(
-            title: "The Urban Ecologist",
-            type: "urban",
-            targetCount: 10
-        )
-        var frostWalker = AchievementAccumulator(
-            title: "The Frost Walker",
-            type: "frost_walker",
-            targetCount: 5
-        )
-        var alpine = AchievementAccumulator(
-            title: "The Alpine Naturalist",
-            type: "alpine",
-            targetCount: 5
-        )
-        var nocturnal = AchievementAccumulator(
-            title: "The Nocturnal Observer",
-            type: "nocturnal",
-            targetCount: 10
-        )
-        var guardian = AchievementAccumulator(
-            title: "The Guardian",
-            type: "guardian",
-            targetCount: 5
-        )
-        var conservationist = AchievementAccumulator(
-            title: "The Conservationist",
-            type: "conservationist",
-            targetCount: 1
-        )
-        var toxicologist = AchievementAccumulator(
-            title: "The Toxicologist",
-            type: "toxicologist",
-            targetCount: 5
-        )
-        var perfectLens = AchievementAccumulator(
-            title: "The Perfect Lens",
-            type: "perfect_lens",
-            targetCount: 25
+        var accumulators = Dictionary(
+            uniqueKeysWithValues: AchievementType.allCases.compactMap { type -> (AchievementType, AchievementAccumulator)? in
+                switch type.definition.contributionKind {
+                case .firstScan:
+                    return nil
+                case .uniqueSpecies:
+                    return (type, AchievementAccumulator(type: type))
+                }
+            }
         )
 
         for record in allRecords {
-            explorer.register(record, reasonText: "Unique species documented")
-
-            if let kingdom = record.taxonomyKingdom?.lowercased() {
-                if kingdom == "fungi" {
-                    fungi.register(record, reasonText: "Fungi kingdom")
-                } else if kingdom == "plantae" {
-                    plants.register(record, reasonText: "Plant kingdom")
+            for type in AchievementType.allCases {
+                switch type.definition.contributionKind {
+                case .firstScan:
+                    continue
+                case .uniqueSpecies(let qualifyingReason):
+                    guard let reasonText = qualifyingReason(record) else { continue }
+                    let contribution = makeContribution(for: record, reasonText: reasonText)
+                    accumulators[type]?.register(
+                        contribution,
+                        canonicalSpeciesKey: record.canonicalSpeciesKey
+                    )
                 }
             }
+        }
 
-            if let className = record.taxonomyClass?.lowercased() {
-                if className == "insecta" || className == "arachnida" {
-                    insects.register(record, reasonText: className.capitalized)
-                }
-            }
-
-            let ecology = record.ecologyType.lowercased()
-            if ecology == "urban" || ecology == "domesticated" {
-                urban.register(record, reasonText: ecology.capitalized + " ecology")
-            }
-
-            if let temp = record.weatherTemperatureF, temp < 32.0 {
-                frostWalker.register(record, reasonText: "\(Int(temp.rounded()))°F capture")
-            }
-            if let elevation = record.gpsElevation, elevation > 2500.0 {
-                alpine.register(record, reasonText: "\(Int(elevation.rounded())) m elevation")
-            }
-
-            let hour = Calendar.current.component(.hour, from: record.timestamp)
-            if hour >= 22 || hour <= 5 {
-                nocturnal.register(record, reasonText: "Captured after dark")
-            }
-            if record.isInvasive {
-                guardian.register(record, reasonText: "Marked invasive")
-            }
-            if let status = record.iucnRedListStatus,
-               !status.isEmpty,
-               status != "LC",
-               status != "NE",
-               status != "DD" {
-                conservationist.register(record, reasonText: "IUCN \(status)")
-            }
-            if record.hazardType != "none" {
-                toxicologist.register(
-                    record,
-                    reasonText: record.hazardType
-                        .replacingOccurrences(of: "_", with: " ")
-                        .capitalized
+        return AchievementType.allCases.map { type in
+            switch type.definition.contributionKind {
+            case .firstScan(let reasonText):
+                return firstScanDetail(from: allRecords, reasonText: reasonText)
+            case .uniqueSpecies:
+                return accumulators[type]?.detailPayload ?? AchievementDetailPayload(
+                    award: AwardPayload(type: type, currentCount: 0, lastInteractionDate: nil),
+                    contributions: []
                 )
             }
-            if let score = record.confidenceScore, score >= 0.98 {
-                perfectLens.register(record, reasonText: "\(Int((score * 100).rounded()))% AI confidence")
+        }
+    }
+
+    private static func firstScanDetail<Record: AchievementRecordRepresentable>(
+        from allRecords: [Record],
+        reasonText: String
+    ) -> AchievementDetailPayload {
+        let oldestRecord = allRecords.min { lhs, rhs in
+            if lhs.timestamp == rhs.timestamp {
+                return lhs.id < rhs.id
             }
+            return lhs.timestamp < rhs.timestamp
         }
 
-        let firstScanContribution = allRecords.last.map {
-            AchievementContribution(
-                id: $0.id,
-                scientificName: $0.scientificName,
-                timestamp: $0.timestamp,
-                reasonText: "Your first recorded scan"
-            )
-        }
-        let firstScanDate = firstScanContribution?.timestamp
-        let firstScanDetail = AchievementDetailPayload(
+        return AchievementDetailPayload(
             award: AwardPayload(
-                title: "The Observer",
-                type: "first_scan",
-                currentCount: allRecords.isEmpty ? 0 : 1,
-                targetCount: 1,
-                lastInteractionDate: firstScanDate
+                type: .firstScan,
+                currentCount: oldestRecord == nil ? 0 : 1,
+                lastInteractionDate: oldestRecord?.timestamp
             ),
-            contributions: firstScanContribution.map { [$0] } ?? []
+            contributions: oldestRecord.map {
+                [makeContribution(for: $0, reasonText: reasonText)]
+            } ?? []
         )
+    }
 
-        return [
-            firstScanDetail,
-            explorer.detailPayload,
-            plants.detailPayload,
-            insects.detailPayload,
-            fungi.detailPayload,
-            urban.detailPayload,
-            frostWalker.detailPayload,
-            alpine.detailPayload,
-            nocturnal.detailPayload,
-            guardian.detailPayload,
-            conservationist.detailPayload,
-            toxicologist.detailPayload,
-            perfectLens.detailPayload
-        ]
+    private static func makeContribution<Record: AchievementRecordRepresentable>(
+        for record: Record,
+        reasonText: String
+    ) -> AchievementContribution {
+        AchievementContribution(
+            scanID: record.id,
+            commonName: record.displayCommonName,
+            scientificName: record.displayScientificName,
+            timestamp: record.timestamp,
+            reasonText: reasonText,
+            imagePath: record.imagePath,
+            fallbackImageUrl: record.fallbackImageUrl,
+            placeholderStyle: record.placeholderStyle,
+            locationName: record.locationName
+        )
     }
 }
 
 private struct AchievementAccumulator {
-    let title: String
-    let type: String
-    let targetCount: Int
-    private var uniqueSpecies = Set<String>()
+    let type: AchievementType
+    private var contributionsBySpeciesKey: [String: AchievementContribution] = [:]
     private var lastInteractionDate: Date?
-    private var contributions: [AchievementContribution] = []
 
-    init(title: String, type: String, targetCount: Int) {
-        self.title = title
+    init(type: AchievementType) {
         self.type = type
-        self.targetCount = targetCount
     }
 
-    mutating func register<Record: AchievementRecordRepresentable>(
-        _ record: Record,
-        reasonText: String
+    mutating func register(
+        _ contribution: AchievementContribution,
+        canonicalSpeciesKey: String
     ) {
-        guard uniqueSpecies.insert(record.scientificName).inserted else { return }
-        lastInteractionDate = lastInteractionDate ?? record.timestamp
-        contributions.append(
-            AchievementContribution(
-                id: record.id,
-                scientificName: record.scientificName,
-                timestamp: record.timestamp,
-                reasonText: reasonText
-            )
-        )
+        if let existingContribution = contributionsBySpeciesKey[canonicalSpeciesKey],
+           existingContribution.timestamp >= contribution.timestamp {
+            lastInteractionDate = max(lastInteractionDate ?? existingContribution.timestamp, existingContribution.timestamp)
+            return
+        }
+
+        contributionsBySpeciesKey[canonicalSpeciesKey] = contribution
+        lastInteractionDate = max(lastInteractionDate ?? contribution.timestamp, contribution.timestamp)
     }
 
     var detailPayload: AchievementDetailPayload {
         AchievementDetailPayload(
             award: AwardPayload(
-                title: title,
                 type: type,
-                currentCount: uniqueSpecies.count,
-                targetCount: targetCount,
+                currentCount: contributionsBySpeciesKey.count,
                 lastInteractionDate: lastInteractionDate
             ),
-            contributions: contributions
+            contributions: contributionsBySpeciesKey.values.sorted { lhs, rhs in
+                if lhs.timestamp == rhs.timestamp {
+                    return lhs.scanID < rhs.scanID
+                }
+                return lhs.timestamp > rhs.timestamp
+            }
         )
     }
 }

@@ -8,7 +8,10 @@ import SwiftUI
 actor ProfileDatabaseActor {
     private struct ProfileAnalyticsProjection: AchievementRecordRepresentable {
         let id: String
+        let speciesId: String
         let scientificName: String
+        let userIdentificationOverride: String?
+        let confirmedSpeciesId: String?
         let taxonomyKingdom: String?
         let taxonomyClass: String?
         let ecologyType: String
@@ -21,19 +24,46 @@ actor ProfileDatabaseActor {
         let confidenceScore: Double?
     }
 
+    private struct ProfileAchievementDetailProjection: AchievementRecordRepresentable {
+        let id: String
+        let speciesId: String
+        let scientificName: String
+        let userIdentificationOverride: String?
+        let confirmedSpeciesId: String?
+        let timestamp: Date
+        let taxonomyKingdom: String?
+        let taxonomyClass: String?
+        let ecologyType: String
+        let weatherTemperatureF: Double?
+        let gpsElevation: Double?
+        let isInvasive: Bool
+        let iucnRedListStatus: String?
+        let hazardType: String
+        let confidenceScore: Double?
+        let commonName: String?
+        let locationName: String?
+        let imagePath: String?
+        let fallbackImageUrl: String?
+        let placeholderStyle: ScanThumbnailPlaceholderStyle
+    }
+
     private func fetchAnalyticsProjection() -> [ProfileAnalyticsProjection] {
         var descriptor = FetchDescriptor<LocalScanRecord>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         descriptor.propertiesToFetch = [
-            \.id, \.scientificName, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType,
-            \.weatherTemperatureF, \.gpsElevation, \.timestamp, \.isInvasive,
-            \.iucnRedListStatus, \.hazardType, \.confidenceScore
+            \.id, \.speciesId, \.scientificName, \.userIdentificationOverride, \.confirmedSpeciesId,
+            \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
+            \.gpsElevation, \.timestamp, \.isInvasive, \.iucnRedListStatus, \.hazardType,
+            \.confidenceScore
         ]
 
         guard let records = try? modelContext.fetch(descriptor) else { return [] }
         return records.map {
             ProfileAnalyticsProjection(
                 id: $0.id,
+                speciesId: $0.speciesId,
                 scientificName: $0.scientificName,
+                userIdentificationOverride: $0.userIdentificationOverride,
+                confirmedSpeciesId: $0.confirmedSpeciesId,
                 taxonomyKingdom: $0.taxonomyKingdom,
                 taxonomyClass: $0.taxonomyClass,
                 ecologyType: $0.ecologyType,
@@ -44,6 +74,44 @@ actor ProfileDatabaseActor {
                 iucnRedListStatus: $0.iucnRedListStatus,
                 hazardType: $0.hazardType,
                 confidenceScore: $0.confidenceScore
+            )
+        }
+    }
+
+    private func fetchAchievementDetailProjection() -> [ProfileAchievementDetailProjection] {
+        var descriptor = FetchDescriptor<LocalScanRecord>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+        descriptor.propertiesToFetch = [
+            \.id, \.speciesId, \.scientificName, \.userIdentificationOverride, \.confirmedSpeciesId,
+            \.timestamp, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
+            \.gpsElevation, \.isInvasive, \.iucnRedListStatus, \.hazardType, \.confidenceScore,
+            \.commonName, \.locationName, \.coverImagePath, \.capturedMediaJSON, \.referenceImageUrl,
+            \.isBiological, \.isLocallyArchived
+        ]
+
+        guard let records = try? modelContext.fetch(descriptor) else { return [] }
+        return records.map { record in
+            let thumbnail = record.scanThumbnailPresentation
+            return ProfileAchievementDetailProjection(
+                id: record.id,
+                speciesId: record.speciesId,
+                scientificName: record.scientificName,
+                userIdentificationOverride: record.userIdentificationOverride,
+                confirmedSpeciesId: record.confirmedSpeciesId,
+                timestamp: record.timestamp,
+                taxonomyKingdom: record.taxonomyKingdom,
+                taxonomyClass: record.taxonomyClass,
+                ecologyType: record.ecologyType,
+                weatherTemperatureF: record.weatherTemperatureF,
+                gpsElevation: record.gpsElevation,
+                isInvasive: record.isInvasive,
+                iucnRedListStatus: record.iucnRedListStatus,
+                hazardType: record.hazardType,
+                confidenceScore: record.confidenceScore,
+                commonName: record.commonName,
+                locationName: record.locationName,
+                imagePath: thumbnail.imagePath,
+                fallbackImageUrl: thumbnail.fallbackImageUrl,
+                placeholderStyle: thumbnail.placeholderStyle
             )
         }
     }
@@ -200,8 +268,8 @@ actor ProfileDatabaseActor {
         AchievementsCalculator.calculate(from: fetchAnalyticsProjection())
     }
 
-    func calculateAchievementDetail(for type: String) -> AchievementDetailPayload? {
-        AchievementsCalculator.detail(for: type, from: fetchAnalyticsProjection())
+    func calculateAchievementDetail(for type: AchievementType) -> AchievementDetailPayload? {
+        AchievementsCalculator.detail(for: type, from: fetchAchievementDetailProjection())
     }
     
 }
@@ -209,30 +277,30 @@ actor ProfileDatabaseActor {
 // MARK: - Native Thread-Safe Architectures
 // Explicit `Sendable` conformity fundamentally guarantees Apple's compiler instantly halts
 // compilation if accidental memory-race conditions attempt to cross Thread boundaries.
-public struct HeatmapDay: Sendable, Identifiable {
-    public let id = UUID()
-    public let count: Int
-    public let date: Date
+struct HeatmapDay: Sendable, Identifiable {
+    let id = UUID()
+    let count: Int
+    let date: Date
 }
 
-public struct HeatmapWeek: Sendable, Identifiable {
-    public let id = UUID()
-    public let days: [HeatmapDay]
-    public let monthLabel: String?
+struct HeatmapWeek: Sendable, Identifiable {
+    let id = UUID()
+    let days: [HeatmapDay]
+    let monthLabel: String?
 }
 
-public struct ProfileHeatmapData: Sendable {
-    public let totalCaptures: Int
-    public let currentMonthCaptures: Int
-    public let yearString: String
-    public let weeks: [HeatmapWeek]
+struct ProfileHeatmapData: Sendable {
+    let totalCaptures: Int
+    let currentMonthCaptures: Int
+    let yearString: String
+    let weeks: [HeatmapWeek]
 }
 
-public struct ProfileAllStatsPayload: Sendable {
-    public let speciesCount: Int
-    public let streak: Int
-    public let heatmap: ProfileHeatmapData
-    public let awards: [AwardPayload]
+struct ProfileAllStatsPayload: Sendable {
+    let speciesCount: Int
+    let streak: Int
+    let heatmap: ProfileHeatmapData
+    let awards: [AwardPayload]
 }
 
 struct UserStats: View {

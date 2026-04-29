@@ -105,6 +105,7 @@ struct InsightSheetView: View {
                     }
                 }
         }
+        .accessibilityIdentifier("InsightSheetView")
         // Presentation Logic Hook
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)

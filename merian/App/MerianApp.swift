@@ -116,6 +116,95 @@ enum ModelStoreRecoveryCoordinator {
     }
 }
 
+private enum UITestSeedCoordinator {
+    static var isEnabled: Bool {
+        ProcessInfo.processInfo.environment["UITesting"] == "true"
+    }
+
+    @MainActor
+    static func prepareIfNeeded(container: ModelContainer) {
+        guard isEnabled else { return }
+        guard ProcessInfo.processInfo.arguments.contains("-seedAchievementDetailFlow") else { return }
+
+        let context = container.mainContext
+
+        do {
+            try context.delete(model: LocalScanRecord.self)
+            try context.delete(model: ScanCollection.self)
+            try context.delete(model: OfflineQueuedScan.self)
+            try context.delete(model: PendingCloudDeletionTask.self)
+
+            for record in achievementDetailFlowRecords() {
+                context.insert(record)
+            }
+
+            try context.save()
+
+            UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
+            MerianLog.general.debug("UITestSeedCoordinator seeded achievement detail flow records.")
+        } catch {
+            MerianLog.general.error("UITestSeedCoordinator failed to seed data: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    private static func achievementDetailFlowRecords() -> [LocalScanRecord] {
+        let calendar = Calendar(identifier: .gregorian)
+
+        let latestFungiDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 28, hour: 10, minute: 15)) ?? Date()
+        let duplicateFungiDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 27, hour: 8, minute: 5)) ?? latestFungiDate.addingTimeInterval(-86_400)
+        let secondFungiDate = calendar.date(from: DateComponents(year: 2026, month: 4, day: 26, hour: 9, minute: 45)) ?? latestFungiDate.addingTimeInterval(-172_800)
+
+        return [
+            LocalScanRecord(
+                id: "achievement_fungi_latest",
+                speciesId: "fungi_amanita_ai",
+                scientificName: "Amanita muscaria",
+                commonName: "Fly Agaric",
+                timestamp: latestFungiDate,
+                hazardType: "none",
+                isInvasive: false,
+                ecologyType: "forest",
+                confidenceScore: 0.992,
+                isLocallyArchived: true,
+                taxonomyKingdom: "fungi",
+                locationName: "North Woods",
+                confirmedSpeciesId: "fungi_amanita_confirmed"
+            ),
+            LocalScanRecord(
+                id: "achievement_fungi_duplicate",
+                speciesId: "fungi_amanita_alternate",
+                scientificName: "Amanita cf. muscaria",
+                commonName: "Fly Agaric",
+                timestamp: duplicateFungiDate,
+                hazardType: "none",
+                isInvasive: false,
+                ecologyType: "forest",
+                confidenceScore: 0.981,
+                isLocallyArchived: true,
+                taxonomyKingdom: "fungi",
+                locationName: "North Woods",
+                userIdentificationOverride: "Amanita muscaria",
+                confirmedSpeciesId: "fungi_amanita_confirmed"
+            ),
+            LocalScanRecord(
+                id: "achievement_fungi_second",
+                speciesId: "fungi_boletus",
+                scientificName: "Boletus edulis",
+                commonName: "Porcini",
+                timestamp: secondFungiDate,
+                hazardType: "none",
+                isInvasive: false,
+                ecologyType: "forest",
+                confidenceScore: 0.989,
+                isLocallyArchived: true,
+                taxonomyKingdom: "fungi",
+                locationName: "Creek Trail",
+                confirmedSpeciesId: "fungi_boletus"
+            )
+        ]
+    }
+}
+
 // MARK: - Main Execution Point
 @main
 struct MerianApp: App {
@@ -131,6 +220,7 @@ struct MerianApp: App {
     let container: ModelContainer
     
     // MARK: - Lifecycle Bootstrapping
+    @MainActor
     init() {
         // Migrate old multiImageScanMode to the new isMultiCaptureEnabled key
         if UserDefaults.standard.object(forKey: "multiImageScanMode") != nil {
@@ -162,6 +252,8 @@ struct MerianApp: App {
                 fatalError("Could not recover ModelContainer after quarantining the suspected corrupted store. Initial error: \(error), Recovery error: \(recoveryError)")
             }
         }
+
+        UITestSeedCoordinator.prepareIfNeeded(container: container)
         
         // Initialize telemetry synchronously — just stores config, safe on main thread.
         // PostHog is deferred via Task.detached to avoid blocking init(). Since PostHogManager
@@ -178,7 +270,10 @@ struct MerianApp: App {
 
     private static func makePersistentContainer() throws -> ModelContainer {
         let schema = Schema(versionedSchema: CurrentSchema.self)
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let config = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: UITestSeedCoordinator.isEnabled
+        )
         return try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
     }
 

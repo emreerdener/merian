@@ -19,6 +19,7 @@ struct MainTabBar: View {
             TabBarButton(
                 iconName: "safari",
                 title: "Explore",
+                accessibilityIdentifier: "MainTabBar_Explore",
                 action: {
                     HapticManager.shared.triggerSheetSpring()
                     hasSeenExploreNewChip = true
@@ -32,6 +33,7 @@ struct MainTabBar: View {
             TabBarButton(
                 iconName: "rectangle.stack",
                 title: "Scans",
+                accessibilityIdentifier: "MainTabBar_Scans",
                 action: {
                     HapticManager.shared.triggerSheetSpring()
                     isScansOpen = true
@@ -43,6 +45,7 @@ struct MainTabBar: View {
             TabBarButton(
                 iconName: "person",
                 title: "Profile",
+                accessibilityIdentifier: "MainTabBar_Profile",
                 action: { 
                     HapticManager.shared.triggerSheetSpring()
                     isUserProfileOpen = true 
@@ -113,6 +116,7 @@ private struct TabBarButton: View {
     // MARK: - Properties
     let iconName: String
     let title: String
+    let accessibilityIdentifier: String
     let action: () -> Void
     var isDisabled: Bool = false
     var showBadge: Bool = false
@@ -155,5 +159,6 @@ private struct TabBarButton: View {
         }
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.4 : 1.0)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }

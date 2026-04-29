@@ -12,7 +12,7 @@ import os
     var unlockedSpeciesCount: Int
     var hasFireflyBadge: Bool
     var showTerrariumSheet: Bool = false
-    var unlockedAchievements: Set<String>
+    var unlockedAchievements: Set<AchievementType>
 
     // MARK: - Storage Keys
 
@@ -24,7 +24,10 @@ import os
     private init() {
         unlockedSpeciesCount = defaults.integer(forKey: speciesCountKey)
         hasFireflyBadge      = defaults.bool(forKey: fireflyBadgeKey)
-        unlockedAchievements = Set(defaults.stringArray(forKey: unlockedAchievementsKey) ?? [])
+        unlockedAchievements = Set(
+            (defaults.stringArray(forKey: unlockedAchievementsKey) ?? [])
+                .compactMap(AchievementType.init(rawValue:))
+        )
     }
 
     // MARK: - Recording
@@ -47,7 +50,7 @@ import os
             guard !unlockedAchievements.contains(award.type) else { continue }
 
             unlockedAchievements.insert(award.type)
-            defaults.set(Array(unlockedAchievements), forKey: unlockedAchievementsKey)
+            defaults.set(unlockedAchievements.map(\.rawValue), forKey: unlockedAchievementsKey)
             MerianLog.general.debug("Achievement unlocked: \(award.title, privacy: .public)")
 
             let achievementsEnabled = defaults.object(forKey: UserDefaultsKeys.isAchievementNotificationsEnabled) as? Bool ?? false

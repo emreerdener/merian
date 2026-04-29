@@ -1,52 +1,394 @@
 import Foundation
+import SwiftUI
+
+enum AchievementType: String, CaseIterable, Sendable, Identifiable {
+    case firstScan = "first_scan"
+    case explorer = "explorer"
+    case plantae = "plantae"
+    case insecta = "insecta"
+    case fungi = "fungi"
+    case urban = "urban"
+    case frostWalker = "frost_walker"
+    case alpine = "alpine"
+    case nocturnal = "nocturnal"
+    case guardian = "guardian"
+    case conservationist = "conservationist"
+    case toxicologist = "toxicologist"
+    case perfectLens = "perfect_lens"
+
+    var id: String { rawValue }
+
+    var definition: AchievementDefinition {
+        switch self {
+        case .firstScan:
+            return AchievementDefinition(
+                title: "The Observer",
+                targetCount: 1,
+                descriptionText: "Complete your first nature scan",
+                detailProgressDescription: "Your first successful scan unlocks this achievement.",
+                qualifyingScansTitle: "Unlocking scan",
+                imageName: "chick",
+                tintToken: .springGreen,
+                difficultyLevel: 0,
+                contributionKind: .firstScan(reasonText: "Your first recorded scan")
+            )
+        case .explorer:
+            return AchievementDefinition(
+                title: "The Naturalist",
+                targetCount: 5,
+                descriptionText: "Document 5 different species",
+                detailProgressDescription: "Each unique species counts once toward this achievement.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "naturalist",
+                tintToken: .ochre,
+                difficultyLevel: 0,
+                contributionKind: .uniqueSpecies { _ in
+                    "Unique species documented"
+                }
+            )
+        case .plantae:
+            return AchievementDefinition(
+                title: "The Botanist",
+                targetCount: 10,
+                descriptionText: "Document 10 different plant species",
+                detailProgressDescription: "Each unique plant species counts once toward this achievement.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "leaves",
+                tintToken: .forest,
+                difficultyLevel: 0,
+                contributionKind: .uniqueSpecies { record in
+                    guard record.taxonomyKingdom?.trimmedLowercased == "plantae" else { return nil }
+                    return "Plant kingdom"
+                }
+            )
+        case .insecta:
+            return AchievementDefinition(
+                title: "The Zoologist",
+                targetCount: 10,
+                descriptionText: "Document 10 different insect or arachnid species",
+                detailProgressDescription: "Each unique insect or arachnid species counts once toward this achievement.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "zoo-scene",
+                tintToken: .terracotta,
+                difficultyLevel: 1,
+                contributionKind: .uniqueSpecies { record in
+                    guard let className = record.taxonomyClass?.trimmedLowercased,
+                          className == "insecta" || className == "arachnida" else { return nil }
+                    return className == "arachnida" ? "Arachnida class" : "Insecta class"
+                }
+            )
+        case .fungi:
+            return AchievementDefinition(
+                title: "The Mycologist",
+                targetCount: 10,
+                descriptionText: "Document 10 different fungi species",
+                detailProgressDescription: "Each unique fungi species counts once toward this achievement.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "mushroom",
+                tintToken: .mauve,
+                difficultyLevel: 2,
+                contributionKind: .uniqueSpecies { record in
+                    guard record.taxonomyKingdom?.trimmedLowercased == "fungi" else { return nil }
+                    return "Fungi kingdom"
+                }
+            )
+        case .urban:
+            return AchievementDefinition(
+                title: "The Urban Ecologist",
+                targetCount: 10,
+                descriptionText: "Document 10 species in urban or domesticated environments",
+                detailProgressDescription: "Each unique species captured in an urban or domesticated environment counts once.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "urban",
+                tintToken: .slateBlue,
+                difficultyLevel: 0,
+                contributionKind: .uniqueSpecies { record in
+                    let ecology = record.ecologyType.trimmedLowercased
+                    guard ecology == "urban" || ecology == "domesticated" else { return nil }
+                    return "Urban or domesticated environment"
+                }
+            )
+        case .frostWalker:
+            return AchievementDefinition(
+                title: "The Frost Walker",
+                targetCount: 5,
+                descriptionText: "Document 5 species in freezing temperatures",
+                detailProgressDescription: "Each unique species captured below 32 degrees Fahrenheit counts once.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "snowflake",
+                tintToken: .sky,
+                difficultyLevel: 2,
+                contributionKind: .uniqueSpecies { record in
+                    guard let temperature = record.weatherTemperatureF, temperature < 32.0 else { return nil }
+                    return "\(Int(temperature.rounded())) degrees Fahrenheit"
+                }
+            )
+        case .alpine:
+            return AchievementDefinition(
+                title: "The Alpine Naturalist",
+                targetCount: 5,
+                descriptionText: "Document 5 species above 2,500 meters",
+                detailProgressDescription: "Each unique species captured above 2,500 meters counts once.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "mountain",
+                tintToken: .mist,
+                difficultyLevel: 2,
+                contributionKind: .uniqueSpecies { record in
+                    guard let elevation = record.gpsElevation, elevation > 2500.0 else { return nil }
+                    return "\(Int(elevation.rounded())) meter elevation"
+                }
+            )
+        case .nocturnal:
+            return AchievementDefinition(
+                title: "The Nocturnal Observer",
+                targetCount: 10,
+                descriptionText: "Document 10 species after dark",
+                detailProgressDescription: "Each unique species captured between 10 PM and 5 AM counts once.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "moon",
+                tintToken: .night,
+                difficultyLevel: 1,
+                contributionKind: .uniqueSpecies { record in
+                    let hour = Calendar.current.component(.hour, from: record.timestamp)
+                    guard hour >= 22 || hour <= 5 else { return nil }
+                    return "Captured after dark"
+                }
+            )
+        case .guardian:
+            return AchievementDefinition(
+                title: "The Guardian",
+                targetCount: 5,
+                descriptionText: "Identify 5 known invasive species",
+                detailProgressDescription: "Each unique invasive species counts once toward this achievement.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "ivy",
+                tintToken: .crimson,
+                difficultyLevel: 1,
+                contributionKind: .uniqueSpecies { record in
+                    guard record.isInvasive else { return nil }
+                    return "Marked invasive"
+                }
+            )
+        case .conservationist:
+            return AchievementDefinition(
+                title: "The Conservationist",
+                targetCount: 1,
+                descriptionText: "Document an at-risk species on the IUCN Red List",
+                detailProgressDescription: "Each unique at-risk species counts once toward this achievement.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "shield",
+                tintToken: .teal,
+                difficultyLevel: 2,
+                contributionKind: .uniqueSpecies { record in
+                    guard let status = record.iucnRedListStatus?.trimmedUppercased,
+                          !status.isEmpty,
+                          status != "LC",
+                          status != "NE",
+                          status != "DD" else { return nil }
+                    return "IUCN \(status)"
+                }
+            )
+        case .toxicologist:
+            return AchievementDefinition(
+                title: "The Toxicologist",
+                targetCount: 5,
+                descriptionText: "Document 5 species flagged as hazardous",
+                detailProgressDescription: "Each unique species flagged as hazardous counts once toward this achievement.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "toxic",
+                tintToken: .acid,
+                difficultyLevel: 1,
+                contributionKind: .uniqueSpecies { record in
+                    let hazardType = record.hazardType.trimmedLowercased
+                    guard hazardType != "none", !hazardType.isEmpty else { return nil }
+                    return hazardType
+                        .replacingOccurrences(of: "_", with: " ")
+                        .capitalized
+                }
+            )
+        case .perfectLens:
+            return AchievementDefinition(
+                title: "The Perfect Lens",
+                targetCount: 25,
+                descriptionText: "Document 25 species with 98%+ AI confidence",
+                detailProgressDescription: "Each unique species with a 98 percent or higher confidence capture counts once.",
+                qualifyingScansTitle: "Qualifying scans",
+                imageName: "camera-lens",
+                tintToken: .azure,
+                difficultyLevel: 1,
+                contributionKind: .uniqueSpecies { record in
+                    guard let score = record.confidenceScore, score >= 0.98 else { return nil }
+                    return "\(Int((score * 100).rounded())) percent AI confidence"
+                }
+            )
+        }
+    }
+}
+
+protocol AchievementRecordRepresentable {
+    var id: String { get }
+    var speciesId: String { get }
+    var scientificName: String { get }
+    var userIdentificationOverride: String? { get }
+    var confirmedSpeciesId: String? { get }
+    var timestamp: Date { get }
+    var taxonomyKingdom: String? { get }
+    var taxonomyClass: String? { get }
+    var ecologyType: String { get }
+    var weatherTemperatureF: Double? { get }
+    var gpsElevation: Double? { get }
+    var isInvasive: Bool { get }
+    var iucnRedListStatus: String? { get }
+    var hazardType: String { get }
+    var confidenceScore: Double? { get }
+    var commonName: String? { get }
+    var locationName: String? { get }
+    var imagePath: String? { get }
+    var fallbackImageUrl: String? { get }
+    var placeholderStyle: ScanThumbnailPlaceholderStyle { get }
+}
+
+extension AchievementRecordRepresentable {
+    var commonName: String? { nil }
+    var locationName: String? { nil }
+    var imagePath: String? { nil }
+    var fallbackImageUrl: String? { nil }
+    var placeholderStyle: ScanThumbnailPlaceholderStyle { .archived }
+
+    var displayScientificName: String {
+        trimmedNonEmpty(userIdentificationOverride) ?? scientificName
+    }
+
+    var canonicalSpeciesKey: String {
+        if let confirmedSpeciesId = trimmedNonEmpty(confirmedSpeciesId) {
+            return "confirmed:\(confirmedSpeciesId)"
+        }
+        if let speciesId = trimmedNonEmpty(speciesId) {
+            return "species:\(speciesId)"
+        }
+        return "scientific:\(displayScientificName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+    }
+
+    var displayCommonName: String {
+        trimmedNonEmpty(commonName) ?? displayScientificName
+    }
+
+    private func trimmedNonEmpty(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty == false) ? trimmed : nil
+    }
+}
+
+struct AchievementDefinition: Sendable {
+    let title: String
+    let targetCount: Int
+    let descriptionText: String
+    let detailProgressDescription: String
+    let qualifyingScansTitle: String
+    let imageName: String
+    let tintToken: AchievementTintToken
+    let difficultyLevel: Int
+    let contributionKind: AchievementContributionKind
+}
+
+enum AchievementContributionKind: Sendable {
+    case firstScan(reasonText: String)
+    case uniqueSpecies(qualifyingReason: @Sendable (any AchievementRecordRepresentable) -> String?)
+}
+
+enum AchievementTintToken: Sendable {
+    case springGreen
+    case ochre
+    case forest
+    case terracotta
+    case mauve
+    case slateBlue
+    case sky
+    case mist
+    case night
+    case crimson
+    case teal
+    case acid
+    case azure
+
+    var color: Color {
+        switch self {
+        case .springGreen: return Color(red: 0.25, green: 0.75, blue: 0.35)
+        case .ochre: return Color(red: 0.8, green: 0.6, blue: 0.2)
+        case .forest: return Color(red: 0.3, green: 0.6, blue: 0.3)
+        case .terracotta: return Color(red: 0.8, green: 0.4, blue: 0.3)
+        case .mauve: return Color(red: 0.6, green: 0.4, blue: 0.6)
+        case .slateBlue: return Color(red: 0.4, green: 0.5, blue: 0.7)
+        case .sky: return Color(red: 0.4, green: 0.7, blue: 0.9)
+        case .mist: return Color(red: 0.6, green: 0.6, blue: 0.7)
+        case .night: return Color(red: 0.3, green: 0.2, blue: 0.6)
+        case .crimson: return Color(red: 0.85, green: 0.3, blue: 0.3)
+        case .teal: return Color(red: 0.2, green: 0.6, blue: 0.5)
+        case .acid: return Color(red: 0.75, green: 0.8, blue: 0.1)
+        case .azure: return Color(red: 0.3, green: 0.5, blue: 0.9)
+        }
+    }
+}
 
 // MARK: - Gamification Payloads
-public struct AwardPayload: Sendable, Identifiable {
-    public let title: String
-    public let type: String
-    public let currentCount: Int
-    public let targetCount: Int
-    public let lastInteractionDate: Date?
+struct AwardPayload: Sendable, Identifiable {
+    let type: AchievementType
+    let currentCount: Int
+    let lastInteractionDate: Date?
 
-    public var id: String { type }
+    var id: String { type.id }
 }
 
-public struct AchievementContribution: Sendable, Identifiable, Hashable {
-    public let id: String
-    public let scientificName: String
-    public let timestamp: Date
-    public let reasonText: String
+struct AchievementContribution: Sendable, Identifiable, Equatable {
+    let scanID: String
+    let commonName: String
+    let scientificName: String
+    let timestamp: Date
+    let reasonText: String
+    let imagePath: String?
+    let fallbackImageUrl: String?
+    let placeholderStyle: ScanThumbnailPlaceholderStyle
+    let locationName: String?
+
+    var id: String { scanID }
 }
 
-public struct AchievementDetailPayload: Sendable, Identifiable {
-    public let award: AwardPayload
-    public let contributions: [AchievementContribution]
+struct AchievementDetailPayload: Sendable, Identifiable {
+    let award: AwardPayload
+    let contributions: [AchievementContribution]
 
-    public var id: String { award.id }
+    var id: String { award.id }
 }
 
 extension AwardPayload {
-    var difficultyLevel: Int {
-        switch type.lowercased() {
-        case "first_scan": return 0
-        case "conservationist": return 2
-        case "alpine", "frost_walker": return 2
-        case "perfect_lens", "guardian", "nocturnal", "toxicologist": return 1
-        case "fungi": return targetCount >= 10 ? 2 : 1
-        case "insecta": return targetCount >= 10 ? 1 : 0
-        case "explorer":
-            if targetCount >= 50 { return 2 }
-            if targetCount >= 20 { return 1 }
-            return 0
-        case "plantae", "urban":
-            if targetCount >= 50 { return 2 }
-            if targetCount >= 20 { return 1 }
-            return 0
-        default:
-            return targetCount > 5 ? 1 : 0
-        }
+    var definition: AchievementDefinition {
+        type.definition
     }
-    
+
+    var title: String {
+        definition.title
+    }
+
+    var targetCount: Int {
+        definition.targetCount
+    }
+
+    var descriptionText: String {
+        definition.descriptionText
+    }
+
+    var detailProgressDescription: String {
+        definition.detailProgressDescription
+    }
+
+    var qualifyingScansTitle: String {
+        definition.qualifyingScansTitle
+    }
+
+    var difficultyLevel: Int {
+        definition.difficultyLevel
+    }
+
     var difficultyString: String {
         switch difficultyLevel {
         case 2: return "Hard"
@@ -54,13 +396,36 @@ extension AwardPayload {
         default: return "Easy"
         }
     }
-    
+
     var isCompleted: Bool {
         currentCount >= targetCount
     }
-    
+
     var progressFraction: Double {
         min(Double(currentCount) / Double(targetCount), 1.0)
+    }
+
+    var tintInfo: (color: Color, imageName: String) {
+        (definition.tintToken.color, definition.imageName)
+    }
+
+    var accessibilityProgressSummary: String {
+        "\(title). \(currentCount) of \(targetCount). \(progressStatusText). \(detailProgressDescription)"
+    }
+
+    var cardAccessibilityLabel: String {
+        if isCompleted {
+            return "\(title). Completed achievement. \(descriptionText)"
+        }
+        return "\(title). Progress \(currentCount) of \(targetCount). \(descriptionText)"
+    }
+
+    var cardAccessibilityHint: String {
+        "Opens the achievement details and qualifying scans."
+    }
+
+    var progressStatusText: String {
+        isCompleted ? "Completed" : "In progress"
     }
 }
 
@@ -131,5 +496,15 @@ public enum UserPersona: CaseIterable, Equatable {
         case .scholar: return "persona_scholar"
         case .apexObserver: return "persona_apex_observer"
         }
+    }
+}
+
+private extension String {
+    var trimmedLowercased: String {
+        trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var trimmedUppercased: String {
+        trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
     }
 }

@@ -2,14 +2,14 @@ import XCTest
 @testable import Merian
 
 final class AchievementsCalculatorTests: XCTestCase {
-    
+
     // MARK: - Mock Factory
-    
-    /// Generates a strictly isolated, pure-memory instance of LocalScanRecord
-    /// safely bypassing the SwiftData actor context allocations.
+
     private func mockScan(
         id: String = UUID().uuidString,
+        speciesId: String? = nil,
         scientificName: String = "Test Species",
+        commonName: String? = nil,
         timestamp: Date = Date(),
         weatherTemperatureF: Double? = nil,
         gpsElevation: Double? = nil,
@@ -19,13 +19,15 @@ final class AchievementsCalculatorTests: XCTestCase {
         isInvasive: Bool = false,
         hazardType: String = "none",
         confidenceScore: Double? = nil,
-        iucnRedListStatus: String? = nil
+        iucnRedListStatus: String? = nil,
+        userIdentificationOverride: String? = nil,
+        confirmedSpeciesId: String? = nil
     ) -> LocalScanRecord {
-        return LocalScanRecord(
+        LocalScanRecord(
             id: id,
-            speciesId: "s_\(id)",
+            speciesId: speciesId ?? scientificName.lowercased().replacingOccurrences(of: " ", with: "_"),
             scientificName: scientificName,
-            commonName: "Common \(scientificName)",
+            commonName: commonName ?? "Common \(scientificName)",
             timestamp: timestamp,
             hazardType: hazardType,
             isInvasive: isInvasive,
@@ -35,107 +37,111 @@ final class AchievementsCalculatorTests: XCTestCase {
             taxonomyClass: taxonomyClass,
             weatherTemperatureF: weatherTemperatureF,
             iucnRedListStatus: iucnRedListStatus,
-            gpsElevation: gpsElevation
+            gpsElevation: gpsElevation,
+            userIdentificationOverride: userIdentificationOverride,
+            confirmedSpeciesId: confirmedSpeciesId
         )
     }
-    
+
     // MARK: - Validation Suites
-    
+
     func testFrostWalker() {
         let scans = [
-            mockScan(scientificName: "Snowbed Willow", weatherTemperatureF: 31.9), // Triggers
-            mockScan(scientificName: "Alpine Fir", weatherTemperatureF: 32.0), // Does not trigger (< 32.0 required)
-            mockScan(scientificName: "Normal Tree", weatherTemperatureF: nil), // Does not trigger
-            mockScan(scientificName: "Hot Plant", weatherTemperatureF: 80.0) // Does not trigger
+            mockScan(scientificName: "Snowbed Willow", weatherTemperatureF: 31.9),
+            mockScan(scientificName: "Alpine Fir", weatherTemperatureF: 32.0),
+            mockScan(scientificName: "Normal Tree", weatherTemperatureF: nil),
+            mockScan(scientificName: "Hot Plant", weatherTemperatureF: 80.0)
         ]
-        
+
         let awards = AchievementsCalculator.calculate(from: scans)
-        let frostAward = awards.first { $0.type == "frost_walker" }
-        
+        let frostAward = awards.first { $0.type == .frostWalker }
+
         XCTAssertNotNil(frostAward, "Frost Walker payload must always be mapped and returned")
         XCTAssertEqual(frostAward?.currentCount, 1, "Only exact bounds under 32.0°F should calculate")
     }
-    
+
     func testPerfectLens() {
         let scans = [
-            mockScan(scientificName: "High Res Plant", confidenceScore: 0.99), // Triggers
-            mockScan(scientificName: "Perfect Plant", confidenceScore: 0.98), // Triggers (inclusive bounds)
-            mockScan(scientificName: "Close Plant", confidenceScore: 0.979), // Does not trigger
-            mockScan(scientificName: "No Image Plant", confidenceScore: nil) // Does not trigger
+            mockScan(scientificName: "High Res Plant", confidenceScore: 0.99),
+            mockScan(scientificName: "Perfect Plant", confidenceScore: 0.98),
+            mockScan(scientificName: "Close Plant", confidenceScore: 0.979),
+            mockScan(scientificName: "No Image Plant", confidenceScore: nil)
         ]
-        
+
         let awards = AchievementsCalculator.calculate(from: scans)
-        let perfectLensAward = awards.first { $0.type == "perfect_lens" }
-        
+        let perfectLensAward = awards.first { $0.type == .perfectLens }
+
         XCTAssertEqual(perfectLensAward?.currentCount, 2, "Only 98%+ confidence scores evaluate correctly")
     }
-    
+
     func testAlpineNaturalist() {
         let scans = [
-            mockScan(scientificName: "Mountain Flower", gpsElevation: 2500.1), // Triggers
-            mockScan(scientificName: "Borderline Tree", gpsElevation: 2500.0), // Does not trigger (> 2500.0 required)
-            mockScan(scientificName: "Lowland Bush", gpsElevation: 100.0) // Does not trigger
+            mockScan(scientificName: "Mountain Flower", gpsElevation: 2500.1),
+            mockScan(scientificName: "Borderline Tree", gpsElevation: 2500.0),
+            mockScan(scientificName: "Lowland Bush", gpsElevation: 100.0)
         ]
-        
+
         let awards = AchievementsCalculator.calculate(from: scans)
-        let alpineAward = awards.first { $0.type == "alpine" }
-        
+        let alpineAward = awards.first { $0.type == .alpine }
+
         XCTAssertEqual(alpineAward?.currentCount, 1, "Only elevations strictly greater than 2500m evaluate correctly")
     }
-    
+
     func testTaxonomyAwards() {
         let scans = [
-            mockScan(scientificName: "Mushroom", taxonomyKingdom: "fungi"), // Mycologist
-            mockScan(scientificName: "Mold", taxonomyKingdom: "Fungi"), // Case-insensitive Mycologist
-            mockScan(scientificName: "Tree", taxonomyKingdom: "plantae"), // Botanist
-            mockScan(scientificName: "Beetle", taxonomyClass: "insecta"), // Zoologist
-            mockScan(scientificName: "Spider", taxonomyClass: "arachnida"), // Zoologist (arachnida maps into insecta tracking boundary)
-            mockScan(scientificName: "Bird", taxonomyClass: "aves") // Ignored
+            mockScan(scientificName: "Mushroom", taxonomyKingdom: "fungi"),
+            mockScan(scientificName: "Mold", taxonomyKingdom: "Fungi"),
+            mockScan(scientificName: "Tree", taxonomyKingdom: "plantae"),
+            mockScan(scientificName: "Beetle", taxonomyClass: "insecta"),
+            mockScan(scientificName: "Spider", taxonomyClass: "arachnida"),
+            mockScan(scientificName: "Bird", taxonomyClass: "aves")
         ]
-        
+
         let awards = AchievementsCalculator.calculate(from: scans)
-        
-        XCTAssertEqual(awards.first { $0.type == "fungi" }?.currentCount, 2, "Mycologist evaluation fails")
-        XCTAssertEqual(awards.first { $0.type == "plantae" }?.currentCount, 1, "Botanist evaluation fails")
-        XCTAssertEqual(awards.first { $0.type == "insecta" }?.currentCount, 2, "Zoologist evaluation fails to map internal taxonomy subsets")
+
+        XCTAssertEqual(awards.first { $0.type == .fungi }?.currentCount, 2, "Mycologist evaluation fails")
+        XCTAssertEqual(awards.first { $0.type == .plantae }?.currentCount, 1, "Botanist evaluation fails")
+        XCTAssertEqual(awards.first { $0.type == .insecta }?.currentCount, 2, "Zoologist evaluation fails to map internal taxonomy subsets")
     }
-    
+
     func testGuardianAndToxicologist() {
         let scans = [
-            mockScan(scientificName: "Asian Carp", isInvasive: true, hazardType: "none"), // Guardian
-            mockScan(scientificName: "Poison Ivy", hazardType: "irritant"), // Toxicologist
-            mockScan(scientificName: "Venomous Snake", hazardType: "venomous"), // Toxicologist
-            mockScan(scientificName: "Safe Plant", isInvasive: false, hazardType: "none") // Ignored
+            mockScan(scientificName: "Asian Carp", isInvasive: true, hazardType: "none"),
+            mockScan(scientificName: "Poison Ivy", hazardType: "irritant"),
+            mockScan(scientificName: "Venomous Snake", hazardType: "venomous"),
+            mockScan(scientificName: "Safe Plant", isInvasive: false, hazardType: "none")
         ]
-        
+
         let awards = AchievementsCalculator.calculate(from: scans)
-        
-        XCTAssertEqual(awards.first { $0.type == "guardian" }?.currentCount, 1, "Guardian explicit flag missing")
-        XCTAssertEqual(awards.first { $0.type == "toxicologist" }?.currentCount, 2, "Toxicologist array mapping failure")
+
+        XCTAssertEqual(awards.first { $0.type == .guardian }?.currentCount, 1, "Guardian explicit flag missing")
+        XCTAssertEqual(awards.first { $0.type == .toxicologist }?.currentCount, 2, "Toxicologist array mapping failure")
     }
-    
+
     func testDeduplicationIntegrity() {
         let scans = [
             mockScan(scientificName: "Identical Fungi", taxonomyKingdom: "fungi"),
-            mockScan(scientificName: "Identical Fungi", taxonomyKingdom: "fungi"), // Duplicate scientific name
+            mockScan(scientificName: "Identical Fungi", taxonomyKingdom: "fungi"),
             mockScan(scientificName: "Identical Fungi", taxonomyKingdom: "fungi")
         ]
-        
+
         let awards = AchievementsCalculator.calculate(from: scans)
-        
-        XCTAssertEqual(awards.first { $0.type == "fungi" }?.currentCount, 1, "Memory expansion vulnerability! Badges must be strictly deduplicated by absolute String equality maps.")
+
+        XCTAssertEqual(awards.first { $0.type == .fungi }?.currentCount, 1, "Badges must be strictly deduplicated by canonical species identity.")
     }
-    
+
     // MARK: - Appended Coverage
-    
+
     func testFirstScanAndExplorer() {
         let scans = [
-            mockScan(scientificName: "A"), mockScan(scientificName: "B"), mockScan(scientificName: "B")
+            mockScan(scientificName: "A"),
+            mockScan(scientificName: "B"),
+            mockScan(scientificName: "B")
         ]
         let awards = AchievementsCalculator.calculate(from: scans)
-        
-        XCTAssertEqual(awards.first { $0.type == "first_scan" }?.currentCount, 1, "First scan is binary and must be exactly 1 if any scan exists")
-        XCTAssertEqual(awards.first { $0.type == "explorer" }?.currentCount, 2, "Explorer should count absolutely unique scientific names mathematically")
+
+        XCTAssertEqual(awards.first { $0.type == .firstScan }?.currentCount, 1, "First scan is binary and must be exactly 1 if any scan exists")
+        XCTAssertEqual(awards.first { $0.type == .explorer }?.currentCount, 2, "Explorer should count absolutely unique scientific names mathematically")
     }
 
     func testUrbanEcologist() {
@@ -145,7 +151,8 @@ final class AchievementsCalculatorTests: XCTestCase {
             mockScan(scientificName: "Wild Tree", ecologyType: "wild")
         ]
         let awards = AchievementsCalculator.calculate(from: scans)
-        XCTAssertEqual(awards.first { $0.type == "urban" }?.currentCount, 2, "Both urban and domesticated ecologies count toward Urban Ecologist")
+
+        XCTAssertEqual(awards.first { $0.type == .urban }?.currentCount, 2, "Both urban and domesticated ecologies count toward Urban Ecologist")
     }
 
     func testNocturnalObserver() {
@@ -153,26 +160,28 @@ final class AchievementsCalculatorTests: XCTestCase {
         let midnight = calendar.date(bySettingHour: 2, minute: 0, second: 0, of: Date())!
         let evening = calendar.date(bySettingHour: 23, minute: 0, second: 0, of: Date())!
         let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
-        
+
         let scans = [
-            mockScan(scientificName: "Midnight Moth", timestamp: midnight), // between 22 and 5
-            mockScan(scientificName: "Late Owl", timestamp: evening), // between 22 and 5
-            mockScan(scientificName: "Day Bird", timestamp: noon) // Ignored
+            mockScan(scientificName: "Midnight Moth", timestamp: midnight),
+            mockScan(scientificName: "Late Owl", timestamp: evening),
+            mockScan(scientificName: "Day Bird", timestamp: noon)
         ]
         let awards = AchievementsCalculator.calculate(from: scans)
-        XCTAssertEqual(awards.first { $0.type == "nocturnal" }?.currentCount, 2, "Hours strictly >= 22 or <= 5 evaluate mapping correctly")
+
+        XCTAssertEqual(awards.first { $0.type == .nocturnal }?.currentCount, 2, "Hours strictly >= 22 or <= 5 evaluate mapping correctly")
     }
 
     func testConservationist() {
         let scans = [
-            mockScan(scientificName: "Endangered", iucnRedListStatus: "EN"), // Triggers
-            mockScan(scientificName: "Vulnerable", iucnRedListStatus: "VU"), // Triggers
-            mockScan(scientificName: "Least Concern", iucnRedListStatus: "LC"), // Ignored
-            mockScan(scientificName: "Not Evaluated", iucnRedListStatus: "NE"), // Ignored
-            mockScan(scientificName: "Data Deficient", iucnRedListStatus: "DD") // Ignored
+            mockScan(scientificName: "Endangered", iucnRedListStatus: "EN"),
+            mockScan(scientificName: "Vulnerable", iucnRedListStatus: "VU"),
+            mockScan(scientificName: "Least Concern", iucnRedListStatus: "LC"),
+            mockScan(scientificName: "Not Evaluated", iucnRedListStatus: "NE"),
+            mockScan(scientificName: "Data Deficient", iucnRedListStatus: "DD")
         ]
         let awards = AchievementsCalculator.calculate(from: scans)
-        XCTAssertEqual(awards.first { $0.type == "conservationist" }?.currentCount, 2, "Only legitimate IUCN vulnerability layers trigger Conservationist mathematically")
+
+        XCTAssertEqual(awards.first { $0.type == .conservationist }?.currentCount, 2, "Only legitimate IUCN vulnerability layers trigger Conservationist mathematically")
     }
 
     func testAchievementDetailDeduplicatesContributingScans() {
@@ -186,10 +195,40 @@ final class AchievementsCalculatorTests: XCTestCase {
             mockScan(id: "fungi_second", scientificName: "Boletus edulis", timestamp: oldest, taxonomyKingdom: "fungi")
         ]
 
-        let detail = AchievementsCalculator.detail(for: "fungi", from: scans)
+        let detail = AchievementsCalculator.detail(for: .fungi, from: scans)
 
         XCTAssertEqual(detail?.award.currentCount, 2)
         XCTAssertEqual(detail?.contributions.map(\.id), ["fungi_latest", "fungi_second"])
+    }
+
+    func testCanonicalSpeciesKeyPrefersConfirmedSpeciesIdentifier() {
+        let newest = Date()
+        let older = newest.addingTimeInterval(-3600)
+
+        let scans = [
+            mockScan(
+                id: "fungi_confirmed_latest",
+                speciesId: "fungi_candidate_a",
+                scientificName: "Amanita muscaria",
+                timestamp: newest,
+                taxonomyKingdom: "fungi",
+                confirmedSpeciesId: "fungi_confirmed"
+            ),
+            mockScan(
+                id: "fungi_confirmed_older",
+                speciesId: "fungi_candidate_b",
+                scientificName: "Amanita cf. muscaria",
+                timestamp: older,
+                taxonomyKingdom: "fungi",
+                userIdentificationOverride: "Amanita muscaria",
+                confirmedSpeciesId: "fungi_confirmed"
+            )
+        ]
+
+        let detail = AchievementsCalculator.detail(for: .fungi, from: scans)
+
+        XCTAssertEqual(detail?.award.currentCount, 1)
+        XCTAssertEqual(detail?.contributions.map(\.scanID), ["fungi_confirmed_latest"])
     }
 
     func testFirstScanDetailUsesOldestScanInHistory() {
@@ -203,7 +242,7 @@ final class AchievementsCalculatorTests: XCTestCase {
             mockScan(id: "oldest", scientificName: "First Species", timestamp: oldest)
         ]
 
-        let detail = AchievementsCalculator.detail(for: "first_scan", from: scans)
+        let detail = AchievementsCalculator.detail(for: .firstScan, from: scans)
 
         XCTAssertEqual(detail?.contributions.map(\.id), ["oldest"])
         XCTAssertEqual(detail?.award.lastInteractionDate, oldest)
@@ -214,8 +253,8 @@ final class AchievementsCalculatorTests: XCTestCase {
             mockScan(id: "perfect", scientificName: "Sharp Plant", confidenceScore: 0.991)
         ]
 
-        let detail = AchievementsCalculator.detail(for: "perfect_lens", from: scans)
+        let detail = AchievementsCalculator.detail(for: .perfectLens, from: scans)
 
-        XCTAssertEqual(detail?.contributions.first?.reasonText, "99% AI confidence")
+        XCTAssertEqual(detail?.contributions.first?.reasonText, "99 percent AI confidence")
     }
 }

@@ -21,6 +21,8 @@ final class AppTelemetryTests: XCTestCase {
         AppTelemetry.trackOfflineQueued()
         AppTelemetry.trackOnboardingCompleted()
         AppTelemetry.trackExploreNotificationsFetchFailed(context: "sheet_load")
+        AppTelemetry.trackAchievementDetailOpened(type: "fungi", state: "in_progress")
+        AppTelemetry.trackAchievementContributionOpened(type: "fungi")
         AppTelemetry.trackExploreNotificationOpenFailed(type: "comment")
     }
 

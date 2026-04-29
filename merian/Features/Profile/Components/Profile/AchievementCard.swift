@@ -163,42 +163,4 @@ extension AwardPayload {
         default: return Color(red: 0.25, green: 0.75, blue: 0.35) // Easy (Spring Green)
         }
     }
-    
-    var tintInfo: (color: Color, imageName: String) {
-        switch type.lowercased() {
-        case "first_scan": return (Color(red: 0.25, green: 0.75, blue: 0.35), "chick")
-        case "explorer": return (Color(red: 0.8, green: 0.6, blue: 0.2), "naturalist")
-        case "fungi": return (Color(red: 0.6, green: 0.4, blue: 0.6), "mushroom")
-        case "plantae": return (Color(red: 0.3, green: 0.6, blue: 0.3), "leaves")
-        case "insecta": return (Color(red: 0.8, green: 0.4, blue: 0.3), "zoo-scene")
-        case "urban": return (Color(red: 0.4, green: 0.5, blue: 0.7), "urban")
-        case "frost_walker": return (Color(red: 0.4, green: 0.7, blue: 0.9), "snowflake")
-        case "alpine": return (Color(red: 0.6, green: 0.6, blue: 0.7), "mountain")
-        case "nocturnal": return (Color(red: 0.3, green: 0.2, blue: 0.6), "moon")
-        case "guardian": return (Color(red: 0.85, green: 0.3, blue: 0.3), "ivy")
-        case "conservationist": return (Color(red: 0.2, green: 0.6, blue: 0.5), "shield")
-        case "toxicologist": return (Color(red: 0.75, green: 0.8, blue: 0.1), "toxic")
-        case "perfect_lens": return (Color(red: 0.3, green: 0.5, blue: 0.9), "camera-lens")
-        default: return (Color.gray, "chick")
-        }
-    }
-    
-    var descriptionText: String {
-        switch type.lowercased() {
-        case "first_scan": return "Complete your first nature scan"
-        case "explorer": return "Scan \(targetCount) different species"
-        case "fungi": return "Scan \(targetCount) different fungi species"
-        case "plantae": return "Scan \(targetCount) different plant species"
-        case "insecta": return "Scan \(targetCount) different animal species"
-        case "urban": return "Scan \(targetCount) species in urban environments"
-        case "frost_walker": return "Scan \(targetCount) active species in freezing temperatures"
-        case "alpine": return "Document \(targetCount) species at extreme altitudes"
-        case "nocturnal": return "Identify \(targetCount) species strictly after dark"
-        case "guardian": return "Identify \(targetCount) known invasive species"
-        case "conservationist": return "Document a rare species protected by the IUCN Red List"
-        case "toxicologist": return "Safely identify \(targetCount) highly toxic plants or fungi"
-        case "perfect_lens": return "Capture \(targetCount) perfect photos (98%+ AI Confidence)"
-        default: return "Complete this ecological milestone"
-        }
-    }
 }

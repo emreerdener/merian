@@ -9,6 +9,16 @@ import XCTest
 
 final class merianUITests: XCTestCase {
 
+    @MainActor
+    private func launchConfiguredApp(extraArguments: [String] = []) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITesting"] = "true"
+        app.launchArguments += ["-skipOnboarding", "-mockCameraFeed", "-hasCompletedOnboarding", "YES"]
+        app.launchArguments += extraArguments
+        app.launch()
+        return app
+    }
+
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
 
@@ -40,14 +50,32 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testAchievementDetailFlowOpensQualifyingScanInsight() throws {
+        let app = launchConfiguredApp(extraArguments: ["-seedAchievementDetailFlow"])
+
+        let profileButton = app.buttons["MainTabBar_Profile"]
+        XCTAssertTrue(profileButton.waitForExistence(timeout: 8.0), "Main profile tab button failed to appear")
+        profileButton.tap()
+
+        let fungiCard = app.buttons["AchievementCard_fungi"]
+        XCTAssertTrue(fungiCard.waitForExistence(timeout: 8.0), "Fungi achievement card failed to load in the profile sheet")
+        fungiCard.tap()
+
+        let detailSheet = app.otherElements["AchievementDetailSheet_fungi"]
+        XCTAssertTrue(detailSheet.waitForExistence(timeout: 8.0), "Achievement detail sheet did not present")
+
+        let contributionRow = app.buttons["AchievementContribution_achievement_fungi_latest"]
+        XCTAssertTrue(contributionRow.waitForExistence(timeout: 8.0), "Expected qualifying scan row was not rendered")
+        contributionRow.tap()
+
+        let insightSheet = app.otherElements["InsightSheetView"]
+        XCTAssertTrue(insightSheet.waitForExistence(timeout: 8.0), "Insight sheet failed to present from the qualifying scan row")
+    }
+
+    @MainActor
     func testBackgroundSyncOfflineDisappearance() throws {
         try XCTSkipIf(true, "Offline Simulator execution boundaries trigger severe UI timeout execution flakes randomly.")
-        let app = XCUIApplication()
-        
-        // Disable onboarding and explicitly enable UI testing mocks via environment overrides
-        app.launchEnvironment["UITesting"] = "true"
-        app.launchArguments += ["-skipOnboarding", "-mockCameraFeed", "-hasCompletedOnboarding", "YES"]
-        app.launch()
+        let app = launchConfiguredApp()
 
         // 1. Wait for Main Camera View
         let libraryButton = app.descendants(matching: .any).matching(identifier: "PhotoLibraryButton").firstMatch

@@ -90,6 +90,18 @@ enum AppTelemetry {
         send("ExploreMapDetailOpened", with: ["entryPoint": entryPoint])
     }
 
+    // MARK: - Achievement Events
+
+    /// Records opening an achievement detail sheet.
+    static func trackAchievementDetailOpened(type: String, state: String) {
+        send("AchievementDetailOpened", with: ["type": type, "state": state])
+    }
+
+    /// Records opening a qualifying scan from an achievement detail sheet.
+    static func trackAchievementContributionOpened(type: String) {
+        send("AchievementContributionOpened", with: ["type": type])
+    }
+
     /// Records a failed attempt to open an Explore notification target.
     static func trackExploreNotificationOpenFailed(type: String) {
         send("ExploreNotificationOpenFailed", with: ["type": type])
