@@ -1,7 +1,7 @@
 // deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { normalizeLimit, normalizeOffset, requireUuid } from "../_shared/explore.ts";
+import { normalizeLimit, requireUuid } from "../_shared/explore.ts";
 import { fetchExploreFeed } from "./db.ts";
 
 function makeHttpError(status: number, message: string): Error & { status: number } {
@@ -41,14 +41,10 @@ serve((req: Request) =>
     const data = await fetchExploreFeed(
       user.id,
       limit,
-      beforeSharedAt != null && beforePostId != null
-        ? {
-            beforeSharedAt,
-            beforePostId,
-          }
-        : {
-            offset: normalizeOffset(body.offset),
-          },
+      {
+        beforeSharedAt,
+        beforePostId,
+      },
       supabaseAdmin,
     );
 

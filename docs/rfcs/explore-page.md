@@ -58,7 +58,7 @@ The Explore feed and map shell are now live. The current shipped implementation 
 - Publication state still lives on `explore_posts`, but the shipped map does not store coordinates on `explore_posts`. Spatial reads currently project privacy-safe coordinates from `public.scans.gps_lat_public` / `gps_long_public` through `public.get_explore_map_posts(...)` and the `get-explore-map-points` edge function.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` and a server-side fallback so newly shared scans with exact coordinates are normalized/backfilled correctly and do not disappear from the map.
 - `ExploreFeedViewModel` is the current shared in-memory mutation source across feed and map. There is no separate shipped `ExplorePostStore` yet.
-- Feed pagination now uses a `(shared_at, post_id)` cursor for new app builds, while the edge layer still accepts offset-based requests as a temporary fallback for older builds during rollout.
+- Feed pagination now uses a `(shared_at, post_id)` cursor as the canonical shipped model.
 
 ## Recommended Product Model
 
@@ -364,7 +364,7 @@ Pagination:
   - `before_shared_at`
   - `before_post_id`
   - `limit`
-- Current shipped note: new app builds use this cursor model; the edge function still supports offset requests temporarily so older app versions do not break during rollout.
+- Current shipped note: this cursor model is now the canonical server and client path.
 
 Recommended response fields:
 
@@ -750,7 +750,7 @@ Client behavior:
 
 - Explore is online-only in V1
 - Likes/comments/shares do not use the offline queue
-- Feed pagination is cursor-based on `(shared_at, post_id)` for new builds, with a temporary edge fallback for legacy offset callers during rollout
+- Feed pagination is cursor-based on `(shared_at, post_id)`
 - Like and comment counts should update optimistically
 - Feed cards can single-tap into detail and double-tap the image to like
 - The map should use a dedicated spatial endpoint rather than piggybacking on feed pagination

@@ -1,0 +1,181 @@
+import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
+
+const DEFAULT_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+const DB_URL = Deno.env.get("SUPABASE_DB_TEST_URL") ?? DEFAULT_DB_URL;
+
+export async function withExploreDbTest(
+  label: string,
+  fn: (client: Client) => Promise<void>,
+): Promise<void> {
+  const client = new Client(DB_URL);
+
+  try {
+    await client.connect();
+  } catch (error) {
+    console.warn(
+      `[${label}] Skipping DB integration test. Could not connect to ${DB_URL}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return;
+  }
+
+  try {
+    await client.queryArray("BEGIN");
+    await fn(client);
+  } finally {
+    try {
+      await client.queryArray("ROLLBACK");
+    } catch {
+      // Ignore rollback failures during cleanup.
+    }
+    await client.end();
+  }
+}
+
+export async function insertUser(
+  client: Client,
+  id: string,
+  publicName: string,
+): Promise<void> {
+  await client.queryArray(
+    `
+      INSERT INTO public.users (
+        id,
+        email,
+        public_author_name,
+        public_identity_source
+      )
+      VALUES ($1, $2, $3, 'alias')
+    `,
+    [id, `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`, publicName],
+  );
+}
+
+export async function insertSpecies(
+  client: Client,
+  id: string,
+  scientificName: string,
+): Promise<void> {
+  await client.queryArray(
+    `
+      INSERT INTO public.species_dictionary (
+        id,
+        scientific_name,
+        common_names,
+        kingdom,
+        phylum,
+        class,
+        "order",
+        family,
+        genus,
+        descriptions,
+        native_region,
+        iucn_red_list_status
+      )
+      VALUES (
+        $1,
+        $2,
+        '{"en":"Test Species"}'::jsonb,
+        'Plantae',
+        'Tracheophyta',
+        'Magnoliopsida',
+        'Rosales',
+        'Rosaceae',
+        'Rosa',
+        '{}'::jsonb,
+        'North America',
+        'least_concern'
+      )
+    `,
+    [id, scientificName],
+  );
+}
+
+type InsertScanOptions = {
+  id: string;
+  userId: string;
+  speciesId: string;
+  latitude: number;
+  longitude: number;
+  geoprivacy: "open" | "obscured" | "private";
+  gpsLatPublic?: number | null;
+  gpsLongPublic?: number | null;
+  imageUrl?: string;
+  aiConfidenceScore?: number;
+  semanticLocation?: string | null;
+};
+
+export async function insertScan(
+  client: Client,
+  options: InsertScanOptions,
+): Promise<void> {
+  await client.queryArray(
+    `
+      INSERT INTO public.scans (
+        id,
+        user_id,
+        species_id,
+        image_storage_urls,
+        ai_confidence_score,
+        gps_lat_exact,
+        gps_long_exact,
+        gps_lat_public,
+        gps_long_public,
+        geoprivacy,
+        semantic_location
+      )
+      VALUES (
+        $1,
+        $2,
+        $3,
+        ARRAY[$4],
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        $10,
+        $11
+      )
+    `,
+    [
+      options.id,
+      options.userId,
+      options.speciesId,
+      options.imageUrl ?? "https://media.merian.app/test-image.webp",
+      options.aiConfidenceScore ?? 0.9,
+      options.latitude,
+      options.longitude,
+      options.gpsLatPublic ?? null,
+      options.gpsLongPublic ?? null,
+      options.geoprivacy,
+      options.semanticLocation ?? null,
+    ],
+  );
+}
+
+type InsertExplorePostOptions = {
+  id: string;
+  userId: string;
+  scanId: string;
+  sharedAt?: string | null;
+};
+
+export async function insertExplorePost(
+  client: Client,
+  options: InsertExplorePostOptions,
+): Promise<void> {
+  await client.queryArray(
+    `
+      INSERT INTO public.explore_posts (
+        id,
+        user_id,
+        scan_id,
+        shared_at
+      )
+      VALUES ($1, $2, $3, COALESCE($4::timestamptz, now()))
+    `,
+    [options.id, options.userId, options.scanId, options.sharedAt ?? null],
+  );
+}
