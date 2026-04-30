@@ -95,6 +95,10 @@ struct LibraryView: View {
                                 if let scan = (try? modelContext.fetch(descriptor))?.first {
                                     scanToManage = QueuedScanContext(from: scan)
                                     isQueuedSheetPresented = true
+                                    UITestSeedCoordinator.triggerQueuedAudioHandoffIfNeeded(
+                                        scanId: scan.id,
+                                        container: modelContext.container
+                                    )
                                 }
                             },
                             onQueuedScanDelete: { snapshot in

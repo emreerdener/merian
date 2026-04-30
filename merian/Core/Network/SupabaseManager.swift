@@ -4,7 +4,6 @@ import Foundation
 import GoogleSignIn
 import Observation
 import os
-import RevenueCat
 import Supabase
 
 // MARK: - Supabase Manager
@@ -83,7 +82,8 @@ import Supabase
                 self.currentUser = session.user
                 self.isAuthenticated = true
 
-                if await self.ensureTelemetryLinkedIfNeeded(for: session.user) {
+                if !TestExecutionCoordinator.isRunningTests,
+                   await self.ensureTelemetryLinkedIfNeeded(for: session.user) {
                     // Only link telemetry and trigger historical sync when the active user
                     // identity actually changes. The Supabase SDK fires two auth events on
                     // cold start (local cache + server validation), both with the same user —
@@ -137,6 +137,8 @@ import Supabase
     /// Creates an anonymous session for new users. Skips creation if a session exists or
     /// if the error is network/expiry — preserving any existing Apple Sign-In identity.
     func initializeGhostSession() async {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+
         if let existingTask = ghostSessionTask {
             await existingTask.value
             return
@@ -185,15 +187,22 @@ import Supabase
     // MARK: - Session Utilities
 
     func signOut() async {
+        defer {
+            currentUser = nil
+            isAuthenticated = false
+            lastLinkedUserId = nil
+            KeychainManager.shared.removeObject(forKey: "Merian_HasAuthenticatedOAuth")
+            PostHogManager.shared.reset()
+        }
+
         do {
             try await client.auth.signOut()
-            PostHogManager.shared.reset()
-            _ = try? await Purchases.shared.logOut()
-            KeychainManager.shared.removeObject(forKey: "Merian_HasAuthenticatedOAuth")
-            MerianLog.auth.debug("User signed out.")
         } catch {
-            MerianLog.auth.debug("Sign-out failed: \(error.localizedDescription, privacy: .private)")
+            MerianLog.auth.debug("Supabase sign-out failed; continuing local cleanup: \(error.localizedDescription, privacy: .private)")
         }
+
+        await RevenueCatManager.shared.handleSupabaseSignOut()
+        MerianLog.auth.debug("User signed out.")
     }
 
     /// Returns the JWT access token from the active session.
@@ -204,6 +213,14 @@ import Supabase
 
     /// Builds authenticated REST headers, initializing a ghost session if no token exists.
     func getValidAuthHeaders() async throws -> [String: String] {
+        if TestExecutionCoordinator.isRunningTests {
+            return [
+                "Authorization": "Bearer merian-test-session",
+                "apikey": MerianEnvironment.supabaseAnonKey,
+                "Content-Type": "application/json"
+            ]
+        }
+
         var token: String
         do {
             token = try await self.getActiveJWT()

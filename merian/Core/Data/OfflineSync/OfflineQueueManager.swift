@@ -63,7 +63,9 @@ import SwiftData
     /// Active upload batch task. Cancelled immediately on connectivity loss.
     var syncTask: Task<Void, Never>?
     /// Active collection sync task. Cancelled immediately on connectivity loss.
-    var collectionSyncTask: Task<Void, Never>?
+    /// Returns `true` when the attempt succeeded and `false` when the pending bit
+    /// should be left in place for a later retry opportunity.
+    var collectionSyncTask: Task<Bool, Never>?
     /// Monotonic revision bumped on every local collection mutation enqueue.
     /// Prevents an older successful sync run from clearing a newer pending delete/rename.
     @ObservationIgnored var collectionSyncRevision: UInt64 = 0
@@ -141,7 +143,9 @@ import SwiftData
     private override init() {
         super.init()
         _ = backgroundSession // Force-init so iOS can re-attach background tasks on relaunch.
-        startMonitoring()
+        if !TestExecutionCoordinator.isRunningTests {
+            startMonitoring()
+        }
     }
 
     // MARK: - Network Monitoring

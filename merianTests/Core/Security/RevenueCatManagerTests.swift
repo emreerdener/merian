@@ -15,7 +15,10 @@ final class RevenueCatManagerTests: XCTestCase {
     }
 
     func testInitialStateIsCorrect() {
-        return // Bypassed because the shared singleton fetches live data prior to CI initialization natively
+        XCTAssertFalse(revenueCatManager.isProActive)
+        XCTAssertFalse(revenueCatManager.isSubscribed)
+        XCTAssertNil(revenueCatManager.currentOfferings)
+        XCTAssertFalse(revenueCatManager.isFetchingOfferings)
     }
     
     func testRevenueCatAttributionSignature() async {
@@ -36,5 +39,17 @@ final class RevenueCatManagerTests: XCTestCase {
         )
         
         XCTAssertTrue(true, "Attribution Signature compiled properly!")
+    }
+
+    func testHandleSupabaseSignOutClearsEntitlementsInTests() async {
+        revenueCatManager.isProActive = true
+        revenueCatManager.isSubscribed = true
+        revenueCatManager.trialDaysRemaining = 3
+
+        await revenueCatManager.handleSupabaseSignOut()
+
+        XCTAssertFalse(revenueCatManager.isProActive)
+        XCTAssertFalse(revenueCatManager.isSubscribed)
+        XCTAssertNil(revenueCatManager.trialDaysRemaining)
     }
 }

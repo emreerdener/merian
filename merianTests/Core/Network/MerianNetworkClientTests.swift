@@ -5,6 +5,38 @@ import Foundation
 /// Intercepts network requests for MerianNetworkClient testing
 class MockURLProtocol: URLProtocol {
     static var mockEndpoints: [String: ((URLRequest) throws -> (HTTPURLResponse, Data))] = [:]
+
+    static func bodyData(for request: URLRequest) -> Data? {
+        if let body = request.httpBody {
+            return body
+        }
+
+        guard let stream = request.httpBodyStream else {
+            return nil
+        }
+
+        stream.open()
+        defer { stream.close() }
+
+        let bufferSize = 1024
+        var buffer = [UInt8](repeating: 0, count: bufferSize)
+        let data = NSMutableData()
+
+        while stream.hasBytesAvailable {
+            let read = stream.read(&buffer, maxLength: bufferSize)
+            if read < 0 {
+                return nil
+            }
+
+            if read == 0 {
+                break
+            }
+
+            data.append(buffer, length: read)
+        }
+
+        return data as Data
+    }
     
     override class func canInit(with request: URLRequest) -> Bool { return true }
     
@@ -38,6 +70,8 @@ class MockURLProtocol: URLProtocol {
 struct MerianNetworkClientTests {
     
     init() {
+        MockURLProtocol.mockEndpoints = [:]
+
         // Build an ephemeral URLSession configuration tailored exclusively for Mocking
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -159,7 +193,7 @@ struct MerianNetworkClientTests {
             #expect(request.url?.path.hasSuffix("/get-scan-explore-share-state") == true)
             #expect(request.httpMethod == "POST")
 
-            let body = try #require(request.httpBody)
+            let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try JSONSerialization.jsonObject(with: body) as? [String: Any]
             #expect(payload?["scan_id"] as? String == "scan-share-123")
             return (mockResponse, testData)
@@ -237,7 +271,7 @@ struct MerianNetworkClientTests {
             #expect(request.url?.path.hasSuffix("/register-push-device") == true)
             #expect(request.httpMethod == "POST")
 
-            let body = try #require(request.httpBody)
+            let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try JSONSerialization.jsonObject(with: body) as? [String: Any]
             #expect(payload?["device_token"] as? String == "abc123")
             #expect(payload?["platform"] as? String == "ios")

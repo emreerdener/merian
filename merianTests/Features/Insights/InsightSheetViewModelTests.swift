@@ -210,4 +210,47 @@ struct InsightSheetViewModelTests {
         viewModel.queuedContext = QueuedScanContext(from: queuedScan)
         #expect(viewModel.activeMedia.liveImageData == nil, "hasLive should evaluate to false when viewing a queued scan")
     }
+
+    @Test func testAudioCarouselPagesPersistAfterInferenceCompletes() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        let scanId = "audio_handoff_scan"
+        let audioPath = "documents/audio_handoff.wav"
+        let imagePath = "documents/audio_handoff.webp"
+
+        engine.activeScanId = scanId
+        engine.activeMedia = ActiveScanMedia(items: [.audio(audioPath), .image(imagePath)])
+        viewModel.inferenceEngine = engine
+
+        let analyzingPageIDs = CarouselPageBuilder.buildPages(
+            for: viewModel.activeMedia,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        ).map(\.id)
+
+        #expect(viewModel.persistentScanId == scanId)
+        #expect(analyzingPageIDs == ["audio-\(audioPath)", "image-\(imagePath)"])
+
+        engine.speciesData = SpeciesData(
+            scanId: scanId,
+            commonName: "Northern Cardinal",
+            scientificName: "Cardinalis cardinalis",
+            insightData: InsightData(aiReasoning: "", hazardType: "none"),
+            confidenceScore: 0.97,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+        engine.activeScanId = nil
+
+        let completedPageIDs = CarouselPageBuilder.buildPages(
+            for: viewModel.activeMedia,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        ).map(\.id)
+
+        #expect(viewModel.persistentScanId == scanId, "The carousel key should remain stable across the analysis-to-result handoff")
+        #expect(completedPageIDs == analyzingPageIDs, "Audio and mixed-media page identity must remain unchanged after inference finishes")
+    }
 }

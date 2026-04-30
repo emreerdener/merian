@@ -104,4 +104,21 @@ struct FileIOActorTests {
         #expect(FileManager.default.fileExists(atPath: docsURL.path) == true, "Temporary audio should be copied into Documents")
         #expect(FileManager.default.fileExists(atPath: tempURL.path) == false, "Original temporary audio should be removed after persistence")
     }
+
+    @Test func testPersistAudioFileCopiesAbsoluteTemporaryPath() async throws {
+        let filename = "absolute_audio_\(UUID().uuidString).wav"
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        let audioData = Data(repeating: 0x33, count: 256)
+
+        try audioData.write(to: tempURL)
+
+        let persisted = try #require(await FileIOActor.shared.persistAudioFile(tempPath: tempURL.path))
+        let docsURL = URL.documentsDirectory.appendingPathComponent(persisted)
+        defer {
+            try? FileManager.default.removeItem(at: docsURL)
+        }
+
+        #expect(FileManager.default.fileExists(atPath: docsURL.path) == true, "Absolute temporary audio paths should also be copied into Documents")
+        #expect(FileManager.default.fileExists(atPath: tempURL.path) == false, "The original absolute temporary audio file should be removed after persistence")
+    }
 }

@@ -7,17 +7,25 @@
 
 import XCTest
 
-final class merianUITests: XCTestCase {
-
+enum UITestAppLauncher {
     @MainActor
-    private func launchConfiguredApp(extraArguments: [String] = []) -> XCUIApplication {
+    static func makeConfiguredApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["UITesting"] = "true"
         app.launchArguments += ["-skipOnboarding", "-mockCameraFeed", "-hasCompletedOnboarding", "YES"]
         app.launchArguments += extraArguments
+        return app
+    }
+
+    @MainActor
+    static func launchConfiguredApp(extraArguments: [String] = []) -> XCUIApplication {
+        let app = makeConfiguredApp(extraArguments: extraArguments)
         app.launch()
         return app
     }
+}
+
+final class merianUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
@@ -34,24 +42,20 @@ final class merianUITests: XCTestCase {
 
     @MainActor
     func testExample() throws {
-        // UI tests must launch the application that they test.
-        let app = XCUIApplication()
-        app.launch()
-
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        let app = UITestAppLauncher.launchConfiguredApp()
+        XCTAssertTrue(app.buttons["MainTabBar_Profile"].waitForExistence(timeout: 8.0))
     }
 
     @MainActor
     func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+            UITestAppLauncher.makeConfiguredApp().launch()
         }
     }
 
     @MainActor
     func testAchievementDetailFlowOpensQualifyingScanInsight() throws {
-        let app = launchConfiguredApp(extraArguments: ["-seedAchievementDetailFlow"])
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedAchievementDetailFlow"])
 
         let profileButton = app.buttons["MainTabBar_Profile"]
         XCTAssertTrue(profileButton.waitForExistence(timeout: 8.0), "Main profile tab button failed to appear")
@@ -73,9 +77,33 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testQueuedAudioScanRetainsAudioAcrossCompletionHandoff() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedQueuedAudioHandoffFlow"])
+
+        let scansButton = app.buttons["MainTabBar_Scans"]
+        XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0), "Scans tab button failed to appear")
+        scansButton.tap()
+
+        let queuedTile = app.buttons["QueuedScanTile_ui_test_queued_audio_handoff"]
+        XCTAssertTrue(queuedTile.waitForExistence(timeout: 8.0), "Seeded queued audio scan tile was not rendered")
+        queuedTile.tap()
+
+        let insightSheet = app.otherElements["InsightSheetView"]
+        XCTAssertTrue(insightSheet.waitForExistence(timeout: 8.0), "Queued insight sheet failed to present")
+
+        XCTAssertTrue(app.staticTexts["Queued for upload"].waitForExistence(timeout: 8.0), "Queued-state title did not render before the handoff")
+
+        let audioPage = app.otherElements["AudioPlaybackCarouselPage_ui_test_queued_audio_handoff.wav"]
+        XCTAssertTrue(audioPage.waitForExistence(timeout: 8.0), "Audio carousel page was missing before the queued-to-result handoff")
+
+        XCTAssertTrue(app.staticTexts["Northern Cardinal"].waitForExistence(timeout: 8.0), "Seeded completed record did not take over the queued sheet")
+        XCTAssertTrue(audioPage.waitForExistence(timeout: 2.0), "Audio carousel page disappeared after the queued-to-result handoff")
+    }
+
+    @MainActor
     func testBackgroundSyncOfflineDisappearance() throws {
         try XCTSkipIf(true, "Offline Simulator execution boundaries trigger severe UI timeout execution flakes randomly.")
-        let app = launchConfiguredApp()
+        let app = UITestAppLauncher.launchConfiguredApp()
 
         // 1. Wait for Main Camera View
         let libraryButton = app.descendants(matching: .any).matching(identifier: "PhotoLibraryButton").firstMatch

@@ -93,6 +93,7 @@ struct ScansGrid<MenuContent: View>: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("QueuedScanTile_\(queued.id)")
                 .contextMenu {
                     Button(role: .destructive) {
                         onQueuedScanDelete?(queued)
@@ -152,6 +153,7 @@ struct ScansGrid<MenuContent: View>: View {
                         }
                 }
                 .buttonStyle(.plain) // Prevent underlying iOS UI button highlight hijacking natively
+                .accessibilityIdentifier("ScanTile_\(scan.id)")
             }
             
             if let onAddScans = onAddScans {

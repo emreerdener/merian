@@ -59,13 +59,11 @@ struct PushNotificationManagerTests {
         let manager = PushNotificationManager.shared
         let publisher = AppEventPublisher.shared.publisher
         let expectedPostId = "explore-post-123"
-
-        let eventTask = Task<AppEvent?, Never> {
-            for await event in publisher.values {
-                return event
-            }
-            return nil
+        var receivedEvent: AppEvent?
+        let cancellable = publisher.sink { event in
+            receivedEvent = event
         }
+        defer { cancellable.cancel() }
 
         manager.handleNotificationAction(
             userInfo: [
@@ -75,8 +73,12 @@ struct PushNotificationManagerTests {
             actionIdentifier: UNNotificationDefaultActionIdentifier
         )
 
-        let event = await eventTask.value
-        guard case .appDidEnterActivePhaseWithExplorePost(let postId)? = event else {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while receivedEvent == nil && ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+
+        guard case .appDidEnterActivePhaseWithExplorePost(let postId)? = receivedEvent else {
             Issue.record("Expected an Explore deep-link event from the push tap handler.")
             return
         }

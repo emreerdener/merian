@@ -33,6 +33,10 @@ struct AudioPlaybackCarouselPage: View {
     // 60FPS precision playhead
     let timer = Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()
 
+    private var accessibilityIdentifier: String {
+        "AudioPlaybackCarouselPage_\(URL(fileURLWithPath: filePath).lastPathComponent)"
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -75,6 +79,13 @@ struct AudioPlaybackCarouselPage: View {
                 .disabled(isHardwareDisabled)
                 .opacity(isHardwareDisabled ? 0.3 : 1.0)
             }
+        }
+        .overlay {
+            Color.clear
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Audio playback page")
+                .accessibilityIdentifier(accessibilityIdentifier)
+                .allowsHitTesting(false)
         }
         .onAppear {
             captureAndSwitchSession()

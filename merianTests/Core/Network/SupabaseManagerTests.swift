@@ -26,4 +26,12 @@ final class SupabaseManagerTests: XCTestCase {
         XCTAssertNotNil(isGuest)
         XCTAssertNotNil(authState)
     }
+
+    func testGetValidAuthHeadersUsesDeterministicTestStub() async throws {
+        let headers = try await supabaseManager.getValidAuthHeaders()
+
+        XCTAssertEqual(headers["Authorization"], "Bearer merian-test-session")
+        XCTAssertEqual(headers["apikey"], MerianEnvironment.supabaseAnonKey)
+        XCTAssertEqual(headers["Content-Type"], "application/json")
+    }
 }

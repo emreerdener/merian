@@ -23,6 +23,15 @@ import os
 
     /// Configures the RevenueCat SDK and fetches initial customer state.
     func configure() {
+        guard !TestExecutionCoordinator.isRunningTests else {
+            isProActive = false
+            isSubscribed = false
+            trialDaysRemaining = nil
+            currentOfferings = nil
+            isFetchingOfferings = false
+            return
+        }
+
         Purchases.logLevel = .warn
 
         let apiKey = MerianEnvironment.revenueCatApiKey
@@ -53,6 +62,7 @@ import os
 
     /// Logs in to RevenueCat with `userId` and syncs optional profile attributes.
     func linkWithSupabase(userId: String, email: String? = nil, displayName: String? = nil, avatarUrl: String? = nil) async {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
         guard Purchases.isConfigured else {
             MerianLog.general.warning("RevenueCatManager.linkWithSupabase() skipped: Purchases is not configured.")
             return
@@ -83,6 +93,7 @@ import os
 
     /// Fetches the current customer info and updates entitlement state.
     func refreshCustomerInfo() async {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
         guard Purchases.isConfigured else { return }
         do {
             let info = try await Purchases.shared.customerInfo()
@@ -108,6 +119,11 @@ import os
 
     /// Fetches available offerings for the paywall.
     func fetchOfferings() async {
+        guard !TestExecutionCoordinator.isRunningTests else {
+            currentOfferings = nil
+            isFetchingOfferings = false
+            return
+        }
         guard Purchases.isConfigured else { return }
         isFetchingOfferings = true
         defer { isFetchingOfferings = false }
@@ -115,6 +131,22 @@ import os
             currentOfferings = try await Purchases.shared.offerings()
         } catch {
             MerianLog.general.debug("Failed to fetch RevenueCat offerings: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    /// Clears local entitlement state and logs out the SDK when appropriate.
+    func handleSupabaseSignOut() async {
+        isProActive = false
+        isSubscribed = false
+        trialDaysRemaining = nil
+
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+        guard Purchases.isConfigured else { return }
+
+        do {
+            _ = try await Purchases.shared.logOut()
+        } catch {
+            MerianLog.general.debug("RevenueCat logOut failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 

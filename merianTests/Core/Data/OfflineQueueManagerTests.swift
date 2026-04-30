@@ -391,4 +391,31 @@ struct OfflineQueueManagerTests {
             "A successful collection sync may clear the pending bit only when no newer local collection change exists"
         )
     }
+
+    @Test func testFinishCollectionSyncAttemptLeavesPendingFlagWhenSyncFails() async {
+        let manager = OfflineQueueManager.shared
+        let originalRevision = manager.collectionSyncRevision
+        let originalSyncing = manager.isCollectionSyncing
+        let originalTask = manager.collectionSyncTask
+        let originalPending = UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync)
+        defer {
+            manager.collectionSyncRevision = originalRevision
+            manager.isCollectionSyncing = originalSyncing
+            manager.collectionSyncTask = originalTask
+            UserDefaults.standard.set(originalPending, forKey: UserDefaultsKeys.needsCollectionSync)
+        }
+
+        UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
+        manager.collectionSyncRevision = 21
+        manager.isCollectionSyncing = true
+
+        manager.finishCollectionSyncAttempt(success: false, capturedRevision: 21)
+
+        #expect(manager.isCollectionSyncing == false, "A failed collection sync must still release the latch")
+        #expect(manager.collectionSyncTask == nil, "A failed collection sync must clear the in-flight task handle")
+        #expect(
+            UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync),
+            "A failed collection sync must keep the pending bit set so a later retry can pick it up"
+        )
+    }
 }

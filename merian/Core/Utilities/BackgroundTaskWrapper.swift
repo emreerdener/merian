@@ -45,12 +45,12 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
     ///   - operation: The async work to perform within the background execution window.
     /// - Returns: The underlying `Task`, discardable if fire-and-forget behaviour is intended.
     @discardableResult
-    public static func execute(
+    public static func execute<Success: Sendable>(
         name: String,
         priority: TaskPriority = .background,
         expirationHandler: (@Sendable () -> Void)? = nil,
-        operation: @escaping @Sendable (BackgroundTaskWrapper) async -> Void
-    ) -> Task<Void, Never> {
+        operation: @escaping @Sendable (BackgroundTaskWrapper) async -> Success
+    ) -> Task<Success, Never> {
         let task = BackgroundTaskWrapper()
         #if os(iOS)
         let taskId = UIApplication.shared.beginBackgroundTask(withName: name) {
@@ -60,8 +60,9 @@ public final class BackgroundTaskWrapper: @unchecked Sendable {
         task.id = taskId
         #endif
         return Task(priority: priority) {
-            await operation(task)
+            let result = await operation(task)
             task.safeEnd()
+            return result
         }
     }
 }

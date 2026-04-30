@@ -116,7 +116,13 @@ enum ModelStoreRecoveryCoordinator {
     }
 }
 
-private enum UITestSeedCoordinator {
+enum UITestSeedCoordinator {
+    private static let queuedAudioHandoffArgument = "-seedQueuedAudioHandoffFlow"
+    private static let queuedAudioHandoffScanId = "ui_test_queued_audio_handoff"
+    private static let queuedAudioHandoffAudioFilename = "ui_test_queued_audio_handoff.wav"
+    private static let queuedAudioHandoffImageFilename = "ui_test_queued_audio_handoff.webp"
+    @MainActor private static var triggeredQueuedAudioHandoffs: Set<String> = []
+
     static var isEnabled: Bool {
         TestExecutionCoordinator.isRunningUITests
     }
@@ -124,7 +130,8 @@ private enum UITestSeedCoordinator {
     @MainActor
     static func prepareIfNeeded(container: ModelContainer) {
         guard isEnabled else { return }
-        guard ProcessInfo.processInfo.arguments.contains("-seedAchievementDetailFlow") else { return }
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("-seedAchievementDetailFlow") || arguments.contains(queuedAudioHandoffArgument) else { return }
 
         let context = container.mainContext
 
@@ -134,16 +141,58 @@ private enum UITestSeedCoordinator {
             try context.delete(model: OfflineQueuedScan.self)
             try context.delete(model: PendingCloudDeletionTask.self)
 
-            for record in achievementDetailFlowRecords() {
-                context.insert(record)
+            if arguments.contains("-seedAchievementDetailFlow") {
+                for record in achievementDetailFlowRecords() {
+                    context.insert(record)
+                }
+                OfflineQueueManager.shared.unsyncedItemsCount = 0
+                MerianLog.general.debug("UITestSeedCoordinator seeded achievement detail flow records.")
+            } else if arguments.contains(queuedAudioHandoffArgument) {
+                context.insert(queuedAudioHandoffScan())
+                OfflineQueueManager.shared.unsyncedItemsCount = 1
+                triggeredQueuedAudioHandoffs.removeAll(keepingCapacity: false)
+                MerianLog.general.debug("UITestSeedCoordinator seeded queued audio handoff flow.")
             }
 
             try context.save()
 
             UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
-            MerianLog.general.debug("UITestSeedCoordinator seeded achievement detail flow records.")
         } catch {
             MerianLog.general.error("UITestSeedCoordinator failed to seed data: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    @MainActor
+    static func triggerQueuedAudioHandoffIfNeeded(scanId: String, container: ModelContainer) {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard isEnabled,
+              arguments.contains(queuedAudioHandoffArgument),
+              scanId == queuedAudioHandoffScanId,
+              !triggeredQueuedAudioHandoffs.contains(scanId) else { return }
+
+        triggeredQueuedAudioHandoffs.insert(scanId)
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+
+            let context = container.mainContext
+            var descriptor = FetchDescriptor<OfflineQueuedScan>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            descriptor.fetchLimit = 1
+
+            guard let queuedScan = try? context.fetch(descriptor).first else { return }
+
+            context.insert(queuedAudioHandoffCompletedRecord())
+            context.delete(queuedScan)
+
+            do {
+                try context.save()
+                OfflineQueueManager.shared.unsyncedItemsCount = 0
+                MerianLog.general.debug("UITestSeedCoordinator completed queued audio handoff flow.")
+            } catch {
+                MerianLog.general.error("UITestSeedCoordinator failed completing queued audio handoff flow: \(error.localizedDescription, privacy: .private)")
+            }
         }
     }
 
@@ -202,6 +251,56 @@ private enum UITestSeedCoordinator {
                 confirmedSpeciesId: "fungi_boletus"
             )
         ]
+    }
+
+    private static func queuedAudioHandoffCapturedMediaJSON() -> String? {
+        let items: [SerializedMediaItem] = [
+            .audio(.documents(queuedAudioHandoffAudioFilename)),
+            .image(.documents(queuedAudioHandoffImageFilename))
+        ]
+        guard let data = try? JSONEncoder().encode(items) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func queuedAudioHandoffScan() -> OfflineQueuedScan {
+        OfflineQueuedScan(
+            id: queuedAudioHandoffScanId,
+            timestamp: Date(timeIntervalSince1970: 1_777_376_400),
+            capturedMediaJSON: queuedAudioHandoffCapturedMediaJSON(),
+            coverImagePath: queuedAudioHandoffImageFilename,
+            weatherCondition: "overcast",
+            weatherTemperatureF: 68,
+            locationName: "UITest Queue",
+            scanState: .pending
+        )
+    }
+
+    private static func queuedAudioHandoffCompletedRecord() -> LocalScanRecord {
+        LocalScanRecord(
+            id: queuedAudioHandoffScanId,
+            speciesId: "ui_test_cardinal",
+            scientificName: "Cardinalis cardinalis",
+            commonName: "Northern Cardinal",
+            timestamp: Date(timeIntervalSince1970: 1_777_376_400),
+            capturedMediaJSON: queuedAudioHandoffCapturedMediaJSON(),
+            coverImagePath: queuedAudioHandoffImageFilename,
+            hazardType: "none",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "woodland",
+            wikipediaUrl: "https://example.com/cardinal",
+            wikipediaOverview: "Seeded UI test overview.",
+            referenceImageUrl: "https://example.com/cardinal.jpg",
+            confidenceScore: 0.97,
+            locationName: "UITest Queue",
+            weatherCondition: "overcast",
+            weatherTemperatureF: 68,
+            aiReasoning: "Seeded UI test reasoning.",
+            habitatDescription: "Seeded UI test habitat.",
+            gbifTaxonKey: 2492488,
+            hasBeenViewed: true
+        )
     }
 }
 
@@ -341,6 +440,8 @@ struct MerianApp: App {
         }
         // MARK: - Scene Phases
         .onChange(of: scenePhase) { oldPhase, newPhase in
+            guard !TestExecutionCoordinator.isRunningTests else { return }
+
             switch newPhase {
             case .background:
                 lifecycleManager.handleBackgroundPhase()

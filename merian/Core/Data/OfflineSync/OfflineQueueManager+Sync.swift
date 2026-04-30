@@ -314,7 +314,8 @@ extension OfflineQueueManager {
             guard isOnline, SupabaseManager.shared.isAuthenticated else { return false }
 
             if let existingTask = collectionSyncTask {
-                await existingTask.value
+                let didSucceed = await existingTask.value
+                guard didSucceed else { return false }
                 continue
             }
 
@@ -324,17 +325,20 @@ extension OfflineQueueManager {
             isCollectionSyncing = true
 
             let task = BackgroundTaskWrapper.execute(name: "CollectionSync") { [weak self] _ in
-                guard let self else { return }
+                guard let self else { return false }
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                 let success = await dbActor.pushCollectionsToEdge()
 
                 await MainActor.run {
                     self.finishCollectionSyncAttempt(success: success, capturedRevision: capturedRevision)
                 }
+
+                return success
             }
 
             collectionSyncTask = task
-            await task.value
+            let didSucceed = await task.value
+            guard didSucceed else { return false }
         }
 
         return true
