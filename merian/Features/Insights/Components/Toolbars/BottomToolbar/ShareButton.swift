@@ -35,7 +35,20 @@ struct ShareButton: View {
         }
         return "Publish this discovery so others can learn and explore."
     }
-    
+
+    private var primaryBlue: Color {
+        Color.accentColor
+    }
+
+    private var exploreActionFillColor: Color {
+        sharedExplorePostId == nil ? .black : primaryBlue
+    }
+
+    private var exploreActionForegroundColor: Color {
+        sharedExplorePostId == nil ? .white : Color(uiColor: .systemBackground)
+    }
+
+    // MARK: - Body
     var body: some View {
         Button(action: {
             if showsExploreAction {
@@ -52,7 +65,7 @@ struct ShareButton: View {
             .padding(.horizontal, 8)
         }
         .buttonStyle(.borderedProminent)
-        .tint(.blue)
+        .tint(primaryBlue)
         .sheet(isPresented: $showingOptions, onDismiss: handlePendingAction) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
@@ -106,6 +119,7 @@ struct ShareButton: View {
         }
     }
 
+// MARK: - Explore Feature Panel
     private var exploreFeaturePanel: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 14) {
@@ -129,7 +143,6 @@ struct ShareButton: View {
                         if sharedExplorePostId != nil {
                             Text("LIVE")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(Color.green)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(
@@ -164,11 +177,11 @@ struct ShareButton: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(Color.white.opacity(0.18))
+                        .fill(exploreActionFillColor)
                 )
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.white)
+            .foregroundStyle(exploreActionForegroundColor)
             .disabled(isSharingToExplore && sharedExplorePostId == nil)
         }
         .padding(16)

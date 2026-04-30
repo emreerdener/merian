@@ -197,7 +197,10 @@ struct ExplorePostDetailView: View {
     }
 
     private func speciesSection(for post: ExplorePost) -> some View {
-        VStack(alignment: .center, spacing: 8) {
+        let aiReasoning = detail?.trimmedAiReasoning
+        let referenceGalleryImages = detail?.referenceGalleryImages ?? []
+
+        return VStack(alignment: .center, spacing: 8) {
             if !post.speciesScientificName.isEmpty && post.speciesScientificName.lowercased() != post.speciesCommonName.lowercased() && post.speciesScientificName != "Taxonomy Unavailable" {
                 Text(post.speciesScientificName.replacingOccurrences(of: "'", with: "").trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\n", with: " "))
                     .font(.system(.title3))
@@ -213,13 +216,21 @@ struct ExplorePostDetailView: View {
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
 
-            if let aiReasoning = detail?.trimmedAiReasoning {
+            if let aiReasoning {
                 Text(styledAiReasoning(text: aiReasoning, scientificName: post.speciesScientificName))
                     .font(.system(.body))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
                     .padding(.top, 8)
+            }
+
+            if !referenceGalleryImages.isEmpty {
+                ExploreReferenceGallery(
+                    scientificName: post.speciesScientificName,
+                    images: referenceGalleryImages
+                )
+                .padding(.top, aiReasoning == nil ? 8 : 16)
             }
         }
         .frame(maxWidth: .infinity)
@@ -714,5 +725,79 @@ extension ExplorePostDetailView {
                 : Color(uiColor: .tertiarySystemFill)
             return base.opacity(isGlowing ? 0.86 : 0.66)
         }
+    }
+}
+
+private struct ExploreReferenceGallery: View {
+    let scientificName: String
+    let images: [ExploreReferenceGalleryImage]
+    @State private var selectedImageId: String?
+
+    private var carouselHeight: CGFloat {
+        min(UIScreen.main.bounds.width * 0.96, 420)
+    }
+
+    private var currentImageId: String? {
+        selectedImageId ?? images.first?.id
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 0) {
+                    ForEach(images) { image in
+                        ExploreReferenceGalleryPage(
+                            scientificName: scientificName,
+                            image: image
+                        )
+                        .containerRelativeFrame(.horizontal)
+                        .id(image.id)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: Binding(
+                get: { currentImageId },
+                set: { selectedImageId = $0 }
+            ))
+            .frame(height: carouselHeight)
+            .background(Color(uiColor: .secondarySystemBackground))
+            .clipped()
+
+            if images.count > 1 {
+                HStack(spacing: 8) {
+                    ForEach(images) { image in
+                        Circle()
+                            .fill(image.id == currentImageId ? Color.primary : Color.primary.opacity(0.18))
+                            .frame(width: 7, height: 7)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 16)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, -16)
+        .onAppear {
+            if selectedImageId == nil {
+                selectedImageId = images.first?.id
+            }
+        }
+    }
+}
+
+private struct ExploreReferenceGalleryPage: View {
+    let scientificName: String
+    let image: ExploreReferenceGalleryImage
+
+    var body: some View {
+        AsyncLocalImageView(
+            path: nil,
+            fallbackImageUrl: image.url
+        )
+        .background(Color(uiColor: .secondarySystemBackground))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(image.source.label) reference image for \(scientificName)")
     }
 }

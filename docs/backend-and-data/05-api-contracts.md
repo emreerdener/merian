@@ -364,12 +364,16 @@ Current response shape:
     "habitat_description": "Often found in open meadows, milkweed patches, and migration corridors.",
     "gbif_taxon_key": 5130978,
     "iucn_red_list_status": "least_concern",
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Monarch_butterfly",
+    "reference_image_url": "https://upload.wikimedia.org/.../Monarch.jpg,https://inaturalist-open-data.s3.amazonaws.com/photos/123/original.jpg",
     "wikipedia_overview": "The monarch butterfly is a milkweed butterfly in the family Nymphalidae..."
   }
 }
 ```
 
 This endpoint exists so Explore can render public species cards on the detail page without loading private scan state or the Insight `InferenceEngine`.
+
+`reference_image_url` is the same comma-separated reference-media field used elsewhere in the app: the first URL is typically the cached Wikipedia image when available, followed by cached GBIF-backed field observations. Explore detail uses it to render the public reference gallery below the post's AI reasoning without making an extra authenticated scan fetch.
 
 `ai_reasoning` is returned conditionally from the backing `scans` row, not copied into `explore_posts`. It is only exposed when the scan still reflects the original AI identification:
 
@@ -498,6 +502,37 @@ Follow-up page requests send:
 - `unshare-explore-post` soft-removes the post from the public feed via `unshared_at` without deleting the underlying scan.
 - Unsharing also purges any Explore notifications tied to that post so the activity feed cannot route into hidden content.
 - The current Explore map reads privacy-safe coordinates from the backing `scans` row. `trg_sync_scan_public_coordinates` ensures those public coordinates are derived or backfilled even when a scan was originally inserted with only exact GPS fields.
+
+### `/get-scan-explore-share-state`
+
+Returns the current viewer's authoritative Explore share mapping for one owned scan. This endpoint exists to revalidate the Insight sheet's fast local cache after relaunch or on a second device, so the Share button can switch back to `View post` when a scan is still live in Explore without relying on device-local memory alone.
+
+Request body:
+
+```json
+{
+  "scan_id": "uuid"
+}
+```
+
+Current response shape:
+
+```json
+{
+  "data": {
+    "scan_id": "uuid",
+    "post_id": "uuid",
+    "shared_at": "2026-04-29T22:18:03.000Z"
+  }
+}
+```
+
+Behavior notes:
+
+- the lookup is owner-only: it reads only scans where `scans.user_id = self_id`
+- if the scan still has an active Explore post and is still publicly visible, `post_id` and `shared_at` are returned
+- if the scan exists but the Explore post was unshared or the scan is no longer publicly viewable because it was tombstoned, lost all media, became private, or no longer resolves to a species, the endpoint returns the same `scan_id` with `post_id = null`
+- if the scan no longer exists for the current viewer, the Edge Function still returns `200` with `post_id = null` so the client can safely clear stale local cache without branching on `404`
 
 ### `/set-explore-post-like`
 

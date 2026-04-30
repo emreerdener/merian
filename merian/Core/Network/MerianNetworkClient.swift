@@ -950,6 +950,13 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExplorePostDetailResponse.self, from: data).data
     }
 
+    func getExploreShareState(scanId: String) async throws -> ExploreScanShareState {
+        let functionUrl = try endpointURL("get-scan-explore-share-state")
+        let bodyData = try JSONSerialization.data(withJSONObject: ["scan_id": scanId])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreScanShareStateResponse.self, from: data).data
+    }
+
     func getExploreNotifications(
         limit: Int = 50,
         beforeUpdatedAt: String? = nil,

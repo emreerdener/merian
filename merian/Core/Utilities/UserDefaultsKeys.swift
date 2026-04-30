@@ -40,8 +40,39 @@ enum UserDefaultsKeys {
     static let hasSeenExploreNewChip = "hasSeenExploreNewChip"
     /// Whether the Explore feed has a newer post than the one the user most recently saw.
     static let hasUnseenExplorePost = "hasUnseenExplorePost"
+    /// Prefix for per-scan Explore share state. Append the local `scanId` to form the full key.
+    /// e.g. `"sharedExplorePostId_1234-uuid"` → the published Explore post id for that scan.
+    static let sharedExplorePostIdPrefix = "sharedExplorePostId_"
     /// The `sharedAt` timestamp of the newest Explore post successfully loaded by the user.
     static let lastSeenExplorePostSharedAt = "lastSeenExplorePostSharedAt"
     /// Version marker for one-time local similar-species cache resets.
     static let localLookalikesCacheResetVersion = "localLookalikesCacheResetVersion"
+}
+
+enum ExploreShareStateStore {
+    private static func key(for scanId: String) -> String {
+        UserDefaultsKeys.sharedExplorePostIdPrefix + scanId
+    }
+
+    static func sharedPostId(for scanId: String, userDefaults: UserDefaults = .standard) -> String? {
+        let value = userDefaults.string(forKey: key(for: scanId))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (value?.isEmpty == false) ? value : nil
+    }
+
+    static func setSharedPostId(_ postId: String?, for scanId: String, userDefaults: UserDefaults = .standard) {
+        let trimmed = postId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmed, !trimmed.isEmpty {
+            userDefaults.set(trimmed, forKey: key(for: scanId))
+        } else {
+            userDefaults.removeObject(forKey: key(for: scanId))
+        }
+    }
+
+    static func clearAll(userDefaults: UserDefaults = .standard) {
+        for key in userDefaults.dictionaryRepresentation().keys
+        where key.hasPrefix(UserDefaultsKeys.sharedExplorePostIdPrefix) {
+            userDefaults.removeObject(forKey: key)
+        }
+    }
 }

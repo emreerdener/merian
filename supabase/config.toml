@@ -484,6 +484,9 @@ verify_jwt = false
 [functions.get-explore-post-detail]
 verify_jwt = false
 
+[functions.get-scan-explore-share-state]
+verify_jwt = false
+
 [functions.get-explore-notifications]
 verify_jwt = false
 

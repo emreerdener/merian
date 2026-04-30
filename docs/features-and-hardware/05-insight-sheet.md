@@ -114,6 +114,8 @@ var contentMode: ContentMode {
 
 `InsightSheetView` also queries SwiftData directly via `@Query` for non-deleted `[ScanCollection]` rows (reverse-sorted by `createdAt`) to populate the collection management toolbar. Soft-deleted collections (`isDeleted == true`) are intentionally excluded so a collection that is pending remote deletion never reappears in the add-to-collection menu.
 
+Explore share state in the bottom toolbar uses a two-step hydration path. `InsightSheetViewModel.fetchLocalRecord(for:modelContext:)` first restores `sharedExplorePostId` from the per-scan `UserDefaults` cache so the button can immediately render `View post` on same-device relaunch. `InsightSheetView.task(id: scanId)` then calls `/get-scan-explore-share-state` in the background and reconciles that authoritative server answer back into the same cache. This keeps the toolbar fast on-device while also correcting stale cache after reinstall, cross-device share/unshare, or remote visibility changes.
+
 ---
 
 ## Queued Scan Value-Type Pattern

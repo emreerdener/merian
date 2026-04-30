@@ -36,6 +36,8 @@ final class InsightSheetViewModel {
     func reset() {
         mediaDecodeTask?.cancel()
         mediaDecodeTask = nil
+        sharedExploreStateRevision = 0
+        sharedExploreStateRequestToken = 0
         state = UIState()
         toastActionTitle = nil
         toastAction = nil
@@ -50,6 +52,8 @@ final class InsightSheetViewModel {
     /// main-thread thrashing on layout changes where the framework routinely interrogates boundary sizes.
     private var cachedActiveMedia: ActiveScanMedia?
     private var mediaDecodeTask: Task<Void, Never>?
+    @ObservationIgnored private var sharedExploreStateRevision: UInt64 = 0
+    @ObservationIgnored private var sharedExploreStateRequestToken: UInt64 = 0
 
     // MARK: - Interface State
     struct UIState: Equatable {
@@ -406,9 +410,9 @@ final class InsightSheetViewModel {
         do {
             let response = try await MerianNetworkClient.shared.shareScanToExplore(scan: record)
             UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenExplorePost)
+            cacheSharedExplorePostId(response.postId, for: record.id)
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.sharedExplorePostId = response.postId
                 state.toastMessage = "Shared to Explore"
                 toastActionTitle = "View"
                 toastAction = { [weak self] in
@@ -472,6 +476,7 @@ final class InsightSheetViewModel {
         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         if let record = (try? modelContext.fetch(descriptor))?.first {
             activeLocalRecord = record
+            refreshSharedExploreStateFromLocalCache(scanId: scanId)
             cachedActiveMedia = nil
             if let jsonStr = record.capturedMediaJSON {
                 mediaDecodeTask?.cancel()
@@ -487,6 +492,36 @@ final class InsightSheetViewModel {
                 mediaDecodeTask = nil
             }
             markRecordViewedIfAppropriate(modelContext: modelContext)
+        }
+    }
+
+    func refreshSharedExploreStateFromLocalCache(scanId: String? = nil) {
+        let resolvedScanId = scanId ?? activeLocalRecord?.id ?? inferenceEngine?.speciesData?.scanId
+        applySharedExplorePostId(
+            resolvedScanId.flatMap { ExploreShareStateStore.sharedPostId(for: $0) },
+            for: resolvedScanId,
+            bumpRevision: true
+        )
+    }
+
+    func refreshSharedExploreStateFromServer() async {
+        let scanId = activeLocalRecord?.id ?? inferenceEngine?.speciesData?.scanId
+        guard let scanId, !scanId.isEmpty else { return }
+
+        sharedExploreStateRequestToken &+= 1
+        let requestToken = sharedExploreStateRequestToken
+        let requestRevision = sharedExploreStateRevision
+
+        do {
+            let shareState = try await MerianNetworkClient.shared.getExploreShareState(scanId: scanId)
+            guard !Task.isCancelled else { return }
+            guard requestToken == sharedExploreStateRequestToken else { return }
+            guard requestRevision == sharedExploreStateRevision else { return }
+
+            ExploreShareStateStore.setSharedPostId(shareState.postId, for: scanId)
+            applySharedExplorePostId(shareState.postId, for: scanId, bumpRevision: false)
+        } catch {
+            // Keep the optimistic local cache when the authoritative refresh is unavailable.
         }
     }
 
@@ -527,6 +562,29 @@ final class InsightSheetViewModel {
             state.toastMessage = "Reverted to default name"
         }
         HapticManager.shared.triggerSelectionPulse()
+    }
+
+    private func cacheSharedExplorePostId(_ postId: String?, for scanId: String) {
+        ExploreShareStateStore.setSharedPostId(postId, for: scanId)
+        applySharedExplorePostId(
+            ExploreShareStateStore.sharedPostId(for: scanId),
+            for: scanId,
+            bumpRevision: true
+        )
+    }
+
+    private func applySharedExplorePostId(_ postId: String?, for scanId: String?, bumpRevision: Bool) {
+        if bumpRevision {
+            sharedExploreStateRevision &+= 1
+        }
+
+        guard scanId != nil else {
+            state.sharedExplorePostId = nil
+            return
+        }
+
+        let trimmed = postId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        state.sharedExplorePostId = (trimmed?.isEmpty == false) ? trimmed : nil
     }
 
 }

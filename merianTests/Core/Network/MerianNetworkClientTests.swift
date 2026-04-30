@@ -143,6 +143,35 @@ struct MerianNetworkClientTests {
         #expect(similar[0].scientific_name == "Procyon cancrivorus")
     }
 
+    @Test func testGetExploreShareStateConstructsPayloadAndParsesJSON() async throws {
+        let testData = """
+        {
+            "data": {
+                "scan_id": "scan-share-123",
+                "post_id": "post-share-456",
+                "shared_at": "2026-04-29T22:18:03.000Z"
+            }
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/get-scan-explore-share-state"] = { request in
+            #expect(request.url?.path.hasSuffix("/get-scan-explore-share-state") == true)
+            #expect(request.httpMethod == "POST")
+
+            let body = try #require(request.httpBody)
+            let payload = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            #expect(payload?["scan_id"] as? String == "scan-share-123")
+            return (mockResponse, testData)
+        }
+
+        let response = try await MerianNetworkClient.shared.getExploreShareState(scanId: "scan-share-123")
+
+        #expect(response.scanId == "scan-share-123")
+        #expect(response.postId == "post-share-456")
+        #expect(response.sharedAt == "2026-04-29T22:18:03.000Z")
+    }
+
     @Test func testGenerateUploadURLs() async throws {
         let testData = """
         {

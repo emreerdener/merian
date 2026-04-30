@@ -98,6 +98,40 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.activeLocalRecord?.hasBeenViewed == true, "fetchLocalRecord must actively flag the read-receipt to false the unread states across the app ecosystem")
     }
 
+    @Test func testFetchLocalRecordHydratesSharedExplorePostIdFromCache() async throws {
+        let ctx = try createIsolatedContext()
+        let viewModel = InsightSheetViewModel()
+        let record = LocalScanRecord(speciesId: "shared_fetch_test", scientificName: "Rosa", commonName: "Rose")
+        let sharedPostId = "post_\(UUID().uuidString)"
+
+        ctx.insert(record)
+        try ctx.save()
+        ExploreShareStateStore.setSharedPostId(sharedPostId, for: record.id)
+        defer { ExploreShareStateStore.setSharedPostId(nil, for: record.id) }
+
+        viewModel.fetchLocalRecord(for: record.id, modelContext: ctx)
+
+        #expect(viewModel.activeLocalRecord?.id == record.id)
+        #expect(viewModel.state.sharedExplorePostId == sharedPostId)
+    }
+
+    @Test func testRefreshSharedExploreStateClearsMissingCache() async throws {
+        let ctx = try createIsolatedContext()
+        let viewModel = InsightSheetViewModel()
+        let record = LocalScanRecord(speciesId: "shared_refresh_test", scientificName: "Quercus", commonName: "Oak")
+
+        ctx.insert(record)
+        try ctx.save()
+
+        viewModel.fetchLocalRecord(for: record.id, modelContext: ctx)
+        viewModel.state.sharedExplorePostId = "stale_post_id"
+
+        ExploreShareStateStore.setSharedPostId(nil, for: record.id)
+        viewModel.refreshSharedExploreStateFromLocalCache()
+
+        #expect(viewModel.state.sharedExplorePostId == nil)
+    }
+
     @Test func testTotalImagesWithReferenceImageLoading() async throws {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()

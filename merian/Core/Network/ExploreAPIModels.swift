@@ -122,6 +122,10 @@ struct ExploreCommentsResponse: Decodable {
     let data: [ExploreComment]
 }
 
+struct ExploreScanShareStateResponse: Decodable {
+    let data: ExploreScanShareState
+}
+
 struct ExplorePostDetailResponse: Decodable {
     let data: ExplorePostDetail
 }
@@ -152,6 +156,8 @@ struct ExplorePostDetail: Decodable {
     let habitatDescription: String?
     let gbifTaxonKey: Int?
     let iucnRedListStatus: String?
+    let wikipediaUrl: String?
+    let referenceImageUrl: String?
     let wikipediaOverview: String?
 
     var taxonomyData: TaxonomyData? {
@@ -202,11 +208,82 @@ struct ExplorePostDetail: Decodable {
         return false
     }
 
+    var referenceGalleryImages: [ExploreReferenceGalleryImage] {
+        let rawUrls = referenceImageUrl?
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) } ?? []
+
+        var seen = Set<String>()
+
+        return rawUrls.enumerated().compactMap { index, rawUrl in
+            guard !rawUrl.isEmpty, seen.insert(rawUrl).inserted else { return nil }
+
+            return ExploreReferenceGalleryImage(
+                id: rawUrl,
+                url: rawUrl,
+                source: referenceImageSource(for: rawUrl, index: index)
+            )
+        }
+    }
+
     var trimmedAiReasoning: String? {
         guard let aiReasoning else { return nil }
         let trimmed = aiReasoning.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
+
+    private func referenceImageSource(for urlString: String, index: Int) -> ExploreReferenceGalleryImage.Source {
+        let host = URL(string: urlString)?.host?.lowercased() ?? ""
+        if host.contains("wikipedia") || host.contains("wikimedia") {
+            return .wikipedia
+        }
+
+        if let wikipediaUrl,
+           !wikipediaUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           index == 0 {
+            return .wikipedia
+        }
+
+        return .gbif
+    }
+}
+
+struct ExploreReferenceGalleryImage: Identifiable, Equatable {
+    enum Source: Equatable {
+        case wikipedia
+        case gbif
+
+        var label: String {
+            switch self {
+            case .wikipedia:
+                return "Wikipedia"
+            case .gbif:
+                return "GBIF"
+            }
+        }
+
+        var iconName: String {
+            switch self {
+            case .wikipedia:
+                return "book.closed"
+            case .gbif:
+                return "globe.americas"
+            }
+        }
+
+        var caption: String {
+            switch self {
+            case .wikipedia:
+                return "Reference image"
+            case .gbif:
+                return "Field observation"
+            }
+        }
+    }
+
+    let id: String
+    let url: String
+    let source: Source
 }
 
 struct ExploreComment: Decodable, Identifiable, Equatable {
@@ -245,6 +322,12 @@ struct ExploreShareResponse: Decodable {
     let postId: String
     let scanId: String
     let sharedAt: String
+}
+
+struct ExploreScanShareState: Decodable, Equatable {
+    let scanId: String
+    let postId: String?
+    let sharedAt: String?
 }
 
 struct ExploreLikeResponse: Decodable {

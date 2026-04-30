@@ -13,6 +13,8 @@ export interface ExplorePostDetailRow {
   habitat_description?: string | null;
   gbif_taxon_key?: number | null;
   iucn_red_list_status?: string | null;
+  wikipedia_url?: string | null;
+  reference_image_url?: string | null;
   wikipedia_overview?: string | null;
 }
 

@@ -190,6 +190,8 @@ final class ScanRepository {
     /// (`delete-scan` Edge function) is attempted immediately and retried on subsequent
     /// connectivity cycles via `PendingCloudDeletionTask`.
     func eradicateScan(record: LocalScanRecord, modelContext: ModelContext) {
+        ExploreShareStateStore.setSharedPostId(nil, for: record.id)
+
         // Collect image paths before deleting the record.
         var imagesToErase: [String] = []
         if let jsonStr = record.capturedMediaJSON,
@@ -239,6 +241,7 @@ final class ScanRepository {
             try modelContext.delete(model: OfflineQueuedScan.self)
             try modelContext.delete(model: PendingCloudDeletionTask.self)
             try modelContext.save()
+            ExploreShareStateStore.clearAll()
             NotificationCenter.default.post(name: NSNotification.Name("MerianLibraryDidUpdate"), object: nil)
             MerianLog.data.debug("✅ Successfully purged all SwiftData records natively.")
         } catch {

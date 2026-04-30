@@ -93,6 +93,7 @@ struct InsightSheetView: View {
                     if let scientificName = inferenceEngine.speciesData?.scientificName {
                         viewModel.loadPreferredCommonName(for: scientificName)
                     }
+                    await viewModel.refreshSharedExploreStateFromServer()
                 }
                 .task(id: viewModel.state.toastMessage) {
                     if viewModel.state.toastMessage != nil {
@@ -156,7 +157,9 @@ struct InsightSheetView: View {
                 }
             )
         }
-        .sheet(isPresented: $viewModel.state.showExploreSheet) {
+        .sheet(isPresented: $viewModel.state.showExploreSheet, onDismiss: {
+            viewModel.refreshSharedExploreStateFromLocalCache()
+        }) {
             ExploreView(initialPostId: viewModel.state.sharedExplorePostId)
         }
     }
