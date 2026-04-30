@@ -1,4 +1,45 @@
 import SwiftUI
+import UIKit
+
+enum SpectrogramPalette {
+    private struct RGBComponents {
+        let red: Double
+        let green: Double
+        let blue: Double
+    }
+
+    static let background = Color(red: 0.06, green: 0.06, blue: 0.1)
+    static let backgroundUIColor = UIColor(red: 0.06, green: 0.06, blue: 0.1, alpha: 1.0)
+
+    static func color(for value: Float) -> Color {
+        let components = rgb(for: value)
+        return Color(red: components.red, green: components.green, blue: components.blue)
+    }
+
+    static func uiColor(for value: Float) -> UIColor {
+        let components = rgb(for: value)
+        return UIColor(red: components.red, green: components.green, blue: components.blue, alpha: 1.0)
+    }
+
+    private static func rgb(for value: Float) -> RGBComponents {
+        let v = max(0, min(1, value))
+
+        switch v {
+        case ..<0.2:
+            let t = Double(v / 0.2)
+            return RGBComponents(red: 0, green: 0, blue: t * 0.8)
+        case ..<0.5:
+            let t = Double((v - 0.2) / 0.3)
+            return RGBComponents(red: 0, green: t * 0.9, blue: 0.8)
+        case ..<0.75:
+            let t = Double((v - 0.5) / 0.25)
+            return RGBComponents(red: t * 0.95, green: 0.9, blue: 0.8 * (1 - t))
+        default:
+            let t = Double((v - 0.75) / 0.25)
+            return RGBComponents(red: 0.95 + t * 0.05, green: 0.9 + t * 0.1, blue: t * 0.8)
+        }
+    }
+}
 
 // MARK: - Spectrogram Canvas
 
@@ -17,7 +58,7 @@ struct SpectrogramView: View, Equatable {
     var body: some View {
         Canvas { context, size in
             // Dark canvas surface — spectrograms always render on a dark field.
-            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(red: 0.06, green: 0.06, blue: 0.1)))
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(SpectrogramPalette.background))
 
             guard !columns.isEmpty else { return }
             let colWidth  = size.width  / CGFloat(columns.count)
@@ -30,29 +71,10 @@ struct SpectrogramView: View, Equatable {
                     let y = size.height - CGFloat(bi + 1) * binHeight
                     context.fill(
                         Path(CGRect(x: x, y: y, width: colWidth + 0.5, height: binHeight + 0.5)),
-                        with: .color(color(for: magnitude))
+                        with: .color(SpectrogramPalette.color(for: magnitude))
                     )
                 }
             }
-        }
-    }
-
-    // MARK: - Colormap
-
-    private func color(for v: Float) -> Color {
-        switch v {
-        case ..<0.2:
-            let t = Double(v / 0.2)
-            return Color(red: 0, green: 0, blue: t * 0.8)
-        case ..<0.5:
-            let t = Double((v - 0.2) / 0.3)
-            return Color(red: 0, green: t * 0.9, blue: 0.8)
-        case ..<0.75:
-            let t = Double((v - 0.5) / 0.25)
-            return Color(red: t * 0.95, green: 0.9, blue: 0.8 * (1 - t))
-        default:
-            let t = Double((v - 0.75) / 0.25)
-            return Color(red: 0.95 + t * 0.05, green: 0.9 + t * 0.1, blue: t * 0.8)
         }
     }
 }

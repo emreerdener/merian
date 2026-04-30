@@ -160,14 +160,19 @@ struct ScansSheetView: View {
         searchManager.performSearch(query: searchManager.searchQuery)
     }
 
-    /// Fires 18 concurrent image loads before LazyVGrid renders, filling the first visible
+    /// Fires leading thumbnail work before LazyVGrid renders, filling the first visible
     /// screen (6 rows × 3 columns on the largest supported iPhone) with no gray placeholders.
     private func prefetchLeadingThumbnails(from records: [LocalScanRecord]) {
-        let slice = records.prefix(18).map { record in
-            let presentation = record.scanThumbnailPresentation
-            return (imagePath: presentation.imagePath, fallbackUrl: presentation.fallbackImageUrl)
+        let slice = Array(records.prefix(18).map(\.scanThumbnailPresentation))
+        let imageRecords = slice.map { presentation in
+            (imagePath: presentation.imagePath, fallbackUrl: presentation.fallbackImageUrl)
         }
-        LocalImageLoader.shared.prefetch(records: Array(slice), maxDimension: prefetchThumbnailSize)
+
+        LocalImageLoader.shared.prefetch(records: imageRecords, maxDimension: prefetchThumbnailSize)
+        AudioSpectrogramThumbnailLoader.shared.prefetch(
+            audioPaths: slice.compactMap(\.audioPath),
+            maxDimension: prefetchThumbnailSize
+        )
     }
 
     private func refreshThumbnailPipeline() {

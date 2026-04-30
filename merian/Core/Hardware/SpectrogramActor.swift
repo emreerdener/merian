@@ -229,3 +229,82 @@ actor SpectrogramActor {
         return output
     }
 }
+
+private final class SpectrogramDecodeEOFBox: @unchecked Sendable {
+    var reached = false
+}
+
+enum AudioSpectrogramDecoder {
+    static func decodeColumns(fromFilePath filePath: String) async -> [SpectrogramColumn] {
+        let url = URL(fileURLWithPath: filePath)
+
+        do {
+            let file = try AVAudioFile(forReading: url)
+            guard let outputFormat = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1),
+                  let converter = AVAudioConverter(from: file.processingFormat, to: outputFormat),
+                  let outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: 2048) else {
+                return []
+            }
+
+            let spectrogramActor = SpectrogramActor()
+            await spectrogramActor.reset()
+
+            var columns: [SpectrogramColumn] = []
+            let eof = SpectrogramDecodeEOFBox()
+
+            while !eof.reached {
+                var error: NSError?
+                let status = converter.convert(to: outputBuffer, error: &error) { requestedPackets, outStatus in
+                    guard !eof.reached else {
+                        outStatus.pointee = .endOfStream
+                        return nil
+                    }
+
+                    guard let inputBuffer = AVAudioPCMBuffer(
+                        pcmFormat: file.processingFormat,
+                        frameCapacity: requestedPackets
+                    ) else {
+                        outStatus.pointee = .noDataNow
+                        return nil
+                    }
+
+                    do {
+                        try file.read(into: inputBuffer, frameCount: requestedPackets)
+                        if inputBuffer.frameLength == 0 {
+                            eof.reached = true
+                            outStatus.pointee = .endOfStream
+                            return nil
+                        }
+                        outStatus.pointee = .haveData
+                        return inputBuffer
+                    } catch {
+                        eof.reached = true
+                        outStatus.pointee = .endOfStream
+                        return nil
+                    }
+                }
+
+                if status == .haveData, outputBuffer.frameLength > 0 {
+                    if let column = await spectrogramActor.process(buffer: outputBuffer) {
+                        columns.append(column)
+                    }
+                    continue
+                }
+
+                if error != nil {
+                    return []
+                }
+
+                if status == .inputRanDry, !eof.reached {
+                    continue
+                }
+
+                break
+            }
+
+            return columns
+        } catch {
+            return []
+        }
+    }
+}

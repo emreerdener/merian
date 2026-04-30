@@ -347,6 +347,7 @@ private struct AchievementContributionRow: View {
                 ScanThumbnail(
                     imagePath: contribution.imagePath,
                     fallbackImageUrl: contribution.fallbackImageUrl,
+                    audioPath: contribution.audioPath,
                     maxDimension: 240,
                     placeholderStyle: contribution.placeholderStyle
                 )

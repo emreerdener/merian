@@ -8,16 +8,11 @@ final class PlayerDelegate: NSObject, AVAudioPlayerDelegate, @unchecked Sendable
     }
 }
 
-final class EOFBox: @unchecked Sendable {
-    var value = false
-}
-
 struct AudioPlaybackCarouselPage: View {
     let filePath: String
     
     @State private var player: AVAudioPlayer?
     @State private var playerDelegate = PlayerDelegate()
-    @State private var spectrogramActor = SpectrogramActor()
     @State private var columns: [SpectrogramColumn] = []
     @State private var playbackProgress: Double = 0.0
     @State private var isDecoding: Bool = true
@@ -158,72 +153,22 @@ struct AudioPlaybackCarouselPage: View {
         defer { Task { @MainActor in self.isDecoding = false } }
         
         let url = URL(fileURLWithPath: filePath)
-        do {
-            let playerURL = url
-            let preparedPlayer: AVAudioPlayer? = try? await MainActor.run {
-                let p = try AVAudioPlayer(contentsOf: playerURL)
-                playerDelegate.onFinish = {
-                    playbackProgress = 0.0
-                    isPlaying = false
-                }
-                p.delegate = playerDelegate
-                p.prepareToPlay()
-                return p
+        let playerURL = url
+        let preparedPlayer: AVAudioPlayer? = try? await MainActor.run {
+            let p = try AVAudioPlayer(contentsOf: playerURL)
+            playerDelegate.onFinish = {
+                playbackProgress = 0.0
+                isPlaying = false
             }
-            await MainActor.run { self.player = preparedPlayer }
-            
-            let file = try AVAudioFile(forReading: url)
-            guard let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1) else { return }
-            guard let converter = AVAudioConverter(from: file.processingFormat, to: format) else { return }
-            
-            await spectrogramActor.reset()
-            
-            let frameCapacity: AVAudioFrameCount = 2048
-            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity) else { return }
-            
-            var localColumns: [SpectrogramColumn] = []
-            
-            while true {
-                var error: NSError?
-                let isEOF = EOFBox()
-                
-                let inputBlock: AVAudioConverterInputBlock = { inNumPackets, outStatus in
-                    guard let inBuffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: inNumPackets) else {
-                        outStatus.pointee = .noDataNow
-                        return nil
-                    }
-                    
-                    do {
-                        try file.read(into: inBuffer)
-                        outStatus.pointee = .haveData
-                        return inBuffer
-                    } catch {
-                        outStatus.pointee = .endOfStream
-                        isEOF.value = true
-                        return nil
-                    }
-                }
-                
-                let status = converter.convert(to: buffer, error: &error, withInputFrom: inputBlock)
-                
-                if status == .error || status == .endOfStream || isEOF.value {
-                    break
-                }
-                
-                if status == .haveData, buffer.frameLength > 0 {
-                    if let col = await spectrogramActor.process(buffer: buffer) {
-                        localColumns.append(col)
-                    }
-                }
-            }
-            
-            let finalColumns = localColumns
-            await MainActor.run {
-                self.columns = finalColumns
-            }
-            
-        } catch {
-            MerianLog.general.debug("AudioPlaybackCarouselPage: decodeAudio failed: \(error, privacy: .private)")
+            p.delegate = playerDelegate
+            p.prepareToPlay()
+            return p
+        }
+        await MainActor.run { self.player = preparedPlayer }
+
+        let finalColumns = await AudioSpectrogramDecoder.decodeColumns(fromFilePath: url.path)
+        await MainActor.run {
+            self.columns = finalColumns
         }
     }
 }

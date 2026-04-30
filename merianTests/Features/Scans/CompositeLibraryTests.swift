@@ -146,6 +146,7 @@ struct CompositeLibraryTests {
 
         #expect(presentation.imagePath == nil, "Audio-only scans should not advertise a local image path")
         #expect(presentation.fallbackImageUrl == nil, "The test scan starts without a persisted reference image")
+        #expect(presentation.audioPath == "field-recording.wav", "Audio-only scans should surface their audio path so the spectrogram thumbnail can be rendered")
         #expect(presentation.placeholderStyle == .pendingReference(.audio), "Audio-only biological scans should wait for a reference image instead of rendering as archived")
         #expect(ScanThumbnailBackfillCandidate(record: record) != nil, "Audio-only biological scans without images should be eligible for thumbnail backfill")
     }
@@ -170,6 +171,7 @@ struct CompositeLibraryTests {
 
         let presentation = record.scanThumbnailPresentation
 
+        #expect(presentation.audioPath == nil, "Describe-only scans should not attempt to render an audio spectrogram thumbnail")
         #expect(presentation.placeholderStyle == .unavailableReference(.describe), "Unknown non-visual scans should show a non-visual terminal placeholder instead of pretending a fallback image exists")
         #expect(ScanThumbnailBackfillCandidate(record: record) == nil, "Unknown subjects should not enter the background reference-thumbnail backfill queue")
     }

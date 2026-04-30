@@ -46,6 +46,7 @@ actor ProfileDatabaseActor {
         let locationName: String?
         let imagePath: String?
         let fallbackImageUrl: String?
+        let audioPath: String?
         let placeholderStyle: ScanThumbnailPlaceholderStyle
     }
 
@@ -115,6 +116,7 @@ actor ProfileDatabaseActor {
                 locationName: record.locationName,
                 imagePath: thumbnail.imagePath,
                 fallbackImageUrl: thumbnail.fallbackImageUrl,
+                audioPath: thumbnail.audioPath,
                 placeholderStyle: thumbnail.placeholderStyle
             )
         }

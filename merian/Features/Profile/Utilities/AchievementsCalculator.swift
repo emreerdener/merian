@@ -3,6 +3,7 @@ import Foundation
 extension LocalScanRecord: AchievementRecordRepresentable {
     var imagePath: String? { scanThumbnailPresentation.imagePath }
     var fallbackImageUrl: String? { scanThumbnailPresentation.fallbackImageUrl }
+    var audioPath: String? { scanThumbnailPresentation.audioPath }
     var placeholderStyle: ScanThumbnailPlaceholderStyle { scanThumbnailPresentation.placeholderStyle }
 }
 
@@ -96,6 +97,7 @@ struct AchievementsCalculator {
             reasonText: reasonText,
             imagePath: record.imagePath,
             fallbackImageUrl: record.fallbackImageUrl,
+            audioPath: record.audioPath,
             placeholderStyle: record.placeholderStyle,
             locationName: record.locationName
         )

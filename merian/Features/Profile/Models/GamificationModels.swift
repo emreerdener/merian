@@ -246,6 +246,7 @@ protocol AchievementRecordRepresentable {
     var locationName: String? { get }
     var imagePath: String? { get }
     var fallbackImageUrl: String? { get }
+    var audioPath: String? { get }
     var placeholderStyle: ScanThumbnailPlaceholderStyle { get }
 }
 
@@ -254,6 +255,7 @@ extension AchievementRecordRepresentable {
     var locationName: String? { nil }
     var imagePath: String? { nil }
     var fallbackImageUrl: String? { nil }
+    var audioPath: String? { nil }
     var placeholderStyle: ScanThumbnailPlaceholderStyle { .archived }
 
     var displayScientificName: String {
@@ -352,6 +354,7 @@ struct AchievementContribution: Sendable, Identifiable, Equatable {
     let reasonText: String
     let imagePath: String?
     let fallbackImageUrl: String?
+    let audioPath: String?
     let placeholderStyle: ScanThumbnailPlaceholderStyle
     let locationName: String?
 
