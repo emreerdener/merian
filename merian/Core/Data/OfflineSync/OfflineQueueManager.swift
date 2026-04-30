@@ -64,6 +64,9 @@ import SwiftData
     var syncTask: Task<Void, Never>?
     /// Active collection sync task. Cancelled immediately on connectivity loss.
     var collectionSyncTask: Task<Void, Never>?
+    /// Monotonic revision bumped on every local collection mutation enqueue.
+    /// Prevents an older successful sync run from clearing a newer pending delete/rename.
+    @ObservationIgnored var collectionSyncRevision: UInt64 = 0
     /// Debounced reconnect task. Cancelled and replaced on each connectivity-restored event
     /// to prevent stacked syncs when the OS path monitor fires multiple times in quick succession.
     @ObservationIgnored private var reconnectDebounceTask: Task<Void, Never>?

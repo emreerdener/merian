@@ -106,15 +106,13 @@ struct ScanCollectionTests {
         context.insert(scan)
         
         // Act
-        if collection.scans == nil {
-            collection.scans = []
-        }
-        collection.scans?.append(scan)
-        
-        if scan.collections == nil {
-            scan.collections = []
-        }
-        scan.collections?.append(collection)
+        var updatedCollectionScans = collection.scans ?? []
+        updatedCollectionScans.append(scan)
+        collection.scans = updatedCollectionScans
+
+        var updatedScanCollections = scan.collections ?? []
+        updatedScanCollections.append(collection)
+        scan.collections = updatedScanCollections
         
         try context.save()
         

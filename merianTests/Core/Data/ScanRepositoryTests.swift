@@ -44,8 +44,13 @@ struct ScanRepositoryTests {
         ctx.insert(collection)
         
         // Assert bi-directional boundary execution without triggering SwiftData duplicate tracking loops
-        collection.scans?.append(record)
-        record.collections?.append(collection)
+        var updatedCollectionScans = collection.scans ?? []
+        updatedCollectionScans.append(record)
+        collection.scans = updatedCollectionScans
+
+        var updatedRecordCollections = record.collections ?? []
+        updatedRecordCollections.append(collection)
+        record.collections = updatedRecordCollections
         
         try ctx.save()
         

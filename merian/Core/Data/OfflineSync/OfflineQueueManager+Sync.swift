@@ -292,32 +292,68 @@ extension OfflineQueueManager {
     /// Marks collections as needing sync and attempts to push them immediately if online.
     /// The "Favorites" collection is excluded — it is managed locally only.
     func enqueueCollectionSync() {
-        // ALWAYS set the flag when enqueued (so offline edits are remembered)
-        UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
+        markCollectionSyncPending()
         syncCollectionsIfPending()
     }
 
     /// Pushes local `ScanCollection` records to the `sync-collections` Edge function if changes are pending.
     /// No-ops when offline or unauthenticated.
     func syncCollectionsIfPending() {
-        guard UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync) else { return }
-        guard isOnline, SupabaseManager.shared.isAuthenticated else { return }
-        guard !isCollectionSyncing else { return }
-        guard let container = modelContext?.container else { return }
-        
-        isCollectionSyncing = true
-        
-        collectionSyncTask = BackgroundTaskWrapper.execute(name: "CollectionSync") { [weak self] _ in
+        Task { @MainActor [weak self] in
             guard let self else { return }
-            let dbActor = BackgroundDatabaseActor(modelContainer: container)
-            let success = await dbActor.pushCollectionsToEdge()
+            _ = await self.drainCollectionSyncIfPossible()
+        }
+    }
 
-            await MainActor.run {
-                self.isCollectionSyncing = false
-                if success {
-                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.needsCollectionSync)
+    /// Shared collection-sync drain used by both fire-and-forget UI edits and the
+    /// launch-time historical sync. This guarantees all collection pushes pass through
+    /// the same single-flight latch, so a stale upsert can never race a newer tombstone.
+    @discardableResult
+    func drainCollectionSyncIfPossible() async -> Bool {
+        while UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync) {
+            guard isOnline, SupabaseManager.shared.isAuthenticated else { return false }
+
+            if let existingTask = collectionSyncTask {
+                await existingTask.value
+                continue
+            }
+
+            guard let container = modelContext?.container else { return false }
+
+            let capturedRevision = collectionSyncRevision
+            isCollectionSyncing = true
+
+            let task = BackgroundTaskWrapper.execute(name: "CollectionSync") { [weak self] _ in
+                guard let self else { return }
+                let dbActor = BackgroundDatabaseActor(modelContainer: container)
+                let success = await dbActor.pushCollectionsToEdge()
+
+                await MainActor.run {
+                    self.finishCollectionSyncAttempt(success: success, capturedRevision: capturedRevision)
                 }
             }
+
+            collectionSyncTask = task
+            await task.value
+        }
+
+        return true
+    }
+
+    func markCollectionSyncPending() {
+        collectionSyncRevision &+= 1
+        // ALWAYS set the flag when enqueued (so offline edits are remembered)
+        UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
+    }
+
+    func finishCollectionSyncAttempt(success: Bool, capturedRevision: UInt64) {
+        isCollectionSyncing = false
+        collectionSyncTask = nil
+
+        // Only clear the pending bit if no newer collection mutation was enqueued while
+        // this network request was in flight. Otherwise the next drain loop must run again.
+        if success, collectionSyncRevision == capturedRevision {
+            UserDefaults.standard.set(false, forKey: UserDefaultsKeys.needsCollectionSync)
         }
     }
 }

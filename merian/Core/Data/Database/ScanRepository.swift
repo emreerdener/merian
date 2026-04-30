@@ -90,15 +90,15 @@ final class ScanRepository {
 
             // --- Push local collections before pulling ---
             // Local collections created while offline (or before auth completed) are never
-            // uploaded by the on-demand syncCollections() path. If we reconcile against
+            // uploaded until OfflineQueueManager drains pending collection sync work. If we reconcile against
             // the cloud first, those unsynced collections will be deleted during the sync pass.
-            // Pushing here ensures every local collection reaches Supabase before we treat
-            // the cloud as the source of truth for the delete pass.
+            // Route this through OfflineQueueManager's shared drain so launch-time historical
+            // sync cannot race a stale background upsert against a newer tombstone delete.
             if UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync) {
-                let pushActor = BackgroundDatabaseActor(modelContainer: container)
-                let success = await pushActor.pushCollectionsToEdge()
-                if success {
-                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.needsCollectionSync)
+                let didDrainCollections = await offlineQueue.drainCollectionSyncIfPossible()
+                guard didDrainCollections else {
+                    MerianLog.data.debug("syncHistoricalScansDown: skipped cloud reconciliation because pending collection mutations could not be drained safely.")
+                    return
                 }
             }
 
@@ -678,8 +678,14 @@ actor HistoricalDatabaseActor {
                 for scan in currentScans where !remoteScanIds.contains(scan.id) {
                     let isSynced = scan.coverImagePath?.starts(with: "http") == true || scan.coverImagePath?.starts(with: "https") == true || scan.coverImagePath == nil
                     if isSynced {
-                        // Drive the removal from the inverse side
-                        scan.collections?.removeAll(where: { $0.id == col.id })
+                        // Drive the removal from the inverse side via reassignment — in-place
+                        // mutation on optional SwiftData arrays can fail to notify the context.
+                        var updatedCollections = scan.collections ?? []
+                        let originalCount = updatedCollections.count
+                        updatedCollections.removeAll(where: { $0.id == col.id })
+                        if updatedCollections.count != originalCount {
+                            scan.collections = updatedCollections
+                        }
                     }
                 }
             }

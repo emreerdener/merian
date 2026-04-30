@@ -112,7 +112,7 @@ var contentMode: ContentMode {
 - `setPreferredCommonName(_:for:)` — writes to UserDefaults, updates `preferredCommonName` in-memory (triggering `@Observable` recompute of `resolvedHeaderTitle`), and fires a `toastMessage`.
 - `clearPreferredCommonName(for:)` — removes the UserDefaults entry and nils `preferredCommonName`, reverting the headline to the canonical DB name.
 
-`InsightSheetView` also queries SwiftData directly via `@Query` for `[ScanCollection]` (reverse-sorted by `createdAt`) to populate the collection management toolbar.
+`InsightSheetView` also queries SwiftData directly via `@Query` for non-deleted `[ScanCollection]` rows (reverse-sorted by `createdAt`) to populate the collection management toolbar. Soft-deleted collections (`isDeleted == true`) are intentionally excluded so a collection that is pending remote deletion never reappears in the add-to-collection menu.
 
 ---
 
@@ -465,12 +465,12 @@ Users can add or remove the current scan from any `ScanCollection`:
 func toggleScanInCollection(_ collection: ScanCollection, modelContext: ModelContext) {
     // toggles record.collections membership
     // saves modelContext
-    // calls OfflineQueueManager.shared.syncCollections() for immediate cloud push
+    // calls OfflineQueueManager.shared.enqueueCollectionSync() for immediate cloud push
     // fires a toast message
 }
 ```
 
-"New Collection" is handled by the `newCollectionAlert` view modifier attached to `InsightSheetView`. It creates a `ScanCollection` in SwiftData with a UUID immediately, then syncs via `pushCollectionsToEdge()`.
+"New Collection" is handled by the `newCollectionAlert` view modifier attached to `InsightSheetView`. It creates a `ScanCollection` in SwiftData with a UUID immediately, saves locally, and then schedules cloud sync through `OfflineQueueManager`'s shared collection drain.
 
 ---
 

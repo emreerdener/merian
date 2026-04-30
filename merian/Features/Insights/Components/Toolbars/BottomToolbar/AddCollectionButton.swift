@@ -9,7 +9,7 @@ struct AddCollectionButton: View {
     
     var body: some View {
         Menu {
-            if let favorites = collections.first(where: { $0.name == "Favorites" }) {
+            if let favorites = collections.first(where: { $0.name == "Favorites" && !$0.isDeleted }) {
                 let isFavorited = activeLocalRecord?.collections?.contains(where: { $0.id == favorites.id }) ?? false
                 Button(action: { toggleScanInCollection(favorites) }) {
                     Label("Favorites", systemImage: isFavorited ? "heart.fill" : "heart")
@@ -17,7 +17,7 @@ struct AddCollectionButton: View {
                 Divider()
             }
             
-            ForEach(collections.filter { $0.name != "Favorites" }) { collection in
+            ForEach(collections.filter { $0.name != "Favorites" && !$0.isDeleted }) { collection in
                 let isSelected = activeLocalRecord?.collections?.contains(where: { $0.id == collection.id }) ?? false
                 Button(action: { toggleScanInCollection(collection) }) {
                     Label(collection.name, systemImage: isSelected ? "checkmark.circle.fill" : "folder")

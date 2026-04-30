@@ -69,24 +69,33 @@ struct CollectionActionAlertModifier: ViewModifier {
     private func executeAction() {
         switch action {
         case .rename:
-            let trimmed = collectionNameInputValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty, let collectionToRename = collection {
-                collectionToRename.name = trimmed
-                finalizeAction(triggerSuccess: true)
+            guard let collectionToRename = collection else { return }
+            guard let validatedName = resolveValidatedCollectionName(
+                allowUntitledFallback: false,
+                excludingCollectionID: collectionToRename.id
+            ) else { return }
+            guard collectionToRename.name != validatedName else { return }
+
+            collectionToRename.name = validatedName
+            if finalizeAction(triggerSuccess: true) {
                 onActionComplete?(collectionToRename)
             }
             
         case .delete:
             if let collectionToDelete = collection {
-                onDeleted?()
-                HapticManager.shared.triggerErrorThump()
                 collectionToDelete.isDeleted = true
-                finalizeAction(triggerSuccess: false)
+                if finalizeAction(triggerSuccess: false) {
+                    onDeleted?()
+                    HapticManager.shared.triggerErrorThump()
+                }
             }
             
         case .create:
-            let collectionName = collectionNameInputValue.isEmpty ? "Untitled" : collectionNameInputValue
-            let newCollection = ScanCollection(name: collectionName)
+            guard let validatedName = resolveValidatedCollectionName(
+                allowUntitledFallback: true,
+                excludingCollectionID: nil
+            ) else { return }
+            let newCollection = ScanCollection(name: validatedName)
             
             modelContext.insert(newCollection)
             
@@ -96,22 +105,65 @@ struct CollectionActionAlertModifier: ViewModifier {
                 record.collections = updatedCollections
             }
             
-            collectionNameInputValue = ""
-            finalizeAction(triggerSuccess: true)
-            onActionComplete?(newCollection)
+            if finalizeAction(triggerSuccess: true) {
+                collectionNameInputValue = ""
+                onActionComplete?(newCollection)
+            }
         }
     }
     
-    private func finalizeAction(triggerSuccess: Bool) {
+    @discardableResult
+    private func finalizeAction(triggerSuccess: Bool) -> Bool {
         do {
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("CollectionActionAlertModifier: failed to save context: \(error, privacy: .private)")
+            return false
         }
         OfflineQueueManager.shared.enqueueCollectionSync()
         if triggerSuccess {
             HapticManager.shared.triggerSuccessPulse()
         }
+        return true
+    }
+
+    private func resolveValidatedCollectionName(
+        allowUntitledFallback: Bool,
+        excludingCollectionID: String?
+    ) -> String? {
+        let trimmed = collectionNameInputValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedName = trimmed.isEmpty && allowUntitledFallback ? "Untitled" : trimmed
+
+        guard !resolvedName.isEmpty else {
+            HapticManager.shared.triggerErrorThump()
+            return nil
+        }
+
+        if resolvedName.compare("Favorites", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame {
+            HapticManager.shared.triggerErrorThump()
+            MerianLog.data.debug("CollectionActionAlertModifier: blocked reserved collection name Favorites")
+            return nil
+        }
+
+        var descriptor = FetchDescriptor<ScanCollection>(predicate: #Predicate { !$0.isDeleted })
+        descriptor.fetchLimit = 500
+        let existingCollections = (try? modelContext.fetch(descriptor)) ?? []
+
+        let hasDuplicate = existingCollections.contains { existing in
+            guard existing.id != excludingCollectionID else { return false }
+            return existing.name
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .compare(resolvedName, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
+
+        if hasDuplicate {
+            HapticManager.shared.triggerErrorThump()
+            MerianLog.data.debug("CollectionActionAlertModifier: blocked duplicate collection name \(resolvedName, privacy: .private)")
+            return nil
+        }
+
+        return resolvedName
     }
 }
 

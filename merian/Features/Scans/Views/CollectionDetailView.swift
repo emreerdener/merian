@@ -144,8 +144,19 @@ struct CollectionDetailView: View {
     
     // MARK: - Action Handlers
     private func removeFromCollection(scan: LocalScanRecord) {
-        scan.collections?.removeAll(where: { $0.id == collection.id })
-        try? modelContext.save()
-        OfflineQueueManager.shared.enqueueCollectionSync()
+        var updatedCollections = scan.collections ?? []
+        let originalCount = updatedCollections.count
+        updatedCollections.removeAll(where: { $0.id == collection.id })
+        guard updatedCollections.count != originalCount else { return }
+
+        scan.collections = updatedCollections
+
+        do {
+            try modelContext.save()
+            OfflineQueueManager.shared.enqueueCollectionSync()
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error("CollectionDetailView: failed removing scan from collection: \(error, privacy: .private)")
+        }
     }
 }

@@ -169,4 +169,57 @@ struct OfflineQueueManagerTests {
 
         #expect(fetched == nil, "Scan must be flushed and deleted from the main context")
     }
+
+    @Test func testFinishCollectionSyncAttemptLeavesPendingFlagForNewerCollectionMutation() async {
+        let manager = OfflineQueueManager.shared
+        let originalRevision = manager.collectionSyncRevision
+        let originalSyncing = manager.isCollectionSyncing
+        let originalTask = manager.collectionSyncTask
+        let originalPending = UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync)
+        defer {
+            manager.collectionSyncRevision = originalRevision
+            manager.isCollectionSyncing = originalSyncing
+            manager.collectionSyncTask = originalTask
+            UserDefaults.standard.set(originalPending, forKey: UserDefaultsKeys.needsCollectionSync)
+        }
+
+        UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
+        manager.collectionSyncRevision = 8
+        manager.isCollectionSyncing = true
+
+        // Simulate a fresh local edit landing while revision 7 was in flight.
+        manager.finishCollectionSyncAttempt(success: true, capturedRevision: 7)
+
+        #expect(manager.isCollectionSyncing == false, "Completion must always release the collection sync latch")
+        #expect(manager.collectionSyncTask == nil, "Completion must clear the in-flight collection sync task handle")
+        #expect(
+            UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync),
+            "An older successful collection sync must not clear a newer pending local mutation"
+        )
+    }
+
+    @Test func testFinishCollectionSyncAttemptClearsPendingFlagWhenNoNewerMutationExists() async {
+        let manager = OfflineQueueManager.shared
+        let originalRevision = manager.collectionSyncRevision
+        let originalSyncing = manager.isCollectionSyncing
+        let originalTask = manager.collectionSyncTask
+        let originalPending = UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync)
+        defer {
+            manager.collectionSyncRevision = originalRevision
+            manager.isCollectionSyncing = originalSyncing
+            manager.collectionSyncTask = originalTask
+            UserDefaults.standard.set(originalPending, forKey: UserDefaultsKeys.needsCollectionSync)
+        }
+
+        UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
+        manager.collectionSyncRevision = 12
+        manager.isCollectionSyncing = true
+
+        manager.finishCollectionSyncAttempt(success: true, capturedRevision: 12)
+
+        #expect(
+            !UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync),
+            "A successful collection sync may clear the pending bit only when no newer local collection change exists"
+        )
+    }
 }

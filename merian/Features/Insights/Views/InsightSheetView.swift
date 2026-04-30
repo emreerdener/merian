@@ -26,7 +26,7 @@ struct InsightSheetView: View {
     }
     
     // MARK: - Data Layer
-    @Query(sort: \ScanCollection.createdAt, order: .reverse) var collections: [ScanCollection]
+    @Query(filter: #Predicate<ScanCollection> { !$0.isDeleted }, sort: \ScanCollection.createdAt, order: .reverse) var collections: [ScanCollection]
     
     // MARK: - View
     var body: some View {

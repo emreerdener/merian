@@ -22,7 +22,7 @@ struct CollectionsView: View {
                 let isSearching = !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
                 let query = searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
                 
-                let userCollections = collections.filter { $0.name != "Favorites" && (!isSearching || $0.name.localizedCaseInsensitiveContains(query)) }
+                let userCollections = collections.filter { !$0.isDeleted && $0.name != "Favorites" && (!isSearching || $0.name.localizedCaseInsensitiveContains(query)) }
                 
                 let showFavorites = !isSearching || "favorites".contains(query)
                 let showNonBio = !isSearching || "non-biological".contains(query) || "non biological".contains(query)
@@ -48,7 +48,7 @@ struct CollectionsView: View {
                 
                 // MARK: - Promoted Links (Favorites & Non-biological)
                 VStack(spacing: 16) {
-                if showFavorites, let favorites = collections.first(where: { $0.name == "Favorites" }) {
+                if showFavorites, let favorites = collections.first(where: { $0.name == "Favorites" && !$0.isDeleted }) {
                     DefaultCollectionLink(
                         title: "Favorites",
                         iconName: "heart",
