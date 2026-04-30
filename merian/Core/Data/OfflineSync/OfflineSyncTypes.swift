@@ -63,6 +63,8 @@ struct ExtractedScanData: Sendable {
     /// Filename of the recorded WAV relative to the Documents directory, for audio-only scans.
     /// `nil` for image and describe scans.
     let audioFilePaths: [String]?
+    /// Canonical persisted media timeline from the queued scan, preserving mixed-media order.
+    let capturedMediaJSON: String?
 }
 
 // MARK: - Offline Scan Processing Result

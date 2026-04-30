@@ -127,7 +127,7 @@ struct Preferences: View {
             // MARK: - Multi-Capture Scans
             SettingsToggleRow(
                 title: "Multi-capture mode",
-                description: "Attach up to 2 items (photos or audio clips) before submitting. By default, a single capture is sent to AI immediately.",
+                description: "Attach up to 2 items (photos, audio clips, or descriptions) before submitting. By default, a single capture is sent to AI immediately.",
                 isOn: $isMultiCaptureEnabled,
                 icon: "square.stack.fill",
                 iconColor: .blue

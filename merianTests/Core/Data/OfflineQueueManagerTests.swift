@@ -6,6 +6,12 @@ import Foundation
 @MainActor
 struct OfflineQueueManagerTests {
 
+    private enum ExpectedSerializedMedia {
+        case image(String)
+        case audio(String)
+        case description(String)
+    }
+
     @MainActor
     private func createIsolatedContext() throws -> ModelContext {
         let schema = Schema(CurrentSchema.models)
@@ -15,6 +21,44 @@ struct OfflineQueueManagerTests {
         let context = ModelContext(container)
         OfflineQueueManager.shared.modelContext = context
         return context
+    }
+
+    private func makeTempAudioFilename(prefix: String = "queued_audio") throws -> String {
+        let filename = "\(prefix)_\(UUID().uuidString).wav"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try Data(repeating: 0x21, count: 64).write(to: url)
+        return filename
+    }
+
+    private func assertSerializedItems(
+        _ items: [SerializedMediaItem],
+        match expected: [ExpectedSerializedMedia]
+    ) {
+        #expect(items.count == expected.count)
+
+        for (actual, expectation) in zip(items, expected) {
+            switch (actual, expectation) {
+            case (.image(let reference), .image(let expectedPath)):
+                #expect(reference == expectedPath)
+            case (.audio(let reference), .audio(let expectedPath)):
+                #expect(reference == expectedPath)
+            case (.description(let context), .description(let expectedText)):
+                #expect(context.freeText == expectedText)
+            default:
+                Issue.record("Queued serialized media kind mismatch: \(String(describing: actual))")
+            }
+        }
+    }
+
+    private func cleanupSerializedItems(_ items: [SerializedMediaItem]) {
+        for item in items {
+            switch item {
+            case .image(let reference), .audio(let reference):
+                try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(reference.serializedPath))
+            case .description:
+                break
+            }
+        }
     }
 
     private var dummyTelemetry: CaptureTelemetry {
@@ -62,8 +106,8 @@ struct OfflineQueueManagerTests {
            let jsonData = jsonStr.data(using: .utf8),
            let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
             for item in items {
-                if case .image(let path) = item {
-                    try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(path))
+                if case .image(let reference) = item {
+                    try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(reference.serializedPath))
                 }
             }
         }
@@ -85,6 +129,131 @@ struct OfflineQueueManagerTests {
 
         #expect(fetched != nil, "Describe scan must be inserted into the context")
         #expect(fetched?.queueState == .staged, "Describe scans must start in .staged state because they bypass R2 uploads")
+    }
+
+    @Test func testEnqueueCapturePreservesMixedTimelineOrder() async throws {
+        let ctx = try createIsolatedContext()
+        let scanId = UUID().uuidString
+        let imageData = "queued_image".data(using: .utf8)!
+        let audioFilename = try makeTempAudioFilename()
+
+        OfflineQueueManager.shared.enqueueCapture(
+            imageDatas: [imageData],
+            audioFilePaths: [audioFilename],
+            telemetry: dummyTelemetry,
+            scanId: scanId,
+            mediaTimeline: [.audio(audioFilename), .image(index: 0)]
+        )
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        let fetched = try #require(ctx.fetch(descriptor).first)
+        let capturedMediaJSON = try #require(fetched.capturedMediaJSON)
+        let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
+
+        #expect(items.count == 2)
+
+        if case .audio(let reference) = items[0] {
+            #expect(reference == audioFilename, "Queued capture must preserve the audio-first staging order")
+        } else {
+            Issue.record("Expected queued capture to serialize audio first")
+        }
+
+        if case .image = items[1] {
+            // expected
+        } else {
+            Issue.record("Expected queued capture to serialize the image second")
+        }
+
+        for item in items {
+            switch item {
+            case .image(let reference):
+                try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(reference.serializedPath))
+            case .audio(let reference):
+                try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(reference.serializedPath))
+            case .description:
+                break
+            }
+        }
+    }
+
+    @Test func testEnqueueNonVisualCaptureSupportsAllowedCombinationMatrix() async throws {
+        let ctx = try createIsolatedContext()
+
+        let descriptionA = ObservationContext(freeText: "queued description A")
+        let descriptionB = ObservationContext(freeText: "queued description B")
+        let audioOnly = try makeTempAudioFilename(prefix: "nonvisual_audio_only")
+        let firstAudio = try makeTempAudioFilename(prefix: "nonvisual_audio_one")
+        let secondAudio = try makeTempAudioFilename(prefix: "nonvisual_audio_two")
+        let audioWithDescription = try makeTempAudioFilename(prefix: "nonvisual_audio_description")
+
+        struct Scenario {
+            let scanId: String
+            let audioFileNames: [String]
+            let observationContexts: [ObservationContext]
+            let mediaTimeline: [CaptureSubmissionMediaItem]
+            let expected: [ExpectedSerializedMedia]
+        }
+
+        let scenarios: [Scenario] = [
+            .init(
+                scanId: "queued_nonvisual_audio_only",
+                audioFileNames: [audioOnly],
+                observationContexts: [],
+                mediaTimeline: [.audio(audioOnly)],
+                expected: [.audio(audioOnly)]
+            ),
+            .init(
+                scanId: "queued_nonvisual_audio_audio",
+                audioFileNames: [firstAudio, secondAudio],
+                observationContexts: [],
+                mediaTimeline: [.audio(firstAudio), .audio(secondAudio)],
+                expected: [.audio(firstAudio), .audio(secondAudio)]
+            ),
+            .init(
+                scanId: "queued_nonvisual_audio_description",
+                audioFileNames: [audioWithDescription],
+                observationContexts: [descriptionA],
+                mediaTimeline: [.audio(audioWithDescription), .description(descriptionA)],
+                expected: [.audio(audioWithDescription), .description(descriptionA.freeText)]
+            ),
+            .init(
+                scanId: "queued_nonvisual_description_only",
+                audioFileNames: [],
+                observationContexts: [descriptionA],
+                mediaTimeline: [.description(descriptionA)],
+                expected: [.description(descriptionA.freeText)]
+            ),
+            .init(
+                scanId: "queued_nonvisual_description_description",
+                audioFileNames: [],
+                observationContexts: [descriptionA, descriptionB],
+                mediaTimeline: [.description(descriptionA), .description(descriptionB)],
+                expected: [.description(descriptionA.freeText), .description(descriptionB.freeText)]
+            )
+        ]
+
+        for scenario in scenarios {
+            let enqueued = OfflineQueueManager.shared.enqueueNonVisualCapture(
+                audioFileNames: scenario.audioFileNames,
+                observationContexts: scenario.observationContexts,
+                mediaTimeline: scenario.mediaTimeline,
+                telemetry: dummyTelemetry,
+                scanId: scenario.scanId
+            )
+            #expect(enqueued)
+
+            let scanId = scenario.scanId
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            let fetched = try #require(ctx.fetch(descriptor).first)
+            #expect(fetched.queueState == .staged)
+
+            let capturedMediaJSON = try #require(fetched.capturedMediaJSON)
+            let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
+            assertSerializedItems(items, match: scenario.expected)
+            cleanupSerializedItems(items)
+        }
     }
 
     @Test func testSoftDeleteQueuedScan_TransitionsToFailedState() async throws {

@@ -189,7 +189,7 @@ struct ConfidenceExplanationSheet: View {
                    let jsonData = jsonStr.data(using: .utf8),
                    let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
                     for item in items {
-                        if case .image(let path) = item, path.starts(with: "http") {
+                        if case .image(let reference) = item, reference.isRemote {
                             hasCloudImage = true
                             break
                         }

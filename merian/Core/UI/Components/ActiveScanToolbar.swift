@@ -17,7 +17,7 @@ struct ActiveScanToolbar: View {
     let onThumbnailTap: (Int) -> Void
     let onCancel: () -> Void
     let onSubmit: () -> Void
-    let onDescriptionTap: () -> Void
+    let onDescriptionTap: (Int) -> Void
 
     // MARK: - Body Layout
     var body: some View {
@@ -38,8 +38,8 @@ struct ActiveScanToolbar: View {
                         })
                         .buttonStyle(PlainButtonStyle())
                         
-                    case .description:
-                        Button(action: onDescriptionTap) {
+                    case .description(let index, _):
+                        Button(action: { onDescriptionTap(index) }) {
                             StagedDescriptionBadge()
                         }
                         .buttonStyle(.plain)
@@ -52,7 +52,7 @@ struct ActiveScanToolbar: View {
                     }
                 }
                 
-                let currentLimit = (isMultiCaptureEnabled || isRefining) ? stagedImageCapacity : 1
+                let currentLimit = (isMultiCaptureEnabled || isRefining) ? stagedCaptureCapacity : 1
                 if orderedNodes.count < currentLimit {
                     // Use isPresented + explicit keyboard resign so iOS cannot restore the
                     // text field as first responder when the picker dismisses — that restoration
@@ -74,7 +74,7 @@ struct ActiveScanToolbar: View {
                     .photosPicker(
                         isPresented: $isPhotoPickerPresented,
                         selection: $selectedPhotoItems,
-                        maxSelectionCount: max(1, currentLimit - orderedNodes.count),
+                        maxSelectionCount: max(1, stagedCapture.availableSlots(limit: currentLimit)),
                         matching: .images,
                         photoLibrary: .shared()
                     )
@@ -96,7 +96,8 @@ struct ActiveScanToolbar: View {
         }
         .padding(.bottom, 24)
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: stagedCapture.images.count)
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: !stagedCapture.observationContexts.isEmpty)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: stagedCapture.observationContexts.count)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: stagedCapture.audios.count)
         .task {
             if showTooltip {
                 ActiveScanToolbar.hasShownTooltipThisSession = true
@@ -230,22 +231,22 @@ extension ActiveScanToolbar {
 
 private enum StagedNode: Identifiable {
     case image(uiImage: UIImage, index: Int, addedAt: Date)
-    case description(addedAt: Date)
-    case audio(addedAt: Date)
+    case description(index: Int, addedAt: Date)
+    case audio(index: Int, addedAt: Date)
 
     var id: String {
         switch self {
         case .image(_, let index, _): return "img_\(index)"
-        case .description: return "desc"
-        case .audio: return "audio"
+        case .description(let index, _): return "desc_\(index)"
+        case .audio(let index, _): return "audio_\(index)"
         }
     }
     
     var addedAt: Date {
         switch self {
         case .image(_, _, let d): return d
-        case .description(let d): return d
-        case .audio(let d): return d
+        case .description(_, let d): return d
+        case .audio(_, let d): return d
         }
     }
 }
@@ -253,14 +254,15 @@ private enum StagedNode: Identifiable {
 extension ActiveScanToolbar {
     private var orderedNodes: [StagedNode] {
         var nodes: [StagedNode] = []
-        for (index, img) in stagedCapture.images.enumerated() {
-            nodes.append(.image(uiImage: img.uiImage, index: index, addedAt: img.addedAt))
-        }
-        for obs in stagedCapture.observationContexts {
-            nodes.append(.description(addedAt: obs.addedAt))
-        }
-        for audio in stagedCapture.audios {
-            nodes.append(.audio(addedAt: audio.addedAt))
+        for node in stagedCapture.orderedNodes {
+            switch node {
+            case .image(let index, let stagedImage):
+                nodes.append(.image(uiImage: stagedImage.uiImage, index: index, addedAt: stagedImage.addedAt))
+            case .audio(let index, let stagedAudio):
+                nodes.append(.audio(index: index, addedAt: stagedAudio.addedAt))
+            case .description(let index, let stagedObservationContext):
+                nodes.append(.description(index: index, addedAt: stagedObservationContext.addedAt))
+            }
         }
         return nodes.sorted { $0.addedAt < $1.addedAt }
     }

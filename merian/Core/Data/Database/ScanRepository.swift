@@ -197,18 +197,19 @@ final class ScanRepository {
         if let jsonStr = record.capturedMediaJSON,
            let jsonData = jsonStr.data(using: .utf8),
            let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-            imagesToErase.append(contentsOf: items.compactMap { if case .image(let p) = $0 { return p } else { return nil } })
+            imagesToErase.append(contentsOf: items.compactMap {
+                guard case .image(let reference) = $0 else { return nil }
+                return reference.serializedPath
+            })
         }
 
         // 1. Tombstone any in-flight upload.
         offlineQueue.softDeleteQueuedScan(scanId: record.id)
 
         // 2. Queue cloud deletion task + remove SwiftData record atomically.
-        let backgroundErasure = PendingCloudDeletionTask(scanId: record.id)
-        modelContext.insert(backgroundErasure)
-        modelContext.delete(record)
-
         do {
+            try modelContext.ensurePendingCloudDeletionTask(scanId: record.id)
+            modelContext.delete(record)
             try modelContext.save()
         } catch {
             MerianLog.data.error("🚨 eradicateScan: modelContext save failed — aborting file deletion to preserve consistency: \(error, privacy: .private)")
@@ -428,12 +429,15 @@ actor HistoricalDatabaseActor {
                 if let jsonStr = existing.capturedMediaJSON,
                    let jsonData = jsonStr.data(using: .utf8),
                    let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                    paths = items.compactMap { if case .image(let p) = $0 { return p } else { return nil } }
+                    paths = items.compactMap {
+                        guard case .image(let reference) = $0 else { return nil }
+                        return reference.serializedPath
+                    }
                 }
                 if paths.isEmpty {
                     var newItems: [SerializedMediaItem] = []
-                    if let rawR2Image { newItems.append(.image(rawR2Image)) }
-                    if let additionalUrls { newItems.append(contentsOf: additionalUrls.map { .image($0) }) }
+                    if let rawR2Image { newItems.append(.image(.remoteURL(rawR2Image))) }
+                    if let additionalUrls { newItems.append(contentsOf: additionalUrls.map { .image(.remoteURL($0)) }) }
                     if !newItems.isEmpty {
                         existing.capturedMediaJSON = try? String(data: JSONEncoder().encode(newItems), encoding: .utf8)
                         chunkDidUpdate = true
@@ -614,8 +618,8 @@ actor HistoricalDatabaseActor {
             )
             
             var newItems: [SerializedMediaItem] = []
-            if let primary = rawR2Image { newItems.append(.image(primary)) }
-            if let urls = additionalUrls { newItems.append(contentsOf: urls.map { .image($0) }) }
+            if let primary = rawR2Image { newItems.append(.image(.remoteURL(primary))) }
+            if let urls = additionalUrls { newItems.append(contentsOf: urls.map { .image(.remoteURL($0)) }) }
             // Note: Cloud dictionary might have audio file paths or observation contexts depending on the API mapping,
             // but the original code did not pass them here, so we only handle images.
             record.capturedMediaJSON = try? String(data: JSONEncoder().encode(newItems), encoding: .utf8)

@@ -1,6 +1,7 @@
 import XCTest
 import CoreData
 import UIKit
+import SwiftData
 @testable import Merian
 
 final class merianTests: XCTestCase {
@@ -75,6 +76,14 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTFail("Timed out waiting for refinement staging to settle")
     }
 
+    private func makeModelContext() throws -> ModelContext {
+        let schema = Schema(CurrentSchema.models)
+        let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
+        let configuration = ModelConfiguration(schema: schema, url: tempURL)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        return ModelContext(container)
+    }
+
     func testStartRefinementScanStagesPreparedHistoricalImage() async throws {
         let expectedCompressedData = makePNGData()
         let expectedFileURL = URL.documentsDirectory.appendingPathComponent("historical-refinement.webp")
@@ -136,5 +145,43 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertEqual(viewModel.baseRefinementRecord?.id, record.id)
         XCTAssertTrue(viewModel.stagedCapture.images.isEmpty)
         XCTAssertEqual(viewModel.requestedCaptureMode, .describe)
+    }
+
+    func testMultiCaptureDescribeStagesUntilIdentify() throws {
+        let previousMultiCapture = UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled")
+        let previousRequiresConfirmation = UserDefaults.standard.bool(forKey: "requiresScanConfirmation")
+        defer {
+            UserDefaults.standard.set(previousMultiCapture, forKey: "isMultiCaptureEnabled")
+            UserDefaults.standard.set(previousRequiresConfirmation, forKey: "requiresScanConfirmation")
+        }
+
+        UserDefaults.standard.set(true, forKey: "isMultiCaptureEnabled")
+        UserDefaults.standard.set(false, forKey: "requiresScanConfirmation")
+
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        let modelContext = try makeModelContext()
+
+        XCTAssertTrue(
+            viewModel.submitDescribe(
+                observationContext: ObservationContext(freeText: "First staged description"),
+                modelContext: modelContext
+            )
+        )
+
+        viewModel.stagedCapture.lastSubmitTime = nil
+
+        XCTAssertTrue(
+            viewModel.submitDescribe(
+                observationContext: ObservationContext(freeText: "Second staged description"),
+                modelContext: modelContext
+            )
+        )
+
+        XCTAssertEqual(viewModel.stagedCapture.observationContexts.count, 2)
+        XCTAssertNil(viewModel.activeSheet)
     }
 }

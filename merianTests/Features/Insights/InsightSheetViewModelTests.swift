@@ -166,6 +166,30 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.totalImages == 2, "Final state should remain 2 after task cleanup")
     }
 
+    @Test func testPersistentScanIdUsesActiveScanIdDuringLiveAnalysis() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        engine.activeScanId = "scan_in_flight_123"
+        viewModel.inferenceEngine = engine
+
+        #expect(viewModel.persistentScanId == "scan_in_flight_123", "Carousel identity should stay stable before speciesData arrives")
+
+        engine.speciesData = SpeciesData(
+            scanId: "scan_in_flight_123",
+            commonName: "Test subject",
+            scientificName: "Testus subjectus",
+            insightData: InsightData(aiReasoning: "", hazardType: "none"),
+            confidenceScore: 0.8,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+        engine.activeScanId = nil
+
+        #expect(viewModel.persistentScanId == "scan_in_flight_123", "Carousel identity should remain the same after inference completes")
+    }
+
     @Test func testHasLiveRetainsStatePostInference() async throws {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()

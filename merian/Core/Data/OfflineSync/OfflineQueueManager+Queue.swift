@@ -107,11 +107,16 @@ extension OfflineQueueManager {
            let items = MediaJSONParser.serializedItems(jsonString: jsonStr) {
             for item in items {
                 switch item {
-                case .image(let path):
-                    try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
-                case .audio(let path):
-                    if !adoptedAudioPaths.contains(path) {
-                        try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
+                case .image(let reference):
+                    if let targetURL = reference.resolvedURL, !reference.isRemote {
+                        try? FileManager.default.removeItem(at: targetURL)
+                    } else {
+                        try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(reference.serializedPath))
+                    }
+                case .audio(let reference):
+                    if !adoptedAudioPaths.contains(reference.serializedPath),
+                       let targetURL = reference.resolvedURL {
+                        try? FileManager.default.removeItem(at: targetURL)
                     }
                 case .description:
                     break
@@ -149,8 +154,12 @@ extension OfflineQueueManager {
                    let items = MediaJSONParser.serializedItems(jsonString: jsonStr) {
                     for item in items {
                         switch item {
-                        case .image(let path), .audio(let path):
-                            try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(path))
+                        case .image(let reference), .audio(let reference):
+                            if let targetURL = reference.resolvedURL, !reference.isRemote {
+                                try? FileManager.default.removeItem(at: targetURL)
+                            } else {
+                                try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(reference.serializedPath))
+                            }
                         case .description:
                             break
                         }
@@ -303,7 +312,8 @@ extension OfflineQueueManager {
                         originalTimestamp: extracted.originalTimestamp,
                         description: extracted.description,
                         observationContextsJSON: extracted.observationContextsJSON,
-                        audioFilePaths: nil
+                        audioFilePaths: extracted.audioFilePaths,
+                        capturedMediaJSON: extracted.capturedMediaJSON
                     )
                 } else {
                     finalExtracted = extracted
@@ -335,11 +345,12 @@ extension OfflineQueueManager {
     ///   generated (used by callers that do not run a parallel live inference).
     func enqueueCapture(
         imageDatas: [Data],
-        audioFilePath: String? = nil,
+        audioFilePaths: [String] = [],
         telemetry: CaptureTelemetry,
         blurScore: Double? = nil,
         scanId: String? = nil,
-        observationContext: ObservationContext? = nil
+        observationContexts: [ObservationContext] = [],
+        mediaTimeline: [CaptureSubmissionMediaItem]? = nil
     ) {
         let resolvedScanId = scanId ?? UUID().uuidString
         let documentsDirectory = URL.documentsDirectory
@@ -349,38 +360,33 @@ extension OfflineQueueManager {
         }
         let fileNames = pairs.map(\.name)
         let fileURLs = pairs.map(\.url)
-
-        // Encode the observation context to JSON on the calling actor — no async boundary yet.
-        let contextJSON: String? = observationContext.flatMap { ctx in
-            guard !ctx.isEmpty else { return nil }
-            return (try? JSONEncoder().encode(ctx)).flatMap { String(data: $0, encoding: .utf8) }
-        }
+        let timeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
+            imageCount: imageDatas.count,
+            observationContexts: observationContexts,
+            audioFilePaths: audioFilePaths
+        )
 
         BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite", priority: .userInitiated) { [weak self] _ in
             guard let self else { return }
             do {
                 try self.writeImagesToDisk(imageDatas, urls: fileURLs)
-                
-                if let audioName = audioFilePath {
-                    let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(audioName)
-                    let destURL = documentsDirectory.appendingPathComponent(audioName)
-                    if FileManager.default.fileExists(atPath: destURL.path) {
-                        try FileManager.default.removeItem(at: destURL)
-                    }
-                    if FileManager.default.fileExists(atPath: tempURL.path) {
-                        try FileManager.default.moveItem(at: tempURL, to: destURL)
-                    }
-                }
+                let persistedAudioNamesBySourcePath = try self.persistQueuedAudioFiles(
+                    audioFilePaths,
+                    documentsDirectory: documentsDirectory
+                )
+                let capturedMediaJSON = self.makeCapturedMediaJSON(
+                    mediaTimeline: timeline,
+                    imageFileNames: fileNames,
+                    persistedAudioNamesBySourcePath: persistedAudioNamesBySourcePath
+                )
                 
                 await MainActor.run {
                     self.insertAndPersistRecord(
                         scanId: resolvedScanId,
-                        fileNames: fileNames,
                         fileURLs: fileURLs,
-                        audioFilePath: audioFilePath,
+                        capturedMediaJSON: capturedMediaJSON,
                         telemetry: telemetry,
-                        blurScore: blurScore,
-                        observationContextsJSON: contextJSON.map { [$0] }
+                        blurScore: blurScore
                     )
                 }
             } catch {
@@ -409,21 +415,77 @@ extension OfflineQueueManager {
         scanId: String? = nil
     ) {
         guard !observationContext.isEmpty else { return }
+        _ = enqueueNonVisualCapture(
+            audioFileNames: [],
+            observationContexts: [observationContext],
+            mediaTimeline: [.description(observationContext)],
+            telemetry: telemetry,
+            scanId: scanId
+        )
+    }
+
+    // MARK: - Enqueue Helpers
+
+    nonisolated private func writeImagesToDisk(_ imageDatas: [Data], urls: [URL]) throws {
+        for (index, data) in imageDatas.enumerated() {
+            try data.write(to: urls[index])
+        }
+    }
+
+    nonisolated private func cleanupImages(at urls: [URL]) {
+        for url in urls {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @MainActor
+    @discardableResult
+    func enqueueNonVisualCapture(
+        audioFileNames: [String],
+        observationContexts: [ObservationContext],
+        mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
+        telemetry: CaptureTelemetry,
+        scanId: String? = nil
+    ) -> Bool {
+        let filteredAudioFileNames = audioFileNames.filter { !$0.isEmpty }
+        let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
+        let timeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
+            imageCount: 0,
+            observationContexts: filteredObservationContexts,
+            audioFilePaths: filteredAudioFileNames
+        )
+
+        guard !timeline.isEmpty else { return false }
+
+        let persistedAudioNamesBySourcePath: [String: String]
+        do {
+            persistedAudioNamesBySourcePath = try persistQueuedAudioFiles(
+                filteredAudioFileNames,
+                documentsDirectory: URL.documentsDirectory
+            )
+        } catch {
+            MerianLog.data.error("enqueueNonVisualCapture: failed to persist audio file — scan not queued: \(error, privacy: .private)")
+            return false
+        }
 
         if !RevenueCatManager.shared.isProActive {
             guard UsageManager.shared.canPerformScan(isProActive: false) else {
-                MerianLog.data.debug("enqueueDescribe: free user scan quota exhausted — describe not queued")
-                return
+                for persistedAudioName in persistedAudioNamesBySourcePath.values {
+                    try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedAudioName))
+                }
+                MerianLog.data.debug("enqueueNonVisualCapture: free user scan quota exhausted — scan not queued")
+                return false
             }
             UsageManager.shared.consumeScan()
         }
 
+        let capturedMediaJSON = makeCapturedMediaJSON(
+            mediaTimeline: timeline,
+            imageFileNames: [],
+            persistedAudioNamesBySourcePath: persistedAudioNamesBySourcePath
+        )
+
         let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
-        let serializedItems: [SerializedMediaItem] = [
-            .description(observationContext)
-        ]
-        let capturedMediaJSON = try? String(data: JSONEncoder().encode(serializedItems), encoding: .utf8)
-        
         let scan = OfflineQueuedScan(
             id: resolvedScanId,
             timestamp: Date(),
@@ -447,42 +509,116 @@ extension OfflineQueueManager {
         )
 
         guard let modelContext else {
-            MerianLog.data.error("enqueueDescribe: modelContext unavailable — describe not queued")
-            return
+            MerianLog.data.error("enqueueNonVisualCapture: modelContext unavailable — scan not queued")
+            for persistedAudioName in persistedAudioNamesBySourcePath.values {
+                try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedAudioName))
+            }
+            return false
         }
+
         modelContext.insert(scan)
         do {
             try modelContext.save()
             updateUnsyncedItemCount()
             AppTelemetry.trackOfflineQueued()
+            return true
         } catch {
-            MerianLog.data.error("enqueueDescribe: context.save() failed: \(error, privacy: .private)")
+            MerianLog.data.error("enqueueNonVisualCapture: context.save() failed: \(error, privacy: .private)")
+            for persistedAudioName in persistedAudioNamesBySourcePath.values {
+                try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedAudioName))
+            }
+            return false
         }
     }
 
-    // MARK: - Enqueue Helpers
+    nonisolated private func persistQueuedAudioFiles(
+        _ audioFilePaths: [String],
+        documentsDirectory: URL
+    ) throws -> [String: String] {
+        guard !audioFilePaths.isEmpty else { return [:] }
 
-    nonisolated private func writeImagesToDisk(_ imageDatas: [Data], urls: [URL]) throws {
-        for (index, data) in imageDatas.enumerated() {
-            try data.write(to: urls[index])
+        var persistedAudioNamesBySourcePath: [String: String] = [:]
+        for audioFilePath in audioFilePaths {
+            persistedAudioNamesBySourcePath[audioFilePath] = try persistQueuedAudioFile(
+                audioFilePath,
+                documentsDirectory: documentsDirectory
+            )
         }
+        return persistedAudioNamesBySourcePath
     }
 
-    nonisolated private func cleanupImages(at urls: [URL]) {
-        for url in urls {
-            try? FileManager.default.removeItem(at: url)
+    nonisolated private func persistQueuedAudioFile(
+        _ audioFilePath: String,
+        documentsDirectory: URL
+    ) throws -> String {
+        let normalizedPath = audioFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedPath.isEmpty else {
+            throw CocoaError(.fileNoSuchFile)
         }
+
+        let sourceURL = URL(fileURLWithPath: normalizedPath)
+        let destinationName = sourceURL.lastPathComponent
+        let destinationURL = documentsDirectory.appendingPathComponent(destinationName)
+
+        let candidateURLs: [URL]
+        if normalizedPath.hasPrefix("/") {
+            candidateURLs = [sourceURL]
+        } else {
+            candidateURLs = [
+                destinationURL,
+                FileManager.default.temporaryDirectory.appendingPathComponent(normalizedPath)
+            ]
+        }
+
+        for candidateURL in candidateURLs {
+            guard FileManager.default.fileExists(atPath: candidateURL.path) else { continue }
+            if candidateURL.path == destinationURL.path {
+                return destinationName
+            }
+            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                try FileManager.default.removeItem(at: destinationURL)
+            }
+            try FileManager.default.moveItem(at: candidateURL, to: destinationURL)
+            return destinationName
+        }
+
+        throw CocoaError(.fileNoSuchFile)
+    }
+
+    nonisolated private func makeCapturedMediaJSON(
+        mediaTimeline: [CaptureSubmissionMediaItem],
+        imageFileNames: [String],
+        persistedAudioNamesBySourcePath: [String: String]
+    ) -> String? {
+        var serializedItems: [SerializedMediaItem] = []
+
+        for item in mediaTimeline {
+            switch item {
+            case .image(let index):
+                guard imageFileNames.indices.contains(index) else { continue }
+                serializedItems.append(.image(.documents(imageFileNames[index])))
+            case .audio(let sourcePath):
+                let persistedName = persistedAudioNamesBySourcePath[sourcePath]
+                    ?? URL(fileURLWithPath: sourcePath).lastPathComponent
+                guard !persistedName.isEmpty else { continue }
+                serializedItems.append(.audio(.documents(persistedName)))
+            case .description(let context):
+                guard !context.isEmpty else { continue }
+                serializedItems.append(.description(context))
+            }
+        }
+
+        guard !serializedItems.isEmpty else { return nil }
+        return try? String(data: JSONEncoder().encode(serializedItems), encoding: .utf8)
     }
 
     @MainActor
     private func insertAndPersistRecord(
         scanId: String,
-        fileNames: [String],
         fileURLs: [URL],
-        audioFilePath: String? = nil,
+        capturedMediaJSON: String?,
         telemetry: CaptureTelemetry,
-        blurScore: Double?,
-        observationContextsJSON: [String]? = nil
+        blurScore: Double?
     ) {
         // Enforce quota at enqueue time so every scan that enters the queue is guaranteed to upload.
         // Consuming here (not at upload time) prevents silent stalls when syncPendingScans fires
@@ -495,18 +631,6 @@ extension OfflineQueueManager {
             }
             UsageManager.shared.consumeScan()
         }
-
-        var serializedItems: [SerializedMediaItem] = []
-        for name in fileNames { serializedItems.append(.image(name)) }
-        if let audio = audioFilePath { serializedItems.append(.audio(audio)) }
-        if let contexts = observationContextsJSON {
-            for ctxStr in contexts {
-                if let data = ctxStr.data(using: .utf8), let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
-                    serializedItems.append(.description(ctx))
-                }
-            }
-        }
-        let capturedMediaJSON = try? String(data: JSONEncoder().encode(serializedItems), encoding: .utf8)
         
         let scan = OfflineQueuedScan(
             id: scanId,

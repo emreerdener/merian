@@ -1,21 +1,75 @@
 import UIKit
 
-/// Maximum number of images that can be staged for a single analysis submission.
-/// Kept as a single source of truth so camera guards, toolbar pickers, and
-/// view-layer checks never drift out of sync with each other.
-let stagedImageCapacity = 2
+/// Maximum number of staged capture items that can be combined into one submission.
+/// Applies across images, audio clips, and descriptions.
+let stagedCaptureCapacity = 2
+
+/// Visual captures still top out at the same total staged capacity today.
+let stagedImageCapacity = stagedCaptureCapacity
+
+/// Ordered submission-time representation of staged capture content.
+/// Images are referenced by their index in the parallel staged image arrays.
+enum CaptureSubmissionMediaItem: Sendable, Equatable {
+    case image(index: Int)
+    case audio(String)
+    case description(ObservationContext)
+
+    static func defaultTimeline(
+        imageCount: Int,
+        observationContexts: [ObservationContext],
+        audioFilePaths: [String]
+    ) -> [CaptureSubmissionMediaItem] {
+        var items: [CaptureSubmissionMediaItem] = (0..<imageCount).map { .image(index: $0) }
+        items.append(contentsOf: observationContexts.map(Self.description))
+        items.append(contentsOf: audioFilePaths.map(Self.audio))
+        return items
+    }
+}
+
+extension Array where Element == CaptureSubmissionMediaItem {
+    var audioFilePaths: [String] {
+        compactMap { item in
+            guard case .audio(let path) = item else { return nil }
+            return path
+        }
+    }
+
+    var observationContexts: [ObservationContext] {
+        compactMap { item in
+            guard case .description(let context) = item else { return nil }
+            return context
+        }
+    }
+}
+
+enum StagedCaptureNode {
+    case image(index: Int, stagedImage: StagedImage)
+    case audio(index: Int, stagedAudio: StagedAudio)
+    case description(index: Int, stagedObservationContext: StagedObservationContext)
+
+    var addedAt: Date {
+        switch self {
+        case .image(_, let stagedImage):
+            return stagedImage.addedAt
+        case .audio(_, let stagedAudio):
+            return stagedAudio.addedAt
+        case .description(_, let stagedObservationContext):
+            return stagedObservationContext.addedAt
+        }
+    }
+}
 
 /// A unified staging container that holds every capture modality a user can combine
 /// before a single analysis submission.
 ///
 /// Replaces the four parallel image arrays previously held in `CaptureWorkspaceViewModel`
 /// (thumbnails, compressed inference data, display-quality data, and full-resolution
-/// originals) with one coherent value type, now represented by `[StagedImage]`. Any combination of modalities is valid:
-/// - images only (existing behaviour, up to 2)
-/// - description only (solo Describe path)
-/// - images + description (combined path → `identify` with context injection)
-/// - audio only / audio + images / audio + description (reserved; wired in when
-///   `AudioRecordingView` ships its recording pipeline)
+/// originals) with one coherent value type, now represented by `[StagedImage]`.
+///
+/// Supported submissions today are any one- or two-item combination of:
+/// - images
+/// - audio clips
+/// - descriptions
 ///
 /// Always accessed from `@MainActor` via `CaptureWorkspaceViewModel` — no `Sendable` conformance needed.
 struct StagedCapture {
@@ -40,10 +94,53 @@ struct StagedCapture {
         images.isEmpty && audios.isEmpty && observationContexts.isEmpty
     }
 
+    var totalItemCount: Int {
+        images.count + audios.count + observationContexts.count
+    }
+
     /// True when more than one modality carries content — drives routing to the combined endpoint.
     var isMultiModal: Bool {
         [!images.isEmpty, !audios.isEmpty, !observationContexts.isEmpty]
             .filter { $0 }.count > 1
+    }
+
+    func availableSlots(limit: Int) -> Int {
+        max(0, limit - totalItemCount)
+    }
+
+    func isAtCapacity(limit: Int) -> Bool {
+        totalItemCount >= limit
+    }
+
+    var orderedNodes: [StagedCaptureNode] {
+        var nodes: [StagedCaptureNode] = []
+
+        for (index, image) in images.enumerated() {
+            nodes.append(.image(index: index, stagedImage: image))
+        }
+
+        for (index, audio) in audios.enumerated() {
+            nodes.append(.audio(index: index, stagedAudio: audio))
+        }
+
+        for (index, context) in observationContexts.enumerated() {
+            nodes.append(.description(index: index, stagedObservationContext: context))
+        }
+
+        return nodes.sorted { $0.addedAt < $1.addedAt }
+    }
+
+    var submissionMediaTimeline: [CaptureSubmissionMediaItem] {
+        orderedNodes.map { node in
+            switch node {
+            case .image(let index, _):
+                return .image(index: index)
+            case .audio(_, let stagedAudio):
+                return .audio(stagedAudio.filePath)
+            case .description(_, let stagedObservationContext):
+                return .description(stagedObservationContext.context)
+            }
+        }
     }
 
     // MARK: - Mutation

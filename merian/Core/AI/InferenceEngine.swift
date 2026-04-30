@@ -275,6 +275,52 @@ private struct GBIFMedia: Decodable {
         self.activeTemperatureF = nil
     }
 
+    private func filteredObservationContexts(_ observationContexts: [ObservationContext]) -> [ObservationContext] {
+        observationContexts.filter { !$0.isEmpty }
+    }
+
+    private func observationContextJSONStrings(from observationContexts: [ObservationContext]) -> [String] {
+        observationContexts.compactMap { context in
+            (try? JSONEncoder().encode(context)).flatMap { String(data: $0, encoding: .utf8) }
+        }
+    }
+
+    private func resolvedAudioPath(for audioFilePath: String) -> String {
+        let normalizedPath = audioFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedPath.hasPrefix("/") {
+            return normalizedPath
+        }
+        let docsPath = URL.documentsDirectory.appendingPathComponent(normalizedPath).path
+        let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(normalizedPath).path
+        return FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
+    }
+
+    private func mediaItems(
+        from mediaTimeline: [CaptureSubmissionMediaItem],
+        liveImageDatas: [Data]?,
+        persistedImagePaths: [String]?
+    ) -> [MediaItem] {
+        var items: [MediaItem] = []
+
+        for item in mediaTimeline {
+            switch item {
+            case .image(let index):
+                if let liveImageDatas, liveImageDatas.indices.contains(index) {
+                    items.append(.liveImage(liveImageDatas[index]))
+                } else if let persistedImagePaths, persistedImagePaths.indices.contains(index) {
+                    items.append(.image(persistedImagePaths[index]))
+                }
+            case .audio(let audioFilePath):
+                items.append(.audio(resolvedAudioPath(for: audioFilePath)))
+            case .description(let context):
+                guard !context.isEmpty else { continue }
+                items.append(.description(context))
+            }
+        }
+
+        return items
+    }
+
     /// Runs the live AI taxonomy pipeline for a new scan submission.
     ///
     /// Dispatches the Gemini inference request, parses and persists the result, updates all
@@ -294,11 +340,18 @@ private struct GBIFMedia: Decodable {
     ///   - telemetry: GPS, weather, and device context bundled at capture time.
     ///   - modelContext: The SwiftData context for persisting the parsed scan record locally.
     ///   - targetEradicationRecord: An optional historic scan record instance passed exclusively when re-running a failed or queued scan, mutating the payload directly on disk.
-    ///   - observationContext: Optional structured description staged alongside the photo.
-    ///     When non-nil, `ObservationContext.serialized()` is appended as a text part in the
-    ///     Gemini request and the raw JSON is forwarded as `observation_context` to the edge
-    ///     function and persisted in `LocalScanRecord.observationContextsJSON`.
-    func analyze(scanId: String? = nil, imageDatas: [Data], displayDatas: [Data] = [], audioFilePaths: [String]? = nil, telemetry: CaptureTelemetry, observationContext: ObservationContext? = nil, modelContext: ModelContext? = nil, targetEradicationRecord: LocalScanRecord? = nil) {
+    ///   - observationContexts: Structured descriptions staged alongside the capture.
+    func analyze(
+        scanId: String? = nil,
+        imageDatas: [Data],
+        displayDatas: [Data] = [],
+        audioFilePaths: [String]? = nil,
+        telemetry: CaptureTelemetry,
+        observationContexts: [ObservationContext] = [],
+        mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
+        modelContext: ModelContext? = nil,
+        targetEradicationRecord: LocalScanRecord? = nil
+    ) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
@@ -318,24 +371,18 @@ private struct GBIFMedia: Decodable {
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
         self.activeMedia = ActiveScanMedia()
-        
-        var newMediaItems: [MediaItem] = []
         let datasToUse = displayDatas.isEmpty ? imageDatas : displayDatas
-        for data in datasToUse {
-            newMediaItems.append(.liveImage(data))
-        }
-        if let ctx = observationContext {
-            newMediaItems.append(.description(ctx))
-        }
-        if let audioPaths = audioFilePaths {
-            for audioPath in audioPaths {
-                let docsPath = URL.documentsDirectory.appendingPathComponent(audioPath).path
-                let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(audioPath).path
-                let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
-                newMediaItems.append(.audio(resolvedPath))
-            }
-        }
-        self.activeMedia.items = newMediaItems
+        let resolvedObservationContexts = filteredObservationContexts(observationContexts)
+        let resolvedMediaTimeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
+            imageCount: datasToUse.count,
+            observationContexts: resolvedObservationContexts,
+            audioFilePaths: audioFilePaths ?? []
+        )
+        self.activeMedia.items = mediaItems(
+            from: resolvedMediaTimeline,
+            liveImageDatas: datasToUse,
+            persistedImagePaths: nil
+        )
         
         self.speciesData = nil
 
@@ -415,16 +462,13 @@ private struct GBIFMedia: Decodable {
                 let inferenceStart = CFAbsoluteTimeGetCurrent()
                 // Encode ObservationContext to JSON once: used for DB persistence (observationContextJSON)
                 // and already serialised to plain text for the Gemini prompt (description).
-                let observationContextJSONString: String? = observationContext.flatMap { ctx in
-                    (try? JSONEncoder().encode(ctx)).flatMap { String(data: $0, encoding: .utf8) }
-                }
-                let observationContextsJSON: [String]? = observationContextJSONString.map { [$0] }
+                let observationContextsJSON = observationContextJSONStrings(from: resolvedObservationContexts)
                 let resultData = try await client.identifyMultiModal(
                     r2ObjectKeys: [targetObjectKey],
                     base64ImageDatas: validBase64Strings,
                     mimeType: imageMimeType,
                     audioFilePaths: audioFilePaths ?? [],
-                    observationContextsJSON: observationContextsJSON ?? [],
+                    observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
                     clientScanId: scanId
                 )
@@ -440,7 +484,8 @@ private struct GBIFMedia: Decodable {
                     compressedDatas: compressedDatas,
                     displayDatas: capturedDisplayDatas,
                     observationContextsJSON: observationContextsJSON,
-                    audioFilePaths: audioFilePaths
+                    audioFilePaths: audioFilePaths,
+                    mediaTimeline: resolvedMediaTimeline
                 )
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery
@@ -487,21 +532,11 @@ private struct GBIFMedia: Decodable {
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
                     if self.activeScanId == ownedScanId {
                         HapticManager.shared.triggerHeavyImpact()
-                        
-                        // Transform the liveImage item into historical persisted image items
-                        // so the carousel structurally swaps to AsyncLocalImageView components natively.
-                        var updatedItems: [MediaItem] = []
-                        for path in savedImagePaths {
-                            updatedItems.append(.image(path))
-                        }
-                        
-                        // Preserve description and audio by filtering out .liveImage
-                        let preservedItems = self.activeMedia.items.filter { item in
-                            if case .liveImage = item { return false }
-                            return true
-                        }
-                        self.activeMedia.items = updatedItems + preservedItems
-                        
+                        self.activeMedia.items = self.mediaItems(
+                            from: resolvedMediaTimeline,
+                            liveImageDatas: nil,
+                            persistedImagePaths: savedImagePaths
+                        )
                         self.speciesData = mappedData
                         if let refs = mappedData.referenceImageUrl?.components(separatedBy: ",").map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }), !refs.isEmpty {
                             self.activeMedia.referenceState = .loaded(refs)
@@ -697,20 +732,24 @@ private struct GBIFMedia: Decodable {
 
     // MARK: - Describe Inference Pipeline
 
-    /// Runs the text-only identification pipeline for a Describe submission.
-    ///
-    /// Mirrors `analyze()` structurally but accepts a verbal `ObservationContext` instead of
-    /// image data. No offline queue enqueue — Describes are online-only in V1. No
-    /// `validHistoricImagePaths` is set; the carousel will initially
-    /// render black until GBIF reference images arrive via the post-inference hydration task.
-    func analyzeDescribe(
+    func analyzeNonVisual(
         scanId: String?,
-        observationContext: ObservationContext,
+        audioFilePaths: [String]? = nil,
+        observationContexts: [ObservationContext] = [],
+        mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         telemetry: CaptureTelemetry,
         modelContext: ModelContext?,
         targetEradicationRecord: LocalScanRecord? = nil
     ) {
-        guard !observationContext.isEmpty else { return }
+        let filteredAudioFilePaths = (audioFilePaths ?? []).filter { !$0.isEmpty }
+        let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
+        let resolvedMediaTimeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
+            imageCount: 0,
+            observationContexts: filteredObservationContexts,
+            audioFilePaths: filteredAudioFilePaths
+        )
+
+        guard !resolvedMediaTimeline.isEmpty else { return }
 
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
@@ -724,7 +763,7 @@ private struct GBIFMedia: Decodable {
         self.enrichmentWriteTask = nil
 
         self.prepareForNewScan()
-        self.scanningPhaseText = "Identifying describe..."
+        self.scanningPhaseText = filteredAudioFilePaths.isEmpty ? "Identifying describe..." : "Listening..."
 
         self.activeScanId = scanId
         self.activeLatitude = telemetry.gpsLatitude
@@ -733,12 +772,13 @@ private struct GBIFMedia: Decodable {
         self.activeLocationName = telemetry.locationName
         self.activeWeatherCondition = telemetry.weatherCondition
         self.activeTemperatureF = telemetry.weatherTemperatureF
-        
-        self.activeMedia = ActiveScanMedia(items: [.description(observationContext)])
+        self.activeMedia = ActiveScanMedia(items: mediaItems(from: resolvedMediaTimeline, liveImageDatas: nil, persistedImagePaths: nil))
+
         let ownedScanId = scanId
+        let shouldFlushQueuedScan = !filteredAudioFilePaths.isEmpty
 
         self.inferenceTask = Task { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
 
             defer {
                 if self.activeScanId == ownedScanId {
@@ -755,14 +795,14 @@ private struct GBIFMedia: Decodable {
 
                 try Task.checkCancellation()
 
-                let describeObsContextJSON: String? = (try? JSONEncoder().encode(observationContext))
-                    .flatMap { String(data: $0, encoding: .utf8) }
-
+                let observationContextsJSON = observationContextJSONStrings(from: filteredObservationContexts)
                 let resultData = try await MerianNetworkClient.shared.identifyMultiModal(
-                    observationContextsJSON: describeObsContextJSON.map { [$0] } ?? [],
+                    audioFilePaths: filteredAudioFilePaths,
+                    observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
                     clientScanId: scanId
                 )
+
                 let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
                     resultData: resultData,
                     telemetry: telemetry,
@@ -770,7 +810,9 @@ private struct GBIFMedia: Decodable {
                     compressedDatas: [],
                     displayDatas: [],
                     skipImageRequirement: true,
-                    observationContextsJSON: describeObsContextJSON.map { [$0] }
+                    observationContextsJSON: observationContextsJSON,
+                    audioFilePaths: filteredAudioFilePaths.isEmpty ? nil : filteredAudioFilePaths,
+                    mediaTimeline: resolvedMediaTimeline
                 )
                 let finalMappedData = parseResult.mappedData
                 let isNewDisc = parseResult.isNewDiscovery
@@ -813,19 +855,23 @@ private struct GBIFMedia: Decodable {
                         if let refs = mappedData.referenceImageUrl?.components(separatedBy: ",").map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }), !refs.isEmpty {
                             self.activeMedia.referenceState = .loaded(refs)
                         }
-                        // No validHistoricImagePaths — describes have no captured image.
+                    }
+
+                    if shouldFlushQueuedScan, let scanId = ownedScanId {
+                        OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
+                        executeTrackedBackgroundTask { [audioPathsToKeep = mappedData.audioFilePaths ?? []] in
+                            await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId, explicitlyAdoptedAudioPaths: audioPathsToKeep)
+                        }
                     }
 
                     if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
-                       let describeScanId = mappedData.scanId {
+                       let completedScanId = mappedData.scanId {
                         PushNotificationManager.shared.sendInferenceCompleteNotification(
                             speciesName: mappedData.commonName,
-                            scanId: describeScanId
+                            scanId: completedScanId
                         )
                     }
 
-                    // Post-inference hydration — identical to analyze() path.
-                    // Wikipedia + enrichment + GBIF images populate the carousel after the result appears.
                     if mappedData.isBiological {
                         let capturedScientificName = mappedData.scientificName
                         let capturedScanId = mappedData.scanId
@@ -871,8 +917,7 @@ private struct GBIFMedia: Decodable {
                                 self.markSpeciesEnriched(capturedScientificName)
                             }
                         }
-                        
-                        // Wait up to 3 seconds for hydration so reference images are available before UI clears the "Identifying..." state.
+
                         if let hydrationTask = liveHydrationTask {
                             do {
                                 try await withThrowingTaskGroup(of: Void.self) { group in
@@ -893,222 +938,9 @@ private struct GBIFMedia: Decodable {
             } catch {
                 if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
 
-                AppTelemetry.trackError("DescribeInferenceFailure")
+                AppTelemetry.trackError(filteredAudioFilePaths.isEmpty ? "DescribeInferenceFailure" : "InferenceNetworkFailure")
                 CircuitBreakerManager.shared.recordFailure()
-                MerianLog.general.debug("Describe inference failure: \(error.localizedDescription, privacy: .private)")
-                if self.activeScanId == ownedScanId {
-                    HapticManager.shared.triggerErrorThump()
-                    self.speciesData = makeErrorSpeciesData(
-                        title: "Network timeout",
-                        subtitle: "Please try again",
-                        reasoning: "Please check your network connection and try again.",
-                        telemetry: telemetry
-                    )
-                }
-            }
-        }
-    }
-
-    // MARK: - Audio Inference
-
-    /// Fires the unified `/identify-multimodal` edge function for bioacoustic species identification.
-    ///
-    /// Mirrors `analyzeDescribe` structurally. Always called in parallel with
-    /// `OfflineQueueManager.enqueueAudio` so the scan is durable on interruption.
-    func analyzeAudio(
-        scanId: String?,
-        audioFileName: String,
-        telemetry: CaptureTelemetry,
-        observationContext: ObservationContext? = nil,
-        modelContext: ModelContext?
-    ) {
-        self.inferenceTask?.cancel()
-        self.liveHydrationTask?.cancel()
-        self.historicHydrationTask?.cancel()
-        self.historicHydrationTask = nil
-        self.gbifHydrationTask?.cancel()
-        self.enrichmentWriteTask?.cancel()
-        self.phaseRotationTask?.cancel()
-        self.gbifHydrationTask = nil
-        self.enrichmentWriteTask = nil
-
-        self.prepareForNewScan()
-        self.scanningPhaseText = "Listening..."
-
-        self.activeScanId = scanId
-        var items: [MediaItem] = []
-        if let ctx = observationContext {
-            items.append(.description(ctx))
-        }
-        
-        let docsPath = URL.documentsDirectory.appendingPathComponent(audioFileName).path
-        let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(audioFileName).path
-        let resolvedPath = FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
-        items.append(.audio(resolvedPath))
-        
-        self.activeMedia = ActiveScanMedia(items: items)
-        self.activeLatitude = telemetry.gpsLatitude
-        self.activeLongitude = telemetry.gpsLongitude
-        self.activeElevation = telemetry.gpsElevation
-        self.activeLocationName = telemetry.locationName
-        self.activeWeatherCondition = telemetry.weatherCondition
-        self.activeTemperatureF = telemetry.weatherTemperatureF
-
-        let ownedScanId = scanId
-
-        self.inferenceTask = Task { [weak self] in
-            guard let self else { return }
-
-            defer {
-                if self.activeScanId == ownedScanId {
-                    self.isProcessing = false
-                    self.activeScanId = nil
-                }
-                self.phaseRotationTask?.cancel()
-            }
-
-            do {
-                if CircuitBreakerManager.shared.isCircuitTripped {
-                    throw URLError(.notConnectedToInternet)
-                }
-
-                try Task.checkCancellation()
-
-                let contextJSON: String? = observationContext.flatMap { ctx in
-                    guard !ctx.isEmpty else { return nil }
-                    return (try? JSONEncoder().encode(ctx)).flatMap { String(data: $0, encoding: .utf8) }
-                }
-
-                let resultData = try await MerianNetworkClient.shared.identifyMultiModal(
-                    audioFilePaths: [audioFileName],
-                    observationContextsJSON: contextJSON.map { [$0] } ?? [],
-                    telemetry: telemetry,
-                    clientScanId: scanId
-                )
-
-                let parseResult = try await InferenceProcessingActor.shared.parseAndSave(
-                    resultData: resultData,
-                    telemetry: telemetry,
-                    modelContext: modelContext,
-                    compressedDatas: [],
-                    displayDatas: [],
-                    skipImageRequirement: true,
-                    observationContextsJSON: contextJSON.map { [$0] },
-                    audioFilePaths: [audioFileName]
-                )
-                let finalMappedData = parseResult.mappedData
-                let isNewDisc = parseResult.isNewDiscovery
-
-                if var mappedData = finalMappedData {
-                    if isNewDisc {
-                        mappedData.isNewDiscovery = true
-                        GamificationManager.shared.recordNewSpeciesDiscovered()
-                    }
-
-                    if let container = modelContext?.container {
-                        let profileActor = OfflineQueueManager.shared.resolvedProfileDbActor(container: container)
-                        let updatedAwards = await profileActor.calculateAwards()
-                        GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
-                    }
-
-                    CircuitBreakerManager.shared.recordSuccess()
-                    AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
-
-                    if self.activeScanId == ownedScanId {
-                        HapticManager.shared.triggerHeavyImpact()
-                        self.speciesData = mappedData
-                        if let refs = mappedData.referenceImageUrl?.components(separatedBy: ",").map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }), !refs.isEmpty {
-                            self.activeMedia.referenceState = .loaded(refs)
-                        }
-                    }
-
-                    // Flush the offline queue record so the background replay cycle doesn't
-                    // make a redundant Gemini call on the same audio file. Audio always enqueues
-                    // for durability, so unlike describe, there is always a record to clean up.
-                    if let scanId = ownedScanId {
-                        OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
-                        executeTrackedBackgroundTask { [audioPathsToKeep = mappedData.audioFilePaths ?? []] in
-                            await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId, explicitlyAdoptedAudioPaths: audioPathsToKeep)
-                        }
-                    }
-
-                    if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
-                       let audioScanId = mappedData.scanId {
-                        PushNotificationManager.shared.sendInferenceCompleteNotification(
-                            speciesName: mappedData.commonName,
-                            scanId: audioScanId
-                        )
-                    }
-
-                    if mappedData.isBiological {
-                        let capturedScientificName = mappedData.scientificName
-                        let capturedScanId = mappedData.scanId
-                        let capturedGbifKey = mappedData.gbifTaxonKey
-                        let capturedHasWikipedia = mappedData.wikipediaOverview != nil
-
-                        liveHydrationTask = Task { [weak self] in
-                            guard let self else { return }
-                            let capturedIsEnriched = self.isSpeciesEnriched(capturedScientificName)
-
-                            await withTaskGroup(of: Void.self) { group in
-                                if !capturedHasWikipedia {
-                                    group.addTask { @MainActor [weak self] in
-                                        guard let self else { return }
-                                        await self.fetchWikipediaAndHydrate(
-                                            for: capturedScientificName,
-                                            scanId: capturedScanId,
-                                            modelContext: modelContext
-                                        )
-                                    }
-                                }
-                                group.addTask { @MainActor [weak self] in
-                                    guard let self else { return }
-                                    var taxonKeyToUse = capturedGbifKey
-                                    if !capturedIsEnriched {
-                                        await self.fetchAndApplyEnrichment(modelContext: modelContext)
-                                        taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
-                                    }
-                                    guard !Task.isCancelled else { return }
-                                    if let key = taxonKeyToUse {
-                                        await self.fetchGBIFImagesAndHydrate(
-                                            for: key,
-                                            scanId: capturedScanId,
-                                            modelContext: modelContext
-                                        )
-                                    }
-                                }
-                            }
-
-                            if !capturedIsEnriched && !Task.isCancelled,
-                               self.speciesData?.habitatDescription != nil,
-                               self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
-                                self.markSpeciesEnriched(capturedScientificName)
-                            }
-                        }
-
-                        if let hydrationTask = liveHydrationTask {
-                            do {
-                                try await withThrowingTaskGroup(of: Void.self) { group in
-                                    group.addTask { await hydrationTask.value }
-                                    group.addTask {
-                                        try await Task.sleep(nanoseconds: 2_000_000_000)
-                                        throw CancellationError()
-                                    }
-                                    try await group.next()
-                                    group.cancelAll()
-                                }
-                            } catch {
-                                // Timeout; hydration continues in background
-                            }
-                        }
-                    }
-                }
-            } catch {
-                if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
-
-                AppTelemetry.trackError("AudioInferenceFailure")
-                CircuitBreakerManager.shared.recordFailure()
-                MerianLog.general.debug("Audio inference failure: \(error.localizedDescription, privacy: .private)")
+                MerianLog.general.debug("Non-visual inference failure: \(error.localizedDescription, privacy: .private)")
                 if self.activeScanId == ownedScanId {
                     HapticManager.shared.triggerErrorThump()
                     self.speciesData = makeErrorSpeciesData(

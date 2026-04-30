@@ -118,7 +118,7 @@ enum ModelStoreRecoveryCoordinator {
 
 private enum UITestSeedCoordinator {
     static var isEnabled: Bool {
-        ProcessInfo.processInfo.environment["UITesting"] == "true"
+        TestExecutionCoordinator.isRunningUITests
     }
 
     @MainActor
@@ -205,6 +205,24 @@ private enum UITestSeedCoordinator {
     }
 }
 
+enum TestExecutionCoordinator {
+    static var isRunningUITests: Bool {
+        ProcessInfo.processInfo.environment["UITesting"] == "true"
+    }
+
+    static var isRunningTests: Bool {
+        if isRunningUITests {
+            return true
+        }
+
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return true
+        }
+
+        return NSClassFromString("XCTestCase") != nil
+    }
+}
+
 // MARK: - Main Execution Point
 @main
 struct MerianApp: App {
@@ -255,12 +273,16 @@ struct MerianApp: App {
 
         UITestSeedCoordinator.prepareIfNeeded(container: container)
         
-        // Initialize telemetry synchronously — just stores config, safe on main thread.
-        // PostHog is deferred via Task.detached to avoid blocking init(). Since PostHogManager
-        // is not @MainActor, configure() runs on the background thread pool as intended.
-        AppTelemetry.initialize()
-        Task.detached(priority: .background) {
-            PostHogManager.shared.configure()
+        // Keep app-hosted test sessions hermetic: no analytics startup, no disk-backed
+        // production store, and no background sync noise racing the test containers.
+        if !TestExecutionCoordinator.isRunningTests {
+            // Initialize telemetry synchronously — just stores config, safe on main thread.
+            // PostHog is deferred via Task.detached to avoid blocking init(). Since PostHogManager
+            // is not @MainActor, configure() runs on the background thread pool as intended.
+            AppTelemetry.initialize()
+            Task.detached(priority: .background) {
+                PostHogManager.shared.configure()
+            }
         }
     }
 
@@ -272,7 +294,7 @@ struct MerianApp: App {
         let schema = Schema(versionedSchema: CurrentSchema.self)
         let config = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: UITestSeedCoordinator.isEnabled
+            isStoredInMemoryOnly: TestExecutionCoordinator.isRunningTests
         )
         return try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
     }

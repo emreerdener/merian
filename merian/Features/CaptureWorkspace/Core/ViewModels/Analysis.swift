@@ -10,10 +10,8 @@ extension CaptureWorkspaceViewModel {
     /// Kicks off the inference pipeline for everything currently in `stagedCapture`.
     ///
     /// Routing logic:
-    /// - Images only → `identify` endpoint (existing image path)
-    /// - Images + description → `identify` endpoint with description injected as
-    ///   additional Gemini context (combined path)
-    /// - Description only → falls back to `analyzeDescribe` (no images to upload)
+    /// - Any submission with images → shared visual pipeline (`InferenceEngine.analyze`)
+    /// - Any submission without images → shared non-visual pipeline (`submitNonVisualCapture`)
     ///
     /// Call order:
     /// 1. Reset `InferenceEngine` display state and open the insight sheet immediately.
@@ -26,15 +24,20 @@ extension CaptureWorkspaceViewModel {
     ///    `InferenceEngine.analyze`. The live path and background upload race —
     ///    whichever completes first wins.
     func submitStagedCapture(modelContext: ModelContext) {
+        let capturedMediaTimeline = stagedCapture.submissionMediaTimeline
+        let capturedAudioFilePaths = capturedMediaTimeline.audioFilePaths
+        let capturedObservationContexts = capturedMediaTimeline.observationContexts
+
         guard !stagedCapture.images.isEmpty else {
-            // No images — description-only path
-            if let firstAudio = stagedCapture.audios.first {
-                submitAudio(audioFileName: firstAudio.filePath, observationContext: stagedCapture.observationContexts.first?.context, modelContext: modelContext)
-                stagedCapture.clearAll()
-            } else if let context = stagedCapture.observationContexts.first?.context, !context.isEmpty {
-                submitDescribeSolo(observationContext: context, modelContext: modelContext)
-                stagedCapture.clearAll()
-            }
+            submitNonVisualCapture(
+                audioFileNames: capturedAudioFilePaths,
+                observationContexts: capturedObservationContexts,
+                mediaTimeline: capturedMediaTimeline,
+                modelContext: modelContext,
+                targetEradicationRecord: baseRefinementRecord
+            )
+            stagedCapture.clearAll()
+            baseRefinementRecord = nil
             return
         }
 
@@ -51,8 +54,6 @@ extension CaptureWorkspaceViewModel {
 
         // 3. Capture the context needed for inference before clearing the staging buffers.
         let capturedImages          = stagedCapture.images
-        let capturedObsContext      = stagedCapture.observationContexts.first?.context
-        let capturedAudio           = stagedCapture.audios.first
         let capturedPreFetchTask    = preFetchTask
         let targetEradicationRecord = baseRefinementRecord
 
@@ -86,11 +87,12 @@ extension CaptureWorkspaceViewModel {
         )
         diContainer.offlineQueueManager.enqueueCapture(
             imageDatas: capturedImages.map(\.compressedData),
-            audioFilePath: capturedAudio?.filePath,
+            audioFilePaths: capturedAudioFilePaths,
             telemetry: immediateTelemetry,
             blurScore: nil,
             scanId: scanId,
-            observationContext: capturedObsContext
+            observationContexts: capturedObservationContexts,
+            mediaTimeline: capturedMediaTimeline
         )
 
         // If completely offline, skip live inference and show a toast immediately.
@@ -118,9 +120,10 @@ extension CaptureWorkspaceViewModel {
                     scanId: scanId,
                     imageDatas: capturedImages.map(\.compressedData),
                     displayDatas: capturedImages.map(\.displayData),
-                    audioFilePaths: capturedAudio.map { [$0.filePath] },
+                    audioFilePaths: capturedAudioFilePaths.isEmpty ? nil : capturedAudioFilePaths,
                     telemetry: telemetry,
-                    observationContext: capturedObsContext,   // non-nil when combined
+                    observationContexts: capturedObservationContexts,
+                    mediaTimeline: capturedMediaTimeline,
                     modelContext: modelContext,
                     targetEradicationRecord: targetEradicationRecord
                 )

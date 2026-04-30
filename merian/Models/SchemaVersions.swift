@@ -321,10 +321,10 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 
                 // Historical best-approximation sequence: Image -> Description -> Audio
                 if let localPath = scan.localImagePath {
-                    items.append(.image(localPath))
+                    items.append(.image(StoredMediaReference(legacyPath: localPath)))
                 }
                 for path in scan.additionalImagePaths ?? [] {
-                    items.append(.image(path))
+                    items.append(.image(StoredMediaReference(legacyPath: path)))
                 }
                 
                 if let contextsJSON = scan.observationContextsJSON {
@@ -337,15 +337,15 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
                 
                 for audioPath in scan.audioFilePaths ?? [] {
-                    items.append(.audio(audioPath))
+                    items.append(.audio(StoredMediaReference(legacyPath: audioPath)))
                 }
                 
                 if let data = try? JSONEncoder().encode(items) {
                     _v39LocalMediaBackfill[namespace: namespace, key: scan.id] = String(data: data, encoding: .utf8)
                 }
                 if let firstImage = items.first(where: { if case .image = $0 { return true } else { return false } }) {
-                    if case .image(let path) = firstImage {
-                        _v39LocalCoverBackfill[namespace: namespace, key: scan.id] = path
+                    if case .image(let reference) = firstImage {
+                        _v39LocalCoverBackfill[namespace: namespace, key: scan.id] = reference.serializedPath
                     }
                 }
             }
@@ -360,7 +360,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 var items: [SerializedMediaItem] = []
                 
                 for path in scan.localImagePaths {
-                    items.append(.image(path))
+                    items.append(.image(StoredMediaReference(legacyPath: path)))
                 }
                 
                 if let contextsJSON = scan.observationContextsJSON {
@@ -373,15 +373,15 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
                 
                 for audioPath in scan.audioFilePaths ?? [] {
-                    items.append(.audio(audioPath))
+                    items.append(.audio(StoredMediaReference(legacyPath: audioPath)))
                 }
                 
                 if let data = try? JSONEncoder().encode(items) {
                     _v39OfflineMediaBackfill[namespace: namespace, key: scan.id] = String(data: data, encoding: .utf8)
                 }
                 if let firstImage = items.first(where: { if case .image = $0 { return true } else { return false } }) {
-                    if case .image(let path) = firstImage {
-                        _v39OfflineCoverBackfill[namespace: namespace, key: scan.id] = path
+                    if case .image(let reference) = firstImage {
+                        _v39OfflineCoverBackfill[namespace: namespace, key: scan.id] = reference.serializedPath
                     }
                 }
             }

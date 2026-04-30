@@ -5,34 +5,54 @@ extension CaptureWorkspaceViewModel {
 
     // MARK: - Submit Audio
 
-    /// Routes a finished audio recording to the offline queue (durable) and, when online,
-    /// opens the insight sheet and fires live inference in parallel.
+    /// Routes a finished audio recording through the shared non-visual submission path.
     ///
-    /// Mirrors `submitDescribe` structurally:
-    /// - Always calls `enqueueAudio` first — moves the WAV to Documents and creates a
-    ///   `.staged` queue record, providing offline durability.
-    /// - If offline: shows a toast and stops. The replay cycle dispatches when connectivity restores.
-    /// - If online: eagerly opens the insight sheet (showing the "Analyzing" skeleton) and
-    ///   fires `analyzeAudio` so the result appears without switching to another screen.
-    ///
-    /// Includes a 1.5 s debounce to prevent duplicate submissions on rapid taps.
-    func submitAudio(audioFileName: String, observationContext: ObservationContext? = nil, modelContext: ModelContext) {
+    /// Audio always queues durably before live inference so the capture survives interruption
+    /// and can be replayed by the offline pipeline if the live task loses the race.
+    func submitAudio(audioFileName: String, modelContext: ModelContext) {
         guard !audioFileName.isEmpty else { return }
 
         let now = CFAbsoluteTimeGetCurrent()
         guard (now - (stagedCapture.lastSubmitTime ?? 0)) > 1.5 else { return }
         stagedCapture.lastSubmitTime = now
 
-        let scanId = UUID().uuidString.lowercased()
-        pendingAnalyzeScanId = scanId
+        submitNonVisualCapture(
+            audioFileNames: [audioFileName],
+            observationContexts: [],
+            mediaTimeline: [.audio(audioFileName)],
+            modelContext: modelContext
+        )
+    }
+
+    // MARK: - Shared Non-Visual Submission
+
+    /// Submits audio-only, description-only, or mixed non-visual captures.
+    ///
+    /// - Audio-bearing captures always enqueue first for durability.
+    /// - Description-only captures keep the current behavior: online runs live immediately,
+    ///   offline falls back to the durable queued path.
+    func submitNonVisualCapture(
+        audioFileNames: [String],
+        observationContexts: [ObservationContext],
+        mediaTimeline: [CaptureSubmissionMediaItem],
+        modelContext: ModelContext,
+        targetEradicationRecord: LocalScanRecord? = nil
+    ) {
+        guard !mediaTimeline.isEmpty else { return }
+
+        diContainer.inferenceEngine.prepareForNewScan()
+        diContainer.cameraManager.resetZoom()
+
+        let filteredAudioFileNames = audioFileNames.filter { !$0.isEmpty }
+        let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
+        let isOnline = diContainer.offlineQueueManager.isOnline
+        let shouldEnqueueDurably = !filteredAudioFileNames.isEmpty || !isOnline
+
         let capturedPreFetchTask = preFetchTask
         preFetchTask = nil
 
-        diContainer.cameraManager.resetZoom()
-
-        let isOnline = diContainer.offlineQueueManager.isOnline
-
-        diContainer.inferenceEngine.prepareForNewScan()
+        let scanId = UUID().uuidString.lowercased()
+        pendingAnalyzeScanId = scanId
 
         Task {
             let resolvedContext = await capturedPreFetchTask?.value
@@ -58,36 +78,35 @@ extension CaptureWorkspaceViewModel {
             }
 
             await MainActor.run {
-                // Always enqueue first — moves WAV from tmp → Documents, creates the DB record.
-                // If enqueue fails (disk I/O error, quota exhausted, context unavailable) abort:
-                // there is no durable record so neither the offline toast nor live inference is safe.
-                let enqueued = self.diContainer.offlineQueueManager.enqueueAudio(
-                    audioFileName: audioFileName,
-                    telemetry: telemetry,
-                    observationContext: observationContext,
-                    scanId: scanId
-                )
-                guard enqueued else {
-                    self.offlineToastMessage = "Unable to save recording. Please try again."
-                    return
+                if shouldEnqueueDurably {
+                    let enqueued = self.diContainer.offlineQueueManager.enqueueNonVisualCapture(
+                        audioFileNames: filteredAudioFileNames,
+                        observationContexts: filteredObservationContexts,
+                        mediaTimeline: mediaTimeline,
+                        telemetry: telemetry,
+                        scanId: scanId
+                    )
+                    guard enqueued else {
+                        self.offlineToastMessage = "Unable to save capture. Please try again."
+                        return
+                    }
                 }
-                self.stagedCapture.clearAll()
 
                 guard isOnline else {
                     self.offlineToastMessage = "No network connection. Queued for analysis."
                     return
                 }
 
-                // Open the insight sheet immediately so the "Analyzing" skeleton appears,
-                // then fire live inference. AnalyzingContentView sets isProcessing = true on appear.
                 guard self.pendingAnalyzeScanId == scanId else { return }
                 self.activeSheet = .insight
-                self.diContainer.inferenceEngine.analyzeAudio(
+                self.diContainer.inferenceEngine.analyzeNonVisual(
                     scanId: scanId,
-                    audioFileName: audioFileName,
+                    audioFilePaths: filteredAudioFileNames.isEmpty ? nil : filteredAudioFileNames,
+                    observationContexts: filteredObservationContexts,
+                    mediaTimeline: mediaTimeline,
                     telemetry: telemetry,
-                    observationContext: observationContext,
-                    modelContext: modelContext
+                    modelContext: modelContext,
+                    targetEradicationRecord: targetEradicationRecord
                 )
             }
         }

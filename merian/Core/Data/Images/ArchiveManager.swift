@@ -284,8 +284,8 @@ actor ArchiveDatabaseActor {
                    let jsonData = jsonStr.data(using: .utf8),
                    var items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
                     for i in 0..<items.count {
-                        if case .image(let path) = items[i], path == firstString {
-                            items[i] = .image(filename)
+                        if case .image(let reference) = items[i], reference == firstString {
+                            items[i] = .image(.documents(filename))
                         }
                     }
                     record.capturedMediaJSON = try? String(data: JSONEncoder().encode(items), encoding: .utf8)

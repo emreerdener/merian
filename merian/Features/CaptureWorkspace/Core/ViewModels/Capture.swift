@@ -22,7 +22,7 @@ extension CaptureWorkspaceViewModel {
         // Prevent accidental hardware captures while a modal, sheet, or crop view is actively presented
         guard activeSheet == nil,
               !isCapturing,
-              stagedCapture.images.count < stagedImageCapacity,
+              hasAvailableStagedCaptureSlot,
               imageToCrop == nil else { return }
               
         isCapturing = true

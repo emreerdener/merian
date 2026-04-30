@@ -16,6 +16,11 @@ import SwiftData
 @ModelActor
 actor BackgroundDatabaseActor {
 
+    struct ScanErasurePayload: Sendable {
+        let id: String
+        let imagePaths: [String]
+    }
+
     // MARK: - Pending Scan Fetching
 
     /// Returns up to `limit` `.pending` (state 0) `OfflineQueuedScan` records sorted oldest-first.
@@ -29,6 +34,7 @@ actor BackgroundDatabaseActor {
         )
         descriptor.sortBy = [SortDescriptor(\.timestamp)]
         descriptor.fetchLimit = limit
+        descriptor.propertiesToFetch = [\.id, \.capturedMediaJSON]
 
         let pending: [OfflineQueuedScan]
         do {
@@ -40,6 +46,35 @@ actor BackgroundDatabaseActor {
         return pending.map { scan in
             let paths = scan.capturedMediaJSON.map(MediaJSONParser.imagePaths(jsonString:)) ?? []
             return PendingScanPayload(id: scan.id, localImagePaths: paths)
+        }
+    }
+
+    // MARK: - Record Deletion
+
+    /// Deletes non-biological scans and queues their cloud erasure atomically.
+    ///
+    /// Returns local-only file paths after the database commit succeeds so callers can
+    /// purge disk artifacts without risking an inconsistent database state.
+    func bulkDeleteNonBiologicalScans(payloads: [ScanErasurePayload]) throws -> [String] {
+        var imagePathsToDelete: [String] = []
+
+        do {
+            for payload in payloads {
+                let scanId = payload.id
+                let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+                if let record = try modelContext.fetch(descriptor).first {
+                    modelContext.delete(record)
+                }
+
+                imagePathsToDelete.append(contentsOf: payload.imagePaths.filter { !$0.starts(with: "http") })
+                try modelContext.ensurePendingCloudDeletionTask(scanId: scanId)
+            }
+
+            try modelContext.save()
+            return imagePathsToDelete
+        } catch {
+            modelContext.rollback()
+            throw error
         }
     }
 
@@ -259,7 +294,9 @@ actor BackgroundDatabaseActor {
         scanId: String,
         originalTimestamp: Date,
         telemetry: CaptureTelemetry? = nil,
-        observationContextsJSON: [String]? = nil
+        observationContextsJSON: [String]? = nil,
+        audioFilePaths: [String]? = nil,
+        capturedMediaJSON: String? = nil
     ) async -> OfflineScanProcessingResult {
         var inferenceFailed = true
         var resolvedSpeciesName: String?
@@ -290,6 +327,7 @@ actor BackgroundDatabaseActor {
                 gpsLongitude: telemetry?.gpsLongitude
             )
             mappedData.zoomFactor = telemetry?.zoomFactor.map { Double($0) }
+            mappedData.audioFilePaths = audioFilePaths
 
             if mappedData.confidenceScore > 0.0 {
                 inferenceFailed = false
@@ -314,7 +352,9 @@ actor BackgroundDatabaseActor {
                     activeSpeciesId: activeSpeciesId,
                     originalTimestamp: originalTimestamp,
                     originalImagePaths: originalImagePaths,
-                    observationContextsJSON: observationContextsJSON
+                    observationContextsJSON: observationContextsJSON,
+                    audioFilePaths: audioFilePaths,
+                    capturedMediaJSON: capturedMediaJSON
                 )
                 
                 resultingScanId = recordId
@@ -447,7 +487,9 @@ actor BackgroundDatabaseActor {
         activeSpeciesId: String,
         originalTimestamp: Date,
         originalImagePaths: [String],
-        observationContextsJSON: [String]? = nil
+        observationContextsJSON: [String]? = nil,
+        audioFilePaths: [String]? = nil,
+        capturedMediaJSON: String? = nil
     ) async {
         var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate<LocalScanRecord> { $0.id == recordId }
@@ -456,22 +498,16 @@ actor BackgroundDatabaseActor {
         let alreadyExists = (try? modelContext.fetch(existingIdDescriptor))?.isEmpty == false
 
         if !alreadyExists {
-            var serializedItems: [SerializedMediaItem] = originalImagePaths.map { .image($0) }
-            if let contexts = observationContextsJSON {
-                for ctxStr in contexts {
-                    if let data = ctxStr.data(using: .utf8), let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
-                        serializedItems.append(.description(ctx))
-                    }
-                }
+            let resolvedCapturedMediaJSON: String?
+            if let capturedMediaJSON {
+                resolvedCapturedMediaJSON = capturedMediaJSON
+            } else {
+                resolvedCapturedMediaJSON = await buildCapturedMediaJSON(
+                    localImagePaths: originalImagePaths,
+                    observationContextsJSON: observationContextsJSON,
+                    audioFilePaths: audioFilePaths ?? mappedData.audioFilePaths
+                )
             }
-            if let audios = mappedData.audioFilePaths {
-                for tempPath in audios {
-                    if let persistedPath = await FileIOActor.shared.persistAudioFile(tempPath: tempPath) {
-                        serializedItems.append(.audio(persistedPath))
-                    }
-                }
-            }
-            let capturedMediaJSON = try? String(data: JSONEncoder().encode(serializedItems), encoding: .utf8)
             
             let record = buildScanRecord(
                 from: mappedData,
@@ -479,7 +515,7 @@ actor BackgroundDatabaseActor {
                 speciesId: activeSpeciesId,
                 timestamp: originalTimestamp,
                 captureDate: originalTimestamp,
-                capturedMediaJSON: capturedMediaJSON,
+                capturedMediaJSON: resolvedCapturedMediaJSON,
                 coverImagePath: originalImagePaths.first,
                 isLiveCapture: mappedData.isLiveCapture
             )
@@ -488,26 +524,46 @@ actor BackgroundDatabaseActor {
         }
     }
 
-    private func buildCapturedMediaJSON(localImagePaths: [String]? = nil, observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) async -> String? {
+    private func decodedObservationContexts(from observationContextsJSON: [String]?) -> [ObservationContext] {
+        guard let observationContextsJSON else { return [] }
+        return observationContextsJSON.compactMap { contextJSON in
+            guard let data = contextJSON.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(ObservationContext.self, from: data)
+        }
+    }
+
+    private func buildCapturedMediaJSON(
+        localImagePaths: [String]? = nil,
+        observationContextsJSON: [String]? = nil,
+        audioFilePaths: [String]? = nil,
+        mediaTimeline: [CaptureSubmissionMediaItem]? = nil
+    ) async -> String? {
+        let resolvedLocalImagePaths = localImagePaths ?? []
+        let resolvedObservationContexts = decodedObservationContexts(from: observationContextsJSON)
+        let resolvedAudioFilePaths = audioFilePaths ?? []
+        let resolvedMediaTimeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
+            imageCount: resolvedLocalImagePaths.count,
+            observationContexts: resolvedObservationContexts,
+            audioFilePaths: resolvedAudioFilePaths
+        )
+
         var mediaItems: [SerializedMediaItem] = []
-        if let paths = localImagePaths {
-            for path in paths { mediaItems.append(.image(path)) }
-        }
-        if let contexts = observationContextsJSON {
-            for ctxStr in contexts {
-                if let data = ctxStr.data(using: .utf8),
-                   let ctx = try? JSONDecoder().decode(ObservationContext.self, from: data) {
-                    mediaItems.append(.description(ctx))
+
+        for item in resolvedMediaTimeline {
+            switch item {
+            case .image(let index):
+                guard resolvedLocalImagePaths.indices.contains(index) else { continue }
+                mediaItems.append(.image(StoredMediaReference(legacyPath: resolvedLocalImagePaths[index])))
+            case .description(let context):
+                guard !context.isEmpty else { continue }
+                mediaItems.append(.description(context))
+            case .audio(let sourcePath):
+                if let persistedPath = await FileIOActor.shared.persistAudioFile(tempPath: sourcePath) {
+                    mediaItems.append(.audio(.documents(persistedPath)))
                 }
             }
         }
-        if let audios = audioFilePaths {
-            for tempPath in audios {
-                if let persistedPath = await FileIOActor.shared.persistAudioFile(tempPath: tempPath) {
-                    mediaItems.append(.audio(persistedPath))
-                }
-            }
-        }
+
         guard !mediaItems.isEmpty else { return nil }
         return (try? JSONEncoder().encode(mediaItems)).flatMap { String(data: $0, encoding: .utf8) }
     }
@@ -515,7 +571,13 @@ actor BackgroundDatabaseActor {
     // MARK: - Live Scan Recording
 
     /// Persists a real-time scan result to SwiftData on the actor thread.
-    func saveLiveScanRecord(mappedData: SpeciesData, localImagePaths: [String], observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) async -> Bool {
+    func saveLiveScanRecord(
+        mappedData: SpeciesData,
+        localImagePaths: [String],
+        observationContextsJSON: [String]? = nil,
+        audioFilePaths: [String]? = nil,
+        mediaTimeline: [CaptureSubmissionMediaItem]? = nil
+    ) async -> Bool {
         guard mappedData.confidenceScore > 0.0, !localImagePaths.isEmpty else {
             return false
         }
@@ -537,7 +599,12 @@ actor BackgroundDatabaseActor {
         let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
         let isNewDiscovery = existingRecords.isEmpty
 
-        let capturedMediaJSON = await buildCapturedMediaJSON(localImagePaths: localImagePaths, observationContextsJSON: observationContextsJSON, audioFilePaths: audioFilePaths)
+        let capturedMediaJSON = await buildCapturedMediaJSON(
+            localImagePaths: localImagePaths,
+            observationContextsJSON: observationContextsJSON,
+            audioFilePaths: audioFilePaths,
+            mediaTimeline: mediaTimeline
+        )
 
         let recordId = mappedData.scanId ?? UUID().uuidString
         
@@ -569,14 +636,19 @@ actor BackgroundDatabaseActor {
         return isNewDiscovery
     }
 
-    // MARK: - Describe Recording
+    // MARK: - Non-Visual Recording
 
-    /// Persists a Describe scan result — a text-description-based identification with no local image.
+    /// Persists a non-visual scan result with no captured image.
     ///
-    /// Mirrors `saveLiveScanRecord` but omits the `localImagePath` requirement. Describes are
-    /// saved with `is_live_capture = false` and nil image paths so the library renders them
-    /// without a thumbnail until reference images arrive via GBIF hydration.
-    func saveDescribeRecord(mappedData: SpeciesData, observationContextsJSON: [String]? = nil, audioFilePaths: [String]? = nil) async -> Bool {
+    /// Handles description-only, audio-only, audio+description, and other future no-image
+    /// combinations. Records are saved with `is_live_capture = false` and no cover image path,
+    /// allowing the library to fall back to reference imagery when available.
+    func saveNonVisualRecord(
+        mappedData: SpeciesData,
+        observationContextsJSON: [String]? = nil,
+        audioFilePaths: [String]? = nil,
+        mediaTimeline: [CaptureSubmissionMediaItem]? = nil
+    ) async -> Bool {
         guard mappedData.confidenceScore > 0.0 else { return false }
 
         let targetName = mappedData.scientificName
@@ -589,14 +661,18 @@ actor BackgroundDatabaseActor {
         do {
             existingRecords = try modelContext.fetch(fetchDescriptor)
         } catch {
-            MerianLog.data.debug("saveDescribeRecord: species lookup failed: \(error, privacy: .private)")
+            MerianLog.data.debug("saveNonVisualRecord: species lookup failed: \(error, privacy: .private)")
             existingRecords = []
         }
 
         let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
         let isNewDiscovery = existingRecords.isEmpty
 
-        let capturedMediaJSON = await buildCapturedMediaJSON(observationContextsJSON: observationContextsJSON, audioFilePaths: audioFilePaths)
+        let capturedMediaJSON = await buildCapturedMediaJSON(
+            observationContextsJSON: observationContextsJSON,
+            audioFilePaths: audioFilePaths,
+            mediaTimeline: mediaTimeline
+        )
 
         let recordId = mappedData.scanId ?? UUID().uuidString
         var collisionDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == recordId })
@@ -619,7 +695,7 @@ actor BackgroundDatabaseActor {
         do {
             try modelContext.save()
         } catch {
-            MerianLog.data.error("saveDescribeRecord: save failed: \(error, privacy: .private)")
+            MerianLog.data.error("saveNonVisualRecord: save failed: \(error, privacy: .private)")
         }
         return isNewDiscovery
     }

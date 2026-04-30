@@ -407,4 +407,74 @@ struct MigrationPlanTests {
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
     }
+
+    @Test func testSerializedMediaItemDecodesLegacyStringPayloadsIntoTypedReferences() throws {
+        let legacyJSON = """
+        [
+          {"image":{"_0":"legacy_image.webp"}},
+          {"image":{"_0":"https://example.com/remote.webp"}},
+          {"audio":{"_0":"legacy_audio.wav"}},
+          {"audio":{"_0":"/tmp/absolute_audio.wav"}}
+        ]
+        """
+
+        let items = try JSONDecoder().decode([SerializedMediaItem].self, from: Data(legacyJSON.utf8))
+        #expect(items.count == 4)
+
+        if case .image(let documentsImage) = items[0] {
+            #expect(documentsImage.storage == .documents)
+            #expect(documentsImage.serializedPath == "legacy_image.webp")
+        } else {
+            Issue.record("Legacy documents image did not decode as image")
+        }
+
+        if case .image(let remoteImage) = items[1] {
+            #expect(remoteImage.storage == .remoteURL)
+            #expect(remoteImage.serializedPath == "https://example.com/remote.webp")
+        } else {
+            Issue.record("Legacy remote image did not decode as image")
+        }
+
+        if case .audio(let documentsAudio) = items[2] {
+            #expect(documentsAudio.storage == .documents)
+            #expect(documentsAudio.serializedPath == "legacy_audio.wav")
+        } else {
+            Issue.record("Legacy documents audio did not decode as audio")
+        }
+
+        if case .audio(let absoluteAudio) = items[3] {
+            #expect(absoluteAudio.storage == .absolutePath)
+            #expect(absoluteAudio.serializedPath == "/tmp/absolute_audio.wav")
+        } else {
+            Issue.record("Legacy absolute audio did not decode as audio")
+        }
+    }
+
+    @Test func testSerializedMediaItemRoundTripsTypedStorageMetadata() throws {
+        let encoded = try JSONEncoder().encode([
+            SerializedMediaItem.image(.remoteURL("https://example.com/r2.webp")),
+            SerializedMediaItem.audio(.documents("recording.wav"))
+        ])
+
+        let jsonString = try #require(String(data: encoded, encoding: .utf8))
+        #expect(jsonString.contains("\"storage\":\"remoteURL\""))
+        #expect(jsonString.contains("\"storage\":\"documents\""))
+        #expect(MediaJSONParser.hasCloudImage(jsonString: jsonString))
+        #expect(MediaJSONParser.imagePaths(jsonString: jsonString) == ["https://example.com/r2.webp"])
+        #expect(MediaJSONParser.audioPaths(jsonString: jsonString) == ["recording.wav"])
+
+        let decoded = try #require(MediaJSONParser.serializedItems(jsonString: jsonString))
+
+        if case .image(let remoteImage) = decoded[0] {
+            #expect(remoteImage.storage == .remoteURL)
+        } else {
+            Issue.record("Typed remote image did not round-trip as image")
+        }
+
+        if case .audio(let documentsAudio) = decoded[1] {
+            #expect(documentsAudio.storage == .documents)
+        } else {
+            Issue.record("Typed documents audio did not round-trip as audio")
+        }
+    }
 }

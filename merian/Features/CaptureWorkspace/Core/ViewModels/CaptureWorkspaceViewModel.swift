@@ -133,6 +133,18 @@ final class CaptureWorkspaceViewModel {
     /// skip calling `analyze()` — prevents a stale Task from re-triggering live inference
     /// after the engine has already moved on to a subsequent capture.
     @ObservationIgnored var pendingAnalyzeScanId: String?
+
+    var stagedCaptureLimit: Int {
+        (UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled") || baseRefinementRecord != nil) ? stagedCaptureCapacity : 1
+    }
+
+    var availableStagedCaptureSlots: Int {
+        stagedCapture.availableSlots(limit: stagedCaptureLimit)
+    }
+
+    var hasAvailableStagedCaptureSlot: Bool {
+        !stagedCapture.isAtCapacity(limit: stagedCaptureLimit)
+    }
     
     // MARK: - Lifecycle
     convenience init() {
@@ -324,7 +336,7 @@ final class CaptureWorkspaceViewModel {
 
     private func prepareGalleryImportBudget(isPro: Bool) -> GalleryImportBudget {
         GalleryImportBudget(
-            availableSlots: max(0, stagedImageCapacity - stagedCapture.images.count),
+            availableSlots: availableStagedCaptureSlots,
             canPerformScan: diContainer.usageManager.canPerformScan(isProActive: isPro)
         )
     }
@@ -351,7 +363,7 @@ final class CaptureWorkspaceViewModel {
     }
 
     private func commitPreparedStagedImages(_ preparedImports: [PreparedStagedImage]) {
-        let availableSlots = max(0, stagedImageCapacity - stagedCapture.images.count)
+        let availableSlots = availableStagedCaptureSlots
         guard availableSlots > 0 else { return }
 
         for preparedImport in preparedImports.prefix(availableSlots) {

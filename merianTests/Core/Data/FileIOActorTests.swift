@@ -70,4 +70,38 @@ struct FileIOActorTests {
         // Cleanup
         await FileIOActor.shared.deleteImages(at: [localFilename])
     }
+
+    @Test func testPersistAudioFileAdoptsExistingDocumentsFilename() async throws {
+        let filename = "existing_audio_\(UUID().uuidString).wav"
+        let docs = URL.documentsDirectory
+        let destinationURL = docs.appendingPathComponent(filename)
+        let audioData = Data(repeating: 0x11, count: 256)
+
+        try audioData.write(to: destinationURL)
+        defer {
+            try? FileManager.default.removeItem(at: destinationURL)
+        }
+
+        let persisted = await FileIOActor.shared.persistAudioFile(tempPath: filename)
+
+        #expect(persisted == filename, "Existing Documents audio should be adopted without creating a duplicate file")
+        #expect(FileManager.default.fileExists(atPath: destinationURL.path) == true)
+    }
+
+    @Test func testPersistAudioFileCopiesBareTemporaryFilename() async throws {
+        let filename = "temporary_audio_\(UUID().uuidString).wav"
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        let audioData = Data(repeating: 0x22, count: 256)
+
+        try audioData.write(to: tempURL)
+
+        let persisted = try #require(await FileIOActor.shared.persistAudioFile(tempPath: filename))
+        let docsURL = URL.documentsDirectory.appendingPathComponent(persisted)
+        defer {
+            try? FileManager.default.removeItem(at: docsURL)
+        }
+
+        #expect(FileManager.default.fileExists(atPath: docsURL.path) == true, "Temporary audio should be copied into Documents")
+        #expect(FileManager.default.fileExists(atPath: tempURL.path) == false, "Original temporary audio should be removed after persistence")
+    }
 }

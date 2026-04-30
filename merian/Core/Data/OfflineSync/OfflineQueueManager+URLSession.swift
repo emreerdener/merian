@@ -186,7 +186,8 @@ extension OfflineQueueManager {
             originalTimestamp: extracted.originalTimestamp,
             description: extracted.description,
             observationContextsJSON: extracted.observationContextsJSON,
-            audioFilePaths: nil
+            audioFilePaths: extracted.audioFilePaths,
+            capturedMediaJSON: extracted.capturedMediaJSON
         )
         await dispatchInferenceDownloadTask(scanId: scanId, extracted: extractedWithKeys)
     }
@@ -294,25 +295,14 @@ extension OfflineQueueManager {
         var observationContextsJSON: [String]?
         var audioFilePaths: [String]?
         
-        if let jsonStr = scan.capturedMediaJSON,
-           let jsonData = jsonStr.data(using: .utf8),
-           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-            
-            var contexts: [String] = []
-            var audio: [String] = []
-            
-            for item in items {
-                switch item {
-                case .image(let path):
-                    localImagePaths.append(path)
-                case .audio(let path):
-                    audio.append(path)
-                case .description(let ctx):
-                    if let d = try? JSONEncoder().encode(ctx), let s = String(data: d, encoding: .utf8) {
-                        contexts.append(s)
-                    }
-                }
+        if let jsonStr = scan.capturedMediaJSON {
+            localImagePaths = MediaJSONParser.imagePaths(jsonString: jsonStr)
+
+            let contexts = MediaJSONParser.observationContexts(jsonString: jsonStr).compactMap { context in
+                (try? JSONEncoder().encode(context)).flatMap { String(data: $0, encoding: .utf8) }
             }
+            let audio = MediaJSONParser.audioPaths(jsonString: jsonStr)
+
             if !contexts.isEmpty { observationContextsJSON = contexts }
             if !audio.isEmpty { audioFilePaths = audio }
         }
@@ -332,7 +322,8 @@ extension OfflineQueueManager {
             originalTimestamp: scan.timestamp,
             description: description,
             observationContextsJSON: observationContextsJSON,
-            audioFilePaths: audioFilePaths
+            audioFilePaths: audioFilePaths,
+            capturedMediaJSON: scan.capturedMediaJSON
         )
     }
 
@@ -481,7 +472,9 @@ extension OfflineQueueManager {
             scanId: scanId,
             originalTimestamp: extracted.originalTimestamp,
             telemetry: extracted.telemetry,
-            observationContextsJSON: extracted.observationContextsJSON
+            observationContextsJSON: extracted.observationContextsJSON,
+            audioFilePaths: extracted.audioFilePaths,
+            capturedMediaJSON: extracted.capturedMediaJSON
         )
 
         // Delete the OfflineQueuedScan from the main ModelContext so @Query re-evaluates in

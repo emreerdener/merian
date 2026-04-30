@@ -217,37 +217,3 @@ struct NonBiologicalScansView: View {
         withAnimation { toastMessage = "Restored to library" }
     }
 }
-
-// MARK: - Actor Extensions
-extension BackgroundDatabaseActor {
-    struct ScanErasurePayload: Sendable {
-        let id: String
-        let imagePaths: [String]
-    }
-    
-    func bulkDeleteNonBiologicalScans(payloads: [ScanErasurePayload]) throws -> [String] {
-        var imagePathsToDelete: [String] = []
-        for payload in payloads {
-            // Delete the LocalScanRecord natively
-            let scanId = payload.id
-            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-            if let record = (try? modelContext.fetch(descriptor))?.first {
-                modelContext.delete(record)
-            }
-
-            imagePathsToDelete.append(contentsOf: payload.imagePaths.filter { !$0.starts(with: "http") })
-            
-            // Insert PendingCloudDeletionTask queueing remote Edge deletion
-            let pendingTask = PendingCloudDeletionTask(scanId: scanId, timestamp: Date())
-            modelContext.insert(pendingTask)
-        }
-
-        do {
-            try modelContext.save()
-            return imagePathsToDelete
-        } catch {
-            modelContext.rollback()
-            throw error
-        }
-    }
-}

@@ -68,22 +68,44 @@ public actor FileIOActor {
         }
     }
     
-    /// Copies an audio file from NSTemporaryDirectory to the persistent Documents directory, returning the new stable filename.
+    /// Ensures an audio file is represented by a stable Documents-directory filename.
+    ///
+    /// Accepted inputs:
+    /// - an absolute temporary-file path
+    /// - a bare filename that already lives in Documents
+    /// - a bare filename that still lives in NSTemporaryDirectory
     public func persistAudioFile(tempPath: String) -> String? {
-        let sourceURL = URL(fileURLWithPath: tempPath)
-        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+        let fileManager = FileManager.default
+        let docs = URL.documentsDirectory
+        let bareFilename = URL(fileURLWithPath: tempPath).lastPathComponent
+        let documentsURL = docs.appendingPathComponent(bareFilename)
+
+        // Already persisted — adopt the existing Documents filename as-is instead of
+        // trying to copy it again from a non-existent relative path.
+        if fileManager.fileExists(atPath: documentsURL.path) {
+            return bareFilename
+        }
+
+        let absoluteSourceURL = tempPath.hasPrefix("/") ? URL(fileURLWithPath: tempPath) : nil
+        let temporarySourceURL = fileManager.temporaryDirectory.appendingPathComponent(bareFilename)
+        let sourceURL: URL
+
+        if let absoluteSourceURL, fileManager.fileExists(atPath: absoluteSourceURL.path) {
+            sourceURL = absoluteSourceURL
+        } else if fileManager.fileExists(atPath: temporarySourceURL.path) {
+            sourceURL = temporarySourceURL
+        } else {
             MerianLog.data.error("FileIOActor: Cannot persist audio, file missing at \(tempPath, privacy: .public)")
             return nil
         }
-        
-        let docs = URL.documentsDirectory
+
         let filename = "\(UUID().uuidString)_audio.wav" // Canonical .wav extension
         let destinationURL = docs.appendingPathComponent(filename)
-        
+
         do {
-            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+            try fileManager.copyItem(at: sourceURL, to: destinationURL)
             // Cleanup the original temp file since it is now safely copied
-            try? FileManager.default.removeItem(at: sourceURL)
+            try? fileManager.removeItem(at: sourceURL)
             return filename
         } catch {
             MerianLog.data.error("FileIOActor: Failed persisting audio file: \(error, privacy: .private)")

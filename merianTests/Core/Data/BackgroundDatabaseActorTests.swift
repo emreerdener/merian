@@ -5,6 +5,12 @@ import Foundation
 
 @MainActor
 struct BackgroundDatabaseActorTests {
+
+    private enum ExpectedSerializedMedia {
+        case image(String)
+        case audio
+        case description(String)
+    }
     
     // Helper to create an isolated SwiftData container caching out to disk due to iOS 18 simulator array appending bugs.
     @MainActor
@@ -13,6 +19,49 @@ struct BackgroundDatabaseActorTests {
         let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
         let modelConfiguration = ModelConfiguration(schema: schema, url: tempURL)
         return try ModelContainer(for: schema, configurations: [modelConfiguration])
+    }
+
+    private func makeTempAudioFilename(prefix: String = "test_audio") throws -> String {
+        let filename = "\(prefix)_\(UUID().uuidString).wav"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try Data(repeating: 0x55, count: 128).write(to: url)
+        return filename
+    }
+
+    private func assertSerializedItems(
+        _ items: [SerializedMediaItem],
+        match expected: [ExpectedSerializedMedia]
+    ) {
+        #expect(items.count == expected.count)
+
+        for (actual, expectation) in zip(items, expected) {
+            switch (actual, expectation) {
+            case (.image(let reference), .image(let expectedPath)):
+                #expect(reference == expectedPath)
+            case (.audio(let reference), .audio):
+                #expect(reference.serializedPath.hasSuffix(".wav"))
+                #expect(
+                    FileManager.default.fileExists(
+                        atPath: URL.documentsDirectory.appendingPathComponent(reference.serializedPath).path
+                    )
+                )
+            case (.description(let context), .description(let expectedText)):
+                #expect(context.freeText == expectedText)
+            default:
+                Issue.record("Serialized media kind mismatch: \(String(describing: actual))")
+            }
+        }
+    }
+
+    private func cleanupSerializedItems(_ items: [SerializedMediaItem]) {
+        for item in items {
+            switch item {
+            case .image(let reference), .audio(let reference):
+                try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(reference.serializedPath))
+            case .description:
+                break
+            }
+        }
     }
 
     @Test func testBackgroundActorIsolatesSendablePayloadsDynamically() async throws {
@@ -86,6 +135,373 @@ struct BackgroundDatabaseActorTests {
         #expect(record.captureDate == originalTimestamp, "captureDate must remain the original capture time")
     }
 
+    @Test func testSaveLiveScanRecordKeepsExistingDocumentsAudio() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+
+        let audioFilename = "live_audio_\(UUID().uuidString).wav"
+        let audioURL = URL.documentsDirectory.appendingPathComponent(audioFilename)
+        try Data(repeating: 0x33, count: 128).write(to: audioURL)
+        defer {
+            try? FileManager.default.removeItem(at: audioURL)
+        }
+
+        let mappedData = SpeciesData(
+            scanId: "live_audio_scan_001",
+            commonName: "Northern Cardinal",
+            scientificName: "Cardinalis cardinalis",
+            insightData: InsightData(aiReasoning: "Clear cardinal vocalization.", hazardType: "none"),
+            confidenceScore: 0.94,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        _ = await actor.saveLiveScanRecord(
+            mappedData: mappedData,
+            localImagePaths: ["primary_capture.webp"],
+            audioFilePaths: [audioFilename]
+        )
+
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == "live_audio_scan_001" }
+        )
+        let record = try #require(context.fetch(descriptor).first)
+        let capturedMediaJSON = try #require(record.capturedMediaJSON)
+        let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
+
+        #expect(items.contains(where: {
+            if case .audio(let path) = $0 { return path == audioFilename }
+            return false
+        }), "Live saved scans must retain their already-persisted audio filename in capturedMediaJSON")
+        #expect(FileManager.default.fileExists(atPath: audioURL.path) == true, "Audio already stored in Documents must not be deleted during saveLiveScanRecord")
+    }
+
+    @Test func testSaveLiveScanRecordPreservesAudioBeforeImageTimeline() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+
+        let audioFilename = "ordered_live_audio_\(UUID().uuidString).wav"
+        let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent(audioFilename)
+        try Data(repeating: 0x44, count: 128).write(to: audioURL)
+        defer {
+            try? FileManager.default.removeItem(at: audioURL)
+            try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(audioFilename))
+        }
+
+        let mappedData = SpeciesData(
+            scanId: "live_ordered_scan_001",
+            commonName: "American Robin",
+            scientificName: "Turdus migratorius",
+            insightData: InsightData(aiReasoning: "Songbird call with matching plumage context.", hazardType: "none"),
+            confidenceScore: 0.93,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        _ = await actor.saveLiveScanRecord(
+            mappedData: mappedData,
+            localImagePaths: ["ordered_capture.webp"],
+            audioFilePaths: [audioFilename],
+            mediaTimeline: [.audio(audioFilename), .image(index: 0)]
+        )
+
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == "live_ordered_scan_001" }
+        )
+        let record = try #require(context.fetch(descriptor).first)
+        let capturedMediaJSON = try #require(record.capturedMediaJSON)
+        let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
+
+        #expect(items.count == 2)
+
+        if case .audio(let reference) = items[0] {
+            #expect(reference.serializedPath.hasSuffix(".wav"))
+            #expect(
+                FileManager.default.fileExists(
+                    atPath: URL.documentsDirectory.appendingPathComponent(reference.serializedPath).path
+                )
+            )
+            try? FileManager.default.removeItem(
+                at: URL.documentsDirectory.appendingPathComponent(reference.serializedPath)
+            )
+        } else {
+            Issue.record("Live save must preserve the audio-first timeline order")
+        }
+
+        if case .image(let reference) = items[1] {
+            #expect(reference == "ordered_capture.webp")
+        } else {
+            Issue.record("Live save must preserve the image second in the timeline")
+        }
+    }
+
+    @Test func testSaveNonVisualRecordPreservesMultipleDescriptionsInOrder() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+
+        let firstContext = ObservationContext(freeText: "Small bird at the waterline")
+        let secondContext = ObservationContext(freeText: "Repeated sharp chip calls")
+        let firstContextJSON = try #require(
+            String(data: JSONEncoder().encode(firstContext), encoding: .utf8)
+        )
+        let secondContextJSON = try #require(
+            String(data: JSONEncoder().encode(secondContext), encoding: .utf8)
+        )
+
+        let mappedData = SpeciesData(
+            scanId: "describe_ordered_scan_001",
+            commonName: "Spotted Sandpiper",
+            scientificName: "Actitis macularius",
+            insightData: InsightData(aiReasoning: "The repeated shoreline behavior and call match a sandpiper.", hazardType: "none"),
+            confidenceScore: 0.91,
+            isBiological: true,
+            isLiveCapture: false,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        _ = await actor.saveNonVisualRecord(
+            mappedData: mappedData,
+            observationContextsJSON: [firstContextJSON, secondContextJSON],
+            mediaTimeline: [.description(firstContext), .description(secondContext)]
+        )
+
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == "describe_ordered_scan_001" }
+        )
+        let record = try #require(context.fetch(descriptor).first)
+        let capturedMediaJSON = try #require(record.capturedMediaJSON)
+        let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
+
+        #expect(items.count == 2)
+
+        if case .description(let context) = items[0] {
+            #expect(context.freeText == firstContext.freeText)
+        } else {
+            Issue.record("Describe save must preserve the first staged description")
+        }
+
+        if case .description(let context) = items[1] {
+            #expect(context.freeText == secondContext.freeText)
+        } else {
+            Issue.record("Describe save must preserve the second staged description")
+        }
+    }
+
+    @Test func testSaveNonVisualRecordSupportsAllowedCombinationMatrix() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+
+        let loneDescription = ObservationContext(freeText: "single description")
+        let pairedDescription = ObservationContext(freeText: "paired description")
+
+        struct Scenario {
+            let scanId: String
+            let commonName: String
+            let scientificName: String
+            let audioFilePaths: [String]
+            let observationContexts: [ObservationContext]
+            let mediaTimeline: [CaptureSubmissionMediaItem]
+            let expected: [ExpectedSerializedMedia]
+        }
+
+        let audioOnly = try makeTempAudioFilename(prefix: "audio_only")
+        let firstAudio = try makeTempAudioFilename(prefix: "audio_pair_1")
+        let secondAudio = try makeTempAudioFilename(prefix: "audio_pair_2")
+        let audioWithDescription = try makeTempAudioFilename(prefix: "audio_and_description")
+
+        let scenarios: [Scenario] = [
+            .init(
+                scanId: "nonvisual_audio_only",
+                commonName: "Audio Only",
+                scientificName: "Audio only",
+                audioFilePaths: [audioOnly],
+                observationContexts: [],
+                mediaTimeline: [.audio(audioOnly)],
+                expected: [.audio]
+            ),
+            .init(
+                scanId: "nonvisual_audio_audio",
+                commonName: "Audio Pair",
+                scientificName: "Audio pair",
+                audioFilePaths: [firstAudio, secondAudio],
+                observationContexts: [],
+                mediaTimeline: [.audio(firstAudio), .audio(secondAudio)],
+                expected: [.audio, .audio]
+            ),
+            .init(
+                scanId: "nonvisual_audio_description",
+                commonName: "Audio With Description",
+                scientificName: "Audio description",
+                audioFilePaths: [audioWithDescription],
+                observationContexts: [pairedDescription],
+                mediaTimeline: [.audio(audioWithDescription), .description(pairedDescription)],
+                expected: [.audio, .description(pairedDescription.freeText)]
+            ),
+            .init(
+                scanId: "nonvisual_description_only",
+                commonName: "Description Only",
+                scientificName: "Description only",
+                audioFilePaths: [],
+                observationContexts: [loneDescription],
+                mediaTimeline: [.description(loneDescription)],
+                expected: [.description(loneDescription.freeText)]
+            ),
+            .init(
+                scanId: "nonvisual_description_description",
+                commonName: "Description Pair",
+                scientificName: "Description pair",
+                audioFilePaths: [],
+                observationContexts: [loneDescription, pairedDescription],
+                mediaTimeline: [.description(loneDescription), .description(pairedDescription)],
+                expected: [.description(loneDescription.freeText), .description(pairedDescription.freeText)]
+            )
+        ]
+
+        for scenario in scenarios {
+            let observationContextsJSON = try scenario.observationContexts.map {
+                try #require(String(data: JSONEncoder().encode($0), encoding: .utf8))
+            }
+
+            let mappedData = SpeciesData(
+                scanId: scenario.scanId,
+                commonName: scenario.commonName,
+                scientificName: scenario.scientificName,
+                insightData: InsightData(aiReasoning: "matrix", hazardType: "none"),
+                confidenceScore: 0.91,
+                isBiological: true,
+                isLiveCapture: false,
+                isInvasive: false,
+                ecologyType: "wild"
+            )
+
+            _ = await actor.saveNonVisualRecord(
+                mappedData: mappedData,
+                observationContextsJSON: observationContextsJSON,
+                audioFilePaths: scenario.audioFilePaths.isEmpty ? nil : scenario.audioFilePaths,
+                mediaTimeline: scenario.mediaTimeline
+            )
+
+            let scanId = scenario.scanId
+            let descriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            let record = try #require(context.fetch(descriptor).first)
+            let capturedMediaJSON = try #require(record.capturedMediaJSON)
+            let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
+
+            assertSerializedItems(items, match: scenario.expected)
+            cleanupSerializedItems(items)
+        }
+    }
+
+    @Test func testSaveLiveScanRecordSupportsAllowedVisualCombinationMatrix() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+
+        let stagedDescription = ObservationContext(freeText: "image companion description")
+        let descriptionJSON = try #require(
+            String(data: JSONEncoder().encode(stagedDescription), encoding: .utf8)
+        )
+        let stagedAudio = try makeTempAudioFilename(prefix: "image_audio")
+
+        struct Scenario {
+            let scanId: String
+            let commonName: String
+            let scientificName: String
+            let localImagePaths: [String]
+            let observationContextsJSON: [String]?
+            let audioFilePaths: [String]?
+            let mediaTimeline: [CaptureSubmissionMediaItem]
+            let expected: [ExpectedSerializedMedia]
+        }
+
+        let scenarios: [Scenario] = [
+            .init(
+                scanId: "visual_image_only",
+                commonName: "Image Only",
+                scientificName: "Image only",
+                localImagePaths: ["image_only.webp"],
+                observationContextsJSON: nil,
+                audioFilePaths: nil,
+                mediaTimeline: [.image(index: 0)],
+                expected: [.image("image_only.webp")]
+            ),
+            .init(
+                scanId: "visual_image_image",
+                commonName: "Image Pair",
+                scientificName: "Image pair",
+                localImagePaths: ["image_one.webp", "image_two.webp"],
+                observationContextsJSON: nil,
+                audioFilePaths: nil,
+                mediaTimeline: [.image(index: 0), .image(index: 1)],
+                expected: [.image("image_one.webp"), .image("image_two.webp")]
+            ),
+            .init(
+                scanId: "visual_description_image",
+                commonName: "Description Image",
+                scientificName: "Description image",
+                localImagePaths: ["description_image.webp"],
+                observationContextsJSON: [descriptionJSON],
+                audioFilePaths: nil,
+                mediaTimeline: [.description(stagedDescription), .image(index: 0)],
+                expected: [.description(stagedDescription.freeText), .image("description_image.webp")]
+            ),
+            .init(
+                scanId: "visual_audio_image",
+                commonName: "Audio Image",
+                scientificName: "Audio image",
+                localImagePaths: ["audio_image.webp"],
+                observationContextsJSON: nil,
+                audioFilePaths: [stagedAudio],
+                mediaTimeline: [.audio(stagedAudio), .image(index: 0)],
+                expected: [.audio, .image("audio_image.webp")]
+            )
+        ]
+
+        for scenario in scenarios {
+            let mappedData = SpeciesData(
+                scanId: scenario.scanId,
+                commonName: scenario.commonName,
+                scientificName: scenario.scientificName,
+                insightData: InsightData(aiReasoning: "matrix", hazardType: "none"),
+                confidenceScore: 0.93,
+                isBiological: true,
+                isLiveCapture: true,
+                isInvasive: false,
+                ecologyType: "wild"
+            )
+
+            _ = await actor.saveLiveScanRecord(
+                mappedData: mappedData,
+                localImagePaths: scenario.localImagePaths,
+                observationContextsJSON: scenario.observationContextsJSON,
+                audioFilePaths: scenario.audioFilePaths,
+                mediaTimeline: scenario.mediaTimeline
+            )
+
+            let scanId = scenario.scanId
+            let descriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            let record = try #require(context.fetch(descriptor).first)
+            let capturedMediaJSON = try #require(record.capturedMediaJSON)
+            let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
+
+            assertSerializedItems(items, match: scenario.expected)
+            cleanupSerializedItems(items)
+        }
+    }
+
     @Test func testBulkDeleteNonBiologicalScansCommitsBeforeReturningPaths() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
@@ -114,7 +530,7 @@ struct BackgroundDatabaseActorTests {
         #expect(deletedPaths == ["nonbio_001.webp"], "Only local file paths should be returned for post-commit deletion")
     }
 
-    @Test func testBulkDeleteNonBiologicalScansRollsBackOnSaveFailure() async throws {
+    @Test func testBulkDeleteNonBiologicalScansReusesExistingPendingCloudDeletionTask() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
         let scanId = "nonbio_conflict_001"
@@ -134,19 +550,16 @@ struct BackgroundDatabaseActorTests {
         try context.save()
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
+        let deletedPaths = try await actor.bulkDeleteNonBiologicalScans(payloads: [
+            .init(id: scanId, imagePaths: ["should_not_delete.webp"])
+        ])
 
-        do {
-            _ = try await actor.bulkDeleteNonBiologicalScans(payloads: [
-                .init(id: scanId, imagePaths: ["should_not_delete.webp"])
-            ])
-            Issue.record("Expected unique-constraint save failure to throw")
-        } catch {
-            let recordDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-            let taskDescriptor = FetchDescriptor<PendingCloudDeletionTask>(predicate: #Predicate { $0.scanId == scanId })
+        let recordDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        let taskDescriptor = FetchDescriptor<PendingCloudDeletionTask>(predicate: #Predicate { $0.scanId == scanId })
 
-            #expect(try context.fetch(recordDescriptor).count == 1, "Rollback must preserve the original record when save fails")
-            #expect(try context.fetch(taskDescriptor).count == 1, "Rollback must not duplicate or remove the existing cloud deletion task")
-        }
+        #expect(try context.fetch(recordDescriptor).isEmpty, "Delete should still succeed when a cloud deletion task already exists")
+        #expect(try context.fetch(taskDescriptor).count == 1, "Re-queueing must remain idempotent and preserve a single cloud deletion task")
+        #expect(deletedPaths == ["should_not_delete.webp"], "Committed local file paths should still be returned for cleanup")
     }
 
     // MARK: - updateScanWithOverride: V29 identification review persistence

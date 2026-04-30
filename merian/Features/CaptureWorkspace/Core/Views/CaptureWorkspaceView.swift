@@ -36,7 +36,7 @@ struct CaptureWorkspaceView: View {
     @State private var isToggleDragging: Bool = false
 
     // MARK: - Staged Description Sheet
-    @State private var isStagedDescriptionSheetPresented: Bool = false
+    @State private var stagedDescriptionEditIndex: Int?
 
     /// Dedicated scroll-position state for the pager. Decoupled from captureMode so that
     /// scrollPosition(id:) never writes captureMode directly — eliminating the "onChange(of:
@@ -162,7 +162,7 @@ struct CaptureWorkspaceView: View {
                 .ignoresSafeArea()
 
                 // MARK: Fixed Overlay — Mode Toggle (top)
-                if viewModel.stagedCapture.images.count < stagedImageCapacity {
+                if viewModel.hasAvailableStagedCaptureSlot {
                     VStack {
                         MediaModeToggle(
                             activeMode: $captureMode, 
@@ -175,13 +175,13 @@ struct CaptureWorkspaceView: View {
                         Spacer()
                     }
                     .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.hasAvailableStagedCaptureSlot)
                 }
 
                 // MARK: Fixed Overlay — Capture Controls (bottom, independent of toolbar)
                 // Pinned to a fixed absolute bottom offset so toolbar height changes
                 // (MainTabBar vs ActiveScanToolbar) never shift the shutter row.
-                if viewModel.stagedCapture.images.count < stagedImageCapacity {
+                if viewModel.hasAvailableStagedCaptureSlot {
                     CaptureControlBar(
                         viewModel: viewModel,
                         captureMode: captureMode,
@@ -214,7 +214,7 @@ struct CaptureWorkspaceView: View {
                                 viewModel.cancelRefinementStaging()
                             },
                             onSubmit: { viewModel.submitStagedCapture(modelContext: modelContext) },
-                            onDescriptionTap: { isStagedDescriptionSheetPresented = true }
+                            onDescriptionTap: { index in stagedDescriptionEditIndex = index }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -239,25 +239,37 @@ struct CaptureWorkspaceView: View {
             }
         }
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
-        .sheet(isPresented: $isStagedDescriptionSheetPresented) {
+        .sheet(
+            isPresented: Binding(
+                get: { stagedDescriptionEditIndex != nil },
+                set: { if !$0 { stagedDescriptionEditIndex = nil } }
+            )
+        ) {
+            let selectedIndex = stagedDescriptionEditIndex ?? 0
             StagedDescriptionSheet(
-                initialText: viewModel.stagedCapture.observationContexts.first?.context.freeText ?? "",
+                initialText: viewModel.stagedCapture.observationContexts.indices.contains(selectedIndex)
+                    ? viewModel.stagedCapture.observationContexts[selectedIndex].context.freeText
+                    : "",
                 onSave: { newText in
+                    guard viewModel.stagedCapture.observationContexts.indices.contains(selectedIndex) else { return }
                     let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
                     if trimmed.isEmpty {
-                        viewModel.stagedCapture.observationContexts.removeAll()
+                        viewModel.stagedCapture.observationContexts.remove(at: selectedIndex)
                     } else {
-                        var updatedContext = viewModel.stagedCapture.observationContexts.first?.context ?? ObservationContext()
+                        var updatedContext = viewModel.stagedCapture.observationContexts[selectedIndex].context
                         updatedContext.freeText = trimmed
-                        if viewModel.stagedCapture.observationContexts.isEmpty {
-                            viewModel.stagedCapture.observationContexts.append(StagedObservationContext(context: updatedContext))
-                        } else {
-                            viewModel.stagedCapture.observationContexts[0] = StagedObservationContext(context: updatedContext, addedAt: viewModel.stagedCapture.observationContexts[0].addedAt)
-                        }
+                        let addedAt = viewModel.stagedCapture.observationContexts[selectedIndex].addedAt
+                        viewModel.stagedCapture.observationContexts[selectedIndex] = StagedObservationContext(
+                            context: updatedContext,
+                            addedAt: addedAt
+                        )
+                        stagedDescriptionEditIndex = nil
                     }
                 },
                 onRemove: {
-                    viewModel.stagedCapture.observationContexts.removeAll()
+                    guard viewModel.stagedCapture.observationContexts.indices.contains(selectedIndex) else { return }
+                    viewModel.stagedCapture.observationContexts.remove(at: selectedIndex)
+                    stagedDescriptionEditIndex = nil
                 }
             )
         }

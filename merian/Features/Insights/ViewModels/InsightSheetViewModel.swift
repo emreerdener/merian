@@ -113,10 +113,13 @@ final class InsightSheetViewModel {
     // MARK: - Carousel Computed Properties
 
     /// Stable scan ID for keying `ImagesCarousel`. Prefers the queued scan's own ID,
-    /// then the persisted local record, then the engine's active speciesData scanId.
+    /// then the persisted local record, then the engine's in-flight scan ID, then the
+    /// completed speciesData scan ID.
     var persistentScanId: String? {
         if let ctx = queuedContext { return ctx.id }
-        return activeLocalRecord?.id ?? inferenceEngine?.speciesData?.scanId
+        return activeLocalRecord?.id
+            ?? inferenceEngine?.activeScanId
+            ?? inferenceEngine?.speciesData?.scanId
     }
 
     var refUrls: [String] {

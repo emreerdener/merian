@@ -15,6 +15,8 @@ final class AppLifecycleManager {
 
     /// Handles application transition to active foreground.
     func handleActivePhase() {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+
         // Skip setup until onboarding is complete.
         let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         guard hasCompletedOnboarding else { return }

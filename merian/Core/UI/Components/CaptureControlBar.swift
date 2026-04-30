@@ -23,10 +23,9 @@ struct CaptureControlBar: View {
     @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
 
     private var isRefining: Bool { viewModel.baseRefinementRecord != nil }
-    private var imageCount: Int { viewModel.stagedCapture.images.count }
     // Mirror the ActiveScanToolbar capacity logic — includes isRefining so reanalysis
     // flows get the same two-slot limit as multi-capture without enabling multi-capture.
-    private var capacityLimit: Int { (isMultiCaptureEnabled || isRefining) ? stagedImageCapacity : 1 }
+    private var capacityLimit: Int { (isMultiCaptureEnabled || isRefining) ? stagedCaptureCapacity : 1 }
 
     var body: some View {
         VStack {
@@ -35,7 +34,7 @@ struct CaptureControlBar: View {
             // MARK: Capacity Evaluation
             // capacityLimit and imageCount come from struct-level computed properties
             // so they stay consistent between body and the photosPicker modifier below.
-            let totalStagedItems = imageCount + viewModel.stagedCapture.observationContexts.count + viewModel.stagedCapture.audios.count
+            let totalStagedItems = viewModel.stagedCapture.totalItemCount
             let isAtCapacity = totalStagedItems >= capacityLimit
 
             HStack(alignment: .bottom) {
@@ -43,7 +42,7 @@ struct CaptureControlBar: View {
                     PhotoLibraryButton(
                         selectedPhotoItems: $viewModel.selectedPhotoItems,
                         latestThumbnail: photoLibraryManager.latestThumbnail,
-                        maxSelectionCount: isMultiCaptureEnabled ? max(1, capacityLimit - totalStagedItems) : 1
+                        maxSelectionCount: isMultiCaptureEnabled ? max(1, viewModel.stagedCapture.availableSlots(limit: capacityLimit)) : 1
                     )
                     .opacity(captureMode == .visual ? (isAtCapacity ? 0.5 : 1) : 0)
                     .allowsHitTesting(captureMode == .visual && !isAtCapacity)

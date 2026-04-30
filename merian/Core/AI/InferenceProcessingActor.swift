@@ -51,7 +51,8 @@ actor InferenceProcessingActor {
         displayDatas: [Data] = [],
         skipImageRequirement: Bool = false,
         observationContextsJSON: [String]? = nil,
-        audioFilePaths: [String]? = nil // Added for V38 schema
+        audioFilePaths: [String]? = nil,
+        mediaTimeline: [CaptureSubmissionMediaItem]? = nil
     ) async throws -> ParseAndSaveResult {
         let parsedWrapper: EdgeResponseWrapper
         do {
@@ -90,14 +91,16 @@ actor InferenceProcessingActor {
                     mappedData: mappedData,
                     localImagePaths: savedPaths,
                     observationContextsJSON: observationContextsJSON,
-                    audioFilePaths: audioFilePaths
+                    audioFilePaths: audioFilePaths,
+                    mediaTimeline: mediaTimeline
                 )
             } else {
-                // Describe path: no image data — save record with nil localImagePath.
-                newDiscovery = await dbActor.saveDescribeRecord(
+                // Non-visual path: no image data — save record with no local image path.
+                newDiscovery = await dbActor.saveNonVisualRecord(
                     mappedData: mappedData,
                     observationContextsJSON: observationContextsJSON,
-                    audioFilePaths: audioFilePaths
+                    audioFilePaths: audioFilePaths,
+                    mediaTimeline: mediaTimeline
                 )
             }
         }
