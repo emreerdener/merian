@@ -439,7 +439,7 @@ actor HistoricalDatabaseActor {
                     if let rawR2Image { newItems.append(.image(.remoteURL(rawR2Image))) }
                     if let additionalUrls { newItems.append(contentsOf: additionalUrls.map { .image(.remoteURL($0)) }) }
                     if !newItems.isEmpty {
-                        existing.capturedMediaJSON = try? String(data: JSONEncoder().encode(newItems), encoding: .utf8)
+                        existing.replaceCapturedMedia(with: newItems)
                         chunkDidUpdate = true
                     }
                 }
@@ -622,7 +622,7 @@ actor HistoricalDatabaseActor {
             if let urls = additionalUrls { newItems.append(contentsOf: urls.map { .image(.remoteURL($0)) }) }
             // Note: Cloud dictionary might have audio file paths or observation contexts depending on the API mapping,
             // but the original code did not pass them here, so we only handle images.
-            record.capturedMediaJSON = try? String(data: JSONEncoder().encode(newItems), encoding: .utf8)
+            record.replaceCapturedMedia(with: newItems)
 
             modelContext.insert(record)
 

@@ -153,6 +153,8 @@ struct OfflineQueueManagerTests {
         let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
 
         #expect(items.count == 2)
+        #expect(fetched.capturedMediaEntries?.count == items.count)
+        #expect(fetched.serializedCapturedMediaItems == items)
 
         if case .audio(let reference) = items[0] {
             #expect(reference == audioFilename, "Queued capture must preserve the audio-first staging order")

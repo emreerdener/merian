@@ -18,7 +18,7 @@ All `Sendable` value types shared across the offline sync pipeline live in a sin
 |---|---|
 | `PendingScanPayload` | Minimal snapshot of a queued scan returned by `fetchPendingScans(limit:)`. Safe to pass across actor boundaries. |
 | `ScanUploadItem` | One image file ready for a presigned R2 PUT — `scanId`, `imageIndex`, `fileName`, `fileURL`. |
-| `ExtractedScanData` | Full `OfflineQueuedScan` snapshot captured on the main actor for handoff to background inference. Carries `observationContextJSON: String?` — the raw context JSON threaded through the entire offline pipeline to both the edge function (`observation_context`) and `LocalScanRecord` persistence. |
+| `ExtractedScanData` | Full `OfflineQueuedScan` snapshot captured on the main actor for handoff to background inference. Carries the canonical ordered `capturedMediaItems: [SerializedMediaItem]` timeline, from which image paths, audio paths, prompt text, and serialized observation contexts are derived on demand. |
 | `OfflineScanProcessingResult` | Result of `processAndCleanupOfflineScan` — species name, discovery flag, `speciesData` for engine hydration, and `wasCleaned` flag controlling main-actor queue flush. |
 
 ---
@@ -41,11 +41,11 @@ All `Sendable` value types shared across the offline sync pipeline live in a sin
 - `reconcileOrphanedInferencingScans(activeInferenceScanIds:)` — cross-references live `"inference_*"` URLSession tasks before resetting `.inferencing → .staged`. Only scans with no live OS task are reset, preventing duplicate inference dispatch against tasks still owned by the system after a relaunch.
 
 *Offline scan processing:*
-- `processAndCleanupOfflineScan(...)` — the top-level orchestration boundary. Accepts `observationContextJSON: String? = nil` (the raw JSON of the `ObservationContext` staged by the user). Decodes an edge inference result, orchestrates two inner helpers, then saves the `LocalScanRecord` to the background context. **The `OfflineQueuedScan` is intentionally NOT deleted here** — that is always delegated to the main actor's `flushOfflineQueuedScan` so the main `ModelContext` always has a real pending deletion when it saves (the only reliable `@Query` re-evaluation trigger in a presented sheet — SwiftData platform limitation: background-context saves do not reliably propagate to `@Query` in open sheets):
+- `processAndCleanupOfflineScan(...)` — the top-level orchestration boundary. Accepts the queued scan's canonical mixed-media timeline, decodes an edge inference result, orchestrates two inner helpers, then saves the `LocalScanRecord` to the background context. **The `OfflineQueuedScan` is intentionally NOT deleted here** — that is always delegated to the main actor's `flushOfflineQueuedScan` so the main `ModelContext` always has a real pending deletion when it saves (the only reliable `@Query` re-evaluation trigger in a presented sheet — SwiftData platform limitation: background-context saves do not reliably propagate to `@Query` in open sheets):
   1. `resolveSpeciesIdAndDiscoveryStatus()`: Decouples local species ID resolution and checks the global `LocalScanRecord` table to determine if the scan qualifies as a brand-new discovery for gamification hooks.
-  2. `insertLocalScanRecordIfMissing(observationContextJSON:)`: Builds and stages the final `LocalScanRecord` (including `candidatesData`, `inferenceTier`, `imageQualityScore`, `alternativeCommonNames`, and `observationContextJSON`) into the context. `alternativeCommonNames` is sourced from `SpeciesData.alternativeCommonNames` — populated from GBIF vernacular names on the first scan of a species (via `_shared/external.ts`) and served from `species_dictionary.alternative_common_names` on Cache Hit. On save failure, `modelContext.rollback()` clears the pending insert and `resolvedSpeciesName`, `finalScanId`, and `speciesData` are all cleared so the caller avoids emitting ghost notifications or hydrating an engine that lacks a committed database UUID.
-- `saveLiveScanRecord(mappedData:localImagePaths:observationContextJSON:)` — persists a real-time scan result after live inference. Accepts `observationContextJSON: String? = nil` and writes it to `LocalScanRecord.observationContextJSON`. Persists `imageQualityScore` (Gemini's photographic quality score, 0–100) from `SpeciesData`. Unlike `blurScore` (ephemeral, live-only, never written to disk), `imageQualityScore` is stored permanently for future community reference-photo curation.
-- `saveDescribeRecord(mappedData:observationContextsJSON:audioFilePaths:)` — persists text-only or audio-only results after `/identify-multimodal` inference when there are no local image files. Accepts structured observation context and optional audio file paths, and writes them into the resulting `LocalScanRecord`.
+  2. `insertLocalScanRecordIfMissing(...)`: Builds and stages the final `LocalScanRecord` (including `candidatesData`, `inferenceTier`, `imageQualityScore`, `alternativeCommonNames`, `capturedMediaJSON`, and `capturedMediaEntries`) into the context. `alternativeCommonNames` is sourced from `SpeciesData.alternativeCommonNames` — populated from GBIF vernacular names on the first scan of a species (via `_shared/external.ts`) and served from `species_dictionary.alternative_common_names` on Cache Hit. On save failure, `modelContext.rollback()` clears the pending insert and `resolvedSpeciesName`, `finalScanId`, and `speciesData` are all cleared so the caller avoids emitting ghost notifications or hydrating an engine that lacks a committed database UUID.
+- `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:)` — persists a real-time scan result after live inference. Accepts the current media timeline plus legacy-derived arrays, then writes the canonical mixed-media payload into both `capturedMediaJSON` and `capturedMediaEntries`. Persists `imageQualityScore` (Gemini's photographic quality score, 0–100) from `SpeciesData`. Unlike `blurScore` (ephemeral, live-only, never written to disk), `imageQualityScore` is stored permanently for future community reference-photo curation.
+- `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:)` — persists description-only, audio-only, or mixed non-visual results after `/identify-multimodal` inference when there are no local image files. Uses the same canonical media timeline as the visual path.
 
 *Enrichment and metadata:*
 - `updateScanWithOverride(scanId:override:confirmed:newConfirmedSpeciesId:userReviewState:)` — atomic persistence for user review states. Saves the explicit user Identification Override locally, captures truth signals, and synchronously persists the verified Edge taxonomy target directly into `confirmedSpeciesId` bridging the `userReviewState` explicitly.
@@ -60,7 +60,13 @@ All `Sendable` value types shared across the offline sync pipeline live in a sin
 // Ad-hoc: for live scan saving, enrichment, Wikipedia, collections
 let container = modelContext.container
 let dbActor = BackgroundDatabaseActor(modelContainer: container)
-await dbActor.saveLiveScanRecord(mappedData: data, localImagePaths: paths, observationContextJSON: obsJSON)
+await dbActor.saveLiveScanRecord(
+    mappedData: data,
+    localImagePaths: paths,
+    observationContextsJSON: obsJSONs,
+    audioFilePaths: audioPaths,
+    mediaTimeline: mediaTimeline
+)
 
 // Long-lived: for the offline inference pipeline
 // OfflineQueueManager maintains a single shared instance via resolvedInferenceDbActor(container:).
@@ -218,8 +224,8 @@ Most `@ModelActor` actors are created ad-hoc (per operation) rather than stored 
 
 | Task | Actor to use |
 |---|---|
-| Save a live scan result | `BackgroundDatabaseActor` (ad-hoc) via `saveLiveScanRecord(mappedData:localImagePaths:observationContextJSON:)` |
-| Save a text-only or audio-only result (no image) | `BackgroundDatabaseActor` (ad-hoc) via `saveDescribeRecord(mappedData:observationContextsJSON:audioFilePaths:)` |
+| Save a live scan result | `BackgroundDatabaseActor` (ad-hoc) via `saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:)` |
+| Save a text-only, audio-only, or mixed non-visual result | `BackgroundDatabaseActor` (ad-hoc) via `saveNonVisualRecord(mappedData:observationContextsJSON:audioFilePaths:mediaTimeline:)` |
 | Transition scan state for upload pipeline | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
 | Claim a scan for inference (`tryClaimForInference`) | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |
 | Reset scan to `.staged` on transient failure | `BackgroundDatabaseActor` via `resolvedInferenceDbActor` (long-lived) |

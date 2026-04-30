@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 enum MediaStorageLocation: String, Codable, Sendable, Equatable {
     case documents
@@ -116,10 +117,207 @@ extension StoredMediaReference {
 
 /// A serializable representation of captured media elements, preserving chronological order
 /// across image, audio, and textual modalities for persistent storage.
-enum SerializedMediaItem: Codable, Equatable {
+enum SerializedMediaItem: Codable, Equatable, Sendable {
     case image(StoredMediaReference)
     case audio(StoredMediaReference)
     case description(ObservationContext)
+}
+
+struct CapturedMediaSnapshot: Equatable, Sendable {
+    let items: [SerializedMediaItem]
+
+    init(items: [SerializedMediaItem] = []) {
+        self.items = items
+    }
+
+    init(jsonString: String?) {
+        guard let jsonString,
+              let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
+            self.items = []
+            return
+        }
+        self.items = items
+    }
+
+    var jsonString: String? {
+        MediaJSONParser.jsonString(from: items)
+    }
+
+    var imageReferences: [StoredMediaReference] {
+        items.compactMap { item in
+            guard case .image(let reference) = item else { return nil }
+            return reference
+        }
+    }
+
+    var audioReferences: [StoredMediaReference] {
+        items.compactMap { item in
+            guard case .audio(let reference) = item else { return nil }
+            return reference
+        }
+    }
+
+    var observationContexts: [ObservationContext] {
+        items.compactMap { item in
+            guard case .description(let context) = item else { return nil }
+            return context
+        }
+    }
+
+    var imagePaths: [String] {
+        imageReferences.map(\.serializedPath)
+    }
+
+    var audioPaths: [String] {
+        audioReferences.map(\.serializedPath)
+    }
+
+    var observationContextsJSON: [String]? {
+        let encoded = observationContexts.compactMap { context in
+            (try? JSONEncoder().encode(context)).flatMap { String(data: $0, encoding: .utf8) }
+        }
+        return encoded.isEmpty ? nil : encoded
+    }
+
+    var primaryImagePath: String? {
+        imagePaths.first
+    }
+
+    var hasCloudImage: Bool {
+        imageReferences.contains { $0.isRemote }
+    }
+
+    var descriptionText: String? {
+        observationContexts.first(where: { !$0.isEmpty })?.serialized()
+    }
+
+    var summary: CapturedMediaSummary {
+        var hasImage = false
+        var hasAudio = false
+        var hasDescription = false
+
+        for item in items {
+            switch item {
+            case .image:
+                hasImage = true
+            case .audio:
+                hasAudio = true
+            case .description:
+                hasDescription = true
+            }
+        }
+
+        return CapturedMediaSummary(
+            hasImage: hasImage,
+            hasAudio: hasAudio,
+            hasDescription: hasDescription
+        )
+    }
+
+    var activeScanMedia: ActiveScanMedia {
+        let resolvedItems: [MediaItem] = items.compactMap { serialized in
+            switch serialized {
+            case .image(let reference):
+                return .image(reference.serializedPath)
+            case .audio(let reference):
+                return .audio(reference.resolvedLocalPath ?? reference.serializedPath)
+            case .description(let context):
+                return .description(context)
+            }
+        }
+
+        return ActiveScanMedia(items: resolvedItems)
+    }
+}
+
+enum PersistedCapturedMediaKind: String, Codable, Sendable {
+    case image
+    case audio
+    case description
+}
+
+@Model
+public final class CapturedMediaEntry {
+    @Attribute(.unique) public var id: String
+    public var orderIndex: Int
+    public var kindRaw: String
+    public var storageRaw: String
+    public var mediaPath: String
+    public var observationContextJSON: String
+
+    init(
+        id: String = UUID().uuidString,
+        orderIndex: Int,
+        item: SerializedMediaItem
+    ) {
+        self.id = id
+        self.orderIndex = orderIndex
+
+        switch item {
+        case .image(let reference):
+            self.kindRaw = PersistedCapturedMediaKind.image.rawValue
+            self.storageRaw = reference.storage.rawValue
+            self.mediaPath = reference.serializedPath
+            self.observationContextJSON = ""
+        case .audio(let reference):
+            self.kindRaw = PersistedCapturedMediaKind.audio.rawValue
+            self.storageRaw = reference.storage.rawValue
+            self.mediaPath = reference.serializedPath
+            self.observationContextJSON = ""
+        case .description(let context):
+            self.kindRaw = PersistedCapturedMediaKind.description.rawValue
+            self.storageRaw = ""
+            self.mediaPath = ""
+            let contextData = try? JSONEncoder().encode(context)
+            self.observationContextJSON = contextData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        }
+    }
+
+    var kind: PersistedCapturedMediaKind? {
+        PersistedCapturedMediaKind(rawValue: kindRaw)
+    }
+
+    var serializedItem: SerializedMediaItem? {
+        switch kind {
+        case .image:
+            guard let storage = MediaStorageLocation(rawValue: storageRaw), !mediaPath.isEmpty else {
+                return nil
+            }
+            return .image(StoredMediaReference(storage: storage, path: mediaPath))
+        case .audio:
+            guard let storage = MediaStorageLocation(rawValue: storageRaw), !mediaPath.isEmpty else {
+                return nil
+            }
+            return .audio(StoredMediaReference(storage: storage, path: mediaPath))
+        case .description:
+            guard let contextData = observationContextJSON.data(using: .utf8),
+                  let context = try? JSONDecoder().decode(ObservationContext.self, from: contextData) else {
+                return nil
+            }
+            return .description(context)
+        case .none:
+            return nil
+        }
+    }
+}
+
+extension CapturedMediaEntry {
+    static func makeEntries(from items: [SerializedMediaItem]) -> [CapturedMediaEntry] {
+        items.enumerated().map { index, item in
+            CapturedMediaEntry(orderIndex: index, item: item)
+        }
+    }
+
+    static func serializedItems(from entries: [CapturedMediaEntry]) -> [SerializedMediaItem] {
+        entries
+            .sorted { lhs, rhs in
+                if lhs.orderIndex == rhs.orderIndex {
+                    return lhs.id < rhs.id
+                }
+                return lhs.orderIndex < rhs.orderIndex
+            }
+            .compactMap(\.serializedItem)
+    }
 }
 
 enum CapturedMediaKind: String, Sendable, Equatable {
@@ -160,6 +358,14 @@ struct CapturedMediaSummary: Sendable, Equatable {
 
 /// Canonical decoder for persisted media JSON shared by live and historic scan flows.
 enum MediaJSONParser {
+    static func jsonString(from items: [SerializedMediaItem]) -> String? {
+        guard !items.isEmpty,
+              let data = try? JSONEncoder().encode(items) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
     static func serializedItems(jsonString: String) -> [SerializedMediaItem]? {
         guard let jsonData = jsonString.data(using: .utf8) else {
             return nil
@@ -168,93 +374,121 @@ enum MediaJSONParser {
     }
 
     static func imagePaths(jsonString: String) -> [String] {
-        serializedItems(jsonString: jsonString)?.compactMap { item in
-            guard case .image(let reference) = item else { return nil }
-            return reference.serializedPath
-        } ?? []
+        CapturedMediaSnapshot(jsonString: jsonString).imagePaths
     }
 
     static func primaryImagePath(jsonString: String) -> String? {
-        imagePaths(jsonString: jsonString).first
+        CapturedMediaSnapshot(jsonString: jsonString).primaryImagePath
     }
 
     static func imageReferences(jsonString: String) -> [StoredMediaReference] {
-        serializedItems(jsonString: jsonString)?.compactMap { item in
-            guard case .image(let reference) = item else { return nil }
-            return reference
-        } ?? []
+        CapturedMediaSnapshot(jsonString: jsonString).imageReferences
     }
 
     static func audioPaths(jsonString: String) -> [String] {
-        serializedItems(jsonString: jsonString)?.compactMap { item in
-            guard case .audio(let reference) = item else { return nil }
-            return reference.serializedPath
-        } ?? []
+        CapturedMediaSnapshot(jsonString: jsonString).audioPaths
     }
 
     static func audioReferences(jsonString: String) -> [StoredMediaReference] {
-        serializedItems(jsonString: jsonString)?.compactMap { item in
-            guard case .audio(let reference) = item else { return nil }
-            return reference
-        } ?? []
+        CapturedMediaSnapshot(jsonString: jsonString).audioReferences
     }
 
     static func observationContexts(jsonString: String) -> [ObservationContext] {
-        serializedItems(jsonString: jsonString)?.compactMap { item in
-            guard case .description(let context) = item else { return nil }
-            return context
-        } ?? []
+        CapturedMediaSnapshot(jsonString: jsonString).observationContexts
     }
 
     static func hasCloudImage(jsonString: String) -> Bool {
-        imageReferences(jsonString: jsonString).contains { $0.isRemote }
+        CapturedMediaSnapshot(jsonString: jsonString).hasCloudImage
     }
 
     static func modalitySummary(jsonString: String) -> CapturedMediaSummary {
-        guard let items = serializedItems(jsonString: jsonString) else {
-            return .empty
-        }
-
-        var hasImage = false
-        var hasAudio = false
-        var hasDescription = false
-
-        for item in items {
-            switch item {
-            case .image:
-                hasImage = true
-            case .audio:
-                hasAudio = true
-            case .description:
-                hasDescription = true
-            }
-        }
-
-        return CapturedMediaSummary(
-            hasImage: hasImage,
-            hasAudio: hasAudio,
-            hasDescription: hasDescription
-        )
+        CapturedMediaSnapshot(jsonString: jsonString).summary
     }
 
     static func parse(jsonString: String) -> ActiveScanMedia? {
-        guard let serializedItems = serializedItems(jsonString: jsonString) else {
+        let snapshot = CapturedMediaSnapshot(jsonString: jsonString)
+        guard !snapshot.items.isEmpty else {
             return nil
         }
+        return snapshot.activeScanMedia
+    }
+}
 
-        var items: [MediaItem] = []
-        for serialized in serializedItems {
-            switch serialized {
-            case .image(let reference):
-                items.append(.image(reference.serializedPath))
-            case .audio(let reference):
-                let resolvedPath = reference.resolvedLocalPath ?? reference.serializedPath
-                items.append(.audio(resolvedPath))
-            case .description(let ctx):
-                items.append(.description(ctx))
-            }
+private func firstImagePath(in items: [SerializedMediaItem]) -> String? {
+    for item in items {
+        if case .image(let reference) = item {
+            return reference.serializedPath
         }
+    }
+    return nil
+}
 
-        return ActiveScanMedia(items: items)
+private func replaceCapturedMediaEntries(
+    on record: LocalScanRecord,
+    items: [SerializedMediaItem]
+) {
+    let newEntries = CapturedMediaEntry.makeEntries(from: items)
+
+    if let context = record.modelContext {
+        for existingEntry in record.capturedMediaEntries ?? [] {
+            context.delete(existingEntry)
+        }
+    }
+
+    record.capturedMediaEntries = newEntries
+}
+
+private func replaceCapturedMediaEntries(
+    on queuedScan: OfflineQueuedScan,
+    items: [SerializedMediaItem]
+) {
+    let newEntries = CapturedMediaEntry.makeEntries(from: items)
+
+    if let context = queuedScan.modelContext {
+        for existingEntry in queuedScan.capturedMediaEntries ?? [] {
+            context.delete(existingEntry)
+        }
+    }
+
+    queuedScan.capturedMediaEntries = newEntries
+}
+
+extension LocalScanRecord {
+    var capturedMediaSnapshot: CapturedMediaSnapshot {
+        CapturedMediaSnapshot(items: serializedCapturedMediaItems)
+    }
+
+    var serializedCapturedMediaItems: [SerializedMediaItem] {
+        if let capturedMediaEntries, !capturedMediaEntries.isEmpty {
+            return CapturedMediaEntry.serializedItems(from: capturedMediaEntries)
+        }
+        guard let capturedMediaJSON else { return [] }
+        return MediaJSONParser.serializedItems(jsonString: capturedMediaJSON) ?? []
+    }
+
+    func replaceCapturedMedia(with items: [SerializedMediaItem]) {
+        capturedMediaJSON = MediaJSONParser.jsonString(from: items)
+        coverImagePath = firstImagePath(in: items)
+        replaceCapturedMediaEntries(on: self, items: items)
+    }
+}
+
+extension OfflineQueuedScan {
+    var capturedMediaSnapshot: CapturedMediaSnapshot {
+        CapturedMediaSnapshot(items: serializedCapturedMediaItems)
+    }
+
+    var serializedCapturedMediaItems: [SerializedMediaItem] {
+        if let capturedMediaEntries, !capturedMediaEntries.isEmpty {
+            return CapturedMediaEntry.serializedItems(from: capturedMediaEntries)
+        }
+        guard let capturedMediaJSON else { return [] }
+        return MediaJSONParser.serializedItems(jsonString: capturedMediaJSON) ?? []
+    }
+
+    func replaceCapturedMedia(with items: [SerializedMediaItem]) {
+        capturedMediaJSON = MediaJSONParser.jsonString(from: items)
+        coverImagePath = firstImagePath(in: items)
+        replaceCapturedMediaEntries(on: self, items: items)
     }
 }

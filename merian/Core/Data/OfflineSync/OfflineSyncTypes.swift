@@ -42,29 +42,46 @@ struct ScanUploadItem {
 struct ExtractedScanData: Sendable {
     /// Environmental and capture telemetry for the scan, used as Gemini inference context.
     let telemetry: CaptureTelemetry
-    /// Filenames of local images relative to the Documents directory.
-    let localImagePaths: [String]
     /// Confirmed R2 object keys stored at upload time.
     /// Non-empty on the offline queue path; empty on the live inference path.
     let r2Keys: [String]
     /// The model container, used to create a new `BackgroundDatabaseActor` on the inference thread.
     let container: ModelContainer
     let originalTimestamp: Date
+    /// Canonical persisted media timeline from the queued scan, preserving mixed-media order.
+    let capturedMediaItems: [SerializedMediaItem]
+
+    var capturedMediaSnapshot: CapturedMediaSnapshot {
+        CapturedMediaSnapshot(items: capturedMediaItems)
+    }
+
+    /// Filenames of local images relative to the Documents directory.
+    var localImagePaths: [String] {
+        capturedMediaSnapshot.imagePaths
+    }
+
     /// Pre-serialized `ObservationContext` text for combined image+description scans.
-    ///
-    /// Derived at extraction time by decoding `OfflineQueuedScan.observationContextJSON` and
-    /// calling `ObservationContext.serialized()`. Storing the already-rendered string here keeps
-    /// the inference dispatch path free of JSON decoding. `nil` for image-only scans.
-    let description: String?
+    var description: String? {
+        capturedMediaSnapshot.descriptionText
+    }
+
     /// Raw `ObservationContext` JSON string forwarded to the edge function as `observation_context`
     /// and persisted in the `scans` table. Separate from `description` (plain-text for Gemini).
     /// `nil` for image-only scans.
-    let observationContextsJSON: [String]?
+    var observationContextsJSON: [String]? {
+        capturedMediaSnapshot.observationContextsJSON
+    }
+
     /// Filename of the recorded WAV relative to the Documents directory, for audio-only scans.
     /// `nil` for image and describe scans.
-    let audioFilePaths: [String]?
-    /// Canonical persisted media timeline from the queued scan, preserving mixed-media order.
-    let capturedMediaJSON: String?
+    var audioFilePaths: [String]? {
+        let paths = capturedMediaSnapshot.audioPaths
+        return paths.isEmpty ? nil : paths
+    }
+
+    var capturedMediaJSON: String? {
+        capturedMediaSnapshot.jsonString
+    }
 }
 
 // MARK: - Offline Scan Processing Result

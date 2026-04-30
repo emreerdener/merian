@@ -37,6 +37,305 @@ final class MigrationScratchpad<V: Sendable>: @unchecked Sendable {
     }
 }
 
+enum MerianSchemaV40: VersionedSchema {
+    static var versionIdentifier = Schema.Version(40, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [MerianSchemaV40.LocalScanRecord.self, MerianSchemaV40.OfflineQueuedScan.self,
+         MerianSchemaV40.ScanCollection.self, PendingCloudDeletionTask.self,
+         UserSpeciesPreference.self]
+    }
+}
+
+extension MerianSchemaV40 {
+    @Model
+    final class LocalScanRecord {
+        @Attribute(.unique) var id: String
+        var speciesId: String
+        var scientificName: String
+        var commonName: String
+        var timestamp: Date
+        var captureDate: Date?
+        var capturedMediaJSON: String?
+
+        var semanticTags: [String]
+        var hazardType: String = "none"
+        var isBiological: Bool
+        var isLiveCapture: Bool
+        var isInvasive: Bool
+        var ecologyType: String
+        var wikipediaUrl: String?
+        @Attribute(originalName: "wikipediaExtract") var wikipediaOverview: String?
+        var referenceImageUrl: String?
+        var confidenceScore: Double?
+        @Attribute var isLocallyArchived: Bool = false
+
+        var taxonomyKingdom: String?
+        var taxonomyPhylum: String?
+        var taxonomyClass: String?
+        var taxonomyOrder: String?
+        var taxonomyFamily: String?
+        var taxonomyGenus: String?
+
+        var locationName: String?
+        var weatherCondition: String?
+        var weatherTemperatureF: Double?
+
+        var collections: [MerianSchemaV40.ScanCollection]? = []
+
+        var similarSpecies: [String]?
+        var lookalikesData: Data?
+        @Attribute var candidatesData: Data?
+        @Attribute var userIdentificationOverride: String?
+        @Attribute var userConfirmedIdentification: Bool = false
+        @Attribute var isFlagged: Bool = false
+
+        @Attribute var iucnRedListStatus: String?
+        @Attribute var gpsLatitude: Double?
+        @Attribute var gpsLongitude: Double?
+        @Attribute var gpsElevation: Double?
+        @Attribute var zoomFactor: Double?
+
+        @Attribute var aiReasoning: String?
+        @Attribute var habitatDescription: String?
+        @Attribute var gbifTaxonKey: Int?
+
+        @Attribute var estimatedSizeCm: Double?
+        @Attribute var lifeStage: String?
+        @Attribute var reproductiveCondition: String?
+        @Attribute var individualCount: Int?
+        @Attribute var ecologicalInteractions: [String]?
+        @Attribute var inferenceTier: String?
+        @Attribute var customTags: [String] = []
+        var hasBeenViewed: Bool = true
+        @Attribute var imageQualityScore: Int?
+        @Attribute var alternativeCommonNames: [String]?
+        @Attribute var confirmedSpeciesId: String?
+        @Attribute var userReviewStateRaw: String? = "unreviewed"
+        @Attribute var observationContextsJSON: [String]?
+        @Attribute var coverImagePath: String?
+
+        var userReviewState: UserReviewState {
+            get { UserReviewState(rawValue: userReviewStateRaw ?? UserReviewState.unreviewed.rawValue) ?? .unreviewed }
+            set { userReviewStateRaw = newValue.rawValue }
+        }
+
+        init(
+            id: String = UUID().uuidString,
+            speciesId: String,
+            scientificName: String,
+            commonName: String,
+            timestamp: Date = Date(),
+            captureDate: Date? = nil,
+            capturedMediaJSON: String? = nil,
+            coverImagePath: String? = nil,
+            semanticTags: [String] = [],
+            hazardType: String = "none",
+            isBiological: Bool = true,
+            isLiveCapture: Bool = true,
+            isInvasive: Bool = false,
+            ecologyType: String = "unknown",
+            wikipediaUrl: String? = nil,
+            wikipediaOverview: String? = nil,
+            referenceImageUrl: String? = nil,
+            confidenceScore: Double? = nil,
+            isLocallyArchived: Bool = false,
+            taxonomyKingdom: String? = nil,
+            taxonomyPhylum: String? = nil,
+            taxonomyClass: String? = nil,
+            taxonomyOrder: String? = nil,
+            taxonomyFamily: String? = nil,
+            taxonomyGenus: String? = nil,
+            locationName: String? = nil,
+            weatherCondition: String? = nil,
+            weatherTemperatureF: Double? = nil,
+            collections: [MerianSchemaV40.ScanCollection]? = [],
+            similarSpecies: [String]? = nil,
+            lookalikesData: Data? = nil,
+            candidatesData: Data? = nil,
+            iucnRedListStatus: String? = nil,
+            gpsLatitude: Double? = nil,
+            gpsLongitude: Double? = nil,
+            gpsElevation: Double? = nil,
+            zoomFactor: Double? = nil,
+            aiReasoning: String? = nil,
+            habitatDescription: String? = nil,
+            gbifTaxonKey: Int? = nil,
+            estimatedSizeCm: Double? = nil,
+            lifeStage: String? = nil,
+            reproductiveCondition: String? = nil,
+            individualCount: Int? = nil,
+            ecologicalInteractions: [String]? = nil,
+            inferenceTier: String? = nil,
+            customTags: [String] = [],
+            hasBeenViewed: Bool = false,
+            userIdentificationOverride: String? = nil,
+            userConfirmedIdentification: Bool = false,
+            isFlagged: Bool = false,
+            imageQualityScore: Int? = nil,
+            alternativeCommonNames: [String]? = nil,
+            confirmedSpeciesId: String? = nil,
+            userReviewStateRaw: String? = nil,
+            observationContextsJSON: [String]? = nil
+        ) {
+            self.id = id
+            self.speciesId = speciesId
+            self.scientificName = scientificName
+            self.commonName = commonName
+            self.timestamp = timestamp
+            self.captureDate = captureDate
+            self.capturedMediaJSON = capturedMediaJSON
+            self.coverImagePath = coverImagePath
+            self.semanticTags = semanticTags
+            self.hazardType = hazardType
+            self.isBiological = isBiological
+            self.isLiveCapture = isLiveCapture
+            self.isInvasive = isInvasive
+            self.ecologyType = ecologyType
+            self.wikipediaUrl = wikipediaUrl
+            self.wikipediaOverview = wikipediaOverview
+            self.referenceImageUrl = referenceImageUrl
+            self.confidenceScore = confidenceScore
+            self.isLocallyArchived = isLocallyArchived
+            self.taxonomyKingdom = taxonomyKingdom
+            self.taxonomyPhylum = taxonomyPhylum
+            self.taxonomyClass = taxonomyClass
+            self.taxonomyOrder = taxonomyOrder
+            self.taxonomyFamily = taxonomyFamily
+            self.taxonomyGenus = taxonomyGenus
+            self.locationName = locationName
+            self.weatherCondition = weatherCondition
+            self.weatherTemperatureF = weatherTemperatureF
+            self.collections = collections
+            self.similarSpecies = similarSpecies
+            self.lookalikesData = lookalikesData
+            self.candidatesData = candidatesData
+            self.iucnRedListStatus = iucnRedListStatus
+            self.gpsLatitude = gpsLatitude
+            self.gpsLongitude = gpsLongitude
+            self.gpsElevation = gpsElevation
+            self.zoomFactor = zoomFactor
+            self.aiReasoning = aiReasoning
+            self.habitatDescription = habitatDescription
+            self.gbifTaxonKey = gbifTaxonKey
+            self.estimatedSizeCm = estimatedSizeCm
+            self.lifeStage = lifeStage
+            self.reproductiveCondition = reproductiveCondition
+            self.individualCount = individualCount
+            self.ecologicalInteractions = ecologicalInteractions
+            self.inferenceTier = inferenceTier
+            self.customTags = customTags
+            self.hasBeenViewed = hasBeenViewed
+            self.userIdentificationOverride = userIdentificationOverride
+            self.userConfirmedIdentification = userConfirmedIdentification
+            self.isFlagged = isFlagged
+            self.imageQualityScore = imageQualityScore
+            self.alternativeCommonNames = alternativeCommonNames
+            self.confirmedSpeciesId = confirmedSpeciesId
+            self.userReviewStateRaw = userReviewStateRaw
+            self.observationContextsJSON = observationContextsJSON
+        }
+    }
+
+    @Model
+    final class OfflineQueuedScan {
+        @Attribute(.unique) var id: String
+        var timestamp: Date
+        var capturedMediaJSON: String?
+
+        var gpsLatitude: Double?
+        var gpsLongitude: Double?
+        var gpsElevation: Double?
+        var weatherCondition: String?
+        var weatherTemperatureF: Double?
+        var blurScore: Double?
+        var subjectDistanceInMeters: Float?
+        var locationName: String?
+        var isFlashFired: Bool?
+        var cameraPitchDegrees: Double?
+        var compassHeading: Double?
+        var relativeHumidity: Double?
+        var uvIndex: Int?
+        @Attribute var zoomFactor: Double?
+        var scanStateRaw: Int = ScanQueueState.pending.rawValue
+        var stagedR2Keys: [String]?
+        @Attribute var coverImagePath: String?
+
+        var queueState: ScanQueueState {
+            get { ScanQueueState(rawValue: scanStateRaw) ?? .pending }
+            set { scanStateRaw = newValue.rawValue }
+        }
+
+        init(
+            id: String = UUID().uuidString,
+            timestamp: Date = Date(),
+            capturedMediaJSON: String? = nil,
+            coverImagePath: String? = nil,
+            gpsLatitude: Double? = nil,
+            gpsLongitude: Double? = nil,
+            gpsElevation: Double? = nil,
+            weatherCondition: String? = nil,
+            weatherTemperatureF: Double? = nil,
+            blurScore: Double? = nil,
+            subjectDistanceInMeters: Float? = nil,
+            locationName: String? = nil,
+            isFlashFired: Bool? = nil,
+            cameraPitchDegrees: Double? = nil,
+            compassHeading: Double? = nil,
+            relativeHumidity: Double? = nil,
+            uvIndex: Int? = nil,
+            zoomFactor: Double? = nil,
+            scanState: ScanQueueState = .pending,
+            stagedR2Keys: [String]? = nil
+        ) {
+            self.id = id
+            self.timestamp = timestamp
+            self.capturedMediaJSON = capturedMediaJSON
+            self.coverImagePath = coverImagePath
+            self.gpsLatitude = gpsLatitude
+            self.gpsLongitude = gpsLongitude
+            self.gpsElevation = gpsElevation
+            self.weatherCondition = weatherCondition
+            self.weatherTemperatureF = weatherTemperatureF
+            self.blurScore = blurScore
+            self.subjectDistanceInMeters = subjectDistanceInMeters
+            self.locationName = locationName
+            self.isFlashFired = isFlashFired
+            self.cameraPitchDegrees = cameraPitchDegrees
+            self.compassHeading = compassHeading
+            self.relativeHumidity = relativeHumidity
+            self.uvIndex = uvIndex
+            self.zoomFactor = zoomFactor
+            self.scanStateRaw = scanState.rawValue
+            self.stagedR2Keys = stagedR2Keys
+        }
+    }
+
+    @Model
+    final class ScanCollection {
+        @Attribute(.unique) var id: String = UUID().uuidString
+        var name: String
+        var createdAt: Date = Date()
+        var isDeleted: Bool = false
+
+        @Relationship(inverse: \MerianSchemaV40.LocalScanRecord.collections) var scans: [MerianSchemaV40.LocalScanRecord]? = []
+
+        init(
+            id: String = UUID().uuidString,
+            name: String,
+            createdAt: Date = Date(),
+            isDeleted: Bool = false,
+            scans: [MerianSchemaV40.LocalScanRecord]? = []
+        ) {
+            self.id = id
+            self.name = name
+            self.createdAt = createdAt
+            self.isDeleted = isDeleted
+            self.scans = scans
+        }
+    }
+}
+
 final class MigrationScratchpadSet: @unchecked Sendable {
     private let lock = NSLock()
     private var storage: [String: Set<String>] = [:]
@@ -70,11 +369,11 @@ final class MigrationScratchpadSet: @unchecked Sendable {
 
 // MARK: - Migration Plan
 
-enum MerianSchemaV40: VersionedSchema {
-    static var versionIdentifier = Schema.Version(40, 0, 0)
+enum MerianSchemaV41: VersionedSchema {
+    static var versionIdentifier = Schema.Version(41, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        [LocalScanRecord.self, OfflineQueuedScan.self,
+        [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
          ScanCollection.self, PendingCloudDeletionTask.self,
          UserSpeciesPreference.self]
     }
@@ -130,7 +429,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV37.self,
             MerianSchemaV38.self,
             MerianSchemaV39.self,
-            MerianSchemaV40.self
+            MerianSchemaV40.self,
+            MerianSchemaV41.self
         ]
     }
 
@@ -174,7 +474,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV36toV37,
             migrateV37toV38,
             migrateV38toV39,
-            migrateV39toV40
+            migrateV39toV40,
+            migrateV40toV41
         ]
     }
 
@@ -388,9 +689,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         },
         didMigrate: { context in
             let namespace = migrationNamespace(for: context)
-            var localScans: [LocalScanRecord] = []
+            var localScans: [MerianSchemaV40.LocalScanRecord] = []
             do {
-                localScans = try context.fetch(FetchDescriptor<LocalScanRecord>())
+                localScans = try context.fetch(FetchDescriptor<MerianSchemaV40.LocalScanRecord>())
             } catch {
                 MerianLog.general.error("Migration V39->V40 didMigrate failed to fetch LocalScanRecord: \(error.localizedDescription)")
             }
@@ -403,9 +704,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
             
-            var offlineScans: [OfflineQueuedScan] = []
+            var offlineScans: [MerianSchemaV40.OfflineQueuedScan] = []
             do {
-                offlineScans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+                offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV40.OfflineQueuedScan>())
             } catch {
                 MerianLog.general.error("Migration V39->V40 didMigrate failed to fetch OfflineQueuedScan: \(error.localizedDescription)")
             }
@@ -423,6 +724,39 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             _v39OfflineMediaBackfill.removeAll(namespace: namespace)
             _v39LocalCoverBackfill.removeAll(namespace: namespace)
             _v39OfflineCoverBackfill.removeAll(namespace: namespace)
+        }
+    )
+
+    static let migrateV40toV41 = MigrationStage.custom(
+        fromVersion: MerianSchemaV40.self,
+        toVersion: MerianSchemaV41.self,
+        willMigrate: { _ in },
+        didMigrate: { context in
+            do {
+                let localScans = try context.fetch(FetchDescriptor<LocalScanRecord>())
+                for scan in localScans {
+                    guard scan.capturedMediaEntries?.isEmpty ?? true,
+                          let jsonString = scan.capturedMediaJSON,
+                          let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
+                        continue
+                    }
+                    scan.replaceCapturedMedia(with: items)
+                }
+
+                let offlineScans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+                for scan in offlineScans {
+                    guard scan.capturedMediaEntries?.isEmpty ?? true,
+                          let jsonString = scan.capturedMediaJSON,
+                          let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
+                        continue
+                    }
+                    scan.replaceCapturedMedia(with: items)
+                }
+
+                try context.save()
+            } catch {
+                MerianLog.general.error("Migration V40->V41 didMigrate failed: \(error.localizedDescription)")
+            }
         }
     )
 

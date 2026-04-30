@@ -6,16 +6,16 @@ Merian is a biological classification and gamification platform built for iOS an
 
 ```mermaid
 flowchart TD
-    A([📱 iPhone Lens / CameraManager]) -->|Snaps high-res JPEG & Sensors| B[OfflineQueueManager]
+    A([📱 Capture Workspace]) -->|Builds ordered media timeline + telemetry| B[OfflineQueueManager]
     B -->|Persists Locally if Off-grid| C[(SwiftData Native DB)]
     C -->|NWPathMonitor Awoken by Cell Tower| D{Network Status 200 OK}
 
     D -->|/generate-upload-urls| E[Cloudflare R2 Staging Bucket]
-    E -->|URLSession Background PUT (Concurrent Arrays)| F((Cloudflare R2))
-    F -->|Supabase Storage Webhook| G([⚡️ Supabase Edge /identify])
+    E -->|URLSession Background PUT (staged images only)| F((Cloudflare R2))
+    F -->|Background replay or live request| G([⚡️ Supabase Edge /identify-multimodal])
 
-    G -->|Fetches ArrayBuffers concurrently & Validates| H[🤖 Gemini 2.5 Flash / Pro]
-    H -->|Combines Visual Context & Extracts Strict JSON| G
+    G -->|Resolves mixed media & validates| H[🤖 Gemini 2.5 Flash / Pro]
+    H -->|Returns structured result JSON| G
 
     G -->|Upserts biological dictionaries| I[(PostgreSQL `species_dictionary`)]
     G -->|Persists UUID scan constraints| J[(PostgreSQL `scans`)]
@@ -37,13 +37,13 @@ flowchart TD
 
 ### 2. Ephemeral Offline-First Sync (`OfflineQueueManager`, `SwiftData`)
 
-- Employs a zero-data-loss queue structure tracking users without cellular data using `SwiftData` inside `MerianApp`. It intercepts `URLError` network timeouts from the live `InferenceEngine`, capturing the unified `CaptureTelemetry` hardware context and writing images to the documents directory.
+- Employs a zero-data-loss queue structure tracking users without cellular data using `SwiftData` inside `MerianApp`. The durable unit is a canonical ordered mixed-media timeline, persisted once at submission time and reused across live inference, offline replay, thumbnails, and result hydration.
 - `NWPathMonitor` observes 3G/off-grid boundaries, debouncing signals for 1.0 second when the hiker steps into cell service. It wraps a `UIBackgroundTaskIdentifier` as a 30-second timeout handler before handing payloads to an iOS `.background` `URLSession` daemon. `AppDelegate` hook completions are intercepted to satisfy iOS background Watchdog limits.
 
 ### 3. Serverless Edge Verification (`Supabase Edge Functions`, `Gemini 2.5 Flash / Pro`)
 
 - A Cloud-native workflow decoupling Apple users from raw API logic.
-- The `identify` Deno Edge node accepts pre-signed multi-capture iOS uploads. It handles concurrent R2 array streams via `Promise.allSettled`, enforcing a strict 5 MB cumulative buffer size constraint to shield the Deno V8 engine from OOM heap crashes before evaluating the combined visual context across all images.
+- The `identify-multimodal` Deno Edge node accepts pre-signed multi-capture iOS uploads plus inline audio and description payloads. It handles image R2 streams and inline non-visual media under a shared validation path, enforcing a strict cumulative payload cap before evaluating the combined user context.
 - `Task.checkCancellation()` boundaries are injected inside `InferenceEngine` before transferring `URLSession` data payloads to Cloudflare R2. If the iOS Watchdog or the user cancels a processing scan, execution aborts immediately to prevent cellular bandwidth leakage.
 
 **Edge Function Map:**
@@ -53,7 +53,8 @@ The backend logic is strictly decoupled into modular, single-responsibility func
 > All new and existing edge routers explicitly adhere to the **Domain-Driven Modular Architecture** (decoupling `index.ts` origin controllers from their localized `db.ts` PostgreSQL constraints). For formal logic construction rules defining Deno separation of concerns, see [`06-edge-modularization.md`](06-edge-modularization.md).
 
 - **Identity & Analysis**
-  - `/identify`: The primary vision orchestrator ensuring sub-4s TTFM.
+  - `/identify-multimodal`: The primary shipped inference orchestrator for live and replayed mixed-media captures.
+  - `/identify`: Shared still-image entry point that reuses the same identify modules.
   - `/enrich-scan`: On-demand background enrichment for historical "Free" tier scans upgrading to Pro insight depths.
   - `/merge-ghost-profile`: Handles the Anonymous "Ghost" Scan to Authenticated User onboarding transition.
 - **Export & Storage Orchestration**

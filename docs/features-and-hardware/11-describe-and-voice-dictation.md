@@ -1,6 +1,6 @@
 # Describe Mode & Voice Dictation
 
-The Describe capture mode is the third page of `CaptureWorkspaceView`'s horizontal pager. It allows users to identify a biological subject through free-text description or live voice dictation instead of a photograph, routing through the `/identify-describe` Supabase Edge function via `InferenceEngine.analyzeDescribe`.
+The Describe capture mode is the third page of `CaptureWorkspaceView`'s horizontal pager. It allows users to identify a biological subject through free-text description or live voice dictation instead of a photograph. The shipped path now routes through the same shared non-visual `/identify-multimodal` flow used by audio-only captures, via `CaptureWorkspaceViewModel.submitNonVisualCapture(...)` and `InferenceEngine.analyzeNonVisual(...)`.
 
 ---
 
@@ -20,11 +20,13 @@ The context is intentionally not reset after submission, so users can swipe back
 
 | Condition | Path |
 |---|---|
-| `isMultiCaptureEnabled == true` | Stages context in `stagedCapture.observationContext`, auto-submits if count reaches limit |
-| Images staged + multi-capture off | Attaches context to staged capture, calls `submitStagedCapture` |
-| No images staged | Solo describe path via `submitDescribeSolo` |
+| `isMultiCaptureEnabled == true` | Stages the description in `stagedCapture.observationContexts`, preserving chronological order against any staged image/audio items |
+| Images already staged + single-capture mode | Stages the description into the shared mixed-media toolbar state, then `submitStagedCapture` owns the final send |
+| Nothing else staged | Solo non-visual path via `submitDescribeSolo`, which delegates to `submitNonVisualCapture` |
 
-`submitDescribeSolo` mirrors the resilience pattern of the image capture path: if online, opens the insight sheet and fires `InferenceEngine.analyzeDescribe`; if offline, enqueues via `OfflineQueueManager.enqueueDescribe` with cached GPS telemetry and surfaces a toast.
+`submitDescribeSolo` mirrors the resilience pattern of the other capture paths: if online, opens the insight sheet and fires `InferenceEngine.analyzeNonVisual`; if offline, enqueues through the durable non-visual queue path with cached GPS telemetry and surfaces a toast.
+
+**Submission rule**: descriptions participate in the same 2-item total capacity as images and audio clips. Supported combinations are any one- or two-item mixture across those three modalities.
 
 ---
 

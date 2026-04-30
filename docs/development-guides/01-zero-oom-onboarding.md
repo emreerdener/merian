@@ -36,7 +36,13 @@ try modelContext.save()
 // CORRECT: Dispatch to Actor
 Task {
     let dbActor = BackgroundDatabaseActor(modelContainer: context.container)
-    await dbActor.saveLiveScanRecord(mappedData: data, localImagePaths: paths)
+    await dbActor.saveLiveScanRecord(
+        mappedData: data,
+        localImagePaths: paths,
+        observationContextsJSON: nil,
+        audioFilePaths: nil,
+        mediaTimeline: timeline
+    )
 }
 ```
 

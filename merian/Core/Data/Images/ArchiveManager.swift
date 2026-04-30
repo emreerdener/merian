@@ -288,7 +288,7 @@ actor ArchiveDatabaseActor {
                             items[i] = .image(.documents(filename))
                         }
                     }
-                    record.capturedMediaJSON = try? String(data: JSONEncoder().encode(items), encoding: .utf8)
+                    record.replaceCapturedMedia(with: items)
                 }
                 
                 record.isLocallyArchived = true

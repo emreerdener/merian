@@ -408,6 +408,79 @@ struct MigrationPlanTests {
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
     }
 
+    @Test func testFullMigrationV40ToV41BackfillsCapturedMediaEntries() throws {
+        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v40migration_test.sqlite")
+
+        let schema40 = Schema(versionedSchema: MerianSchemaV40.self)
+        let config40 = ModelConfiguration(schema: schema40, url: url)
+        let container40 = try ModelContainer(for: schema40, configurations: [config40])
+        let context40 = ModelContext(container40)
+
+        let localItems: [SerializedMediaItem] = [
+            .image(.documents("migration_local.webp")),
+            .description(ObservationContext(freeText: "Migrated local description")),
+            .audio(.documents("migration_local.wav"))
+        ]
+        let offlineItems: [SerializedMediaItem] = [
+            .image(.documents("migration_offline.webp")),
+            .audio(.documents("migration_offline.wav"))
+        ]
+
+        let localRecord = MerianSchemaV40.LocalScanRecord(
+            id: "migration_v40_local",
+            speciesId: "species-v40-local",
+            scientificName: "Migratus localis",
+            commonName: "Migrated Local",
+            capturedMediaJSON: try String(data: JSONEncoder().encode(localItems), encoding: .utf8),
+            coverImagePath: "migration_local.webp",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+        let offlineRecord = MerianSchemaV40.OfflineQueuedScan(
+            id: "migration_v40_offline",
+            capturedMediaJSON: try String(data: JSONEncoder().encode(offlineItems), encoding: .utf8),
+            coverImagePath: "migration_offline.webp"
+        )
+
+        context40.insert(localRecord)
+        context40.insert(offlineRecord)
+        try context40.save()
+        _ = container40
+
+        let schema41 = Schema(versionedSchema: CurrentSchema.self)
+        let config41 = ModelConfiguration(schema: schema41, url: url)
+        let container41 = try ModelContainer(
+            for: schema41,
+            migrationPlan: MerianMigrationPlan.self,
+            configurations: [config41]
+        )
+        let context41 = ModelContext(container41)
+
+        var localDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == "migration_v40_local" }
+        )
+        localDescriptor.fetchLimit = 1
+        let migratedLocal = try #require(context41.fetch(localDescriptor).first)
+        #expect(migratedLocal.capturedMediaEntries?.count == localItems.count)
+        #expect(migratedLocal.serializedCapturedMediaItems == localItems)
+        #expect(migratedLocal.coverImagePath == "migration_local.webp")
+
+        var offlineDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == "migration_v40_offline" }
+        )
+        offlineDescriptor.fetchLimit = 1
+        let migratedOffline = try #require(context41.fetch(offlineDescriptor).first)
+        #expect(migratedOffline.capturedMediaEntries?.count == offlineItems.count)
+        #expect(migratedOffline.serializedCapturedMediaItems == offlineItems)
+        #expect(migratedOffline.coverImagePath == "migration_offline.webp")
+
+        try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+    }
+
     @Test func testSerializedMediaItemDecodesLegacyStringPayloadsIntoTypedReferences() throws {
         let legacyJSON = """
         [
@@ -475,6 +548,45 @@ struct MigrationPlanTests {
             #expect(documentsAudio.storage == .documents)
         } else {
             Issue.record("Typed documents audio did not round-trip as audio")
+        }
+    }
+
+    @Test func testCapturedMediaSnapshotBuildsSharedDerivedViews() throws {
+        let context = ObservationContext(freeText: "Perched near the creek")
+        let snapshot = CapturedMediaSnapshot(items: [
+            .audio(.documents("recording.wav")),
+            .description(context),
+            .image(.remoteURL("https://example.com/r2.webp"))
+        ])
+
+        #expect(snapshot.imagePaths == ["https://example.com/r2.webp"])
+        #expect(snapshot.audioPaths == ["recording.wav"])
+        #expect(snapshot.primaryImagePath == "https://example.com/r2.webp")
+        #expect(snapshot.hasCloudImage)
+        #expect(snapshot.summary == CapturedMediaSummary(hasImage: true, hasAudio: true, hasDescription: true))
+        #expect(snapshot.descriptionText == context.serialized())
+        #expect(snapshot.observationContexts == [context])
+        #expect(snapshot.observationContextsJSON?.count == 1)
+
+        let activeMedia = snapshot.activeScanMedia
+        #expect(activeMedia.totalItems == 3)
+
+        if case .audio(let audioPath) = activeMedia.items[0] {
+            #expect(audioPath.hasSuffix("recording.wav"))
+        } else {
+            Issue.record("First active media item should be audio")
+        }
+
+        if case .description(let decodedContext) = activeMedia.items[1] {
+            #expect(decodedContext == context)
+        } else {
+            Issue.record("Second active media item should be description")
+        }
+
+        if case .image(let imagePath) = activeMedia.items[2] {
+            #expect(imagePath == "https://example.com/r2.webp")
+        } else {
+            Issue.record("Third active media item should be image")
         }
     }
 }

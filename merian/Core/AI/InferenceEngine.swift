@@ -1835,11 +1835,7 @@ private struct GBIFMedia: Decodable {
 
         self.activeScanId = record.id
         self.activeMedia = ActiveScanMedia()
-        
-        if let jsonString = record.capturedMediaJSON,
-           let decoded = MediaJSONParser.parse(jsonString: jsonString) {
-            self.activeMedia = decoded
-        }
+        self.activeMedia = record.capturedMediaSnapshot.activeScanMedia
 
         let candidatesRawData: Data? = record.candidatesData
         let overrideName: String? = record.userIdentificationOverride

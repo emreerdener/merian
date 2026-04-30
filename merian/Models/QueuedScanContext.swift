@@ -14,7 +14,7 @@ import Foundation
 /// the `OfflineQueuedScan` model's properties, so no re-evaluation happens on deletion.
 struct QueuedScanContext: Identifiable, Equatable {
     let id: String
-    let capturedMediaJSON: String?
+    let capturedMediaItems: [SerializedMediaItem]
     let timestamp: Date
     let locationName: String?
     let weatherTemperatureF: Double?
@@ -23,11 +23,19 @@ struct QueuedScanContext: Identifiable, Equatable {
     let gpsLatitude: Double?
     let gpsLongitude: Double?
 
+    var capturedMediaSnapshot: CapturedMediaSnapshot {
+        CapturedMediaSnapshot(items: capturedMediaItems)
+    }
+
+    var capturedMediaJSON: String? {
+        capturedMediaSnapshot.jsonString
+    }
+
     /// Initialises the context by resolving all attribute faults on the live `OfflineQueuedScan`.
     /// Must be called while the object is still alive (before any `context.delete()`).
     init(from scan: OfflineQueuedScan) {
         self.id = scan.id
-        self.capturedMediaJSON = scan.capturedMediaJSON
+        self.capturedMediaItems = scan.serializedCapturedMediaItems
         self.timestamp = scan.timestamp
         self.locationName = scan.locationName
         self.weatherTemperatureF = scan.weatherTemperatureF

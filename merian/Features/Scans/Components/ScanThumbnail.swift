@@ -110,7 +110,7 @@ extension LocalScanRecord {
     }
 
     private var capturedMediaSummary: CapturedMediaSummary {
-        capturedMediaJSON.map(MediaJSONParser.modalitySummary(jsonString:)) ?? .empty
+        capturedMediaSnapshot.summary
     }
 
     private var preferredVisualThumbnailPath: String? {
@@ -118,22 +118,17 @@ extension LocalScanRecord {
             return coverImagePath
         }
 
-        if let json = capturedMediaJSON {
-            return MediaJSONParser.primaryImagePath(jsonString: json)?.trimmedNonEmpty
-        }
-
-        return nil
+        return capturedMediaSnapshot.primaryImagePath?.trimmedNonEmpty
     }
 
     private var preferredAudioSpectrogramPath: String? {
         guard capturedMediaSummary.hasAudio,
               !capturedMediaSummary.hasImage,
-              !capturedMediaSummary.hasDescription,
-              let json = capturedMediaJSON else {
+              !capturedMediaSummary.hasDescription else {
             return nil
         }
 
-        return MediaJSONParser.audioPaths(jsonString: json).first?.trimmedNonEmpty
+        return capturedMediaSnapshot.audioPaths.first?.trimmedNonEmpty
     }
 
     private var capturedMediaKindForThumbnail: CapturedMediaKind {

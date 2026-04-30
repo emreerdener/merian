@@ -16,17 +16,7 @@ final class InsightSheetViewModel {
     init(queuedContext: QueuedScanContext? = nil, inferenceEngine: InferenceEngine? = nil) {
         self.queuedContext = queuedContext
         self.inferenceEngine = inferenceEngine
-        if let jsonStr = queuedContext?.capturedMediaJSON {
-            let capturedId = queuedContext?.id
-            mediaDecodeTask?.cancel()
-            mediaDecodeTask = Task { [weak self, capturedId] in
-                let decoded = await Task.detached(priority: .userInitiated) {
-                    MediaJSONParser.parse(jsonString: jsonStr)
-                }.value
-                guard let self, self.queuedContext?.id == capturedId else { return }
-                self.cachedActiveMedia = decoded
-            }
-        }
+        self.cachedActiveMedia = queuedContext?.capturedMediaSnapshot.activeScanMedia
     }
 
     var toastActionTitle: String?
@@ -34,8 +24,6 @@ final class InsightSheetViewModel {
 
     /// Wipes all memory-retained states that persist across SwiftUI sheet presentations since `activeSheet == .insight` evaluates to identical IDs natively.
     func reset() {
-        mediaDecodeTask?.cancel()
-        mediaDecodeTask = nil
         sharedExploreStateRevision = 0
         sharedExploreStateRequestToken = 0
         state = UIState()
@@ -51,7 +39,6 @@ final class InsightSheetViewModel {
     /// Safely decoded exactly once within lifecycle mappings (`init` and `fetchLocalRecord`) to prevent
     /// main-thread thrashing on layout changes where the framework routinely interrogates boundary sizes.
     private var cachedActiveMedia: ActiveScanMedia?
-    private var mediaDecodeTask: Task<Void, Never>?
     @ObservationIgnored private var sharedExploreStateRevision: UInt64 = 0
     @ObservationIgnored private var sharedExploreStateRequestToken: UInt64 = 0
 
@@ -157,11 +144,7 @@ final class InsightSheetViewModel {
     func resolvedMedia(for explicitQueuedScan: QueuedScanContext?) -> ActiveScanMedia {
         if let queued = explicitQueuedScan ?? queuedContext {
             if let cached = cachedActiveMedia { return cached }
-            if let jsonStr = queued.capturedMediaJSON,
-               let decoded = MediaJSONParser.parse(jsonString: jsonStr) {
-                return decoded
-            }
-            return ActiveScanMedia()
+            return queued.capturedMediaSnapshot.activeScanMedia
         }
         return activeMedia
     }
@@ -480,20 +463,7 @@ final class InsightSheetViewModel {
         if let record = (try? modelContext.fetch(descriptor))?.first {
             activeLocalRecord = record
             refreshSharedExploreStateFromLocalCache(scanId: scanId)
-            cachedActiveMedia = nil
-            if let jsonStr = record.capturedMediaJSON {
-                mediaDecodeTask?.cancel()
-                mediaDecodeTask = Task { [weak self, scanId] in
-                    let decoded = await Task.detached(priority: .userInitiated) {
-                        MediaJSONParser.parse(jsonString: jsonStr)
-                    }.value
-                    guard let self, self.activeLocalRecord?.id == scanId else { return }
-                    self.cachedActiveMedia = decoded
-                }
-            } else {
-                mediaDecodeTask?.cancel()
-                mediaDecodeTask = nil
-            }
+            cachedActiveMedia = record.capturedMediaSnapshot.activeScanMedia
             markRecordViewedIfAppropriate(modelContext: modelContext)
         }
     }

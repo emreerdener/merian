@@ -72,7 +72,7 @@ final class InsightMediaExportManager {
     // MARK: - Batch Item Export
     func batchSaveUserPhotos(records: [LocalScanRecord], completion: @escaping (Int) -> Void) {
         let payloads = records.map { scan -> SavePhotosPayload in
-            let paths = scan.capturedMediaJSON.map(MediaJSONParser.imagePaths(jsonString:)) ?? []
+            let paths = scan.capturedMediaSnapshot.imagePaths
             return SavePhotosPayload(localImagePath: paths.first, additionalImagePaths: paths.count > 1 ? Array(paths.dropFirst()) : nil, referenceImageUrl: scan.referenceImageUrl)
         }
         
@@ -85,7 +85,7 @@ final class InsightMediaExportManager {
     // MARK: - Batch Item Sharing
     func batchShareDiscovery(records: [LocalScanRecord], presentShareSheet: @escaping ([Any]) -> Void) {
         let payloads = records.map { scan -> SharePayload in
-            let path = scan.capturedMediaJSON.flatMap(MediaJSONParser.primaryImagePath(jsonString:))
+            let path = scan.capturedMediaSnapshot.primaryImagePath
             return SharePayload(commonName: scan.commonName, scientificName: scan.scientificName, localImagePath: path, referenceImageUrl: scan.referenceImageUrl)
         }
         

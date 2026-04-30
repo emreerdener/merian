@@ -16,7 +16,7 @@ private extension QueuedScanContext {
         gpsLongitude: Double?,
     ) {
         self.id = id
-        self.capturedMediaJSON = capturedMediaJSON
+        self.capturedMediaItems = CapturedMediaSnapshot(jsonString: capturedMediaJSON).items
         self.timestamp = timestamp
         self.locationName = locationName
         self.weatherTemperatureF = weatherTemperatureF

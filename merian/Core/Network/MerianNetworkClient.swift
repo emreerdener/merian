@@ -923,7 +923,7 @@ final class MerianNetworkClient {
     }
 
     private func resolveRestorableImagePaths(for scan: LocalScanRecord) -> [String] {
-        var candidatePaths = scan.capturedMediaJSON.map(MediaJSONParser.imagePaths(jsonString:)) ?? []
+        var candidatePaths = scan.capturedMediaSnapshot.imagePaths
 
         if candidatePaths.isEmpty, let coverImagePath = scan.coverImagePath {
             candidatePaths.append(coverImagePath)

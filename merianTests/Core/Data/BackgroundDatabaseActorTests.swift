@@ -176,6 +176,8 @@ struct BackgroundDatabaseActorTests {
             if case .audio(let path) = $0 { return path == audioFilename }
             return false
         }), "Live saved scans must retain their already-persisted audio filename in capturedMediaJSON")
+        #expect(record.capturedMediaEntries?.count == items.count)
+        #expect(record.serializedCapturedMediaItems == items)
         #expect(FileManager.default.fileExists(atPath: audioURL.path) == true, "Audio already stored in Documents must not be deleted during saveLiveScanRecord")
     }
 
@@ -219,6 +221,8 @@ struct BackgroundDatabaseActorTests {
         let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
 
         #expect(items.count == 2)
+        #expect(record.capturedMediaEntries?.count == items.count)
+        #expect(record.serializedCapturedMediaItems == items)
 
         if case .audio(let reference) = items[0] {
             #expect(reference.serializedPath.hasSuffix(".wav"))

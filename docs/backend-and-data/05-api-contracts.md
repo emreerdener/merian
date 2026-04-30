@@ -79,7 +79,7 @@ When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server 
 }
 ```
 
-`description` is an optional plain-text string generated client-side by `ObservationContext.serialized()` — a pre-rendered key:value summary of the user's structured observation (e.g. `"Class: Insect\nColors: brown, grey\n..."`). It is appended to the Gemini context string at the edge function to ground identification before the vision model runs. `observation_context` is the full structured JSON object matching the iOS `ObservationContext` model; it is persisted server-side as `public.scans.user_observation_context` (JSONB) and lands in the local mixed-media scan representation via `LocalScanRecord.observationContextsJSON` and `capturedMediaJSON`. Both fields are `null` for image-only scans. The edge function accepts an array guard (`!Array.isArray(observation_context)`) before writing to prevent an accidental array submission from being persisted as malformed JSONB.
+`description` is an optional plain-text string generated client-side by `ObservationContext.serialized()` — a pre-rendered prompt summary of the user's structured observation. It is appended to the Gemini context string at the edge function to ground identification before the vision model runs. `observation_context` is the full structured JSON object matching the iOS `ObservationContext` model; it is persisted server-side as `public.scans.user_observation_context` (JSONB) and lands in the local mixed-media scan representation via `LocalScanRecord.observationContextsJSON`, the compatibility `capturedMediaJSON` mirror, and the canonical `capturedMediaEntries` timeline in V41. Both fields are `null` for image-only scans. The edge function accepts an array guard (`!Array.isArray(observation_context)`) before writing to prevent an accidental array submission from being persisted as malformed JSONB.
 
 `currentMonth` and `timeOfDay` are derived from the image's own capture date (`telemetry.timestamp`) when available — not always from the current wall clock. For gallery photos with a valid EXIF date, this ensures Gemini receives the correct season and light context for the original photo (e.g., an October photo scanned in April sends `Month: 10`, not `Month: 4`). Falls back to current date/time for live captures and gallery photos with no EXIF.
 
@@ -729,7 +729,7 @@ Remote Explore APNs delivery is layered on top of this contract through the inte
 
 ## Deno `/identify-multimodal` Edge Node
 
-A unified identification pipeline that merges the capabilities of `/identify`, `/identify-describe`, and `/audio-spec` into a single multi-modal entry point. The current iOS client routes new inference traffic here. Supports array-based compositions of images, audio, and descriptive context.
+A unified identification pipeline that merges the active capabilities of `/identify` and the app's shipped non-visual flows into a single multi-modal entry point. The current iOS client routes new inference traffic here. Supports ordered compositions of images, audio, and descriptive context.
 
 ### The JSON Request Payload (From Swift `OfflineQueueManager`)
 
@@ -777,7 +777,7 @@ A unified identification pipeline that merges the capabilities of `/identify`, `
 
 ## Text-Only Describe Path
 
-The current app routes text-only observations through `/identify-multimodal` with `observation_contexts` populated and no images or audio attached. The legacy `/identify-describe` endpoint remains deployed, but it is no longer the primary client path.
+The current app routes text-only observations through `/identify-multimodal` with `observation_contexts` populated and no images or audio attached. Locally, that request is still assembled from the same canonical mixed-media timeline used by image and audio submissions; the server simply receives an empty media body plus the description payload.
 
 ### Request Payload
 

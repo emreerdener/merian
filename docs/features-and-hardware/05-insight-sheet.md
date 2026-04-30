@@ -17,7 +17,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `NonBiologicalView` | Simplified result for non-biological subjects (objects, structures); renders a name/description card followed by a `ScanInformationCard` |
 | `InsightHeader` | Scrollable header with species name, description, `ConfidenceBadge`, and conditionally the `ModelTierBadge` pill if the confidence score is a "Possible match". Automatically deduplicates its subtitle (scientific name) if it exactly matches the primary title string. Passes `userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`, and `aiScientificName` from `speciesData` down to `ConfidenceBadge` (and transitively to `ConfidenceExplanationSheet`). Accepts an optional `visionTransitionText: String?` parameter: when non-nil, the paragraph slot renders the captured Apple Vision analysis text first, then cross-fades to Gemini `aiReasoning` after 700 ms via an `.easeInOut(0.45)` opacity transition. The species title is hidden initially and springs into view (`opacity 0→1`, `y+10→0`) on `.onAppear` with a 150 ms delay; a `triggerLightImpact(intensity: 0.5)` fires at title entrance and a `triggerSelectionPulse()` fires at the paragraph cross-fade moment. **Alternative names line**: when `alternativeCommonNames` is non-nil and non-empty, a footnote-sized "Also known as: X · Y · Z" line is rendered below the headline as a tappable `Button`; tapping calls `onAlternativeNamesTap` which sets `InsightSheetViewModel.isNamePickerPresented = true` to present `NamePickerSheet`. The common name title itself is also tappable when `alternativeCommonNames` are available — it calls the same `onAlternativeNamesTap` callback, so tapping the headline directly opens the same `NamePickerSheet` as tapping the "Also known as" footnote. |
 | `NamePickerSheet` | Bottom sheet (`.medium` detent) presented when the user taps the "Also known as" line in `InsightHeader`. Renders a `NavigationStack` list of all known common names for the species (primary `commonName` + `alternativeCommonNames`, deduplicated) with a checkmark on the currently active name. Selecting a name calls `InsightSheetViewModel.setPreferredCommonName(_:for:)`, which writes to UserDefaults and fires a `toastMessage`. A "Use default name" row calls `clearPreferredCommonName(for:)` to remove the override. |
-| `ImagesCarousel` | Horizontally scrolling image strip combining live captures + historic paths + reference images. Each page is a `ZoomPageViewController` — a `UIViewController` wrapping its SwiftUI content in a `ZoomScrollView` (`UIScrollView` subclass), enabling pinch-to-zoom up to 4× and free pan while zoomed; releasing all fingers springs scale and offset back to 1×/zero. When `totalImages == 0` (e.g. debug/analyze-only state), renders a `globe.americas.fill` placeholder on a black background. Pagination dots are shown whenever `totalImages > 1` — this correctly accounts for all page sources including Wikipedia/GBIF reference images from `refUrls`, so a single captured photo alongside one reference image shows the indicator. Dots slide up from the bottom edge via a combined `.opacity + .move` transition and are animated with `.spring(response: 0.6, dampingFraction: 0.8)` keyed on `totalImages`. **`totalImages` source accounting**: `carouselPages` uses `hasLive` as a mutually exclusive branch — when live data is present it shows `activeImageData` (single frame) and the `validHistoricImagePaths` are skipped (they represent the same capture written to disk). `totalImages` mirrors this logic: the capture portion is `hasLive ? liveCount : validHistoricImagePaths.count`, then `refUrls.count` is added, preventing an overcount when both live and historic sources exist simultaneously. |
+| `ImagesCarousel` | Horizontally scrolling mixed-media strip combining live captures, persisted user media pages, and reference images. The user-media portion is sourced from `ActiveScanMedia`, which can contain images, audio clips, and descriptions in one stable ordered timeline. Each page is a `ZoomPageViewController` for image content or the matching mixed-media page type for audio/description content. When `totalImages == 0`, renders a `globe.americas.fill` placeholder on a black background. Pagination dots are shown whenever `totalImages > 1`, and page identity is stabilized across the queued/live/result handoff by keying off the persistent scan ID. |
 | `ConfidenceBadge` | Tappable liquid-glass capsule showing the AI's confidence band (Strong / Possible / Weak) with a shimmering glare animation; opens `ConfidenceExplanationSheet` on tap. When `isFlagged` is `true`, shows "Under Review" (orange, `flag.fill`). When `userIdentificationOverride` is non-nil, shows "Your ID" (indigo, `person.fill.checkmark`). When `userConfirmedIdentification` is `true`, shows "Confirmed" (green, `checkmark.seal.fill`). **Analyzing mode** (`analyzingPhrase != nil`): background glass layers collapse to transparent, icon switches to `sparkles.2`, text uses `Color.primary` on a minimal capsule border — tap is suppressed. Each phrase change triggers a left-to-right gradient mask sweep via the internal `RevealText` view and the capsule width springs to fit the new string length. Phrases are auto-suffixed with `...` if not already ending with one. |
 | `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig` |
 | `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy. When an override, confirmed, or flagged state is active, renders bespoke explanation cards at the top of the modal payload that allow the user to undo or change their review. **Five review-state cards (mutually exclusive):** `AllCandidatesReviewedView` (State 5a — `isFlagged && candidates.count >= 2`; user rejected all swipe-deck alternatives), `UnderReviewView` (State 5b — `isFlagged` with no candidates; generic flag path), `OverriddenView` (user selected an alternative species), `ConfirmedView` (user confirmed the AI match), `ConfirmedView` with reset (user confirmed via low-confidence path). Contains `ConfidenceHeader`, `ConfidenceSpectrum`, `ModelInfoSection`, `AIMistakesBanner`, and `ProTips`. The `ProTips` component evaluates `RevenueCatManager.shared.isProActive` to conditionally render a premium upgrade trigger that opens `PaywallView` for free-tier users. |
@@ -67,11 +67,14 @@ var refUrls: [String] {
     // images for human subjects. totalImages derives from refUrls, so the carousel
     // page count drops automatically with no additional call sites to update.
 }
+var activeMedia: ActiveScanMedia {
+    if queuedContext != nil { return cachedActiveMedia ?? ActiveScanMedia() }
+    return inferenceEngine?.activeMedia ?? ActiveScanMedia()
+}
 var totalImages: Int {
-    // Mirrors carouselPages exclusive branch: live data and historic paths represent
-    // the same capture image — only one is active at a time.
-    let captureCount = hasLive ? liveCount : validHistoricImagePaths.count
-    return captureCount + refUrls.count
+    // Delegates to the unified media model, which already accounts for live media,
+    // persisted user media, and reference-image loading state.
+    return activeMedia.totalItems
 }
 
 // Processing state — mirrors InferenceEngine.isProcessing.
@@ -84,10 +87,6 @@ var isProcessing: Bool {
     if queuedContext != nil { return true }
     return inferenceEngine?.isProcessing ?? false
 }
-
-// Live image data for the carousel — mirrors InferenceEngine.activeImageData.
-// Routed through the viewModel so ImagesCarousel has no direct engine dependency.
-var liveImageData: Data? { inferenceEngine?.activeImageData }
 
 // Toolbar capability flags — all short-circuit to false when queuedContext != nil
 // (the queued-scan path exposes only a trash button; no review actions apply).
@@ -127,7 +126,7 @@ Two value-type structs encapsulate all data the insight chain needs at snapshot 
 | Type | Purpose |
 |---|---|
 | `QueuedScanSnapshot` | Minimal value type for `ScansGrid` tile rendering (`id`, `imagePath`, `timestamp`). Used in `LazyVGrid` `ForEach` so no grid tile holds a zombie `@Model` reference. |
-| `QueuedScanContext` | Richer value type for the full insight sheet chain — all telemetry fields (`localImagePaths`, `locationName`, `weatherTemperatureF`, `weatherCondition`, `gpsElevation`, `gpsLatitude`, `gpsLongitude`). Initialized from a live `OfflineQueuedScan` while the object is accessible. |
+| `QueuedScanContext` | Richer value type for the full insight sheet chain — all telemetry fields plus `capturedMediaItems: [SerializedMediaItem]`. Initialized from a live `OfflineQueuedScan` while the object is accessible, then read through `capturedMediaSnapshot` so no queued-scan UI holds a live SwiftData reference. |
 
 `InsightSheetViewModel.queuedContext: QueuedScanContext?` stores the context. All computed properties (`isProcessing`, `contentMode`, toolbar flags, carousel sources) switch on `queuedContext == nil` rather than accessing any `@Model` attribute after initialization.
 
@@ -188,19 +187,19 @@ Both notification call sites (`InferenceEngine` live path, `OfflineQueueManager`
 
 ## Image Carousel
 
-The carousel merges three image sources in order:
+The carousel now renders a unified mixed-media page model rather than stitching together separate image-only arrays.
 
-1. **Live captures** (`viewModel.liveImageData`, which mirrors `inferenceEngine.activeImageData`) — display-quality `Data` for the current session's single live frame, available during active inference
-2. **Historic paths** (`viewModel.validHistoricImagePaths`) — local file paths written to disk by `InferenceProcessingActor.parseAndSave` on live scan success, or populated via `InferenceEngine.load(from:)` for library scans. For the queued-scan path, `viewModel.validHistoricImagePaths` returns `viewModel.queuedContext?.localImagePaths` (from the `QueuedScanContext` value type) instead of the engine value.
-3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated verified field observations (e.g. iNaturalist) and Wikimedia images populated natively via GBIF Occurrence array hydration. **Suppressed for human subjects**: `viewModel.refUrls` returns `[]` when `speciesData.isHumanSubject` is true, preventing third-party photos of people from appearing in the carousel regardless of what the server populates.
+1. **Live captures** (`viewModel.activeMedia.liveImageData`) — display-quality `Data` for the current session's live frame when analysis is still in flight.
+2. **Persisted user media** (`viewModel.activeMedia.items`) — the ordered user timeline rebuilt from `CapturedMediaSnapshot`. This can contain image pages, audio playback pages, and description pages in one stable sequence.
+3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated verified field observations (e.g. iNaturalist) and Wikimedia images populated natively via GBIF occurrence hydration. **Suppressed for human subjects**: `viewModel.refUrls` returns `[]` when `speciesData.isHumanSubject` is true, preventing third-party photos of people from appearing in the carousel regardless of what the server populates.
 
-**Seamless image source handoff**: On a live scan, `validHistoricImagePaths` is populated with the on-disk paths returned by `parseAndSave` *before* `speciesData` is set and *before* `activeImageData` is cleared. This means the carousel has the user's saved image ready the instant the insight sheet renders — the reference image is never the only page shown on first open. The `NativePageCarousel` is keyed on `scanId` so that when `speciesData` is set (changing the key), the initial page build already includes the on-disk image paths.
+**Seamless user-media handoff**: On a live scan, the saved on-disk media is rebuilt into `ActiveScanMedia` before `speciesData` is assigned and before the transient live image is cleared. On queued scans, `InsightSheetViewModel` seeds `cachedActiveMedia` directly from `queuedContext.capturedMediaSnapshot.activeScanMedia`. On completed records, `fetchLocalRecord` hydrates the same structure from `record.capturedMediaSnapshot.activeScanMedia`. That shared read path is what keeps the original audio clip or mixed-media order intact while the sheet transitions from queued/analyzing state to results.
 
-**On-disk image quality**: The files written to `validHistoricImagePaths` are 2048 px WebP (display-quality path). This covers the full native pixel width of all current iOS devices without upscaling (iPhone Pro Max at 3× ≈ 1290 px; iPad Pro at 2× = 2048 px), eliminating the JPEG blocking artifacts that appeared when the carousel rendered the 1024 px inference payload directly. The AI inference path remains at 1024 px — see [Image Pipeline → Dual-Path Downsample](../system-architecture/03-image-pipeline.md) for the full architecture.
+**On-disk image quality**: Persisted image pages restored into `ActiveScanMedia` are 2048 px WebP (display-quality path). This covers the full native pixel width of all current iOS devices without upscaling (iPhone Pro Max at 3× ≈ 1290 px; iPad Pro at 2× = 2048 px), eliminating the JPEG blocking artifacts that appeared when the carousel rendered the 1024 px inference payload directly. The AI inference path remains at 1024 px — see [Image Pipeline → Dual-Path Downsample](../system-architecture/03-image-pipeline.md) for the full architecture.
 
 All images are loaded through `AsyncLocalImageView`, which handles RAM cache hits, request coalescing, and local-vs-remote routing transparently.
 
-Invalid carousel images are handled via the injected `onImageFailure: (String) -> Void` closure rather than a direct engine call. `InsightContentView` passes `{ path in inferenceEngine.dropInvalidCarouselImage(path) }` — which removes the entry from `validHistoricImagePaths` or from the comma-separated `speciesData.referenceImageUrl` without throwing index-out-of-bounds errors. The closure pattern means the upcoming queued-scan path can pass a no-op instead, keeping `ImagesCarousel` free of any engine dependency.
+Invalid carousel images are handled via the injected `onImageFailure: (String) -> Void` closure rather than a direct engine call. `InsightContentView` passes `{ path in inferenceEngine.dropInvalidCarouselImage(path) }`, which removes the entry from the active user-media timeline or from the comma-separated `speciesData.referenceImageUrl` without throwing index-out-of-bounds errors. The queued-scan path passes a no-op, keeping `ImagesCarousel` free of any engine dependency.
 
 ### NativePageCarousel & Per-Page Zoom Architecture
 

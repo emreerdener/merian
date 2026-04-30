@@ -44,8 +44,7 @@ actor BackgroundDatabaseActor {
             return []
         }
         return pending.map { scan in
-            let paths = scan.capturedMediaJSON.map(MediaJSONParser.imagePaths(jsonString:)) ?? []
-            return PendingScanPayload(id: scan.id, localImagePaths: paths)
+            PendingScanPayload(id: scan.id, localImagePaths: scan.capturedMediaSnapshot.imagePaths)
         }
     }
 
@@ -432,7 +431,7 @@ actor BackgroundDatabaseActor {
         coverImagePath: String? = nil,
         isLiveCapture: Bool
     ) -> LocalScanRecord {
-        return LocalScanRecord(
+        let record = LocalScanRecord(
             id: recordId,
             speciesId: speciesId,
             scientificName: mappedData.scientificName,
@@ -478,6 +477,15 @@ actor BackgroundDatabaseActor {
             imageQualityScore: mappedData.imageQualityScore,
             alternativeCommonNames: mappedData.alternativeCommonNames
         )
+
+        if let capturedMediaJSON,
+           let items = MediaJSONParser.serializedItems(jsonString: capturedMediaJSON) {
+            record.replaceCapturedMedia(with: items)
+        } else {
+            record.coverImagePath = coverImagePath
+        }
+
+        return record
     }
 
     /// Idempotently inserts a new LocalScanRecord.

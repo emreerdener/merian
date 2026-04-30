@@ -6,6 +6,7 @@ public final class OfflineQueuedScan {
     @Attribute(.unique) public var id: String
     public var timestamp: Date
     public var capturedMediaJSON: String?
+    @Relationship(deleteRule: .cascade) public var capturedMediaEntries: [CapturedMediaEntry]? = []
 
     public var gpsLatitude: Double?
     public var gpsLongitude: Double?

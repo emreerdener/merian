@@ -103,24 +103,21 @@ extension OfflineQueueManager {
         let documentsDirectory = URL.documentsDirectory
         let adoptedAudioPaths = Set(explicitlyAdoptedAudioPaths)
         
-        if let jsonStr = scan.capturedMediaJSON,
-           let items = MediaJSONParser.serializedItems(jsonString: jsonStr) {
-            for item in items {
-                switch item {
-                case .image(let reference):
-                    if let targetURL = reference.resolvedURL, !reference.isRemote {
-                        try? FileManager.default.removeItem(at: targetURL)
-                    } else {
-                        try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(reference.serializedPath))
-                    }
-                case .audio(let reference):
-                    if !adoptedAudioPaths.contains(reference.serializedPath),
-                       let targetURL = reference.resolvedURL {
-                        try? FileManager.default.removeItem(at: targetURL)
-                    }
-                case .description:
-                    break
+        for item in scan.capturedMediaSnapshot.items {
+            switch item {
+            case .image(let reference):
+                if let targetURL = reference.resolvedURL, !reference.isRemote {
+                    try? FileManager.default.removeItem(at: targetURL)
+                } else {
+                    try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(reference.serializedPath))
                 }
+            case .audio(let reference):
+                if !adoptedAudioPaths.contains(reference.serializedPath),
+                   let targetURL = reference.resolvedURL {
+                    try? FileManager.default.removeItem(at: targetURL)
+                }
+            case .description:
+                break
             }
         }
 
@@ -150,19 +147,16 @@ extension OfflineQueueManager {
         do {
             let failedScans = try context.fetch(descriptor)
             for scan in failedScans {
-                if let jsonStr = scan.capturedMediaJSON,
-                   let items = MediaJSONParser.serializedItems(jsonString: jsonStr) {
-                    for item in items {
-                        switch item {
-                        case .image(let reference), .audio(let reference):
-                            if let targetURL = reference.resolvedURL, !reference.isRemote {
-                                try? FileManager.default.removeItem(at: targetURL)
-                            } else {
-                                try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(reference.serializedPath))
-                            }
-                        case .description:
-                            break
+                for item in scan.capturedMediaSnapshot.items {
+                    switch item {
+                    case .image(let reference), .audio(let reference):
+                        if let targetURL = reference.resolvedURL, !reference.isRemote {
+                            try? FileManager.default.removeItem(at: targetURL)
+                        } else {
+                            try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(reference.serializedPath))
                         }
+                    case .description:
+                        break
                     }
                 }
                 context.delete(scan)
@@ -306,14 +300,10 @@ extension OfflineQueueManager {
                     let reconstructedKeys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
                     finalExtracted = ExtractedScanData(
                         telemetry: extracted.telemetry,
-                        localImagePaths: extracted.localImagePaths,
                         r2Keys: reconstructedKeys,
                         container: extracted.container,
                         originalTimestamp: extracted.originalTimestamp,
-                        description: extracted.description,
-                        observationContextsJSON: extracted.observationContextsJSON,
-                        audioFilePaths: extracted.audioFilePaths,
-                        capturedMediaJSON: extracted.capturedMediaJSON
+                        capturedMediaItems: extracted.capturedMediaItems
                     )
                 } else {
                     finalExtracted = extracted
@@ -507,6 +497,10 @@ extension OfflineQueueManager {
             scanState: .staged,
             stagedR2Keys: []
         )
+        if let capturedMediaJSON,
+           let items = MediaJSONParser.serializedItems(jsonString: capturedMediaJSON) {
+            scan.replaceCapturedMedia(with: items)
+        }
 
         guard let modelContext else {
             MerianLog.data.error("enqueueNonVisualCapture: modelContext unavailable — scan not queued")
@@ -652,6 +646,10 @@ extension OfflineQueueManager {
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
             scanState: .pending
         )
+        if let capturedMediaJSON,
+           let items = MediaJSONParser.serializedItems(jsonString: capturedMediaJSON) {
+            scan.replaceCapturedMedia(with: items)
+        }
         
         guard let modelContext else {
             cleanupImages(at: fileURLs)

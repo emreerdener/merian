@@ -76,7 +76,7 @@ Wrapped in `autoreleasepool` to prevent Obj-C `AVAudioPCMBuffer` objects from ac
 | `pendingPlaybackPath` | `String?` | Non-nil after recording finishes, before user confirms or discards. Drives the review UI state in `AudioRecordingView`. |
 | `isPlaying` | `Bool` | Whether `AVAudioPlayer` is currently playing back a pending recording |
 | `playbackProgress` | `Double` | 0.0 → 1.0 playhead position during review playback; preserved across play/stop cycles for scrub-resume |
-| `audioFilePath` | `String?` | Non-nil only when the user explicitly confirms via the review UI. Setting this triggers `onChange(of: audioFilePath)` → `submitAudio`. |
+| `audioFilePath` | `String?` | Non-nil only when the user explicitly confirms via the review UI. Setting this triggers `onChange(of: audioFilePath)`, which either stages the clip into `stagedCapture.audios` (mixed-media / confirmation flows) or calls `submitAudio` directly for the standalone audio-only flow. |
 
 ### `startRecording() async throws`
 
@@ -148,16 +148,17 @@ startRecording() → [recording] ───────────────�
                   [review: pendingPlaybackPath set]
                        ↓ confirmAndSubmit()
                   [submitted: audioFilePath set]
-                       ↓ CaptureWorkspaceView.onChange → submitAudio + reset()
+                       ↓ CaptureWorkspaceView.onChange
+                  [stage into toolbar OR submitAudio] → reset()
 
                   [review] → discardPending() → [idle]
 ```
 
-`CaptureWorkspaceView.onChange(of: audioCaptureManager.audioFilePath)` fires only when the user explicitly confirms; this replaces the previous auto-submit that fired immediately when recording finished.
+`CaptureWorkspaceView.onChange(of: audioCaptureManager.audioFilePath)` fires only when the user explicitly confirms; this replaces the previous auto-submit that fired immediately when recording finished. If the user already has staged images or descriptions, if multi-capture mode is enabled, or if explicit confirmation is required, the confirmed clip is appended to `stagedCapture.audios` and shares the same 2-item total mixed-media cap as images and descriptions. Otherwise the audio-only path calls `submitAudio(...)` immediately.
 
 ### File Format
 
-Audio is written to `FileManager.default.temporaryDirectory/<uuid>.wav` as **Int16 PCM WAV** (`audioFormat = 1`, interleaved) using an explicit `AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: fmt.sampleRate, channels: fmt.channelCount, interleaved: true)`. The hardware's native Float32 format may produce WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`), which the edge audio parsers do not support and returns 400. `AVAudioFile` performs the Float32→Int16 conversion automatically per write. `OfflineQueueManager.enqueueAudio` moves the file from `tmp/` to `URL.documentsDirectory` for persistence.
+Audio is written to `FileManager.default.temporaryDirectory/<uuid>.wav` as **Int16 PCM WAV** (`audioFormat = 1`, interleaved) using an explicit `AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: fmt.sampleRate, channels: fmt.channelCount, interleaved: true)`. The hardware's native Float32 format may produce WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`), which the edge audio parsers do not support and returns 400. `AVAudioFile` performs the Float32→Int16 conversion automatically per write. The shared non-visual queue path (`enqueueNonVisualCapture`) moves the file from `tmp/` to `URL.documentsDirectory` for persistence.
 
 ---
 
@@ -165,7 +166,7 @@ Audio is written to `FileManager.default.temporaryDirectory/<uuid>.wav` as **Int
 
 **File**: `merian/Features/CaptureWorkspace/Core/ViewModels/AudioAnalysis.swift`
 
-`extension CaptureWorkspaceViewModel { func submitAudio(audioFileName:modelContext:) }` — mirrors `submitDescribeSolo` structurally.
+`extension CaptureWorkspaceViewModel { func submitAudio(audioFileName:modelContext:) }` now routes through the shared non-visual submission path rather than a dedicated audio-only analyzer.
 
 ```
 debounce check (1.5 s, CFAbsoluteTimeGetCurrent)
@@ -173,28 +174,31 @@ debounce check (1.5 s, CFAbsoluteTimeGetCurrent)
 cameraManager.resetZoom()
     ↓ Task { await preFetchTask?.value }   ← resolves GPS + WeatherKit from pre-warm
     ↓
-OfflineQueueManager.enqueueAudio(audioFileName:telemetry:scanId:)
-offlineToastMessage = "Audio captured. Queued for analysis."
-stagedCapture.clearAll()
+submitNonVisualCapture(
+    audioFileNames: [audioFileName],
+    observationContexts: [],
+    mediaTimeline: [.audio(audioFileName)],
+    modelContext: modelContext
+)
 ```
 
-**Live + offline dual-path**: `submitAudio` always calls `enqueueAudio` first (moves WAV to Documents, creates `.staged` queue record). When offline it shows a toast and stops. When online it eagerly opens the insight sheet (`activeSheet = .insight`) and fires `analyzeAudio`. On live success, `flushOfflineQueuedScan` + `deleteQueuedScan` immediately clean up the queue record — preventing the background replay cycle from making a redundant Gemini call on the same file.
+**Live + offline dual-path**: audio-bearing captures always enqueue durably first (moving the WAV into `Documents/` and creating a `.staged` queue record). When offline the flow shows a toast and stops. When online it eagerly opens the insight sheet and fires `InferenceEngine.analyzeNonVisual(...)`. On live success, `flushOfflineQueuedScan` + `deleteQueuedScan` immediately clean up the queue record — preventing the background replay cycle from making a redundant Gemini call on the same file.
 
 ---
 
-## 5. `OfflineQueueManager.enqueueAudio` — Queue Record
+## 5. `OfflineQueueManager.enqueueNonVisualCapture` — Queue Record
 
-**File**: `merian/Core/Data/OfflineSync/OfflineQueueManager+AudioQueue.swift`
+**Files**: `merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`, `OfflineQueueManager+URLSession.swift`
 
-Mirrors `enqueueDescribe` but moves the audio file to `Documents/` (parallel to image files) and populates `OfflineQueuedScan.audioFilePath` instead of `observationContextJSON`.
+Audio now uses the same canonical queue shape as every other mixed-media submission. The queue record stores a serialized ordered media timeline, and V41 also materializes that timeline into `capturedMediaEntries`.
 
 ```
 move tmp/<uuid>.wav → Documents/<uuid>.wav
     ↓ quota check (UsageManager.canPerformScan / consumeScan)
 OfflineQueuedScan(
-    localImagePaths: [],
     scanState: .staged,         ← no R2 upload phase for audio
-    audioFilePath: audioFileName
+    capturedMediaJSON: ...,
+    capturedMediaEntries: ...
 )
 modelContext.insert(scan)
 modelContext.save()
@@ -202,22 +206,22 @@ updateUnsyncedItemCount()
 AppTelemetry.trackOfflineQueued()
 ```
 
-Audio-only `.staged` records are replayed through the dedicated audio branch in `dispatchInferenceDownloadTask`. That branch calls `MerianNetworkClient.buildMultiModalRequest(...)`, reads the WAV from `Documents/`, base64-encodes it off the main actor, and sends it as `audioBase64s` to `/identify-multimodal`. The two-phase R2 audio path remains future work, not a prerequisite for replay.
+Audio-only `.staged` records are replayed through the shared non-visual branch in `dispatchInferenceDownloadTask`. That branch reads the WAV from `Documents/` through `ExtractedScanData.capturedMediaItems`, base64-encodes it off the main actor, and sends it as `audioBase64s` to `/identify-multimodal`. The two-phase R2 audio path remains future work, not a prerequisite for replay.
 
-**Cleanup on delete**: Audio files stored in `Documents/` should be cleaned up when the `OfflineQueuedScan` is deleted. `deleteQueuedScan(scanId:)` iterates `scan.localImagePaths` for image cleanup; audio file cleanup should be added to that path when the full pipeline is wired.
+**Cleanup on delete**: Audio files stored in `Documents/` are cleaned up through the same canonical media snapshot walk used for images. Delete and purge paths no longer special-case image arrays and therefore do not lose audio cleanup.
 
 ---
 
-## 6. `InferenceEngine+Audio.swift` — Backend Stub
+## 6. Inference Path
 
-**File**: `merian/Core/AI/InferenceEngine+Audio.swift`
+There is no longer a dedicated `InferenceEngine+Audio.swift` path. Audio uses the same non-visual entry point as description-only captures:
 
-`InferenceEngine.analyzeAudio(...)` is live. It mirrors the other scan entry points:
-1. Calls `OfflineQueueManager.enqueueAudio(...)` first so the WAV is durable in `Documents/`.
-2. Calls `MerianNetworkClient.identifyMultiModal(audioFilePaths:[...])`, which reads the WAV and sends it as `audioBase64s` to `/identify-multimodal`.
-3. Parses the JSON response and routes through `InferenceProcessingActor.shared.parseAndSave(...)`.
+1. `CaptureWorkspaceViewModel.submitAudio(...)` delegates to `submitNonVisualCapture(...)`.
+2. `InferenceEngine.analyzeNonVisual(...)` forwards `audioFilePaths`, any `observationContexts`, and the ordered `mediaTimeline`.
+3. `MerianNetworkClient.buildMultiModalRequest(...)` reads the WAV and sends it as `audioBase64s` to `/identify-multimodal`.
+4. `InferenceProcessingActor.parseAndSave(...)` routes the result through `BackgroundDatabaseActor.saveNonVisualRecord(...)`.
 
-Replay uses the same endpoint and payload shape through the offline queue’s dedicated audio branch.
+Replay uses the same endpoint and payload shape through the offline queue’s shared non-visual branch.
 
 ---
 
@@ -344,7 +348,7 @@ All flanking buttons animate in/out with `.easeInOut(duration: 0.2)` keyed on `c
 | User taps center button while recording | `pauseRecording()` → engine paused, countdown halted |
 | User taps center button while paused | `resumeRecording()` → engine and countdown resumed from current progress |
 | User taps `AudioDeleteButton` while recording/paused | `cancelRecording()` → returns to idle |
-| User taps center button in review | `confirmAndSubmit()` → sets `audioFilePath` → `submitAudio` via `CaptureWorkspaceView.onChange` |
+| User taps center button in review | `confirmAndSubmit()` → sets `audioFilePath` → `CaptureWorkspaceView.onChange` either stages the clip or calls `submitAudio` |
 | User taps `AudioDeleteButton` in review | `discardPending()` → returns to idle |
 | User taps `AudioReviewPlayButton` in review | Toggles `playPendingRecording()` / `stopPlayback()` |
 

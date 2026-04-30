@@ -116,7 +116,7 @@ Prior to the enqueue-at-submission refactor, `InferenceEngine` retained `activeI
 
 All three buffers have been removed entirely. Scan durability is now provided at submission time — `CaptureWorkspaceViewModel.submitActiveScan` calls `enqueueCapture` synchronously before any `async` boundary, writing images to disk and dispatching the background URLSession upload while the app is still in the foreground (see §8 of `docs/development-guides/11-swiftdata-and-api-gotchas.md`). `analyze()` receives images as `imageDatas` parameters, uses them for base64 encoding, and does not retain them as instance state — Swift ARC reclaims the memory after the call.
 
-`activeImageData: Data?` is the only image buffer retained in `InferenceEngine` during the inference window. It holds a single 2048 px display-quality WebP frame that feeds the insight sheet carousel as a preview while inference is in progress. Once `InferenceProcessingActor.parseAndSave` completes and `validHistoricImagePaths` is populated with the on-disk paths, the carousel transitions from the in-memory `activeImageData` preview to the path-based renders — at which point `activeImageData` is still held but no longer the primary display source. It is released when `prepareForNewScan()` or `cancelActiveRequest()` fires. This two-phase design eliminates the previous `activeDisplayDatas: [Data]` array that held all display images (potentially multiple MB for multi-image captures) simultaneously in RAM for the full inference session.
+`activeImageData: Data?` is the only raw image buffer retained in `InferenceEngine` during the inference window. It holds a single 2048 px display-quality WebP frame that seeds `activeMedia` with a live preview while inference is in progress. Once `InferenceProcessingActor.parseAndSave` completes, the persisted user timeline is rebuilt into `activeMedia` and the carousel transitions from the in-memory preview to path-backed `MediaItem.image` entries — at which point `activeImageData` is still held but no longer the primary display source. It is released when `prepareForNewScan()` or `cancelActiveRequest()` fires. This two-phase design eliminates the previous `activeDisplayDatas: [Data]` array that held all display images (potentially multiple MB for multi-image captures) simultaneously in RAM for the full inference session.
 
 ### Historical Scan Hydration Task Proliferation (`InferenceEngine.load(from:)`)
 
@@ -135,7 +135,7 @@ When opening a historical scan, `load(from:)` previously spawned up to 4 indepen
 - Nil-s the task handles for `historicHydrationTask`, `gbifHydrationTask`, and `enrichmentWriteTask`.
 - Resets all loading flags (`isEnrichmentLoading`, `isLookalikesLoading`) and `scanningPhaseText`.
 - Sets `isProcessing = true` and `speciesData = nil` atomically, so the router sees the correct `AnalyzingContentView` condition from the very first SwiftUI frame.
-- Clears all image and telemetry state (`validHistoricImagePaths`, `activeImageData`, all environmental telemetry fields).
+- Clears all image and telemetry state (`activeMedia`, `activeImageData`, all environmental telemetry fields).
 
 `analyze()` subsequently overwrites the image and telemetry fields with the new scan's data once the async Task resolves. `analyze()` also cancels `historicHydrationTask` internally so the offline-queue reprocessing path (which calls `analyze()` directly without going through `submitActiveScan()`) gets the same protection.
 

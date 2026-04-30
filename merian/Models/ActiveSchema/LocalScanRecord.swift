@@ -10,6 +10,7 @@ public final class LocalScanRecord {
     public var timestamp: Date
     public var captureDate: Date?
     public var capturedMediaJSON: String?
+    @Relationship(deleteRule: .cascade) public var capturedMediaEntries: [CapturedMediaEntry]? = []
 
     public var semanticTags: [String]
     /// Hazard classification returned by the AI. One of: "none" | "poisonous" | "venomous" | "allergenic" | "irritant".

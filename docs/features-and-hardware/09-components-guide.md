@@ -147,10 +147,7 @@ The full-width image carousel at the top of the Insight Sheet, combining live ca
 |---|---|---|
 | `scanId` | `String?` | `viewModel.persistentScanId` — prefers `queuedScan.id`, then `activeLocalRecord?.id`, then `inferenceEngine.speciesData?.scanId` |
 | `refUrls` | `[String]` | `viewModel.refUrls` |
-| `validHistoricImagePaths` | `[String]` | `viewModel.validHistoricImagePaths` — returns `queuedScan.localImagePaths` for the queued-scan path; `inferenceEngine.validHistoricImagePaths` for the live path |
-| `liveImageData` | `Data?` | `viewModel.liveImageData` (mirrors `inferenceEngine.activeImageData`) |
-| `hasLive` | `Bool` | `viewModel.hasLive` — always `false` when `queuedScan != nil` |
-| `liveCount` | `Int` | `viewModel.liveCount` — always `0` when `queuedScan != nil` |
+| `activeMedia` | `ActiveScanMedia` | `viewModel.resolvedMedia(for:)` — queued scans seed this from `QueuedScanContext.capturedMediaSnapshot`, while completed scans hydrate it from `record.capturedMediaSnapshot` |
 | `totalImages` | `Int` | `viewModel.totalImages` |
 | `isProcessing` | `Bool` | `viewModel.isProcessing` |
 | `onImageFailure` | `(String) -> Void` | Closure injected by `InsightContentView`; no-op when `queuedScan != nil` (guard prevents engine call) |
@@ -159,7 +156,7 @@ The full-width image carousel at the top of the Insight Sheet, combining live ca
 - **`ZoomPageViewController`**: Each page controller. Embeds its SwiftUI content (`AsyncLocalImageView` or `LiveCapturePageView`) inside a `ZoomScrollView`. Exposes `rootView: AnyView` as a computed property proxying into the inner `UIHostingController`, so `updateUIViewController`'s existing `controller.rootView = pages[i]` state-push pattern works without modification.
 - **`ZoomScrollView`**: A `UIScrollView` subclass (`minimumZoomScale: 1.0`, `maximumZoomScale: 4.0`) that overrides `gestureRecognizerShouldBegin(_:)` to suppress its `panGestureRecognizer` when `zoomScale ≤ minimumZoomScale + 0.01`. This is the **only safe interception point** — replacing `panGestureRecognizer.delegate` directly throws `NSInvalidArgumentException` at runtime because UIKit requires the scroll view to remain its own pan delegate. At 1× UIPageViewController's swipe wins; above 1× the inner scroll view handles panning.
 - **Snap-back**: `scrollViewDidEndZooming` (pinch release) and `scrollViewDidEndDragging` (drag release while zoomed) both call `snapBackToIdentity`: pending deceleration is cancelled first, then `UIView.animate(usingSpringWithDamping: 0.72)` restores `zoomScale → 1.0` and `contentOffset → .zero` simultaneously.
-- **Async page growth**: `updateUIViewController` handles `validHistoricImagePaths` resolving asynchronously after `makeCoordinator`. New `ZoomPageViewController` instances are appended and `UIPageViewController.dataSource` is nil-reset to force neighbor re-queries.
+- **Async page growth**: `updateUIViewController` handles the user-media page model resolving asynchronously after `makeCoordinator`. New controllers are appended and `UIPageViewController.dataSource` is nil-reset to force neighbor re-queries.
 - **Image failure handling**: `handleImageFailure(identifier:)` calls the injected `onImageFailure` closure and adjusts `selectedIndex`. `InsightContentView` passes `{ path in inferenceEngine.dropInvalidCarouselImage(path) }` for the live path; the queued-scan path passes a no-op. `updateUIViewController` trims the controller pool and navigates away with `.reverse` if the displayed page was removed.
 - **`LiveCapturePageView`**: Synchronously downsamples live capture `Data` via `ImageDownsampler` on layout evaluation, backed by `NSCache<NSNumber, UIImage>` keyed by `data.hashValue` to avoid re-decoding identical captures across re-renders.
 

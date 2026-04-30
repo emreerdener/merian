@@ -19,8 +19,9 @@ struct BiologicalView: View {
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
             guard let record = try? viewModel.activeLocalRecord?.modelContext?.fetch(descriptor).first ?? viewModel.activeLocalRecord else { return }
             
-            let imagePaths = record.capturedMediaJSON.map(MediaJSONParser.imagePaths(jsonString:)) ?? []
-            let hasCloudImage = record.capturedMediaJSON.map(MediaJSONParser.hasCloudImage(jsonString:)) ?? false
+            let mediaSnapshot = record.capturedMediaSnapshot
+            let imagePaths = mediaSnapshot.imagePaths
+            let hasCloudImage = mediaSnapshot.hasCloudImage
             let imageCount = imagePaths.count
             guard !hasCloudImage, imageCount <= 1 else { return }
             
@@ -142,20 +143,10 @@ struct BiologicalView: View {
                 }
     
                 // MARK: - Spatiotemporal Context
-                let imageCount: Int = {
-                    if inferenceEngine.activeMedia.liveImageData != nil { return 1 }
-                    var c = 0
-                    if let jsonStr = viewModel.activeLocalRecord?.capturedMediaJSON,
-                       let jsonData = jsonStr.data(using: .utf8),
-                       let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                        c = items.filter { if case .image = $0 { return true } else { return false } }.count
-                    }
-                    return max(1, c)
-                }()
                 ScanInformationCard(
                     speciesData: inferenceEngine.speciesData,
                     timestamp: timestamp,
-                    imageCount: imageCount
+                    imageCount: max(1, viewModel.activeLocalRecord?.capturedMediaSnapshot.imagePaths.count ?? 0)
                 )
                 .cardEntrance(index: 9)
     

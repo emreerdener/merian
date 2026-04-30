@@ -180,14 +180,10 @@ extension OfflineQueueManager {
         // Rebuild extracted with the confirmed R2 keys before dispatching.
         let extractedWithKeys = ExtractedScanData(
             telemetry: extracted.telemetry,
-            localImagePaths: extracted.localImagePaths,
             r2Keys: r2Keys,
             container: extracted.container,
             originalTimestamp: extracted.originalTimestamp,
-            description: extracted.description,
-            observationContextsJSON: extracted.observationContextsJSON,
-            audioFilePaths: extracted.audioFilePaths,
-            capturedMediaJSON: extracted.capturedMediaJSON
+            capturedMediaItems: extracted.capturedMediaItems
         )
         await dispatchInferenceDownloadTask(scanId: scanId, extracted: extractedWithKeys)
     }
@@ -291,39 +287,12 @@ extension OfflineQueueManager {
         )
         telemetry.zoomFactor = scan.zoomFactor.map { CGFloat($0) }
 
-        var localImagePaths: [String] = []
-        var observationContextsJSON: [String]?
-        var audioFilePaths: [String]?
-        
-        if let jsonStr = scan.capturedMediaJSON {
-            localImagePaths = MediaJSONParser.imagePaths(jsonString: jsonStr)
-
-            let contexts = MediaJSONParser.observationContexts(jsonString: jsonStr).compactMap { context in
-                (try? JSONEncoder().encode(context)).flatMap { String(data: $0, encoding: .utf8) }
-            }
-            let audio = MediaJSONParser.audioPaths(jsonString: jsonStr)
-
-            if !contexts.isEmpty { observationContextsJSON = contexts }
-            if !audio.isEmpty { audioFilePaths = audio }
-        }
-
-        let description: String? = observationContextsJSON?.first.flatMap { json in
-            guard let data = json.data(using: .utf8),
-                  let context = try? JSONDecoder().decode(ObservationContext.self, from: data),
-                  !context.isEmpty else { return nil }
-            return context.serialized()
-        }
-
         return ExtractedScanData(
             telemetry: telemetry,
-            localImagePaths: localImagePaths,
             r2Keys: scan.stagedR2Keys ?? [],
             container: container,
             originalTimestamp: scan.timestamp,
-            description: description,
-            observationContextsJSON: observationContextsJSON,
-            audioFilePaths: audioFilePaths,
-            capturedMediaJSON: scan.capturedMediaJSON
+            capturedMediaItems: scan.serializedCapturedMediaItems
         )
     }
 

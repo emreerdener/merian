@@ -387,7 +387,7 @@ self.speciesData?.referenceImageUrl = imgUrl
 self.speciesData?.taxonomy = taxonomy
 ```
 
-Views that track `inferenceEngine.speciesData` via `@Observable` (e.g. `HabitatAndDistributionCard`) will not re-render when mutations are applied this way, even though the data is correctly written in memory. The card appears stuck or empty until something else forces a re-render (e.g. the user dismisses and reopens the sheet). `ImagesCarousel` is no longer in this category — it receives all data as injected parameters from `InsightSheetViewModel`, which in turn reads from the engine. The re-render chain still applies transitively through the viewModel's computed properties (`refUrls`, `validHistoricImagePaths`, `liveImageData`).
+Views that track `inferenceEngine.speciesData` via `@Observable` (e.g. `HabitatAndDistributionCard`) will not re-render when mutations are applied this way, even though the data is correctly written in memory. The card appears stuck or empty until something else forces a re-render (e.g. the user dismisses and reopens the sheet). `ImagesCarousel` is no longer in this category — it receives all data as injected parameters from `InsightSheetViewModel`, which in turn reads from the engine. The re-render chain still applies transitively through the viewModel's computed properties (`refUrls`, `activeMedia`, `totalImages`).
 
 ### ✅ The Required Pattern: Single Full-Value Replacement
 
@@ -424,11 +424,11 @@ The insight sheet is open while background hydration tasks (`fetchWikipediaAndHy
 
 ## 18. `@Model` Zombie Crash in `LazyVGrid` via Deferred Attribute Fault
 
-**Symptom**: Fatal error `"This backing data was detached from a context without resolving attribute faults"` on a property like `OfflineQueuedScan.localImagePaths`, originating inside a `LazyVGrid` `ForEach` body — **after** the object has been deleted from the context.
+**Symptom**: Fatal error `"This backing data was detached from a context without resolving attribute faults"` on a property like `OfflineQueuedScan.capturedMediaEntries`, the compatibility `capturedMediaJSON` mirror, or any lazily faulted media/telemetry attribute, originating inside a `LazyVGrid` `ForEach` body — **after** the object has been deleted from the context.
 
-**Why it happens**: SwiftUI's `LazyVGrid` evaluates view closures lazily — tile bodies are computed only when the row scrolls into the viewport. If a `@Model` attribute (e.g., `localImagePaths: [String]`) was never accessed before deletion, it is still in a faulted state (unfulfilled). SwiftUI's `@Observable` machinery also registers observation dependencies on the `@Model` object when the grid first reads it. After `context.delete(scan)` fires, SwiftUI re-evaluates the view (responding to the deletion notification), triggering a fault on the already-deleted object — which crashes immediately.
+**Why it happens**: SwiftUI's `LazyVGrid` evaluates view closures lazily — tile bodies are computed only when the row scrolls into the viewport. If a `@Model` attribute (for example the queued scan's media payload) was never accessed before deletion, it is still in a faulted state (unfulfilled). SwiftUI's `@Observable` machinery also registers observation dependencies on the `@Model` object when the grid first reads it. After `context.delete(scan)` fires, SwiftUI re-evaluates the view (responding to the deletion notification), triggering a fault on the already-deleted object — which crashes immediately.
 
-The same crash path applies anywhere a deleted `@Model` reference can be re-evaluated: inside `InsightSheetViewModel` computed properties (`validHistoricImagePaths`, `analyzingPhrase`), or inside `AnalyzingContentView` views that read the queued scan's telemetry fields.
+The same crash path applies anywhere a deleted `@Model` reference can be re-evaluated: inside `InsightSheetViewModel` computed properties that branch on queued scan media, or inside `AnalyzingContentView` views that read the queued scan's telemetry fields.
 
 ### ❌ The Anti-Pattern
 
@@ -437,11 +437,11 @@ The same crash path applies anywhere a deleted `@Model` reference can be re-eval
 @State private var queuedScan: OfflineQueuedScan?
 
 // LazyVGrid tile
-ScanThumbnail(imagePath: queued.localImagePaths.first) // CRASH after context.delete(queued)
+ScanThumbnail(imagePath: queued.capturedMediaSnapshot.primaryImagePath) // CRASH after context.delete(queued)
 
 // InsightSheetViewModel
-var validHistoricImagePaths: [String] {
-    if let scan = queuedScan { return scan.localImagePaths } // CRASH
+var queuedImagePaths: [String] {
+    if let scan = queuedScan { return scan.capturedMediaSnapshot.imagePaths } // CRASH
     ...
 }
 ```
@@ -454,7 +454,7 @@ Copy all needed data out of the `@Model` object into a plain value-type struct *
 // QueuedScanSnapshot — for grid tiles
 struct QueuedScanSnapshot: Identifiable, Equatable {
     let id: String
-    let imagePath: String?    // localImagePaths.first, resolved at fetch time
+    let imagePath: String?    // capturedMediaSnapshot.primaryImagePath, resolved at fetch time
     let timestamp: Date
     var gridId: String { "q_\(id)" }  // namespace against LocalScanRecord IDs
 }
@@ -462,7 +462,7 @@ struct QueuedScanSnapshot: Identifiable, Equatable {
 // QueuedScanContext — for the full insight sheet chain
 struct QueuedScanContext: Identifiable {
     let id: String
-    let localImagePaths: [String]
+    let capturedMediaItems: [SerializedMediaItem]
     let timestamp: Date
     let locationName: String?
     let weatherTemperatureF: Double?
@@ -475,7 +475,11 @@ struct QueuedScanContext: Identifiable {
 
 // In ScansSheetView.refreshQueuedScans() — map at fetch time, before any deletion can fire
 queuedScans = fetched.map {
-    QueuedScanSnapshot(id: $0.id, imagePath: $0.localImagePaths.first, timestamp: $0.timestamp)
+    QueuedScanSnapshot(
+        id: $0.id,
+        imagePath: $0.capturedMediaSnapshot.primaryImagePath,
+        timestamp: $0.timestamp
+    )
 }
 
 // In LibraryView — snapshot before presenting the insight sheet
@@ -487,7 +491,7 @@ if let scan = (try? modelContext.fetch(descriptor))?.first {
 
 **`gridId` namespacing**: `LocalScanRecord.id` and `QueuedScanSnapshot.id` share the same UUID (both use `client_scan_id`). Without namespacing, `LazyVGrid`'s `ForEach` produces duplicate `AnyHashable` keys, causing SwiftUI to skip one tile entirely. `gridId = "q_\(id)"` guarantees a distinct key for every queued-scan tile.
 
-**`InsightSheetViewModel.queuedContext: QueuedScanContext?`**: All computed properties that previously switched on a live `OfflineQueuedScan?` now switch on `queuedContext == nil`. `AnalyzingContentView` receives `queuedContext: QueuedScanContext?` rather than a `@Model` reference — it reads `queuedContext?.locationName`, etc. — so no attribute is ever accessed post-deletion.
+**`InsightSheetViewModel.queuedContext: QueuedScanContext?`**: All computed properties that previously switched on a live `OfflineQueuedScan?` now switch on `queuedContext == nil`. `AnalyzingContentView` receives `queuedContext: QueuedScanContext?` rather than a `@Model` reference, and the queued media path is always rebuilt from `queuedContext.capturedMediaSnapshot` instead of faulting properties off the deleted model.
 
 ## 2026-04 Hardening Updates
 

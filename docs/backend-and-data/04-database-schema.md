@@ -292,11 +292,12 @@ _Note: The iOS persistence layer is enforced via `ModelContainer` in `MerianApp.
 
 There is **no need** to update model references in `MerianApp.swift`, nor anywhere else in the application, because the entire app dynamically inherits `CurrentSchema` and the active global models natively.
 
-The current active schema is `MerianSchemaV40`. Recent milestones:
+The current active schema is `MerianSchemaV41`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`, `observationContextJSON`) to both local and offline scan models.
 - V39 normalized those payloads into array-based intermediates (`audioFilePaths`, `observationContextsJSON`) for mixed-media migration safety.
-- V40 added `capturedMediaJSON` and `coverImagePath`, backfilling the ordered mixed-media history used by the current active models.
+- V40 added `capturedMediaJSON` and `coverImagePath`, backfilling the ordered mixed-media history used by the active models.
+- V41 added first-class `CapturedMediaEntry` rows and `capturedMediaEntries` relationships on both `LocalScanRecord` and `OfflineQueuedScan`, while retaining `capturedMediaJSON` as a compatibility mirror.
 
 **Edge DTO Layer** (`merian/Core/AI/InferenceEdgeDTOs.swift`): Declares `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and `EnrichScanResponse` (the `/enrich-scan` response). `EnrichScanResponse` contains nested `EnrichData` (maps `habitat_description`, `gbif_taxon_key`, `taxonomy`, and `similar_species: [SimilarSpeciesEntry]?`) and `SimilarSpeciesEntry` (maps `scientific_name`, `common_name`, `reference_image_url`, `iucn_red_list_status`) structs. `EdgeResponse` also contains a nested `IdentificationCandidate` struct (`scientific_name: String`, `confidence_score: Double`, `distinguishing_feature: String?`) and a `candidates: [IdentificationCandidate]?` field mapping the `/identify` response candidates array. `distinguishing_feature` is required in the Gemini schema and TypeScript types but optional in Swift (`String?`) for graceful decoding of pre-migration JSONB rows that have the two-field shape. `EdgeResponse` additionally contains a nested `ImageQuality` struct (`sharpness: Int?`, `framing: Int?`, `diagnostic_utility: Int?`, `overall_score: Int?`) and an `image_quality: ImageQuality?` field. When adding new fields to either Edge Function response, update both the TypeScript schema and the corresponding Swift `Codable` struct simultaneously.
 
@@ -317,12 +318,13 @@ The current active schema is `MerianSchemaV40`. Recent milestones:
 
 ### `OfflineQueuedScan`
 
-Captures state when network connectivity is unavailable. `MerianSchemaV13` added `zoomFactor` so the active zoom level is preserved through offline queuing and replayed to the Edge function when connectivity is restored. `MerianSchemaV40` now stores the staged mixed-media payload as an ordered JSON timeline rather than parallel image/context/audio arrays.
+Captures state when network connectivity is unavailable. `MerianSchemaV13` added `zoomFactor` so the active zoom level is preserved through offline queuing and replayed to the Edge function when connectivity is restored. `MerianSchemaV40` introduced the canonical ordered mixed-media timeline, and `MerianSchemaV41` promoted that timeline into a first-class related model while keeping the JSON mirror for migration safety and compatibility.
 
 - `id`: String (UUID)
 - `timestamp`: Date
-- `capturedMediaJSON`: String? (Added in `MerianSchemaV40`. JSON-encoded ordered sequence of staged media items used for offline replay. Backfilled from V39's separate image, description, and audio arrays.)
-- `coverImagePath`: String? (Added in `MerianSchemaV40`. First image extracted from `capturedMediaJSON`, used for queue thumbnails without reparsing the entire media payload.)
+- `capturedMediaJSON`: String? (Added in `MerianSchemaV40`. Compatibility mirror of the ordered mixed-media timeline. Still written so old readers and migrations remain stable, but no longer the preferred read path in V41.)
+- `capturedMediaEntries`: [CapturedMediaEntry]? (Added in `MerianSchemaV41`. Canonical ordered persisted media timeline. Each entry stores its slot index, modality, storage location, and either a media path or serialized description payload.)
+- `coverImagePath`: String? (Added in `MerianSchemaV40`. First image extracted from the canonical media timeline, used for queue thumbnails without reparsing the full payload.)
 - `gpsLatitude`, `gpsLongitude`, `gpsElevation`: Double?
 - `weatherCondition`, `locationName`: String?
 - `weatherTemperatureF`, `blurScore`: Double?
@@ -339,12 +341,13 @@ Tracks locally synchronized species scans for the Scans library.
 - `speciesId`: String (UUID linking scan tiles for the same `scientificName`).
 - `timestamp`: Date
 - `captureDate`: Date? (Original asset capture date when available. Distinct from `timestamp`, which tracks when the scan record was created.)
-- `capturedMediaJSON`: String? (Added in `MerianSchemaV40`. JSON-encoded ordered mixed-media timeline for the scan, backfilled from the V39 image/context/audio representation.)
-- `coverImagePath`: String? (Added in `MerianSchemaV40`. First image extracted from `capturedMediaJSON`, used as the primary thumbnail path.)
+- `capturedMediaJSON`: String? (Added in `MerianSchemaV40`. Compatibility mirror of the ordered mixed-media timeline for the scan. Still maintained in V41, but not the preferred read path.)
+- `capturedMediaEntries`: [CapturedMediaEntry]? (Added in `MerianSchemaV41`. Canonical persisted mixed-media timeline for the scan. Replaces ad hoc restoration from parallel image/audio/context fields.)
+- `coverImagePath`: String? (Added in `MerianSchemaV40`. First image extracted from the canonical media timeline, used as the primary thumbnail path.)
 - `scientificName`: String
 - `commonName`: String
 - `confidenceScore`: Double?
-- Image, audio, and description items are restored from `capturedMediaJSON` rather than separate active-schema media columns.
+- Image, audio, and description items are restored through `serializedCapturedMediaItems` / `capturedMediaSnapshot`. Those helpers prefer `capturedMediaEntries` when present and fall back to `capturedMediaJSON` only for compatibility or migration cases.
 - ~~`insightDescription`~~: Removed in `MerianSchemaV17`. Per-scan AI reasoning is now stored exclusively in `aiReasoning` (see below). The V17 custom migration stage backfills `aiReasoning` from `insightDescription` for any pre-V15 records that had a description but no `aiReasoning` value.
 - `hazardType`: String — hazard classification for the species. One of: `"none"` | `"poisonous"` | `"venomous"` | `"allergenic"` | `"irritant"`. Added in `MerianSchemaV16`. Migration `migrateV15toV16` maps old `isPoisonous = true` records to `hazardType = "poisonous"`.
 - `isBiological`: Bool (from Edge)
@@ -407,3 +410,24 @@ Queues offline cloud deletions, added in `MerianSchemaV7`.
 
 - `scanId`: String (UUID of the remote record to delete)
 - `timestamp`: Date
+
+### `CapturedMediaEntry`
+
+Added in `MerianSchemaV41`. This is the first-class persisted media model for both queued and completed scans.
+
+- `id`: String (UUID)
+- `orderIndex`: Int (stable position inside the scan's ordered media timeline)
+- `kindRaw`: String (`image` | `audio` | `description`)
+- `storageRaw`: String (`documents` | `remoteURL` | `absolutePath`; empty for descriptions)
+- `mediaPath`: String (serialized image/audio path; empty for descriptions)
+- `observationContextJSON`: String (serialized `ObservationContext`; empty for images/audio)
+- `localScanRecord`: Local scan relationship (cascade delete)
+- `offlineQueuedScan`: Queue relationship (cascade delete)
+
+`CapturedMediaEntry` is intentionally low-level. Higher-level readers should go through `CapturedMediaSnapshot`, which rebuilds the shared derived views used by the queue, insight sheet, export, and thumbnail code paths:
+
+- image paths and image references
+- audio paths and audio references
+- description text and serialized observation contexts
+- `CapturedMediaSummary`
+- `ActiveScanMedia`
