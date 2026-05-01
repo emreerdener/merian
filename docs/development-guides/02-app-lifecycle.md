@@ -4,7 +4,7 @@ Merian centralizes all iOS phase-transition logic inside `AppLifecycleManager` (
 
 ## Phase Contract
 
-All three handlers are guarded by `UserDefaults("hasCompletedOnboarding")`. If onboarding has not been completed, every phase handler returns immediately — no sessions, timers, or background tasks are started.
+All three handlers are guarded by `UserDefaultsKeys.hasCompletedOnboarding`. If onboarding has not been completed, every phase handler returns immediately — no sessions, timers, or background tasks are started.
 
 ---
 
@@ -23,8 +23,8 @@ Triggered by `MerianApp.swift` when `scenePhase == .active`.
 5. `SupabaseManager.initializeGhostSession()` — ensures a valid anonymous or authenticated session exists before any network calls.
 6. `OfflineQueueManager.syncPendingScans()` — drains queued captures immediately if `NWPathMonitor` shows connectivity.
 7. `OfflineQueueManager.replayInferenceForUploadedScans()` — re-enters any `OfflineQueuedScan` stuck in `.staged` or `.inferencing` state (upload confirmed but inference interrupted, e.g. app killed or suspended mid-inference). Also reconciles `.uploading` orphans back to `.pending` on every call so scans whose `generateUploadURLs` request failed mid-session are visible on the next retry. `NWPathMonitor` only fires on connectivity *changes*, so this call is required here to recover stuck scans when the app returns to foreground on an already-stable connection.
-8. `ScanRepository.syncHistoricalScansDown(modelContext:)` — fetches paginated cloud history and reconciles against local SwiftData (supports reinstalls and multi-device access). **Throttled to once per 15 minutes** via `UserDefaults("lastHistoricalSyncDate")` to prevent redundant full-table network syncs on every foreground transition (e.g. returning from Control Center). The timestamp is stamped **before** the sync starts, not after — this is an optimistic lock that prevents two concurrent foreground handlers (e.g. the auth listener and the lifecycle manager) from both reading `distantPast` before either has written the timestamp, which would otherwise cause two simultaneous historical syncs.
-9. **Archive Safety Protocol** (once per 24 hours via `UserDefaults("lastArchiveRescueDate")`): `ArchiveManager.evaluateAndRescueAgingScans(modelContext:)` — downloads images for Free-tier domesticated scans approaching the targeted 90-day edge function domesticated purge window (wild and invasive scans are permanently archived by the server).
+8. `ScanRepository.syncHistoricalScansDown(modelContext:)` — fetches paginated cloud history and reconciles against local SwiftData (supports reinstalls and multi-device access). **Throttled to once per 15 minutes** via `UserDefaultsKeys.lastHistoricalSyncDate` to prevent redundant full-table network syncs on every foreground transition (e.g. returning from Control Center). The timestamp is stamped **before** the sync starts, not after — this is an optimistic lock that prevents two concurrent foreground handlers (e.g. the auth listener and the lifecycle manager) from both reading `distantPast` before either has written the timestamp, which would otherwise cause two simultaneous historical syncs.
+9. **Archive Safety Protocol** (once per 24 hours via `UserDefaultsKeys.lastArchiveRescueDate`): `ArchiveManager.evaluateAndRescueAgingScans(modelContext:)` — downloads images for Free-tier domesticated scans approaching the targeted 90-day edge function domesticated purge window (wild and invasive scans are permanently archived by the server).
 
 ---
 
@@ -86,8 +86,8 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
 - **Never bypass the free user queue cap** in `enqueueCapture`. The cap is the primary defence against free-tier scan hoarding — do not remove or loosen it.
 - **Never trigger the paywall from `InferenceEngine`'s catch block.** The paywall is only shown from the `canPerformScan` gate in `Capture.swift` and `handlePhotoPickerSelection`. Network failures must never surface a paywall.
 - **Never add direct ViewModel references** to `AppLifecycleManager`. Use `NotificationCenter` for UI side-effects.
-- `syncHistoricalScansDown` is throttled to once per 15 minutes. Do not add additional call sites without also checking `UserDefaults("lastHistoricalSyncDate")`.
-- The Archive Safety Protocol runs at most once per 24-hour wall-clock period. Do not trigger it manually from other call sites.
+- `syncHistoricalScansDown` is throttled to once per 15 minutes. Do not add additional call sites without also checking `UserDefaultsKeys.lastHistoricalSyncDate`.
+- The Archive Safety Protocol runs at most once per 24-hour wall-clock period. Do not trigger it manually from other call sites without also respecting `UserDefaultsKeys.lastArchiveRescueDate`.
 - **Always call `replayInferenceForUploadedScans()` immediately after `syncPendingScans()` in `handleActivePhase()`.** `NWPathMonitor` only fires when connectivity changes, not when the app returns to foreground on an already-stable connection. Without this call, scans whose upload completed while the app was backgrounded are permanently stuck and never recovered. Do not remove this call or move it to a throttled path.
 - All async work inside `handleActivePhase` is intentionally fire-and-forget (`Task {}`). Errors are logged but never surface to the user during a phase transition.
 
@@ -96,3 +96,8 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
 - App startup now uses corruption-specific store recovery. A generic `ModelContainer` init failure is no longer treated as permission to delete the local SwiftData store.
 - Recovery-first startup behavior is now: attempt normal open, inspect the error chain for SQLite/Core Data corruption signatures, quarantine the store bundle if corruption is confirmed, then retry container creation exactly once.
 - `handleActivePhase()` continues to be the right place for replay recovery, but any new lifecycle work must not resurrect stale scan mutations. `InferenceEngine` now invalidates pending background writes whenever a scan is cancelled or a new scan begins.
+
+## 2026-05 Startup Safety Update
+
+- If the post-quarantine retry still cannot open the persistent store, startup now falls back to an in-memory `ModelContainer` and surfaces a recovery notice banner instead of crashing in a launch loop.
+- Lifecycle code must tolerate this safe mode. Do not assume persistent storage was available just because the app reached `.active`.

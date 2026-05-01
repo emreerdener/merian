@@ -65,7 +65,12 @@ struct GBIFHeatmapMapView: View {
 
         // Offload CPU-intensive image decompression from the MainActor
         return await Task.detached(priority: .userInitiated) {
-            UIImage(data: data)
+            autoreleasepool {
+                guard let cgImage = ImageDownsampler.downsample(data: data, maxSize: 2048) else {
+                    return nil
+                }
+                return UIImage(cgImage: cgImage)
+            }
         }.value
     }
 }

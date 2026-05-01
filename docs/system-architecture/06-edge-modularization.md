@@ -226,3 +226,9 @@ Token Usage [identify | <tier>]: Prompt: X | Candidates: Y | Thinking: Z | Total
 - Telemetry-context building, month normalization, and life-stage / reproductive-condition clamping now live in `_shared/identify/context.ts` and are reused by `identify`, `identify-describe`, `identify-multimodal`, and `audio-spec`.
 - The WAV preprocessing pipeline is now centralized in `_shared/audioProcessing.ts`; `audio-spec` and `identify-multimodal` no longer carry two divergent copies of the same decode/trim/resample/encode logic.
 - Explore interaction handlers now reuse `_shared/http.parseJsonBody`, reducing repeated request-body parsing scaffolding while keeping UUID validation and domain checks local to the Explore boundary.
+
+## 2026-05 Shared Identify Rule
+
+- Shared orchestration across `identify`, `identify-multimodal`, `identify-describe`, and `audio-spec` must live under `supabase/functions/_shared/identify/` only when the domain purpose is identical.
+- Keep modality-specific request DTOs, response DTOs, and validation isolated in each function. Do not merge them behind conditional flags just to reduce line count.
+- Candidate enrichment, group-tag resolution, and post-classification helpers are safe to share when they consume and produce the same shape. If a helper needs modality branching to stay correct, keep that logic local to the function.

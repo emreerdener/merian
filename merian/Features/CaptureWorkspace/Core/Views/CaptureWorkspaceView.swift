@@ -12,6 +12,7 @@ struct CaptureWorkspaceView: View {
     @Environment(PhotoLibraryManager.self) var photoLibraryManager
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(AudioCaptureManager.self) var audioCaptureManager
+    @Environment(AppSettings.self) private var appSettings
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
 
@@ -21,15 +22,8 @@ struct CaptureWorkspaceView: View {
     @State private var coordinator = CaptureActionCoordinator()
     @State private var captureMode: CaptureMode
     @State private var observationContext = ObservationContext()
-    @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
-    
-    /// The user-defined order for the capture tabs, physically defining the underlying ScrollView layout.
-    @AppStorage(UserDefaultsKeys.captureModeOrder) private var captureModeOrderRaw: String = "visual,audio,describe"
     @State private var isKeyboardVisible: Bool = false
     @State private var controlBarHeight: CGFloat = 250
-    
-    /// The safely deserialized sequence of capture modes governing the ScrollView array.
-    private var orderedModes: [CaptureMode] { CaptureMode.userOrder(from: captureModeOrderRaw) }
 
     // MARK: - Zoom Drag Lock
     @State private var isVerticalZooming: Bool = false
@@ -51,8 +45,9 @@ struct CaptureWorkspaceView: View {
     /// to retrieve the user's preferred first tab (default view).
     /// This strictly sidesteps lifecycle events like `.onAppear`, which would
     /// improperly re-snap the UI to the primary tab every time the view remounts.
+    @MainActor
     init() {
-        let raw = UserDefaults.standard.string(forKey: UserDefaultsKeys.captureModeOrder) ?? "visual,audio,describe"
+        let raw = AppSettings.shared.captureModeOrderRaw
         let mode = CaptureMode.userOrder(from: raw).first ?? .visual
         _captureMode = State(initialValue: mode)
         _scrollPageMode = State(initialValue: mode)
@@ -60,6 +55,8 @@ struct CaptureWorkspaceView: View {
 
     // MARK: - View Hierarchy
     var body: some View {
+        let orderedModes = CaptureMode.userOrder(from: appSettings.captureModeOrderRaw)
+
         ZStack {
                 // Paged capture mode switcher.
                 // CameraPreviewView lives inside page 1 so the outer horizontal UIScrollView
@@ -112,11 +109,11 @@ struct CaptureWorkspaceView: View {
                         .scrollDisabled(isVerticalZooming || isToggleDragging)
                         .scrollDismissesKeyboard(.interactively)
                         .background(ScrollBounceDisabler())
-                        .onChange(of: captureModeOrderRaw, initial: true) { _, raw in
+                        .onChange(of: appSettings.captureModeOrderRaw, initial: true) { _, raw in
                             let decoded = CaptureMode.userOrder(from: raw)
                             let healedRaw = decoded.map(\.rawValue).joined(separator: ",")
                             if raw != healedRaw {
-                                captureModeOrderRaw = healedRaw
+                                appSettings.captureModeOrderRaw = healedRaw
                             }
                             // Re-anchor the ScrollView securely onto the active capture mode 
                             // whenever the physical sequence changes underneath it.
@@ -307,11 +304,11 @@ struct CaptureWorkspaceView: View {
         }
         .onChange(of: viewModel.stagedCapture.images.count) { _, count in
             // If the user explicitly wants to confirm all submissions, never auto-submit
-            guard !UserDefaults.standard.bool(forKey: "requiresScanConfirmation") else { return }
+            guard !appSettings.requiresScanConfirmation else { return }
 
             // If we are in multi-capture or refinement mode, NEVER auto-submit.
             // The user must manually tap "Identify" in the ActiveScanToolbar.
-            let isMultiCapture = UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled") || viewModel.baseRefinementRecord != nil
+            let isMultiCapture = appSettings.isMultiCaptureEnabled || viewModel.baseRefinementRecord != nil
             guard !isMultiCapture else { return }
 
             // If there were already other modalities staged (audio or describe), do not auto-submit.
@@ -385,8 +382,8 @@ struct CaptureWorkspaceView: View {
             guard let fileName else { return }
             
             let willStageOnly = !viewModel.stagedCapture.images.isEmpty
-                || isMultiCaptureEnabled
-                || UserDefaults.standard.bool(forKey: "requiresScanConfirmation")
+                || appSettings.isMultiCaptureEnabled
+                || appSettings.requiresScanConfirmation
                 || !viewModel.stagedCapture.observationContexts.isEmpty
                 
             if willStageOnly {

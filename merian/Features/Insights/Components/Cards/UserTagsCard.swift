@@ -115,14 +115,14 @@ struct UserTagsCard: View {
         record.customTags.append(trimmed)
         try? modelContext.save()
         syncTagsToCloud(record: record)
-        NotificationCenter.default.post(name: NSNotification.Name("ScanRequiresSearchIndexUpdate"), object: nil, userInfo: ["scanId": record.id])
+        ScanLibraryEvents.postSearchIndexUpdate(scanId: record.id)
     }
     
     private func removeTag(_ tag: String, from record: LocalScanRecord) {
         record.customTags.removeAll { $0 == tag }
         try? modelContext.save()
         syncTagsToCloud(record: record)
-        NotificationCenter.default.post(name: NSNotification.Name("ScanRequiresSearchIndexUpdate"), object: nil, userInfo: ["scanId": record.id])
+        ScanLibraryEvents.postSearchIndexUpdate(scanId: record.id)
     }
     
     // MARK: - Cloud Sync

@@ -45,24 +45,19 @@ struct ScansGrid<MenuContent: View>: View {
 
     // MARK: - User Preferences
     var isSelectionMode: Bool = false
-    @AppStorage("gridColumns") private var gridColumns: Int = 3
-    
-    // MARK: - App State Context
-    @Environment(OfflineQueueManager.self) private var offlineQueueManager
-    
-    // MARK: - Layout Engines
-    private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 2), count: gridColumns)
-    }
 
-    private var thumbnailSize: Int {
-        let screenWidth = UIScreen.main.bounds.width
-        let cellWidth = (screenWidth - CGFloat(2 * (gridColumns - 1))) / CGFloat(gridColumns)
-        return Int(cellWidth * UIScreen.main.scale)
-    }
+    // MARK: - App State Context
+    @Environment(AppSettings.self) private var appSettings
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
     
     // MARK: - Visual Layout
     var body: some View {
+        let gridColumns = appSettings.gridColumns
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: gridColumns)
+        let screenWidth = UIScreen.main.bounds.width
+        let cellWidth = (screenWidth - CGFloat(2 * (gridColumns - 1))) / CGFloat(gridColumns)
+        let thumbnailSize = Int(cellWidth * UIScreen.main.scale)
+
         LazyVGrid(columns: columns, spacing: 2) {
             // Offline-queued scans render first — they have no AI analysis yet and
             // are excluded from selection mode. Tapping them shows a toast via the

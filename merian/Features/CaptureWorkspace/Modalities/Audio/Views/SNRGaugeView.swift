@@ -6,7 +6,7 @@ import SwiftUI
 struct SNRGaugeView: View {
     let snrLevel: SNRLevel
 
-    @AppStorage("audioHintsEnabled") private var audioHintsEnabled: Bool = true
+    @Environment(AppSettings.self) private var appSettings
     @State private var showInitialTooltip: Bool = !SNRGaugeView.hasShownInitialTooltipThisSession
     @State private var hintsAllowed: Bool = SNRGaugeView.hasShownInitialTooltipThisSession
     @State private var promptTask: Task<Void, Never>?
@@ -14,7 +14,7 @@ struct SNRGaugeView: View {
 
     var body: some View {
         Group {
-            if audioHintsEnabled {
+            if appSettings.audioHintsEnabled {
                 if showInitialTooltip {
                     Text("Record 15 seconds")
                         .font(.subheadline)

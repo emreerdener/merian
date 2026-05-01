@@ -9,12 +9,12 @@ struct ScansToolbarModifier: ViewModifier {
     let onShare: () -> Void
     let onDownload: () -> Void
     let onDelete: () -> Void
-    
-    // MARK: - App Storage
-    @AppStorage("gridColumns") private var gridColumns: Int = 3
+    @Environment(AppSettings.self) private var appSettings
     
     // MARK: - View Engine
     func body(content: Content) -> some View {
+        @Bindable var appSettings = appSettings
+
         content
             .toolbar {
                 if searchManager.isSelectionMode {
@@ -90,13 +90,13 @@ struct ScansToolbarModifier: ViewModifier {
                                 
                             } else if activeTab == .library {
                                 ControlGroup {
-                                    Toggle(isOn: Binding(get: { gridColumns == 1 }, set: { if $0 { gridColumns = 1 } })) {
+                                    Toggle(isOn: Binding(get: { appSettings.gridColumns == 1 }, set: { if $0 { appSettings.gridColumns = 1 } })) {
                                         Label("1x1", systemImage: "rectangle.grid.1x2")
                                     }
-                                    Toggle(isOn: Binding(get: { gridColumns == 2 }, set: { if $0 { gridColumns = 2 } })) {
+                                    Toggle(isOn: Binding(get: { appSettings.gridColumns == 2 }, set: { if $0 { appSettings.gridColumns = 2 } })) {
                                         Label("2x2", systemImage: "square.grid.2x2")
                                     }
-                                    Toggle(isOn: Binding(get: { gridColumns == 3 }, set: { if $0 { gridColumns = 3 } })) {
+                                    Toggle(isOn: Binding(get: { appSettings.gridColumns == 3 }, set: { if $0 { appSettings.gridColumns = 3 } })) {
                                         Label("3x3", systemImage: "square.grid.3x3")
                                     }
                                 }

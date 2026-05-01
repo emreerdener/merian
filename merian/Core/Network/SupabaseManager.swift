@@ -11,6 +11,16 @@ import Supabase
 /// Manages the global Supabase connection, auth state, and OAuth sign-in flows.
 @MainActor
 @Observable final class SupabaseManager: NSObject, ASWebAuthenticationPresentationContextProviding {
+    private enum AppleSignInBootstrapError: LocalizedError {
+        case nonceGenerationFailed(OSStatus)
+
+        var errorDescription: String? {
+            switch self {
+            case .nonceGenerationFailed(let status):
+                return "Failed to generate an Apple Sign-In nonce (\(status))."
+            }
+        }
+    }
 
     // MARK: - Singleton Architecture
     static let shared = SupabaseManager()
@@ -94,7 +104,7 @@ import Supabase
                     // throttle gate sees this sync and skips its own redundant call — without
                     // this write both callers fire concurrently on every cold launch.
                     if let context = AppDIContainer.shared.offlineQueueManager.modelContext {
-                        UserDefaults.standard.set(Date(), forKey: "lastHistoricalSyncDate")
+                        UserDefaults.standard.set(Date(), forKey: UserDefaultsKeys.lastHistoricalSyncDate)
                         Task { await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context) }
                     }
                 }
@@ -191,7 +201,7 @@ import Supabase
             currentUser = nil
             isAuthenticated = false
             lastLinkedUserId = nil
-            KeychainManager.shared.removeObject(forKey: "Merian_HasAuthenticatedOAuth")
+            KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
             PostHogManager.shared.reset()
         }
 
@@ -225,7 +235,7 @@ import Supabase
         do {
             token = try await self.getActiveJWT()
         } catch {
-            let hasAuthenticated = KeychainManager.shared.bool(forKey: "Merian_HasAuthenticatedOAuth")
+            let hasAuthenticated = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
             if !hasAuthenticated {
                 await self.initializeGhostSession()
                 token = try await self.getActiveJWT()
@@ -261,7 +271,7 @@ import Supabase
             let session = try await client.auth.session
             _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
 
-            KeychainManager.shared.set(true, forKey: "Merian_HasAuthenticatedOAuth")
+            KeychainManager.shared.set(true, forKey: KeychainKeys.hasAuthenticatedOAuth)
             MerianLog.auth.debug("Google Sign-In complete.")
         } catch {
             MerianLog.auth.debug("Google Sign-In failed: \(error.localizedDescription, privacy: .private)")
@@ -271,12 +281,25 @@ import Supabase
     // MARK: - Apple Sign-In
 
     func startAppleSignIn() {
-        let nonce = randomNonceString()
+        let nonce: String
+        do {
+            nonce = try randomNonceString()
+        } catch {
+            currentNonce = nil
+            MerianLog.auth.error("Apple Sign-In bootstrap failed: \(error.localizedDescription, privacy: .private)")
+            return
+        }
         currentNonce = nonce
 
         let request = ASAuthorizationAppleIDProvider().createRequest()
         request.requestedScopes = [.fullName, .email]
         request.nonce = sha256(nonce)
+
+        guard keyWindowAnchor() != nil else {
+            currentNonce = nil
+            MerianLog.auth.error("Apple Sign-In aborted because no presentation anchor is available.")
+            return
+        }
 
         let controller = ASAuthorizationController(authorizationRequests: [request])
         controller.delegate = self
@@ -330,21 +353,29 @@ import Supabase
     }
 
     /// Shared key-window anchor used by both ASWebAuthentication and ASAuthorizationController delegates.
-    private func keyWindowAnchor() -> ASPresentationAnchor {
+    private func keyWindowAnchor() -> ASPresentationAnchor? {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        guard let windowScene = scenes.first else {
-            fatalError("No UIWindowScene available for authentication.")
+        if let keyWindow = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
+            return keyWindow
         }
-        return scenes.flatMap { $0.windows }.first { $0.isKeyWindow } ?? ASPresentationAnchor(windowScene: windowScene)
+        if let firstWindow = scenes.flatMap(\.windows).first {
+            return firstWindow
+        }
+        if let windowScene = scenes.first {
+            return ASPresentationAnchor(windowScene: windowScene)
+        }
+
+        MerianLog.auth.error("No UIWindowScene available for authentication presentation.")
+        return nil
     }
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        keyWindowAnchor()
+        keyWindowAnchor() ?? ASPresentationAnchor()
     }
 
     // MARK: - Cryptographic Utilities
 
-    private func randomNonceString(length: Int = 32) -> String {
+    private func randomNonceString(length: Int = 32) throws -> String {
         precondition(length > 0)
         let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._")
         let maxValidValue = UInt8(charset.count * (256 / charset.count))
@@ -356,7 +387,7 @@ import Supabase
             var buffer = [UInt8](repeating: 0, count: length - nonce.count)
             let errorCode = SecRandomCopyBytes(kSecRandomDefault, buffer.count, &buffer)
             if errorCode != errSecSuccess {
-                fatalError("SecRandomCopyBytes failed with OSStatus \(errorCode)")
+                throw AppleSignInBootstrapError.nonceGenerationFailed(errorCode)
             }
             for byte in buffer where byte < maxValidValue {
                 nonce.append(charset[Int(byte) % charset.count])
@@ -378,7 +409,7 @@ import Supabase
 extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
 
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        keyWindowAnchor()
+        keyWindowAnchor() ?? ASPresentationAnchor()
     }
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
@@ -387,8 +418,10 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
         guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else { return }
 
         guard let nonce = currentNonce else {
-            fatalError("Invalid state: received Apple auth callback with no pending login request.")
+            MerianLog.auth.error("Apple Sign-In callback received without a pending nonce; aborting login.")
+            return
         }
+        currentNonce = nil
         guard let appleIDToken = appleIDCredential.identityToken else {
             MerianLog.auth.debug("Apple Sign-In: unable to fetch identity token.")
             return
@@ -403,7 +436,7 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                 try await self.finalizeOAuthLogin(provider: .apple, idToken: idTokenString, accessToken: nil, nonce: nonce)
                 let session = try await client.auth.session
                 _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
-                KeychainManager.shared.set(true, forKey: "Merian_HasAuthenticatedOAuth")
+                KeychainManager.shared.set(true, forKey: KeychainKeys.hasAuthenticatedOAuth)
                 MerianLog.auth.debug("Apple Sign-In complete.")
             } catch {
                 MerianLog.auth.debug("Apple Sign-In failed: \(error.localizedDescription, privacy: .private)")
@@ -413,6 +446,7 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
         self.activeAppleAuth = nil
+        self.currentNonce = nil
         MerianLog.auth.debug("Apple Sign-In error: \(error.localizedDescription, privacy: .private)")
     }
 }

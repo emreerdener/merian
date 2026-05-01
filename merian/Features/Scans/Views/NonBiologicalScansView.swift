@@ -156,7 +156,10 @@ struct NonBiologicalScansView: View {
         }
         let container = modelContext.container
         
-        Task.detached(priority: .userInitiated) {
+        DetachedWork.fireAndForget(
+            priority: .userInitiated,
+            category: .backgroundDatabaseMutation
+        ) {
             let backgroundActor = BackgroundDatabaseActor(modelContainer: container)
 
             do {
@@ -165,6 +168,7 @@ struct NonBiologicalScansView: View {
 
                 await MainActor.run {
                     isClearingAll = false
+                    ScanLibraryEvents.postLibraryDidUpdate()
                     HapticManager.shared.triggerSuccessPulse()
                     withAnimation { toastMessage = "Scans cleared" }
                     Task { await AppDIContainer.shared.offlineQueueManager.syncPendingDeletions() }
@@ -192,25 +196,16 @@ struct NonBiologicalScansView: View {
         
         do {
             try modelContext.save()
+            ScanLibraryEvents.postLibraryDidUpdate()
             MerianLog.data.debug("Scan rescued back to biological library.")
         } catch {
             MerianLog.data.error("SwiftData save failed during biological rescue: \(error, privacy: .private)")
         }
         
         let scanId = activeRecord.id
-        // Remote Synchronization
-        Task.detached {
-            struct BiologicalOverridePayload: Encodable, Sendable {
-                let is_biological_subject: Bool
-                let ecology_type: String
-            }
-            let payload = BiologicalOverridePayload(is_biological_subject: true, ecology_type: "unknown")
-            
-            do {
-                try await AppDIContainer.shared.supabaseManager.client.from("scans").update(payload).eq("id", value: scanId).execute()
-            } catch {
-                MerianLog.network.error("Remote markAsBiological sync failed: \(error, privacy: .private)")
-            }
+        // Remote synchronization belongs in the repository layer so the view only initiates intent.
+        Task {
+            await AppDIContainer.shared.scanRepository.syncBiologicalRescue(scanId: scanId)
         }
         
         HapticManager.shared.triggerSelectionPulse()

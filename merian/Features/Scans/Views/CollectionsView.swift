@@ -8,34 +8,41 @@ struct CollectionsView: View {
     @Binding var isInsightSheetOpen: Bool
     @Binding var showNewCollectionAlert: Bool
     @Binding var newlyCreatedCollection: ScanCollection?
-    
+
+    @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var allScans: [LocalScanRecord]
     @Environment(\.modelContext) private var modelContext
+
     @State private var nonBioCount: Int = 0
+    @State private var collectionSnapshot = CollectionMembershipSnapshot.empty
     @State private var collectionToEdit: ScanCollection?
     @State private var showRenameAlert = false
     @State private var showDeleteConfirmation = false
     @State private var newCollectionName = ""
-    
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
                 let isSearching = !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
                 let query = searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
-                
-                let userCollections = collections.filter { !$0.isDeleted && $0.name != "Favorites" && (!isSearching || $0.name.localizedCaseInsensitiveContains(query)) }
-                
+
+                let userCollections = collections.filter {
+                    !$0.isDeleted && $0.name != "Favorites" && (!isSearching || $0.name.localizedCaseInsensitiveContains(query))
+                }
+                let favoritesCollection = collections.first { $0.name == "Favorites" && !$0.isDeleted }
+                let favoritesSummary = favoritesCollection.map { collectionSnapshot.summary(for: $0.id) } ?? .empty
+
                 let showFavorites = !isSearching || "favorites".contains(query)
                 let showNonBio = !isSearching || "non-biological".contains(query) || "non biological".contains(query)
                 let totalFound = userCollections.count + (showFavorites ? 1 : 0) + (showNonBio ? 1 : 0)
-                
+
                 if isSearching || isSearchFocused {
                     HStack {
                         Text(isSearching ? "Search results" : "Search collections")
                             .font(.title3)
                             .fontWeight(.bold)
-                        
+
                         Spacer()
-                        
+
                         Text("\(totalFound) found")
                             .font(.subheadline)
                             .fontWeight(.medium)
@@ -43,88 +50,92 @@ struct CollectionsView: View {
                     }
                     .padding(.horizontal)
                     .padding(.top, 12)
-                    .padding(.bottom, 0) // Adjusted since the parent VStack has spacing: 16
+                    .padding(.bottom, 0)
                 }
-                
-                // MARK: - Promoted Links (Favorites & Non-biological)
+
                 VStack(spacing: 16) {
-                if showFavorites, let favorites = collections.first(where: { $0.name == "Favorites" && !$0.isDeleted }) {
-                    DefaultCollectionLink(
-                        title: "Favorites",
-                        iconName: "heart",
-                        count: favorites.scans?.count ?? 0
+                    if showFavorites, let favoritesCollection {
+                        DefaultCollectionLink(
+                            title: "Favorites",
+                            iconName: "heart",
+                            count: favoritesSummary.count
+                        ) {
+                            CollectionDetailView(collection: favoritesCollection, isInsightSheetOpen: $isInsightSheetOpen)
+                        }
+                    }
+
+                    if showNonBio {
+                        DefaultCollectionLink(
+                            title: "Non-biological",
+                            iconName: "cube",
+                            count: nonBioCount
+                        ) {
+                            NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+
+                if isSearching && userCollections.isEmpty && !showFavorites && !showNonBio {
+                    EmptyStateView(
+                        iconName: "magnifyingglass",
+                        title: "No results found",
+                        message: "No collections match \"\(searchQuery)\"."
+                    )
+                } else if !isSearching && userCollections.isEmpty {
+                    EmptyStateView(
+                        iconName: "folder",
+                        title: "No collections",
+                        message: "Create your first collection to start organizing your scans."
                     ) {
-                        CollectionDetailView(collection: favorites, isInsightSheetOpen: $isInsightSheetOpen)
-                    }
-                }
-                
-                if showNonBio {
-                    DefaultCollectionLink(
-                        title: "Non-biological",
-                        iconName: "cube",
-                        count: nonBioCount
-                    ) {
-                        NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            
-            // MARK: - User Custom Collections Grid
-            if isSearching && userCollections.isEmpty && !showFavorites && !showNonBio {
-                EmptyStateView(
-                    iconName: "magnifyingglass",
-                    title: "No results found",
-                    message: "No collections match \"\(searchQuery)\"."
-                )
-            } else if !isSearching && userCollections.isEmpty {
-                EmptyStateView(
-                    iconName: "folder",
-                    title: "No collections",
-                    message: "Create your first collection to start organizing your scans."
-                ) {
-                    Button {
-                        showNewCollectionAlert = true
-                    } label: {
-                        Text("New collection")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-                }
-            } else {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
-                    ForEach(userCollections) { collection in
-                        NavigationLink {
-                            CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
+                        Button {
+                            showNewCollectionAlert = true
                         } label: {
-                            CollectionCard(collection: collection)
+                            Text("New collection")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
                         }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button {
-                                collectionToEdit = collection
-                                newCollectionName = collection.name
-                                showRenameAlert = true
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                    }
+                } else {
+                    LazyVGrid(
+                        columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
+                        spacing: 16
+                    ) {
+                        ForEach(userCollections) { collection in
+                            NavigationLink {
+                                CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
                             } label: {
-                                Label("Rename collection", systemImage: "pencil")
+                                CollectionCard(
+                                    collection: collection,
+                                    summary: collectionSnapshot.summary(for: collection.id)
+                                )
                             }
-                            
-                            Button(role: .destructive) {
-                                collectionToEdit = collection
-                                showDeleteConfirmation = true
-                            } label: {
-                                Label("Delete collection", systemImage: "trash")
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    collectionToEdit = collection
+                                    newCollectionName = collection.name
+                                    showRenameAlert = true
+                                } label: {
+                                    Label("Rename collection", systemImage: "pencil")
+                                }
+
+                                Button(role: .destructive) {
+                                    collectionToEdit = collection
+                                    showDeleteConfirmation = true
+                                } label: {
+                                    Label("Delete collection", systemImage: "trash")
+                                }
                             }
                         }
                     }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
             }
-            }
-            .padding(.bottom, 16) // Added a global bottom pad for scroll bounding.
+            .padding(.bottom, 16)
         }
         .collectionRenameAlert(
             isPresented: $showRenameAlert,
@@ -143,10 +154,27 @@ struct CollectionsView: View {
         .containerRelativeFrame(.horizontal)
         .id(ScansTab.collections)
         .task {
-            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.isBiological == false })
-            if let count = try? modelContext.fetchCount(descriptor) {
-                nonBioCount = count
-            }
+            refreshCollectionSnapshot()
+            refreshNonBioCount()
+        }
+        .task(id: allScans.count) {
+            refreshCollectionSnapshot()
+            refreshNonBioCount()
+        }
+        .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+            refreshCollectionSnapshot()
+            refreshNonBioCount()
+        }
+    }
+
+    private func refreshCollectionSnapshot() {
+        collectionSnapshot = CollectionMembershipSnapshot(scans: allScans)
+    }
+
+    private func refreshNonBioCount() {
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.isBiological == false })
+        if let count = try? modelContext.fetchCount(descriptor) {
+            nonBioCount = count
         }
     }
 }

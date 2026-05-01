@@ -91,7 +91,7 @@ private struct GBIFMedia: Decodable {
     @ObservationIgnored private var enrichmentAttemptedScanIds: Set<String> = []
     /// Scientific names for which `fetchAndApplyEnrichment` has successfully completed on the
     /// live-inference path. Stored in UserDefaults with a 24-hour expiration.
-    @ObservationIgnored private var enrichedSpeciesTimestamps: [String: Double] = UserDefaults.standard.dictionary(forKey: "enrichedSpeciesTimestamps") as? [String: Double] ?? [:]
+    @ObservationIgnored private var enrichedSpeciesTimestamps: [String: Double] = UserDefaults.standard.dictionary(forKey: UserDefaultsKeys.enrichedSpeciesTimestamps) as? [String: Double] ?? [:]
     /// One-time global reset guard for stale locally cached lookalikes.
     @ObservationIgnored private static var localLookalikesCacheResetInFlight = false
 
@@ -184,7 +184,7 @@ private struct GBIFMedia: Decodable {
     private func markSpeciesEnriched(_ name: String) {
         let ts = Date.now.timeIntervalSinceReferenceDate
         enrichedSpeciesTimestamps[name] = ts
-        UserDefaults.standard.set(enrichedSpeciesTimestamps, forKey: "enrichedSpeciesTimestamps")
+        UserDefaults.standard.set(enrichedSpeciesTimestamps, forKey: UserDefaultsKeys.enrichedSpeciesTimestamps)
     }
 
     private func hasUsableLookalikeTaxonomy(_ taxonomy: TaxonomyData?) -> Bool {

@@ -19,7 +19,7 @@ To maintain strict bounds against the 2GB iPhone memory ceiling, **you may never
 | SQLite `FileManager` I/O | `Task { await FileIOActor.shared }` | Synchronously deleting files from a `ModelContext` lock causes the SwiftData Persistence Store to deadlock, interrupting camera feed logic. Always use `FileIOActor`. |
 | `.sheet(isPresented:)` without `@MainActor` delays | `DispatchQueue.main.async { activeSheet = ... }` | Emitting UIKit-backed modals concurrently while `AVCaptureSession` tears down locks the hardware GPU thread and produces black screens. |
 | `PHAsset` Image Retrieval loops | `PHAssetCreationRequest` temporary URLs | Fetching `.imageManager` loads full-fidelity photo-library proxies. Instead, stream data into `URL.documentsDirectory` off-thread. |
-| Catch-all `Task { ... }` blocks | `Task.detached(priority: .userInitiated) { ... }` | A standard `Task` inherits the `@MainActor` context from the calling View, blocking the user-facing hardware viewport. |
+| Catch-all `Task { ... }` blocks | Structured `Task { ... }` + actor/repository-owned work; if a true detached bridge is required, route it through `DetachedWork` / `Task.detached` only for narrow `Sendable`-only bridges | Inheriting `@MainActor` accidentally blocks the viewport, while overusing detached tasks drops cancellation and isolation guarantees. |
 
 ---
 
@@ -64,3 +64,12 @@ If you suspect an issue:
 1. Open the Xcode memory profiler.
 2. If memory spikes by ~130MB exactly as the shutter fires, check your local variables. You likely captured `Data` inside a strong class scope without deferring `.removeAll()`, holding the ARC reference.
 3. Enable `Strict Concurrency` globally in Xcode build settings to generate build failures when crossing `@Sendable` isolated memory pools.
+
+## 2026-05 Hardening Addendum
+
+- Never call `fatalError` from auth or persistence bootstrap paths. Apple Sign-In anchor discovery, nonce generation, and `ModelContainer` recovery must log, cancel, quarantine, or fall back safely.
+- Never build collection UI from `ScanCollection.scans` on the main thread. Use scan-side membership projections (`LocalScanRecord.collections` → `CollectionMembershipSnapshot`) so large libraries do not fault full relationship graphs into memory.
+- Explore restore media uploads must stay file-backed with `URLSession.upload(for:fromFile:)` and bounded concurrency. Reading each image into `Data` and then assigning `httpBody` is a zero-OOM violation.
+- Remote export media must pass exact-host allowlisting through `URLComponents` and `https` enforcement before any download begins. The approved host is `media.merian.app`.
+- Settings-heavy SwiftUI surfaces should bind through `AppSettings`, not scattered `@AppStorage("...")` literals. The view layer should express intent (`appSettings.themeMode`, `appSettings.gridColumns`), not storage keys.
+- Detached work should route through `DetachedWork`, which marks intentional executor escapes and makes raw `Task.detached` searchable and lintable.

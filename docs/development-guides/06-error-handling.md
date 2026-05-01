@@ -100,13 +100,20 @@ When `identify/index.ts` fires `runBackgroundIngestion()` and `insertScan()` fai
 
 **Ops replay**: Query `failed_scan_ingestions` by `user_id` and `failed_at` to identify affected users. Replay by re-invoking the `identify` function with the same `client_scan_id`. The `ignoreDuplicates: true` guard in `insertScan` makes replay idempotent — a re-run will not create duplicate rows. The `ERROR` status guard in `identify/index.ts` prevents inserting scans where the moderation pipeline returned an error status (null images), so only genuine ingestion failures reach the dead-letter table.
 
+## Startup and Auth Failures Are Recoverable
+
+- Apple Sign-In bootstrap failures are no longer fatal. Missing presentation anchors, missing callback nonces, and `SecRandomCopyBytes` failures now log and return control to the UI instead of terminating the app.
+- `presentationAnchor(for:)` must always return a best-effort anchor. If no active key window exists yet, the flow cancels gracefully rather than crashing the scene.
+- `ModelContainer` bootstrap failures now follow a recovery ladder: normal open → corruption detection → quarantine + retry → in-memory safe mode with startup notice.
+- Remote export/download flows must reject invalid or non-allowlisted URLs before any network call. Use `URLComponents`, require `https`, and allow only exact approved hosts.
+
 ---
 
 ## Handling `401 Unauthorized`
 
 `MerianNetworkClient.performAuthenticatedRequest` intercepts 401 responses:
 
-1. Checks `KeychainManager.shared.bool(forKey: "Merian_HasAuthenticatedOAuth")`.
+1. Checks `KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)`.
    - **Authenticated OAuth user** (`hasAuthenticatedOAuth == true`): throws `MerianError.invalidResponse` immediately — the expired JWT must be re-authenticated. No Ghost session overwrite is attempted.
    - **Ghost/anonymous session** (`hasAuthenticatedOAuth == false`): detects a zombie session, calls `SupabaseManager.shared.signOut()` followed by `initializeGhostSession()`, waits 1.5 seconds for the Kong API Gateway to sync the new ES256 signature, then retries the request once with `isRetry: true`.
 2. If the retry also fails, throws `MerianError.invalidResponse`.

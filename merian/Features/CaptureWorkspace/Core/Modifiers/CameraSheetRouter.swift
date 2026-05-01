@@ -2,7 +2,6 @@ import SwiftUI
 
 struct CameraSheetRouter: ViewModifier {
     @Bindable var viewModel: CaptureWorkspaceViewModel
-    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
     @State private var showNotificationPrompt = false
     @Environment(InferenceEngine.self) var inferenceEngine
     

@@ -57,6 +57,15 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         }
     }
 
+    private func makePreviewCGImage(color: UIColor = .systemTeal) -> CGImage {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
+        let image = renderer.image { context in
+            color.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        }
+        return image.cgImage ?? UIImage(systemName: "photo")!.cgImage!
+    }
+
     private func waitUntil(
         timeoutNanoseconds: UInt64 = 1_000_000_000,
         pollingIntervalNanoseconds: UInt64 = 10_000_000,
@@ -88,6 +97,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         let expectedCompressedData = makePNGData()
         let expectedFileURL = URL.documentsDirectory.appendingPathComponent("historical-refinement.webp")
         let expectedDisplaySignature = Data("\(expectedFileURL.path)|memory-map".utf8)
+        let expectedPreviewCGImage = SendableCGImage(image: makePreviewCGImage())
 
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
@@ -102,7 +112,8 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
                 return PreparedStagedImage(
                     compressedData: expectedCompressedData,
                     displayData: Data("\(request.fileURL.path)|\(strategyLabel)".utf8),
-                    historicalContext: request.historicalContext
+                    historicalContext: request.historicalContext,
+                    previewCGImage: expectedPreviewCGImage
                 )
             },
             prewarmHeadersOnInit: false
@@ -119,7 +130,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         try await waitUntil { !viewModel.isStagingRefinement }
 
         XCTAssertEqual(viewModel.baseRefinementRecord?.id, record.id)
-        XCTAssertEqual(viewModel.requestedCaptureMode, .describe)
+        XCTAssertEqual(viewModel.requestedCaptureMode, CaptureMode.describe)
         XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
         XCTAssertEqual(viewModel.stagedCapture.images.first?.compressedData, expectedCompressedData)
         XCTAssertEqual(viewModel.stagedCapture.images.first?.displayData, expectedDisplaySignature)
@@ -144,7 +155,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         XCTAssertEqual(viewModel.baseRefinementRecord?.id, record.id)
         XCTAssertTrue(viewModel.stagedCapture.images.isEmpty)
-        XCTAssertEqual(viewModel.requestedCaptureMode, .describe)
+        XCTAssertEqual(viewModel.requestedCaptureMode, CaptureMode.describe)
     }
 
     func testMultiCaptureDescribeStagesUntilIdentify() throws {

@@ -10,21 +10,21 @@ struct NotificationSettingsView: View {
         case explore
     }
 
-    @AppStorage(UserDefaultsKeys.isPushNotificationsEnabled) private var isPushNotificationsEnabled: Bool = false
-    @AppStorage(UserDefaultsKeys.isAchievementNotificationsEnabled) private var isAchievementNotificationsEnabled: Bool = false
-    @AppStorage(UserDefaultsKeys.isExploreNotificationsEnabled) private var isExploreNotificationsEnabled: Bool = false
+    @Environment(AppSettings.self) private var appSettings
     
     @State private var showPermissionPrompt = false
     @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @State private var pendingPermissionToggle: PendingNotificationToggle?
     
     var body: some View {
+        @Bindable var appSettings = appSettings
+
         List {
             Section {
                 SettingsToggleRow(
                     title: "Discovery alerts",
                     description: "Receive a notification whenever the AI successfully identifies a species.",
-                    isOn: binding(for: $isPushNotificationsEnabled, target: .discovery)
+                    isOn: binding(for: $appSettings.isPushNotificationsEnabled, target: .discovery)
                 )
             } header: {
                 Text("Inference events")
@@ -36,7 +36,7 @@ struct NotificationSettingsView: View {
                 SettingsToggleRow(
                     title: "Achievements & milestones",
                     description: "Get notified when you unlock new ecological awards.",
-                    isOn: binding(for: $isAchievementNotificationsEnabled, target: .achievements)
+                    isOn: binding(for: $appSettings.isAchievementNotificationsEnabled, target: .achievements)
                 )
             } header: {
                 Text("Gamification")
@@ -46,7 +46,7 @@ struct NotificationSettingsView: View {
                 SettingsToggleRow(
                     title: "Explore activity",
                     description: "Receive a push when someone likes or comments on one of your Explore posts.",
-                    isOn: binding(for: $isExploreNotificationsEnabled, target: .explore) {
+                    isOn: binding(for: $appSettings.isExploreNotificationsEnabled, target: .explore) {
                         Task { @MainActor in
                             await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
                                 reason: "explore_setting_changed"
@@ -124,11 +124,11 @@ struct NotificationSettingsView: View {
 
         switch pendingPermissionToggle {
         case .discovery:
-            isPushNotificationsEnabled = true
+            appSettings.isPushNotificationsEnabled = true
         case .achievements:
-            isAchievementNotificationsEnabled = true
+            appSettings.isAchievementNotificationsEnabled = true
         case .explore:
-            isExploreNotificationsEnabled = true
+            appSettings.isExploreNotificationsEnabled = true
             Task { @MainActor in
                 await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
                     reason: "explore_setting_enabled_after_authorization"

@@ -7,10 +7,6 @@ struct SettingsTabView: View {
     var supabase: SupabaseManager
     @Bindable var viewModel: ProfileViewModel
 
-    // MARK: - Feature Toggles
-    @AppStorage("isExpeditionModeActive") private var isExpeditionModeActive = false
-    @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
-
     // MARK: - State
     @State private var isExporting = false
     @State private var exportUrl: URL?
@@ -29,7 +25,6 @@ struct SettingsTabView: View {
         ZStack {
             List {
                 Preferences(
-                    isHapticsEnabled: $isHapticsEnabled,
                     defaultGeoprivacy: $viewModel.defaultGeoprivacy,
                     managePlanActive: $managePlanActive,
                     notificationSettingsActive: $notificationSettingsActive,
@@ -91,9 +86,6 @@ struct SettingsTabView: View {
             }
             .listStyle(InsetGroupedListStyle())
             .containerRelativeFrame(.horizontal)
-            .onAppear {
-                isExpeditionModeActive = HardwareOrchestrator.shared.isExpeditionModeActive
-            }
             .sheet(isPresented: $showSafari) {
                 if let url = safariUrl {
                     SafariView(url: url)

@@ -1,10 +1,27 @@
+import Combine
 import Foundation
+import Observation
+import UIKit
 
 // MARK: - UserDefaults Key Constants
 /// Single source of truth for all UserDefaults / AppStorage key strings.
 /// Using these constants prevents silent key mismatches across sites that
 /// read and write the same preference value.
 enum UserDefaultsKeys {
+    /// Whether onboarding has completed and the full app lifecycle may start.
+    static let hasCompletedOnboarding = "hasCompletedOnboarding"
+    /// The current theme mode selection persisted via AppStorage.
+    static let themeMode = "themeMode"
+    /// Whether multi-capture mode is enabled for the camera workflow.
+    static let isMultiCaptureEnabled = "isMultiCaptureEnabled"
+    /// Whether scans should wait for explicit user confirmation before submission.
+    static let requiresScanConfirmation = "requiresScanConfirmation"
+    /// Legacy pre-migration key for the old multi-image scan mode toggle.
+    static let legacyMultiImageScanMode = "multiImageScanMode"
+    /// Whether expedition mode is active for low-power field capture sessions.
+    static let isExpeditionModeActive = "isExpeditionModeActive"
+    /// Whether haptic feedback is enabled globally.
+    static let isHapticsEnabled = "isHapticsEnabled"
     /// Whether the user has an unseen scan result waiting in the Scans sheet.
     static let hasUnseenScan = "hasUnseenScan"
     /// Whether discovery-complete notifications are enabled.
@@ -25,6 +42,12 @@ enum UserDefaultsKeys {
     static let zoomSideLeft = "zoomSideLeft"
     /// Whether the zoom slider overlay is visible on the camera viewfinder.
     static let zoomSliderVisible = "zoomSliderVisible"
+    /// Whether captured images should also be saved to the iOS camera roll.
+    static let saveToCameraRoll = "saveToCameraRoll"
+    /// Whether live audio placement hints are visible while recording.
+    static let audioHintsEnabled = "audioHintsEnabled"
+    /// User-selected column count for the scans library grid.
+    static let gridColumns = "gridColumns"
     /// Whether local `ScanCollection` changes are pending a push to the `sync-collections` Edge function.
     static let needsCollectionSync = "needsCollectionSync"
     /// Prefix for per-species preferred common name. Append the scientific name to form the full key.
@@ -45,8 +68,61 @@ enum UserDefaultsKeys {
     static let sharedExplorePostIdPrefix = "sharedExplorePostId_"
     /// The `sharedAt` timestamp of the newest Explore post successfully loaded by the user.
     static let lastSeenExplorePostSharedAt = "lastSeenExplorePostSharedAt"
+    /// Whether foreground inference-complete banners should be suppressed while the user is already viewing results.
+    static let suppressInferenceBanners = "suppressInferenceBanners"
+    /// Seconds-since-epoch timestamp recorded when the app moves to the background.
+    static let lastBackgroundedDate = "lastBackgroundedDate"
+    /// Throttle marker for the last historical cloud-to-local sync attempt.
+    static let lastHistoricalSyncDate = "lastHistoricalSyncDate"
+    /// Throttle marker for the last archive-rescue evaluation.
+    static let lastArchiveRescueDate = "lastArchiveRescueDate"
+    /// A persisted 24-hour TTL dictionary of species that have already completed enrichment.
+    static let enrichedSpeciesTimestamps = "enrichedSpeciesTimestamps"
     /// Version marker for one-time local similar-species cache resets.
     static let localLookalikesCacheResetVersion = "localLookalikesCacheResetVersion"
+}
+
+enum KeychainKeys {
+    /// Distinguishes OAuth-authenticated users from anonymous ghost sessions.
+    static let hasAuthenticatedOAuth = "Merian_HasAuthenticatedOAuth"
+}
+
+enum ScanLibraryEvents {
+    private static let searchIndexUpdateUserInfoKey = "scanId"
+
+    static let searchIndexUpdate = Notification.Name("ScanRequiresSearchIndexUpdate")
+    static let libraryDidUpdate = Notification.Name("MerianLibraryDidUpdate")
+
+    static func postSearchIndexUpdate(
+        scanId: String,
+        center: NotificationCenter = .default
+    ) {
+        center.post(
+            name: searchIndexUpdate,
+            object: nil,
+            userInfo: [searchIndexUpdateUserInfoKey: scanId]
+        )
+    }
+
+    static func scanId(from notification: Notification) -> String? {
+        notification.userInfo?[searchIndexUpdateUserInfoKey] as? String
+    }
+
+    static func searchIndexUpdatePublisher(
+        center: NotificationCenter = .default
+    ) -> NotificationCenter.Publisher {
+        center.publisher(for: searchIndexUpdate)
+    }
+
+    static func postLibraryDidUpdate(center: NotificationCenter = .default) {
+        center.post(name: libraryDidUpdate, object: nil)
+    }
+
+    static func libraryDidUpdatePublisher(
+        center: NotificationCenter = .default
+    ) -> NotificationCenter.Publisher {
+        center.publisher(for: libraryDidUpdate)
+    }
 }
 
 enum ExploreShareStateStore {
@@ -76,3 +152,193 @@ enum ExploreShareStateStore {
         }
     }
 }
+
+@MainActor
+@Observable
+final class AppSettings {
+    static let shared = AppSettings()
+
+    @ObservationIgnored private let userDefaults: UserDefaults
+    @ObservationIgnored private var defaultsObserver: NSObjectProtocol?
+    @ObservationIgnored private var isReloadingFromDefaults = false
+
+    var hasCompletedOnboarding: Bool {
+        didSet { persistBool(hasCompletedOnboarding, oldValue: oldValue, key: UserDefaultsKeys.hasCompletedOnboarding) }
+    }
+    var themeMode: ThemeMode {
+        didSet { persistString(themeMode.rawValue, oldValue: oldValue.rawValue, key: UserDefaultsKeys.themeMode) }
+    }
+    var isMultiCaptureEnabled: Bool {
+        didSet { persistBool(isMultiCaptureEnabled, oldValue: oldValue, key: UserDefaultsKeys.isMultiCaptureEnabled) }
+    }
+    var requiresScanConfirmation: Bool {
+        didSet { persistBool(requiresScanConfirmation, oldValue: oldValue, key: UserDefaultsKeys.requiresScanConfirmation) }
+    }
+    var isExpeditionModeActive: Bool {
+        didSet { persistBool(isExpeditionModeActive, oldValue: oldValue, key: UserDefaultsKeys.isExpeditionModeActive) }
+    }
+    var isHapticsEnabled: Bool {
+        didSet { persistBool(isHapticsEnabled, oldValue: oldValue, key: UserDefaultsKeys.isHapticsEnabled) }
+    }
+    var isPushNotificationsEnabled: Bool {
+        didSet { persistBool(isPushNotificationsEnabled, oldValue: oldValue, key: UserDefaultsKeys.isPushNotificationsEnabled) }
+    }
+    var isAchievementNotificationsEnabled: Bool {
+        didSet { persistBool(isAchievementNotificationsEnabled, oldValue: oldValue, key: UserDefaultsKeys.isAchievementNotificationsEnabled) }
+    }
+    var isExploreNotificationsEnabled: Bool {
+        didSet { persistBool(isExploreNotificationsEnabled, oldValue: oldValue, key: UserDefaultsKeys.isExploreNotificationsEnabled) }
+    }
+    var invertZoomDirection: Bool {
+        didSet { persistBool(invertZoomDirection, oldValue: oldValue, key: UserDefaultsKeys.invertZoomDirection) }
+    }
+    var zoomSideLeft: Bool {
+        didSet { persistBool(zoomSideLeft, oldValue: oldValue, key: UserDefaultsKeys.zoomSideLeft) }
+    }
+    var zoomSliderVisible: Bool {
+        didSet { persistBool(zoomSliderVisible, oldValue: oldValue, key: UserDefaultsKeys.zoomSliderVisible) }
+    }
+    var isLiveInferencePaused: Bool {
+        didSet { persistBool(isLiveInferencePaused, oldValue: oldValue, key: UserDefaultsKeys.isLiveInferencePaused) }
+    }
+    var saveToCameraRoll: Bool {
+        didSet { persistBool(saveToCameraRoll, oldValue: oldValue, key: UserDefaultsKeys.saveToCameraRoll) }
+    }
+    var audioHintsEnabled: Bool {
+        didSet { persistBool(audioHintsEnabled, oldValue: oldValue, key: UserDefaultsKeys.audioHintsEnabled) }
+    }
+    var captureModeOrderRaw: String {
+        didSet { persistString(captureModeOrderRaw, oldValue: oldValue, key: UserDefaultsKeys.captureModeOrder) }
+    }
+    var gridColumns: Int {
+        didSet {
+            let normalized = min(max(gridColumns, 1), 3)
+            if gridColumns != normalized {
+                gridColumns = normalized
+                return
+            }
+            persistInt(gridColumns, oldValue: oldValue, key: UserDefaultsKeys.gridColumns)
+        }
+    }
+
+    init(
+        userDefaults: UserDefaults = .standard,
+        observeExternalChanges: Bool = true
+    ) {
+        self.userDefaults = userDefaults
+
+        userDefaults.register(defaults: [
+            UserDefaultsKeys.themeMode: ThemeMode.system.rawValue,
+            UserDefaultsKeys.isMultiCaptureEnabled: false,
+            UserDefaultsKeys.requiresScanConfirmation: false,
+            UserDefaultsKeys.isExpeditionModeActive: false,
+            UserDefaultsKeys.isHapticsEnabled: true,
+            UserDefaultsKeys.isPushNotificationsEnabled: false,
+            UserDefaultsKeys.isAchievementNotificationsEnabled: false,
+            UserDefaultsKeys.isExploreNotificationsEnabled: false,
+            UserDefaultsKeys.invertZoomDirection: false,
+            UserDefaultsKeys.zoomSideLeft: true,
+            UserDefaultsKeys.zoomSliderVisible: true,
+            UserDefaultsKeys.isLiveInferencePaused: UIDevice.current.isModernIPhone,
+            UserDefaultsKeys.saveToCameraRoll: false,
+            UserDefaultsKeys.audioHintsEnabled: true,
+            UserDefaultsKeys.captureModeOrder: "visual,audio,describe",
+            UserDefaultsKeys.gridColumns: 3
+        ])
+
+        hasCompletedOnboarding = userDefaults.bool(forKey: UserDefaultsKeys.hasCompletedOnboarding)
+        themeMode = ThemeMode(
+            rawValue: userDefaults.string(forKey: UserDefaultsKeys.themeMode) ?? ThemeMode.system.rawValue
+        ) ?? .system
+        isMultiCaptureEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isMultiCaptureEnabled)
+        requiresScanConfirmation = userDefaults.bool(forKey: UserDefaultsKeys.requiresScanConfirmation)
+        isExpeditionModeActive = userDefaults.bool(forKey: UserDefaultsKeys.isExpeditionModeActive)
+        isHapticsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isHapticsEnabled)
+        isPushNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled)
+        isAchievementNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
+        isExploreNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isExploreNotificationsEnabled)
+        invertZoomDirection = userDefaults.bool(forKey: UserDefaultsKeys.invertZoomDirection)
+        zoomSideLeft = userDefaults.bool(forKey: UserDefaultsKeys.zoomSideLeft)
+        zoomSliderVisible = userDefaults.bool(forKey: UserDefaultsKeys.zoomSliderVisible)
+        isLiveInferencePaused = userDefaults.object(forKey: UserDefaultsKeys.isLiveInferencePaused) as? Bool
+            ?? UIDevice.current.isModernIPhone
+        saveToCameraRoll = userDefaults.bool(forKey: UserDefaultsKeys.saveToCameraRoll)
+        audioHintsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.audioHintsEnabled)
+        captureModeOrderRaw = userDefaults.string(forKey: UserDefaultsKeys.captureModeOrder) ?? "visual,audio,describe"
+        gridColumns = min(max(userDefaults.integer(forKey: UserDefaultsKeys.gridColumns), 1), 3)
+
+        if observeExternalChanges {
+            defaultsObserver = NotificationCenter.default.addObserver(
+                forName: UserDefaults.didChangeNotification,
+                object: userDefaults,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.reloadFromDefaults()
+                }
+            }
+        }
+    }
+
+    deinit {
+        if let defaultsObserver {
+            NotificationCenter.default.removeObserver(defaultsObserver)
+        }
+    }
+
+    func applyCaptureModeOrder(_ modes: [CaptureMode]) {
+        captureModeOrderRaw = modes.map(\.rawValue).joined(separator: ",")
+    }
+
+    private func reloadFromDefaults() {
+        isReloadingFromDefaults = true
+        defer { isReloadingFromDefaults = false }
+
+        hasCompletedOnboarding = userDefaults.bool(forKey: UserDefaultsKeys.hasCompletedOnboarding)
+        themeMode = ThemeMode(
+            rawValue: userDefaults.string(forKey: UserDefaultsKeys.themeMode) ?? ThemeMode.system.rawValue
+        ) ?? .system
+        isMultiCaptureEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isMultiCaptureEnabled)
+        requiresScanConfirmation = userDefaults.bool(forKey: UserDefaultsKeys.requiresScanConfirmation)
+        isExpeditionModeActive = userDefaults.bool(forKey: UserDefaultsKeys.isExpeditionModeActive)
+        isHapticsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isHapticsEnabled)
+        isPushNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled)
+        isAchievementNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
+        isExploreNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isExploreNotificationsEnabled)
+        invertZoomDirection = userDefaults.bool(forKey: UserDefaultsKeys.invertZoomDirection)
+        zoomSideLeft = userDefaults.bool(forKey: UserDefaultsKeys.zoomSideLeft)
+        zoomSliderVisible = userDefaults.bool(forKey: UserDefaultsKeys.zoomSliderVisible)
+        isLiveInferencePaused = userDefaults.object(forKey: UserDefaultsKeys.isLiveInferencePaused) as? Bool
+            ?? UIDevice.current.isModernIPhone
+        saveToCameraRoll = userDefaults.bool(forKey: UserDefaultsKeys.saveToCameraRoll)
+        audioHintsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.audioHintsEnabled)
+        captureModeOrderRaw = userDefaults.string(forKey: UserDefaultsKeys.captureModeOrder) ?? "visual,audio,describe"
+        gridColumns = min(max(userDefaults.integer(forKey: UserDefaultsKeys.gridColumns), 1), 3)
+    }
+
+    private func persistBool(_ newValue: Bool, oldValue: Bool, key: String) {
+        guard !isReloadingFromDefaults, newValue != oldValue else { return }
+        userDefaults.set(newValue, forKey: key)
+    }
+
+    private func persistInt(_ newValue: Int, oldValue: Int, key: String) {
+        guard !isReloadingFromDefaults, newValue != oldValue else { return }
+        userDefaults.set(newValue, forKey: key)
+    }
+
+    private func persistString(_ newValue: String, oldValue: String, key: String) {
+        guard !isReloadingFromDefaults, newValue != oldValue else { return }
+        userDefaults.set(newValue, forKey: key)
+    }
+}
+
+#if DEBUG
+extension AppSettings {
+    static var preview: AppSettings {
+        let suiteName = "merian.preview.app-settings"
+        let previewDefaults = UserDefaults(suiteName: suiteName) ?? .standard
+        previewDefaults.removePersistentDomain(forName: suiteName)
+        return AppSettings(userDefaults: previewDefaults, observeExternalChanges: false)
+    }
+}
+#endif

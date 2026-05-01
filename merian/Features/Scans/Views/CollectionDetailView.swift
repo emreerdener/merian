@@ -15,6 +15,7 @@ struct CollectionDetailView: View {
     @Environment(InferenceEngine.self) var inferenceEngine
     
     // MARK: - Interface State
+    @State private var memberScans: [LocalScanRecord] = []
     @State private var scanToDelete: LocalScanRecord?
     @State private var selectedScanForInsight: LocalScanRecord?
     @State private var showScanSelection = false
@@ -27,12 +28,9 @@ struct CollectionDetailView: View {
     // MARK: - View Layout
     var body: some View {
         ScrollView {
-            let sortedScans = allScans.filter { scan in
-                scan.collections?.contains(where: { col in col.id == collection.id }) ?? false
-            }
-            if !sortedScans.isEmpty {
+            if !memberScans.isEmpty {
                 
-                ScansGrid(scans: sortedScans, onSelect: { scan in
+                ScansGrid(scans: memberScans, onSelect: { scan in
                     selectedScanForInsight = scan
                     inferenceEngine.load(from: scan)
                 }, onDelete: { scan in
@@ -78,6 +76,15 @@ struct CollectionDetailView: View {
         }
         .sheet(isPresented: $showScanSelection) {
             SelectMultipleScansView(collection: collection)
+        }
+        .task {
+            refreshMemberScans()
+        }
+        .task(id: allScans.count) {
+            refreshMemberScans()
+        }
+        .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+            refreshMemberScans()
         }
         .scanDeletionDialog(
             isPresented: $showDeleteConfirmation,
@@ -153,10 +160,17 @@ struct CollectionDetailView: View {
 
         do {
             try modelContext.save()
+            ScanLibraryEvents.postLibraryDidUpdate()
+            refreshMemberScans()
             OfflineQueueManager.shared.enqueueCollectionSync()
         } catch {
             modelContext.rollback()
             MerianLog.data.error("CollectionDetailView: failed removing scan from collection: \(error, privacy: .private)")
         }
+    }
+
+    private func refreshMemberScans() {
+        let snapshot = CollectionMembershipSnapshot(scans: allScans)
+        memberScans = snapshot.memberScans(for: collection.id, from: allScans)
     }
 }

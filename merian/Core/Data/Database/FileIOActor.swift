@@ -58,10 +58,17 @@ public actor FileIOActor {
     
     /// Brutally purges an array of physical Sandboxed images off the OS bounds cleanly.
     public func deleteImages(at filenames: [String]) {
+        deleteFiles(at: filenames)
+    }
+
+    /// Deletes a mix of absolute filesystem paths and Documents-relative filenames.
+    public func deleteFiles(at paths: [String]) {
         let docs = URL.documentsDirectory
-        for path in filenames {
+        for path in paths where !path.isEmpty {
+            guard !path.starts(with: "http") else { continue }
+            let targetURL = path.hasPrefix("/") ? URL(fileURLWithPath: path) : docs.appendingPathComponent(path)
             do {
-                try FileManager.default.removeItem(at: docs.appendingPathComponent(path))
+                try FileManager.default.removeItem(at: targetURL)
             } catch {
                 MerianLog.data.debug("FileIOActor: Failed dropping file \(path, privacy: .private): \(error, privacy: .private)")
             }

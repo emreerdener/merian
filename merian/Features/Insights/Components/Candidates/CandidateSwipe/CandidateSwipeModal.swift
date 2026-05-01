@@ -332,11 +332,8 @@ extension CandidateSwipeModal {
         ZStack {
             Color(.secondarySystemBackground)
             
-            if let data = inferenceEngine.activeMedia.liveImageData,
-               let uiImage = UIImage(data: data) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
+            if let data = inferenceEngine.activeMedia.liveImageData {
+                CandidateSwipeLiveThumbnail(imageData: data)
             } else if let path = inferenceEngine.activeMedia.imagePathsForUpload.first {
                 AsyncLocalImageView(
                     path: path,
@@ -354,6 +351,34 @@ extension CandidateSwipeModal {
         .overlay(Circle().strokeBorder(Color(.separator), lineWidth: 0.5))
         .overlay(Circle().strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
         .shadow(color: .black.opacity(0.15), radius: 24, y: 12)
+    }
+}
+
+private struct CandidateSwipeLiveThumbnail: View {
+    let imageData: Data
+
+    @State private var uiImage: UIImage?
+
+    var body: some View {
+        Group {
+            if let uiImage {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ProgressView()
+            }
+        }
+        .task(id: imageData) {
+            uiImage = await Task.detached(priority: .userInitiated) {
+                autoreleasepool {
+                    guard let cgImage = ImageDownsampler.downsample(data: imageData, maxSize: 512) else {
+                        return nil
+                    }
+                    return UIImage(cgImage: cgImage)
+                }
+            }.value
+        }
     }
 }
 

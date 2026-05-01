@@ -126,7 +126,7 @@ final class KeychainManager {
 
     /// One-time migration of legacy auth flags from UserDefaults to Keychain.
     private func migrateFromUserDefaults() {
-        let legacyKey = "Merian_HasAuthenticatedOAuth"
+        let legacyKey = KeychainKeys.hasAuthenticatedOAuth
         if let legacyValue = UserDefaults.standard.object(forKey: legacyKey) as? Bool {
             self.set(legacyValue, forKey: legacyKey)
             UserDefaults.standard.removeObject(forKey: legacyKey)

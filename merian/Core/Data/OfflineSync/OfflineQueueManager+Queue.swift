@@ -100,21 +100,21 @@ extension OfflineQueueManager {
         let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         guard let scan = (try? context.fetch(descriptor))?.first else { return }
 
-        let documentsDirectory = URL.documentsDirectory
         let adoptedAudioPaths = Set(explicitlyAdoptedAudioPaths)
-        
+        var pathsToDelete: [String] = []
+
         for item in scan.capturedMediaSnapshot.items {
             switch item {
             case .image(let reference):
                 if let targetURL = reference.resolvedURL, !reference.isRemote {
-                    try? FileManager.default.removeItem(at: targetURL)
+                    pathsToDelete.append(targetURL.path)
                 } else {
-                    try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(reference.serializedPath))
+                    pathsToDelete.append(reference.serializedPath)
                 }
             case .audio(let reference):
                 if !adoptedAudioPaths.contains(reference.serializedPath),
                    let targetURL = reference.resolvedURL {
-                    try? FileManager.default.removeItem(at: targetURL)
+                    pathsToDelete.append(targetURL.path)
                 }
             case .description:
                 break
@@ -124,6 +124,7 @@ extension OfflineQueueManager {
         context.delete(scan)
         do {
             try context.save()
+            await FileIOActor.shared.deleteFiles(at: pathsToDelete)
             updateUnsyncedItemCount()
         } catch {
             MerianLog.data.error("deleteQueuedScan: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
@@ -142,18 +143,18 @@ extension OfflineQueueManager {
         // telemetry columns into memory for potentially large backlogs of failed scans.
         descriptor.propertiesToFetch = [\.capturedMediaJSON, \.id]
         descriptor.fetchLimit = 500
-        let documentsDirectory = URL.documentsDirectory
 
         do {
             let failedScans = try context.fetch(descriptor)
+            var pathsToDelete: [String] = []
             for scan in failedScans {
                 for item in scan.capturedMediaSnapshot.items {
                     switch item {
                     case .image(let reference), .audio(let reference):
                         if let targetURL = reference.resolvedURL, !reference.isRemote {
-                            try? FileManager.default.removeItem(at: targetURL)
+                            pathsToDelete.append(targetURL.path)
                         } else {
-                            try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(reference.serializedPath))
+                            pathsToDelete.append(reference.serializedPath)
                         }
                     case .description:
                         break
@@ -162,6 +163,9 @@ extension OfflineQueueManager {
                 context.delete(scan)
             }
             try context.save()
+            Task {
+                await FileIOActor.shared.deleteFiles(at: pathsToDelete)
+            }
             updateUnsyncedItemCount()
         } catch {
             MerianLog.data.debug("purgeSoftDeletedRecords: operation failed: \(error, privacy: .private)")
@@ -344,12 +348,6 @@ extension OfflineQueueManager {
     ) {
         let resolvedScanId = scanId ?? UUID().uuidString
         let documentsDirectory = URL.documentsDirectory
-        let pairs = imageDatas.map { _ -> (name: String, url: URL) in
-            let name = "\(UUID().uuidString).webp"
-            return (name, documentsDirectory.appendingPathComponent(name))
-        }
-        let fileNames = pairs.map(\.name)
-        let fileURLs = pairs.map(\.url)
         let timeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
             imageCount: imageDatas.count,
             observationContexts: observationContexts,
@@ -358,8 +356,16 @@ extension OfflineQueueManager {
 
         BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite", priority: .userInitiated) { [weak self] _ in
             guard let self else { return }
+            var fileURLs: [URL] = []
             do {
-                try self.writeImagesToDisk(imageDatas, urls: fileURLs)
+                let fileNames = await FileIOActor.shared.writeTemporaryImages(imageDatas: imageDatas)
+                guard fileNames.count == imageDatas.count else {
+                    await FileIOActor.shared.deleteImages(at: fileNames)
+                    MerianLog.data.error("enqueueCapture: failed to persist the full staged image set — scan will not be queued.")
+                    return
+                }
+
+                fileURLs = fileNames.map { documentsDirectory.appendingPathComponent($0) }
                 let persistedAudioNamesBySourcePath = try self.persistQueuedAudioFiles(
                     audioFilePaths,
                     documentsDirectory: documentsDirectory
@@ -369,19 +375,19 @@ extension OfflineQueueManager {
                     imageFileNames: fileNames,
                     persistedAudioNamesBySourcePath: persistedAudioNamesBySourcePath
                 )
-                
-                await MainActor.run {
-                    self.insertAndPersistRecord(
-                        scanId: resolvedScanId,
-                        fileURLs: fileURLs,
-                        capturedMediaJSON: capturedMediaJSON,
-                        telemetry: telemetry,
-                        blurScore: blurScore
-                    )
-                }
+
+                await self.insertAndPersistRecord(
+                    scanId: resolvedScanId,
+                    fileURLs: fileURLs,
+                    capturedMediaJSON: capturedMediaJSON,
+                    telemetry: telemetry,
+                    blurScore: blurScore
+                )
             } catch {
                 MerianLog.data.error("enqueueCapture: image write to disk failed — scan will not be queued: \(error, privacy: .private)")
-                self.cleanupImages(at: fileURLs)
+                if !fileURLs.isEmpty {
+                    await self.cleanupPersistedCaptureFiles(fileURLs)
+                }
             }
         }
     }
@@ -416,16 +422,8 @@ extension OfflineQueueManager {
 
     // MARK: - Enqueue Helpers
 
-    nonisolated private func writeImagesToDisk(_ imageDatas: [Data], urls: [URL]) throws {
-        for (index, data) in imageDatas.enumerated() {
-            try data.write(to: urls[index])
-        }
-    }
-
-    nonisolated private func cleanupImages(at urls: [URL]) {
-        for url in urls {
-            try? FileManager.default.removeItem(at: url)
-        }
+    private func cleanupPersistedCaptureFiles(_ urls: [URL]) async {
+        await FileIOActor.shared.deleteFiles(at: urls.map(\.path))
     }
 
     @MainActor
@@ -613,14 +611,14 @@ extension OfflineQueueManager {
         capturedMediaJSON: String?,
         telemetry: CaptureTelemetry,
         blurScore: Double?
-    ) {
+    ) async {
         // Enforce quota at enqueue time so every scan that enters the queue is guaranteed to upload.
         // Consuming here (not at upload time) prevents silent stalls when syncPendingScans fires
         // after the experience was already granted to the user.
         if !RevenueCatManager.shared.isProActive {
             guard UsageManager.shared.canPerformScan(isProActive: false) else {
                 MerianLog.data.debug("enqueueCapture: free user scan quota exhausted — scan not enqueued")
-                cleanupImages(at: fileURLs)
+                await cleanupPersistedCaptureFiles(fileURLs)
                 return
             }
             UsageManager.shared.consumeScan()
@@ -652,7 +650,7 @@ extension OfflineQueueManager {
         }
         
         guard let modelContext else {
-            cleanupImages(at: fileURLs)
+            await cleanupPersistedCaptureFiles(fileURLs)
             return
         }
         modelContext.insert(scan)
@@ -664,7 +662,7 @@ extension OfflineQueueManager {
             syncPendingScans()
         } catch {
             MerianLog.data.error("enqueueCapture: context.save() failed — scan record lost, cleaning up image footprints: \(error, privacy: .private)")
-            cleanupImages(at: fileURLs)
+            await cleanupPersistedCaptureFiles(fileURLs)
         }
     }
 }

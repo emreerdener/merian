@@ -160,7 +160,7 @@ final class ScanRepository {
                 MerianLog.data.debug("✅ Merian Sync: Restored \(totalNewRecords, privacy: .public) new historical records.")
             }
             Task { @MainActor in
-                NotificationCenter.default.post(name: NSNotification.Name("MerianLibraryDidUpdate"), object: nil)
+                ScanLibraryEvents.postLibraryDidUpdate()
             }
 
         } catch {
@@ -178,6 +178,23 @@ final class ScanRepository {
     /// Permanently removes all soft-deleted queue records and their associated image files from disk.
     func purgeSoftDeletedRecords() {
         offlineQueue.purgeSoftDeletedRecords()
+    }
+
+    func syncBiologicalRescue(scanId: String) async {
+        struct BiologicalOverridePayload: Encodable, Sendable {
+            let is_biological_subject: Bool
+            let ecology_type: String
+        }
+
+        do {
+            try await SupabaseManager.shared.client
+                .from("scans")
+                .update(BiologicalOverridePayload(is_biological_subject: true, ecology_type: "unknown"))
+                .eq("id", value: scanId)
+                .execute()
+        } catch {
+            MerianLog.network.error("Remote markAsBiological sync failed: \(error, privacy: .private)")
+        }
     }
 
     // MARK: - Deletion
@@ -231,7 +248,7 @@ final class ScanRepository {
             await offlineQueue.syncPendingDeletions()
         }
         
-        NotificationCenter.default.post(name: NSNotification.Name("MerianLibraryDidUpdate"), object: nil)
+        ScanLibraryEvents.postLibraryDidUpdate()
     }
 
     /// Completely eradicates all local database caches and queued data. Use only for full account deletion or hard resets.
@@ -243,7 +260,7 @@ final class ScanRepository {
             try modelContext.delete(model: PendingCloudDeletionTask.self)
             try modelContext.save()
             ExploreShareStateStore.clearAll()
-            NotificationCenter.default.post(name: NSNotification.Name("MerianLibraryDidUpdate"), object: nil)
+            ScanLibraryEvents.postLibraryDidUpdate()
             MerianLog.data.debug("✅ Successfully purged all SwiftData records natively.")
         } catch {
             MerianLog.data.error("🚨 Failed to erase local ModelContainer: \(error.localizedDescription, privacy: .private)")
@@ -650,6 +667,22 @@ actor HistoricalDatabaseActor {
         }()
         let localScansLookup = Dictionary(localScans.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
 
+        // Read membership from the `LocalScanRecord.collections` side to avoid faulting
+        // `ScanCollection.scans` arrays into memory during reconciliation.
+        let relevantCollectionIDs = Set(remoteCollections.map { $0.id.lowercased() })
+        var membershipDescriptor = FetchDescriptor<LocalScanRecord>()
+        membershipDescriptor.propertiesToFetch = [\.id, \.coverImagePath]
+        membershipDescriptor.relationshipKeyPathsForPrefetching = [\.collections]
+        let membershipScans = (try? modelContext.fetch(membershipDescriptor)) ?? []
+        var collectionMembersByID: [String: [LocalScanRecord]] = [:]
+        for scan in membershipScans {
+            for attachedCollection in scan.collections ?? [] {
+                let attachedID = attachedCollection.id.lowercased()
+                guard relevantCollectionIDs.contains(attachedID) else { continue }
+                collectionMembersByID[attachedID, default: []].append(scan)
+            }
+        }
+
         for remote in remoteCollections {
             if Task.isCancelled { break }
             let col: ScanCollection
@@ -681,18 +714,17 @@ actor HistoricalDatabaseActor {
             // Remove local scans that are NOT in the remote list,
             // EXCEPT for those that are still pending upload (offline captures).
             // A reliable heuristic: if the image path is local (doesn't start with http/https), it hasn't synced yet.
-            if let currentScans = col.scans {
-                for scan in currentScans where !remoteScanIds.contains(scan.id) {
-                    let isSynced = scan.coverImagePath?.starts(with: "http") == true || scan.coverImagePath?.starts(with: "https") == true || scan.coverImagePath == nil
-                    if isSynced {
-                        // Drive the removal from the inverse side via reassignment — in-place
-                        // mutation on optional SwiftData arrays can fail to notify the context.
-                        var updatedCollections = scan.collections ?? []
-                        let originalCount = updatedCollections.count
-                        updatedCollections.removeAll(where: { $0.id == col.id })
-                        if updatedCollections.count != originalCount {
-                            scan.collections = updatedCollections
-                        }
+            let currentScans = collectionMembersByID[remoteIdLower] ?? []
+            for scan in currentScans where !remoteScanIds.contains(scan.id) {
+                let isSynced = scan.coverImagePath?.starts(with: "http") == true || scan.coverImagePath?.starts(with: "https") == true || scan.coverImagePath == nil
+                if isSynced {
+                    // Drive the removal from the inverse side via reassignment — in-place
+                    // mutation on optional SwiftData arrays can fail to notify the context.
+                    var updatedCollections = scan.collections ?? []
+                    let originalCount = updatedCollections.count
+                    updatedCollections.removeAll(where: { $0.id == col.id })
+                    if updatedCollections.count != originalCount {
+                        scan.collections = updatedCollections
                     }
                 }
             }
@@ -708,6 +740,7 @@ actor HistoricalDatabaseActor {
                         if !updatedCollections.contains(where: { $0.id == col.id }) {
                             updatedCollections.append(col)
                             localScan.collections = updatedCollections
+                            collectionMembersByID[remoteIdLower, default: []].append(localScan)
                         }
                     }
                 }

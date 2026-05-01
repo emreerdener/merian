@@ -168,6 +168,7 @@ let newPayload = await dbActor.extractSearchablePayloads(from: [persistentId])
 **Responsibilities:**
 - `writeTemporaryImages(imageDatas:)` — `async` method that writes `[Data]` to `URL.documentsDirectory` and returns `[String]` filenames in the same order as the input. Writes are parallelised: each image is dispatched to a `Task.detached` worker so all files are written concurrently rather than sequentially. On a 3-frame scan this reduces wall-clock write time from `3 × write_time` to `max(write_times)`. Filenames are UUID-based and guaranteed unique.
 - `deleteImages(at:)` — deletes files by filename from `documentsDirectory` (skips `http://` paths — those are cloud-owned)
+- `deleteFiles(at:)` — generalized deletion entry point for absolute file paths, `documentsDirectory` filenames, and mixed cleanup lists captured during queue/tombstone cleanup.
 - `validPaths(from:)` — filters a list of paths/URLs down to those that actually exist on disk or are remote URLs
 
 **When to use**: Always use `FileIOActor.shared` — it is a singleton. Never write or delete image files from `BackgroundDatabaseActor`, `@MainActor`, or `Task.detached`. All disk I/O for images flows through here.
@@ -178,6 +179,15 @@ await FileIOActor.shared.deleteImages(at: failedPaths)
 ```
 
 **Why isolated from SwiftData actors**: Disk I/O and SQLite writes contend for different OS resources. Keeping them on separate actors prevents either from starving the other.
+
+### `ArchiveTransferWorker` (`Core/Data/Images/ArchiveManager.swift`)
+
+**Declaration**: `private actor ArchiveTransferWorker`
+
+**Responsibilities:**
+- Owns the heavy download / temp-file / photo-library rescue work triggered by `ArchiveManager`.
+- Streams aging cloud images to disk off the main actor and moves rescued files into the local library.
+- Keeps `ArchiveManager` itself free to remain an `@MainActor` lifecycle coordinator without mixing UI state and large file/network work on the same executor.
 
 ---
 
@@ -217,6 +227,10 @@ Most `@ModelActor` actors are created ad-hoc (per operation) rather than stored 
 - The shared actor is still safe for concurrent callers — Swift actors serialize all calls through their executor automatically.
 
 `FileIOActor` is also a singleton because it has no `ModelContext` and manages a single shared resource (the Documents directory).
+
+## 2026-05 Collection Projection Rule
+
+Large collection membership reads should be projected from `LocalScanRecord.collections`, not by repeatedly faulting `ScanCollection.scans` on UI or reconciliation paths. `BackgroundDatabaseActor.pushCollectionsToEdge()` now faults one collection relationship at a time, and `ScanRepository.syncCollections` builds membership diffs from scan-side projections.
 
 ---
 

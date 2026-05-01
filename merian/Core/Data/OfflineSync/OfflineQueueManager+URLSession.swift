@@ -462,7 +462,7 @@ extension OfflineQueueManager {
                 // Only set the badge when the insight sheet is not already open.
                 // If suppressInferenceBanners is true the user is viewing results in the
                 // sheet — the badge would appear and immediately need clearing on dismiss.
-                if !UserDefaults.standard.bool(forKey: "suppressInferenceBanners") {
+                if !UserDefaults.standard.bool(forKey: UserDefaultsKeys.suppressInferenceBanners) {
                     UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
                     PushNotificationManager.shared.setBadgeCount(1)
                 }

@@ -23,6 +23,7 @@ import SwiftUI
     @ObservationIgnored
     var environmentContextManager = EnvironmentContextManager.shared
     var appEventPublisher = AppEventPublisher.shared
+    var appSettings = AppSettings.shared
 
     // MARK: - Dependencies (Data & Sync)
     var scanRepository = ScanRepository.shared
@@ -53,6 +54,7 @@ import SwiftUI
     /// A safe mock container for SwiftUI `#Preview` execution that guarantees live production databases or hardware components are not mutated.
     static var preview: AppDIContainer {
         let container = AppDIContainer()
+        container.appSettings = .preview
         // Inject mock instances or disable background observers here as needed.
         return container
     }
@@ -84,6 +86,7 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.gamificationManager)
             .environment(container.circuitBreakerManager)
             .environment(container.environmentContextManager)
+            .environment(container.appSettings)
             .environment(container.profileViewModel)
             .environment(container.speechManager)
             .environment(container.audioCaptureManager)
@@ -95,5 +98,35 @@ struct DIContainerModifier: ViewModifier {
 extension View {
     func injectAppDependencies(container: AppDIContainer) -> some View {
         modifier(DIContainerModifier(container: container))
+    }
+}
+
+enum DetachedWorkCategory: String {
+    case thirdPartyBootstrap
+    case imagePreparation
+    case fileSystemCleanup
+    case backgroundDatabaseMutation
+}
+
+enum DetachedWork {
+    @discardableResult
+    static func fireAndForget(
+        priority: TaskPriority = .userInitiated,
+        category _: DetachedWorkCategory,
+        operation: @Sendable @escaping () async -> Void
+    ) -> Task<Void, Never> {
+        Task.detached(priority: priority) {
+            await operation()
+        }
+    }
+
+    static func value<Success: Sendable>(
+        priority: TaskPriority = .userInitiated,
+        category _: DetachedWorkCategory,
+        operation: @Sendable @escaping () async throws -> Success
+    ) async throws -> Success {
+        try await Task.detached(priority: priority) {
+            try await operation()
+        }.value
     }
 }

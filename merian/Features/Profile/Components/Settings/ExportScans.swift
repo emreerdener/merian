@@ -32,31 +32,25 @@ struct ExportScans: View {
                     }
                 } else {
                     Button(action: {
-                        Task.detached(priority: .userInitiated) {
-                            await MainActor.run { isExporting = true }
+                        Task(priority: .userInitiated) {
+                            isExporting = true
                             do {
                                 // Maps request completely off timeout logic!
                                 try await MerianNetworkClient.shared.requestDwcAExport(scope: "personal")
-                                await MainActor.run {
-                                    self.isExporting = false
-                                    withAnimation { self.hasRequestedExport = true }
-                                    self.onExportRequested?()
-                                }
+                                self.isExporting = false
+                                withAnimation { self.hasRequestedExport = true }
+                                self.onExportRequested?()
                             } catch let error as MerianError {
-                                await MainActor.run { 
-                                    isExporting = false 
-                                    if case .httpError(let statusCode, _) = error, statusCode == 429 {
-                                        self.errorMessage = "You can only generate one Darwin Core Archive every 24 hours. Your most recent export was already emailed to you."
-                                    } else {
-                                        self.errorMessage = "Failed to queue export. Please try again later."
-                                    }
+                                isExporting = false
+                                if case .httpError(let statusCode, _) = error, statusCode == 429 {
+                                    self.errorMessage = "You can only generate one Darwin Core Archive every 24 hours. Your most recent export was already emailed to you."
+                                } else {
+                                    self.errorMessage = "Failed to queue export. Please try again later."
                                 }
                             } catch {
                                 MerianLog.network.error("DwC-A export request failed: \(error, privacy: .private)")
-                                await MainActor.run { 
-                                    isExporting = false 
-                                    self.errorMessage = "An unexpected error occurred."
-                                }
+                                isExporting = false
+                                self.errorMessage = "An unexpected error occurred."
                             }
                         }
                     }) {

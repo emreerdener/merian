@@ -56,10 +56,10 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     init() {
-        NotificationCenter.default.publisher(for: NSNotification.Name("ScanRequiresSearchIndexUpdate"))
+        ScanLibraryEvents.searchIndexUpdatePublisher()
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
-                guard let scanId = notification.userInfo?["scanId"] as? String else { return }
+                guard let scanId = ScanLibraryEvents.scanId(from: notification) else { return }
                 Task { @MainActor [weak self] in
                     self?.forceReindex(scanId: scanId)
                 }

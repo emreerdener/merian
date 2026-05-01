@@ -30,8 +30,8 @@ extension CaptureWorkspaceViewModel {
         var stagedContext = observationContext
         stagedContext.addedAt = Date()
 
-        let isMultiCaptureEnabled = UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled")
-        let requiresScanConfirmation = UserDefaults.standard.bool(forKey: "requiresScanConfirmation")
+        let isMultiCaptureEnabled = AppSettings.shared.isMultiCaptureEnabled
+        let requiresScanConfirmation = AppSettings.shared.requiresScanConfirmation
 
         if isMultiCaptureEnabled {
             guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }

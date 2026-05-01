@@ -322,6 +322,39 @@ enum TestExecutionCoordinator {
     }
 }
 
+struct StartupRecoveryNotice {
+    let title: String
+    let message: String
+}
+
+struct ModelContainerBootstrapOutcome {
+    let container: ModelContainer
+    let startupNotice: StartupRecoveryNotice?
+}
+
+struct StartupRecoveryNoticeView: View {
+    let notice: StartupRecoveryNotice
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(notice.title)
+                .font(.subheadline.weight(.semibold))
+            Text(notice.message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.orange.opacity(0.25), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
+    }
+}
+
 // MARK: - Main Execution Point
 @main
 struct MerianApp: App {
@@ -335,40 +368,22 @@ struct MerianApp: App {
     
     // MARK: - SwiftData Container
     let container: ModelContainer
+    let startupRecoveryNotice: StartupRecoveryNotice?
     
     // MARK: - Lifecycle Bootstrapping
     @MainActor
     init() {
         // Migrate old multiImageScanMode to the new isMultiCaptureEnabled key
-        if UserDefaults.standard.object(forKey: "multiImageScanMode") != nil {
-            let oldVal = UserDefaults.standard.bool(forKey: "multiImageScanMode")
-            UserDefaults.standard.set(oldVal, forKey: "isMultiCaptureEnabled")
-            UserDefaults.standard.removeObject(forKey: "multiImageScanMode")
+        if UserDefaults.standard.object(forKey: UserDefaultsKeys.legacyMultiImageScanMode) != nil {
+            let oldVal = UserDefaults.standard.bool(forKey: UserDefaultsKeys.legacyMultiImageScanMode)
+            UserDefaults.standard.set(oldVal, forKey: UserDefaultsKeys.isMultiCaptureEnabled)
+            UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.legacyMultiImageScanMode)
         }
 
-        do {
-            container = try Self.makePersistentContainer()
-            AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
-        } catch {
-            MerianLog.general.error("CRITICAL: Failed to initialize ModelContainer. Error: \(error.localizedDescription)")
-
-            guard ModelStoreRecoveryCoordinator.shouldAttemptRecovery(for: error) else {
-                fatalError("Could not initialize ModelContainer safely. Recovery was skipped because the failure did not match a verified corruption signature. Error: \(error)")
-            }
-
-            do {
-                let quarantineDirectory = try ModelStoreRecoveryCoordinator.quarantineStoreArtifacts(
-                    at: ModelStoreRecoveryCoordinator.defaultStoreURL()
-                )
-                container = try Self.makePersistentContainer()
-                AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
-                MerianLog.general.error(
-                    "RECOVERY: Quarantined suspected-corrupt store artifacts to \(quarantineDirectory.lastPathComponent, privacy: .public) and recreated a fresh ModelContainer."
-                )
-            } catch let recoveryError {
-                fatalError("Could not recover ModelContainer after quarantining the suspected corrupted store. Initial error: \(error), Recovery error: \(recoveryError)")
-            }
-        }
+        let bootstrapOutcome = Self.bootstrapModelContainer()
+        container = bootstrapOutcome.container
+        startupRecoveryNotice = bootstrapOutcome.startupNotice
+        AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
 
         UITestSeedCoordinator.prepareIfNeeded(container: container)
         
@@ -376,18 +391,17 @@ struct MerianApp: App {
         // production store, and no background sync noise racing the test containers.
         if !TestExecutionCoordinator.isRunningTests {
             // Initialize telemetry synchronously — just stores config, safe on main thread.
-            // PostHog is deferred via Task.detached to avoid blocking init(). Since PostHogManager
-            // is not @MainActor, configure() runs on the background thread pool as intended.
+            // PostHog is deferred through the sanctioned detached-work bridge to avoid blocking
+            // init() while keeping this bootstrap hop explicit.
             AppTelemetry.initialize()
-            Task.detached(priority: .background) {
+            DetachedWork.fireAndForget(
+                priority: .background,
+                category: .thirdPartyBootstrap
+            ) {
                 PostHogManager.shared.configure()
             }
         }
     }
-
-    // MARK: - State Management
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
-    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
 
     private static func makePersistentContainer() throws -> ModelContainer {
         let schema = Schema(versionedSchema: CurrentSchema.self)
@@ -398,11 +412,74 @@ struct MerianApp: App {
         return try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
     }
 
+    private static func makeInMemoryContainer() throws -> ModelContainer {
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let config = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: true
+        )
+        return try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
+    }
+
+    private static func bootstrapModelContainer() -> ModelContainerBootstrapOutcome {
+        do {
+            return ModelContainerBootstrapOutcome(
+                container: try makePersistentContainer(),
+                startupNotice: nil
+            )
+        } catch {
+            MerianLog.general.error("CRITICAL: Failed to initialize ModelContainer. Error: \(error.localizedDescription)")
+
+            if ModelStoreRecoveryCoordinator.shouldAttemptRecovery(for: error) {
+                do {
+                    let quarantineDirectory = try ModelStoreRecoveryCoordinator.quarantineStoreArtifacts(
+                        at: ModelStoreRecoveryCoordinator.defaultStoreURL()
+                    )
+                    let recoveredContainer = try makePersistentContainer()
+                    MerianLog.general.error(
+                        "RECOVERY: Quarantined suspected-corrupt store artifacts to \(quarantineDirectory.lastPathComponent, privacy: .public) and recreated a fresh ModelContainer."
+                    )
+                    return ModelContainerBootstrapOutcome(
+                        container: recoveredContainer,
+                        startupNotice: StartupRecoveryNotice(
+                            title: "Library Repaired",
+                            message: "Merian recovered from a corrupted local store and rebuilt the library safely."
+                        )
+                    )
+                } catch let recoveryError {
+                    MerianLog.general.fault(
+                        "ModelContainer recovery failed after quarantine. Initial error: \(error.localizedDescription, privacy: .private) | Recovery error: \(recoveryError.localizedDescription, privacy: .private)"
+                    )
+                    return fallbackInMemoryBootstrap(
+                        reason: "Merian started in safe mode because the local library could not be recovered. New work in this session is temporary until the app restarts with a healthy store."
+                    )
+                }
+            }
+
+            MerianLog.general.error("ModelContainer recovery skipped because the failure did not match a verified corruption signature.")
+            return fallbackInMemoryBootstrap(
+                reason: "Merian started in safe mode after the persistent store failed to open. The app remains usable, but local changes in this session are temporary."
+            )
+        }
+    }
+
+    private static func fallbackInMemoryBootstrap(reason: String) -> ModelContainerBootstrapOutcome {
+        let container = try! makeInMemoryContainer()
+        return ModelContainerBootstrapOutcome(
+            container: container,
+            startupNotice: StartupRecoveryNotice(
+                title: "Safe Mode Enabled",
+                message: reason
+            )
+        )
+    }
+
     // MARK: - Scene Hierarchy
     var body: some Scene {
         WindowGroup {
+            let appSettings = diContainer.appSettings
             Group {
-                if hasCompletedOnboarding {
+                if appSettings.hasCompletedOnboarding {
                     CaptureWorkspaceView()
                 } else {
                     OnboardingView()
@@ -410,20 +487,18 @@ struct MerianApp: App {
             }
             .modelContainer(container)
             .injectAppDependencies(container: diContainer)
-            .onAppear {
-                // Bypass SwiftUI .preferredColorScheme(nil) modal inheritance bugs by pushing to UIWindow
-                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                    for window in windowScene.windows {
-                        window.overrideUserInterfaceStyle = themeMode.userInterfaceStyle
-                    }
+            .overlay(alignment: .top) {
+                if let startupRecoveryNotice {
+                    StartupRecoveryNoticeView(notice: startupRecoveryNotice)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
                 }
             }
-            .onChange(of: themeMode) { _, newTheme in
-                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                    for window in windowScene.windows {
-                        window.overrideUserInterfaceStyle = newTheme.userInterfaceStyle
-                    }
-                }
+            .onAppear {
+                applyTheme(appSettings.themeMode)
+            }
+            .onChange(of: appSettings.themeMode) { _, newTheme in
+                applyTheme(newTheme)
             }
             .onOpenURL { url in
                 if GIDSignIn.sharedInstance.handle(url) {
@@ -458,5 +533,13 @@ struct MerianApp: App {
             }
         }
     }
-    
+
+    private func applyTheme(_ themeMode: ThemeMode) {
+        // Bypass SwiftUI .preferredColorScheme(nil) modal inheritance bugs by pushing to UIWindow.
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            for window in windowScene.windows {
+                window.overrideUserInterfaceStyle = themeMode.userInterfaceStyle
+            }
+        }
+    }
 }

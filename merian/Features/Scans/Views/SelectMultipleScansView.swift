@@ -8,6 +8,7 @@ struct SelectMultipleScansView: View {
     
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) var dismiss
+    @State private var collectionSnapshot = CollectionMembershipSnapshot.empty
     
     // MARK: - View Layout
     var body: some View {
@@ -33,7 +34,7 @@ struct SelectMultipleScansView: View {
                                 toggleSelection(scan: scan)
                             },
                             isSelected: { scan in
-                                collection.scans?.contains(where: { $0.id == scan.id }) ?? false
+                                collectionSnapshot.contains(scanID: scan.id, in: collection.id)
                             }
                         )
                     }
@@ -56,11 +57,20 @@ struct SelectMultipleScansView: View {
                 }
             }
         }
+        .task {
+            refreshCollectionSnapshot()
+        }
+        .task(id: allRecords.count) {
+            refreshCollectionSnapshot()
+        }
+        .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+            refreshCollectionSnapshot()
+        }
     }
     
     // MARK: - Action Handlers
     private func toggleSelection(scan: LocalScanRecord) {
-        if let existingScans = collection.scans, existingScans.contains(where: { $0.id == scan.id }) {
+        if collectionSnapshot.contains(scanID: scan.id, in: collection.id) {
             var updatedCollections = scan.collections ?? []
             updatedCollections.removeAll(where: { $0.id == collection.id })
             scan.collections = updatedCollections
@@ -72,6 +82,12 @@ struct SelectMultipleScansView: View {
             }
         }
         try? modelContext.save()
+        ScanLibraryEvents.postLibraryDidUpdate()
+        refreshCollectionSnapshot()
         OfflineQueueManager.shared.enqueueCollectionSync()
+    }
+
+    private func refreshCollectionSnapshot() {
+        collectionSnapshot = CollectionMembershipSnapshot(scans: allRecords)
     }
 }

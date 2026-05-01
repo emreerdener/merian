@@ -76,7 +76,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 
 ### `PushNotificationManager`
 - Encapsulates `UNUserNotificationCenter` operations on the `@MainActor` thread.
-- Polls `authorizationStatus` to keep the local `@AppStorage(UserDefaultsKeys.isPushNotificationsEnabled)` flag in sync with the OS Settings state. If a user revokes permissions externally, the local flag is corrected asynchronously via `Task { @MainActor in }` (not `DispatchQueue.main.async`) to maintain Swift 6 strict concurrency compliance.
+- Polls `authorizationStatus` to keep the local `AppSettings.isPushNotificationsEnabled` / `UserDefaultsKeys.isPushNotificationsEnabled` flag in sync with the OS Settings state. If a user revokes permissions externally, the local flag is corrected asynchronously via `Task { @MainActor in }` (not `DispatchQueue.main.async`) to maintain Swift 6 strict concurrency compliance.
 - Configured as the `UNUserNotificationCenterDelegate`. Injects `scanId` values into `.userInfo` payloads so background offline completions can surface notifications over the lock screen.
 - **Rich Media & Categorization**: Registers custom categories (`INFERENCE_COMPLETE`) with Interactive Actions ("View Details", "Share Discovery") and natively attaches species thumbnail images for premium lock-screen previews.
 - **Delivery Control**: Uses `threadIdentifier` (`inference_complete_thread`) to prevent lock-screen explosion when sequentially scanning subjects, and elevates deliveries to `.timeSensitive` automatically (iOS 15+) for priority pass-through during field-use.
@@ -155,7 +155,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ### `ArchiveManager` (Archive Safety Protocol)
 - Background worker that protects Free tier user data against the targeted 90-day Cloudflare R2 domesticated purge (`00008_auto_purge_domesticated_cron.sql`).
 - Polls available disk space via `getAvailableDiskSpace()`. Storage threshold and rescue window are driven by `MerianConfig` (`diskSpaceThreshold = 500 MB`, `archiveRescueWindowStartDays = 80`, `archiveRescueWindowEndDays = 88`).
-- `evaluateAndRescueAgingScans` queries SwiftData for `.isLocallyArchived == false` records older than 80 days. It runs once per day via `.handleActivePhase()` lifecycle hooks. To avoid RAM spikes during batch rescues, the system skips `.data(from:)` array loading. Instead, it queries the remote database for `image_storage_urls`, then streams each binary via `URLSession.shared.download(from:)`, moving the temp file to the Documents directory with `FileManager.default.moveItem`. SwiftData stores only the relative `filename` string rather than the full `fileURL.path`, preventing path breakage caused by iOS randomizing container UUIDs across reboots and app updates.
+- `evaluateAndRescueAgingScans` queries SwiftData for `.isLocallyArchived == false` records older than 80 days. It runs once per day via `.handleActivePhase()` lifecycle hooks. `ArchiveManager` now stays `@MainActor` only for lifecycle coordination; heavy download/file rescue work is delegated to a private `ArchiveTransferWorker` actor. The worker queries the remote database for `image_storage_urls`, streams each binary via `URLSession.download(from:)`, and moves the temp file into the local library without blocking UI state. SwiftData stores only the relative `filename` string rather than the full `fileURL.path`, preventing path breakage caused by iOS randomizing container UUIDs across reboots and app updates.
 - **N+1 Query Prevention**: Extracts all `.identifier` strings upfront and sends a single `.in("id", ...)` PostgREST query, pulling all storage relationships in one round-trip.
 
 ### `MerianConfig`
@@ -187,13 +187,30 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 | Constant | Key string | Sites |
 |---|---|---|
 | `hasUnseenScan` | `"hasUnseenScan"` | `MainTabBar` (read), `Analysis` (write — guarded: only written when `activeSheet != .insight`, preventing a false-positive indicator while the user is actively viewing the result), `CameraSheetRouter` (clear) |
+| `hasCompletedOnboarding` | `"hasCompletedOnboarding"` | `MerianApp`, `AppLifecycleManager` |
+| `themeMode` | `"themeMode"` | `MerianApp`, theme bootstrap |
 | `isPushNotificationsEnabled` | `"isPushNotificationsEnabled"` | `NotificationSettingsView`, `PushNotificationManager`, `InferenceEngine`, `OfflineQueueManager+URLSession` |
+| `isMultiCaptureEnabled` | `"isMultiCaptureEnabled"` | `CaptureWorkspaceViewModel`, `DescribeAnalysis`, onboarding migration |
+| `legacyMultiImageScanMode` | `"multiImageScanMode"` | one-time migration in `MerianApp` |
 | `suppressInferenceBanners` | `"suppressInferenceBanners"` | `CaptureWorkspaceViewModel` (write), `PushNotificationManager` (read) |
+| `lastBackgroundedDate` | `"lastBackgroundedDate"` | `AppLifecycleManager` |
+| `lastHistoricalSyncDate` | `"lastHistoricalSyncDate"` | `AppLifecycleManager`, `SupabaseManager` |
+| `lastArchiveRescueDate` | `"lastArchiveRescueDate"` | `AppLifecycleManager` |
+| `enrichedSpeciesTimestamps` | `"enrichedSpeciesTimestamps"` | `InferenceEngine` |
 | `isLiveInferencePaused` | `"isLiveInferencePaused"` | `CameraSettingsView`, `CameraManager` |
 | `invertZoomDirection` | `"invertZoomDirection"` | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView` |
 | `zoomSideLeft` | `"zoomSideLeft"` | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView` |
 | `zoomSliderVisible` | `"zoomSliderVisible"` | `ZoomSliderView`, `CameraSettingsView` |
 | `needsCollectionSync` | `"needsCollectionSync"` | `OfflineQueueManager+Sync` (write on enqueue, clear on success), `ScanRepository` (read/clear during historical sync) |
+
+`KeychainKeys.hasAuthenticatedOAuth` is the single source of truth for the authenticated-session marker used by `SupabaseManager`, `MerianNetworkClient`, and `KeychainManager` migration logic. Do not inline `"Merian_HasAuthenticatedOAuth"`.
+
+### `AppSettings`
+- `@MainActor @Observable` service living alongside `UserDefaultsKeys` in `Core/Utilities`.
+- Owns the typed, in-memory representation of high-churn persisted settings such as `themeMode`, `isMultiCaptureEnabled`, `requiresScanConfirmation`, `gridColumns`, `saveToCameraRoll`, and notification toggles.
+- Writes through to `UserDefaults` on mutation and reloads from `UserDefaults.didChangeNotification` so legacy writers and modern bindings stay coherent during migration.
+- Injected through `AppDIContainer` and SwiftUI environment. Settings-first views should bind `@Environment(AppSettings.self)` and use `@Bindable var appSettings = appSettings` instead of declaring local `@AppStorage` wrappers.
+- Rule: `UserDefaultsKeys` remains the storage registry; `AppSettings` is the preferred UI-facing boundary.
 
 ## Media & Image Processing
 
@@ -218,6 +235,8 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Calls `getValidAuthHeaders()` with `try` (not `try?`) so authentication errors propagate to callers rather than being silently dropped. Previously, using `try?` made network failures impossible to diagnose.
 - Extracts `DeviceIdentityManager.shared.deviceId` without depending on arbitrary session state.
 - Traps `.401 Unauthorized` responses in `performAuthenticatedRequest` by delegating to `SupabaseManager.shared.getValidAuthHeaders()`, which handles Ghost session refresh.
+- `restoreExploreMediaObjectKeys` now uploads via `URLSession.upload(for:fromFile:)` with bounded concurrency, and MIME type detection prefers file extension plus a small header read instead of inflating full images into RAM.
+- Multimodal audio reads now use `.mappedIfSafe` when building base64 payloads to reduce duplicate heap pressure for longer recordings.
 - **`endpointURL(_:) throws -> URL`**: All Edge function URL construction goes through this private helper. It throws `MerianError.invalidURL` if `supabaseUrl` is misconfigured, rather than crashing the process with a force-unwrap (`URL(string: "...")!`). All 9 endpoint call sites (`identify`, `enrich-scan`, `generate-upload-urls`, `delete-scan`, `safe-delete`, `request-export-dwca`, `flag-issue`, `block-user`) use this helper.
 - **Dedicated Supabase `URLSession`**: A private `lazy var session` handles all Supabase Edge and R2 calls. Configuration: `timeoutIntervalForRequest = 30`, `timeoutIntervalForResource = 90` (hard cap — Gemini cannot bypass this regardless of the per-request timeout), `httpMaximumConnectionsPerHost = 6`, `httpShouldSetCookies = false`, `urlCache = nil`. TLS pinning via `MerianTLSDelegate` is applied to `*.supabase.co` only. **Media and external API calls use their own isolated sessions** (never `URLSession.shared`): `LocalImageLoader`, `ArchiveManager`, `ArchiveDatabaseActor`, and `InsightMediaExportManager`/`ExportProcessingActor` each declare a `private static let mediaSession` (30 s / 300 s timeouts); `SimilarSpeciesImageFetcher`, `InferenceEngine`, and `GBIFHeatmapMapView` declare a `private static let externalAPISession` (10 s / 30 s timeouts) for Wikipedia/GBIF best-effort enrichment fetches.
 - **TLS certificate pinning (`MerianTLSDelegate`)**: A private `URLSessionDelegate` validates the server certificate chain for `*.supabase.co`. The check walks the full chain (leaf → intermediate → root): a connection is accepted if **any** certificate in the chain matches a pinned hash. This means the intermediate CA hash acts as a genuine fallback across leaf rotations, not just a backup placeholder. `pinnedCertHashes` contains two active hashes: the leaf cert (`OYvM4tmVyyPLCSqTe1tYvZW0CKRfv4mre7EUA0eJrn0=`) and the intermediate CA (`HfwWBfutNY2LyET3bRUgP6ycpcGnn9SFf/ryhk++v5Y=`). Other hosts (e.g. R2) fall through to default ATS validation. Pinning is skipped in `DEBUG` builds. **Rotation runbook**: before the leaf expires, compute the new hash with `openssl s_client -connect qlarqavoqhkuwzmevrmf.supabase.co:443 </dev/null | openssl x509 -outform DER | openssl dgst -sha256 -binary | base64`, add it to the set alongside the current one, ship the update. Remove the stale hash after the old cert has expired everywhere. The intermediate CA hash only needs updating if Supabase migrates CAs.
@@ -237,6 +256,12 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **`keyWindowAnchor()` helper**: A private `keyWindowAnchor() -> ASPresentationAnchor` method was extracted to remove the identical implementation that was previously copy-pasted into two separate `presentationAnchor` methods.
 - **Deduplicated anonymous sign-in**: The two identical anonymous sign-in code paths were collapsed into a single `isSessionMissing` check, removing the duplicate `signInAnonymously()` block.
 - Maps Apple and Google OAuth hooks to migrate Ghost User accounts, calling `RevenueCatManager.shared.linkWithSupabase()` to align payment state.
+
+### `DetachedWork`
+- Small shared executor-escape helper defined alongside app-wide DI primitives.
+- Sanctioned use cases: background SDK bootstrap, sendable image preparation, bounded file cleanup, and narrow background database bridges.
+- `DetachedWork.fireAndForget(...)` replaces ad hoc `Task.detached` in high-level app flows so the exceptional escape from structured concurrency remains explicit and lintable.
+- Rule: if a detached boundary is still needed, route it through `DetachedWork`; otherwise prefer structured `Task {}` or actor-owned APIs.
 
 ### `KeychainManager`
 - **`baseQuery(for:)` helper**: A private `baseQuery(for key: String) -> [String: Any]` method builds the base `[kSecClass: kSecClassGenericPassword, kSecAttrAccount: key]` dictionary. This was previously duplicated verbatim in all three methods (`set`, `bool`, `removeObject`).
@@ -292,7 +317,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Full architecture documented in [06-profile-and-gamification.md](../features-and-hardware/06-profile-and-gamification.md).
 
 ### `PostHogManager`
-- Not `@MainActor` — `PostHogSDK` is thread-safe, so `configure()` genuinely runs on the background thread pool when dispatched via `Task.detached` in `MerianApp.init()`.
+- Not `@MainActor` — `PostHogSDK` is thread-safe, so `configure()` genuinely runs on the background thread pool when dispatched via `DetachedWork.fireAndForget(...)` in `MerianApp.init()`.
 - Tracks `isConfigured: Bool` set at the end of `configure()`. `identifyUser()` guards on this flag and logs a warning rather than calling `PostHogSDK.shared.identify()` before setup completes — guards against a race where auth state restores before the background configure task finishes.
 - Calls `reset()` on sign-out to clear the PostHog session.
 

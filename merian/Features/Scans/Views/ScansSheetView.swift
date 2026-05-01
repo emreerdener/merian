@@ -38,6 +38,7 @@ struct ScansSheetView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Environment(InferenceEngine.self) var inferenceEngine
+    @Environment(AppSettings.self) private var appSettings
     @Environment(\.dismiss) var dismiss
     @Binding var isInsightSheetOpen: Bool
 
@@ -61,10 +62,9 @@ struct ScansSheetView: View {
     // MARK: - Static Bounds
     private let filterCategories = ["All", "Plants", "Fungi", "Insects", "Birds", "Mammals", "Reptiles", "Other"]
 
-    /// Mirrors ScansGrid's thumbnailSize formula so the prefetch cache key matches exactly.
-    @AppStorage("gridColumns") private var gridColumns: Int = 3
     private var prefetchThumbnailSize: Int {
         let screenWidth = UIScreen.main.bounds.width
+        let gridColumns = appSettings.gridColumns
         let cellWidth = (screenWidth - CGFloat(2 * (gridColumns - 1))) / CGFloat(gridColumns)
         return Int(cellWidth * UIScreen.main.scale)
     }
@@ -307,14 +307,15 @@ private struct ScansSheetToolbar: ToolbarContent {
     @Bindable var searchManager: ScansManager
     @Binding var activeTab: ScansTab
     @Binding var showNewCollectionAlert: Bool
+    @Environment(AppSettings.self) private var appSettings
     let dismiss: DismissAction
     let onShare: () -> Void
     let onDownload: () -> Void
     let onDelete: () -> Void
-    
-    @AppStorage("gridColumns") private var gridColumns: Int = 3
 
     var body: some ToolbarContent {
+        @Bindable var appSettings = appSettings
+
         if searchManager.isSelectionMode {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Cancel") { searchManager.exitSelectionMode() }
@@ -367,13 +368,13 @@ private struct ScansSheetToolbar: ToolbarContent {
                         .pickerStyle(.menu)
                     } else if activeTab == .library {
                         ControlGroup {
-                            Toggle(isOn: Binding(get: { gridColumns == 1 }, set: { if $0 { gridColumns = 1 } })) {
+                            Toggle(isOn: Binding(get: { appSettings.gridColumns == 1 }, set: { if $0 { appSettings.gridColumns = 1 } })) {
                                 Label("1x1", systemImage: "rectangle.grid.1x2")
                             }
-                            Toggle(isOn: Binding(get: { gridColumns == 2 }, set: { if $0 { gridColumns = 2 } })) {
+                            Toggle(isOn: Binding(get: { appSettings.gridColumns == 2 }, set: { if $0 { appSettings.gridColumns = 2 } })) {
                                 Label("2x2", systemImage: "square.grid.2x2")
                             }
-                            Toggle(isOn: Binding(get: { gridColumns == 3 }, set: { if $0 { gridColumns = 3 } })) {
+                            Toggle(isOn: Binding(get: { appSettings.gridColumns == 3 }, set: { if $0 { appSettings.gridColumns = 3 } })) {
                                 Label("3x3", systemImage: "square.grid.3x3")
                             }
                         }

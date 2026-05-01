@@ -892,10 +892,9 @@ actor BackgroundDatabaseActor {
     func pushCollectionsToEdge() async -> Bool {
         let collections: [ScanCollection]
         do {
-            var descriptor = FetchDescriptor<ScanCollection>(
+            let descriptor = FetchDescriptor<ScanCollection>(
                 predicate: #Predicate { $0.name != "Favorites" }
             )
-            descriptor.relationshipKeyPathsForPrefetching = [\.scans]
             collections = try modelContext.fetch(descriptor)
         } catch {
             MerianLog.data.debug("pushCollectionsToEdge: fetch failed: \(error, privacy: .private)")
@@ -903,6 +902,8 @@ actor BackgroundDatabaseActor {
         }
 
         let payloadList = collections.compactMap { col -> SyncCollectionPayload? in
+            // Fault one collection membership set at a time instead of prefetching every
+            // `scans` relationship up-front, which spikes RAM on large libraries.
             return SyncCollectionPayload(
                 id: col.id,
                 name: col.name,

@@ -5,14 +5,10 @@ import SwiftUI
 struct Preferences: View {
     @Environment(HardwareOrchestrator.self) private var hardwareOrchestrator
     @Environment(SupabaseManager.self) private var supabase
+    @Environment(AppSettings.self) private var appSettings
 
-    @Binding var isHapticsEnabled: Bool
     @Binding var defaultGeoprivacy: String
     @Binding var managePlanActive: Bool
-
-    @AppStorage("themeMode") private var themeMode: ThemeMode = .system
-    @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
-    @AppStorage("requiresScanConfirmation") private var requiresScanConfirmation: Bool = false
     @Binding var notificationSettingsActive: Bool
     @Binding var cameraSettingsActive: Bool
     @Binding var audioRecordingSettingsActive: Bool
@@ -21,11 +17,12 @@ struct Preferences: View {
 
     var body: some View {
         @Bindable var hwOrchestrator = hardwareOrchestrator
+        @Bindable var appSettings = appSettings
         
                 Section {
             // MARK: - Theme
             VStack(alignment: .leading, spacing: 8) {                   
-                Picker("Theme", selection: $themeMode) {
+                Picker("Theme", selection: $appSettings.themeMode) {
                     ForEach(ThemeMode.allCases) { mode in
                         Text(mode.rawValue)
                             .tag(mode)
@@ -58,7 +55,7 @@ struct Preferences: View {
             SettingsToggleRow(
                 title: "System haptics",
                 description: "Tactile feedback on zoom ticks, captures, and key interactions.",
-                isOn: $isHapticsEnabled,
+                isOn: $appSettings.isHapticsEnabled,
                 icon: "waveform",
                 iconColor: .pink
             )
@@ -128,7 +125,7 @@ struct Preferences: View {
             SettingsToggleRow(
                 title: "Multi-capture mode",
                 description: "Attach up to 2 items (photos, audio clips, or descriptions) before submitting. By default, a single capture is sent to AI immediately.",
-                isOn: $isMultiCaptureEnabled,
+                isOn: $appSettings.isMultiCaptureEnabled,
                 icon: "square.stack.fill",
                 iconColor: .blue
             )
@@ -137,7 +134,7 @@ struct Preferences: View {
             SettingsToggleRow(
                 title: "Confirm scan submission",
                 description: "Present the 'Identify' button after capturing to physically confirm the scan. When disabled, single captures are sent to AI immediately.",
-                isOn: $requiresScanConfirmation,
+                isOn: $appSettings.requiresScanConfirmation,
                 icon: "hand.tap.fill",
                 iconColor: .purple
             )
@@ -146,16 +143,17 @@ struct Preferences: View {
             SettingsToggleRow(
                 title: "Expedition mode",
                 description: "Maximizes battery life off-grid by capping camera frame rates, disabling heavy visual effects, and suppressing haptics.",
-                isOn: $hwOrchestrator.isExpeditionModeActive,
+                isOn: Binding(
+                    get: { appSettings.isExpeditionModeActive },
+                    set: { newValue in
+                        appSettings.isExpeditionModeActive = newValue
+                        hwOrchestrator.isExpeditionModeActive = newValue
+                        hardwareOrchestrator.evaluateConstraints()
+                    }
+                ),
                 icon: "map.fill",
                 iconColor: .green
             )
-            .onChange(of: hwOrchestrator.isExpeditionModeActive) { _, newValue in
-                // Write to UserDefaults before evaluateConstraints() — that method reads
-                // this key directly and would otherwise snap the toggle back to its prior state.
-                UserDefaults.standard.set(newValue, forKey: "isExpeditionModeActive")
-                hardwareOrchestrator.evaluateConstraints()
-            }
 
         } header: {
             Text("Capture behavior")
@@ -173,7 +171,7 @@ struct Preferences: View {
             
             #if targetEnvironment(simulator)
             Button {
-                UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+                appSettings.hasCompletedOnboarding = false
             } label: {
                 Label("View onboarding", systemImage: "arrow.counterclockwise.circle")
             }
@@ -272,16 +270,14 @@ struct SettingsToggleRow: View {
 // MARK: - Camera Settings
 
 struct CameraSettingsView: View {
-    @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
-    @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = true
-    @AppStorage(UserDefaultsKeys.zoomSliderVisible) private var zoomSliderVisible: Bool = true
-    @AppStorage(UserDefaultsKeys.isLiveInferencePaused) private var isLiveInferencePaused: Bool = UIDevice.current.isModernIPhone
-    @AppStorage("saveToCameraRoll") private var saveToCameraRoll: Bool = false
+    @Environment(AppSettings.self) private var appSettings
     
     @State private var showPermissionPrompt = false
     @State private var authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
 
     var body: some View {
+        @Bindable var appSettings = appSettings
+
         List {
             Section {
                 SettingsToggleRow(
@@ -299,16 +295,16 @@ struct CameraSettingsView: View {
                     title: "Save to camera roll",
                     description: "Automatically save each captured photo to your iPhone's Photos library.",
                     isOn: Binding(
-                        get: { saveToCameraRoll },
+                        get: { appSettings.saveToCameraRoll },
                         set: { newValue in
                             if newValue {
                                 if authStatus == .notDetermined {
                                     showPermissionPrompt = true
                                 } else {
-                                    saveToCameraRoll = true
+                                    appSettings.saveToCameraRoll = true
                                 }
                             } else {
-                                saveToCameraRoll = false
+                                appSettings.saveToCameraRoll = false
                             }
                         }
                     ),
@@ -322,21 +318,21 @@ struct CameraSettingsView: View {
                 SettingsToggleRow(
                     title: "Show zoom slider",
                     description: "Display the zoom meter overlay on the camera viewfinder.",
-                    isOn: $zoomSliderVisible,
+                    isOn: $appSettings.zoomSliderVisible,
                     icon: "slider.vertical.3",
                     iconColor: .blue
                 )
                 SettingsToggleRow(
                     title: "Right-side zoom slider",
                     description: "Move the zoom meter to the right edge of the viewfinder.",
-                    isOn: Binding(get: { !zoomSideLeft }, set: { zoomSideLeft = !$0 }),
+                    isOn: Binding(get: { !appSettings.zoomSideLeft }, set: { appSettings.zoomSideLeft = !$0 }),
                     icon: "arrow.left.and.right",
                     iconColor: .blue
                 )
                 SettingsToggleRow(
                     title: "Invert zoom direction",
                     description: "Swipe down to zoom in, swipe up to zoom out.",
-                    isOn: $invertZoomDirection,
+                    isOn: $appSettings.invertZoomDirection,
                     icon: "arrow.up.arrow.down",
                     iconColor: .blue
                 )
@@ -351,7 +347,7 @@ struct CameraSettingsView: View {
             PhotoLibraryPermissionSheetView {
                 authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
                 if authStatus == .authorized || authStatus == .limited {
-                    saveToCameraRoll = true
+                    appSettings.saveToCameraRoll = true
                 }
                 showPermissionPrompt = false
             }
@@ -364,9 +360,9 @@ struct CameraSettingsView: View {
 
     private var hintsEnabled: Binding<Bool> {
         Binding<Bool>(
-            get: { !isLiveInferencePaused },
+            get: { !appSettings.isLiveInferencePaused },
             set: { newValue in
-                isLiveInferencePaused = !newValue
+                appSettings.isLiveInferencePaused = !newValue
                 CameraManager.shared.isLiveInferencePaused = !newValue
             }
         )
@@ -376,15 +372,17 @@ struct CameraSettingsView: View {
 // MARK: - Audio Recording Settings
 
 struct AudioRecordingSettingsView: View {
-    @AppStorage("audioHintsEnabled") private var audioHintsEnabled: Bool = true
+    @Environment(AppSettings.self) private var appSettings
 
     var body: some View {
+        @Bindable var appSettings = appSettings
+
         List {
             Section {
                 SettingsToggleRow(
                     title: "Live audio hints",
                     description: "Provides real-time mic placement suggestions while recording.",
-                    isOn: $audioHintsEnabled,
+                    isOn: $appSettings.audioHintsEnabled,
                     icon: "waveform",
                     iconColor: .purple
                 )
@@ -478,13 +476,11 @@ struct GeoprivacyPickerView: View {
 
 /// Dedicated settings sheet for configuring the order and default launch view of the core capture tabs.
 struct CaptureModeSettingsView: View {
-    @AppStorage(UserDefaultsKeys.captureModeOrder) private var captureModeOrderRaw: String = "visual,audio,describe"
-
-    private var orderedModes: [CaptureMode] {
-        CaptureMode.userOrder(from: captureModeOrderRaw)
-    }
+    @Environment(AppSettings.self) private var appSettings
 
     var body: some View {
+        let orderedModes = CaptureMode.userOrder(from: appSettings.captureModeOrderRaw)
+
         List {
             Section {
                 ForEach(orderedModes, id: \.self) { mode in
@@ -494,7 +490,7 @@ struct CaptureModeSettingsView: View {
                 .onMove { indices, newOffset in
                     var modes = orderedModes
                     modes.move(fromOffsets: indices, toOffset: newOffset)
-                    captureModeOrderRaw = modes.map(\.rawValue).joined(separator: ",")
+                    appSettings.applyCaptureModeOrder(modes)
                 }
             } header: {
                 Text("Default sections")

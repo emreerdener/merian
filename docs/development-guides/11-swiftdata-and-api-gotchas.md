@@ -218,6 +218,59 @@ diContainer.offlineQueueManager.enqueueCapture(
     scanId: scanId
 )
 
+## 9. `ScanCollection.scans` Is Not a Free Read Path
+
+`ScanCollection.scans` is a relationship fault, not a cheap array property. Using it in SwiftUI hot paths (`CollectionCard`, selection toggles, detail filtering) or historical reconciliation can fault a large graph onto the main actor and trigger frame drops or OOM spikes on big libraries.
+
+### ✅ The Pattern: Project Membership From The Scan Side
+
+- Build lightweight membership snapshots from `LocalScanRecord.collections`.
+- Cache collection counts, member ID sets, and optional cover scans in value types such as `CollectionMembershipSnapshot`.
+- Use those snapshots in SwiftUI instead of repeatedly asking a collection for `scans?.count`, `contains`, or full member arrays.
+
+## 10. Auth and Store Bootstrap Must Not `fatalError`
+
+Login/bootstrap failures happen on real devices: no key window yet, a cleared Apple callback nonce, `SecRandomCopyBytes` failure, or a corrupted local store. These are operational failures, not programmer assertions.
+
+### ✅ The Pattern: Recover Or Degrade
+
+- Apple Sign-In should log and cancel if a presentation anchor or nonce is unavailable.
+- `ModelContainer` creation should attempt corruption-specific quarantine once and then fall back to an in-memory safe mode if recovery still fails.
+- User-facing startup banners are acceptable; crash loops are not.
+
+## 11. Remote Media Validation Requires Exact Host Checks
+
+`url.contains("merian.app")` is not validation. It accepts malicious hosts such as `merian.app.attacker.tld`.
+
+### ✅ The Pattern: `URLComponents` + Exact Allowlist
+
+- Parse with `URLComponents`.
+- Require `https`.
+- Allow only exact approved hosts such as `media.merian.app`.
+- Convert to `[URL]` before crossing actor boundaries so export/download workers do not re-parse untrusted strings.
+
+## 12. Persisted View Settings Should Not Live In Views
+
+Scattering `@AppStorage("...")` across hot SwiftUI surfaces creates two long-term problems: duplicated storage-key knowledge and hidden coupling between unrelated views that mutate the same preference.
+
+### ✅ The Pattern: `UserDefaultsKeys` + `AppSettings`
+
+- Keep storage names in `UserDefaultsKeys`.
+- Expose typed, observable properties through `AppSettings`.
+- Inject `AppSettings` via environment and bind with `@Bindable`.
+- Reserve direct `UserDefaults` access for lower-level services, migrations, or tests.
+
+## 13. Detached Work Should Be Routed Through A Named Bridge
+
+Raw `Task.detached` calls scattered through feature code make it hard to audit which executor escapes are intentional and which are accidental.
+
+### ✅ The Pattern: `DetachedWork`
+
+- Use structured `Task {}` when work belongs to the caller’s lifecycle.
+- Move stateful async work into actors or repositories when ownership matters.
+- If a true detached bridge is still required, route it through `DetachedWork` and keep inputs `Sendable`.
+- Add lint rules around feature-layer files so new raw `Task.detached` call sites do not creep back in unnoticed.
+
 // In the Task — fire live inference concurrently:
 await MainActor.run {
     guard self.diContainer.inferenceEngine.isProcessing else { return }

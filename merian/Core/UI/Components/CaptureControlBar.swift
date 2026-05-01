@@ -18,14 +18,13 @@ struct CaptureControlBar: View {
     @Environment(PhotoLibraryManager.self) private var photoLibraryManager
     @Environment(SpeechManager.self) private var speechManager
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
+    @Environment(AppSettings.self) private var appSettings
     @Environment(\.modelContext) private var modelContext
-
-    @AppStorage("isMultiCaptureEnabled") private var isMultiCaptureEnabled: Bool = false
 
     private var isRefining: Bool { viewModel.baseRefinementRecord != nil }
     // Mirror the ActiveScanToolbar capacity logic — includes isRefining so reanalysis
     // flows get the same two-slot limit as multi-capture without enabling multi-capture.
-    private var capacityLimit: Int { (isMultiCaptureEnabled || isRefining) ? stagedCaptureCapacity : 1 }
+    private var capacityLimit: Int { (appSettings.isMultiCaptureEnabled || isRefining) ? stagedCaptureCapacity : 1 }
 
     var body: some View {
         VStack {
@@ -42,7 +41,7 @@ struct CaptureControlBar: View {
                     PhotoLibraryButton(
                         selectedPhotoItems: $viewModel.selectedPhotoItems,
                         latestThumbnail: photoLibraryManager.latestThumbnail,
-                        maxSelectionCount: isMultiCaptureEnabled ? max(1, viewModel.stagedCapture.availableSlots(limit: capacityLimit)) : 1
+                        maxSelectionCount: appSettings.isMultiCaptureEnabled ? max(1, viewModel.stagedCapture.availableSlots(limit: capacityLimit)) : 1
                     )
                     .opacity(captureMode == .visual ? (isAtCapacity ? 0.5 : 1) : 0)
                     .allowsHitTesting(captureMode == .visual && !isAtCapacity)
@@ -75,8 +74,8 @@ struct CaptureControlBar: View {
                 //   • confirm-before-submit ON (every input must be staged first)
                 // Show "↑" only for immediate solo-describe when none of the above apply.
                 let willStageOnly = !viewModel.stagedCapture.images.isEmpty
-                    || isMultiCaptureEnabled
-                    || UserDefaults.standard.bool(forKey: "requiresScanConfirmation")
+                    || appSettings.isMultiCaptureEnabled
+                    || appSettings.requiresScanConfirmation
                 // All modes disabled when staging area is full — no new input can be added.
                 // Describe also disabled while a refinement image is still loading.
                 let isSubmitDisabled: Bool = isAtCapacity

@@ -30,3 +30,54 @@ excluded:
 analyzer_rules:
   - explicit_self
 
+custom_rules:
+  raw_appstorage_literal:
+    included:
+      - merian/App/MerianApp.swift
+      - merian/Core/UI/Components/CaptureControlBar.swift
+      - merian/Core/UI/Components/ActiveScanToolbar.swift
+      - merian/Features/CaptureWorkspace/Core/Views/CaptureWorkspaceView.swift
+      - merian/Features/CaptureWorkspace/Core/Modifiers/CameraSheetRouter.swift
+      - merian/Features/CaptureWorkspace/Modalities/Audio/Views/SNRGaugeView.swift
+      - merian/Features/Profile/Components/Settings/Preferences.swift
+      - merian/Features/Profile/Views/SettingsTabView.swift
+      - merian/Features/Profile/Views/NotificationSettingsView.swift
+      - merian/Features/Scans/Views/ScansSheetView.swift
+      - merian/Features/Scans/Modifiers/ScansToolbarModifier.swift
+      - merian/Features/Scans/Components/ScansGrid.swift
+      - merian/Features/Onboarding/ViewModels/OnboardingViewModel.swift
+    name: "Raw AppStorage Literal"
+    regex: '@AppStorage\("'
+    message: "Use AppSettings or a typed storage boundary instead of inline @AppStorage string literals."
+    severity: warning
+
+  raw_userdefaults_string_key:
+    included:
+      - merian/App/MerianApp.swift
+      - merian/Core/UI/Components/CaptureControlBar.swift
+      - merian/Core/UI/Components/ActiveScanToolbar.swift
+      - merian/Features/CaptureWorkspace/Core/Views/CaptureWorkspaceView.swift
+      - merian/Features/CaptureWorkspace/Core/Modifiers/CameraSheetRouter.swift
+      - merian/Features/CaptureWorkspace/Modalities/Audio/Views/SNRGaugeView.swift
+      - merian/Features/Profile/Components/Settings/Preferences.swift
+      - merian/Features/Profile/Views/SettingsTabView.swift
+      - merian/Features/Profile/Views/NotificationSettingsView.swift
+      - merian/Features/Scans/Views/ScansSheetView.swift
+      - merian/Features/Scans/Modifiers/ScansToolbarModifier.swift
+      - merian/Features/Scans/Components/ScansGrid.swift
+      - merian/Features/Onboarding/ViewModels/OnboardingViewModel.swift
+    name: "Raw UserDefaults String Key"
+    regex: 'forKey:\s*"'
+    message: "Use UserDefaultsKeys or AppSettings instead of inline UserDefaults string keys."
+    severity: warning
+
+  raw_task_detached:
+    included:
+      - merian/App/MerianApp.swift
+      - merian/Features/CaptureWorkspace/Core/ViewModels/CaptureWorkspaceViewModel.swift
+      - merian/Features/Profile/Components/Settings/DangerZone.swift
+      - merian/Features/Scans/Views/NonBiologicalScansView.swift
+    name: "Raw Task.detached"
+    regex: '\bTask\.detached\('
+    message: "Route detached work through DetachedWork so the boundary stays documented and searchable."
+    severity: warning

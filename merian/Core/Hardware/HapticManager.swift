@@ -20,7 +20,6 @@ final class HapticManager {
 
     // MARK: - Lifecycle
     private init() {
-        UserDefaults.standard.register(defaults: ["isHapticsEnabled": true])
         Task { @MainActor in
             // Delay preparation to avoid boot stutters.
             try? await Task.sleep(nanoseconds: 300_000_000)
@@ -85,7 +84,7 @@ final class HapticManager {
     /// active — expedition mode prioritises battery over feedback without permanently
     /// modifying the user's haptics preference.
     private var shouldFire: Bool {
-        UserDefaults.standard.bool(forKey: "isHapticsEnabled") &&
+        AppSettings.shared.isHapticsEnabled &&
         !HardwareOrchestrator.shared.isExpeditionModeActive
     }
 }

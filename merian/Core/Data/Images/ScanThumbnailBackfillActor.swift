@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 
 private struct ThumbnailSpeciesDictionaryRow: Decodable {
+    let scientific_name: String
     let reference_image_url: String?
     let wikipedia_url: String?
     let wikipedia_overview: String?
@@ -93,11 +94,18 @@ actor ScanThumbnailBackfillActor {
 
         let dbActor = BackgroundDatabaseActor(modelContainer: modelContainer)
         let now = Date.now.timeIntervalSinceReferenceDate
+        let cachedSpeciesByName = await fetchCachedSpeciesMap(
+            scientificNames: candidates.map(\.scientificName)
+        )
 
         await withTaskGroup(of: (ScanThumbnailBackfillCandidate, ThumbnailBackfillPayload?).self) { group in
             for candidate in candidates {
-                group.addTask { [candidate] in
-                    let payload = await self.resolveBackfill(for: candidate)
+                let cachedSpecies = cachedSpeciesByName[candidate.scientificName.lowercased()]
+                group.addTask { [candidate, cachedSpecies] in
+                    let payload = await self.resolveBackfill(
+                        for: candidate,
+                        cachedSpecies: cachedSpecies
+                    )
                     return (candidate, payload)
                 }
             }
@@ -124,8 +132,11 @@ actor ScanThumbnailBackfillActor {
         }
     }
 
-    private func resolveBackfill(for candidate: ScanThumbnailBackfillCandidate) async -> ThumbnailBackfillPayload? {
-        let cached = await fetchCachedSpecies(scientificName: candidate.scientificName)
+    private func resolveBackfill(
+        for candidate: ScanThumbnailBackfillCandidate,
+        cachedSpecies: ThumbnailSpeciesDictionaryRow?
+    ) async -> ThumbnailBackfillPayload? {
+        let cached = cachedSpecies
         let cachedUrls = cached?.reference_image_url.commaSeparatedUrls ?? []
         let cachedWikipediaUrl = cached?.wikipedia_url?.trimmedNonEmpty
         let cachedWikipediaOverview = cached?.wikipedia_overview?.trimmedNonEmpty
@@ -156,20 +167,26 @@ actor ScanThumbnailBackfillActor {
         )
     }
 
-    private func fetchCachedSpecies(scientificName: String) async -> ThumbnailSpeciesDictionaryRow? {
-        guard !scientificName.isEmpty else { return nil }
+    private func fetchCachedSpeciesMap(scientificNames: [String]) async -> [String: ThumbnailSpeciesDictionaryRow] {
+        let normalizedNames = Array(Set(scientificNames.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }))
+        guard !normalizedNames.isEmpty else { return [:] }
 
         do {
             let rows: [ThumbnailSpeciesDictionaryRow] = try await SupabaseManager.shared.client
                 .from("species_dictionary")
-                .select("reference_image_url, wikipedia_url, wikipedia_overview, gbif_taxon_key")
-                .eq("scientific_name", value: scientificName)
-                .limit(1)
+                .select("scientific_name, reference_image_url, wikipedia_url, wikipedia_overview, gbif_taxon_key")
+                .in("scientific_name", values: normalizedNames)
                 .execute()
                 .value
-            return rows.first
+
+            return Dictionary(
+                rows.map { ($0.scientific_name.lowercased(), $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
         } catch {
-            return nil
+            return [:]
         }
     }
 

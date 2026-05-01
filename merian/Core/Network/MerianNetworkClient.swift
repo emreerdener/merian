@@ -195,7 +195,7 @@ final class MerianNetworkClient {
 
             // A 401 on a guest session indicates a zombie token — purge and retry once.
             if httpResponse.statusCode == 401 && !isRetry {
-                let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: "Merian_HasAuthenticatedOAuth")
+                let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
                 if hasAuthenticatedOAuth {
                     // OAuth user whose token expired — surface the 401 so the UI can prompt re-auth.
                     throw MerianError.invalidResponse
@@ -482,7 +482,7 @@ final class MerianNetworkClient {
             var audioBase64s: [String] = []
             for path in capturedAudioPaths {
                 let url = URL.documentsDirectory.appendingPathComponent(path)
-                if let wavData = try? Data(contentsOf: url) {
+                if let wavData = try? Data(contentsOf: url, options: [.mappedIfSafe]) {
                     audioBase64s.append(wavData.base64EncodedString())
                 }
             }
@@ -598,7 +598,23 @@ final class MerianNetworkClient {
         let uploadStart = CFAbsoluteTimeGetCurrent()
         let (responseData, response) = try await activeSession.data(for: request)
         MerianLog.network.debug("R2 upload completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - uploadStart), privacy: .public)s.")
+        try validateR2UploadResponse(responseData: responseData, response: response)
+    }
 
+    func uploadToR2(url: String, fileURL: URL, mimeType: String = "image/webp") async throws {
+        guard let signedUrl = URL(string: url) else { throw MerianError.invalidURL }
+
+        var request = URLRequest(url: signedUrl)
+        request.httpMethod = "PUT"
+        request.setValue(mimeType, forHTTPHeaderField: "Content-Type")
+
+        let uploadStart = CFAbsoluteTimeGetCurrent()
+        let (responseData, response) = try await activeSession.upload(for: request, fromFile: fileURL)
+        MerianLog.network.debug("R2 file upload completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - uploadStart), privacy: .public)s.")
+        try validateR2UploadResponse(responseData: responseData, response: response)
+    }
+
+    private func validateR2UploadResponse(responseData: Data, response: URLResponse) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MerianError.uploadFailed
         }
@@ -909,14 +925,32 @@ final class MerianNetworkClient {
             throw MerianError.invalidResponse
         }
 
-        for (path, uploadUrl) in zip(localImagePaths, uploadUrls) {
-            let fileURL = URL.documentsDirectory.appendingPathComponent(path)
-            let data = try Data(contentsOf: fileURL)
-            try await uploadToR2(
-                url: uploadUrl.signedUrl,
-                data: data,
-                mimeType: exploreRestoreMimeType(for: data)
-            )
+        let uploadPairs = Array(zip(localImagePaths, uploadUrls))
+        let maxConcurrentUploads = 2
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            var iterator = uploadPairs.makeIterator()
+            var inFlight = 0
+
+            func enqueueNext() {
+                while inFlight < maxConcurrentUploads, let (path, uploadUrl) = iterator.next() {
+                    inFlight += 1
+                    group.addTask { [self] in
+                        let fileURL = URL.documentsDirectory.appendingPathComponent(path)
+                        try await uploadToR2(
+                            url: uploadUrl.signedUrl,
+                            fileURL: fileURL,
+                            mimeType: exploreRestoreMimeType(for: fileURL)
+                        )
+                    }
+                }
+            }
+
+            enqueueNext()
+            while try await group.next() != nil {
+                inFlight -= 1
+                enqueueNext()
+            }
         }
 
         return uploadUrls.map(\.objectKey)
@@ -940,11 +974,47 @@ final class MerianNetworkClient {
         return resolved
     }
 
-    private func exploreRestoreMimeType(for data: Data) -> String {
-        guard data.count >= 3 else { return "image/webp" }
-        let prefix = [UInt8](data.prefix(3))
-        return (prefix[0] == 0xFF && prefix[1] == 0xD8 && prefix[2] == 0xFF)
-            ? "image/jpeg"
-            : "image/webp"
+    private func exploreRestoreMimeType(for fileURL: URL) -> String {
+        let fileExtension = fileURL.pathExtension.lowercased()
+        if fileExtension == "jpg" || fileExtension == "jpeg" {
+            return "image/jpeg"
+        }
+        if fileExtension == "png" {
+            return "image/png"
+        }
+        if fileExtension == "heic" || fileExtension == "heif" {
+            return "image/heic"
+        }
+
+        guard let handle = try? FileHandle(forReadingFrom: fileURL) else {
+            return "image/webp"
+        }
+        defer { try? handle.close() }
+
+        let prefixData: Data
+        do {
+            guard let readData = try handle.read(upToCount: 12) else {
+                return "image/webp"
+            }
+            prefixData = readData
+        } catch {
+            return "image/webp"
+        }
+        let prefix = [UInt8](prefixData)
+        if prefix.count >= 3,
+           prefix[0] == 0xFF, prefix[1] == 0xD8, prefix[2] == 0xFF {
+            return "image/jpeg"
+        }
+        if prefix.count >= 8,
+           prefix[0] == 0x89, prefix[1] == 0x50, prefix[2] == 0x4E, prefix[3] == 0x47,
+           prefix[4] == 0x0D, prefix[5] == 0x0A, prefix[6] == 0x1A, prefix[7] == 0x0A {
+            return "image/png"
+        }
+        if prefix.count >= 12,
+           prefix[0] == 0x52, prefix[1] == 0x49, prefix[2] == 0x46, prefix[3] == 0x46,
+           prefix[8] == 0x57, prefix[9] == 0x45, prefix[10] == 0x42, prefix[11] == 0x50 {
+            return "image/webp"
+        }
+        return "image/webp"
     }
 }

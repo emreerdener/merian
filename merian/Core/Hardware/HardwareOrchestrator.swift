@@ -86,7 +86,7 @@ extension UIDevice {
     func evaluateConstraints(thermalState: ProcessInfo.ThermalState? = nil) {
         let processInfo = ProcessInfo.processInfo
 
-        isExpeditionModeActive = UserDefaults.standard.bool(forKey: "isExpeditionModeActive")
+        isExpeditionModeActive = AppSettings.shared.isExpeditionModeActive
 
         // Do not overwrite FPS while idling at 1fps.
         guard !isIdleLocked else { return }

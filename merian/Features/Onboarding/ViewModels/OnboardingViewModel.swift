@@ -8,8 +8,8 @@ import SwiftUI
     // MARK: - App Storage
     // Isolated for strict unit testing without requiring SwiftUI view hosts
     var hasCompletedOnboarding: Bool {
-        get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
-        set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
+        get { AppSettings.shared.hasCompletedOnboarding }
+        set { AppSettings.shared.hasCompletedOnboarding = newValue }
     }
     
     // MARK: - State Transitions

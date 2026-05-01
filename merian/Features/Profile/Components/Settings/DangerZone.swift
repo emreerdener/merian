@@ -41,7 +41,10 @@ struct DangerZone: View {
     // MARK: - Actions
 
     private func clearLocalCache() {
-        Task.detached(priority: .utility) {
+        DetachedWork.fireAndForget(
+            priority: .utility,
+            category: .fileSystemCleanup
+        ) {
             ImageCache.shared.clearCache()
             let cachesDir = URL.cachesDirectory
             var hasError = false

@@ -56,10 +56,15 @@ enum PreparedDisplayDataStrategy: Sendable, Equatable {
     case memoryMapOriginalFile
 }
 
-struct PreparedStagedImage: Sendable, Equatable {
+struct SendableCGImage: @unchecked Sendable {
+    let image: CGImage
+}
+
+struct PreparedStagedImage: Sendable {
     let compressedData: Data
     let displayData: Data
     let historicalContext: HistoricalEnvironmentContextSnapshot?
+    let previewCGImage: SendableCGImage
 }
 
 struct PreparedStagedImageRequest: Sendable, Equatable {
@@ -135,7 +140,7 @@ final class CaptureWorkspaceViewModel {
     @ObservationIgnored var pendingAnalyzeScanId: String?
 
     var stagedCaptureLimit: Int {
-        (UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled") || baseRefinementRecord != nil) ? stagedCaptureCapacity : 1
+        (AppSettings.shared.isMultiCaptureEnabled || baseRefinementRecord != nil) ? stagedCaptureCapacity : 1
     }
 
     var availableStagedCaptureSlots: Int {
@@ -229,7 +234,8 @@ final class CaptureWorkspaceViewModel {
         return PreparedStagedImage(
             compressedData: compressedData,
             displayData: displayData,
-            historicalContext: request.historicalContext
+            historicalContext: request.historicalContext,
+            previewCGImage: SendableCGImage(image: inferenceCGImage)
         )
     }
     
@@ -302,7 +308,10 @@ final class CaptureWorkspaceViewModel {
 
         let itemsToProcess = Array(newItems.prefix(importBudget.availableSlots))
 
-        Task.detached(priority: .userInitiated) { [weak self, isPro, itemsToProcess] in
+        DetachedWork.fireAndForget(
+            priority: .userInitiated,
+            category: .imagePreparation
+        ) { [weak self, isPro, itemsToProcess] in
             guard let self = self else { return }
 
             var preparedImports: [PreparedStagedImage] = []
@@ -324,7 +333,7 @@ final class CaptureWorkspaceViewModel {
                         historicalContext: historicalContext,
                         displayDataStrategy: .reencodeDisplaySized
                     )
-                    guard let preparedImport = try self.preparedImageLoader(request) else { continue }
+                    guard let preparedImport = try? self.preparedImageLoader(request) else { continue }
                     preparedImports.append(preparedImport)
                 }
             }
@@ -367,7 +376,7 @@ final class CaptureWorkspaceViewModel {
         guard availableSlots > 0 else { return }
 
         for preparedImport in preparedImports.prefix(availableSlots) {
-            guard let rawImage = UIImage(data: preparedImport.compressedData) else { continue }
+            let rawImage = UIImage(cgImage: preparedImport.previewCGImage.image)
 
             let identifiable = IdentifiableImage(
                 image: rawImage,
@@ -405,7 +414,10 @@ final class CaptureWorkspaceViewModel {
 
         let isPro = self.diContainer.revenueCatManager.isProActive
 
-        self.refinementStagingTask = Task.detached(priority: .userInitiated) { [weak self, isPro] in
+        self.refinementStagingTask = DetachedWork.fireAndForget(
+            priority: .userInitiated,
+            category: .imagePreparation
+        ) { [weak self, isPro] in
             guard let self = self else { return }
             // localImagePath stores a bare filename relative to the documents directory
             // (written by FileIOActor.writeTemporaryImages). Reconstruct the full URL
@@ -473,7 +485,7 @@ final class CaptureWorkspaceViewModel {
     func updateNotificationSuppression() {
         // Suppress if the user is looking at the final insight sheet.
         let isActivelyWatchingScan = activeSheet == .insight
-        UserDefaults.standard.set(isActivelyWatchingScan, forKey: "suppressInferenceBanners")
+        UserDefaults.standard.set(isActivelyWatchingScan, forKey: UserDefaultsKeys.suppressInferenceBanners)
     }
 
     // MARK: - Workspace State Coordination

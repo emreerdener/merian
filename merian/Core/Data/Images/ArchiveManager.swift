@@ -5,6 +5,67 @@ import Photos
 import SwiftData
 import SwiftUI
 
+private actor ArchiveTransferWorker {
+    func archive(pendingImages: [URL], session: URLSession) async {
+        await withTaskGroup(of: Void.self) { group in
+            var inFlight = 0
+            var urlIterator = pendingImages.makeIterator()
+
+            func enqueueNext() {
+                while inFlight < 3, let url = urlIterator.next() {
+                    inFlight += 1
+                    let capturedURL = url
+                    group.addTask {
+                        do {
+                            try await Self.downloadToLocalLibrary(url: capturedURL, session: session)
+                        } catch {
+                            MerianLog.data.debug("ArchiveManager: Local archive failed for \(capturedURL, privacy: .private): \(error.localizedDescription, privacy: .private)")
+                        }
+                    }
+                }
+            }
+
+            enqueueNext()
+            for await _ in group {
+                inFlight -= 1
+                enqueueNext()
+            }
+        }
+    }
+
+    private static func downloadToLocalLibrary(url: URL, session: URLSession) async throws {
+        var tempFileURL: URL?
+
+        if !url.isFileURL {
+            let (downloadedURL, response) = try await session.download(from: url)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                throw URLError(.badServerResponse)
+            }
+
+            let stableURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".webp")
+            do { try FileManager.default.removeItem(at: stableURL) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
+            try FileManager.default.moveItem(at: downloadedURL, to: stableURL)
+            tempFileURL = stableURL
+        }
+
+        defer {
+            if let fileToRemove = tempFileURL {
+                do { try FileManager.default.removeItem(at: fileToRemove) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
+            }
+        }
+
+        let resourceURL = tempFileURL ?? url
+
+        try await PHPhotoLibrary.shared().performChanges {
+            let creationRequest = PHAssetCreationRequest.forAsset()
+            creationRequest.addResource(with: .photo, fileURL: resourceURL, options: nil)
+        }
+
+        MerianLog.data.debug("ArchiveManager: Successfully archived image to device Photos.")
+    }
+}
+
 // MARK: - Core Archival Orchestrator
 @MainActor
 @Observable final class ArchiveManager {
@@ -17,6 +78,7 @@ import SwiftUI
     
     // MARK: - Core Limits
     private let albumName = "Merian"
+    @ObservationIgnored private let transferWorker = ArchiveTransferWorker()
 
     // Isolated session for downloading user images from R2/Cloudflare into the Photos library.
     // 300 s resource timeout to handle large WEBP payloads on slow connections.
@@ -63,33 +125,7 @@ import SwiftUI
             }
         }
 
-        // Fan out downloads concurrently, capped at 3 in-flight at once.
-        // PHPhotoLibrary.performChanges serialises internally, so a higher cap
-        // wouldn't improve throughput while a lower cap wastes NVMe bandwidth.
-        await withTaskGroup(of: Void.self) { group in
-            var inFlight = 0
-            var urlIterator = pendingImages.makeIterator()
-
-            func enqueueNext() {
-                while inFlight < 3, let url = urlIterator.next() {
-                    inFlight += 1
-                    let capturedUrl = url
-                    group.addTask {
-                        do {
-                            try await self.downloadToLocalLibrary(url: capturedUrl)
-                        } catch {
-                            MerianLog.data.debug("ArchiveManager: Local archive failed for \(capturedUrl, privacy: .private): \(error.localizedDescription, privacy: .private)")
-                        }
-                    }
-                }
-            }
-
-            enqueueNext()
-            for await _ in group {
-                inFlight -= 1
-                enqueueNext()
-            }
-        }
+        await transferWorker.archive(pendingImages: pendingImages, session: Self.mediaSession)
     }
     
     // MARK: - File System Analytics
@@ -104,39 +140,6 @@ import SwiftUI
             MerianLog.data.debug("ArchiveManager: Failed to query true APFS space: \(error, privacy: .private)")
         }
         return 0
-    }
-    
-    private func downloadToLocalLibrary(url: URL) async throws {
-        var tempFileURL: URL?
-        
-        if !url.isFileURL {
-            let (downloadedURL, response) = try await ArchiveManager.mediaSession.download(from: url)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                throw URLError(.badServerResponse)
-            }
-            
-            // Move from ephemeral network cache to a stable temporary boundary to prevent URLSession auto-destruct
-            let stableURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".webp")
-            do { try FileManager.default.removeItem(at: stableURL) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
-            try FileManager.default.moveItem(at: downloadedURL, to: stableURL)
-            tempFileURL = stableURL
-        }
-        
-        defer {
-            if let fileToRemove = tempFileURL {
-                do { try FileManager.default.removeItem(at: fileToRemove) } catch { MerianLog.data.debug("🚨 File removal failed: \(error, privacy: .private)") }
-            }
-        }
-        
-        let resourceURL = tempFileURL ?? url
-        
-        try await PHPhotoLibrary.shared().performChanges {
-            let creationRequest = PHAssetCreationRequest.forAsset()
-            creationRequest.addResource(with: .photo, fileURL: resourceURL, options: nil)
-        }
-        
-        MerianLog.data.debug("ArchiveManager: Successfully archived image to device Photos.")
     }
     
     // MARK: - Cold Storage Re-Hydration

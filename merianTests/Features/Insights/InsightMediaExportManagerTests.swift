@@ -10,12 +10,15 @@ struct InsightMediaExportManagerTests {
         let payload = InsightMediaExportManager.SavePhotosPayload(
             localImagePath: "primary.webp",
             additionalImagePaths: ["secondary.webp", "tertiary.webp"],
-            referenceImageUrl: "https://merian.app/cdn/test.jpg"
+            approvedRemoteURLs: [
+                try #require(URL(string: "https://media.merian.app/cdn/test.jpg"))
+            ]
         )
         
         #expect(payload.localImagePath == "primary.webp")
         #expect(payload.additionalImagePaths?.count == 2)
-        #expect(payload.referenceImageUrl == "https://merian.app/cdn/test.jpg")
+        #expect(payload.approvedRemoteURLs.count == 1)
+        #expect(payload.approvedRemoteURLs.first?.host == "media.merian.app")
     }
     
     @Test("SharePayload formats public descriptions natively")
@@ -24,12 +27,14 @@ struct InsightMediaExportManagerTests {
             commonName: "Test Plant",
             scientificName: "Testus plantus",
             localImagePath: nil,
-            referenceImageUrl: "https://merian.app/share/UUID"
+            approvedRemoteURLs: [
+                try #require(URL(string: "https://media.merian.app/share/UUID"))
+            ]
         )
         
         #expect(payload.commonName == "Test Plant")
         #expect(payload.scientificName == "Testus plantus")
         #expect(payload.localImagePath == nil)
-        #expect(payload.referenceImageUrl != nil)
+        #expect(payload.approvedRemoteURLs.count == 1)
     }
 }

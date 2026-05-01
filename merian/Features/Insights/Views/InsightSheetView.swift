@@ -50,13 +50,13 @@ struct InsightSheetView: View {
                     // Suppress foreground inference banners while the sheet is visible —
                     // the user can already see the result. PushNotificationManager.willPresent
                     // reads this flag and delivers the notification silently instead of as a banner.
-                    UserDefaults.standard.set(true, forKey: "suppressInferenceBanners")
+                    UserDefaults.standard.set(true, forKey: UserDefaultsKeys.suppressInferenceBanners)
                     // Clear the tab bar badge — the user is actively viewing a scan result.
                     UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
                     PushNotificationManager.shared.setBadgeCount(0)
                 }
                 .onDisappear {
-                    UserDefaults.standard.set(false, forKey: "suppressInferenceBanners")
+                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.suppressInferenceBanners)
                 }
                 .task {
                     try? await Task.sleep(nanoseconds: 350_000_000)
