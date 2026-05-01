@@ -14,6 +14,11 @@ import SwiftData
 @Suite(.serialized)
 @MainActor
 struct MigrationPlanTests {
+    private func removeSQLiteStore(at url: URL) {
+        try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
+        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+    }
 
     /// Mirrors MerianApp.init() exactly, using in-memory storage to keep the test fast.
     ///
@@ -32,6 +37,87 @@ struct MigrationPlanTests {
             migrationPlan: MerianMigrationPlan.self,
             configurations: [config]
         )
+    }
+
+    @Test func currentSchemaColdStartPersistsCapturedMediaEntriesAcrossReload() throws {
+        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v41coldstart_test.sqlite")
+        defer { removeSQLiteStore(at: url) }
+
+        let localId = "cold_start_local"
+        let offlineId = "cold_start_offline"
+        let localItems: [SerializedMediaItem] = [
+            .audio(.documents("cold_start_audio.wav")),
+            .description(ObservationContext(freeText: "Cold-start local description")),
+            .image(.documents("cold_start_local.webp"))
+        ]
+        let offlineItems: [SerializedMediaItem] = [
+            .description(ObservationContext(freeText: "Cold-start queued description")),
+            .image(.documents("cold_start_offline.webp"))
+        ]
+
+        do {
+            let schema = Schema(versionedSchema: CurrentSchema.self)
+            let config = ModelConfiguration(schema: schema, url: url)
+            let container = try ModelContainer(
+                for: schema,
+                migrationPlan: MerianMigrationPlan.self,
+                configurations: [config]
+            )
+            let context = ModelContext(container)
+
+            let localRecord = LocalScanRecord(
+                id: localId,
+                speciesId: "cold_start_species",
+                scientificName: "Persistus media",
+                commonName: "Persistent Media",
+                isBiological: true,
+                isLiveCapture: true,
+                isInvasive: false,
+                ecologyType: "wild"
+            )
+            localRecord.replaceCapturedMedia(with: localItems)
+
+            let offlineRecord = OfflineQueuedScan(
+                id: offlineId,
+                coverImagePath: nil
+            )
+            offlineRecord.replaceCapturedMedia(with: offlineItems)
+
+            context.insert(localRecord)
+            context.insert(offlineRecord)
+            try context.save()
+        }
+
+        do {
+            let schema = Schema(versionedSchema: CurrentSchema.self)
+            let config = ModelConfiguration(schema: schema, url: url)
+            let container = try ModelContainer(
+                for: schema,
+                migrationPlan: MerianMigrationPlan.self,
+                configurations: [config]
+            )
+            let context = ModelContext(container)
+
+            var localDescriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == localId }
+            )
+            localDescriptor.fetchLimit = 1
+            let localRecord = try #require(context.fetch(localDescriptor).first)
+            #expect(localRecord.capturedMediaEntries?.count == localItems.count)
+            #expect(localRecord.serializedCapturedMediaItems == localItems)
+            #expect(localRecord.capturedMediaSnapshot.items == localItems)
+            #expect(localRecord.coverImagePath == "cold_start_local.webp")
+
+            var offlineDescriptor = FetchDescriptor<OfflineQueuedScan>(
+                predicate: #Predicate { $0.id == offlineId }
+            )
+            offlineDescriptor.fetchLimit = 1
+            let offlineRecord = try #require(context.fetch(offlineDescriptor).first)
+            #expect(offlineRecord.capturedMediaEntries?.count == offlineItems.count)
+            #expect(offlineRecord.serializedCapturedMediaItems == offlineItems)
+            #expect(offlineRecord.capturedMediaSnapshot.items == offlineItems)
+            #expect(offlineRecord.coverImagePath == "cold_start_offline.webp")
+        }
     }
 
     /// Simulates upgrading from V26 to V27 on-disk — the scenario that triggers iOS 26's

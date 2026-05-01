@@ -5,6 +5,21 @@ import Foundation
 
 @MainActor
 struct OfflineQueueManagerTests {
+    private func enableUnlimitedFreeScansForTest() {
+        let deviceId = DeviceIdentityManager.shared.deviceId
+        UserDefaults.standard.removeObject(forKey: "Merian_LastScanDate_\(deviceId)")
+        UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
+        UsageManager.debugFreeScanLimitOverride = true
+        UsageManager.shared.evaluateDailyRefresh()
+    }
+
+    private func restoreFreeScanLimitForTest() {
+        let deviceId = DeviceIdentityManager.shared.deviceId
+        UserDefaults.standard.removeObject(forKey: "Merian_LastScanDate_\(deviceId)")
+        UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
+        UsageManager.debugFreeScanLimitOverride = nil
+        UsageManager.shared.evaluateDailyRefresh()
+    }
 
     private enum ExpectedSerializedMedia {
         case image(String)
@@ -77,6 +92,9 @@ struct OfflineQueueManagerTests {
     }
 
     @Test func testEnqueueCapture_WithValidData_PersistsQueuedScan() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
         let ctx = try createIsolatedContext()
         let scanId = UUID().uuidString
         let imageData = "dummy_image".data(using: .utf8)!
@@ -114,6 +132,9 @@ struct OfflineQueueManagerTests {
     }
 
     @Test func testEnqueueDescribe_InsertsStagedScan() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
         let ctx = try createIsolatedContext()
         let scanId = UUID().uuidString
         let context = ObservationContext(freeText: "Red small forest mushroom")
@@ -132,6 +153,9 @@ struct OfflineQueueManagerTests {
     }
 
     @Test func testEnqueueCapturePreservesMixedTimelineOrder() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
         let ctx = try createIsolatedContext()
         let scanId = UUID().uuidString
         let imageData = "queued_image".data(using: .utf8)!
@@ -181,6 +205,9 @@ struct OfflineQueueManagerTests {
     }
 
     @Test func testEnqueueNonVisualCaptureSupportsAllowedCombinationMatrix() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
         let ctx = try createIsolatedContext()
 
         let descriptionA = ObservationContext(freeText: "queued description A")

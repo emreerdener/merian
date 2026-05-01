@@ -8,6 +8,12 @@ import Foundation
 /// policy decisions (retention windows, batch sizes, storage limits) self-documenting.
 enum MerianConfig {
 
+    // MARK: - Alpha Overrides
+
+    /// Temporary alpha-phase override that disables the daily free scan cap for every user.
+    /// Remove this flag once standard quota enforcement should return.
+    static var alphaUnlimitedFreeScansEnabled = true
+
     // MARK: - Free Tier Retention
 
     /// The earliest a Free Tier scan can enter the archive rescue window (days before expiry).

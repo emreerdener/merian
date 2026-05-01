@@ -20,11 +20,11 @@ import Observation
     private let defaults = UserDefaults.standard
     private var lastScanDateKey: String { "Merian_LastScanDate_\(DeviceIdentityManager.shared.deviceId)" }
     private var scansUsedKey: String { "Merian_ScansUsedToday_\(DeviceIdentityManager.shared.deviceId)" }
+    private var hasLoggedFreeScanLimitOverride = false
 
 #if DEBUG
     static var debugFreeScanLimitOverride: Bool?
     private static let freeScanLimitOverrideEnvironmentKey = "MERIAN_DISABLE_FREE_SCAN_LIMIT"
-    private var hasLoggedFreeScanLimitOverride = false
 #endif
 
     private init() {
@@ -33,6 +33,10 @@ import Observation
     }
 
     private var isFreeScanLimitOverrideEnabled: Bool {
+        if MerianConfig.alphaUnlimitedFreeScansEnabled {
+            return true
+        }
+
 #if DEBUG
         if let debugFreeScanLimitOverride = Self.debugFreeScanLimitOverride {
             return debugFreeScanLimitOverride
@@ -45,9 +49,15 @@ import Observation
     }
 
     private func logFreeScanLimitOverrideIfNeeded() {
-#if DEBUG
         guard isFreeScanLimitOverrideEnabled, !hasLoggedFreeScanLimitOverride else { return }
         hasLoggedFreeScanLimitOverride = true
+
+        if MerianConfig.alphaUnlimitedFreeScansEnabled {
+            MerianLog.general.warning("TEMP OVERRIDE ACTIVE: unlimited free scans are enabled for the alpha phase.")
+            return
+        }
+
+#if DEBUG
         MerianLog.general.warning("TEMP OVERRIDE ACTIVE: free daily scan limit is disabled via MERIAN_DISABLE_FREE_SCAN_LIMIT.")
 #endif
     }
