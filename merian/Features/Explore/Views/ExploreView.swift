@@ -51,7 +51,7 @@ struct ExploreView: View {
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: tabSelectionBinding)
             .scrollDisabled(activeTab == .map)
-            .background(Color(uiColor: .systemBackground))
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(
                 isPresented: Binding(
@@ -221,7 +221,7 @@ private struct ExploreFeedTabContent: View {
 
     var body: some View {
         ZStack {
-            Color(uiColor: .systemBackground)
+            Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea()
 
             Group {
@@ -241,7 +241,7 @@ private struct ExploreFeedTabContent: View {
 
     private var feedScrollView: some View {
         ScrollView {
-            LazyVStack(spacing: 24) {
+            LazyVStack(spacing: 16) {
                 ForEach(viewModel.posts) { post in
                     ExplorePostCard(
                         post: post,

@@ -28,10 +28,11 @@ struct ExplorePostCard: View {
 
             actionRow
                 .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .padding(.bottom, 10)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .systemBackground))
         .onDisappear {
             doubleTapHeartTask?.cancel()
             doubleTapHeartTask = nil
@@ -387,6 +388,7 @@ extension ExplorePostCard {
                     .padding(.bottom, 10)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(uiColor: .systemBackground))
             .overlay(glowOverlay)
             .shadow(color: glowShadowColor, radius: isGlowing ? 22 : 10, x: 0, y: 0)
             .opacity(isGlowing ? 1.0 : 0.92)
