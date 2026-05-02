@@ -128,18 +128,32 @@ private struct AchievementAccumulator {
     }
 
     var detailPayload: AchievementDetailPayload {
-        AchievementDetailPayload(
+        let targetCount = type.definition.targetCount
+        let cappedCount = min(contributionsBySpeciesKey.count, targetCount)
+        
+        // Sort ascending to find the earliest contributions that unlocked the achievement
+        let oldestFirst = contributionsBySpeciesKey.values.sorted { lhs, rhs in
+            if lhs.timestamp == rhs.timestamp {
+                return lhs.scanID < rhs.scanID
+            }
+            return lhs.timestamp < rhs.timestamp
+        }
+        
+        // Take up to targetCount, then sort descending for the UI presentation
+        let displayContributions = Array(oldestFirst.prefix(targetCount)).sorted { lhs, rhs in
+            if lhs.timestamp == rhs.timestamp {
+                return lhs.scanID < rhs.scanID
+            }
+            return lhs.timestamp > rhs.timestamp
+        }
+
+        return AchievementDetailPayload(
             award: AwardPayload(
                 type: type,
-                currentCount: contributionsBySpeciesKey.count,
+                currentCount: cappedCount,
                 lastInteractionDate: lastInteractionDate
             ),
-            contributions: contributionsBySpeciesKey.values.sorted { lhs, rhs in
-                if lhs.timestamp == rhs.timestamp {
-                    return lhs.scanID < rhs.scanID
-                }
-                return lhs.timestamp > rhs.timestamp
-            }
+            contributions: displayContributions
         )
     }
 }
