@@ -183,6 +183,32 @@ struct SpeciesDataTests {
         #expect(species.similarSpecies?.lookalikes == ["Procyon cancrivorus"])
     }
 
+    @Test func testSimilarSpeciesFilteredEntriesExcludeCurrentSpeciesAndDuplicates() {
+        let similar = SimilarSpecies(entries: [
+            SimilarSpeciesEntry(scientificName: "Opuntia engelmannii", commonName: "Texas Prickly Pear", referenceImageUrl: nil, iucnRedListStatus: nil),
+            SimilarSpeciesEntry(scientificName: "  ", commonName: "Ignored", referenceImageUrl: nil, iucnRedListStatus: nil),
+            SimilarSpeciesEntry(scientificName: "Opuntia lindheimeri", commonName: "Texas Prickly Pear", referenceImageUrl: nil, iucnRedListStatus: nil),
+            SimilarSpeciesEntry(scientificName: "opuntia lindheimeri", commonName: "Duplicate casing", referenceImageUrl: nil, iucnRedListStatus: nil)
+        ])
+
+        let filtered = similar.filteredEntries(excludingScientificName: "Opuntia engelmannii")
+
+        #expect(filtered.count == 1)
+        #expect(filtered.first?.scientificName == "Opuntia lindheimeri")
+    }
+
+    @Test func testSimilarSpeciesEntryDisplayCommonNameSuppressesDuplicateCurrentCommonName() {
+        let entry = SimilarSpeciesEntry(
+            scientificName: "Opuntia lindheimeri",
+            commonName: "Texas Prickly Pear",
+            referenceImageUrl: nil,
+            iucnRedListStatus: nil
+        )
+
+        #expect(entry.displayCommonName(comparedTo: "Texas Prickly Pear") == nil)
+        #expect(entry.displayCommonName(comparedTo: "Cane Cholla") == "Texas Prickly Pear")
+    }
+
     // MARK: - Identification Review: aiScientificName & override fields
 
     @Test func testAIScientificNameSetFromEdgeResponseInit() throws {

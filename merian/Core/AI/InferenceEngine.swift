@@ -191,6 +191,17 @@ private struct GBIFMedia: Decodable {
         taxonomy?.hasUsableLookalikeValidation == true
     }
 
+    nonisolated static func plannedEnrichmentScopes(
+        needsMetadata: Bool,
+        needsLookalikes: Bool,
+        speciesIsEnriched: Bool
+    ) -> (metadata: Bool, lookalikes: Bool) {
+        (
+            metadata: needsMetadata && !speciesIsEnriched,
+            lookalikes: needsLookalikes
+        )
+    }
+
     private func shouldResetLocalLookalikesCache() -> Bool {
         UserDefaults.standard.integer(forKey: UserDefaultsKeys.localLookalikesCacheResetVersion) <
         MerianConfig.localLookalikesCacheResetVersion
@@ -618,12 +629,12 @@ private struct GBIFMedia: Decodable {
                                 await MainActor.run { self.activeMedia.referenceState = .loading }
                             }
                             
-                            // Gate enrichment at the species level — habitat, lookalikes, and taxonomy
-                            // are identical across all scans of the same species. After the first scan
-                            // enriches a species in this session, subsequent scans skip the Edge
-                            // round-trip entirely. GBIF image hydration always runs (it writes
-                            // referenceImageUrl for the specific scan record).
                             let capturedIsEnriched = self.isSpeciesEnriched(capturedScientificName)
+                            let plannedScopes = Self.plannedEnrichmentScopes(
+                                needsMetadata: true,
+                                needsLookalikes: true,
+                                speciesIsEnriched: capturedIsEnriched
+                            )
                             // Use withTaskGroup + @MainActor child tasks so the ModelContext
                             // capture stays actor-bound — async let closures are implicitly
                             // @Sendable and cannot capture non-Sendable @MainActor types.
@@ -641,8 +652,12 @@ private struct GBIFMedia: Decodable {
                                     guard let self else { return }
                                     var taxonKeyToUse = capturedGbifKey
                                     
-                                    if !capturedIsEnriched {
-                                        await self.fetchAndApplyEnrichment(modelContext: modelContext)
+                                    if plannedScopes.metadata || plannedScopes.lookalikes {
+                                        await self.fetchAndApplyEnrichment(
+                                            modelContext: modelContext,
+                                            needsMetadata: plannedScopes.metadata,
+                                            needsLookalikes: plannedScopes.lookalikes
+                                        )
                                         // Retrieve the newly updated taxon key if one was provided in the enrichment response
                                         taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
                                     }
@@ -881,6 +896,11 @@ private struct GBIFMedia: Decodable {
                         liveHydrationTask = Task { [weak self] in
                             guard let self else { return }
                             let capturedIsEnriched = self.isSpeciesEnriched(capturedScientificName)
+                            let plannedScopes = Self.plannedEnrichmentScopes(
+                                needsMetadata: true,
+                                needsLookalikes: true,
+                                speciesIsEnriched: capturedIsEnriched
+                            )
 
                             await withTaskGroup(of: Void.self) { group in
                                 if !capturedHasWikipedia {
@@ -896,8 +916,12 @@ private struct GBIFMedia: Decodable {
                                 group.addTask { @MainActor [weak self] in
                                     guard let self else { return }
                                     var taxonKeyToUse = capturedGbifKey
-                                    if !capturedIsEnriched {
-                                        await self.fetchAndApplyEnrichment(modelContext: modelContext)
+                                    if plannedScopes.metadata || plannedScopes.lookalikes {
+                                        await self.fetchAndApplyEnrichment(
+                                            modelContext: modelContext,
+                                            needsMetadata: plannedScopes.metadata,
+                                            needsLookalikes: plannedScopes.lookalikes
+                                        )
                                         taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
                                     }
                                     guard !Task.isCancelled else { return }
@@ -1989,18 +2013,28 @@ private struct GBIFMedia: Decodable {
                 group.addTask { @MainActor [weak self] in
                     guard let self else { return }
                     var taxonKeyToUse = gbifKey
+                    let speciesIsEnriched = self.isSpeciesEnriched(recordScientificName)
+                    let plannedScopes = Self.plannedEnrichmentScopes(
+                        needsMetadata: needsMetadata,
+                        needsLookalikes: needsLookalikes,
+                        speciesIsEnriched: speciesIsEnriched
+                    )
 
-                    // Enrichment: Two gates prevent redundant calls (scan-ID-scoped and species-name-scoped).
-                    if needsEnrichment
-                        && !self.enrichmentAttemptedScanIds.contains(recordId)
-                        && !self.isSpeciesEnriched(recordScientificName) {
+                    // Metadata is species-level cached, but lookalikes are still hydrated per-scan
+                    // unless the record already has rich local lookalike data persisted.
+                    if (plannedScopes.metadata || plannedScopes.lookalikes)
+                        && !self.enrichmentAttemptedScanIds.contains(recordId) {
                         guard !Task.isCancelled else { return }
                         // Evict 10% on cap hit to bound session-scoped set growth.
                         if self.enrichmentAttemptedScanIds.count >= self.sessionSetCap {
                             self.enrichmentAttemptedScanIds.subtract(self.enrichmentAttemptedScanIds.prefix(self.sessionSetCap / 10))
                         }
                         self.enrichmentAttemptedScanIds.insert(recordId)
-                        await self.fetchAndApplyEnrichment(modelContext: safeContext, needsMetadata: needsMetadata, needsLookalikes: needsLookalikes)
+                        await self.fetchAndApplyEnrichment(
+                            modelContext: safeContext,
+                            needsMetadata: plannedScopes.metadata,
+                            needsLookalikes: plannedScopes.lookalikes
+                        )
                         if !Task.isCancelled,
                            self.speciesData?.habitatDescription != nil,
                            self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {

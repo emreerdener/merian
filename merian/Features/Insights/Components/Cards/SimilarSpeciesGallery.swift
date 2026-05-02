@@ -2,10 +2,14 @@ import SwiftUI
 
 struct SimilarSpeciesGallery: View {
     let similarData: SimilarSpecies
+    let currentScientificName: String?
+    let currentCommonName: String?
 
     private var validEntries: [SimilarSpeciesEntry] {
-        similarData.entries
-            .filter { !$0.scientificName.trimmingCharacters(in: .whitespaces).isEmpty }
+        similarData.filteredEntries(
+            excludingScientificName: currentScientificName,
+            excludingCommonName: currentCommonName
+        )
     }
 
     var body: some View {
@@ -23,7 +27,10 @@ struct SimilarSpeciesGallery: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 16) {
                         ForEach(validEntries, id: \.scientificName) { entry in
-                            SimilarSpeciesCard(entry: entry)
+                            SimilarSpeciesCard(
+                                entry: entry,
+                                currentCommonName: currentCommonName
+                            )
                         }
                     }
                     .padding(.bottom, 8) // Shadow clearance
@@ -41,10 +48,15 @@ struct SimilarSpeciesGallery: View {
 
 struct SimilarSpeciesCard: View {
     let entry: SimilarSpeciesEntry
+    let currentCommonName: String?
 
     // Fallback fetcher used only when the join table has no reference image URL.
     @State private var imageFetcher = SimilarSpeciesImageFetcher()
     @State private var remoteImageFailed = false
+
+    private var displayCommonName: String? {
+        entry.displayCommonName(comparedTo: currentCommonName)
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -76,7 +88,7 @@ struct SimilarSpeciesCard: View {
 
             // Text Details Overlay
             VStack(alignment: .leading, spacing: 2) {
-                if let commonName = entry.commonName {
+                if let commonName = displayCommonName {
                     Text(commonName)
                         .font(.subheadline)
                         .fontWeight(.semibold)
@@ -87,9 +99,9 @@ struct SimilarSpeciesCard: View {
 
                 Text(entry.scientificName)
                     .font(.caption)
-                    .fontWeight(entry.commonName == nil ? .semibold : .regular)
+                    .fontWeight(displayCommonName == nil ? .semibold : .regular)
                     .italic()
-                    .foregroundColor(entry.commonName == nil ? .primary : .secondary)                    
+                    .foregroundColor(displayCommonName == nil ? .primary : .secondary)
                     .lineLimit(1)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)

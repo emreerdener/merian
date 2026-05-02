@@ -17,10 +17,22 @@ struct GBIFHeatmapMapView: View {
         ZStack {
             // The map layer scales and pans independently
             ZStack {
-                Image("WorldMapBase")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ZStack {
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.42, green: 0.73, blue: 0.96),
+                            Color(red: 0.31, green: 0.63, blue: 0.90)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+
+                    Image("WorldMapBase")
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFill()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
                 if let image = tileImage {
                     Image(uiImage: image)
@@ -66,7 +78,7 @@ struct GBIFHeatmapMapView: View {
         // Offload CPU-intensive image decompression from the MainActor
         return await Task.detached(priority: .userInitiated) {
             autoreleasepool {
-                guard let cgImage = ImageDownsampler.downsample(data: data, maxSize: 2048) else {
+                guard let cgImage = ImageDownsampler.downsample(data: data, maxSize: 2048, stripAlpha: false) else {
                     return nil
                 }
                 return UIImage(cgImage: cgImage)
@@ -83,7 +95,9 @@ private struct PinchPanOverlay: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
+        view.isOpaque = false
         view.backgroundColor = .clear
+        view.layer.backgroundColor = UIColor.clear.cgColor
 
         let pinch = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinch(_:)))
         pinch.delegate = context.coordinator
@@ -98,7 +112,11 @@ private struct PinchPanOverlay: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {}
+    func updateUIView(_ uiView: UIView, context: Context) {
+        uiView.isOpaque = false
+        uiView.backgroundColor = .clear
+        uiView.layer.backgroundColor = UIColor.clear.cgColor
+    }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     class Coordinator: NSObject, UIGestureRecognizerDelegate {

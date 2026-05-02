@@ -12,6 +12,7 @@ struct InferenceEngineTests {
     }
     
     init() {
+        MockURLProtocol.mockEndpoints = [:]
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
@@ -599,6 +600,75 @@ struct InferenceEngineTests {
         #expect(result.similarSpecies == nil, "Pending reset should ignore stale locally cached lookalikes for biological records")
 
         engine.historicHydrationTask?.cancel()
+    }
+
+    @Test func testPlannedEnrichmentScopesStillFetchLookalikesWhenMetadataIsSpeciesCached() {
+        let scopes = InferenceEngine.plannedEnrichmentScopes(
+            needsMetadata: true,
+            needsLookalikes: true,
+            speciesIsEnriched: true
+        )
+
+        #expect(scopes.metadata == false)
+        #expect(scopes.lookalikes == true)
+    }
+
+    @Test func testLoadFromBiologicalRecordFetchesLookalikesWhenSpeciesAlreadyMarkedEnriched() async throws {
+        let scientificName = "Opuntia engelmannii"
+        UserDefaults.standard.set(
+            [scientificName: Date.now.timeIntervalSinceReferenceDate],
+            forKey: UserDefaultsKeys.enrichedSpeciesTimestamps
+        )
+
+        let responseData = """
+        {
+            "success": true,
+            "data": {
+                "similar_species": [
+                    {
+                        "scientific_name": "Opuntia lindheimeri",
+                        "common_name": "Texas Prickly Pear",
+                        "reference_image_url": "https://example.com/lindheimeri.jpg",
+                        "iucn_red_list_status": "LC"
+                    }
+                ]
+            }
+        }
+        """.data(using: .utf8)!
+        let response = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/enrich-scan"] = { request in
+            let body = MockURLProtocol.bodyData(for: request)
+                .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            #expect(body.contains("\"scope\":\"lookalikes\""))
+            return (response, responseData)
+        }
+
+        let record = LocalScanRecord(
+            speciesId: "species_prickly_pear",
+            scientificName: scientificName,
+            commonName: "Texas Prickly Pear",
+            isBiological: true,
+            wikipediaOverview: "A widespread prickly pear cactus.",
+            referenceImageUrl: "https://example.com/engelmannii.jpg",
+            taxonomyKingdom: "Plantae",
+            taxonomyOrder: "Caryophyllales",
+            habitatDescription: "Dry grasslands and scrub."
+        )
+
+        let engine = InferenceEngine()
+        engine.load(from: record)
+        await engine.historicHydrationTask?.value
+
+        let similar = try #require(engine.speciesData?.similarSpecies)
+        #expect(similar.entries.count == 1)
+        #expect(similar.entries.first?.scientificName == "Opuntia lindheimeri")
+        #expect(similar.entries.first?.commonName == "Texas Prickly Pear")
     }
 
     // MARK: - Identification Candidates: EdgeResponse decoding

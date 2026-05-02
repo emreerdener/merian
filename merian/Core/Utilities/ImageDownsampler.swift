@@ -46,22 +46,22 @@ public enum ImageDownsampler {
     }
 
     /// Downsamples an image file at `url` to fit within `maxSize` pixels on the longest edge.
-    public static func downsample(url: URL, maxSize: CGFloat) -> CGImage? {
+    public static func downsample(url: URL, maxSize: CGFloat, stripAlpha channelStripping: Bool = true) -> CGImage? {
         autoreleasepool {
             let options = thumbnailOptions(maxSize: maxSize)
             guard let source = CGImageSourceCreateWithURL(url as CFURL, Self.sourceOptions),
                   let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
-            return stripAlpha(from: image)
+            return channelStripping ? stripAlpha(from: image) : image
         }
     }
 
     /// Downsamples an image from raw `data` to fit within `maxSize` pixels on the longest edge.
-    public static func downsample(data: Data, maxSize: CGFloat) -> CGImage? {
+    public static func downsample(data: Data, maxSize: CGFloat, stripAlpha channelStripping: Bool = true) -> CGImage? {
         autoreleasepool {
             let options = thumbnailOptions(maxSize: maxSize)
             guard let source = CGImageSourceCreateWithData(data as CFData, Self.sourceOptions),
                   let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
-            return stripAlpha(from: image)
+            return channelStripping ? stripAlpha(from: image) : image
         }
     }
 }

@@ -395,6 +395,25 @@ struct SimilarSpeciesEntry: Codable {
     let commonName: String?
     let referenceImageUrl: String?
     let iucnRedListStatus: String?
+
+    static func normalizeScientificName(_ value: String?) -> String {
+        value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() ?? ""
+    }
+
+    func displayCommonName(comparedTo currentCommonName: String?) -> String? {
+        guard let commonName = commonName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !commonName.isEmpty else {
+            return nil
+        }
+
+        let currentCommon = currentCommonName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard commonName.caseInsensitiveCompare(currentCommon) != .orderedSame else {
+            return nil
+        }
+        return commonName
+    }
 }
 
 struct SimilarSpecies {
@@ -402,6 +421,29 @@ struct SimilarSpecies {
 
     /// Backwards-compatible accessor returning the flat array of scientific names.
     var lookalikes: [String] { entries.map(\.scientificName) }
+
+    func filteredEntries(excludingScientificName scientificName: String?, excludingCommonName: String? = nil) -> [SimilarSpeciesEntry] {
+        let excludedScientificName = SimilarSpeciesEntry.normalizeScientificName(scientificName)
+        let excludedCommonName = excludingCommonName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        
+        var seenScientificNames = Set<String>()
+
+        return entries.compactMap { entry in
+            let normalizedScientificName = SimilarSpeciesEntry.normalizeScientificName(entry.scientificName)
+            guard !normalizedScientificName.isEmpty else { return nil }
+            guard normalizedScientificName != excludedScientificName else { return nil }
+            
+            if let excludedCommonName = excludedCommonName,
+               let entryCommon = entry.commonName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+               !entryCommon.isEmpty,
+               entryCommon == excludedCommonName {
+                return nil
+            }
+            
+            guard seenScientificNames.insert(normalizedScientificName).inserted else { return nil }
+            return entry
+        }
+    }
 }
 
 /// A single alternative species the model actively considered during identification.

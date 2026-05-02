@@ -130,7 +130,9 @@ struct BiologicalView: View {
                     Group {
                         if let similarData = inferenceEngine.speciesData?.similarSpecies {
                             SimilarSpeciesGallery(
-                                similarData: similarData
+                                similarData: similarData,
+                                currentScientificName: inferenceEngine.speciesData?.scientificName,
+                                currentCommonName: inferenceEngine.speciesData?.commonName
                             )
                             .transition(.opacity)
                         } else if inferenceEngine.isLookalikesLoading {
