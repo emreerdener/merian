@@ -8,6 +8,7 @@ struct ExploreMapView: View {
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
     @State private var ignoreNextBackgroundTap = false
     @State private var isShowingDiscoveriesSheet = false
+    @State private var cardDragOffset: CGFloat = 0
 
     let onOpenDetail: (ExplorePost, Bool) -> Void
 
@@ -46,6 +47,9 @@ struct ExploreMapView: View {
         }
         .onChange(of: postStore.changeVersion) { _, _ in
             viewModel.syncPosts(from: postStore.allPosts)
+        }
+        .onChange(of: viewModel.selectedPostId) { _, _ in
+            cardDragOffset = 0
         }
         .sheet(isPresented: $isShowingDiscoveriesSheet) {
             discoveriesSheet
@@ -171,6 +175,24 @@ struct ExploreMapView: View {
                 )
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
+                .offset(y: max(0, cardDragOffset))
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            if value.translation.height > 0 {
+                                cardDragOffset = value.translation.height
+                            }
+                        }
+                        .onEnded { value in
+                            if value.translation.height > 60 || value.velocity.height > 300 {
+                                dismissSelectedPostIfNeeded()
+                            } else {
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
+                                    cardDragOffset = 0
+                                }
+                            }
+                        }
+                )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -442,31 +464,33 @@ private struct ExploreMapPreviewCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                ExploreHeroImageView(
-                    imageUrl: post.heroImageUrl,
-                    reloadGeneration: mediaReloadGeneration
-                )
-                .frame(width: 82, height: 82)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            HStack(alignment: .top, spacing: 0) {
+                HStack(alignment: .center, spacing: 12) {
+                    ExploreHeroImageView(
+                        imageUrl: post.heroImageUrl,
+                        reloadGeneration: mediaReloadGeneration
+                    )
+                    .frame(width: 82, height: 82)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(post.resolvedSpeciesCommonName)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .lineLimit(2)
-
-                    Text(post.speciesScientificName)
-                        .font(.subheadline)
-                        .italic()
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    if let subtitle = subtitle {
-                        Text(subtitle)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(post.resolvedSpeciesCommonName)
+                            .font(.headline)
+                            .fontWeight(.semibold)
                             .lineLimit(2)
+
+                        Text(post.speciesScientificName)
+                            .font(.subheadline)
+                            .italic()
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+
+                        if let subtitle = subtitle {
+                            Text(subtitle)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
                     }
                 }
 
@@ -498,6 +522,7 @@ private struct ExploreMapPreviewCard: View {
                 .tint(.primary)
             }
 
+            // MARK: - Action Buttons
             HStack(spacing: 10) {
                 previewPill(
                     title: post.likeCount.formatted(.number.notation(.compactName)),
@@ -513,6 +538,8 @@ private struct ExploreMapPreviewCard: View {
                     action: onComments
                 )
 
+                Spacer(minLength: 0)
+
                 previewPill(
                     title: "Share",
                     systemImage: "square.and.arrow.up",
@@ -522,15 +549,17 @@ private struct ExploreMapPreviewCard: View {
             }
             .fixedSize(horizontal: false, vertical: true)
 
+            // MARK: - View Discovery Button
             Button(action: onOpen) {
-                HStack {
-                    Text("Open discovery")
+                HStack(spacing: 6) {
+                    Text("View discovery")
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                    Spacer()
+                    
                     Image(systemName: "arrow.up.right")
                         .font(.system(size: 13, weight: .bold))
                 }
+                .frame(maxWidth: .infinity)
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
@@ -540,24 +569,15 @@ private struct ExploreMapPreviewCard: View {
                 )
             }
             .buttonStyle(.plain)
+
+
         }
         .card()
     }
 
     private var subtitle: String? {
-        let rawValues: [String?] = [
-            post.publicLocationLabel,
-            post.observationContextLabel,
-            post.publicWeatherLabel
-        ]
-
-        let values = rawValues.compactMap { value in
-            let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed?.isEmpty == false ? trimmed : nil
-        }
-
-        guard !values.isEmpty else { return nil }
-        return values.joined(separator: " • ")
+        let trimmed = post.publicLocationLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
     }
 
     private func previewPill(
