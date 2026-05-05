@@ -374,7 +374,7 @@ Recommended response fields:
 - `shared_at`
 - `author_name`
 - `author_avatar_url`
-- `species_common_name`
+- `species_common_name` (displayed using the user's preferred local common name override if configured, via `resolvedSpeciesCommonName`)
 - `species_scientific_name`
 - `public_location_label`
 - `time_of_day`

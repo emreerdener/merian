@@ -148,7 +148,7 @@ struct ExplorePostCard: View {
 
     private var speciesOverlay: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(post.speciesCommonName.capitalized)
+            Text(post.resolvedSpeciesCommonName)
                 .font(.headline)
                 .fontWeight(.semibold)
                 .foregroundStyle(.primary)

@@ -93,7 +93,7 @@ extension ExploreFeedViewModel {
     }
 
     func share(_ post: ExplorePost) {
-        var shareText = post.speciesCommonName.capitalized
+        var shareText = post.resolvedSpeciesCommonName
         if !post.speciesScientificName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             shareText += " (\(post.speciesScientificName))"
         }

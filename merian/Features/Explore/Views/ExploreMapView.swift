@@ -386,7 +386,7 @@ private struct ExploreMapPreviewCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(post.speciesCommonName.capitalized)
+                    Text(post.resolvedSpeciesCommonName)
                         .font(.headline)
                         .fontWeight(.semibold)
                         .lineLimit(2)

@@ -33,7 +33,7 @@ struct ExploreCommentsSheet: View {
                     VStack(spacing: 2) {
                         Text("Comments")
                             .font(.headline)
-                        Text(post.speciesCommonName.capitalized)
+                        Text(post.resolvedSpeciesCommonName)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

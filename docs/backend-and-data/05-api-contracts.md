@@ -695,7 +695,7 @@ The current feed UI uses only a subset of the payload for visible card rendering
 - `author_name`
 - `author_avatar_url`
 - `public_location_label`
-- `species_common_name`
+- `species_common_name` (displayed using the user's preferred local common name override if configured, via `resolvedSpeciesCommonName`)
 - `species_scientific_name`
 - `hero_image_url`
 - `like_count`

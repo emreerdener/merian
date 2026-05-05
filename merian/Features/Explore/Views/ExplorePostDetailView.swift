@@ -58,7 +58,7 @@ struct ExplorePostDetailView: View {
                         }
                     }
                     .background(Color(uiColor: .systemBackground))
-                    .navigationTitle(post.speciesCommonName.capitalized)
+                    .navigationTitle(post.resolvedSpeciesCommonName)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
@@ -211,7 +211,7 @@ struct ExplorePostDetailView: View {
                     .minimumScaleFactor(0.8)
             }
 
-            Text(post.speciesCommonName.capitalized)
+            Text(post.resolvedSpeciesCommonName)
                 .font(.system(.largeTitle, design: .serif).weight(.bold))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
