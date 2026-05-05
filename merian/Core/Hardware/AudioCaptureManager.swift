@@ -252,7 +252,10 @@ final class AudioCaptureManager {
                 if Task.isCancelled { return }
                 await MainActor.run { self?.recordingProgress = Double(i) / 100.0 }
             }
-            await MainActor.run { self?.finishRecording() }
+            await MainActor.run { 
+                HapticManager.shared.triggerHeavyImpact()
+                self?.finishRecording() 
+            }
         }
     }
 
@@ -299,7 +302,10 @@ final class AudioCaptureManager {
                     if Task.isCancelled { return }
                     await MainActor.run { self?.recordingProgress = Double(i) / 100.0 }
                 }
-                await MainActor.run { self?.finishRecording() }
+                await MainActor.run { 
+                    HapticManager.shared.triggerHeavyImpact()
+                    self?.finishRecording() 
+                }
             }
         }
     }
