@@ -21,7 +21,7 @@ struct DescribeInputView: View {
     @Environment(SpeechManager.self) private var speechManager
 
     let coordinator: CaptureActionCoordinator
-    var showToast: ((String) -> Void)? = nil
+    var showToast: ((String) -> Void)?
 
     @State private var promptManager = DescribePromptManager()
     @State private var isDescribeQuestionsSheetPresented: Bool = false

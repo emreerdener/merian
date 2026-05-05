@@ -8,7 +8,7 @@ import SwiftUI
 struct DescribeQuestionsSheet: View {
     @Environment(\.dismiss) private var dismiss
     var promptManager: DescribePromptManager
-    var onReset: (() -> Void)? = nil
+    var onReset: (() -> Void)?
 
     var body: some View {
         NavigationStack {
