@@ -94,7 +94,8 @@ struct CaptureWorkspaceView: View {
                                         DescribeInputView(
                                             captureMode: captureMode,
                                             context: $observationContext,
-                                            coordinator: coordinator
+                                            coordinator: coordinator,
+                                            showToast: { viewModel.offlineToastMessage = $0 }
                                         )
                                         .frame(width: proxy.size.width, height: proxy.size.height)
                                         .clipped()

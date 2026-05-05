@@ -8,6 +8,7 @@ import SwiftUI
 struct DescribeQuestionsSheet: View {
     @Environment(\.dismiss) private var dismiss
     var promptManager: DescribePromptManager
+    var onReset: (() -> Void)? = nil
 
     var body: some View {
         NavigationStack {
@@ -34,6 +35,15 @@ struct DescribeQuestionsSheet: View {
             }
             .navigationTitle("Prompts")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Reset") {
+                        onReset?()
+                        dismiss()
+                    }
+                    .foregroundColor(.red)
+                }
+            }
             .listStyle(.insetGrouped)
         }
         .presentationDetents([.medium, .large])

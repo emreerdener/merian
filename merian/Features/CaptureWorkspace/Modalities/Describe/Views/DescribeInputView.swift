@@ -21,6 +21,7 @@ struct DescribeInputView: View {
     @Environment(SpeechManager.self) private var speechManager
 
     let coordinator: CaptureActionCoordinator
+    var showToast: ((String) -> Void)? = nil
 
     @State private var promptManager = DescribePromptManager()
     @State private var isDescribeQuestionsSheetPresented: Bool = false
@@ -182,7 +183,14 @@ struct DescribeInputView: View {
         }
         .sheet(isPresented: $isDescribeQuestionsSheetPresented) {
             DescribeQuestionsSheet(
-                promptManager: promptManager
+                promptManager: promptManager,
+                onReset: {
+                    HapticManager.shared.triggerMediumPulse()
+                    context.freeText = ""
+                    promptManager.resetFunnel()
+                    promptManager.activeQuestionIndex = 0
+                    showToast?("Draft discarded")
+                }
             )
         }
         }
