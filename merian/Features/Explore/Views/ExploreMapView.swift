@@ -14,7 +14,16 @@ struct ExploreMapView: View {
         ZStack {
             mapLayer
 
-            if let errorMessage = viewModel.errorMessage,
+            if viewModel.hasServiceUnavailableError {
+                Text("Habitat data not available")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.black.opacity(0.6))
+                    .clipShape(Capsule())
+            } else if let errorMessage = viewModel.errorMessage,
                viewModel.posts.isEmpty,
                viewModel.clusters.isEmpty,
                !viewModel.isLoading {

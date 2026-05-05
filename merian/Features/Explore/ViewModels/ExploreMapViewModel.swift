@@ -23,6 +23,7 @@ final class ExploreMapViewModel {
     var needsSearchInArea = false
     var isLoading = false
     var errorMessage: String?
+    var hasServiceUnavailableError = false
     var isOffline = false
     var mode: ExploreMapMode = .posts
     var clusters: [ExploreMapCluster] = []
@@ -169,20 +170,34 @@ final class ExploreMapViewModel {
             )
             storeCachedResponse(response, for: region, now: now)
             apply(response: response, for: region)
+        } catch let error as MerianError {
+            if case .httpError(let statusCode, _) = error, statusCode == 503 {
+                hasServiceUnavailableError = true
+                errorMessage = nil
+            } else {
+                hasServiceUnavailableError = false
+                errorMessage = posts.isEmpty && clusters.isEmpty
+                    ? ExploreErrorFormatter.message(for: error)
+                    : nil
+            }
+            isOffline = false
         } catch let urlError as URLError {
             if isOfflineError(urlError) {
                 isOffline = true
+                hasServiceUnavailableError = false
                 errorMessage = posts.isEmpty && clusters.isEmpty
                     ? "You’re offline. Reconnect to load discoveries on the map."
                     : nil
             } else {
                 isOffline = false
+                hasServiceUnavailableError = false
                 errorMessage = posts.isEmpty && clusters.isEmpty
                     ? ExploreErrorFormatter.message(for: urlError)
                     : nil
             }
         } catch {
             isOffline = false
+            hasServiceUnavailableError = false
             errorMessage = posts.isEmpty && clusters.isEmpty
                 ? ExploreErrorFormatter.message(for: error)
                 : nil
@@ -195,6 +210,7 @@ final class ExploreMapViewModel {
         posts = Array(response.posts.prefix(maxPostLimit))
         visibleCount = response.visibleCount
         errorMessage = nil
+        hasServiceUnavailableError = false
         isOffline = false
         needsSearchInArea = false
         lastCommittedRegion = region
