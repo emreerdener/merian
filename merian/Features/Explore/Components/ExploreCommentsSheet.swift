@@ -6,6 +6,7 @@ struct ExploreCommentsSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isComposerFocused: Bool
+    @State private var reactingCommentId: String?
 
     var body: some View {
         NavigationStack {
@@ -148,7 +149,7 @@ struct ExploreCommentsSheet: View {
                         } else {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(Color(uiColor: .systemBackground))
+                                .foregroundStyle(canSubmitComment ? Color(uiColor: .systemBackground) : Color.primary.opacity(0.4))
                         }
                     }
                 }
@@ -220,6 +221,8 @@ struct ExploreCommentsSheet: View {
                 .font(.body)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
+                
+            reactionsView(for: comment)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -236,5 +239,97 @@ struct ExploreCommentsSheet: View {
     private func createdAtText(for comment: ExploreComment) -> String? {
         guard let createdAtDate = comment.createdAtDate else { return nil }
         return createdAtDate.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    // EMOJIS
+    private let availableEmojis = ["\u{2764}\u{FE0F}", "\u{1F44D}", "\u{1F602}", "\u{1F389}", "\u{1F632}", "\u{1F33F}"]
+
+    @ViewBuilder
+    private func reactionsView(for comment: ExploreComment) -> some View {
+        let reactions = comment.reactions ?? []
+        let hasAvailableReactions = availableEmojis.contains { emoji in
+            !(reactions.first(where: { $0.emoji == emoji })?.viewerHasReacted ?? false)
+        }
+        
+        FlowLayout(spacing: 8) {
+                ForEach(reactions) { reaction in
+                    Button(action: {
+                        viewModel.toggleReaction(for: comment, emoji: reaction.emoji)
+                    }) {
+                        HStack(spacing: 4) {
+                            Text(reaction.emoji)
+                                .font(.subheadline)
+                            Text("\(reaction.count)")
+                                .font(.footnote)
+                                .fontWeight(.medium)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(reaction.viewerHasReacted ? Color.blue.opacity(0.15) : Color(uiColor: .tertiarySystemFill))
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(reaction.viewerHasReacted ? Color.blue.opacity(0.5) : Color.clear, lineWidth: 1)
+                        )
+                        .foregroundColor(reaction.viewerHasReacted ? .blue : .primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                if hasAvailableReactions {
+                    Button {
+                    reactingCommentId = comment.id
+                } label: {
+                    HStack(spacing: 2) {
+                        Image(systemName: "face.smiling")
+                        Image(systemName: "plus")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .font(.system(size: 14))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color(uiColor: .tertiarySystemFill))
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+                    .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: Binding(
+                    get: { reactingCommentId == comment.id },
+                    set: { if !$0 { reactingCommentId = nil } }
+                )) {
+                    HStack(spacing: 8) {
+                        ForEach(availableEmojis, id: \.self) { emoji in
+                            let hasReacted = comment.reactions?.first(where: { $0.emoji == emoji })?.viewerHasReacted ?? false
+                            
+                            Button {
+                                viewModel.toggleReaction(for: comment, emoji: emoji)
+                                reactingCommentId = nil
+                            } label: {
+                                Text(verbatim: emoji)
+                                    .font(.system(size: 28))
+                                    .padding(6)
+                                    .background(
+                                        Circle()
+                                            .fill(hasReacted ? Color.blue.opacity(0.15) : Color.clear)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .presentationCompactAdaptation(.popover)
+                }
+                }
+            }
+        .padding(.top, 4)
     }
 }

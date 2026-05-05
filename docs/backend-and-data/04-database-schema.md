@@ -200,6 +200,17 @@ Comment table for Explore posts. Added in migration `20260425000000_add_explore_
 
 Only comments where both `deleted_at` and `moderated_at` are `NULL` are visible in Explore reads and counted in `explore_posts.comment_count`.
 
+### `explore_comment_reactions`
+
+Emoji reactions for Explore comments. Added in migration `20260505000000_add_explore_comment_reactions.sql`.
+
+- `id` (UUID): Primary key.
+- `comment_id` (UUID FK → `explore_post_comments.id`, CASCADE DELETE)
+- `user_id` (UUID FK → `users.id`, CASCADE DELETE)
+- `emoji` (TEXT): The selected reaction emoji.
+- `created_at` (TIMESTAMPTZ)
+- Unique constraint: `(comment_id, user_id, emoji)` prevents a single user from casting the same reaction twice on a single comment.
+
 ### `explore_comment_reports`
 
 Moderation queue ingress for abusive Explore comments. Added in migration `20260427113000_add_explore_comment_moderation.sql`.

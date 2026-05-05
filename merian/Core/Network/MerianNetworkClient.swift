@@ -866,6 +866,16 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreDeleteCommentResponse.self, from: data)
     }
 
+    func toggleExploreCommentReaction(commentId: String, emoji: String) async throws {
+        let functionUrl = try endpointURL("toggle-explore-comment-reaction")
+        let payload: [String: Any] = [
+            "comment_id": commentId,
+            "emoji": emoji
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+    }
+
     func reportExploreComment(
         commentId: String,
         reason: String = "Inappropriate content",

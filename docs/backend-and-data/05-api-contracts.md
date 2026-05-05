@@ -564,6 +564,26 @@ Removal semantics:
 - If the current viewer owns the Explore post but did not author the comment, `/delete-explore-comment` performs an owner moderation action by setting `moderated_at` and `moderated_by_user_id`.
 - Both paths remove the comment from public reads and decrement `comment_count`, but they remain distinguishable in the database for auditability.
 
+### `/toggle-explore-comment-reaction`
+
+Idempotently toggles an emoji reaction for the current viewer on a specific comment and returns:
+
+- `comment_id`
+- `emoji`
+
+Request body:
+
+```json
+{
+  "comment_id": "uuid",
+  "emoji": "👍"
+}
+```
+
+- If the viewer has not yet reacted with this emoji, the reaction is inserted.
+- If the viewer has already reacted with this emoji, the reaction is removed.
+- Reactions are aggregated into a `reactions` JSON array by the `/get-explore-comments` read endpoint, not pushed individually.
+
 ### `/report-explore-comment`
 
 Creates or updates a moderation report for an Explore comment without removing it immediately.

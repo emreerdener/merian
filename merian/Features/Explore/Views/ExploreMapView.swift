@@ -569,8 +569,6 @@ private struct ExploreMapPreviewCard: View {
                 )
             }
             .buttonStyle(.plain)
-
-
         }
         .card()
     }

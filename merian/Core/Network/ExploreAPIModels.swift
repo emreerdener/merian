@@ -312,6 +312,7 @@ struct ExploreComment: Decodable, Identifiable, Equatable {
     let viewerCanDelete: Bool
     let viewerCanModerate: Bool
     let viewerCanReport: Bool
+    var reactions: [ExploreCommentReaction]?
 
     var id: String { commentId }
 
@@ -331,6 +332,14 @@ struct ExploreComment: Decodable, Identifiable, Equatable {
     var removalSuccessMessage: String {
         viewerCanModerate ? "Comment removed from post" : "Comment deleted"
     }
+}
+
+struct ExploreCommentReaction: Decodable, Identifiable, Equatable {
+    let emoji: String
+    var count: Int
+    var viewerHasReacted: Bool
+    
+    var id: String { emoji }
 }
 
 struct ExploreShareResponse: Decodable {

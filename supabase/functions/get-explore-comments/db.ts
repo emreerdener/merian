@@ -10,6 +10,7 @@ export interface ExploreCommentRow {
   viewer_can_delete: boolean;
   viewer_can_moderate: boolean;
   viewer_can_report: boolean;
+  reactions: any[] | null;
 }
 
 interface ExploreCommentsCursor {

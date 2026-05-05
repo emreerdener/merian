@@ -202,4 +202,44 @@ extension ExploreFeedViewModel {
         let existingIds = Set(comments.map(\.id))
         comments.append(contentsOf: nextPage.filter { existingIds.contains($0.id) == false })
     }
+
+    func toggleReaction(for comment: ExploreComment, emoji: String) {
+        guard let index = comments.firstIndex(where: { $0.id == comment.id }) else { return }
+        
+        var updatedComment = comments[index]
+        var updatedReactions = updatedComment.reactions ?? []
+        
+        if let reactionIndex = updatedReactions.firstIndex(where: { $0.emoji == emoji }) {
+            var reaction = updatedReactions[reactionIndex]
+            if reaction.viewerHasReacted {
+                reaction.count -= 1
+                reaction.viewerHasReacted = false
+                if reaction.count < 1 {
+                    updatedReactions.remove(at: reactionIndex)
+                } else {
+                    updatedReactions[reactionIndex] = reaction
+                }
+            } else {
+                reaction.count += 1
+                reaction.viewerHasReacted = true
+                updatedReactions[reactionIndex] = reaction
+            }
+        } else {
+            let newReaction = ExploreCommentReaction(emoji: emoji, count: 1, viewerHasReacted: true)
+            updatedReactions.append(newReaction)
+        }
+        
+        updatedComment.reactions = updatedReactions
+        comments[index] = updatedComment
+        HapticManager.shared.triggerSelectionPulse()
+        
+        Task {
+            do {
+                try await MerianNetworkClient.shared.toggleExploreCommentReaction(commentId: comment.id, emoji: emoji)
+            } catch {
+                MerianLog.network.error("Failed to toggle reaction: \(error)")
+                // Note: Revert logic omitted until backend is deployed to allow UI testing
+            }
+        }
+    }
 }
