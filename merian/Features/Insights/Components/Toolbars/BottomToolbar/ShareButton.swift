@@ -13,6 +13,7 @@ struct ShareButton: View {
     var sharedExplorePostId: String?
     var onViewInExplore: (() -> Void)?
     
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showingOptions = false
     @State private var pendingAction: PendingAction?
 
@@ -31,7 +32,7 @@ struct ShareButton: View {
 
     private var exploreDescription: String {
         if sharedExplorePostId != nil {
-            return "Your discovery is visible to the community."
+            return "This discovery is visible to the community."
         }
         return "Publish this discovery so others can learn and explore."
     }
@@ -41,11 +42,11 @@ struct ShareButton: View {
     }
 
     private var exploreActionFillColor: Color {
-        sharedExplorePostId == nil ? .black : primaryBlue
+        sharedExplorePostId == nil ? (colorScheme == .dark ? .white : .black) : primaryBlue
     }
 
     private var exploreActionForegroundColor: Color {
-        sharedExplorePostId == nil ? .white : Color(uiColor: .systemBackground)
+        sharedExplorePostId == nil ? Color(uiColor: .systemBackground) : .white
     }
 
     // MARK: - Body
@@ -69,6 +70,9 @@ struct ShareButton: View {
         .sheet(isPresented: $showingOptions, onDismiss: handlePendingAction) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
+                    // EXPLORE FEATURE PANEL
+                    exploreFeaturePanel
+
                     // SHARE TO EXTERNAL APPS
                     VStack(alignment: .leading, spacing: 10) {
                         Button {
@@ -77,13 +81,13 @@ struct ShareButton: View {
                         } label: {
                             HStack(spacing: 14) {
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text("Messages, Mail, and more")
+                                    Text("More ways to share")
                                         .font(.headline)
                                         .foregroundStyle(.primary)
                                         .multilineTextAlignment(.leading)
                                         .lineLimit(2)
 
-                                    Text("Open the native iOS share sheet")
+                                    Text("Send via Messages, social media, or copy the link.")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                         .multilineTextAlignment(.leading)
@@ -108,7 +112,7 @@ struct ShareButton: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    exploreFeaturePanel
+                    
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 32)
@@ -125,7 +129,7 @@ struct ShareButton: View {
             HStack(alignment: .center, spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.white.opacity(0.22))
+                        .fill(Color.primary.opacity(0.1))
                         .frame(width: 58, height: 58)
 
                     Image("compass")
@@ -138,23 +142,24 @@ struct ShareButton: View {
                     HStack(spacing: 8) {
                         Text(exploreHeadline)
                             .font(.headline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.primary)
 
                         if sharedExplorePostId != nil {
                             Text("LIVE")
                                 .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color(uiColor: .systemBackground))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(
                                     Capsule(style: .continuous)
-                                        .fill(Color.white.opacity(0.96))
+                                        .fill(colorScheme == .dark ? .white : .black)
                                 )
                         }
                     }
 
                     Text(exploreDescription)
                         .font(.subheadline)
-                        .foregroundStyle(Color.white.opacity(0.86))
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -168,7 +173,7 @@ struct ShareButton: View {
                         isSharingToExplore && sharedExplorePostId == nil
                             ? "Sharing..."
                             : exploreActionTitle,
-                        systemImage: sharedExplorePostId != nil ? "arrow.up.right.square" : "safari"
+                        systemImage: sharedExplorePostId != nil ? "eye" : "safari"
                     )
                     .font(.headline)
                 }
@@ -186,21 +191,18 @@ struct ShareButton: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.14, green: 0.55, blue: 0.46),
-                            Color(red: 0.10, green: 0.33, blue: 0.49)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(.regularMaterial)
+                
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color.primary.opacity(0.02))
+            }
+            .shadow(color: Color.black.opacity(0.06), radius: 16, x: 0, y: 6)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
     }
 
