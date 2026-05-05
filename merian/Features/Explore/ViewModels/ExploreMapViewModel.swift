@@ -107,6 +107,26 @@ final class ExploreMapViewModel {
         selectedPostId = postId
     }
 
+    func post(relativeTo postId: String?, by offset: Int) -> ExploreMapPost? {
+        guard let postId,
+              let currentIndex = posts.firstIndex(where: { $0.id == postId }) else {
+            return nil
+        }
+        guard let targetIndex = wrappedPostIndex(from: currentIndex, offset: offset) else { return nil }
+        return posts[targetIndex]
+    }
+
+    func post(relativeToSelectedBy offset: Int) -> ExploreMapPost? {
+        post(relativeTo: selectedPostId, by: offset)
+    }
+
+    @discardableResult
+    func selectAdjacentPost(by offset: Int) -> ExploreMapPost? {
+        guard let nextPost = post(relativeToSelectedBy: offset) else { return nil }
+        self.selectedPostId = nextPost.id
+        return nextPost
+    }
+
     func syncPosts(from canonicalPosts: [ExplorePost]) {
         let canonicalById = Dictionary(uniqueKeysWithValues: canonicalPosts.map { ($0.id, $0) })
         posts = posts.map { mapPost in
@@ -325,6 +345,21 @@ final class ExploreMapViewModel {
         default:
             return false
         }
+    }
+
+    private var selectedPostIndex: Int? {
+        guard let currentSelectedPostId = selectedPostId else { return nil }
+        return posts.firstIndex(where: { $0.id == currentSelectedPostId })
+    }
+
+    private func wrappedPostIndex(from startIndex: Int, offset: Int) -> Int? {
+        guard posts.indices.contains(startIndex) else { return nil }
+        guard offset != 0 else { return startIndex }
+        guard posts.count > 1 else { return nil }
+
+        let count = posts.count
+        let rawIndex = (startIndex + offset) % count
+        return rawIndex >= 0 ? rawIndex : rawIndex + count
     }
 }
 

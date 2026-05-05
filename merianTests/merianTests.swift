@@ -196,3 +196,82 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertNil(viewModel.activeSheet)
     }
 }
+
+@MainActor
+final class ExploreMapViewModelSelectionTests: XCTestCase {
+    private func makeMapPost(id: String, latitude: Double) -> ExploreMapPost {
+        ExploreMapPost(
+            postId: id,
+            scanId: "scan-\(id)",
+            latitude: latitude,
+            longitude: -97.743,
+            coordinateVisibility: .exact,
+            heroImageUrl: "https://example.com/\(id).jpg",
+            sharedAt: "2026-05-05T12:00:00Z",
+            authorUserId: "author-\(id)",
+            authorName: "Test Author",
+            authorAvatarUrl: nil,
+            speciesCommonName: "Monarch Butterfly",
+            speciesScientificName: "Danaus plexippus",
+            publicLocationLabel: "Austin, TX",
+            timeOfDay: nil,
+            currentMonth: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil,
+            likeCount: 0,
+            commentCount: 0,
+            viewerHasLiked: false,
+            isOwnedByViewer: false
+        )
+    }
+
+    func testSelectAdjacentPostAdvancesThroughCurrentMapOrder() {
+        let viewModel = ExploreMapViewModel()
+        let newest = makeMapPost(id: "newest", latitude: 30.267)
+        let middle = makeMapPost(id: "middle", latitude: 30.268)
+        let oldest = makeMapPost(id: "oldest", latitude: 30.269)
+
+        viewModel.posts = [newest, middle, oldest]
+        viewModel.selectPost(newest.id)
+
+        XCTAssertEqual(viewModel.selectAdjacentPost(by: 1)?.id, middle.id)
+        XCTAssertEqual(viewModel.selectedPostId, middle.id)
+        XCTAssertEqual(viewModel.selectAdjacentPost(by: 1)?.id, oldest.id)
+        XCTAssertEqual(viewModel.selectedPostId, oldest.id)
+    }
+
+    func testSelectAdjacentPostWrapsForwardToBeginning() {
+        let viewModel = ExploreMapViewModel()
+        let first = makeMapPost(id: "first", latitude: 30.267)
+        let second = makeMapPost(id: "second", latitude: 30.268)
+
+        viewModel.posts = [first, second]
+        viewModel.selectPost(second.id)
+
+        XCTAssertEqual(viewModel.selectAdjacentPost(by: 1)?.id, first.id)
+        XCTAssertEqual(viewModel.selectedPostId, first.id)
+    }
+
+    func testSelectAdjacentPostWrapsBackwardToEnd() {
+        let viewModel = ExploreMapViewModel()
+        let first = makeMapPost(id: "first", latitude: 30.267)
+        let second = makeMapPost(id: "second", latitude: 30.268)
+
+        viewModel.posts = [first, second]
+        viewModel.selectPost(first.id)
+
+        XCTAssertEqual(viewModel.selectAdjacentPost(by: -1)?.id, second.id)
+        XCTAssertEqual(viewModel.selectedPostId, second.id)
+    }
+
+    func testSelectAdjacentPostReturnsNilWhenOnlyOnePostExists() {
+        let viewModel = ExploreMapViewModel()
+        let onlyPost = makeMapPost(id: "only", latitude: 30.267)
+
+        viewModel.posts = [onlyPost]
+        viewModel.selectPost(onlyPost.id)
+
+        XCTAssertNil(viewModel.selectAdjacentPost(by: 1))
+        XCTAssertEqual(viewModel.selectedPostId, onlyPost.id)
+    }
+}
