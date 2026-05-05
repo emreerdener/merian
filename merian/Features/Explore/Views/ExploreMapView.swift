@@ -599,7 +599,7 @@ private struct ExploreMapPreviewCard: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(maxHeight: .infinity)
-            .background(Color(uiColor: .secondarySystemBackground))
+            .background(Color(uiColor: .secondarySystemFill))
             .clipShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
