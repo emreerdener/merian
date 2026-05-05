@@ -264,7 +264,7 @@ struct ExploreCommentsSheet: View {
                                 .fontWeight(.medium)
                         }
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .frame(height: 28)
                         .background(
                             Capsule()
                                 .fill(reaction.viewerHasReacted ? Color.blue.opacity(0.15) : Color(uiColor: .tertiarySystemFill))
@@ -289,7 +289,7 @@ struct ExploreCommentsSheet: View {
                     }
                     .font(.system(size: 14))
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+                    .frame(height: 28)
                     .background(
                         Capsule()
                             .fill(Color(uiColor: .tertiarySystemFill))
