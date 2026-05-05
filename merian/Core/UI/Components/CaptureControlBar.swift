@@ -52,13 +52,16 @@ struct CaptureControlBar: View {
                     .opacity(captureMode == .describe ? 1 : 0)
                     .allowsHitTesting(captureMode == .describe)
 
-                    AudioDeleteButton(onTap: {
-                        if audioCaptureManager.isRecording {
-                            audioCaptureManager.cancelRecording()
-                        } else {
-                            audioCaptureManager.discardPending()
+                    AudioDeleteButton(
+                        isRecording: audioCaptureManager.isRecording,
+                        onTap: {
+                            if audioCaptureManager.isRecording {
+                                audioCaptureManager.cancelRecording()
+                            } else {
+                                audioCaptureManager.discardPending()
+                            }
                         }
-                    })
+                    )
                     .opacity(captureMode == .audio && (audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil) ? 1 : 0)
                     .allowsHitTesting(captureMode == .audio && (audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil))
                 }
@@ -325,6 +328,7 @@ private struct TableOfContentsButton: View {
 
 /// Discards the current recording and returns to idle state.
 private struct AudioDeleteButton: View {
+    let isRecording: Bool
     let onTap: () -> Void
 
     var body: some View {
@@ -332,12 +336,13 @@ private struct AudioDeleteButton: View {
             HapticManager.shared.triggerMediumPulse()
             onTap()
         }) {
-            Image(systemName: "trash")
+            Image(systemName: isRecording ? "xmark" : "trash")
                 .font(.system(size: 20, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(.red)
                 .frame(width: 50, height: 50)
                 .background(.ultraThinMaterial, in: Circle())
                 .environment(\.colorScheme, .dark)
+                .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)
         .padding(.leading, 32)
