@@ -184,6 +184,7 @@ struct DescribeInputView: View {
         .sheet(isPresented: $isDescribeQuestionsSheetPresented) {
             DescribeQuestionsSheet(
                 promptManager: promptManager,
+                hasInputs: !context.freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                 onReset: {
                     HapticManager.shared.triggerMediumPulse()
                     context.freeText = ""
