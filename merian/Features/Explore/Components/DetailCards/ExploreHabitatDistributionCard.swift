@@ -14,34 +14,20 @@ struct ExploreHabitatDistributionCard: View {
     var body: some View {
         if gbifTaxonKey != nil || trimmedHabitatDescription != nil {
             VStack(alignment: .leading, spacing: 0) {
-                ZStack(alignment: .bottom) {
-                    GBIFHeatmapMapView(taxonKey: gbifTaxonKey)
-                        .frame(height: 260)
-                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                .stroke(Color.black.opacity(0.3), lineWidth: 4)
-                                .blur(radius: 6)
-                                .offset(y: 2)
-                                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                        )
-
-                    if gbifTaxonKey == nil {
-                        Text("No distribution data available")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.black.opacity(0.6))
-                            .clipShape(Capsule())
-                            .padding(.bottom, 12)
-                    }
-                }
+                GBIFHeatmapMapView(taxonKey: gbifTaxonKey)
+                    .frame(height: 260)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color.black.opacity(0.3), lineWidth: 4)
+                            .blur(radius: 6)
+                            .offset(y: 2)
+                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                    )
                 .padding(.horizontal, 16)
 
                 VStack(alignment: .leading, spacing: 16) {

@@ -6,9 +6,39 @@ import SwiftUI
 /// entirely removing MapKit CPU overhead, and overlaying the fetched GBIF Zoom-0 tile.
 /// Both images share the exact same Web Mercator projection and world extent.
 struct GBIFHeatmapMapView: View {
+    private enum LoadState: Equatable {
+        case idle
+        case loading
+        case loaded
+        case noTaxonKey
+        case noData
+        case serviceUnavailable
+        case failed
+
+        var overlayMessage: String? {
+            switch self {
+            case .noTaxonKey, .noData:
+                return "No distribution data available"
+            case .serviceUnavailable:
+                return "Habitat data not available"
+            case .failed:
+                return "Distribution map unavailable"
+            case .idle, .loading, .loaded:
+                return nil
+            }
+        }
+    }
+
+    private enum FetchResult {
+        case image(UIImage)
+        case state(LoadState)
+    }
+
     let taxonKey: Int?
+    var showsMissingTaxonKeyFallback: Bool = true
 
     @State private var tileImage: UIImage?
+    @State private var loadState: LoadState = .idle
     @State private var zoomScale: CGFloat = 1.0
     @State private var panOffset: CGSize = .zero
     @State private var isInteracting: Bool = false
@@ -51,9 +81,34 @@ struct GBIFHeatmapMapView: View {
                 isInteracting: $isInteracting
             )
         }
+        .overlay(alignment: .bottom) {
+            if let message = overlayMessage {
+                Text(message)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.black.opacity(0.6))
+                    .clipShape(Capsule())
+                    .padding(.bottom, 12)
+            }
+        }
         .interactiveDismissDisabled(isInteracting)
         .task(id: taxonKey) {
-            tileImage = await fetchGBIFTile()
+            tileImage = nil
+            loadState = taxonKey == nil ? .noTaxonKey : .loading
+
+            let result = await fetchGBIFTile()
+            guard !Task.isCancelled else { return }
+
+            switch result {
+            case .image(let image):
+                tileImage = image
+                loadState = .loaded
+            case .state(let state):
+                loadState = state
+            }
         }
     }
 
@@ -68,22 +123,64 @@ struct GBIFHeatmapMapView: View {
         return URLSession(configuration: config)
     }()
 
+    private var overlayMessage: String? {
+        guard let message = loadState.overlayMessage else { return nil }
+        if loadState == .noTaxonKey && !showsMissingTaxonKeyFallback {
+            return nil
+        }
+        return message
+    }
+
     /// Fetches the GBIF density tile at zoom level 0 — one tile covers the entire world!
-    private func fetchGBIFTile() async -> UIImage? {
+    private func fetchGBIFTile() async -> FetchResult {
         guard let key = taxonKey,
               let url = URL(string: "https://api.gbif.org/v2/map/occurrence/density/0/0/0@2x.png?taxonKey=\(key)&style=classic.poly&bin=hex&hexPerTile=135")
-        else { return nil }
-        guard let (data, _) = try? await GBIFHeatmapMapView.externalAPISession.data(from: url) else { return nil }
+        else { return .state(.noTaxonKey) }
 
-        // Offload CPU-intensive image decompression from the MainActor
-        return await Task.detached(priority: .userInitiated) {
-            autoreleasepool {
-                guard let cgImage = ImageDownsampler.downsample(data: data, maxSize: 2048, stripAlpha: false) else {
-                    return nil
-                }
-                return UIImage(cgImage: cgImage)
+        do {
+            let (data, response) = try await GBIFHeatmapMapView.externalAPISession.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return .state(.failed)
             }
-        }.value
+
+            switch httpResponse.statusCode {
+            case 200:
+                break
+            case 204, 404:
+                return .state(.noData)
+            case 503:
+                return .state(.serviceUnavailable)
+            case 200..<300:
+                if data.isEmpty {
+                    return .state(.noData)
+                }
+            default:
+                return .state(.failed)
+            }
+
+            guard !data.isEmpty else { return .state(.noData) }
+
+            if let mimeType = httpResponse.mimeType,
+               !mimeType.lowercased().hasPrefix("image/") {
+                return .state(.failed)
+            }
+
+            // Offload CPU-intensive image decompression from the MainActor
+            let decodeTask: Task<UIImage?, Never> = Task.detached(priority: .userInitiated) {
+                autoreleasepool {
+                    guard let cgImage = ImageDownsampler.downsample(data: data, maxSize: 2048, stripAlpha: false) else {
+                        return nil
+                    }
+                    return UIImage(cgImage: cgImage)
+                }
+            }
+            let image = await decodeTask.value
+
+            guard let image else { return .state(.failed) }
+            return .image(image)
+        } catch {
+            return .state(.failed)
+        }
     }
 }
 

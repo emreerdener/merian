@@ -12,34 +12,23 @@ struct HabitatAndDistributionCard: View {
         let scientificName = inferenceEngine.speciesData?.scientificName
         VStack(alignment: .leading, spacing: 0) {
             // MARK: - Map View
-            ZStack(alignment: .bottom) {
-                GBIFHeatmapMapView(taxonKey: inferenceEngine.speciesData?.gbifTaxonKey)
-                    .frame(height: 260)
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.black.opacity(0.3), lineWidth: 4)
-                            .blur(radius: 6)
-                            .offset(y: 2)
-                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Crisp inner border line
-                    )
-                
-                if !inferenceEngine.isEnrichmentLoading && inferenceEngine.speciesData?.gbifTaxonKey == nil {
-                    Text("No distribution data available")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.black.opacity(0.6))
-                        .clipShape(Capsule())
-                        .padding(.bottom, 12)
-                }
-            }
+            GBIFHeatmapMapView(
+                taxonKey: inferenceEngine.speciesData?.gbifTaxonKey,
+                showsMissingTaxonKeyFallback: !inferenceEngine.isEnrichmentLoading
+            )
+                .frame(height: 260)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.black.opacity(0.3), lineWidth: 4)
+                        .blur(radius: 6)
+                        .offset(y: 2)
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Crisp inner border line
+                )
             .padding(.horizontal, 16)
 
             // MARK: - Content Below Map
