@@ -72,6 +72,12 @@ The in-app notifications feed is backed by `public.explore_post_notifications`, 
 
 `get-explore-post` is an important routing helper for the iOS client: it returns a single feed-card projection so notification taps and future deep links do not depend on the target post already existing in the currently paged `ExploreFeedViewModel.posts` array.
 
+`get-explore-feed` now supports three shipped feed modes through one edge contract:
+
+- `recent`: the default reverse-chronological feed, backed by `public.get_explore_feed(...)` and paginated by `(shared_at, post_id)`
+- `trending`: a freshness-biased ranking backed by `public.get_explore_feed_trending(...)`, using trailing-30-day like activity plus `(shared_at, post_id)` tie-breakers and a `(ranking_value, shared_at, post_id)` cursor
+- `nearby`: a location-gated feed backed by `public.get_explore_feed_nearby(...)`, requiring viewer coordinates, reusing the same privacy-safe public coordinate rules as the Explore map, filtering to a roughly 50-mile radius, and then sorting the resulting posts by recency
+
 The map path is intentionally split into two layers. `public.get_explore_map_posts(...)` is the privacy-safe SQL projection over `explore_posts`, `scans`, `users`, and `species_dictionary`; `get-explore-map-points` adds zoom-aware clustering and returns either clusters or individual post rows. The current shipped implementation does not store map coordinates on `explore_posts`. Instead, `public.scans.gps_lat_public` / `gps_long_public` are normalized by the `trg_sync_scan_public_coordinates` trigger and backfilled by migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql`, which also fixed the regression where newly shared scans with only exact coordinates could be invisible on the Explore map.
 
 Explore activity now supports optional remote APNs delivery on top of the in-app feed. The app registers APNs device tokens through `register-push-device`, stores them in `public.user_push_devices`, and a Postgres trigger on `public.explore_post_notifications` uses `pg_net` to invoke `send-push-notification` whenever a visible notification row is inserted or a like aggregate count increases.

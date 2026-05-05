@@ -677,15 +677,35 @@ final class MerianNetworkClient {
 
     func getExploreFeed(
         limit: Int = 20,
-        beforeSharedAt: String? = nil,
-        beforePostId: String? = nil
+        filter: ExploreFeedFilter = .recent,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        cursor: ExploreFeedCursor? = nil
     ) async throws -> [ExplorePost] {
         let functionUrl = try endpointURL("get-explore-feed")
-        var payload: [String: Any] = ["limit": limit]
+        var payload: [String: Any] = [
+            "limit": limit,
+            "filter": filter.rawValue
+        ]
 
-        if let beforeSharedAt, let beforePostId {
-            payload["before_shared_at"] = beforeSharedAt
-            payload["before_post_id"] = beforePostId
+        if let latitude {
+            payload["latitude"] = latitude
+        }
+
+        if let longitude {
+            payload["longitude"] = longitude
+        }
+
+        if let cursor {
+            if let beforeSharedAt = cursor.beforeSharedAt,
+               let beforePostId = cursor.beforePostId {
+                payload["before_shared_at"] = beforeSharedAt
+                payload["before_post_id"] = beforePostId
+            }
+
+            if let beforeRankingValue = cursor.beforeRankingValue {
+                payload["before_ranking_value"] = beforeRankingValue
+            }
         }
 
         let bodyData = try JSONSerialization.data(withJSONObject: payload)

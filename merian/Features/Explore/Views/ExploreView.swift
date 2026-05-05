@@ -217,26 +217,64 @@ struct ExploreView: View {
 
 private struct ExploreFeedTabContent: View {
     @Bindable var viewModel: ExploreFeedViewModel
+    @Environment(EnvironmentContextManager.self) private var environmentContextManager
+    @Environment(\.openURL) private var openURL
+    @State private var isLocationSettingsAlertPresented = false
+    @State private var isResolvingNearbyLocation = false
     let onOpenPostDetail: (ExplorePost) -> Void
 
     var body: some View {
-        ZStack {
-            Color(uiColor: .systemGroupedBackground)
-                .ignoresSafeArea()
-
-            Group {
-                if viewModel.isLoadingInitialFeed && viewModel.posts.isEmpty {
-                    loadingState
-                } else if let errorMessage = viewModel.errorMessage, viewModel.posts.isEmpty {
-                    errorState(message: errorMessage)
-                } else if viewModel.posts.isEmpty {
-                    emptyState
-                } else {
-                    feedScrollView
+        VStack(spacing: 0) {
+            CategoryFilterBar(
+                items: ExploreFeedFilter.allCases,
+                activeItem: viewModel.activeFilter,
+                title: { $0.title },
+                onSelection: { filter in
+                    Task {
+                        await selectFilter(filter)
+                    }
+                }
+            )
+            .disabled(isResolvingNearbyLocation)
+            .overlay(alignment: .trailing) {
+                if isResolvingNearbyLocation {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .scaleEffect(0.85)
+                        .padding(.trailing, 16)
                 }
             }
+
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
+
+                Group {
+                    if viewModel.isLoadingInitialFeed && viewModel.posts.isEmpty {
+                        loadingState
+                    } else if let errorMessage = viewModel.errorMessage, viewModel.posts.isEmpty {
+                        errorState(message: errorMessage)
+                    } else if viewModel.posts.isEmpty {
+                        emptyState
+                    } else {
+                        feedScrollView
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .background(Color(uiColor: .systemGroupedBackground))
         .containerRelativeFrame(.horizontal)
+        .alert("Turn On Location", isPresented: $isLocationSettingsAlertPresented) {
+            Button("Not Now", role: .cancel) {}
+            Button("Settings") {
+                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    openURL(settingsURL)
+                }
+            }
+        } message: {
+            Text("Nearby uses your current location to show discoveries shared within \(ExploreFeedFilter.nearbyRadiusMiles) miles.")
+        }
     }
 
     private var feedScrollView: some View {
@@ -271,7 +309,7 @@ private struct ExploreFeedTabContent: View {
             .padding(.bottom, 24)
         }
         .refreshable {
-            await viewModel.loadInitialFeed(force: true)
+            await refreshFeed()
         }
     }
 
@@ -291,8 +329,8 @@ private struct ExploreFeedTabContent: View {
         EmptyStateView(
             imageName: "explore-base",
             imageHeight: 300,
-            title: "Nothing shared yet",
-            message: "Shared discoveries will show up here once people publish scans to Explore."
+            title: emptyStateTitle,
+            message: emptyStateMessage
         )
     }
 
@@ -303,13 +341,89 @@ private struct ExploreFeedTabContent: View {
             message: message
         ) {
             Button {
-                Task { await viewModel.loadInitialFeed(force: true) }
+                Task { await refreshFeed() }
             } label: {
                 Text("Try again")
                     .font(.subheadline)
                     .fontWeight(.semibold)
             }
             .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var emptyStateTitle: String {
+        switch viewModel.activeFilter {
+        case .recent:
+            return "Nothing shared yet"
+        case .trending:
+            return "Nothing trending yet"
+        case .nearby:
+            return "Nothing nearby yet"
+        }
+    }
+
+    private var emptyStateMessage: String {
+        switch viewModel.activeFilter {
+        case .recent:
+            return "Shared discoveries will show up here once people publish scans to Explore."
+        case .trending:
+            return "Freshly liked discoveries will appear here as the community reacts."
+        case .nearby:
+            return "We couldn’t find shared discoveries within \(ExploreFeedFilter.nearbyRadiusMiles) miles of your current location."
+        }
+    }
+
+    private func selectFilter(_ filter: ExploreFeedFilter) async {
+        guard filter.requiresLocation else {
+            await viewModel.selectFilter(filter)
+            return
+        }
+
+        await activateNearbyFeedSelection()
+    }
+
+    private func refreshFeed() async {
+        guard viewModel.activeFilter == .nearby else {
+            await viewModel.refreshFeed()
+            return
+        }
+
+        await activateNearbyFeedSelection(isRefresh: true)
+    }
+
+    private func activateNearbyFeedSelection(isRefresh: Bool = false) async {
+        guard !isResolvingNearbyLocation else { return }
+
+        isResolvingNearbyLocation = true
+        defer { isResolvingNearbyLocation = false }
+
+        guard let location = await environmentContextManager.requestCurrentLocation() else {
+            handleNearbyLocationFailure()
+            return
+        }
+
+        if isRefresh {
+            await viewModel.refreshFeed(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude
+            )
+        } else {
+            await viewModel.selectFilter(
+                .nearby,
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude
+            )
+        }
+    }
+
+    private func handleNearbyLocationFailure() {
+        switch environmentContextManager.locationAuthorizationStatus {
+        case .denied:
+            isLocationSettingsAlertPresented = true
+        case .restricted:
+            viewModel.toastMessage = "Location access is restricted on this device."
+        default:
+            viewModel.toastMessage = "We couldn’t determine your location right now. Try again in a moment."
         }
     }
 }

@@ -28,6 +28,7 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     var commentCount: Int
     var viewerHasLiked: Bool
     let isOwnedByViewer: Bool
+    let rankingValue: Int?
 
     var id: String { postId }
 
@@ -42,6 +43,47 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
             return preferred
         }
         return speciesCommonName.capitalized
+    }
+}
+
+enum ExploreFeedFilter: String, CaseIterable, Hashable, Identifiable {
+    case recent
+    case trending
+    case nearby
+
+    static let nearbyRadiusMiles = 50
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .recent:
+            return "Recent"
+        case .trending:
+            return "Trending"
+        case .nearby:
+            return "Nearby"
+        }
+    }
+
+    var requiresLocation: Bool {
+        self == .nearby
+    }
+}
+
+struct ExploreFeedCursor: Equatable {
+    let beforeSharedAt: String?
+    let beforePostId: String?
+    let beforeRankingValue: Int?
+
+    static let empty = ExploreFeedCursor(
+        beforeSharedAt: nil,
+        beforePostId: nil,
+        beforeRankingValue: nil
+    )
+
+    var isEmpty: Bool {
+        beforeSharedAt == nil && beforePostId == nil && beforeRankingValue == nil
     }
 }
 
@@ -129,7 +171,8 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
             likeCount: likeCount,
             commentCount: commentCount,
             viewerHasLiked: viewerHasLiked,
-            isOwnedByViewer: isOwnedByViewer
+            isOwnedByViewer: isOwnedByViewer,
+            rankingValue: nil
         )
     }
 }

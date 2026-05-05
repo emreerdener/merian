@@ -11,6 +11,7 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 - Explore feed posts open a dedicated public post detail page when the user taps the post body.
 - The feed comment icon still opens a bottom-sheet comments view for quick interaction from the main feed.
 - Explore does not include public user profile pages in V1.
+- The feed now ships three user-facing filters: `Recent`, `Trending`, and `Nearby`.
 - Feed cards may show:
   - Hero image
   - Species common name and scientific name
@@ -46,10 +47,10 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 
 - Audio posts
 - Captions, hashtags, follows, DMs, or profile pages
-- Complex ranking beyond reverse chronological order
+- Heavy personalization, editorial curation, or ranking beyond the shipped `Recent` / `Trending` / `Nearby` modes
 - Public species pages in this scope
 
-## Shipped V1 Snapshot (2026-04-28)
+## Shipped V1 Snapshot (2026-05-05)
 
 The Explore feed and map shell are now live. The current shipped implementation is:
 
@@ -58,7 +59,11 @@ The Explore feed and map shell are now live. The current shipped implementation 
 - Publication state still lives on `explore_posts`, but the shipped map does not store coordinates on `explore_posts`. Spatial reads currently project privacy-safe coordinates from `public.scans.gps_lat_public` / `gps_long_public` through `public.get_explore_map_posts(...)` and the `get-explore-map-points` edge function.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` and a server-side fallback so newly shared scans with exact coordinates are normalized/backfilled correctly and do not disappear from the map.
 - `ExplorePostStore` now owns shared Explore post state across feed, map, detail, comments, and notification-driven navigation, while `ExploreFeedViewModel` keeps feed-specific UI and pagination state.
-- Feed pagination now uses a `(shared_at, post_id)` cursor as the canonical shipped model.
+- The feed tab now ships a filter row with `Recent`, `Trending`, and `Nearby`.
+- `Recent` remains the default mode and still uses the canonical `(shared_at, post_id)` cursor.
+- `Trending` is freshness-biased rather than all-time top. It uses recent like activity from the trailing 30 days and paginates on `(ranking_value, shared_at, post_id)`.
+- `Nearby` requires viewer location, reuses the same privacy-safe public coordinate rules as the map, filters to a roughly 50-mile radius, and then sorts the surviving posts by recency rather than raw distance.
+- The Explore-tab unread badge and "last seen" bookkeeping remain tied to the `Recent` feed only so browsing alternate modes does not mutate recency tracking.
 
 ## Recommended Product Model
 
@@ -314,7 +319,7 @@ Recommended V1 endpoints:
 - `unshare-explore-post`
   - Removes the post from the feed
 - `get-explore-feed`
-  - Returns reverse-chronological Explore cards
+  - Returns Explore cards for `Recent`, `Trending`, or `Nearby` depending on the requested filter
 - `get-explore-post`
   - Returns a single Explore card projection for notification routing and deep links
 - `get-explore-post-detail`
@@ -353,18 +358,25 @@ The in-app notifications feed is the Explore source of truth. Remote APNs fan-ou
 - Exclude shadowbanned users
 - Exclude unshared posts
 - Exclude posts whose scan no longer has active image media
-- Order by `shared_at DESC`
+- Order by the selected feed mode:
+  - `Recent`: `shared_at DESC`
+  - `Trending`: trailing-30-day recent-like count DESC, then `shared_at DESC`
+  - `Nearby`: radius-filter first, then `shared_at DESC`
 - Return only the fields the Explore UI needs
 
 Pagination:
 
 - `get-explore-feed` should use cursor pagination, not offset pagination
-- The cursor should be `(shared_at, post_id)` so feed paging remains stable while new posts are inserted above the viewer
+- `Recent` and `Nearby` should use `(shared_at, post_id)` so feed paging remains stable while new posts are inserted above the viewer
+- `Trending` should use `(ranking_value, shared_at, post_id)` so ranking ties do not skip or duplicate rows
 - Recommended request fields:
+  - `filter`
   - `before_shared_at`
   - `before_post_id`
+  - `before_ranking_value` for `Trending`
+  - `latitude` and `longitude` for `Nearby`
   - `limit`
-- Current shipped note: this cursor model is now the canonical server and client path.
+- Current shipped note: both cursor models are now canonical server and client paths.
 
 Recommended response fields:
 
@@ -383,6 +395,7 @@ Recommended response fields:
 - `weather_temperature_f`
 - `like_count`
 - `comment_count`
+- `ranking_value` for `Trending` compatibility
 - `viewer_has_liked`
 - `is_owned_by_viewer`
 
@@ -398,7 +411,7 @@ Implementation note:
 - Media availability must be cheap to filter.
 - If the scan-media visibility check becomes a hot path, prefer a trigger-maintained post-level boolean such as `has_active_media` on `explore_posts`, or at minimum an expression/partial index that prevents repeated full-table scans over media arrays.
 
-`get-explore-feed` should remain card-oriented and reverse-chronological. The map should use a separate endpoint rather than overloading feed pagination with spatial query logic.
+`get-explore-feed` should remain card-oriented even as filters expand. `Nearby` should stay feed-like by using a radius filter plus recency sort, while the map remains a separate spatial endpoint rather than overloading feed pagination with nearest-neighbor map semantics.
 
 ## Explore Map Addendum
 
@@ -447,11 +460,13 @@ Recommended V1 controls:
 - `Recenter`
 - `Map` or `Hybrid` style toggle if we want a fast-follow visual upgrade
 
-Recommended V1 filters:
+Current shipped feed filters:
 
-- `All`
 - `Recent`
+- `Trending`
 - `Nearby`
+
+The map tab currently stays viewport-driven rather than mirroring the feed's filter row.
 
 Taxonomic chips such as `Plants`, `Fungi`, `Birds`, and `Insects` are a good phase-two extension, but the initial map does not need to solve every taxonomy slice on day one.
 
@@ -754,7 +769,8 @@ Client behavior:
 
 - Explore is online-only in V1
 - Likes/comments/shares do not use the offline queue
-- Feed pagination is cursor-based on `(shared_at, post_id)`
+- `Recent` and `Nearby` pagination are cursor-based on `(shared_at, post_id)`
+- `Trending` pagination is cursor-based on `(ranking_value, shared_at, post_id)`
 - Comments pagination is cursor-based on `(created_at, comment_id)`
 - Notifications pagination is cursor-based on `(updated_at, notification_id)`
 - Like and comment counts should update optimistically
@@ -831,7 +847,7 @@ When the public species-page project exists:
 ## Acceptance Criteria For V1
 
 - A user can manually share an eligible image scan to Explore.
-- A shared post appears in a reverse-chronological public feed.
+- A shared post appears in the public feed, with `Recent` as the default reverse-chronological mode plus shipped `Trending` and `Nearby` filters.
 - The feed shows privacy-safe author identity and general location.
 - Authenticated authors can show a public avatar when a provider avatar URL is available.
 - Ghost users can participate with stable aliases.

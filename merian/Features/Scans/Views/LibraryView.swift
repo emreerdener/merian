@@ -39,12 +39,10 @@ struct LibraryView: View {
             // 1. Dynamic Header Constraints
             if searchManager.searchQuery.isEmpty && !isSearchFocused {
                 CategoryFilterBar(
-                    filterCategories: filterCategories,
-                    activeCategory: Binding(
-                        get: { searchManager.activeCategoryFilter },
-                        set: { searchManager.activeCategoryFilter = $0 }
-                    ),
-                    onCategorySelected: { category in
+                    items: filterCategories,
+                    activeItem: searchManager.activeCategoryFilter,
+                    title: { $0 },
+                    onSelection: { category in
                         if !searchManager.searchQuery.isEmpty {
                             searchManager.searchQuery = ""
                         } else {

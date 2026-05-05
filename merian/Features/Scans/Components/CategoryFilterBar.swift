@@ -1,32 +1,32 @@
 import SwiftUI
 
-struct CategoryFilterBar: View {
+struct CategoryFilterBar<Item: Hashable>: View {
     // MARK: - State Dependencies
-    let filterCategories: [String]
-    @Binding var activeCategory: String
-    
+    let items: [Item]
+    let activeItem: Item
+    let title: (Item) -> String
+
     // MARK: - Callbacks
-    let onCategorySelected: (String) -> Void
-    
+    let onSelection: (Item) -> Void
+
     // MARK: - Component Layout
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(filterCategories, id: \.self) { category in
+                ForEach(items, id: \.self) { item in
                     Button(action: {
                         withAnimation {
-                            activeCategory = category
-                            onCategorySelected(category)
+                            onSelection(item)
                         }
                     }) {
-                        Text(category)
+                        Text(title(item))
                             .font(.subheadline)
                             .fontWeight(.medium)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(activeCategory == category ? Color.primary : Color.secondary.opacity(0.15))
-                        .foregroundColor(activeCategory == category ? Color(UIColor.systemBackground) : .primary)
-                        .clipShape(Capsule())
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(activeItem == item ? Color.primary : Color.secondary.opacity(0.15))
+                            .foregroundColor(activeItem == item ? Color(UIColor.systemBackground) : .primary)
+                            .clipShape(Capsule())
                     }
                 }
             }

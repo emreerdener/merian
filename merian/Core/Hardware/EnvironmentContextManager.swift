@@ -19,13 +19,11 @@ import WeatherKit
 
     // MARK: - State
     var isAuthorized: Bool = false
-
-    var locationAuthorizationStatus: CLAuthorizationStatus {
-        locationManager.authorizationStatus
-    }
+    var locationAuthorizationStatus: CLAuthorizationStatus = .notDetermined
 
     // MARK: - Cache
     private var activeContinuations: [UUID: CheckedContinuation<CLLocation?, Never>] = [:]
+    private var authorizationContinuations: [UUID: CheckedContinuation<CLAuthorizationStatus, Never>] = [:]
     private var timeoutTask: Task<Void, Never>?
     private(set) var cachedLocation: CLLocation?
     private(set) var fallbackInaccurateLocation: CLLocation?
@@ -45,11 +43,14 @@ import WeatherKit
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationAuthorizationStatus = locationManager.authorizationStatus
         checkAuthorization()
     }
 
     private func checkAuthorization() {
-        switch locationManager.authorizationStatus {
+        locationAuthorizationStatus = locationManager.authorizationStatus
+
+        switch locationAuthorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
             self.isAuthorized = true
         default:
@@ -61,6 +62,42 @@ import WeatherKit
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestWhenInUseAuthorization()
         }
+    }
+
+    func requestLocationAuthorizationIfNeeded() async -> CLAuthorizationStatus {
+        let status = locationAuthorizationStatus
+        guard status == .notDetermined else { return status }
+
+        let taskID = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                authorizationContinuations[taskID] = continuation
+
+                if authorizationContinuations.count == 1 {
+                    locationManager.requestWhenInUseAuthorization()
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in
+                if let continuation = self.authorizationContinuations.removeValue(forKey: taskID) {
+                    continuation.resume(returning: self.locationAuthorizationStatus)
+                }
+            }
+        }
+    }
+
+    func requestCurrentLocation() async -> CLLocation? {
+        let authorizationStatus = await requestLocationAuthorizationIfNeeded()
+        guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
+            return nil
+        }
+
+        if let location = await requestSingleLocation() {
+            cachedLocation = location
+            return location
+        }
+
+        return lastKnownLocation
     }
 
     // MARK: - Live Location Tracking
@@ -241,6 +278,10 @@ import WeatherKit
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             self.checkAuthorization()
+
+            if manager.authorizationStatus != .notDetermined {
+                self.resolvePendingAuthorizationContinuations(with: manager.authorizationStatus)
+            }
         }
     }
 
@@ -280,6 +321,15 @@ import WeatherKit
             continuation.resume(returning: location)
         }
 
-        return pending.isEmpty
+        return !pending.isEmpty
+    }
+
+    private func resolvePendingAuthorizationContinuations(with status: CLAuthorizationStatus) {
+        let pending = Array(authorizationContinuations.values)
+        authorizationContinuations.removeAll()
+
+        for continuation in pending {
+            continuation.resume(returning: status)
+        }
     }
 }

@@ -3,6 +3,11 @@ import Observation
 import Supabase
 import SwiftUI
 
+struct ExploreNearbyLocationSnapshot: Equatable {
+    let latitude: Double
+    let longitude: Double
+}
+
 @MainActor
 @Observable
 final class ExplorePostStore {
@@ -138,6 +143,7 @@ final class ExplorePostStore {
 @Observable
 final class ExploreFeedViewModel {
     let store = ExplorePostStore()
+    var activeFilter: ExploreFeedFilter = .recent
     var isLoadingInitialFeed = false
     var isLoadingMore = false
     var errorMessage: String?
@@ -169,8 +175,7 @@ final class ExploreFeedViewModel {
 
     @ObservationIgnored let feedPageSize = 20
     @ObservationIgnored let commentsPageSize = 100
-    @ObservationIgnored var nextFeedCursorSharedAt: String?
-    @ObservationIgnored var nextFeedCursorPostId: String?
+    @ObservationIgnored var nextFeedCursor = ExploreFeedCursor.empty
     @ObservationIgnored var hasLoadedFeedOnce = false
     @ObservationIgnored var hasReachedEndOfFeed = false
     @ObservationIgnored var nextCommentsCursorCreatedAt: String?
@@ -182,8 +187,20 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var isRefreshingUnreadNotificationCount = false
     @ObservationIgnored var unreadNotificationsChannel: RealtimeChannelV2?
     @ObservationIgnored var unreadNotificationListenerTask: Task<Void, Never>?
+    @ObservationIgnored var activeFeedRequestId = UUID()
+    @ObservationIgnored var currentInitialFeedRequestId: UUID?
+    @ObservationIgnored var currentLoadMoreRequestId: UUID?
+    @ObservationIgnored var nearbyLocationSnapshot: ExploreNearbyLocationSnapshot?
 
     func post(id: String) -> ExplorePost? {
         store.post(id: id)
+    }
+
+    var currentNearbyLatitude: Double? {
+        nearbyLocationSnapshot?.latitude
+    }
+
+    var currentNearbyLongitude: Double? {
+        nearbyLocationSnapshot?.longitude
     }
 }

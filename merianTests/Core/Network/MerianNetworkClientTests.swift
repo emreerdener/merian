@@ -206,6 +206,114 @@ struct MerianNetworkClientTests {
         #expect(response.sharedAt == "2026-04-29T22:18:03.000Z")
     }
 
+    @Test func testGetExploreFeedTrendingConstructsPayloadAndParsesResponse() async throws {
+        let testData = """
+        {
+            "data": [
+                {
+                    "post_id": "post-trending-123",
+                    "scan_id": "scan-trending-123",
+                    "hero_image_url": "https://example.com/trending.webp",
+                    "shared_at": "2026-05-01T12:00:00.000Z",
+                    "author_user_id": "author-trending-123",
+                    "author_name": "Trending Author",
+                    "author_avatar_url": null,
+                    "species_common_name": "Monarch Butterfly",
+                    "species_scientific_name": "Danaus plexippus",
+                    "public_location_label": "Austin, TX",
+                    "time_of_day": "day",
+                    "current_month": 5,
+                    "weather_condition": "Clear",
+                    "weather_temperature_f": 78.4,
+                    "like_count": 11,
+                    "comment_count": 2,
+                    "viewer_has_liked": false,
+                    "is_owned_by_viewer": false,
+                    "ranking_value": 4
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/get-explore-feed"] = { request in
+            #expect(request.url?.path.hasSuffix("/get-explore-feed") == true)
+            #expect(request.httpMethod == "POST")
+
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["filter"] as? String == "trending")
+            #expect(payload["before_ranking_value"] as? Int == 4)
+            #expect(payload["before_shared_at"] as? String == "2026-05-01T12:00:00.000Z")
+            #expect(payload["before_post_id"] as? String == "post-trending-123")
+            return (mockResponse, testData)
+        }
+
+        let posts = try await MerianNetworkClient.shared.getExploreFeed(
+            limit: 10,
+            filter: .trending,
+            cursor: ExploreFeedCursor(
+                beforeSharedAt: "2026-05-01T12:00:00.000Z",
+                beforePostId: "post-trending-123",
+                beforeRankingValue: 4
+            )
+        )
+
+        #expect(posts.count == 1)
+        #expect(posts[0].id == "post-trending-123")
+        #expect(posts[0].rankingValue == 4)
+    }
+
+    @Test func testGetExploreFeedNearbyConstructsPayloadWithCoordinates() async throws {
+        let testData = """
+        {
+            "data": [
+                {
+                    "post_id": "post-nearby-123",
+                    "scan_id": "scan-nearby-123",
+                    "hero_image_url": "https://example.com/nearby.webp",
+                    "shared_at": "2026-05-02T08:30:00.000Z",
+                    "author_user_id": "author-nearby-123",
+                    "author_name": "Nearby Author",
+                    "author_avatar_url": null,
+                    "species_common_name": "Bluebird",
+                    "species_scientific_name": "Sialia sialis",
+                    "public_location_label": "Chicago, IL",
+                    "time_of_day": "morning",
+                    "current_month": 5,
+                    "weather_condition": "Cloudy",
+                    "weather_temperature_f": 61.2,
+                    "like_count": 3,
+                    "comment_count": 1,
+                    "viewer_has_liked": true,
+                    "is_owned_by_viewer": false,
+                    "ranking_value": null
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/get-explore-feed"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["filter"] as? String == "nearby")
+            #expect(payload["latitude"] as? Double == 41.8781)
+            #expect(payload["longitude"] as? Double == -87.6298)
+            return (mockResponse, testData)
+        }
+
+        let posts = try await MerianNetworkClient.shared.getExploreFeed(
+            filter: .nearby,
+            latitude: 41.8781,
+            longitude: -87.6298
+        )
+
+        #expect(posts.count == 1)
+        #expect(posts[0].id == "post-nearby-123")
+        #expect(posts[0].rankingValue == nil)
+    }
+
     @Test func testGenerateUploadURLs() async throws {
         let testData = """
         {

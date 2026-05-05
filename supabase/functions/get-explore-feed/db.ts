@@ -1,4 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { ExploreFeedFilter } from "../_shared/explore.ts";
 
 export interface ExploreFeedRow {
   post_id: string;
@@ -19,25 +20,55 @@ export interface ExploreFeedRow {
   comment_count: number;
   viewer_has_liked: boolean;
   is_owned_by_viewer: boolean;
+  ranking_value?: number | null;
 }
 
 interface ExploreFeedCursor {
   beforeSharedAt: string | null;
   beforePostId: string | null;
+  beforeRankingValue: number | null;
+}
+
+interface ExploreFeedLocation {
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export async function fetchExploreFeed(
   userId: string,
   limit: number,
+  filter: ExploreFeedFilter,
   cursor: ExploreFeedCursor,
+  location: ExploreFeedLocation,
   supabaseAdmin: SupabaseClient,
 ): Promise<ExploreFeedRow[]> {
-  const { data, error } = await supabaseAdmin.rpc("get_explore_feed", {
+  let rpcName = "get_explore_feed";
+  const rpcArgs: Record<string, unknown> = {
     self_id: userId,
     max_limit: limit,
-    before_shared_at: cursor.beforeSharedAt,
-    before_post_id: cursor.beforePostId,
-  });
+  };
+
+  switch (filter) {
+    case "recent":
+      rpcArgs.before_shared_at = cursor.beforeSharedAt;
+      rpcArgs.before_post_id = cursor.beforePostId;
+      break;
+    case "trending":
+      rpcName = "get_explore_feed_trending";
+      rpcArgs.before_ranking_value = cursor.beforeRankingValue;
+      rpcArgs.before_shared_at = cursor.beforeSharedAt;
+      rpcArgs.before_post_id = cursor.beforePostId;
+      break;
+    case "nearby":
+      rpcName = "get_explore_feed_nearby";
+      rpcArgs.viewer_latitude = location.latitude;
+      rpcArgs.viewer_longitude = location.longitude;
+      rpcArgs.before_shared_at = cursor.beforeSharedAt;
+      rpcArgs.before_post_id = cursor.beforePostId;
+      break;
+  }
+
+  const { data, error } = await supabaseAdmin.rpc(rpcName, rpcArgs);
 
   if (error) {
     throw new Error(`Failed to fetch Explore feed: ${error.message}`);

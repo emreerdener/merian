@@ -1,6 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export type ExploreFeedFilter = "recent" | "trending" | "nearby";
 
 type NestedRelation<T> = T | T[] | null | undefined;
 
@@ -44,6 +45,42 @@ export function normalizeCursorTimestamp(rawValue: unknown, fieldName: string): 
   if (rawValue == null) return null;
   if (typeof rawValue !== "string" || !Number.isFinite(Date.parse(rawValue))) {
     throw makeHttpError(400, `${fieldName} must be a valid ISO 8601 timestamp.`);
+  }
+
+  return rawValue;
+}
+
+export function normalizeExploreFeedFilter(rawValue: unknown): ExploreFeedFilter {
+  if (rawValue == null) return "recent";
+  if (rawValue === "recent" || rawValue === "trending" || rawValue === "nearby") {
+    return rawValue;
+  }
+
+  throw makeHttpError(400, "filter must be one of: recent, trending, nearby.");
+}
+
+export function normalizeNonNegativeInteger(rawValue: unknown, fieldName: string): number | null {
+  if (rawValue == null) return null;
+  if (typeof rawValue !== "number" || !Number.isInteger(rawValue) || rawValue < 0) {
+    throw makeHttpError(400, `${fieldName} must be a non-negative integer.`);
+  }
+
+  return rawValue;
+}
+
+export function normalizeLatitude(rawValue: unknown, fieldName: string): number | null {
+  if (rawValue == null) return null;
+  if (typeof rawValue !== "number" || !Number.isFinite(rawValue) || rawValue < -90 || rawValue > 90) {
+    throw makeHttpError(400, `${fieldName} must be a valid latitude.`);
+  }
+
+  return rawValue;
+}
+
+export function normalizeLongitude(rawValue: unknown, fieldName: string): number | null {
+  if (rawValue == null) return null;
+  if (typeof rawValue !== "number" || !Number.isFinite(rawValue) || rawValue < -180 || rawValue > 180) {
+    throw makeHttpError(400, `${fieldName} must be a valid longitude.`);
   }
 
   return rawValue;

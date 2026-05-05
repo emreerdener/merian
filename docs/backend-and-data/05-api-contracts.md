@@ -233,7 +233,7 @@ Explore traffic is intentionally separate from the identify pipeline. The iOS cl
 
 ### `/get-explore-feed`
 
-Returns reverse-chronological public Explore posts. The backend reads from `public.get_explore_feed(...)` using a cursor and already filters out:
+Returns public Explore feed cards for the shipped `recent`, `trending`, and `nearby` modes. The backend routes to a dedicated SQL RPC per mode and already filters out:
 
 - unshared posts
 - tombstoned scans
@@ -242,19 +242,54 @@ Returns reverse-chronological public Explore posts. The backend reads from `publ
 - shadowbanned authors
 - both directions of user blocking
 
-Primary request body for cursor paging:
+Primary request shapes:
+
+Recent feed, which is also the default when `filter` is omitted:
 
 ```json
 {
   "limit": 20,
+  "filter": "recent",
   "before_shared_at": "2026-04-28T21:18:00.000Z",
   "before_post_id": "uuid"
 }
 ```
 
-- omit `before_shared_at` and `before_post_id` for the first page
-- both cursor fields must be provided together
-- ordering is stable on `(shared_at DESC, post_id DESC)`
+Trending feed:
+
+```json
+{
+  "limit": 20,
+  "filter": "trending",
+  "before_ranking_value": 12,
+  "before_shared_at": "2026-05-02T16:45:00.000Z",
+  "before_post_id": "uuid"
+}
+```
+
+Nearby feed:
+
+```json
+{
+  "limit": 20,
+  "filter": "nearby",
+  "latitude": 30.2672,
+  "longitude": -97.7431,
+  "before_shared_at": "2026-05-03T11:22:00.000Z",
+  "before_post_id": "uuid"
+}
+```
+
+Validation rules:
+
+- `recent` and `nearby` page on `(shared_at DESC, post_id DESC)`. Omit both cursor fields for the first page.
+- `trending` pages on `(ranking_value DESC, shared_at DESC, post_id DESC)`. The cursor is only valid when `before_ranking_value`, `before_shared_at`, and `before_post_id` are all supplied together.
+- `nearby` requires both `latitude` and `longitude`.
+- `before_ranking_value` is rejected for `recent` and `nearby`.
+- `trending` is freshness-biased rather than all-time top. The ranking value is the post's like activity from the trailing 30 days.
+- `nearby` reuses privacy-safe public coordinates and limits results to roughly 50 miles around the supplied viewer location before applying recency sort.
+
+`Recent` remains the iOS default for first load and for the Explore-tab unread badge refresh path.
 
 Current response shape:
 
@@ -278,6 +313,7 @@ Current response shape:
       "weather_temperature_f": 78.2,
       "like_count": 3,
       "comment_count": 1,
+      "ranking_value": 12,
       "viewer_has_liked": false,
       "is_owned_by_viewer": false
     }
@@ -286,6 +322,7 @@ Current response shape:
 ```
 
 `author_avatar_url` is a copied public projection stored on `public.users.public_avatar_url`. It is never read directly from `auth.users` on the client.
+`ranking_value` is populated for `trending` rows and omitted or `null` for `recent` and `nearby`.
 
 ### `/get-explore-post`
 
