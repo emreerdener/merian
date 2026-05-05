@@ -296,14 +296,14 @@ private struct AchievementDetailHeader: View {
 
                     Text(award.progressStatusText)
                         .font(.footnote.weight(.semibold))
-                        .foregroundColor(award.isCompleted ? award.tintInfo.color : .secondary)
+                        .foregroundColor(award.isCompleted ? .green : .secondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(
                             Capsule()
                                 .fill(
                                     award.isCompleted
-                                        ? award.tintInfo.color.opacity(0.16)
+                                        ? Color.green.opacity(0.16)
                                         : Color(uiColor: .tertiarySystemFill)
                                 )
                         )
@@ -316,7 +316,7 @@ private struct AchievementDetailHeader: View {
                             .frame(height: 8)
 
                         Capsule()
-                            .fill(award.tintInfo.color.opacity(0.85))
+                            .fill(award.isCompleted ? Color.green.opacity(0.85) : award.tintInfo.color.opacity(0.85))
                             .frame(width: max(0, geo.size.width * award.progressFraction), height: 8)
                     }
                 }
