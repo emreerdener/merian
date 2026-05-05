@@ -777,6 +777,7 @@ The Explore map additionally uses:
 - `ExploreMapPointsResponse`, `ExploreMapCluster`, and `ExploreMapPost` from `ExploreAPIModels.swift`
 - `ExplorePostStore` as the shared in-memory post state layer, so likes, unshares, reports, and blocks stay synchronized between the feed tab, map preview card, detail route, and notification-driven navigation
 - a two-step interaction in `ExploreMapView`: tap a waypoint to select and preview, then open `ExplorePostDetailView`
+- a zoom-aware annotation treatment in `ExploreMapView`, where cluster payloads stay aggregate at broad zooms and individual `ExploreMapPost` payloads can render either simple dots or thumbnail-backed markers depending on the current client camera zoom and visible post count
 
 Time and weather metadata remain in the contract for future Explore presentation experiments, but are not currently rendered on the primary feed card.
 

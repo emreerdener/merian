@@ -286,9 +286,20 @@ struct ExplorePostCard: View {
 struct ExploreHeroImageView: View {
     let imageUrl: String
     let reloadGeneration: UInt64
+    let maxDimension: Int
 
     @State private var loadedImage: UIImage?
     @State private var hasFailedToLoad = false
+
+    init(
+        imageUrl: String,
+        reloadGeneration: UInt64,
+        maxDimension: Int = Int(MerianConfig.displayImageMaxSize)
+    ) {
+        self.imageUrl = imageUrl
+        self.reloadGeneration = reloadGeneration
+        self.maxDimension = maxDimension
+    }
 
     var body: some View {
         Group {
@@ -312,7 +323,7 @@ struct ExploreHeroImageView: View {
             let image = await LocalImageLoader.shared.loadImage(
                 fromPath: nil,
                 fallbackUrl: imageUrl,
-                maxDimension: Int(MerianConfig.displayImageMaxSize)
+                maxDimension: maxDimension
             )
             guard !Task.isCancelled else { return }
 

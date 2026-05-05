@@ -93,8 +93,11 @@ struct ExploreMapView: View {
                         }
                     } label: {
                         ExploreMapWaypoint(
+                            imageUrl: post.heroImageUrl,
+                            reloadGeneration: feedViewModel.mediaReloadGeneration,
                             isSelected: viewModel.selectedPostId == post.id,
-                            isApproximate: post.coordinateVisibility == .obscured
+                            isApproximate: post.coordinateVisibility == .obscured,
+                            showsThumbnail: viewModel.showsThumbnailWaypoints
                         )
                     }
                     .buttonStyle(.plain)
@@ -405,10 +408,26 @@ struct ExploreMapView: View {
 }
 
 private struct ExploreMapWaypoint: View {
+    let imageUrl: String
+    let reloadGeneration: UInt64
     let isSelected: Bool
     let isApproximate: Bool
+    let showsThumbnail: Bool
 
     var body: some View {
+        Group {
+            if showsThumbnail {
+                thumbnailWaypoint
+            } else {
+                dotWaypoint
+            }
+        }
+        .scaleEffect(isSelected ? 1.08 : 1)
+        .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 4)
+        .zIndex(isSelected ? 1 : 0)
+    }
+
+    private var dotWaypoint: some View {
         ZStack {
             Circle()
                 .fill(isSelected ? Color.accentColor : Color.white)
@@ -417,7 +436,6 @@ private struct ExploreMapWaypoint: View {
                     Circle()
                         .stroke(isSelected ? Color.white : Color.accentColor, lineWidth: 3)
                 )
-                .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 4)
 
             if isApproximate {
                 Circle()
@@ -426,7 +444,41 @@ private struct ExploreMapWaypoint: View {
                     .frame(width: isSelected ? 32 : 28, height: isSelected ? 32 : 28)
             }
         }
-        .scaleEffect(isSelected ? 1.08 : 1)
+    }
+
+    private var thumbnailWaypoint: some View {
+        let imageSize: CGFloat = isSelected ? 50 : 44
+        let haloSize = imageSize + (isApproximate ? 12 : 8)
+
+        return ZStack {
+            Circle()
+                .fill(.regularMaterial)
+                .frame(width: haloSize, height: haloSize)
+
+            ExploreHeroImageView(
+                imageUrl: imageUrl,
+                reloadGeneration: reloadGeneration,
+                maxDimension: 160
+            )
+            .frame(width: imageSize, height: imageSize)
+            .clipShape(Circle())
+            .overlay {
+                Circle()
+                    .stroke(isSelected ? Color.accentColor : Color.white, lineWidth: isSelected ? 3 : 2.5)
+            }
+
+            Circle()
+                .stroke(
+                    isApproximate
+                        ? Color.accentColor.opacity(isSelected ? 0.95 : 0.7)
+                        : Color.black.opacity(0.08),
+                    style: StrokeStyle(
+                        lineWidth: isApproximate ? 1.5 : 1,
+                        dash: isApproximate ? [3, 2] : []
+                    )
+                )
+                .frame(width: haloSize, height: haloSize)
+        }
     }
 }
 

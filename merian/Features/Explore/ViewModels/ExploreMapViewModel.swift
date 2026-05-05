@@ -32,6 +32,8 @@ final class ExploreMapViewModel {
     var visibleCount = 0
 
     @ObservationIgnored private let maxPostLimit = 500
+    @ObservationIgnored private let thumbnailZoomLevelThreshold = 14.8
+    @ObservationIgnored private let thumbnailPostCountThreshold = 24
     @ObservationIgnored private let maxCachedRegions = 8
     @ObservationIgnored private let maxCachedItems = 1_400
     @ObservationIgnored private let freshCacheTTL: TimeInterval = 90
@@ -44,6 +46,12 @@ final class ExploreMapViewModel {
     var selectedPost: ExploreMapPost? {
         guard let selectedPostId else { return nil }
         return posts.first(where: { $0.id == selectedPostId })
+    }
+
+    var showsThumbnailWaypoints: Bool {
+        guard mode == .posts, !posts.isEmpty, posts.count <= thumbnailPostCountThreshold else { return false }
+        guard let region = visibleRegion ?? lastCommittedRegion else { return false }
+        return zoomLevel(for: region) >= thumbnailZoomLevelThreshold
     }
 
     func loadInitialData(using environmentContextManager: EnvironmentContextManager) async {

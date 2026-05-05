@@ -55,7 +55,7 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 The Explore feed and map shell are now live. The current shipped implementation is:
 
 - `ExploreView` uses a segmented `Feed` / `Map` toolbar control plus a horizontally paged shell. While the map tab is active, the outer pager swipe is intentionally disabled so map pans win over parent horizontal gestures.
-- `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction.
+- `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction. At broad zooms, individual posts still use simple indicator dots; at close zooms, the shipped client upgrades them into circular scan thumbnails when the visible result set is small enough.
 - Publication state still lives on `explore_posts`, but the shipped map does not store coordinates on `explore_posts`. Spatial reads currently project privacy-safe coordinates from `public.scans.gps_lat_public` / `gps_long_public` through `public.get_explore_map_posts(...)` and the `get-explore-map-points` edge function.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` and a server-side fallback so newly shared scans with exact coordinates are normalized/backfilled correctly and do not disappear from the map.
 - `ExplorePostStore` now owns shared Explore post state across feed, map, detail, comments, and notification-driven navigation, while `ExploreFeedViewModel` keeps feed-specific UI and pagination state.
@@ -447,6 +447,7 @@ The Explore sheet already has feed and map tabs. Map V1 should behave like this:
 - User opens the `Map` tab.
 - The camera starts on either the user's current region or a sensible fallback world/continent view.
 - The server returns clusters at broad zoom levels and individual posts at closer zoom levels.
+- At sufficiently close zoom, individual posts may transition from simple dots into image-backed thumbnail markers so the user starts seeing the actual scans before opening detail.
 - Panning the map does not immediately destroy the current results. Instead, the UI marks the region as stale and shows a `Search This Area` action.
 - Tapping a cluster zooms the camera inward.
 - Tapping an individual point selects it and reveals a compact preview card anchored above the bottom tab bar.
@@ -499,6 +500,7 @@ Marker treatment:
 
 - `exact` can use a standard pinpoint or image-backed marker
 - `obscured` should use a softer glyph or halo so the user understands the location is approximate
+- In the current shipped client, posts begin as simple indicator dots, then switch to circular scan thumbnails only once the camera is close enough (`zoomLevel >= 14.8`) and the visible post set is small enough (`<= 24` posts). `obscured` posts keep their approximate-location halo in either mode.
 
 ### Public Coordinate Strategy
 
@@ -648,6 +650,7 @@ Current shipped state on `ExploreMapViewModel`:
 - `selectedPostId`
 - `visibleCount`
 - `isOffline`
+- a computed `showsThumbnailWaypoints` gate derived from the active region zoom plus visible post count
 - an in-memory recent-region cache with capped eviction
 
 State machine:
@@ -660,8 +663,9 @@ State machine:
 6. When the user taps `Search This Area`, call `get-explore-map-points`
 7. If the response is `clusters`, render clusters and clear any selected post
 8. If the response is `posts`, render point annotations
-9. On point tap, set `selectedPost`
-10. On preview-card tap, route to `ExplorePostDetailView(postId:)`
+9. If the camera is sufficiently close and the post count is still low enough, upgrade those point annotations into thumbnail-backed markers instead of plain dots
+10. On point tap, set `selectedPost`
+11. On preview-card tap, route to `ExplorePostDetailView(postId:)`
 
 Technical notes:
 
@@ -669,6 +673,7 @@ Technical notes:
 - Debounce camera-driven fetch eligibility rather than firing a network request on every frame
 - Reuse the existing Explore detail route already owned by `ExploreView`
 - Keep selection state local to the map view model so the feed view model does not absorb spatial UI concerns
+- Reuse `ExploreHeroImageView` for thumbnail markers with a smaller decode size instead of introducing a separate image-loading path for the map
 - In the current shipped architecture, feed and map mutations converge through `ExplorePostStore`, which acts as the shared in-memory source for likes, comment counts, unshares, reports, and blocks while screen-specific view models keep their own UI state
 
 ### Search And Caching Behavior
@@ -678,6 +683,7 @@ Current shipped V1 behavior:
 - Keep the last successful result set on screen while the user pans
 - Only replace results after a successful "search this area" fetch
 - Cap rendered individual post annotations to a strict upper bound such as 500
+- Only promote individual post annotations into thumbnail-backed markers when the zoom level is high enough and the visible post set is small enough, preventing dense areas from turning back into thumbnail soup
 - If map fetches fail because the device is offline, show an explicit offline banner rather than silently leaving the map in a stale state
 - Cache recent region payloads in memory and evict old or off-screen regions aggressively so revisiting nearby areas feels faster without letting long-distance panning grow memory unbounded
 
@@ -860,6 +866,7 @@ When the public species-page project exists:
 - The detail page shows inline comments plus privacy-safe telemetry and public species cards.
 - The Explore surface includes a map tab backed by the same `explore_posts` model.
 - Broad zoom levels render clusters instead of pin soup.
+- Close zoom levels can upgrade individual points into thumbnail-backed markers without changing the selection flow.
 - Tapping a map point opens a compact preview card before opening full detail.
 - Tapping a map preview card opens the same public Explore detail page used by feed posts.
 - `obscured` posts render only with privacy-safe public coordinates derived server-side from scan geoprivacy rules.
