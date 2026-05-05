@@ -7,6 +7,7 @@ struct ExploreMapView: View {
     @Bindable var postStore: ExplorePostStore
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
     @State private var ignoreNextBackgroundTap = false
+    @State private var isShowingDiscoveriesSheet = false
 
     let onOpenDetail: (ExplorePost, Bool) -> Void
 
@@ -45,6 +46,9 @@ struct ExploreMapView: View {
         }
         .onChange(of: postStore.changeVersion) { _, _ in
             viewModel.syncPosts(from: postStore.allPosts)
+        }
+        .sheet(isPresented: $isShowingDiscoveriesSheet) {
+            discoveriesSheet
         }
     }
 
@@ -194,14 +198,19 @@ struct ExploreMapView: View {
             ? "\(viewModel.visibleCount.formatted(.number.notation(.compactName))) discoveries in view"
             : "\(viewModel.posts.count.formatted()) discoveries in view"
 
-        return Text(label)
-            .font(.footnote)
-            .fontWeight(.semibold)
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(.regularMaterial)
-            .clipShape(Capsule(style: .continuous))
+        return Button {
+            isShowingDiscoveriesSheet = true
+        } label: {
+            Text(label)
+                .font(.footnote)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.regularMaterial)
+                .clipShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private var recenterButton: some View {
@@ -280,11 +289,58 @@ struct ExploreMapView: View {
         .card()
     }
 
+    private var discoveriesSheet: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    ForEach(viewModel.posts) { mapPost in
+                        let post = postStore.post(id: mapPost.id) ?? mapPost.asExplorePost
+                        ExploreMapPreviewCard(
+                            post: post,
+                            mediaReloadGeneration: feedViewModel.mediaReloadGeneration,
+                            onOpen: {
+                                isShowingDiscoveriesSheet = false
+                                openPost(post, focusCommentComposer: false)
+                            },
+                            onComments: {
+                                isShowingDiscoveriesSheet = false
+                                openPost(post, focusCommentComposer: true)
+                            },
+                            onLike: { Task { await toggleLike(for: post) } },
+                            onShare: { feedViewModel.share(post) },
+                            onUnshare: { Task { await unshare(post) } },
+                            onBlock: { Task { await blockAuthor(of: post) } },
+                            onReport: { Task { await report(post) } }
+                        )
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Discoveries in view")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        isShowingDiscoveriesSheet = false
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .background(Color(uiColor: .systemGroupedBackground))
+        }
+        .presentationDragIndicator(.visible)
+        .presentationDetents([.medium, .large])
+    }
+
+    private func openPost(_ post: ExplorePost, focusCommentComposer: Bool) {
+        AppTelemetry.trackExploreMapDetailOpened(entryPoint: focusCommentComposer ? "comments" : "preview")
+        feedViewModel.upsertPost(post)
+        onOpenDetail(post, focusCommentComposer)
+    }
+
     private func openSelectedPost(focusCommentComposer: Bool) {
         guard let selectedPost = resolvedSelectedPost else { return }
-        AppTelemetry.trackExploreMapDetailOpened(entryPoint: focusCommentComposer ? "comments" : "preview")
-        feedViewModel.upsertPost(selectedPost)
-        onOpenDetail(selectedPost, focusCommentComposer)
+        openPost(selectedPost, focusCommentComposer: focusCommentComposer)
     }
 
     private func toggleLike(for post: ExplorePost) async {
