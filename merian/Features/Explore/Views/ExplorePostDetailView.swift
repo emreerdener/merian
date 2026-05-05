@@ -442,6 +442,7 @@ struct ExplorePostDetailView: View {
                             } label: {
                                 Label("Report comment", systemImage: "flag")
                             }
+                            .tint(.red)
                         }
                     } label: {
                         Image(systemName: "ellipsis")
@@ -478,22 +479,26 @@ struct ExplorePostDetailView: View {
                 } label: {
                     Label("Remove post", systemImage: "trash")
                 }
+                .tint(.red)
             } else {
                 Button(role: .destructive) {
                     Task { await viewModel.blockAuthor(of: post) }
                 } label: {
                     Label("Block user", systemImage: "person.crop.circle.badge.xmark")
                 }
+                .tint(.red)
 
                 Button(role: .destructive) {
                     Task { await viewModel.report(post) }
                 } label: {
                     Label("Report post", systemImage: "flag")
                 }
+                .tint(.red)
             }
         } label: {
             Image(systemName: "ellipsis")
         }
+        .tint(.primary)
     }
 
     private func focusComments(using scrollProxy: ScrollViewProxy, animated: Bool = true) {

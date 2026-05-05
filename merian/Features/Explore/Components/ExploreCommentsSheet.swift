@@ -204,6 +204,7 @@ struct ExploreCommentsSheet: View {
                             } label: {
                                 Label("Report comment", systemImage: "flag")
                             }
+                            .tint(.red)
                         }
                     } label: {
                         Image(systemName: "ellipsis")

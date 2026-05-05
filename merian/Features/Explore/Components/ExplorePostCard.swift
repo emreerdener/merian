@@ -212,14 +212,17 @@ struct ExplorePostCard: View {
                 Button(role: .destructive, action: onUnshare) {
                     Label("Remove post", systemImage: "trash")
                 }
+                .tint(.red)
             } else {
                 Button(role: .destructive, action: onBlock) {
                     Label("Block user", systemImage: "person.crop.circle.badge.xmark")
                 }
+                .tint(.red)
 
                 Button(role: .destructive, action: onReport) {
                     Label("Report post", systemImage: "flag")
                 }
+                .tint(.red)
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -228,6 +231,7 @@ struct ExplorePostCard: View {
                 .frame(width: 32, height: 32, alignment: .center)
         }
         .buttonStyle(.plain)
+        .tint(.primary)
     }
 
     private var locationText: String? {

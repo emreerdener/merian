@@ -412,14 +412,17 @@ private struct ExploreMapPreviewCard: View {
                         Button(role: .destructive, action: onUnshare) {
                             Label("Remove post", systemImage: "trash")
                         }
+                        .tint(.red)
                     } else {
                         Button(role: .destructive, action: onBlock) {
                             Label("Block user", systemImage: "person.crop.circle.badge.xmark")
                         }
+                        .tint(.red)
 
                         Button(role: .destructive, action: onReport) {
                             Label("Report post", systemImage: "flag")
                         }
+                        .tint(.red)
                     }
                 } label: {
                     Image(systemName: "ellipsis")
