@@ -205,6 +205,13 @@ private struct AchievementDetailSheet: View {
         .task(id: award.id) {
             await loadDetail()
         }
+        .onChange(of: selectedScanForInsight) { oldValue, newValue in
+            if oldValue != nil && newValue == nil {
+                Task {
+                    await loadDetail(backgroundReload: true)
+                }
+            }
+        }
     }
 
     private var loadingState: some View {
@@ -235,27 +242,32 @@ private struct AchievementDetailSheet: View {
     }
 
     @MainActor
-    private func loadDetail() async {
-        isLoading = true
+    private func loadDetail(backgroundReload: Bool = false) async {
+        if !backgroundReload {
+            isLoading = true
+        }
 
         let actor = ProfileDatabaseActor(modelContainer: modelContainer)
         let resolvedDetail = await actor.calculateAchievementDetail(for: award.type)
         guard !Task.isCancelled else { return }
 
         detail = resolvedDetail
-        isLoading = false
+        
+        if !backgroundReload {
+            isLoading = false
 
-        let telemetryAward = resolvedDetail?.award ?? award
-        AppTelemetry.trackAchievementDetailOpened(
-            type: telemetryAward.type.rawValue,
-            state: telemetryAward.isCompleted ? "completed" : "in_progress"
-        )
-
-        if UIAccessibility.isVoiceOverRunning {
-            UIAccessibility.post(
-                notification: .announcement,
-                argument: telemetryAward.accessibilityProgressSummary
+            let telemetryAward = resolvedDetail?.award ?? award
+            AppTelemetry.trackAchievementDetailOpened(
+                type: telemetryAward.type.rawValue,
+                state: telemetryAward.isCompleted ? "completed" : "in_progress"
             )
+
+            if UIAccessibility.isVoiceOverRunning {
+                UIAccessibility.post(
+                    notification: .announcement,
+                    argument: telemetryAward.accessibilityProgressSummary
+                )
+            }
         }
     }
 
