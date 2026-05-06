@@ -40,9 +40,9 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.2"
-    sources: [Merian]
+    sources: [merian]
     entitlements:
-      path: Merian/Configuration/Merian.entitlements
+      path: merian/Configuration/Merian.entitlements
       properties:
         com.apple.developer.applesignin: ["Default"]
         com.apple.developer.weatherkit: true
@@ -51,7 +51,7 @@ targets:
       Release: Config.xcconfig
     settings:
       base:
-        INFOPLIST_FILE: Merian/Configuration/Info.plist
+        INFOPLIST_FILE: merian/Configuration/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1" # iPhone Only to bypass iPad Multitasking requirements
         CODE_SIGN_STYLE: Automatic
