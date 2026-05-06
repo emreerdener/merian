@@ -173,7 +173,9 @@ struct ExploreCommentsSheet: View {
 
     private func commentRow(_ comment: ExploreComment) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .center, spacing: 8) {
+                authorAvatarView(for: comment)
+                
                 VStack(alignment: .leading, spacing: 3) {
                     Text(comment.authorName)
                         .font(.subheadline)
@@ -239,6 +241,50 @@ struct ExploreCommentsSheet: View {
     private func createdAtText(for comment: ExploreComment) -> String? {
         guard let createdAtDate = comment.createdAtDate else { return nil }
         return createdAtDate.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    @ViewBuilder
+    private func authorAvatarView(for comment: ExploreComment) -> some View {
+        if let avatarUrl = resolvedAuthorAvatarUrl(for: comment) {
+            AsyncImage(url: avatarUrl) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    fallbackAuthorAvatar
+                case .empty:
+                    Color(uiColor: .tertiarySystemFill)
+                @unknown default:
+                    fallbackAuthorAvatar
+                }
+            }
+            .frame(width: 32, height: 32)
+            .clipShape(Circle())
+        } else {
+            fallbackAuthorAvatar
+        }
+    }
+
+    private var fallbackAuthorAvatar: some View {
+        Image(systemName: "person.crop.circle")
+            .font(.system(size: 32, weight: .regular))
+            .foregroundStyle(.primary)
+    }
+
+    private func resolvedAuthorAvatarUrl(for comment: ExploreComment) -> URL? {
+        if let avatarUrlString = comment.authorAvatarUrl,
+           let avatarUrl = URL(string: avatarUrlString) {
+            return avatarUrl
+        }
+
+        let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString
+        if currentUserId?.lowercased() == comment.authorUserId.lowercased() {
+            return SupabaseManager.shared.currentUserAvatarUrl
+        }
+
+        return nil
     }
 
     // EMOJIS

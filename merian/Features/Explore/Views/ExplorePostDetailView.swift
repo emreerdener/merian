@@ -10,6 +10,7 @@ struct ExplorePostDetailView: View {
     @State private var detail: ExplorePostDetail?
     @State private var isLoadingDetail = false
     @State private var detailErrorMessage: String?
+    @State private var reactingCommentId: String?
 
     private let commentsSectionId = "explore-comments-section"
     private let commentsComposerId = "explore-comments-composer"
@@ -99,7 +100,7 @@ struct ExplorePostDetailView: View {
     }
 
     private func headerRow(for post: ExplorePost) -> some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 8) {
             authorAvatarView(for: post)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -151,17 +152,10 @@ struct ExplorePostDetailView: View {
     }
 
     private func heroImage(for post: ExplorePost) -> some View {
-        Color.clear
-            .aspectRatio(1, contentMode: .fit)
-            .overlay(
-                ExploreTransientZoomView {
-                    ExploreHeroImageView(
-                        imageUrl: post.heroImageUrl,
-                        reloadGeneration: viewModel.mediaReloadGeneration
-                    )
-                }
-            )
-            .clipped()
+        ExploreDetailMediaView(
+            imageUrl: post.heroImageUrl,
+            reloadGeneration: viewModel.mediaReloadGeneration
+        )
     }
 
     private func actionRow(for post: ExplorePost, scrollProxy: ScrollViewProxy) -> some View {
@@ -200,31 +194,37 @@ struct ExplorePostDetailView: View {
         let aiReasoning = detail?.trimmedAiReasoning
         let referenceGalleryImages = detail?.referenceGalleryImages ?? []
 
-        return VStack(alignment: .center, spacing: 8) {
-            if !post.speciesScientificName.isEmpty && post.speciesScientificName.lowercased() != post.speciesCommonName.lowercased() && post.speciesScientificName != "Taxonomy Unavailable" {
-                Text(post.speciesScientificName.replacingOccurrences(of: "'", with: "").trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\n", with: " "))
-                    .font(.system(.title3))
-                    .italic()
-                    .foregroundStyle(.secondary)
+        return VStack(alignment: .center, spacing: 24) {
+            VStack(alignment: .center, spacing: 8) {
+                // Scientific name
+                if !post.speciesScientificName.isEmpty && post.speciesScientificName.lowercased() != post.speciesCommonName.lowercased() && post.speciesScientificName != "Taxonomy Unavailable" {
+                    Text(post.speciesScientificName.replacingOccurrences(of: "'", with: "").trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\n", with: " "))
+                        .font(.system(.title3))
+                        .italic()
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+
+                // Species Common Name with Emoji
+                Text(post.resolvedSpeciesCommonName)
+                    .font(.system(.largeTitle, design: .serif).weight(.bold))
+                    .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+
+                // AI Reasoning
+                if let aiReasoning {
+                    Text(styledAiReasoning(text: aiReasoning, scientificName: post.speciesScientificName))
+                        .font(.system(.body))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                        .padding(.top, 8)
+                }
             }
 
-            Text(post.resolvedSpeciesCommonName)
-                .font(.system(.largeTitle, design: .serif).weight(.bold))
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.center)
-
-            if let aiReasoning {
-                Text(styledAiReasoning(text: aiReasoning, scientificName: post.speciesScientificName))
-                    .font(.system(.body))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-                    .padding(.top, 8)
-            }
-
+            // Reference Gallery Images
             if !referenceGalleryImages.isEmpty {
                 ExploreReferenceGallery(
                     scientificName: post.speciesScientificName,
@@ -387,7 +387,7 @@ struct ExplorePostDetailView: View {
                         } else {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(Color(uiColor: .systemBackground))
+                                .foregroundStyle(canSubmitComment ? Color(uiColor: .systemBackground) : Color.primary.opacity(0.4))
                         }
                     }
                 }
@@ -411,6 +411,8 @@ struct ExplorePostDetailView: View {
     private func commentRow(_ comment: ExploreComment) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
+                authorAvatarView(for: comment)
+                
                 VStack(alignment: .leading, spacing: 3) {
                     Text(comment.authorName)
                         .font(.subheadline)
@@ -458,6 +460,8 @@ struct ExplorePostDetailView: View {
                 .font(.body)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
+                
+            reactionsView(for: comment)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -569,6 +573,50 @@ struct ExplorePostDetailView: View {
         return createdAtDate.formatted(date: .abbreviated, time: .shortened)
     }
 
+    @ViewBuilder
+    private func authorAvatarView(for comment: ExploreComment) -> some View {
+        if let avatarUrl = resolvedAuthorAvatarUrl(for: comment) {
+            AsyncImage(url: avatarUrl) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    fallbackCommentAuthorAvatar
+                case .empty:
+                    Color(uiColor: .tertiarySystemFill)
+                @unknown default:
+                    fallbackCommentAuthorAvatar
+                }
+            }
+            .frame(width: 32, height: 32)
+            .clipShape(Circle())
+        } else {
+            fallbackCommentAuthorAvatar
+        }
+    }
+
+    private var fallbackCommentAuthorAvatar: some View {
+        Image(systemName: "person.crop.circle")
+            .font(.system(size: 32, weight: .regular))
+            .foregroundStyle(.primary)
+    }
+
+    private func resolvedAuthorAvatarUrl(for comment: ExploreComment) -> URL? {
+        if let avatarUrlString = comment.authorAvatarUrl,
+           let avatarUrl = URL(string: avatarUrlString) {
+            return avatarUrl
+        }
+
+        let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString
+        if currentUserId?.lowercased() == comment.authorUserId.lowercased() {
+            return SupabaseManager.shared.currentUserAvatarUrl
+        }
+
+        return nil
+    }
+
     private func styledAiReasoning(text: String, scientificName: String) -> AttributedString {
         let cleanText = text
             .replacingOccurrences(of: "*", with: "")
@@ -589,6 +637,98 @@ struct ExplorePostDetailView: View {
         }
 
         return result
+    }
+
+    // EMOJIS
+    private let availableEmojis = ["\u{2764}\u{FE0F}", "\u{1F44D}", "\u{1F602}", "\u{1F389}", "\u{1F632}", "\u{1F33F}"]
+
+    @ViewBuilder
+    private func reactionsView(for comment: ExploreComment) -> some View {
+        let reactions = comment.reactions ?? []
+        let hasAvailableReactions = availableEmojis.contains { emoji in
+            !(reactions.first(where: { $0.emoji == emoji })?.viewerHasReacted ?? false)
+        }
+        
+        FlowLayout(spacing: 8) {
+            ForEach(reactions) { reaction in
+                Button(action: {
+                    viewModel.toggleReaction(for: comment, emoji: reaction.emoji)
+                }) {
+                    HStack(spacing: 4) {
+                        Text(reaction.emoji)
+                            .font(.subheadline)
+                        Text("\(reaction.count)")
+                            .font(.footnote)
+                            .fontWeight(.medium)
+                    }
+                    .padding(.horizontal, 8)
+                    .frame(height: 28)
+                    .background(
+                        Capsule()
+                            .fill(reaction.viewerHasReacted ? Color.blue.opacity(0.15) : Color(uiColor: .tertiarySystemFill))
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(reaction.viewerHasReacted ? Color.blue.opacity(0.5) : Color.clear, lineWidth: 1)
+                    )
+                    .foregroundColor(reaction.viewerHasReacted ? .blue : .primary)
+                }
+                .buttonStyle(.plain)
+            }
+            
+            if hasAvailableReactions {
+                Button {
+                    reactingCommentId = comment.id
+                } label: {
+                    HStack(spacing: 2) {
+                        Image(systemName: "face.smiling")
+                        Image(systemName: "plus")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .font(.system(size: 14))
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .background(
+                        Capsule()
+                            .fill(Color(uiColor: .tertiarySystemFill))
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+                    .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: Binding(
+                    get: { reactingCommentId == comment.id },
+                    set: { if !$0 { reactingCommentId = nil } }
+                )) {
+                    HStack(spacing: 8) {
+                        ForEach(availableEmojis, id: \.self) { emoji in
+                            let hasReacted = comment.reactions?.first(where: { $0.emoji == emoji })?.viewerHasReacted ?? false
+                            
+                            Button {
+                                viewModel.toggleReaction(for: comment, emoji: emoji)
+                                reactingCommentId = nil
+                            } label: {
+                                Text(verbatim: emoji)
+                                    .font(.system(size: 28))
+                                    .padding(6)
+                                    .background(
+                                        Circle()
+                                            .fill(hasReacted ? Color.blue.opacity(0.15) : Color.clear)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .presentationCompactAdaptation(.popover)
+                }
+            }
+        }
+        .padding(.top, 4)
     }
 }
 
@@ -753,8 +893,10 @@ private struct ExploreReferenceGallery: View {
                     ForEach(images) { image in
                         ExploreReferenceGalleryPage(
                             scientificName: scientificName,
-                            image: image
+                            image: image,
+                            height: carouselHeight
                         )
+                        .frame(height: carouselHeight)
                         .containerRelativeFrame(.horizontal)
                         .id(image.id)
                     }
@@ -795,13 +937,21 @@ private struct ExploreReferenceGallery: View {
 private struct ExploreReferenceGalleryPage: View {
     let scientificName: String
     let image: ExploreReferenceGalleryImage
+    let height: CGFloat
 
     var body: some View {
-        AsyncLocalImageView(
-            path: nil,
-            fallbackImageUrl: image.url
-        )
-        .background(Color(uiColor: .secondarySystemBackground))
+        GeometryReader { proxy in
+            AsyncLocalImageView(
+                path: nil,
+                fallbackImageUrl: image.url,
+                fillHeight: true
+            )
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .background(Color(uiColor: .secondarySystemBackground))
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .clipped()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(image.source.label) reference image for \(scientificName)")
     }

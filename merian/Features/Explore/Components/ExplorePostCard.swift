@@ -32,7 +32,7 @@ struct ExplorePostCard: View {
                 .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(uiColor: .systemBackground))
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
         .onDisappear {
             doubleTapHeartTask?.cancel()
             doubleTapHeartTask = nil
@@ -40,36 +40,27 @@ struct ExplorePostCard: View {
     }
 
     private var mediaView: some View {
-        Color.clear
-            .aspectRatio(1, contentMode: .fit)
-            .overlay(
-                ExploreTransientZoomView(
-                    onSingleTap: onOpenDetail,
-                    onDoubleTap: handleDoubleTapLike
-                ) {
-                    ExploreHeroImageView(
-                        imageUrl: post.heroImageUrl,
-                        reloadGeneration: mediaReloadGeneration
-                    )
-                }
-            )
-            .clipped()
-            .overlay(alignment: .bottomLeading) {
-                speciesOverlay
-                    .padding(14)
+        ExploreFeedMediaView(
+            imageUrl: post.heroImageUrl,
+            reloadGeneration: mediaReloadGeneration
+        )
+        .overlay(alignment: .topLeading) {
+            speciesOverlay
+                .padding(14)
+        }
+        .overlay {
+            if isShowingDoubleTapHeart {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 92, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
+                    .scaleEffect(doubleTapHeartScale)
+                    .opacity(doubleTapHeartOpacity)
+                    .allowsHitTesting(false)
             }
-            .overlay {
-                if isShowingDoubleTapHeart {
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 92, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
-                        .scaleEffect(doubleTapHeartScale)
-                        .opacity(doubleTapHeartOpacity)
-                        .allowsHitTesting(false)
-                }
-            }
-            .contentShape(Rectangle())
+        }
+        .contentShape(Rectangle())
+        .gesture(mediaTapGesture)
     }
 
     private var headerRow: some View {
@@ -99,6 +90,17 @@ struct ExplorePostCard: View {
 
             menuButton
         }
+    }
+
+    private var mediaTapGesture: some Gesture {
+        ExclusiveGesture(
+            TapGesture(count: 2).onEnded {
+                handleDoubleTapLike()
+            },
+            TapGesture().onEnded {
+                onOpenDetail()
+            }
+        )
     }
 
     @ViewBuilder
@@ -146,26 +148,29 @@ struct ExplorePostCard: View {
         return nil
     }
 
+    private var displaySpeciesName: String {
+        let common = post.resolvedSpeciesCommonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !common.isEmpty {
+            return common
+        }
+        return post.speciesScientificName
+    }
+
+    // MARK: Species Overlay
     private var speciesOverlay: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(post.resolvedSpeciesCommonName)
-                .font(.headline)
+            Text(displaySpeciesName)
+                .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundStyle(.primary)
                 .lineLimit(2)
-
-            Text(post.speciesScientificName)
-                .font(.footnote)
-                .italic()
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 99, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 99, style: .continuous)
                 .stroke(
                     LinearGradient(
                         colors: [.white.opacity(0.5), .white.opacity(0.0), .white.opacity(0.2)],
@@ -283,10 +288,87 @@ struct ExplorePostCard: View {
     }
 }
 
+private struct ExploreSquareMediaView<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack {
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .clipped()
+    }
+}
+
+struct ExploreFeedMediaView: View {
+    let imageUrl: String
+    let reloadGeneration: UInt64
+    let preloadedImage: UIImage?
+
+    init(
+        imageUrl: String,
+        reloadGeneration: UInt64,
+        preloadedImage: UIImage? = nil
+    ) {
+        self.imageUrl = imageUrl
+        self.reloadGeneration = reloadGeneration
+        self.preloadedImage = preloadedImage
+    }
+
+    var body: some View {
+        // The scrolling feed intentionally uses a plain image host instead of the zoom wrapper.
+        // That keeps every card on a stable square layout proposal regardless of source aspect ratio.
+        ExploreSquareMediaView {
+            ExploreHeroImageView(
+                imageUrl: imageUrl,
+                reloadGeneration: reloadGeneration,
+                preloadedImage: preloadedImage
+            )
+        }
+    }
+}
+
+struct ExploreDetailMediaView: View {
+    let imageUrl: String
+    let reloadGeneration: UInt64
+    let preloadedImage: UIImage?
+
+    init(
+        imageUrl: String,
+        reloadGeneration: UInt64,
+        preloadedImage: UIImage? = nil
+    ) {
+        self.imageUrl = imageUrl
+        self.reloadGeneration = reloadGeneration
+        self.preloadedImage = preloadedImage
+    }
+
+    var body: some View {
+        // Detail is the only path that opts into transient zoom behavior.
+        ExploreSquareMediaView {
+            ExploreDetailZoomView {
+                ExploreHeroImageView(
+                    imageUrl: imageUrl,
+                    reloadGeneration: reloadGeneration,
+                    preloadedImage: preloadedImage
+                )
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
 struct ExploreHeroImageView: View {
     let imageUrl: String
     let reloadGeneration: UInt64
     let maxDimension: Int
+    private let preloadedImage: UIImage?
 
     @State private var loadedImage: UIImage?
     @State private var hasFailedToLoad = false
@@ -294,29 +376,39 @@ struct ExploreHeroImageView: View {
     init(
         imageUrl: String,
         reloadGeneration: UInt64,
-        maxDimension: Int = Int(MerianConfig.displayImageMaxSize)
+        maxDimension: Int = Int(MerianConfig.displayImageMaxSize),
+        preloadedImage: UIImage? = nil
     ) {
         self.imageUrl = imageUrl
         self.reloadGeneration = reloadGeneration
         self.maxDimension = maxDimension
+        self.preloadedImage = preloadedImage
+        _loadedImage = State(initialValue: preloadedImage)
     }
 
     var body: some View {
-        Group {
-            if let loadedImage {
-                Image(uiImage: loadedImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if hasFailedToLoad {
-                failurePlaceholder
-            } else {
-                loadingPlaceholder
+        GeometryReader { proxy in
+            Group {
+                if let loadedImage {
+                    Image(uiImage: loadedImage)
+                        .resizable()
+                        .scaledToFill()
+                } else if hasFailedToLoad {
+                    failurePlaceholder
+                } else {
+                    loadingPlaceholder
+                }
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
         .task(id: "\(imageUrl)|\(reloadGeneration)") {
+            guard preloadedImage == nil else {
+                hasFailedToLoad = false
+                return
+            }
+
             loadedImage = nil
             hasFailedToLoad = false
 
@@ -403,7 +495,7 @@ extension ExplorePostCard {
                     .padding(.bottom, 10)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(uiColor: .systemBackground))
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
             .overlay(glowOverlay)
             .shadow(color: glowShadowColor, radius: isGlowing ? 22 : 10, x: 0, y: 0)
             .opacity(isGlowing ? 1.0 : 0.92)
@@ -440,33 +532,31 @@ extension ExplorePostCard {
         }
 
         private var mediaView: some View {
-            Color.clear
-                .aspectRatio(1, contentMode: .fit)
-                .overlay(
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    placeholderFill(secondary: true),
-                                    placeholderFill()
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+            ExploreSquareMediaView {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                placeholderFill(secondary: true),
+                                placeholderFill()
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 0, style: .continuous)
-                                .fill(glowColor.opacity(isGlowing ? 0.14 : 0.04))
-                                .blur(radius: isGlowing ? 18 : 8)
-                        )
-                )
-                .clipped()
-                .overlay(alignment: .bottomLeading) {
-                    speciesOverlay
-                        .padding(14)
-                }
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 0, style: .continuous)
+                            .fill(glowColor.opacity(isGlowing ? 0.14 : 0.04))
+                            .blur(radius: isGlowing ? 18 : 8)
+                    )
+            }
+            .overlay(alignment: .topLeading) {
+                speciesOverlay
+                    .padding(14)
+            }
         }
 
+        // MARK: Species Overlay
         private var speciesOverlay: some View {
             VStack(alignment: .leading, spacing: 6) {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -477,12 +567,12 @@ extension ExplorePostCard {
                     .fill(glowColor.opacity(isGlowing ? 0.62 : 0.4))
                     .frame(width: 130, height: 12)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
             .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 99, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 99, style: .continuous)
                     .stroke(
                         LinearGradient(
                             colors: [.white.opacity(0.5), .white.opacity(0.0), .white.opacity(0.2)],
@@ -552,7 +642,7 @@ extension ExplorePostCard {
     }
 }
 
-struct ExploreTransientZoomView<Content: View>: UIViewControllerRepresentable {
+struct ExploreDetailZoomView<Content: View>: UIViewControllerRepresentable {
     private let content: Content
     private let onSingleTap: (() -> Void)?
     private let onDoubleTap: (() -> Void)?
@@ -575,7 +665,7 @@ struct ExploreTransientZoomView<Content: View>: UIViewControllerRepresentable {
         let viewController = UIViewController()
         viewController.view.backgroundColor = .clear
 
-        let scrollView = ExploreTransientZoomScrollView()
+        let scrollView = ExploreDetailZoomScrollView()
         scrollView.delegate = context.coordinator
         scrollView.maximumZoomScale = 4.0
         scrollView.minimumZoomScale = 1.0
@@ -643,6 +733,19 @@ struct ExploreTransientZoomView<Content: View>: UIViewControllerRepresentable {
         context.coordinator.hostingController?.rootView = content
         context.coordinator.onSingleTap = onSingleTap
         context.coordinator.onDoubleTap = onDoubleTap
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiViewController: UIViewController,
+        context: Context
+    ) -> CGSize? {
+        let side = proposal.width ?? proposal.height
+        let width = proposal.width ?? side
+        let height = proposal.height ?? side
+
+        guard let width, let height else { return nil }
+        return CGSize(width: width, height: height)
     }
 
     final class Coordinator: NSObject, UIScrollViewDelegate {
@@ -720,7 +823,7 @@ struct ExploreTransientZoomView<Content: View>: UIViewControllerRepresentable {
     }
 }
 
-private final class ExploreTransientZoomScrollView: UIScrollView {
+private final class ExploreDetailZoomScrollView: UIScrollView {
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         if gestureRecognizer === panGestureRecognizer {
             return zoomScale > minimumZoomScale + 0.01
@@ -729,3 +832,73 @@ private final class ExploreTransientZoomScrollView: UIScrollView {
         return super.gestureRecognizerShouldBegin(gestureRecognizer)
     }
 }
+
+#if DEBUG
+private enum ExploreMediaPreviewFixtures {
+    static let landscape = makeImage(
+        size: CGSize(width: 1200, height: 800),
+        topColor: .systemTeal,
+        bottomColor: .systemOrange
+    )
+
+    static let portrait = makeImage(
+        size: CGSize(width: 800, height: 1200),
+        topColor: .systemPink,
+        bottomColor: .systemIndigo
+    )
+
+    static let square = makeImage(
+        size: CGSize(width: 1000, height: 1000),
+        topColor: .systemGreen,
+        bottomColor: .systemBlue
+    )
+
+    private static func makeImage(
+        size: CGSize,
+        topColor: UIColor,
+        bottomColor: UIColor
+    ) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let bounds = CGRect(origin: .zero, size: size)
+            topColor.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height * 0.5))
+
+            bottomColor.setFill()
+            context.fill(CGRect(x: 0, y: bounds.height * 0.5, width: bounds.width, height: bounds.height * 0.5))
+        }
+    }
+}
+
+#Preview("Explore Feed Media - Landscape") {
+    ExploreFeedMediaView(
+        imageUrl: "preview-landscape",
+        reloadGeneration: 0,
+        preloadedImage: ExploreMediaPreviewFixtures.landscape
+    )
+    .padding()
+    .background(Color(uiColor: .secondarySystemGroupedBackground))
+}
+
+#Preview("Explore Feed Media - Portrait") {
+    ExploreFeedMediaView(
+        imageUrl: "preview-portrait",
+        reloadGeneration: 0,
+        preloadedImage: ExploreMediaPreviewFixtures.portrait
+    )
+    .padding()
+    .background(Color(uiColor: .secondarySystemGroupedBackground))
+}
+
+#Preview("Explore Detail Media - Square") {
+    ExploreDetailMediaView(
+        imageUrl: "preview-square",
+        reloadGeneration: 0,
+        preloadedImage: ExploreMediaPreviewFixtures.square
+    )
+    .padding()
+    .background(Color(uiColor: .secondarySystemGroupedBackground))
+}
+#endif

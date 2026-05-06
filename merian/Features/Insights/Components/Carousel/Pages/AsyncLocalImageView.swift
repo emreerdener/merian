@@ -3,28 +3,30 @@ import SwiftUI
 struct AsyncLocalImageView: View {
     let path: String?
     var fallbackImageUrl: String?
+    var contentMode: ContentMode = .fill
+    var fillHeight: Bool = false
     var onImageLoadFailed: (() -> Void)?
 
     @State private var loadedImage: UIImage?
     @State private var hasFailedToLoad: Bool = false
 
     var body: some View {
-        Group {
-            if let img = loadedImage {
-                Image(uiImage: img)
-                    .resizable()
-                    .scaledToFill()
-                    .transition(.opacity)
-            } else if hasFailedToLoad {
-                ArchivedVisualsView()
-            } else {
-                ProgressView()
-                    .controlSize(.large)
+        GeometryReader { proxy in
+            Group {
+                if let img = loadedImage {
+                    imageView(for: img, in: proxy.size)
+                } else if hasFailedToLoad {
+                    ArchivedVisualsView()
+                } else {
+                    ProgressView()
+                        .controlSize(.large)
+                }
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
         }
         .animation(.easeInOut(duration: 0.3), value: loadedImage != nil)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
         // task(id:) cancels the in-flight load when the view disappears during a fast swipe,
         // preventing multiple concurrent decode tasks from racing and stalling the main thread.
         .task(id: "\(path ?? "")|\(fallbackImageUrl ?? "")") {
@@ -38,6 +40,30 @@ struct AsyncLocalImageView: View {
                 hasFailedToLoad = true
                 onImageLoadFailed?()
             }
+        }
+    }
+
+    @ViewBuilder
+    private func imageView(for image: UIImage, in containerSize: CGSize) -> some View {
+        if fillHeight {
+            let safeImageHeight = max(image.size.height, 1)
+            let width = containerSize.height * (image.size.width / safeImageHeight)
+
+            Image(uiImage: image)
+                .resizable()
+                .frame(width: width, height: containerSize.height)
+                .frame(width: containerSize.width, height: containerSize.height, alignment: .center)
+                .transition(.opacity)
+        } else if contentMode == .fill {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .transition(.opacity)
+        } else {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .transition(.opacity)
         }
     }
 }

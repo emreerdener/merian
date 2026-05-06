@@ -224,45 +224,23 @@ private struct ExploreFeedTabContent: View {
     let onOpenPostDetail: (ExplorePost) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            CategoryFilterBar(
-                items: ExploreFeedFilter.allCases,
-                activeItem: viewModel.activeFilter,
-                title: { $0.title },
-                onSelection: { filter in
-                    Task {
-                        await selectFilter(filter)
-                    }
-                }
-            )
-            .disabled(isResolvingNearbyLocation)
-            .overlay(alignment: .trailing) {
-                if isResolvingNearbyLocation {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .scaleEffect(0.85)
-                        .padding(.trailing, 16)
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+
+            Group {
+                if viewModel.isLoadingInitialFeed && viewModel.posts.isEmpty {
+                    loadingState
+                } else if let errorMessage = viewModel.errorMessage, viewModel.posts.isEmpty {
+                    errorState(message: errorMessage)
+                } else if viewModel.posts.isEmpty {
+                    emptyState
+                } else {
+                    feedScrollView
                 }
             }
-
-            ZStack {
-                Color(uiColor: .systemGroupedBackground)
-                    .ignoresSafeArea()
-
-                Group {
-                    if viewModel.isLoadingInitialFeed && viewModel.posts.isEmpty {
-                        loadingState
-                    } else if let errorMessage = viewModel.errorMessage, viewModel.posts.isEmpty {
-                        errorState(message: errorMessage)
-                    } else if viewModel.posts.isEmpty {
-                        emptyState
-                    } else {
-                        feedScrollView
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
         .containerRelativeFrame(.horizontal)
         .alert("Turn On Location", isPresented: $isLocationSettingsAlertPresented) {
@@ -279,34 +257,38 @@ private struct ExploreFeedTabContent: View {
 
     private var feedScrollView: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
-                ForEach(viewModel.posts) { post in
-                    ExplorePostCard(
-                        post: post,
-                        mediaReloadGeneration: viewModel.mediaReloadGeneration,
-                        onLike: { Task { await viewModel.toggleLike(for: post) } },
-                        onComments: { Task { await viewModel.openCommentsSheet(for: post) } },
-                        onShare: { viewModel.share(post) },
-                        onOpenDetail: { onOpenPostDetail(post) },
-                        onUnshare: { Task { await viewModel.unshare(post) } },
-                        onBlock: { Task { await viewModel.blockAuthor(of: post) } },
-                        onReport: { Task { await viewModel.report(post) } }
-                    )
-                    .onAppear {
-                        Task { await viewModel.loadMoreIfNeeded(currentPost: post) }
+            VStack(spacing: 0) {
+                filterBar
+                
+                LazyVStack(spacing: 16) {
+                    ForEach(viewModel.posts) { post in
+                        ExplorePostCard(
+                            post: post,
+                            mediaReloadGeneration: viewModel.mediaReloadGeneration,
+                            onLike: { Task { await viewModel.toggleLike(for: post) } },
+                            onComments: { Task { await viewModel.openCommentsSheet(for: post) } },
+                            onShare: { viewModel.share(post) },
+                            onOpenDetail: { onOpenPostDetail(post) },
+                            onUnshare: { Task { await viewModel.unshare(post) } },
+                            onBlock: { Task { await viewModel.blockAuthor(of: post) } },
+                            onReport: { Task { await viewModel.report(post) } }
+                        )
+                        .onAppear {
+                            Task { await viewModel.loadMoreIfNeeded(currentPost: post) }
+                        }
+                    }
+
+                    if viewModel.isLoadingMore {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .padding(.horizontal, 16)
                     }
                 }
-
-                if viewModel.isLoadingMore {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 16)
-                }
+                .padding(.top, 12)
+                .padding(.bottom, 24)
             }
-            .padding(.top, 12)
-            .padding(.bottom, 24)
         }
         .refreshable {
             await refreshFeed()
@@ -315,39 +297,63 @@ private struct ExploreFeedTabContent: View {
 
     private var loadingState: some View {
         ScrollView {
-            LazyVStack(spacing: 24) {
-                ForEach(0..<3, id: \.self) { _ in
-                    ExplorePostCard.Skeleton()
+            VStack(spacing: 0) {
+                filterBar
+                
+                LazyVStack(spacing: 24) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        ExplorePostCard.Skeleton()
+                    }
                 }
+                .padding(.top, 12)
+                .padding(.bottom, 24)
             }
-            .padding(.top, 12)
-            .padding(.bottom, 24)
         }
     }
 
     private var emptyState: some View {
-        EmptyStateView(
-            imageName: "explore-base",
-            imageHeight: 300,
-            title: emptyStateTitle,
-            message: emptyStateMessage
-        )
+        ScrollView {
+            VStack(spacing: 0) {
+                filterBar
+                
+                EmptyStateView(
+                    imageName: "explore-base",
+                    imageHeight: 300,
+                    title: emptyStateTitle,
+                    message: emptyStateMessage
+                )
+                .padding(.top, 60)
+            }
+        }
+        .refreshable {
+            await refreshFeed()
+        }
     }
 
     private func errorState(message: String) -> some View {
-        EmptyStateView(
-            iconName: "exclamationmark.triangle",
-            title: "Couldn’t load posts",
-            message: message
-        ) {
-            Button {
-                Task { await refreshFeed() }
-            } label: {
-                Text("Try again")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+        ScrollView {
+            VStack(spacing: 0) {
+                filterBar
+                
+                EmptyStateView(
+                    iconName: "exclamationmark.triangle",
+                    title: "Couldn’t load posts",
+                    message: message
+                ) {
+                    Button {
+                        Task { await refreshFeed() }
+                    } label: {
+                        Text("Try again")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(.top, 60)
             }
-            .buttonStyle(.borderedProminent)
+        }
+        .refreshable {
+            await refreshFeed()
         }
     }
 
@@ -424,6 +430,28 @@ private struct ExploreFeedTabContent: View {
             viewModel.toastMessage = "Location access is restricted on this device."
         default:
             viewModel.toastMessage = "We couldn’t determine your location right now. Try again in a moment."
+        }
+    }
+
+    private var filterBar: some View {
+        CategoryFilterBar(
+            items: ExploreFeedFilter.allCases,
+            activeItem: viewModel.activeFilter,
+            title: { $0.title },
+            onSelection: { filter in
+                Task {
+                    await selectFilter(filter)
+                }
+            }
+        )
+        .disabled(isResolvingNearbyLocation)
+        .overlay(alignment: .trailing) {
+            if isResolvingNearbyLocation {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .scaleEffect(0.85)
+                    .padding(.trailing, 16)
+            }
         }
     }
 }

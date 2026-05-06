@@ -350,6 +350,7 @@ struct ExploreComment: Decodable, Identifiable, Equatable {
     let postId: String
     let authorUserId: String
     let authorName: String
+    let authorAvatarUrl: String?
     let body: String
     let createdAt: String
     let viewerCanDelete: Bool

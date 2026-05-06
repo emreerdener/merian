@@ -2,6 +2,7 @@ import XCTest
 import CoreData
 import UIKit
 import SwiftData
+import SwiftUI
 @testable import Merian
 
 final class merianTests: XCTestCase {
@@ -273,5 +274,167 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
 
         XCTAssertNil(viewModel.selectAdjacentPost(by: 1))
         XCTAssertEqual(viewModel.selectedPostId, onlyPost.id)
+    }
+}
+
+@MainActor
+final class ExploreMediaLayoutTests: XCTestCase {
+    private func makeStripedImage(
+        size: CGSize,
+        topColor: UIColor,
+        bottomColor: UIColor
+    ) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            topColor.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: size.width, height: size.height * 0.5))
+
+            bottomColor.setFill()
+            context.fill(CGRect(x: 0, y: size.height * 0.5, width: size.width, height: size.height * 0.5))
+        }
+    }
+
+    private func render<V: View>(_ view: V, width: CGFloat = 320) -> UIImage {
+        let controller = UIHostingController(rootView: view)
+        let fittingSize = controller.sizeThatFits(
+            in: CGSize(width: width, height: UIView.layoutFittingExpandedSize.height)
+        )
+        controller.view.bounds = CGRect(origin: .zero, size: fittingSize)
+        controller.view.backgroundColor = .clear
+
+        let window = UIWindow(frame: controller.view.bounds)
+        window.rootViewController = controller
+        window.isHidden = false
+
+        controller.view.setNeedsLayout()
+        controller.view.layoutIfNeeded()
+
+        let image = UIGraphicsImageRenderer(size: fittingSize).image { _ in
+            controller.view.drawHierarchy(in: controller.view.bounds, afterScreenUpdates: true)
+        }
+
+        window.isHidden = true
+        return image
+    }
+
+    private func rgbaPixel(in image: UIImage, x: Int, y: Int) -> (r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+        guard let cgImage = image.cgImage,
+              let cropped = cgImage.cropping(to: CGRect(x: x, y: y, width: 1, height: 1)) else {
+            XCTFail("Failed to crop pixel from rendered image")
+            return (0, 0, 0, 0)
+        }
+
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+
+        guard let context = CGContext(
+            data: &pixel,
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bytesPerRow: 4,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo
+        ) else {
+            XCTFail("Failed to create pixel sampling context")
+            return (0, 0, 0, 0)
+        }
+
+        context.draw(cropped, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return (pixel[0], pixel[1], pixel[2], pixel[3])
+    }
+
+    private func assertPixel(
+        _ pixel: (r: UInt8, g: UInt8, b: UInt8, a: UInt8),
+        approximately color: UIColor,
+        tolerance: Int = 28,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        XCTAssertTrue(color.getRed(&red, green: &green, blue: &blue, alpha: &alpha), file: file, line: line)
+
+        XCTAssertGreaterThanOrEqual(Int(pixel.a), 245, file: file, line: line)
+        XCTAssertLessThanOrEqual(abs(Int(pixel.r) - Int(red * 255)), tolerance, file: file, line: line)
+        XCTAssertLessThanOrEqual(abs(Int(pixel.g) - Int(green * 255)), tolerance, file: file, line: line)
+        XCTAssertLessThanOrEqual(abs(Int(pixel.b) - Int(blue * 255)), tolerance, file: file, line: line)
+    }
+
+    func testExploreFeedMediaViewLandscapeImageFillsSquare() {
+        let topColor = UIColor.systemTeal
+        let bottomColor = UIColor.systemOrange
+        let image = makeStripedImage(
+            size: CGSize(width: 1200, height: 800),
+            topColor: topColor,
+            bottomColor: bottomColor
+        )
+
+        let rendered = render(
+            ExploreFeedMediaView(
+                imageUrl: "preview-landscape",
+                reloadGeneration: 0,
+                preloadedImage: image
+            )
+        )
+
+        XCTAssertEqual(rendered.size.width, 320, accuracy: 1)
+        XCTAssertEqual(rendered.size.height, 320, accuracy: 1)
+
+        assertPixel(rgbaPixel(in: rendered, x: 160, y: 8), approximately: topColor)
+        assertPixel(rgbaPixel(in: rendered, x: 160, y: 311), approximately: bottomColor)
+    }
+
+    func testExploreFeedMediaViewPortraitImageFillsSquare() {
+        let topColor = UIColor.systemPink
+        let bottomColor = UIColor.systemIndigo
+        let image = makeStripedImage(
+            size: CGSize(width: 800, height: 1200),
+            topColor: topColor,
+            bottomColor: bottomColor
+        )
+
+        let rendered = render(
+            ExploreFeedMediaView(
+                imageUrl: "preview-portrait",
+                reloadGeneration: 0,
+                preloadedImage: image
+            )
+        )
+
+        XCTAssertEqual(rendered.size.width, 320, accuracy: 1)
+        XCTAssertEqual(rendered.size.height, 320, accuracy: 1)
+
+        assertPixel(rgbaPixel(in: rendered, x: 160, y: 8), approximately: topColor)
+        assertPixel(rgbaPixel(in: rendered, x: 160, y: 311), approximately: bottomColor)
+    }
+
+    func testExploreDetailMediaViewLandscapeImageFillsSquare() {
+        let topColor = UIColor.systemGreen
+        let bottomColor = UIColor.systemBlue
+        let image = makeStripedImage(
+            size: CGSize(width: 1200, height: 800),
+            topColor: topColor,
+            bottomColor: bottomColor
+        )
+
+        let rendered = render(
+            ExploreDetailMediaView(
+                imageUrl: "preview-detail",
+                reloadGeneration: 0,
+                preloadedImage: image
+            )
+        )
+
+        XCTAssertEqual(rendered.size.width, 320, accuracy: 1)
+        XCTAssertEqual(rendered.size.height, 320, accuracy: 1)
+
+        assertPixel(rgbaPixel(in: rendered, x: 160, y: 8), approximately: topColor)
+        assertPixel(rgbaPixel(in: rendered, x: 160, y: 311), approximately: bottomColor)
     }
 }
