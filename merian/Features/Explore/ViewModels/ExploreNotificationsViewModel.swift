@@ -110,4 +110,12 @@ final class ExploreNotificationsViewModel {
         let existingIds = Set(notifications.map(\.id))
         notifications.append(contentsOf: page.filter { existingIds.contains($0.id) == false })
     }
+
+    func markAllAsRead() async {
+        _ = try? await MerianNetworkClient.shared.markExploreNotificationsRead()
+        recentlyReadNotificationIds.removeAll()
+        for i in notifications.indices {
+            notifications[i].isRead = true
+        }
+    }
 }

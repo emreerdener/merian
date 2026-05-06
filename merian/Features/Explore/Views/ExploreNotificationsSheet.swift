@@ -31,6 +31,22 @@ struct ExploreNotificationsSheet: View {
                             .font(.system(size: 16, weight: .bold))
                     }
                 }
+
+                if !viewModel.notifications.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button {
+                                Task { await viewModel.markAllAsRead() }
+                            } label: {
+                                Label("Mark all as read", systemImage: "checkmark.circle")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16, weight: .bold))
+                        }
+                        .tint(.primary)
+                    }
+                }
             }
         }
         .presentationDetents([.fraction(0.75), .large])

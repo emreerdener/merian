@@ -121,7 +121,7 @@ struct ExploreCommentsSheet: View {
                     }
                     .frame(width: 40, height: 40)
                     .clipShape(Circle())
-                    .padding(.bottom, 6)
+                    .padding(.bottom, 1)
                 }
 
                 TextField("Add a comment", text: $viewModel.commentDraft, axis: .vertical)
@@ -284,6 +284,12 @@ struct ExploreCommentsSheet: View {
         let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString
         if currentUserId?.lowercased() == comment.authorUserId.lowercased() {
             return SupabaseManager.shared.currentUserAvatarUrl
+        }
+
+        if post.authorUserId.lowercased() == comment.authorUserId.lowercased(),
+           let postAvatarUrlString = post.authorAvatarUrl,
+           let postAvatarUrl = URL(string: postAvatarUrlString) {
+            return postAvatarUrl
         }
 
         return nil

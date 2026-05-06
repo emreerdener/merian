@@ -363,7 +363,7 @@ struct ExplorePostDetailView: View {
                     }
                     .frame(width: 40, height: 40)
                     .clipShape(Circle())
-                    .padding(.bottom, 6)
+                    .padding(.bottom, 1)
                 }
 
                 TextField("Add a comment", text: $viewModel.commentDraft, axis: .vertical)
@@ -618,6 +618,13 @@ struct ExplorePostDetailView: View {
         let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString
         if currentUserId?.lowercased() == comment.authorUserId.lowercased() {
             return SupabaseManager.shared.currentUserAvatarUrl
+        }
+
+        if let currentPost,
+           currentPost.authorUserId.lowercased() == comment.authorUserId.lowercased(),
+           let postAvatarUrlString = currentPost.authorAvatarUrl,
+           let postAvatarUrl = URL(string: postAvatarUrlString) {
+            return postAvatarUrl
         }
 
         return nil
