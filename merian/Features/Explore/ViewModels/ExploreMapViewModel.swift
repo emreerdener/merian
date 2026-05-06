@@ -32,7 +32,7 @@ final class ExploreMapViewModel {
     var visibleCount = 0
 
     @ObservationIgnored private let maxPostLimit = 500
-    @ObservationIgnored private let thumbnailZoomLevelThreshold = 14.8
+    @ObservationIgnored private let thumbnailZoomLevelThreshold = 11.5
     @ObservationIgnored private let thumbnailPostCountThreshold = 24
     @ObservationIgnored private let maxCachedRegions = 8
     @ObservationIgnored private let maxCachedItems = 1_400

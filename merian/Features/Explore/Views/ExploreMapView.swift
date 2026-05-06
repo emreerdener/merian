@@ -719,12 +719,15 @@ private struct ExploreMapPreviewCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 0) {
                 HStack(alignment: .center, spacing: 12) {
-                    ExploreHeroImageView(
-                        imageUrl: post.heroImageUrl,
-                        reloadGeneration: mediaReloadGeneration
-                    )
-                    .frame(width: 82, height: 82)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    Button(action: onOpen) {
+                        ExploreHeroImageView(
+                            imageUrl: post.heroImageUrl,
+                            reloadGeneration: mediaReloadGeneration
+                        )
+                        .frame(width: 82, height: 82)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text(post.resolvedSpeciesCommonName)
@@ -804,14 +807,9 @@ private struct ExploreMapPreviewCard: View {
 
             // MARK: - View Discovery Button
             Button(action: onOpen) {
-                HStack(spacing: 6) {
-                    Text("View discovery")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 13, weight: .bold))
-                }
+                Text("View discovery")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
                 .frame(maxWidth: .infinity)
                 .foregroundStyle(Color.white)
                 .padding(.horizontal, 16)
