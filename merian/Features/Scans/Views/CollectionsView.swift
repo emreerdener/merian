@@ -85,7 +85,7 @@ struct CollectionsView: View {
                     )
                 } else if !isSearching && userCollections.isEmpty {
                     EmptyStateView(
-                        iconName: "folder",
+                        imageName: "fireflies",
                         title: "No collections",
                         message: "Create your first collection to start organizing your scans."
                     ) {
