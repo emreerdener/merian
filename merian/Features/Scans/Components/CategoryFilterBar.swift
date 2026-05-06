@@ -34,6 +34,5 @@ struct CategoryFilterBar<Item: Hashable>: View {
         }
         .padding(.top, 8)
         .padding(.bottom, 8)
-        .background(Color(UIColor.systemBackground))
     }
 }
