@@ -52,6 +52,29 @@ function buildLikeTitle(actorNames: string[], actionCount: number): string {
   return `${actorNames[0] ?? "Someone"} liked your post`;
 }
 
+function buildCommentReactionTitle(
+  actorNames: string[],
+  actionCount: number,
+  reactionEmoji: string | null,
+): string {
+  const safeCount = Math.max(actionCount, actorNames.length);
+  const trimmedEmoji = reactionEmoji?.trim();
+  const actionSuffix = trimmedEmoji && trimmedEmoji.length > 0
+    ? `reacted ${trimmedEmoji} to your comment`
+    : "reacted to your comment";
+
+  if (actorNames.length >= 2 && safeCount > 2) {
+    return `${actorNames[0]}, ${actorNames[1]}, and ${safeCount - 2} others ${actionSuffix}`;
+  }
+  if (actorNames.length >= 2) {
+    return `${actorNames[0]} and ${actorNames[1]} ${actionSuffix}`;
+  }
+  if (actorNames.length == 1 && safeCount > 1) {
+    return `${actorNames[0]} and ${safeCount - 1} others ${actionSuffix}`;
+  }
+  return `${actorNames[0] ?? "Someone"} ${actionSuffix}`;
+}
+
 function buildCommentBody(commentBody: string | null): string {
   const trimmed = (commentBody ?? "").trim();
   if (trimmed.length <= 120) return trimmed || "Open Explore to view the conversation.";
@@ -72,6 +95,13 @@ function buildNotificationCopy(
   }
 
   const actorNames = payload.recent_actor_names?.filter((value): value is string => value.length > 0) ?? [];
+
+  if (payload.type === "comment_reaction") {
+    return {
+      title: buildCommentReactionTitle(actorNames, payload.action_count, payload.reaction_emoji),
+      body: buildCommentBody(payload.comment_body),
+    };
+  }
 
   return {
     title: buildLikeTitle(actorNames, payload.action_count),

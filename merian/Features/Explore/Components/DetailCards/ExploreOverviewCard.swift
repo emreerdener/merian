@@ -109,13 +109,10 @@ struct ExploreOverviewCard: View {
                             selectedWikiURL = wikiUrl
                             isSafariPresented = true
                         }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "safari")
-                                Text("Read more on Wikipedia")
-                                    .font(.headline)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
+                            Text("Read more on Wikipedia")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
                         }
                         .foregroundColor(.blue)
                         .background(.regularMaterial)

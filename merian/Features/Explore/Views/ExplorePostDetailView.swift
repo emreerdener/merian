@@ -284,9 +284,13 @@ struct ExplorePostDetailView: View {
     private var commentsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Comments")
-                    .font(.title3)
-                    .fontWeight(.semibold)
+                HStack(spacing: 8) {
+                    Image(systemName: "bubble.right")
+                        .foregroundColor(.secondary)
+                    Text("Comments")
+                        .font(.system(.headline))
+                        .foregroundColor(.primary)
+                }
 
                 Spacer()
 
@@ -355,7 +359,7 @@ struct ExplorePostDetailView: View {
                     } placeholder: {
                         Color(uiColor: .tertiarySystemFill)
                     }
-                    .frame(width: 32, height: 32)
+                    .frame(width: 40, height: 40)
                     .clipShape(Circle())
                     .padding(.bottom, 6)
                 }

@@ -88,6 +88,8 @@ struct NotificationRowView: View {
             return "heart.fill"
         case .comment:
             return "bubble.left.fill"
+        case .commentReaction:
+            return "face.smiling.fill"
         }
     }
 
@@ -97,6 +99,8 @@ struct NotificationRowView: View {
             return .red
         case .comment:
             return .blue
+        case .commentReaction:
+            return .orange
         }
     }
 
@@ -106,6 +110,8 @@ struct NotificationRowView: View {
             return Color.red.opacity(0.12)
         case .comment:
             return Color.blue.opacity(0.12)
+        case .commentReaction:
+            return Color.orange.opacity(0.14)
         }
     }
 
@@ -130,6 +136,8 @@ struct NotificationRowView: View {
             return "\(actorName) commented on your post."
         case .likeAggregated:
             return likeSummaryText()
+        case .commentReaction:
+            return commentReactionSummaryText()
         }
     }
 
@@ -139,6 +147,8 @@ struct NotificationRowView: View {
             return trimmed(notification.commentBody)
         case .likeAggregated:
             return nil
+        case .commentReaction:
+            return trimmed(notification.commentBody)
         }
     }
 
@@ -179,6 +189,36 @@ struct NotificationRowView: View {
                 return "\(actorNames[0]), \(actorNames[1]), and \(actorNames[2]) liked your post."
             }
             return "\(actorNames[0]), \(actorNames[1]), \(actorNames[2]), and \(othersCount) \(othersCount == 1 ? "other" : "others") liked your post."
+        }
+    }
+
+    private func commentReactionSummaryText() -> String {
+        let actorNames = notification.recentActorNames.compactMap(trimmed)
+        let othersCount = max(notification.actionCount - actorNames.count, 0)
+        let emoji = trimmed(notification.reactionEmoji)
+        let reactionText = emoji.map { "reacted \($0) to your comment." } ?? "reacted to your comment."
+
+        switch actorNames.count {
+        case 0:
+            if notification.actionCount == 1 {
+                return "Someone \(reactionText)"
+            }
+            return "\(notification.actionCount) people \(reactionText)"
+        case 1:
+            if othersCount == 0 {
+                return "\(actorNames[0]) \(reactionText)"
+            }
+            return "\(actorNames[0]) and \(othersCount) \(othersCount == 1 ? "other" : "others") \(reactionText)"
+        case 2:
+            if othersCount == 0 {
+                return "\(actorNames[0]) and \(actorNames[1]) \(reactionText)"
+            }
+            return "\(actorNames[0]), \(actorNames[1]), and \(othersCount) \(othersCount == 1 ? "other" : "others") \(reactionText)"
+        default:
+            if othersCount == 0 {
+                return "\(actorNames[0]), \(actorNames[1]), and \(actorNames[2]) \(reactionText)"
+            }
+            return "\(actorNames[0]), \(actorNames[1]), \(actorNames[2]), and \(othersCount) \(othersCount == 1 ? "other" : "others") \(reactionText)"
         }
     }
 

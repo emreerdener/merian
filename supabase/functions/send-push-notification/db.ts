@@ -4,8 +4,9 @@ export interface ExplorePushNotificationPayload {
   notification_id: string;
   recipient_user_id: string;
   post_id: string;
-  type: "like_aggregated" | "comment";
+  type: "like_aggregated" | "comment" | "comment_reaction";
   action_count: number;
+  reaction_emoji: string | null;
   comment_body: string | null;
   triggering_user_name: string | null;
   recent_actor_names: string[] | null;

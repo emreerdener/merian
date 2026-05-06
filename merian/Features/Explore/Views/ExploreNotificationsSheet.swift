@@ -88,7 +88,7 @@ struct ExploreNotificationsSheet: View {
         EmptyStateView(
             iconName: "bell.slash",
             title: "Nothing new yet",
-            message: "Likes and comments on your Explore posts will show up here."
+            message: "Likes on your posts, comments on your posts, and reactions to your comments will show up here."
         )
     }
 

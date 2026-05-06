@@ -142,7 +142,8 @@ async function fetchLikeNotification(
 
 type NotificationFeedRow = {
   notification_id: string;
-  type: "like_aggregated" | "comment";
+  type: "like_aggregated" | "comment" | "comment_reaction";
+  reaction_emoji: string | null;
   recent_actor_names: string[];
   action_count: number;
   triggering_user_name: string | null;
@@ -154,8 +155,9 @@ type PushPayloadRow = {
   notification_id: string;
   recipient_user_id: string;
   post_id: string;
-  type: "like_aggregated" | "comment";
+  type: "like_aggregated" | "comment" | "comment_reaction";
   action_count: number;
+  reaction_emoji: string | null;
   comment_body: string | null;
   triggering_user_name: string | null;
   recent_actor_names: string[];
@@ -164,8 +166,44 @@ type PushPayloadRow = {
 type NotificationCursorRow = {
   notification_id: string;
   updated_at: string;
-  type: "like_aggregated" | "comment";
+  type: "like_aggregated" | "comment" | "comment_reaction";
 };
+
+type CommentReactionNotificationRow = {
+  id: string;
+  action_count: number;
+  is_read: boolean;
+  recent_actor_ids: string[];
+  triggering_user_id: string | null;
+  reaction_emoji: string | null;
+};
+
+async function fetchCommentReactionNotification(
+  client: Client,
+  recipientId: string,
+  commentId: string,
+  emoji: string,
+): Promise<CommentReactionNotificationRow | null> {
+  const result = await client.queryObject<CommentReactionNotificationRow>(
+    `
+      SELECT
+        id,
+        action_count,
+        is_read,
+        recent_actor_ids,
+        triggering_user_id,
+        reaction_emoji
+      FROM public.explore_post_notifications
+      WHERE user_id = $1
+        AND comment_id = $2
+        AND type = 'comment_reaction'
+        AND reaction_emoji = $3
+    `,
+    [recipientId, commentId, emoji],
+  );
+
+  return result.rows[0] ?? null;
+}
 
 Deno.test("Explore notifications DB - like aggregation, RPC fetch, mark read, and unlike cleanup", async () => {
   await withDbTest(async (client) => {
@@ -496,6 +534,271 @@ Deno.test("Explore notifications DB - blocked comment actors are filtered and un
       [ownerId],
     );
     assertEquals(notificationCountResult.rows[0]?.count, 0);
+  });
+});
+
+Deno.test("Explore notifications DB - comment reactions notify comment authors, aggregate by emoji, and hide with the comment", async () => {
+  await withDbTest(async (client) => {
+    const { ownerId, postId } = await seedVisibleExplorePost(client);
+    const commenterId = crypto.randomUUID();
+    const reactorOneId = crypto.randomUUID();
+    const reactorTwoId = crypto.randomUUID();
+    const commentId = crypto.randomUUID();
+
+    await insertUser(client, commenterId, "Insightful Commenter");
+    await insertUser(client, reactorOneId, "Reaction One");
+    await insertUser(client, reactorTwoId, "Reaction Two");
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, user_id, body)
+        VALUES ($1, $2, $3, 'I saw one of these near the trail too')
+      `,
+      [commentId, postId, commenterId],
+    );
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_comment_reactions (comment_id, user_id, emoji, created_at)
+        VALUES ($1, $2, '🔥', '2026-05-05T10:00:00Z')
+      `,
+      [commentId, reactorOneId],
+    );
+
+    let reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    assertExists(reactionNotification);
+    assertEquals(reactionNotification.action_count, 1);
+    assertEquals(reactionNotification.is_read, false);
+    assertEquals(reactionNotification.recent_actor_ids, [reactorOneId]);
+    assertEquals(reactionNotification.triggering_user_id, reactorOneId);
+    assertEquals(reactionNotification.reaction_emoji, "🔥");
+
+    let feedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
+        WHERE type = 'comment_reaction'
+      `,
+      [commenterId],
+    );
+    assertEquals(feedResult.rows.length, 1);
+    assertEquals(feedResult.rows[0].reaction_emoji, "🔥");
+    assertEquals(feedResult.rows[0].recent_actor_names, ["Reaction One"]);
+    assertEquals(feedResult.rows[0].triggering_user_name, "Reaction One");
+    assertEquals(feedResult.rows[0].comment_body, "I saw one of these near the trail too");
+
+    let pushPayloadResult = await client.queryObject<PushPayloadRow>(
+      `
+        SELECT *
+        FROM public.get_explore_push_notification_payload($1)
+      `,
+      [reactionNotification.id],
+    );
+    assertEquals(pushPayloadResult.rows.length, 1);
+    assertEquals(pushPayloadResult.rows[0].recipient_user_id, commenterId);
+    assertEquals(pushPayloadResult.rows[0].reaction_emoji, "🔥");
+    assertEquals(pushPayloadResult.rows[0].triggering_user_name, "Reaction One");
+
+    const markReadResult = await client.queryObject<{ count: number }>(
+      `SELECT public.mark_explore_notifications_read($1) AS count`,
+      [commenterId],
+    );
+    assertEquals(markReadResult.rows[0]?.count, 1);
+
+    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    assertExists(reactionNotification);
+    assertEquals(reactionNotification.is_read, true);
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_comment_reactions (comment_id, user_id, emoji, created_at)
+        VALUES ($1, $2, '🔥', '2026-05-05T10:05:00Z')
+      `,
+      [commentId, commenterId],
+    );
+
+    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    assertExists(reactionNotification);
+    assertEquals(reactionNotification.action_count, 1);
+    assertEquals(reactionNotification.is_read, true);
+    assertEquals(reactionNotification.recent_actor_ids, [reactorOneId]);
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_comment_reactions (comment_id, user_id, emoji, created_at)
+        VALUES ($1, $2, '🔥', '2026-05-05T10:06:00Z')
+      `,
+      [commentId, reactorTwoId],
+    );
+
+    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    assertExists(reactionNotification);
+    assertEquals(reactionNotification.action_count, 2);
+    assertEquals(reactionNotification.is_read, false);
+    assertEquals(reactionNotification.recent_actor_ids, [reactorTwoId, reactorOneId]);
+    assertEquals(reactionNotification.triggering_user_id, reactorTwoId);
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_post_notifications
+        SET is_read = TRUE
+        WHERE id = $1
+      `,
+      [reactionNotification.id],
+    );
+
+    await client.queryArray(
+      `
+        DELETE FROM public.explore_comment_reactions
+        WHERE comment_id = $1
+          AND user_id = $2
+          AND emoji = '🔥'
+      `,
+      [commentId, reactorOneId],
+    );
+
+    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    assertExists(reactionNotification);
+    assertEquals(reactionNotification.action_count, 1);
+    assertEquals(reactionNotification.is_read, true);
+    assertEquals(reactionNotification.recent_actor_ids, [reactorTwoId]);
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_post_comments
+        SET deleted_at = NOW()
+        WHERE id = $1
+      `,
+      [commentId],
+    );
+
+    feedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
+        WHERE type = 'comment_reaction'
+      `,
+      [commenterId],
+    );
+    assertEquals(feedResult.rows.length, 0);
+
+    pushPayloadResult = await client.queryObject<PushPayloadRow>(
+      `
+        SELECT *
+        FROM public.get_explore_push_notification_payload($1)
+      `,
+      [reactionNotification.id],
+    );
+    assertEquals(pushPayloadResult.rows.length, 0);
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_post_comments
+        SET deleted_at = NULL
+        WHERE id = $1
+      `,
+      [commentId],
+    );
+
+    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    assertExists(reactionNotification);
+    assertEquals(reactionNotification.action_count, 1);
+    assertEquals(reactionNotification.is_read, false);
+
+    await client.queryArray(
+      `
+        DELETE FROM public.explore_comment_reactions
+        WHERE comment_id = $1
+          AND user_id = $2
+          AND emoji = '🔥'
+      `,
+      [commentId, reactorTwoId],
+    );
+
+    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    assertEquals(reactionNotification, null);
+
+    const ownerUnreadCountResult = await client.queryObject<{ count: number }>(
+      `SELECT public.get_unread_explore_notification_count($1) AS count`,
+      [ownerId],
+    );
+    assertEquals(ownerUnreadCountResult.rows[0]?.count, 1);
+  });
+});
+
+Deno.test("Explore notifications DB - blocked reaction actors are filtered out of comment reaction notifications", async () => {
+  await withDbTest(async (client) => {
+    const { ownerId, postId } = await seedVisibleExplorePost(client);
+    const commenterId = crypto.randomUUID();
+    const reactorId = crypto.randomUUID();
+    const commentId = crypto.randomUUID();
+
+    await insertUser(client, commenterId, "Blocked Reaction Recipient");
+    await insertUser(client, reactorId, "Blocked Reactor");
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, user_id, body)
+        VALUES ($1, $2, $3, 'Comment waiting for reactions')
+      `,
+      [commentId, postId, commenterId],
+    );
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_comment_reactions (comment_id, user_id, emoji)
+        VALUES ($1, $2, '👏')
+      `,
+      [commentId, reactorId],
+    );
+
+    const reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "👏");
+    assertExists(reactionNotification);
+
+    let unreadCountResult = await client.queryObject<{ count: number }>(
+      `SELECT public.get_unread_explore_notification_count($1) AS count`,
+      [commenterId],
+    );
+    assertEquals(unreadCountResult.rows[0]?.count, 1);
+
+    await client.queryArray(
+      `
+        INSERT INTO public.user_blocks (blocker_id, blocked_id)
+        VALUES ($1, $2)
+      `,
+      [commenterId, reactorId],
+    );
+
+    const feedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
+        WHERE type = 'comment_reaction'
+      `,
+      [commenterId],
+    );
+    assertEquals(feedResult.rows.length, 0);
+
+    const pushPayloadResult = await client.queryObject<PushPayloadRow>(
+      `
+        SELECT *
+        FROM public.get_explore_push_notification_payload($1)
+      `,
+      [reactionNotification.id],
+    );
+    assertEquals(pushPayloadResult.rows.length, 0);
+
+    unreadCountResult = await client.queryObject<{ count: number }>(
+      `SELECT public.get_unread_explore_notification_count($1) AS count`,
+      [commenterId],
+    );
+    assertEquals(unreadCountResult.rows[0]?.count, 0);
+
+    const ownerUnreadCountResult = await client.queryObject<{ count: number }>(
+      `SELECT public.get_unread_explore_notification_count($1) AS count`,
+      [ownerId],
+    );
+    assertEquals(ownerUnreadCountResult.rows[0]?.count, 1);
   });
 });
 

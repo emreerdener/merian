@@ -230,16 +230,17 @@ Uniqueness is enforced on `(comment_id, reporter_user_id)` so repeat reports fro
 
 ### `explore_post_notifications`
 
-In-app Explore activity feed for post owners. Added in migration `20260427010000_add_explore_notifications.sql`.
+In-app Explore activity feed for Explore post owners and comment authors. Added in migration `20260427010000_add_explore_notifications.sql`.
 
 - `id` (UUID): Primary key.
-- `user_id` (UUID FK → `users.id`, CASCADE DELETE): Notification recipient. In V1 this is always the Explore post owner.
+- `user_id` (UUID FK → `users.id`, CASCADE DELETE): Notification recipient. Post-like and post-comment rows target the Explore post owner; comment-reaction rows target the comment author.
 - `post_id` (UUID FK → `explore_posts.id`, CASCADE DELETE): The post the activity belongs to.
-- `type` (`public.explore_notification_type`): `'like_aggregated'` | `'comment'`.
-- `comment_id` (UUID FK → `explore_post_comments.id`, nullable): Present only for comment notifications.
-- `triggering_user_id` (UUID FK → `users.id`, nullable): The latest actor for aggregated likes or the comment author for comment rows.
-- `recent_actor_ids` (UUID array): Latest liker IDs for aggregated-like rows, capped at 3 entries.
-- `action_count` (INT): Aggregate like count for `'like_aggregated'` rows. Always `1` for comment notifications.
+- `type` (`public.explore_notification_type`): `'like_aggregated'` | `'comment'` | `'comment_reaction'`.
+- `comment_id` (UUID FK → `explore_post_comments.id`, nullable): Present for comment and comment-reaction notifications.
+- `reaction_emoji` (TEXT, nullable): Present only for `'comment_reaction'` rows so the client and push layer can render the reacted emoji.
+- `triggering_user_id` (UUID FK → `users.id`, nullable): The latest actor for aggregated likes and comment reactions, or the comment author for plain comment rows.
+- `recent_actor_ids` (UUID array): Latest actor IDs for aggregated-like and aggregated comment-reaction rows, capped at 3 entries.
+- `action_count` (INT): Aggregate like count for `'like_aggregated'`, aggregate reactor count for `'comment_reaction'`, and always `1` for plain comment notifications.
 - `is_read` (BOOLEAN): Client-controlled read state for the in-app bell badge and notifications sheet.
 - `created_at` / `updated_at` (TIMESTAMPTZ): Ordering keys for the notifications feed.
 
@@ -247,14 +248,16 @@ In-app Explore activity feed for post owners. Added in migration `20260427010000
 
 - Partial unique index on `(user_id, post_id, type)` where `type = 'like_aggregated'` guarantees a single aggregated like row per owner/post.
 - Partial unique index on `comment_id` where `type = 'comment'` guarantees one notification row per comment.
+- Partial unique index on `(user_id, comment_id, reaction_emoji)` where `type = 'comment_reaction'` guarantees one aggregated reaction row per recipient/comment/emoji.
 - Row Level Security allows users to `SELECT` and `UPDATE` only their own notification rows.
 
 **Lifecycle triggers**:
 
 - `sync_like_notification_for_post(target_post_id)` recomputes aggregated like notifications from the authoritative `explore_post_likes` table after every insert/delete, excludes self-likes, refreshes `recent_actor_ids`, resets `is_read = false`, and deletes the row when the non-self like count reaches `0`.
 - Comment notification triggers suppress self-comments, create a notification row on insert, delete the row when the comment is soft-deleted, and recreate it if the comment is restored.
+- `sync_comment_reaction_notification_for_comment(target_comment_id, target_emoji)` recomputes aggregated comment-reaction notifications from `explore_comment_reactions`, excludes self-reactions by the comment author, tracks the latest reactor plus up to three recent actors, and deletes the row when no non-self reactions remain for that emoji.
 - A post-level trigger deletes Explore notifications when `explore_posts.unshared_at` is set, keeping the activity feed aligned with the existing soft-unshare model.
-- A push-delivery trigger invokes the `send-push-notification` Edge Function for newly inserted comment rows and for like-aggregate updates where `action_count` increased.
+- A push-delivery trigger invokes the `send-push-notification` Edge Function for newly inserted visible rows and for like/comment-reaction aggregate updates where `action_count` increased.
 
 ### `user_push_devices`
 

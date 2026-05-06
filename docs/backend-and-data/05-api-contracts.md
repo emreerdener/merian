@@ -619,7 +619,8 @@ Request body:
 
 - If the viewer has not yet reacted with this emoji, the reaction is inserted.
 - If the viewer has already reacted with this emoji, the reaction is removed.
-- Reactions are aggregated into a `reactions` JSON array by the `/get-explore-comments` read endpoint, not pushed individually.
+- Reactions are aggregated into a `reactions` JSON array by the `/get-explore-comments` read endpoint.
+- The server also maintains aggregated Explore notification rows per `(comment author, comment, emoji)` so comment authors can be notified when other viewers react.
 
 ### `/report-explore-comment`
 
@@ -663,6 +664,7 @@ Current response shape:
       "post_id": "uuid",
       "type": "like_aggregated",
       "comment_id": null,
+      "reaction_emoji": null,
       "triggering_user_id": "uuid",
       "triggering_user_name": "User C",
       "comment_body": null,
@@ -677,6 +679,7 @@ Current response shape:
       "post_id": "uuid",
       "type": "comment",
       "comment_id": "uuid",
+      "reaction_emoji": null,
       "triggering_user_id": "uuid",
       "triggering_user_name": "User D",
       "comment_body": "Beautiful find",
@@ -685,6 +688,21 @@ Current response shape:
       "is_read": false,
       "created_at": "2026-04-27T12:06:00.000Z",
       "updated_at": "2026-04-27T12:06:00.000Z"
+    },
+    {
+      "notification_id": "uuid",
+      "post_id": "uuid",
+      "type": "comment_reaction",
+      "comment_id": "uuid",
+      "reaction_emoji": "🔥",
+      "triggering_user_id": "uuid",
+      "triggering_user_name": "User E",
+      "comment_body": "Beautiful find",
+      "recent_actor_names": ["User E", "User F"],
+      "action_count": 2,
+      "is_read": false,
+      "created_at": "2026-05-05T10:00:00.000Z",
+      "updated_at": "2026-05-05T10:05:00.000Z"
     }
   ]
 }

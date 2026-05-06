@@ -117,7 +117,7 @@ struct ExploreCommentsSheet: View {
                     } placeholder: {
                         Color(uiColor: .tertiarySystemFill)
                     }
-                    .frame(width: 32, height: 32)
+                    .frame(width: 40, height: 40)
                     .clipShape(Circle())
                     .padding(.bottom, 6)
                 }

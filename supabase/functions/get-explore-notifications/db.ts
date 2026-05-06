@@ -3,8 +3,9 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 export interface ExploreNotificationRow {
   notification_id: string;
   post_id: string;
-  type: "like_aggregated" | "comment";
+  type: "like_aggregated" | "comment" | "comment_reaction";
   comment_id?: string | null;
+  reaction_emoji?: string | null;
   triggering_user_id?: string | null;
   triggering_user_name?: string | null;
   comment_body?: string | null;
