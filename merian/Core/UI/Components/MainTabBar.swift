@@ -10,6 +10,7 @@ struct MainTabBar: View {
     @AppStorage(UserDefaultsKeys.hasSeenExploreNewChip) private var hasSeenExploreNewChip: Bool = false
     @AppStorage(UserDefaultsKeys.hasUnseenExplorePost) private var hasUnseenExplorePost: Bool = false
     @AppStorage(UserDefaultsKeys.lastSeenExplorePostSharedAt) private var lastSeenExplorePostSharedAt: String = ""
+    @State private var hasUnreadExploreNotifications: Bool = false
     
     // MARK: - Visual Layout
     var body: some View {
@@ -25,8 +26,8 @@ struct MainTabBar: View {
                     hasSeenExploreNewChip = true
                     isExploreOpen = true
                 },
-                showBadge: hasUnseenExplorePost,
-                chipText: hasUnseenExplorePost || hasSeenExploreNewChip ? nil : "NEW"
+                showBadge: hasUnseenExplorePost || hasUnreadExploreNotifications,
+                chipText: hasUnseenExplorePost || hasUnreadExploreNotifications || hasSeenExploreNewChip ? nil : "NEW"
             )
 
             // 2. Local Taxonomy Library
@@ -82,31 +83,54 @@ struct MainTabBar: View {
                 await refreshExploreBadge()
             }
         }
+        .onChange(of: isExploreOpen) { _, newValue in
+            if !newValue {
+                Task {
+                    await refreshExploreBadge()
+                }
+            }
+        }
     }
 
     private func refreshExploreBadge() async {
-        do {
-            let latestPost = try await MerianNetworkClient.shared.getExploreFeed(limit: 1).first
-
-            guard let latestPost else {
-                hasUnseenExplorePost = false
-                return
+        async let fetchLatestPost: ExplorePost? = {
+            do {
+                return try await MerianNetworkClient.shared.getExploreFeed(limit: 1).first
+            } catch {
+                MerianLog.network.debug("Failed to fetch latest post for badge: \(error.localizedDescription, privacy: .private)")
+                return nil
             }
-
-            guard let latestPostDate = latestPost.sharedAtDate else { return }
-            guard !lastSeenExplorePostSharedAt.isEmpty else { return }
-
-            guard let lastSeenPostDate = DateUtilities.iso8601FractionalFormatter.date(from: lastSeenExplorePostSharedAt)
-                ?? DateUtilities.iso8601Formatter.date(from: lastSeenExplorePostSharedAt) else {
-                return
+        }()
+        
+        async let fetchUnreadCount: Int? = {
+            do {
+                return try await MerianNetworkClient.shared.getUnreadExploreNotificationCount()
+            } catch {
+                MerianLog.network.debug("Failed to fetch unread notification count for badge: \(error.localizedDescription, privacy: .private)")
+                return nil
             }
+        }()
+        
+        let (latestPost, unreadCount) = await (fetchLatestPost, fetchUnreadCount)
 
-            hasUnseenExplorePost = latestPostDate > lastSeenPostDate
-        } catch {
-            MerianLog.network.debug(
-                "Failed to refresh Explore tab badge: \(error.localizedDescription, privacy: .private)"
-            )
+        if let unreadCount {
+            hasUnreadExploreNotifications = unreadCount > 0
         }
+
+        guard let latestPost else {
+            hasUnseenExplorePost = false
+            return
+        }
+
+        guard let latestPostDate = latestPost.sharedAtDate else { return }
+        guard !lastSeenExplorePostSharedAt.isEmpty else { return }
+
+        guard let lastSeenPostDate = DateUtilities.iso8601FractionalFormatter.date(from: lastSeenExplorePostSharedAt)
+            ?? DateUtilities.iso8601Formatter.date(from: lastSeenExplorePostSharedAt) else {
+            return
+        }
+
+        hasUnseenExplorePost = latestPostDate > lastSeenPostDate
     }
 }
 

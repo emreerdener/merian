@@ -178,7 +178,6 @@ struct ExploreView: View {
                         Capsule(style: .continuous)
                             .fill(Color.red)
                     )
-                    .offset(x: 4, y: -4)
             }
         }
         .accessibilityLabel(accessibilityNotificationLabel)
