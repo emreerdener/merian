@@ -558,14 +558,10 @@ extension ExplorePostCard {
 
         // MARK: Species Overlay
         private var speciesOverlay: some View {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .fill(glowColor.opacity(isGlowing ? 0.8 : 0.55))
                     .frame(width: 170, height: 16)
-
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(glowColor.opacity(isGlowing ? 0.62 : 0.4))
-                    .frame(width: 130, height: 12)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
