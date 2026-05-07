@@ -242,7 +242,7 @@ actor ProfileDatabaseActor {
                 speciesCount: 0,
                 streak: 0,
                 heatmap: ProfileHeatmapData(totalCaptures: 0, currentMonthCaptures: 0, yearString: "", weeks: []),
-                awards: []
+                awards: AchievementsCalculator.calculate(from: allRecords)
             )
         }
 

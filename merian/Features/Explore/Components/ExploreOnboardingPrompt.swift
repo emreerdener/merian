@@ -12,12 +12,12 @@ struct ExploreOnboardingPrompt: View {
                 .frame(width: 120, height: 120)
             
             VStack(spacing: 12) {
-                Text("Join the Merian Community")
+                Text("Share with the community")
                     .font(.title2)
                     .fontWeight(.bold)
                     .multilineTextAlignment(.center)
                 
-                Text("Share your discovery on the Explore feed to contribute to the global archive and help others learn about the natural world.")
+                Text("Share your discovery on the Explore feed so others can discover and learn about the natural world!")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

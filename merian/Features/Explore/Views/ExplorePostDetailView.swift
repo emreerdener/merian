@@ -48,9 +48,6 @@ struct ExplorePostDetailView: View {
                             .padding(.top, 16)
                             .padding(.bottom, 16)
 
-                            Divider()
-                                .padding(.horizontal, 16)
-
                             commentsSection
                                 .padding(.horizontal, 16)
                                 .padding(.top, 20)

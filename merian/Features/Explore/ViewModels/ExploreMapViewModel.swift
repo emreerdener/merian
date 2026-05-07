@@ -33,7 +33,6 @@ final class ExploreMapViewModel {
 
     @ObservationIgnored private let maxPostLimit = 500
     @ObservationIgnored private let thumbnailZoomLevelThreshold = 11.5
-    @ObservationIgnored private let thumbnailPostCountThreshold = 24
     @ObservationIgnored private let maxCachedRegions = 8
     @ObservationIgnored private let maxCachedItems = 1_400
     @ObservationIgnored private let freshCacheTTL: TimeInterval = 90
@@ -42,14 +41,27 @@ final class ExploreMapViewModel {
         span: MKCoordinateSpan(latitudeDelta: 90, longitudeDelta: 120)
     )
     @ObservationIgnored private var cachedResponses: [ExploreMapCacheEntry] = []
+    @ObservationIgnored private var debounceSearchTask: Task<Void, Never>?
+
+    private func scheduleAutomaticSearch() {
+        debounceSearchTask?.cancel()
+        debounceSearchTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            await self?.searchCurrentArea()
+        }
+    }
 
     var selectedPost: ExploreMapPost? {
         guard let selectedPostId else { return nil }
         return posts.first(where: { $0.id == selectedPostId })
     }
 
+    /// Determines whether map waypoints should be rendered as thumbnail images instead of generic dots.
+    /// Thumbnails are automatically displayed whenever the map is zoomed in past the `thumbnailZoomLevelThreshold`,
+    /// providing immediate visual context for discoveries in the area.
     var showsThumbnailWaypoints: Bool {
-        guard mode == .posts, !posts.isEmpty, posts.count <= thumbnailPostCountThreshold else { return false }
+        guard mode == .posts, !posts.isEmpty else { return false }
         guard let region = visibleRegion ?? lastCommittedRegion else { return false }
         return zoomLevel(for: region) >= thumbnailZoomLevelThreshold
     }
@@ -71,15 +83,20 @@ final class ExploreMapViewModel {
         if regionMeaningfullyDiffers(region, from: lastCommittedRegion) {
             needsSearchInArea = true
             selectedPostId = nil
+            scheduleAutomaticSearch()
         }
     }
 
     func searchCurrentArea() async {
+        debounceSearchTask?.cancel()
+        debounceSearchTask = nil
         guard let region = visibleRegion ?? lastCommittedRegion else { return }
         await fetchMapPoints(for: region)
     }
 
     func recenter(using environmentContextManager: EnvironmentContextManager) async {
+        debounceSearchTask?.cancel()
+        debounceSearchTask = nil
         environmentContextManager.validatePermissions()
         let region = regionForInitialLoad(using: environmentContextManager)
         visibleRegion = region
@@ -101,6 +118,7 @@ final class ExploreMapViewModel {
         visibleRegion = nextRegion
         cameraPosition = .region(nextRegion)
         needsSearchInArea = true
+        scheduleAutomaticSearch()
     }
 
     func selectPost(_ postId: String?) {

@@ -325,31 +325,34 @@ AS $$
             ) AS distance_meters
         FROM projected_posts
         CROSS JOIN search_window
-        WHERE projected_posts.latitude IS NOT NULL
-          AND projected_posts.longitude IS NOT NULL
-          AND projected_posts.latitude BETWEEN viewer_latitude - search_window.latitude_delta AND viewer_latitude + search_window.latitude_delta
-          AND (
-              (
-                  viewer_longitude - search_window.longitude_delta >= -180
-                  AND viewer_longitude + search_window.longitude_delta <= 180
-                  AND projected_posts.longitude BETWEEN viewer_longitude - search_window.longitude_delta
-                      AND viewer_longitude + search_window.longitude_delta
-              )
-              OR (
-                  viewer_longitude - search_window.longitude_delta < -180
-                  AND (
-                      projected_posts.longitude >= viewer_longitude - search_window.longitude_delta + 360
-                      OR projected_posts.longitude <= viewer_longitude + search_window.longitude_delta
-                  )
-              )
-              OR (
-                  viewer_longitude + search_window.longitude_delta > 180
-                  AND (
-                      projected_posts.longitude >= viewer_longitude - search_window.longitude_delta
-                      OR projected_posts.longitude <= viewer_longitude + search_window.longitude_delta - 360
-                  )
-              )
-          )
+        WHERE projected_posts.author_user_id = self_id
+           OR (
+               projected_posts.latitude IS NOT NULL
+               AND projected_posts.longitude IS NOT NULL
+               AND projected_posts.latitude BETWEEN viewer_latitude - search_window.latitude_delta AND viewer_latitude + search_window.latitude_delta
+               AND (
+                   (
+                       viewer_longitude - search_window.longitude_delta >= -180
+                       AND viewer_longitude + search_window.longitude_delta <= 180
+                       AND projected_posts.longitude BETWEEN viewer_longitude - search_window.longitude_delta
+                           AND viewer_longitude + search_window.longitude_delta
+                   )
+                   OR (
+                       viewer_longitude - search_window.longitude_delta < -180
+                       AND (
+                           projected_posts.longitude >= viewer_longitude - search_window.longitude_delta + 360
+                           OR projected_posts.longitude <= viewer_longitude + search_window.longitude_delta
+                       )
+                   )
+                   OR (
+                       viewer_longitude + search_window.longitude_delta > 180
+                       AND (
+                           projected_posts.longitude >= viewer_longitude - search_window.longitude_delta
+                           OR projected_posts.longitude <= viewer_longitude + search_window.longitude_delta - 360
+                       )
+                   )
+               )
+           )
     )
     SELECT
         post_id,
@@ -372,7 +375,7 @@ AS $$
         is_owned_by_viewer,
         NULL::INTEGER AS ranking_value
     FROM bounded_posts
-    WHERE distance_meters <= radius_meters
+    WHERE (distance_meters <= radius_meters OR author_user_id = self_id)
       AND (
           before_shared_at IS NULL
           OR before_post_id IS NULL

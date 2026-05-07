@@ -45,6 +45,14 @@ final class ProfileDatabaseActorTests: XCTestCase {
     }
     
     // MARK: - Validation Suites
+
+    func testNewAccountStillReturnsLockedAchievements() async {
+        let actor = ProfileDatabaseActor(modelContainer: container)
+        let payload: ProfileAllStatsPayload = await actor.calculateAll()
+
+        XCTAssertEqual(payload.awards.count, AchievementType.allCases.count, "Brand-new accounts should still receive the full locked achievements set.")
+        XCTAssertTrue(payload.awards.allSatisfy { !$0.isCompleted && $0.currentCount == 0 }, "Empty libraries should render achievements as locked with zero progress.")
+    }
     
     func testStreakActiveGracePeriod() async throws {
         // Simulate missing today (0), but having scanned continuously for 3 preceding days.

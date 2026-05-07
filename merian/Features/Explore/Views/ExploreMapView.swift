@@ -19,6 +19,20 @@ struct ExploreMapView: View {
     @State private var previewSwipeCommitGeneration = 0
     @State private var isCommittingPreviewSelection = false
     @State private var previewCarouselAnchorPostId: String?
+    @State private var continuousZoomLevel: Double?
+
+    private var effectiveZoomLevel: Double {
+        if let continuousZoomLevel {
+            return continuousZoomLevel
+        }
+        guard let region = viewModel.visibleRegion ?? viewModel.lastCommittedRegion else { return 0 }
+        let longitudeDelta = max(region.span.longitudeDelta, 0.000_01)
+        return max(0, min(log2(360 / longitudeDelta), 20))
+    }
+
+    private var effectiveShowsThumbnail: Bool {
+        viewModel.mode == .posts && !viewModel.posts.isEmpty && effectiveZoomLevel >= 11.5
+    }
 
     let onOpenDetail: (ExplorePost, Bool) -> Void
 
@@ -122,7 +136,9 @@ struct ExploreMapView: View {
                             reloadGeneration: feedViewModel.mediaReloadGeneration,
                             isSelected: viewModel.selectedPostId == post.id,
                             isApproximate: post.coordinateVisibility == .obscured,
-                            showsThumbnail: viewModel.showsThumbnailWaypoints
+                            showsThumbnail: effectiveShowsThumbnail,
+                            zoomLevel: effectiveZoomLevel,
+                            isNew: !postStore.containsFeedPost(id: post.id)
                         )
                     }
                     .buttonStyle(.plain)
@@ -134,8 +150,16 @@ struct ExploreMapView: View {
         .onTapGesture {
             dismissSelectedPostIfNeeded()
         }
+        .onMapCameraChange(frequency: .continuous) { context in
+            let longitudeDelta = max(context.region.span.longitudeDelta, 0.000_01)
+            let zoom = max(0, min(log2(360 / longitudeDelta), 20))
+            if abs((continuousZoomLevel ?? 0) - zoom) > 0.05 {
+                continuousZoomLevel = zoom
+            }
+        }
         .onMapCameraChange(frequency: .onEnd) { context in
             viewModel.markCameraChanged(region: context.region)
+            continuousZoomLevel = nil
         }
         .overlay {
             if viewModel.isLoading && viewModel.posts.isEmpty && viewModel.clusters.isEmpty {
@@ -166,7 +190,7 @@ struct ExploreMapView: View {
                     HStack(spacing: 10) {
                         Image(systemName: "sparkle.magnifyingglass")
                             .font(.system(size: 14, weight: .semibold))
-                        Text("Search This Area")
+                        Text("Search this area")
                             .font(.system(size: 15, weight: .semibold))
                     }
                     .padding(.horizontal, 18)
@@ -614,6 +638,8 @@ private struct ExploreMapWaypoint: View {
     let isSelected: Bool
     let isApproximate: Bool
     let showsThumbnail: Bool
+    let zoomLevel: Double
+    let isNew: Bool
 
     var body: some View {
         Group {
@@ -648,7 +674,14 @@ private struct ExploreMapWaypoint: View {
     }
 
     private var thumbnailWaypoint: some View {
-        let imageSize: CGFloat = isSelected ? 50 : 44
+        let baseZoom: Double = 11.5
+        let maxZoom: Double = 20.0
+        let zoomProgress = max(0, min((zoomLevel - baseZoom) / (maxZoom - baseZoom), 1.0))
+        let sizeMultiplier = 1.0 + (zoomProgress * 0.75)
+        
+        let baseImageSize: CGFloat = isSelected ? 50 : 44
+        let imageSize: CGFloat = baseImageSize * CGFloat(sizeMultiplier)
+        
         let haloSize = imageSize + (isApproximate ? 12 : 8)
 
         return ZStack {
@@ -679,6 +712,14 @@ private struct ExploreMapWaypoint: View {
                     )
                 )
                 .frame(width: haloSize, height: haloSize)
+
+            if isNew {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 12, height: 12)
+                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                    .offset(x: haloSize / 2 * 0.707, y: -haloSize / 2 * 0.707)
+            }
         }
     }
 }
