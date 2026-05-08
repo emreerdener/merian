@@ -101,6 +101,10 @@ public final class LocalScanRecord {
     /// Replaced singular JSON string from V38.
     @Attribute public var observationContextsJSON: [String]?
 
+    /// Private user-authored notes about the discovery itself.
+    /// Distinct from `ObservationContext`, which is prompt input for the analysis pipeline.
+    @Attribute public var fieldNotes: String?
+
     public var userReviewState: UserReviewState {
         get { UserReviewState(rawValue: userReviewStateRaw ?? UserReviewState.unreviewed.rawValue) ?? .unreviewed }
         set { userReviewStateRaw = newValue.rawValue }
@@ -164,7 +168,7 @@ public final class LocalScanRecord {
         alternativeCommonNames: [String]? = nil,
         confirmedSpeciesId: String? = nil,
         userReviewStateRaw: String? = nil,
-
+        fieldNotes: String? = nil
     ) {
 
         self.id = id
@@ -228,5 +232,6 @@ public final class LocalScanRecord {
         self.alternativeCommonNames = alternativeCommonNames
         self.confirmedSpeciesId = confirmedSpeciesId
         self.userReviewStateRaw = userReviewStateRaw
+        self.fieldNotes = fieldNotes
     }
 }

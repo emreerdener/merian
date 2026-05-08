@@ -66,6 +66,9 @@ enum UserDefaultsKeys {
     /// Prefix for per-scan Explore share state. Append the local `scanId` to form the full key.
     /// e.g. `"sharedExplorePostId_1234-uuid"` → the published Explore post id for that scan.
     static let sharedExplorePostIdPrefix = "sharedExplorePostId_"
+    /// Legacy prefix for per-scan field notes used by the temporary bridge implementation.
+    /// Retained so existing local drafts can be migrated into SwiftData-backed scan records.
+    static let fieldNotesPrefix = "fieldNotes_"
     /// The `sharedAt` timestamp of the newest Explore post successfully loaded by the user.
     static let lastSeenExplorePostSharedAt = "lastSeenExplorePostSharedAt"
     /// Whether foreground inference-complete banners should be suppressed while the user is already viewing results.
@@ -148,6 +151,34 @@ enum ExploreShareStateStore {
     static func clearAll(userDefaults: UserDefaults = .standard) {
         for key in userDefaults.dictionaryRepresentation().keys
         where key.hasPrefix(UserDefaultsKeys.sharedExplorePostIdPrefix) {
+            userDefaults.removeObject(forKey: key)
+        }
+    }
+}
+
+enum FieldNotesStore {
+    private static func key(for scanId: String) -> String {
+        UserDefaultsKeys.fieldNotesPrefix + scanId
+    }
+
+    static func fieldNotes(for scanId: String, userDefaults: UserDefaults = .standard) -> String? {
+        let value = userDefaults.string(forKey: key(for: scanId))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (value?.isEmpty == false) ? value : nil
+    }
+
+    static func setFieldNotes(_ fieldNotes: String?, for scanId: String, userDefaults: UserDefaults = .standard) {
+        let trimmed = fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let fieldNotes, trimmed?.isEmpty == false {
+            userDefaults.set(fieldNotes, forKey: key(for: scanId))
+        } else {
+            userDefaults.removeObject(forKey: key(for: scanId))
+        }
+    }
+
+    static func clearAll(userDefaults: UserDefaults = .standard) {
+        for key in userDefaults.dictionaryRepresentation().keys
+        where key.hasPrefix(UserDefaultsKeys.fieldNotesPrefix) {
             userDefaults.removeObject(forKey: key)
         }
     }

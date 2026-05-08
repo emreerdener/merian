@@ -86,7 +86,7 @@ struct CollectionsView: View {
                 } else if !isSearching && userCollections.isEmpty {
                     EmptyStateView(
                         imageName: "fireflies",
-                        title: "No collections",
+                        title: "Collections",
                         message: "Create your first collection to start organizing your scans."
                     ) {
                         Button {

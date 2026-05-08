@@ -64,7 +64,7 @@ public struct EmptyStateView<Content: View>: View {
             
             // 2. Headline Messaging Layer
             Text(title)
-                .font(.headline)
+                .font(.title3)
                 .fontWeight(.semibold)
             
             // 3. Subheadline Context

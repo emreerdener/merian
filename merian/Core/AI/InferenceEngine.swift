@@ -531,6 +531,12 @@ private struct GBIFMedia: Decodable {
                                     if let oldCollections = oldRecord.collections, !oldCollections.isEmpty {
                                         newRecord.collections = oldCollections
                                     }
+                                    let newRecordHasFieldNotes = !(newRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+                                    if let oldFieldNotes = oldRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines),
+                                       !oldFieldNotes.isEmpty,
+                                       !newRecordHasFieldNotes {
+                                        newRecord.fieldNotes = oldRecord.fieldNotes
+                                    }
                                 }
                             }
                             ScanRepository.shared.eradicateScan(record: oldRecord, modelContext: context)
@@ -852,6 +858,12 @@ private struct GBIFMedia: Decodable {
                                     newRecord.customTags = oldRecord.customTags
                                     if let oldCollections = oldRecord.collections, !oldCollections.isEmpty {
                                         newRecord.collections = oldCollections
+                                    }
+                                    let newRecordHasFieldNotes = !(newRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+                                    if let oldFieldNotes = oldRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines),
+                                       !oldFieldNotes.isEmpty,
+                                       !newRecordHasFieldNotes {
+                                        newRecord.fieldNotes = oldRecord.fieldNotes
                                     }
                                 }
                             }

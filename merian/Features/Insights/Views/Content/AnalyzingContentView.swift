@@ -6,8 +6,9 @@ import SwiftUI
     let engine = InferenceEngine()
     engine.isProcessing = true
     engine.scanningPhaseText = "Wing venation"
+    let viewModel = InsightSheetViewModel(inferenceEngine: engine)
     return ScrollView {
-        AnalyzingContentView().padding(.horizontal)
+        AnalyzingContentView(viewModel: viewModel).padding(.horizontal)
     }.environment(engine)
 }
 
@@ -15,8 +16,9 @@ import SwiftUI
     let engine = InferenceEngine()
     engine.isProcessing = true
     engine.scanningPhaseText = "Arthropod"
+    let viewModel = InsightSheetViewModel(inferenceEngine: engine)
     return ScrollView {
-        AnalyzingContentView().padding(.horizontal)
+        AnalyzingContentView(viewModel: viewModel).padding(.horizontal)
     }.environment(engine)
 }
 
@@ -24,8 +26,9 @@ import SwiftUI
     let engine = InferenceEngine()
     engine.isProcessing = true
     engine.scanningPhaseText = "Confirming..."
+    let viewModel = InsightSheetViewModel(inferenceEngine: engine)
     return ScrollView {
-        AnalyzingContentView().padding(.horizontal)
+        AnalyzingContentView(viewModel: viewModel).padding(.horizontal)
     }.environment(engine)
 }
 #endif
@@ -38,24 +41,32 @@ import SwiftUI
 struct AnalyzingContentView: View {
     @Environment(InferenceEngine.self) var inferenceEngine
 
+    @Bindable var viewModel: InsightSheetViewModel
+
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
 
-            // Confidence badge slot — rotating scanning phase text drives the label.
             ConfidenceBadge(
                 confidenceScore: nil,
                 inferenceTier: nil,
                 analyzingPhrase: inferenceEngine.scanningPhaseText
             )
 
-            // MARK: - Title
             Text("Analyzing")
                 .font(.system(.largeTitle, design: .serif).weight(.bold))
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
 
-            // Fun-fact carousel — gives users something to read while processing
+            FieldNotesCard(
+                previewText: viewModel.fieldNotesText,
+                promptContext: .analyzing,
+                action: {
+                    viewModel.state.isFieldNotesSheetPresented = true
+                }
+            )
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+
             DidYouKnowCard()
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
 

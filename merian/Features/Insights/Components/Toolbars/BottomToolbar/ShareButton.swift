@@ -3,22 +3,41 @@ import SwiftUI
 struct ShareButton: View {
     private enum PendingAction {
         case externalShare
-        case shareToExplore
+        case shareToExplore(includeFieldNotes: Bool)
         case viewInExplore
     }
 
     let shareExternally: () -> Void
-    let onShareToExplore: (() -> Void)?
+    let onShareToExplore: ((Bool) -> Void)?
     let isSharingToExplore: Bool
+    var fieldNotesPreview: String?
     var sharedExplorePostId: String?
     var onViewInExplore: (() -> Void)?
     
     @Environment(\.colorScheme) private var colorScheme
     @State private var showingOptions = false
     @State private var pendingAction: PendingAction?
+    @State private var includeFieldNotesInExplore = false
 
     private var showsExploreAction: Bool {
         onShareToExplore != nil || onViewInExplore != nil
+    }
+
+    private var hasFieldNotesToShare: Bool {
+        fieldNotesPreview?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    private var fieldNotesExcerpt: String? {
+        guard let preview = fieldNotesPreview?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !preview.isEmpty else {
+            return nil
+        }
+
+        if preview.count <= 160 {
+            return preview
+        }
+
+        return String(preview.prefix(157)) + "..."
     }
 
     private var exploreHeadline: String {
@@ -67,6 +86,11 @@ struct ShareButton: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(primaryBlue)
+        .onChange(of: showingOptions) { _, isPresented in
+            if isPresented {
+                includeFieldNotesInExplore = false
+            }
+        }
         .sheet(isPresented: $showingOptions, onDismiss: handlePendingAction) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
@@ -164,8 +188,41 @@ struct ShareButton: View {
                 }
             }
 
+            if sharedExplorePostId == nil, hasFieldNotesToShare {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle(isOn: $includeFieldNotesInExplore) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Include field notes")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+
+                            Text("Keep them private unless you choose to publish them with this Explore post.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .toggleStyle(.switch)
+
+                    if includeFieldNotesInExplore, let fieldNotesExcerpt {
+                        Text(fieldNotesExcerpt)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(4)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(Color.primary.opacity(0.04))
+                            )
+                    }
+                }
+            }
+
             Button {
-                pendingAction = sharedExplorePostId != nil ? .viewInExplore : .shareToExplore
+                pendingAction = sharedExplorePostId != nil
+                    ? .viewInExplore
+                    : .shareToExplore(includeFieldNotes: includeFieldNotesInExplore)
                 showingOptions = false
             } label: {
                 HStack(alignment: .center) {
@@ -213,8 +270,8 @@ struct ShareButton: View {
         switch pendingAction {
         case .externalShare:
             shareExternally()
-        case .shareToExplore:
-            onShareToExplore?()
+        case .shareToExplore(let includeFieldNotes):
+            onShareToExplore?(includeFieldNotes)
         case .viewInExplore:
             onViewInExplore?()
         }

@@ -9,8 +9,9 @@ struct InsightBottomToolbar: ToolbarContent {
     let toggleScanInCollection: (ScanCollection) -> Void
     @Binding var showNewCollectionAlert: Bool
     let shareExternally: () -> Void
-    let onShareToExplore: (() -> Void)?
+    let onShareToExplore: ((Bool) -> Void)?
     let isSharingToExplore: Bool
+    var fieldNotesPreview: String?
     var sharedExplorePostId: String?
     var onViewInExplore: (() -> Void)?
     
@@ -21,6 +22,7 @@ struct InsightBottomToolbar: ToolbarContent {
                     shareExternally: shareExternally,
                     onShareToExplore: onShareToExplore,
                     isSharingToExplore: isSharingToExplore,
+                    fieldNotesPreview: fieldNotesPreview,
                     sharedExplorePostId: sharedExplorePostId,
                     onViewInExplore: onViewInExplore
                 )

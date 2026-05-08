@@ -68,11 +68,11 @@ struct CollectionDetailView: View {
         // MARK: - View Modifiers
         .navigationTitle(collection.name)
         .toolbar { trailingToolbar }
-        .sheet(item: $selectedScanForInsight) { _ in
+        .sheet(item: $selectedScanForInsight) { record in
             InsightSheetView(isPresented: Binding(
                 get: { selectedScanForInsight != nil },
                 set: { if !$0 { selectedScanForInsight = nil } }
-            ), inferenceEngine: inferenceEngine)
+            ), initialRecord: record, inferenceEngine: inferenceEngine)
         }
         .sheet(isPresented: $showScanSelection) {
             SelectMultipleScansView(collection: collection)

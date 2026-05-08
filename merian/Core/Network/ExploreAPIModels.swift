@@ -204,6 +204,7 @@ struct ExploreMarkNotificationsReadResponse: Decodable {
 
 struct ExplorePostDetail: Decodable {
     let postId: String
+    let fieldNotes: String?
     let speciesDictionaryId: String?
     let taxonomyKingdom: String?
     let taxonomyPhylum: String?
@@ -288,6 +289,12 @@ struct ExplorePostDetail: Decodable {
     var trimmedAiReasoning: String? {
         guard let aiReasoning else { return nil }
         let trimmed = aiReasoning.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var trimmedFieldNotes: String? {
+        guard let fieldNotes else { return nil }
+        let trimmed = fieldNotes.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 

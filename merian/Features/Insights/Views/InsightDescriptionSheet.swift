@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Read-only sheet overlay presenting the user's un-truncated description.
+/// Read-only sheet overlay presenting the user's un-truncated analysis description.
 struct InsightDescriptionSheet: View {
     let text: String
-    
+
     var body: some View {
         NavigationStack {
             ScrollView {

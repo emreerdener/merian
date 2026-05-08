@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ExploreObservationContextCard: View {
     let post: ExplorePost
+    let detail: ExplorePostDetail?
 
     private var rows: [ExploreObservationContextRow] {
         var rows: [ExploreObservationContextRow] = []
@@ -52,7 +53,9 @@ struct ExploreObservationContextCard: View {
     }
 
     var body: some View {
-        if !rows.isEmpty {
+        let fieldNotes = detail?.trimmedFieldNotes
+
+        if fieldNotes != nil || !rows.isEmpty {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 8) {
                     Image(systemName: "viewfinder")
@@ -70,6 +73,27 @@ struct ExploreObservationContextCard: View {
                             valueIcon: row.valueIcon
                         )
                     }
+                }
+
+                if let fieldNotes {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("FIELD NOTES")
+                            .font(.system(.caption, design: .monospaced))
+                            .fontWeight(.bold)
+                            .tracking(1)
+                            .foregroundColor(.secondary)
+
+                        Text(fieldNotes)
+                            .font(.system(.body))
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                    )
                 }
             }
             .card()

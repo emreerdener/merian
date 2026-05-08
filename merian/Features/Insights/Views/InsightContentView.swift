@@ -15,6 +15,7 @@ struct InsightContentView: View {
     // MARK: - Layout Constants
     private let overlapRadius: CGFloat = 32
     private let imageSize: CGFloat = UIScreen.main.bounds.width
+    @State private var isObservationSheetPresented = false
 
     // MARK: - View
     var body: some View {
@@ -42,7 +43,7 @@ struct InsightContentView: View {
                             guard activeQueuedContext == nil else { return }
                             inferenceEngine.dropInvalidCarouselImage(path)
                         },
-                        onDescriptionTap: { viewModel.state.isDescriptionSheetPresented = true }
+                        onDescriptionTap: { isObservationSheetPresented = true }
                     )
                         .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)
                         .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
@@ -116,7 +117,16 @@ struct InsightContentView: View {
                 )
             }
         }
-        .sheet(isPresented: $viewModel.state.isDescriptionSheetPresented) {
+        .sheet(isPresented: $viewModel.state.isFieldNotesSheetPresented) {
+            FieldNotesSheet(
+                text: Binding(
+                    get: { viewModel.fieldNotesText },
+                    set: { viewModel.updateFieldNotes($0, modelContext: modelContext) }
+                ),
+                promptContext: viewModel.fieldNotesPromptContext
+            )
+        }
+        .sheet(isPresented: $isObservationSheetPresented) {
             if let context = viewModel.observationContext {
                 InsightDescriptionSheet(text: context.freeText)
             }

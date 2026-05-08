@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct NonBiologicalView: View {
+    @Bindable var viewModel: InsightSheetViewModel
     let species: SpeciesData
     let commonName: String
     var timestamp: Date?
@@ -26,6 +27,14 @@ struct NonBiologicalView: View {
              }
             .frame(maxWidth: .infinity)
             .card()
+
+            FieldNotesCard(
+                previewText: viewModel.fieldNotesText,
+                promptContext: viewModel.fieldNotesPromptContext,
+                action: {
+                    viewModel.state.isFieldNotesSheetPresented = true
+                }
+            )
             
             ScanInformationCard(speciesData: species, timestamp: timestamp)
             

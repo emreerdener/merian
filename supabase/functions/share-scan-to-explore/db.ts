@@ -87,6 +87,7 @@ export async function fetchShareEligibleScan(
 export async function upsertExplorePost(
   scanId: string,
   userId: string,
+  fieldNotes: string | null,
   supabaseAdmin: SupabaseClient,
 ): Promise<{ id: string; shared_at: string }> {
   const { data, error } = await supabaseAdmin
@@ -95,6 +96,7 @@ export async function upsertExplorePost(
       {
         scan_id: scanId,
         user_id: userId,
+        field_notes: fieldNotes,
         shared_at: new Date().toISOString(),
         unshared_at: null,
       },

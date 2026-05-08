@@ -2,6 +2,7 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 export interface ExplorePostDetailRow {
   post_id: string;
+  field_notes?: string | null;
   species_dictionary_id?: string | null;
   taxonomy_kingdom?: string | null;
   taxonomy_phylum?: string | null;

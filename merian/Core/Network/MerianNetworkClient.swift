@@ -820,20 +820,27 @@ final class MerianNetworkClient {
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
     }
 
-    func shareScanToExplore(scanId: String, restoredObjectKeys: [String]? = nil) async throws -> ExploreShareResponse {
+    func shareScanToExplore(
+        scanId: String,
+        restoredObjectKeys: [String]? = nil,
+        fieldNotes: String? = nil
+    ) async throws -> ExploreShareResponse {
         let functionUrl = try endpointURL("share-scan-to-explore")
         var payload: [String: Any] = ["scan_id": scanId]
         if let restoredObjectKeys, !restoredObjectKeys.isEmpty {
             payload["restored_object_keys"] = restoredObjectKeys
+        }
+        if let fieldNotes {
+            payload["field_notes"] = fieldNotes
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(ExploreShareResponse.self, from: data)
     }
 
-    func shareScanToExplore(scan: LocalScanRecord) async throws -> ExploreShareResponse {
+    func shareScanToExplore(scan: LocalScanRecord, fieldNotes: String? = nil) async throws -> ExploreShareResponse {
         do {
-            return try await shareScanToExplore(scanId: scan.id)
+            return try await shareScanToExplore(scanId: scan.id, fieldNotes: fieldNotes)
         } catch {
             guard shouldAttemptExploreMediaRestore(after: error) else {
                 throw error
@@ -846,7 +853,8 @@ final class MerianNetworkClient {
 
             return try await shareScanToExplore(
                 scanId: scan.id,
-                restoredObjectKeys: restoredObjectKeys
+                restoredObjectKeys: restoredObjectKeys,
+                fieldNotes: fieldNotes
             )
         }
     }

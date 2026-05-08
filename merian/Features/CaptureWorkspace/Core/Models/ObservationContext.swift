@@ -17,15 +17,18 @@ struct ObservationContext: Codable, Equatable, Sendable {
 
     /// True when the user has not selected any identifying descriptors.
     var isEmpty: Bool {
-        freeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        trimmedFreeText.isEmpty
+    }
+
+    var trimmedFreeText: String {
+        freeText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Serializes the context into a structured plain-text block for the Gemini prompt.
     /// Since the Describe route is now purely text-first, this just wraps the input securely.
     func serialized() -> String {
-        let trimmed = freeText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            return "\(trimmed)"
+        if !trimmedFreeText.isEmpty {
+            return "\(trimmedFreeText)"
         }
         return ""
     }

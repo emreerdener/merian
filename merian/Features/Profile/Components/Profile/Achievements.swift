@@ -193,12 +193,13 @@ private struct AchievementDetailSheet: View {
             }
         }
         .accessibilityIdentifier("AchievementDetailSheet_\(award.type.rawValue)")
-        .sheet(item: $selectedScanForInsight) { _ in
+        .sheet(item: $selectedScanForInsight) { record in
             InsightSheetView(
                 isPresented: Binding(
                     get: { selectedScanForInsight != nil },
                     set: { if !$0 { selectedScanForInsight = nil } }
                 ),
+                initialRecord: record,
                 inferenceEngine: inferenceEngine
             )
         }

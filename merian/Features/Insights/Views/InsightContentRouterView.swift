@@ -21,7 +21,7 @@ struct InsightContentRouterView: View {
                             .background(Color(uiColor: .systemBackground))
                             .transition(.opacity)
                     } else {
-                        AnalyzingContentView()
+                        AnalyzingContentView(viewModel: viewModel)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             .background(Color(uiColor: .systemBackground))
                             .transition(.opacity)
@@ -36,6 +36,7 @@ struct InsightContentRouterView: View {
                 case .nonBiological:
                     if let speciesData = inferenceEngine.speciesData {
                         NonBiologicalView(
+                            viewModel: viewModel,
                             species: speciesData,
                             commonName: speciesData.commonName.capitalized,
                             timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp

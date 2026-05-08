@@ -429,7 +429,8 @@ actor BackgroundDatabaseActor {
         captureDate: Date,
         capturedMediaJSON: String? = nil,
         coverImagePath: String? = nil,
-        isLiveCapture: Bool
+        isLiveCapture: Bool,
+        fieldNotes: String? = nil
     ) -> LocalScanRecord {
         let record = LocalScanRecord(
             id: recordId,
@@ -475,7 +476,8 @@ actor BackgroundDatabaseActor {
             ecologicalInteractions: mappedData.ecologicalInteractions,
             inferenceTier: mappedData.inferenceTier,
             imageQualityScore: mappedData.imageQualityScore,
-            alternativeCommonNames: mappedData.alternativeCommonNames
+            alternativeCommonNames: mappedData.alternativeCommonNames,
+            fieldNotes: fieldNotes
         )
 
         if let capturedMediaJSON,
@@ -486,6 +488,22 @@ actor BackgroundDatabaseActor {
         }
 
         return record
+    }
+
+    private func resolvedFieldNotesText(for scanId: String) -> String? {
+        var localDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        localDescriptor.fetchLimit = 1
+        if let localNotes = (try? modelContext.fetch(localDescriptor))?.first?.fieldNotes?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !localNotes.isEmpty {
+            return localNotes
+        }
+
+        var queuedDescriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        queuedDescriptor.fetchLimit = 1
+        let queuedNotes = (try? modelContext.fetch(queuedDescriptor))?.first?.fieldNotes?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (queuedNotes?.isEmpty == false) ? queuedNotes : nil
     }
 
     /// Idempotently inserts a new LocalScanRecord.
@@ -506,6 +524,7 @@ actor BackgroundDatabaseActor {
         let alreadyExists = (try? modelContext.fetch(existingIdDescriptor))?.isEmpty == false
 
         if !alreadyExists {
+            let resolvedFieldNotes = resolvedFieldNotesText(for: recordId)
             let resolvedCapturedMediaJSON: String?
             if let capturedMediaJSON {
                 resolvedCapturedMediaJSON = capturedMediaJSON
@@ -525,7 +544,8 @@ actor BackgroundDatabaseActor {
                 captureDate: originalTimestamp,
                 capturedMediaJSON: resolvedCapturedMediaJSON,
                 coverImagePath: originalImagePaths.first,
-                isLiveCapture: mappedData.isLiveCapture
+                isLiveCapture: mappedData.isLiveCapture,
+                fieldNotes: resolvedFieldNotes
             )
 
             modelContext.insert(record)
@@ -615,6 +635,7 @@ actor BackgroundDatabaseActor {
         )
 
         let recordId = mappedData.scanId ?? UUID().uuidString
+        let preservedFieldNotes = resolvedFieldNotesText(for: recordId)
         
         // Prevent duplicate insertion collisions or silent drops from offline queue background races.
         // If the offline queue already inserted a skeleton/partial record, purge it so the 
@@ -633,7 +654,8 @@ actor BackgroundDatabaseActor {
             captureDate: Date(), // Live captures always match current time
             capturedMediaJSON: capturedMediaJSON,
             coverImagePath: localImagePaths.first,
-            isLiveCapture: mappedData.isLiveCapture
+            isLiveCapture: mappedData.isLiveCapture,
+            fieldNotes: preservedFieldNotes
         )
         modelContext.insert(record)
         do {
@@ -683,6 +705,7 @@ actor BackgroundDatabaseActor {
         )
 
         let recordId = mappedData.scanId ?? UUID().uuidString
+        let preservedFieldNotes = resolvedFieldNotesText(for: recordId)
         var collisionDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == recordId })
         collisionDescriptor.fetchLimit = 1
         if let existing = (try? modelContext.fetch(collisionDescriptor))?.first {
@@ -697,7 +720,8 @@ actor BackgroundDatabaseActor {
             captureDate: Date(),
             capturedMediaJSON: capturedMediaJSON,
             coverImagePath: nil,
-            isLiveCapture: false
+            isLiveCapture: false,
+            fieldNotes: preservedFieldNotes
         )
         modelContext.insert(record)
         do {

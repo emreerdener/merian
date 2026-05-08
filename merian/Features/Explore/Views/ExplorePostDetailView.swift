@@ -42,7 +42,7 @@ struct ExplorePostDetailView: View {
 
                                 insightCardsSection(for: post)
 
-                                ExploreObservationContextCard(post: post)
+                                ExploreObservationContextCard(post: post, detail: detail)
                             }
                             .padding(.horizontal, 16)
                             .padding(.top, 16)

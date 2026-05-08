@@ -13,16 +13,29 @@ struct InsightSheetView: View {
 
     @Binding var isPresented: Bool
     var queuedScan: QueuedScanContext?
+    var initialRecord: LocalScanRecord?
 
     // MARK: - State
     @State private var viewModel: InsightSheetViewModel
 
-    // Seed queuedContext at @State initialization time so contentMode resolves
-    // to .queued on the very first render, before onAppear fires.
-    init(isPresented: Binding<Bool>, queuedScan: QueuedScanContext? = nil, inferenceEngine: InferenceEngine? = nil) {
+    // Seed queued scans and persisted records at @State initialization time so the
+    // first render reflects the correct content path before onAppear finishes rebinding.
+    init(
+        isPresented: Binding<Bool>,
+        queuedScan: QueuedScanContext? = nil,
+        initialRecord: LocalScanRecord? = nil,
+        inferenceEngine: InferenceEngine? = nil
+    ) {
         _isPresented = isPresented
         self.queuedScan = queuedScan
-        _viewModel = State(initialValue: InsightSheetViewModel(queuedContext: queuedScan, inferenceEngine: inferenceEngine))
+        self.initialRecord = initialRecord
+        _viewModel = State(
+            initialValue: InsightSheetViewModel(
+                queuedContext: queuedScan,
+                initialRecord: initialRecord,
+                inferenceEngine: inferenceEngine
+            )
+        )
     }
     
     // MARK: - Data Layer
@@ -46,6 +59,9 @@ struct InsightSheetView: View {
                     // resolve on the first frame rather than waiting for InsightContentView's onAppear.
                     viewModel.inferenceEngine = inferenceEngine
                     viewModel.queuedContext = queuedScan
+                    if let initialRecord {
+                        viewModel.bindPresentedRecord(initialRecord, modelContext: modelContext)
+                    }
                     viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
                     // Suppress foreground inference banners while the sheet is visible —
                     // the user can already see the result. PushNotificationManager.willPresent
@@ -77,6 +93,9 @@ struct InsightSheetView: View {
                     if oldScan != nil && newScan == nil {
                         viewModel.queuedContext = nil
                     }
+                }
+                .task(id: viewModel.persistentScanId) {
+                    viewModel.syncFieldNotesFromCurrentScan(modelContext: modelContext)
                 }
                 .task(id: inferenceEngine.speciesData?.scanId) {
                     // Queued scans have no speciesData — skip the record fetch and name load.
@@ -149,7 +168,7 @@ struct InsightSheetView: View {
         .sheet(isPresented: $viewModel.state.showExploreOnboarding) {
             ExploreOnboardingPrompt(
                 onShare: {
-                    Task { await viewModel.shareToExplore() }
+                    Task { await viewModel.shareToExplore(includeFieldNotes: false) }
                     viewModel.state.showExploreOnboarding = false
                 },
                 onDismiss: {
@@ -235,10 +254,11 @@ private extension InsightSheetView {
             },
             showNewCollectionAlert: $viewModel.state.showNewCollectionAlert,
             shareExternally: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) },
-            onShareToExplore: viewModel.canShareToExplore ? {
-                Task { await viewModel.shareToExplore() }
+            onShareToExplore: viewModel.canShareToExplore ? { includeFieldNotes in
+                Task { await viewModel.shareToExplore(includeFieldNotes: includeFieldNotes) }
             } : nil,
             isSharingToExplore: viewModel.state.isSharingToExplore,
+            fieldNotesPreview: viewModel.shareableFieldNotes,
             sharedExplorePostId: viewModel.state.sharedExplorePostId,
             onViewInExplore: {
                 viewModel.state.showExploreSheet = true

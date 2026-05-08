@@ -36,6 +36,24 @@ function normalizeRestoredObjectKeys(value: unknown, userId: string): string[] {
   return normalized;
 }
 
+function normalizeFieldNotes(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value !== "string") {
+    throw makeHttpError(400, "field_notes must be a string.");
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  if (trimmed.length > 1000) {
+    throw makeHttpError(400, "field_notes must be 1000 characters or fewer.");
+  }
+
+  return trimmed;
+}
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
@@ -47,10 +65,11 @@ serve((req: Request) =>
 
     const scanId = requireUuid(body.scan_id, "scan_id");
     const restoredObjectKeys = normalizeRestoredObjectKeys(body.restored_object_keys, user.id);
+    const fieldNotes = normalizeFieldNotes(body.field_notes);
 
     await fetchShareEligibleScan(scanId, user.id, restoredObjectKeys, supabaseAdmin);
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
-    const post = await upsertExplorePost(scanId, user.id, supabaseAdmin);
+    const post = await upsertExplorePost(scanId, user.id, fieldNotes, supabaseAdmin);
 
     return jsonResponse({
       success: true,

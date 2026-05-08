@@ -36,11 +36,11 @@ struct ScansSheetModifiers: ViewModifier {
                     }
                 }
             }
-            .sheet(item: $selectedScanForInsight) { _ in
+            .sheet(item: $selectedScanForInsight) { record in
                 InsightSheetView(isPresented: Binding(
                     get: { selectedScanForInsight != nil },
                     set: { if !$0 { selectedScanForInsight = nil } }
-                ), inferenceEngine: inferenceEngine)
+                ), initialRecord: record, inferenceEngine: inferenceEngine)
             }
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchManager.searchQuery, isPresented: $isSearchFocused, placement: .toolbar, prompt: activeTab == .library ? "Search keywords, habitats, colors..." : "Search collections...")

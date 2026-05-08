@@ -24,10 +24,26 @@ import Observation
         activeQuestionIndex = 1
     }
 
+    func configureInsightFlow(for subjectId: String?) {
+        if let subjectId, let funnel = subjectFunnels[subjectId] {
+            activeSubjectId = subjectId
+            activeQuestions = funnel + insightTelemetryQuestions
+        } else {
+            activeSubjectId = nil
+            activeQuestions = Array(guidedQuestions.dropFirst())
+        }
+        interactedQuestionIndices = []
+        activeQuestionIndex = 0
+    }
+
     func resetFunnel() {
         activeSubjectId = nil
         activeQuestions = guidedQuestions
         interactedQuestionIndices = []
         activeQuestionIndex = 0
+    }
+
+    private var insightTelemetryQuestions: [GuidedQuestion] {
+        [guidedQuestions[1], guidedQuestions[2], guidedQuestions.last!]
     }
 }
