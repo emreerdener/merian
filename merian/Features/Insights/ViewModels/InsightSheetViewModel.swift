@@ -2,6 +2,118 @@ import SafariServices
 import SwiftData
 import SwiftUI
 
+enum FieldNotesPromptContext: Equatable {
+    case analyzing
+    case resolved(subjectId: String?)
+
+    var subjectId: String? {
+        switch self {
+        case .analyzing:
+            return nil
+        case .resolved(let subjectId):
+            return subjectId
+        }
+    }
+
+    var suggestedHint: String {
+        switch self {
+        case .analyzing:
+            return "Capture the subject group first, then add behavior, habitat, and anything memorable while the ID runs."
+        case .resolved(.some("subj_bird")):
+            return "Capture plumage, beak shape, and what it was doing."
+        case .resolved(.some("subj_insec")):
+            return "Capture wing posture, body texture, and standout markings."
+        case .resolved(.some("subj_spid")):
+            return "Capture body shape, web details, and distinctive patterns."
+        case .resolved(.some("subj_rept")):
+            return "Capture skin texture, banding, and exactly where it was resting."
+        case .resolved(.some("subj_plan")):
+            return "Capture leaves, blooms, and where it was growing."
+        case .resolved(.some("subj_mush")):
+            return "Capture cap texture, underside details, and what it was growing from."
+        case .resolved(.some("subj_mamm")):
+            return "Capture fur color, tail shape, and when it was active."
+        case .resolved(.some("subj_fish")):
+            return "Capture body shape, fin details, and the water environment."
+        case .resolved:
+            return "Add any field context the camera could not capture, like behavior, habitat, or sounds."
+        }
+    }
+}
+
+enum FieldNotesPromptResolver {
+    static func context(for speciesData: SpeciesData?) -> FieldNotesPromptContext {
+        guard let speciesData else { return .analyzing }
+        return .resolved(subjectId: subjectId(for: speciesData))
+    }
+
+    static func subjectId(for speciesData: SpeciesData) -> String? {
+        if let kingdom = normalize(speciesData.taxonomy?.kingdom) {
+            if kingdom == "fungi" { return "subj_mush" }
+            if kingdom == "plantae" { return "subj_plan" }
+        }
+
+        if let className = normalize(speciesData.taxonomy?.className) {
+            switch className {
+            case "aves":
+                return "subj_bird"
+            case "insecta":
+                return "subj_insec"
+            case "arachnida":
+                return "subj_spid"
+            case "mammalia":
+                return "subj_mamm"
+            case "amphibia", "reptilia":
+                return "subj_rept"
+            case "actinopterygii", "chondrichthyes", "myxini", "cephalaspidomorphi", "sarcopterygii":
+                return "subj_fish"
+            default:
+                break
+            }
+        }
+
+        let searchCorpus = [
+            speciesData.commonName,
+            speciesData.scientificName,
+            speciesData.taxonomy?.order,
+            speciesData.taxonomy?.family,
+            speciesData.taxonomy?.genus
+        ]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        let searchWords = Set(
+            searchCorpus
+                .split { !$0.isLetter }
+                .map(String.init)
+        )
+
+        let heuristics: [(subjectId: String, tokens: [String])] = [
+            ("subj_bird", ["bird", "sparrow", "owl", "hawk", "eagle", "warbler", "duck", "goose", "heron"]),
+            ("subj_insec", ["insect", "beetle", "butterfly", "moth", "bee", "wasp", "dragonfly"]),
+            ("subj_spid", ["spider", "arachnid", "tarantula", "tick", "mite"]),
+            ("subj_rept", ["snake", "lizard", "frog", "toad", "salamander", "newt", "turtle", "reptile", "amphibian"]),
+            ("subj_plan", ["plant", "flower", "tree", "shrub", "fern", "grass", "moss", "leaf"]),
+            ("subj_mush", ["mushroom", "fungus", "fungi", "toadstool", "lichen"]),
+            ("subj_mamm", ["mammal", "rodent", "rabbit", "hare", "squirrel", "mouse", "bat", "fox", "raccoon", "deer"]),
+            ("subj_fish", ["fish", "shark", "ray", "eel", "salmon", "trout"])
+        ]
+
+        for heuristic in heuristics where heuristic.tokens.contains(where: { token in
+            searchWords.contains(token) || searchCorpus.contains(token)
+        }) {
+            return heuristic.subjectId
+        }
+
+        return nil
+    }
+
+    private static func normalize(_ value: String?) -> String? {
+        value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+}
+
 /// Defines the unified local state graph and primary business logic orchestrating the `InsightSheetView` presentation and data actions.
 @MainActor
 @Observable
@@ -26,6 +138,7 @@ final class InsightSheetViewModel {
     func reset() {
         sharedExploreStateRevision = 0
         sharedExploreStateRequestToken = 0
+        boundFieldNotesScanId = nil
         state = UIState()
         toastActionTitle = nil
         toastAction = nil
@@ -41,13 +154,14 @@ final class InsightSheetViewModel {
     private var cachedActiveMedia: ActiveScanMedia?
     @ObservationIgnored private var sharedExploreStateRevision: UInt64 = 0
     @ObservationIgnored private var sharedExploreStateRequestToken: UInt64 = 0
+    @ObservationIgnored private var boundFieldNotesScanId: String?
 
     // MARK: - Interface State
     struct UIState: Equatable {
         var showCelebration = false
         var showBottomBarTools = false
         var isCommonNameScrolledPast = false
-        var isDescriptionSheetPresented = false
+        var isFieldNotesSheetPresented = false
         var isFlagIssuePresented = false
         var isIdentificationFlagPresented = false
         var showDeleteConfirmation = false
@@ -66,6 +180,7 @@ final class InsightSheetViewModel {
         var showExploreOnboarding = false
         var sharedExplorePostId: String?
         var showExploreSheet = false
+        var fieldNotesText = ""
     }
 
     var state = UIState()
@@ -132,6 +247,26 @@ final class InsightSheetViewModel {
             if case .description(let ctx) = item { return ctx }
         }
         return nil
+    }
+
+    var currentFieldNotesScanId: String? {
+        if let ctx = queuedContext { return ctx.id }
+        return activeLocalRecord?.id
+            ?? inferenceEngine?.activeScanId
+            ?? inferenceEngine?.speciesData?.scanId
+    }
+
+    var fieldNotesText: String {
+        state.fieldNotesText
+    }
+
+    var shareableFieldNotes: String? {
+        let trimmed = state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var fieldNotesPromptContext: FieldNotesPromptContext {
+        FieldNotesPromptResolver.context(for: inferenceEngine?.speciesData)
     }
 
     var totalImages: Int {
@@ -387,14 +522,17 @@ final class InsightSheetViewModel {
         )
     }
 
-    func shareToExplore() async {
+    func shareToExplore(includeFieldNotes: Bool = false) async {
         guard canShareToExplore, let record = activeLocalRecord, !state.isSharingToExplore else { return }
 
         state.isSharingToExplore = true
         defer { state.isSharingToExplore = false }
 
         do {
-            let response = try await MerianNetworkClient.shared.shareScanToExplore(scan: record)
+            let response = try await MerianNetworkClient.shared.shareScanToExplore(
+                scan: record,
+                fieldNotes: includeFieldNotes ? shareableFieldNotes : nil
+            )
             UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenExplorePost)
             cacheSharedExplorePostId(response.postId, for: record.id)
             HapticManager.shared.triggerSuccessPulse()
@@ -464,7 +602,65 @@ final class InsightSheetViewModel {
             activeLocalRecord = record
             refreshSharedExploreStateFromLocalCache(scanId: scanId)
             cachedActiveMedia = record.capturedMediaSnapshot.activeScanMedia
+            syncFieldNotesFromCurrentScan(modelContext: modelContext)
             markRecordViewedIfAppropriate(modelContext: modelContext)
+        }
+    }
+
+    func updateFieldNotes(_ text: String, modelContext: ModelContext) {
+        state.fieldNotesText = text
+        persistFieldNotes(text, modelContext: modelContext)
+    }
+
+    func syncFieldNotesFromCurrentScan(modelContext: ModelContext) {
+        let currentScanId = currentFieldNotesScanId
+        let existingDraft = state.fieldNotesText
+
+        guard currentScanId != boundFieldNotesScanId else {
+            guard let currentScanId else { return }
+
+            let persistedFieldNotes = persistedFieldNotes(for: currentScanId, modelContext: modelContext) ?? ""
+            if let activeLocalRecord,
+               activeLocalRecord.id == currentScanId,
+               activeLocalRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                let promotableFieldNotes = existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? persistedFieldNotes
+                    : existingDraft
+                if !promotableFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    state.fieldNotesText = promotableFieldNotes
+                    persistFieldNotes(promotableFieldNotes, modelContext: modelContext)
+                    return
+                }
+            }
+
+            if persistedFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               !existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                persistFieldNotes(existingDraft, modelContext: modelContext)
+            } else if existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      !persistedFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                state.fieldNotesText = persistedFieldNotes
+            }
+            return
+        }
+
+        let previousScanId = boundFieldNotesScanId
+        boundFieldNotesScanId = currentScanId
+
+        guard let currentScanId else {
+            if previousScanId != nil {
+                state.fieldNotesText = ""
+            }
+            return
+        }
+
+        let storedFieldNotes = persistedFieldNotes(for: currentScanId, modelContext: modelContext) ?? ""
+        let hasExistingDraft = !existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasStoredFieldNotes = !storedFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        if previousScanId == nil, hasExistingDraft, !hasStoredFieldNotes {
+            persistFieldNotes(existingDraft, modelContext: modelContext)
+        } else {
+            state.fieldNotesText = storedFieldNotes
         }
     }
 
@@ -544,6 +740,95 @@ final class InsightSheetViewModel {
             for: scanId,
             bumpRevision: true
         )
+    }
+
+    @discardableResult
+    private func persistFieldNotes(_ text: String, modelContext: ModelContext) -> Bool {
+        guard let scanId = currentFieldNotesScanId else { return false }
+        boundFieldNotesScanId = scanId
+
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let activeLocalRecord, activeLocalRecord.id == scanId {
+            let existing = activeLocalRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard existing != trimmed || activeLocalRecord.fieldNotes != text else { return false }
+            activeLocalRecord.fieldNotes = trimmed.isEmpty ? nil : text
+            try? modelContext.save()
+            migrateLegacyFieldNotesIfNeeded(for: scanId, consumedText: text)
+            return true
+        }
+
+        let recordDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        if let record = (try? modelContext.fetch(recordDescriptor))?.first {
+            let existing = record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard existing != trimmed || record.fieldNotes != text else { return false }
+            record.fieldNotes = trimmed.isEmpty ? nil : text
+            if activeLocalRecord?.id == scanId {
+                activeLocalRecord = record
+            }
+            try? modelContext.save()
+            migrateLegacyFieldNotesIfNeeded(for: scanId, consumedText: text)
+            return true
+        }
+
+        let queuedDescriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        if let queuedScan = (try? modelContext.fetch(queuedDescriptor))?.first {
+            let existing = queuedScan.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard existing != trimmed || queuedScan.fieldNotes != text else { return false }
+            queuedScan.fieldNotes = trimmed.isEmpty ? nil : text
+            try? modelContext.save()
+            migrateLegacyFieldNotesIfNeeded(for: scanId, consumedText: text)
+            return true
+        }
+
+        return false
+    }
+
+    private func persistedFieldNotes(for scanId: String, modelContext: ModelContext) -> String? {
+        let recordFieldNotes: String? = {
+            if let activeLocalRecord, activeLocalRecord.id == scanId {
+                return activeLocalRecord.fieldNotes
+            }
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+            return (try? modelContext.fetch(descriptor))?.first?.fieldNotes
+        }()
+
+        let trimmedRecordFieldNotes = recordFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedRecordFieldNotes?.isEmpty == false {
+            clearLegacyFieldNotesIfNeeded(for: scanId)
+            return recordFieldNotes
+        }
+
+        let queuedDescriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        let queuedFieldNotes = (try? modelContext.fetch(queuedDescriptor))?.first?.fieldNotes
+        let trimmedQueuedFieldNotes = queuedFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedQueuedFieldNotes?.isEmpty == false {
+            clearLegacyFieldNotesIfNeeded(for: scanId)
+            return queuedFieldNotes
+        }
+
+        let legacyFieldNotes = FieldNotesStore.fieldNotes(for: scanId)
+        if let legacyFieldNotes, !legacyFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            state.fieldNotesText = legacyFieldNotes
+            _ = persistFieldNotes(legacyFieldNotes, modelContext: modelContext)
+            clearLegacyFieldNotesIfNeeded(for: scanId)
+            return legacyFieldNotes
+        }
+
+        return nil
+    }
+
+    private func migrateLegacyFieldNotesIfNeeded(for scanId: String, consumedText: String) {
+        let legacyFieldNotes = FieldNotesStore.fieldNotes(for: scanId)
+        let trimmedConsumedText = consumedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLegacyFieldNotes = legacyFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmedConsumedText == trimmedLegacyFieldNotes || trimmedConsumedText.isEmpty {
+            clearLegacyFieldNotesIfNeeded(for: scanId)
+        }
+    }
+
+    private func clearLegacyFieldNotesIfNeeded(for scanId: String) {
+        FieldNotesStore.setFieldNotes(nil, for: scanId)
     }
 
     private func applySharedExplorePostId(_ postId: String?, for scanId: String?, bumpRevision: Bool) {
