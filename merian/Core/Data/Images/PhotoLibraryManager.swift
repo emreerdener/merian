@@ -19,8 +19,10 @@ import UniformTypeIdentifiers
     
     // MARK: - Hardware Lifecycle
     private var isObserving = false
+    @ObservationIgnored private let appSettings: AppSettings
     
-    private override init() {
+    init(appSettings: AppSettings? = nil) {
+        self.appSettings = appSettings ?? AppSettings.shared
         super.init()
     }
     
@@ -136,7 +138,7 @@ import UniformTypeIdentifiers
     }
     
     func saveImageToLibrary(imageData: Data, location: CLLocation? = nil) async {
-        let shouldSave = AppSettings.shared.saveToCameraRoll
+        let shouldSave = appSettings.saveToCameraRoll
         guard shouldSave else { return }
         
         let success = await executePhotoLibraryWrite(payload: .data(imageData), location: location, accessLevel: .readWrite)

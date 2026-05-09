@@ -60,10 +60,14 @@ extension UIDevice {
     }
 
     // MARK: - Private
+    @ObservationIgnored private let appSettings: AppSettings
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
-    private init() {
-        setupMonitors()
+    init(appSettings: AppSettings? = nil, observeSystemChanges: Bool = true) {
+        self.appSettings = appSettings ?? AppSettings.shared
+        if observeSystemChanges {
+            setupMonitors()
+        }
         evaluateConstraints()
     }
 
@@ -86,7 +90,7 @@ extension UIDevice {
     func evaluateConstraints(thermalState: ProcessInfo.ThermalState? = nil) {
         let processInfo = ProcessInfo.processInfo
 
-        isExpeditionModeActive = AppSettings.shared.isExpeditionModeActive
+        isExpeditionModeActive = appSettings.isExpeditionModeActive
 
         // Do not overwrite FPS while idling at 1fps.
         guard !isIdleLocked else { return }

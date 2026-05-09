@@ -17,9 +17,14 @@ final class HapticManager {
     private let error = UINotificationFeedbackGenerator()
     private let success = UINotificationFeedbackGenerator()
     private let selection = UISelectionFeedbackGenerator()
+    @ObservationIgnored private let appSettings: AppSettings
+    @ObservationIgnored private let hardwareOrchestrator: HardwareOrchestrator
 
     // MARK: - Lifecycle
-    private init() {
+    init(appSettings: AppSettings? = nil, hardwareOrchestrator: HardwareOrchestrator? = nil) {
+        self.appSettings = appSettings ?? AppSettings.shared
+        self.hardwareOrchestrator = hardwareOrchestrator ?? HardwareOrchestrator.shared
+
         Task { @MainActor in
             // Delay preparation to avoid boot stutters.
             try? await Task.sleep(nanoseconds: 300_000_000)
@@ -84,7 +89,7 @@ final class HapticManager {
     /// active — expedition mode prioritises battery over feedback without permanently
     /// modifying the user's haptics preference.
     private var shouldFire: Bool {
-        AppSettings.shared.isHapticsEnabled &&
-        !HardwareOrchestrator.shared.isExpeditionModeActive
+        appSettings.isHapticsEnabled &&
+        !hardwareOrchestrator.isExpeditionModeActive
     }
 }

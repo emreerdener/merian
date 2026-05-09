@@ -4,22 +4,24 @@ import Foundation
 
 @MainActor
 struct PhotoLibraryManagerTests {
+    private func makeAppSettings() -> AppSettings {
+        let suiteName = "merian.tests.photo-library.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName) ?? .standard
+        userDefaults.removePersistentDomain(forName: suiteName)
+        return AppSettings(userDefaults: userDefaults, observeExternalChanges: false)
+    }
     
     @Test func testSaveToCameraRollToggleDisabled() async {
-        let manager = PhotoLibraryManager.shared
-        
-        // Arrange: Hard toggle off the user defaults
-        UserDefaults.standard.set(false, forKey: "saveToCameraRoll")
+        let appSettings = makeAppSettings()
+        let manager = PhotoLibraryManager(appSettings: appSettings)
+        appSettings.saveToCameraRoll = false
         
         let dummyData = Data("test_image".utf8)
         
         // Act
-        // This should hit the early return `guard UserDefaults... else { return }`
+        // This should hit the early return `guard appSettings.saveToCameraRoll else { return }`
         // We ensure it doesn't execute physical requests to PHPhotoLibrary and cleanly drops.
         await manager.saveImageToLibrary(imageData: dummyData, location: nil)
-        
-        // Cleanup
-        UserDefaults.standard.set(true, forKey: "saveToCameraRoll")
     }
     
     @Test func testStartObservingAndFetchBypassesNotDetermined() async {

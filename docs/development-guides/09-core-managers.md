@@ -68,6 +68,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Governs `UIImpactFeedbackGenerator` tactile feedback.
 - Generates `NotificationFeedback` for success/failure workflows without requiring `AudioToolbox` imports.
 - **Strict Requirement**: Never use `UIImpactFeedbackGenerator` or `.sensoryFeedback` modifiers directly in views. Always route haptic feedback through `HapticManager.shared` API methods (e.g., `triggerSheetSpring()`, `triggerLightImpact()`) to ensure the user's `isHapticsEnabled` preference is respected globally.
+- `HapticManager`, `HardwareOrchestrator`, and `PhotoLibraryManager` keep `.shared` production singletons but accept injected `AppSettings` for isolated tests and previews. Do not reach around those injected boundaries with direct `UserDefaults.standard` writes in tests; mutate the injected `AppSettings` instance instead.
 - **Analysis-phase haptic map**: Four strategic touchpoints span the analyzing experience in `InferenceEngine` and `InsightHeader`:
   - `triggerLightImpact(intensity: 0.3)` — fires when `isVisionStreaming` flips to `true` (Vision pipeline onset).
   - `triggerSelectionPulse()` — fires on every badge phrase rotation tick after the first (every 2.3 s).
@@ -233,6 +234,8 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Injected through `AppDIContainer` and SwiftUI environment. Settings-first views should bind `@Environment(AppSettings.self)` and use `@Bindable var appSettings = appSettings` instead of declaring local `@AppStorage` wrappers.
 - Rule: `UserDefaultsKeys` remains the storage registry; `AppSettings` is the preferred UI-facing boundary.
 - `CaptureWorkspaceViewModel` and its modality extensions read capture preferences through `diContainer.appSettings`, not `AppSettings.shared`, so preview/test containers can isolate multi-capture and confirmation behavior without mutating global defaults.
+- Core hardware/data managers that need settings (`HardwareOrchestrator`, `HapticManager`, `PhotoLibraryManager`) also accept `AppSettings` injection while preserving `.shared` defaults for production wiring.
+- `OfflineQueueManager` owns an injectable `hardwareOrchestrator` reference for the expedition-mode upload gate. Tests that exercise sync gating should replace that reference temporarily instead of mutating `HardwareOrchestrator.shared`.
 
 ## Media & Image Processing
 

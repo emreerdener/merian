@@ -107,7 +107,7 @@ extension OfflineQueueManager {
     ///
     /// Guards: expedition mode, connectivity, and an in-flight sync must all clear.
     func syncPendingScans() {
-        guard !HardwareOrchestrator.shared.isExpeditionModeActive else { return }
+        guard !hardwareOrchestrator.isExpeditionModeActive else { return }
         guard isOnline else { return }
         guard !isSyncing else { return }
         guard let container = modelContext?.container else { return }

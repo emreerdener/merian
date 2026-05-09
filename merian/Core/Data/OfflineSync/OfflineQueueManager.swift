@@ -59,6 +59,8 @@ import SwiftData
     var isCollectionSyncing: Bool = false
     /// SwiftData context injected at app startup via `ScanRepository.configure(with:)`.
     var modelContext: ModelContext?
+    /// Hardware constraints injected for tests/previews; production uses the shared orchestrator.
+    @ObservationIgnored var hardwareOrchestrator = HardwareOrchestrator.shared
 
     /// Active upload batch task. Cancelled immediately on connectivity loss.
     var syncTask: Task<Void, Never>?
