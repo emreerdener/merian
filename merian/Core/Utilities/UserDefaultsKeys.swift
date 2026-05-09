@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import Observation
+import SwiftData
 import UIKit
 
 // MARK: - UserDefaults Key Constants
@@ -181,6 +182,249 @@ enum FieldNotesStore {
         where key.hasPrefix(UserDefaultsKeys.fieldNotesPrefix) {
             userDefaults.removeObject(forKey: key)
         }
+    }
+}
+
+enum SpeciesPreferredNameStore {
+    private static func key(for scientificName: String) -> String {
+        UserDefaultsKeys.speciesPreferredNamePrefix + scientificName
+    }
+
+    static func preferredName(for scientificName: String, userDefaults: UserDefaults = .standard) -> String? {
+        guard !scientificName.isEmpty else { return nil }
+        let value = userDefaults.string(forKey: key(for: scientificName))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (value?.isEmpty == false) ? value : nil
+    }
+
+    static func setPreferredName(_ name: String?, for scientificName: String, userDefaults: UserDefaults = .standard) {
+        guard !scientificName.isEmpty else { return }
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let name, trimmed?.isEmpty == false {
+            userDefaults.set(name, forKey: key(for: scientificName))
+        } else {
+            userDefaults.removeObject(forKey: key(for: scientificName))
+        }
+    }
+
+    static func clearPreferredName(for scientificName: String, userDefaults: UserDefaults = .standard) {
+        setPreferredName(nil, for: scientificName, userDefaults: userDefaults)
+    }
+
+    static func clearAll(userDefaults: UserDefaults = .standard) {
+        for key in userDefaults.dictionaryRepresentation().keys
+        where key.hasPrefix(UserDefaultsKeys.speciesPreferredNamePrefix) {
+            userDefaults.removeObject(forKey: key)
+        }
+    }
+}
+
+@MainActor
+enum SpeciesPreferredNameRepository {
+    private static let maxPreferredNameBatchSize = 1_000
+
+    static func preferredName(
+        for scientificName: String,
+        modelContext: ModelContext,
+        legacyDefaults: UserDefaults = .standard
+    ) -> String? {
+        let scientificName = normalizedScientificName(scientificName)
+        guard !scientificName.isEmpty else { return nil }
+
+        if let record = fetchPreference(for: scientificName, modelContext: modelContext) {
+            let preferredName = normalizedPreferredName(record.preferredCommonName)
+            if let preferredName {
+                SpeciesPreferredNameStore.setPreferredName(preferredName, for: scientificName, userDefaults: legacyDefaults)
+                return preferredName
+            }
+        }
+
+        guard let legacyName = SpeciesPreferredNameStore.preferredName(
+            for: scientificName,
+            userDefaults: legacyDefaults
+        ) else {
+            return nil
+        }
+
+        _ = setPreferredName(
+            legacyName,
+            for: scientificName,
+            modelContext: modelContext,
+            legacyDefaults: legacyDefaults
+        )
+        return legacyName
+    }
+
+    static func preferredNames(
+        for scientificNames: [String],
+        modelContext: ModelContext,
+        legacyDefaults: UserDefaults = .standard
+    ) -> [String: String] {
+        let normalizedNames = Array(
+            Set(
+                scientificNames
+                    .map(normalizedScientificName)
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted()
+
+        if normalizedNames.count > maxPreferredNameBatchSize {
+            MerianLog.data.error(
+                "Truncating species preferred-name batch from \(normalizedNames.count, privacy: .public) to \(maxPreferredNameBatchSize, privacy: .public)"
+            )
+        }
+
+        var namesByScientificName: [String: String] = [:]
+        let boundedNames = Array(normalizedNames.prefix(maxPreferredNameBatchSize))
+        let recordsByScientificName = fetchPreferences(for: boundedNames, modelContext: modelContext)
+        namesByScientificName.reserveCapacity(boundedNames.count)
+
+        for scientificName in boundedNames {
+            if let record = recordsByScientificName[scientificName],
+               let preferredName = normalizedPreferredName(record.preferredCommonName) {
+                SpeciesPreferredNameStore.setPreferredName(preferredName, for: scientificName, userDefaults: legacyDefaults)
+                namesByScientificName[scientificName] = preferredName
+                continue
+            }
+
+            guard let legacyName = SpeciesPreferredNameStore.preferredName(
+                for: scientificName,
+                userDefaults: legacyDefaults
+            ) else {
+                continue
+            }
+
+            _ = setPreferredName(
+                legacyName,
+                for: scientificName,
+                modelContext: modelContext,
+                legacyDefaults: legacyDefaults
+            )
+            namesByScientificName[scientificName] = legacyName
+        }
+
+        return namesByScientificName
+    }
+
+    @discardableResult
+    static func setPreferredName(
+        _ name: String?,
+        for scientificName: String,
+        modelContext: ModelContext,
+        legacyDefaults: UserDefaults = .standard
+    ) -> Bool {
+        let scientificName = normalizedScientificName(scientificName)
+        guard !scientificName.isEmpty else { return false }
+
+        guard let preferredName = normalizedPreferredName(name) else {
+            return clearPreferredName(
+                for: scientificName,
+                modelContext: modelContext,
+                legacyDefaults: legacyDefaults
+            )
+        }
+
+        do {
+            if let existing = fetchPreference(for: scientificName, modelContext: modelContext) {
+                existing.preferredCommonName = preferredName
+                existing.updatedAt = Date()
+            } else {
+                modelContext.insert(
+                    UserSpeciesPreference(
+                        scientificName: scientificName,
+                        preferredCommonName: preferredName
+                    )
+                )
+            }
+
+            try modelContext.save()
+            SpeciesPreferredNameStore.setPreferredName(preferredName, for: scientificName, userDefaults: legacyDefaults)
+            return true
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error("Failed to save species preferred name for \(scientificName, privacy: .private): \(error.localizedDescription, privacy: .private)")
+            return false
+        }
+    }
+
+    @discardableResult
+    static func clearPreferredName(
+        for scientificName: String,
+        modelContext: ModelContext,
+        legacyDefaults: UserDefaults = .standard
+    ) -> Bool {
+        let scientificName = normalizedScientificName(scientificName)
+        guard !scientificName.isEmpty else { return false }
+
+        guard let existing = fetchPreference(for: scientificName, modelContext: modelContext) else {
+            SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
+            return true
+        }
+
+        do {
+            modelContext.delete(existing)
+            try modelContext.save()
+            SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
+            return true
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error("Failed to clear species preferred name for \(scientificName, privacy: .private): \(error.localizedDescription, privacy: .private)")
+            return false
+        }
+    }
+
+    private static func fetchPreference(
+        for scientificName: String,
+        modelContext: ModelContext
+    ) -> UserSpeciesPreference? {
+        let targetScientificName = scientificName
+        var descriptor = FetchDescriptor<UserSpeciesPreference>(
+            predicate: #Predicate<UserSpeciesPreference> { $0.scientificName == targetScientificName }
+        )
+        descriptor.fetchLimit = 1
+
+        do {
+            return try modelContext.fetch(descriptor).first
+        } catch {
+            MerianLog.data.error("Failed to fetch species preferred name for \(scientificName, privacy: .private): \(error.localizedDescription, privacy: .private)")
+            return nil
+        }
+    }
+
+    private static func fetchPreferences(
+        for scientificNames: [String],
+        modelContext: ModelContext
+    ) -> [String: UserSpeciesPreference] {
+        guard !scientificNames.isEmpty else { return [:] }
+
+        let targetScientificNames = scientificNames
+        var descriptor = FetchDescriptor<UserSpeciesPreference>(
+            predicate: #Predicate<UserSpeciesPreference> { targetScientificNames.contains($0.scientificName) }
+        )
+        descriptor.fetchLimit = targetScientificNames.count
+
+        do {
+            let records = try modelContext.fetch(descriptor)
+            var recordsByScientificName: [String: UserSpeciesPreference] = [:]
+            recordsByScientificName.reserveCapacity(records.count)
+            for record in records where recordsByScientificName[record.scientificName] == nil {
+                recordsByScientificName[record.scientificName] = record
+            }
+            return recordsByScientificName
+        } catch {
+            MerianLog.data.error("Failed to batch fetch species preferred names: \(error.localizedDescription, privacy: .private)")
+            return [:]
+        }
+    }
+
+    private static func normalizedScientificName(_ scientificName: String) -> String {
+        scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func normalizedPreferredName(_ name: String?) -> String? {
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty == false) ? trimmed : nil
     }
 }
 

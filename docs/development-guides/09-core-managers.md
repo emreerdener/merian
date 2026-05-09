@@ -222,6 +222,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 | `zoomSideLeft` | `"zoomSideLeft"` | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView` |
 | `zoomSliderVisible` | `"zoomSliderVisible"` | `ZoomSliderView`, `CameraSettingsView` |
 | `needsCollectionSync` | `"needsCollectionSync"` | `OfflineQueueManager+Sync` (write on enqueue, clear on success), `ScanRepository` (read/clear during historical sync) |
+| `speciesPreferredNamePrefix` | `"speciesPreferredName_"` | `SpeciesPreferredNameStore` bridge for per-species display-name overrides used by Insights and Explore. |
 
 `KeychainKeys.hasAuthenticatedOAuth` is the single source of truth for the authenticated-session marker used by `SupabaseManager`, `MerianNetworkClient`, and `KeychainManager` migration logic. Do not inline `"Merian_HasAuthenticatedOAuth"`.
 
@@ -232,6 +233,14 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Owns Explore-to-local repair through `promoteExternalFieldNotesIfLocalMissing(...)`. Public Explore notes are accepted only when every local/private store is empty, so publishing or hiding Explore notes cannot erase private scan-library notes.
 - UI code in Insights and Explore should call this repository instead of directly mutating `LocalScanRecord.fieldNotes` or `FieldNotesStore`.
 
+### `SpeciesPreferredNameRepository`
+- `@MainActor` SwiftData-backed repository living beside the typed preference stores in `Core/Utilities/UserDefaultsKeys.swift`.
+- Uses `UserSpeciesPreference` as the source of truth for Insight load/set/clear operations.
+- Falls back to the legacy `SpeciesPreferredNameStore` key-value bridge on read and promotes that legacy value into SwiftData. This preserves existing users' preferences without a separate migration pass.
+- Exposes a bounded display-map helper for Explore feed/map hydration. `ExploreFeedViewModel` owns the observable preferred-name cache and resolves feed cards, map previews, comments, detail titles, and share text from that cache; `ExplorePost` and `ExploreMapPost` remain pure network DTOs.
+- Mirrors successful SwiftData writes back to `SpeciesPreferredNameStore` only after `modelContext.save()` succeeds, so legacy fallback stays available without letting `UserDefaults` claim a preference the database rejected.
+- This is intentionally not part of `AppSettings`: preferred common names are per-species data with local SwiftData durability and eventual cloud backing, not global UI preference state.
+
 ### `AppSettings`
 - `@MainActor @Observable` service living alongside `UserDefaultsKeys` in `Core/Utilities`.
 - Owns the typed, in-memory representation of high-churn persisted settings such as `themeMode`, `isMultiCaptureEnabled`, `requiresScanConfirmation`, `gridColumns`, `saveToCameraRoll`, and notification toggles.
@@ -240,7 +249,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Rule: `UserDefaultsKeys` remains the storage registry; `AppSettings` is the preferred UI-facing boundary for global UI/preferences state.
 - `CaptureWorkspaceViewModel` and its modality extensions read capture preferences through `diContainer.appSettings`, not `AppSettings.shared`, so preview/test containers can isolate multi-capture and confirmation behavior without mutating global defaults.
 - Core hardware/data managers that need settings (`HardwareOrchestrator`, `HapticManager`, `PhotoLibraryManager`) also accept `AppSettings` injection while preserving `.shared` defaults for production wiring.
-- Transient app-wide UI flags (`hasUnseenScan`, Explore unread/chip/onboarding state, post-identification notification prompt state, `suppressInferenceBanners`) now live on `AppSettings` too. Direct `UserDefaults` access is reserved for keyed per-entity stores (`FieldNotesStore`, `ExploreShareStateStore`, species preferred-name keys), migrations, throttle timestamps, and synchronous system delegates that cannot hop to `@MainActor`.
+- Transient app-wide UI flags (`hasUnseenScan`, Explore unread/chip/onboarding state, post-identification notification prompt state, `suppressInferenceBanners`) now live on `AppSettings` too. Direct `UserDefaults` access is reserved for keyed per-entity stores (`FieldNotesStore`, `ExploreShareStateStore`, `SpeciesPreferredNameStore`), migrations, throttle timestamps, and synchronous system delegates that cannot hop to `@MainActor`.
 - `OfflineQueueManager` owns an injectable `hardwareOrchestrator` reference for the expedition-mode upload gate. Tests that exercise sync gating should replace that reference temporarily instead of mutating `HardwareOrchestrator.shared`.
 
 ## Media & Image Processing

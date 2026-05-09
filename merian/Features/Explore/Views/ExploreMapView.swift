@@ -1,4 +1,5 @@
 import MapKit
+import SwiftData
 import SwiftUI
 
 struct ExploreMapView: View {
@@ -11,6 +12,7 @@ struct ExploreMapView: View {
     @Bindable var feedViewModel: ExploreFeedViewModel
     @Bindable var postStore: ExplorePostStore
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
+    @Environment(\.modelContext) private var modelContext
     @State private var ignoreNextBackgroundTap = false
     @State private var isShowingDiscoveriesSheet = false
     @State private var cardDragOffset: CGSize = .zero
@@ -68,9 +70,19 @@ struct ExploreMapView: View {
         .containerRelativeFrame(.horizontal)
         .task {
             await viewModel.loadInitialData(using: environmentContextManager)
+            feedViewModel.refreshPreferredSpeciesNames(
+                for: viewModel.posts.map(\.speciesScientificName),
+                modelContext: modelContext
+            )
         }
         .onChange(of: postStore.changeVersion) { _, _ in
             viewModel.syncPosts(from: postStore.allPosts)
+        }
+        .onChange(of: viewModel.posts) { _, posts in
+            feedViewModel.refreshPreferredSpeciesNames(
+                for: posts.map(\.speciesScientificName),
+                modelContext: modelContext
+            )
         }
         .onChange(of: viewModel.selectedPostId) { _, _ in
             activeCardDragAxis = nil
@@ -364,6 +376,7 @@ struct ExploreMapView: View {
                         let post = postStore.post(id: mapPost.id) ?? mapPost.asExplorePost
                         ExploreMapPreviewCard(
                             post: post,
+                            speciesDisplayName: feedViewModel.resolvedSpeciesCommonName(for: post),
                             mediaReloadGeneration: feedViewModel.mediaReloadGeneration,
                             onOpen: {
                                 isShowingDiscoveriesSheet = false
@@ -604,6 +617,7 @@ struct ExploreMapView: View {
     private func previewCard(for post: ExplorePost, isInteractive: Bool) -> some View {
         ExploreMapPreviewCard(
             post: post,
+            speciesDisplayName: feedViewModel.resolvedSpeciesCommonName(for: post),
             mediaReloadGeneration: feedViewModel.mediaReloadGeneration,
             onOpen: { openPost(post, focusCommentComposer: false) },
             onComments: { openPost(post, focusCommentComposer: true) },
@@ -747,6 +761,7 @@ private struct ExploreMapClusterBubble: View {
 
 private struct ExploreMapPreviewCard: View {
     let post: ExplorePost
+    let speciesDisplayName: String
     let mediaReloadGeneration: UInt64
     let onOpen: () -> Void
     let onComments: () -> Void
@@ -771,7 +786,7 @@ private struct ExploreMapPreviewCard: View {
                     .buttonStyle(.plain)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(post.resolvedSpeciesCommonName)
+                        Text(speciesDisplayName)
                             .font(.headline)
                             .fontWeight(.semibold)
                             .lineLimit(2)

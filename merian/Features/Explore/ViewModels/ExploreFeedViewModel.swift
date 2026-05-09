@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import Supabase
+import SwiftData
 import SwiftUI
 
 struct ExploreNearbyLocationSnapshot: Equatable {
@@ -155,6 +156,7 @@ final class ExploreFeedViewModel {
     var errorMessage: String?
     var toastMessage: String?
     var unreadNotificationCount = 0
+    var preferredSpeciesNamesByScientificName: [String: String] = [:]
 
     var isCommentsSheetPresented = false
     var isNotificationsSheetPresented = false
@@ -213,6 +215,64 @@ final class ExploreFeedViewModel {
 
     func post(id: String) -> ExplorePost? {
         store.post(id: id)
+    }
+
+    func refreshPreferredSpeciesNames(modelContext: ModelContext) {
+        refreshPreferredSpeciesNames(
+            for: store.allPosts.map(\.speciesScientificName),
+            modelContext: modelContext
+        )
+    }
+
+    func refreshPreferredSpeciesNames(
+        for scientificNames: [String],
+        modelContext: ModelContext
+    ) {
+        let normalizedNames = Set(
+            scientificNames
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+        guard !normalizedNames.isEmpty else { return }
+
+        let refreshedNames = SpeciesPreferredNameRepository.preferredNames(
+            for: Array(normalizedNames),
+            modelContext: modelContext
+        )
+
+        var nextNames = preferredSpeciesNamesByScientificName
+        for scientificName in normalizedNames {
+            nextNames.removeValue(forKey: scientificName)
+        }
+        for (scientificName, preferredName) in refreshedNames {
+            nextNames[scientificName] = preferredName
+        }
+        preferredSpeciesNamesByScientificName = nextNames
+    }
+
+    func resolvedSpeciesCommonName(for post: ExplorePost) -> String {
+        resolvedSpeciesCommonName(
+            scientificName: post.speciesScientificName,
+            fallbackCommonName: post.speciesCommonName
+        )
+    }
+
+    func resolvedSpeciesCommonName(
+        scientificName: String,
+        fallbackCommonName: String
+    ) -> String {
+        let scientificName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let preferredName = preferredSpeciesNamesByScientificName[scientificName]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !preferredName.isEmpty {
+            return preferredName
+        }
+
+        let fallbackName = fallbackCommonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !fallbackName.isEmpty {
+            return fallbackName.capitalized
+        }
+
+        return scientificName
     }
 
     var currentNearbyLatitude: Double? {

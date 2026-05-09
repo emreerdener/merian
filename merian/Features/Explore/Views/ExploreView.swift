@@ -83,6 +83,10 @@ struct ExploreView: View {
         .task {
             viewModel.bindSettings(appSettings)
             await viewModel.loadInitialFeed()
+            viewModel.refreshPreferredSpeciesNames(modelContext: modelContext)
+        }
+        .onChange(of: viewModel.store.changeVersion) { _, _ in
+            viewModel.refreshPreferredSpeciesNames(modelContext: modelContext)
         }
         .onChange(of: activeTab) { _, newValue in
             if newValue == .map {
@@ -129,7 +133,12 @@ struct ExploreView: View {
                 }
             )
         }
-        .sheet(item: $selectedInsightRecord) { record in
+        .sheet(
+            item: $selectedInsightRecord,
+            onDismiss: {
+                viewModel.refreshPreferredSpeciesNames(modelContext: modelContext)
+            }
+        ) { record in
             InsightSheetView(
                 isPresented: Binding(
                     get: { selectedInsightRecord != nil },
@@ -183,6 +192,8 @@ struct ExploreView: View {
     }
 
     private func openPostDetail(for post: ExplorePost, focusCommentComposer: Bool = false, openInsight: Bool = false) {
+        viewModel.upsertPost(post)
+        viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
         selectedPostRoute = ExplorePostRoute(
             postId: post.id,
             shouldFocusCommentComposer: focusCommentComposer,
@@ -325,6 +336,7 @@ private struct ExploreFeedTabContent: View {
                     ForEach(viewModel.posts) { post in
                         ExplorePostCard(
                             post: post,
+                            speciesDisplayName: viewModel.resolvedSpeciesCommonName(for: post),
                             mediaReloadGeneration: viewModel.mediaReloadGeneration,
                             onLike: { Task { await viewModel.toggleLike(for: post) } },
                             onComments: { Task { await viewModel.openCommentsSheet(for: post) } },

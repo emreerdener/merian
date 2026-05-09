@@ -115,7 +115,7 @@ struct InsightSheetView: View {
                     }
                     // Load user's preferred display name for this species so resolvedHeaderTitle reflects it.
                     if let scientificName = inferenceEngine.speciesData?.scientificName {
-                        viewModel.loadPreferredCommonName(for: scientificName)
+                        viewModel.loadPreferredCommonName(for: scientificName, modelContext: modelContext)
                     }
                     await viewModel.refreshSharedExploreStateFromServer(modelContext: modelContext)
                 }

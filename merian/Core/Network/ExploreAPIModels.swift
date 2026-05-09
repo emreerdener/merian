@@ -36,14 +36,6 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
         DateUtilities.iso8601FractionalFormatter.date(from: sharedAt)
             ?? DateUtilities.iso8601Formatter.date(from: sharedAt)
     }
-
-    var resolvedSpeciesCommonName: String {
-        let preferred = UserDefaults.standard.string(forKey: UserDefaultsKeys.speciesPreferredNamePrefix + speciesScientificName)
-        if let preferred = preferred, !preferred.isEmpty {
-            return preferred
-        }
-        return speciesCommonName.capitalized
-    }
 }
 
 enum ExploreFeedFilter: String, CaseIterable, Hashable, Identifiable {
@@ -142,14 +134,6 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
 
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-    }
-
-    var resolvedSpeciesCommonName: String {
-        let preferred = UserDefaults.standard.string(forKey: UserDefaultsKeys.speciesPreferredNamePrefix + speciesScientificName)
-        if let preferred = preferred, !preferred.isEmpty {
-            return preferred
-        }
-        return speciesCommonName.capitalized
     }
 
     var asExplorePost: ExplorePost {

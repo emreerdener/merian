@@ -2,9 +2,10 @@ import Foundation
 import SwiftData
 
 /// Persists the user's preferred display name for a species, keyed by scientific name.
-/// Currently, preferences are read/written via UserDefaults (see InsightSheetViewModel).
-/// This entity serves as the SwiftData backing store for eventual cloud sync to
-/// `user_species_preferences` in Supabase; migration from UserDefaults is a future task.
+/// Current production reads/writes flow through `SpeciesPreferredNameRepository`, which uses
+/// SwiftData as the source of truth and mirrors the legacy per-species UserDefaults keys for
+/// no-context Explore display paths. This entity is also the local backing store for eventual
+/// cloud sync to `user_species_preferences` in Supabase.
 /// Added in V34.
 @Model
 public final class UserSpeciesPreference {

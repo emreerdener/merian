@@ -16,7 +16,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `BiologicalView` | Full biological result: taxonomy, ecology badges, confidence, Wikipedia, lookalike diagnostic. Cards enter with a hardware-gated staggered animation via `CardEntranceModifier` (indices 0–9). |
 | `NonBiologicalView` | Simplified result for non-biological subjects (objects, structures); renders a name/description card followed by a `ScanInformationCard` |
 | `InsightHeader` | Scrollable header with species name, description, `ConfidenceBadge`, and conditionally the `ModelTierBadge` pill if the confidence score is a "Possible match". Automatically deduplicates its subtitle (scientific name) if it exactly matches the primary title string. Passes `userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`, and `aiScientificName` from `speciesData` down to `ConfidenceBadge` (and transitively to `ConfidenceExplanationSheet`). Accepts an optional `visionTransitionText: String?` parameter: when non-nil, the paragraph slot renders the captured Apple Vision analysis text first, then cross-fades to Gemini `aiReasoning` after 700 ms via an `.easeInOut(0.45)` opacity transition. The species title is hidden initially and springs into view (`opacity 0→1`, `y+10→0`) on `.onAppear` with a 150 ms delay; a `triggerLightImpact(intensity: 0.5)` fires at title entrance and a `triggerSelectionPulse()` fires at the paragraph cross-fade moment. **Alternative names line**: when `alternativeCommonNames` is non-nil and non-empty, a footnote-sized "Also known as: X · Y · Z" line is rendered below the headline as a tappable `Button`; tapping calls `onAlternativeNamesTap` which sets `InsightSheetViewModel.isNamePickerPresented = true` to present `NamePickerSheet`. The common name title itself is also tappable when `alternativeCommonNames` are available — it calls the same `onAlternativeNamesTap` callback, so tapping the headline directly opens the same `NamePickerSheet` as tapping the "Also known as" footnote. |
-| `NamePickerSheet` | Bottom sheet (`.medium` detent) presented when the user taps the "Also known as" line in `InsightHeader`. Renders a `NavigationStack` list of all known common names for the species (primary `commonName` + `alternativeCommonNames`, deduplicated) with a checkmark on the currently active name. Selecting a name calls `InsightSheetViewModel.setPreferredCommonName(_:for:)`, which writes to UserDefaults and fires a `toastMessage`. A "Use default name" row calls `clearPreferredCommonName(for:)` to remove the override. |
+| `NamePickerSheet` | Bottom sheet (`.medium` detent) presented when the user taps the "Also known as" line in `InsightHeader`. Renders a `NavigationStack` list of all known common names for the species (primary `commonName` + `alternativeCommonNames`, deduplicated) with a checkmark on the currently active name. Selecting a name calls `InsightSheetViewModel.setPreferredCommonName(_:for:modelContext:)`, which writes through `SpeciesPreferredNameRepository` and fires a `toastMessage`. A "Use default name" row calls `clearPreferredCommonName(for:modelContext:)` to remove the override. |
 | `ImagesCarousel` | Horizontally scrolling mixed-media strip combining live captures, persisted user media pages, and reference images. The user-media portion is sourced from `ActiveScanMedia`, which can contain images, audio clips, and descriptions in one stable ordered timeline. Each page is a `ZoomPageViewController` for image content or the matching mixed-media page type for audio/description content. When `totalImages == 0`, renders a `globe.americas.fill` placeholder on a black background. Pagination dots are shown whenever `totalImages > 1`, and page identity is stabilized across the queued/live/result handoff by keying off the persistent scan ID. |
 | `ConfidenceBadge` | Tappable liquid-glass capsule showing the AI's confidence band (Strong / Possible / Weak) with a shimmering glare animation; opens `ConfidenceExplanationSheet` on tap. When `isFlagged` is `true`, shows "Under Review" (orange, `flag.fill`). When `userIdentificationOverride` is non-nil, shows "Your ID" (indigo, `person.fill.checkmark`). When `userConfirmedIdentification` is `true`, shows "Confirmed" (green, `checkmark.seal.fill`). **Analyzing mode** (`analyzingPhrase != nil`): background glass layers collapse to transparent, icon switches to `sparkles.2`, text uses `Color.primary` on a minimal capsule border — tap is suppressed. Each phrase change triggers a left-to-right gradient mask sweep via the internal `RevealText` view and the capsule width springs to fit the new string length. Phrases are auto-suffixed with `...` if not already ending with one. |
 | `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig` |
@@ -43,7 +43,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 
 ```swift
 var resolvedHeaderTitle: String {
-    // User's preferred common name (UserDefaults) → canonical DB commonName.
+    // User's preferred common name (SpeciesPreferredNameRepository) → canonical DB commonName.
     // Falls back to `scientificName` if `commonName` is empty, avoiding capitalization
     // rules that corrupt scientific taxonomy casing, and suppressing subtitle duplication.
     if let preferred = preferredCommonName, !preferred.isEmpty { return preferred }
@@ -106,10 +106,12 @@ var contentMode: ContentMode {
 }
 ```
 
-**Name preference methods** (all keyed on `UserDefaultsKeys.speciesPreferredNamePrefix + scientificName`):
-- `loadPreferredCommonName(for:)` — reads UserDefaults into `preferredCommonName`; called from `InsightSheetView.task(id: scanId)` when a new species loads.
-- `setPreferredCommonName(_:for:)` — writes to UserDefaults, updates `preferredCommonName` in-memory (triggering `@Observable` recompute of `resolvedHeaderTitle`), and fires a `toastMessage`.
-- `clearPreferredCommonName(for:)` — removes the UserDefaults entry and nils `preferredCommonName`, reverting the headline to the canonical DB name.
+**Name preference methods** (all routed through `SpeciesPreferredNameRepository`, keyed by scientific name):
+- `loadPreferredCommonName(for:modelContext:)` — reads `UserSpeciesPreference` into `preferredCommonName`, falling back to the legacy `SpeciesPreferredNameStore` key and promoting that value into SwiftData; called from `InsightSheetView.task(id: scanId)` when a new species loads.
+- `setPreferredCommonName(_:for:modelContext:)` — writes `UserSpeciesPreference`, mirrors the legacy key only after `modelContext.save()` succeeds, updates `preferredCommonName` in-memory (triggering `@Observable` recompute of `resolvedHeaderTitle`), and fires a `toastMessage`.
+- `clearPreferredCommonName(for:modelContext:)` — deletes the SwiftData row, clears the mirrored legacy key after save, and nils `preferredCommonName`, reverting the headline to the canonical DB name.
+
+`SpeciesPreferredNameRepository` intentionally remains separate from `AppSettings`: preferred names are per-species keyed data, not global UI state. Explore feed, map, detail, comments, and share text now resolve display names through an `ExploreFeedViewModel` cache hydrated from the SwiftData-backed repository using the current `ModelContext`. The network DTOs in `ExploreAPIModels` stay pure decode models and never read `UserDefaults` directly; the legacy `SpeciesPreferredNameStore` is only a repository fallback/mirror during the migration window.
 
 `InsightSheetView` also queries SwiftData directly via `@Query` for non-deleted `[ScanCollection]` rows (reverse-sorted by `createdAt`) to populate the collection management toolbar. Soft-deleted collections (`isDeleted == true`) are intentionally excluded so a collection that is pending remote deletion never reappears in the add-to-collection menu.
 
@@ -158,28 +160,28 @@ Clearing `queuedContext` before calling `load(from:)` is critical: `InsightSheet
 
 ## Tab Bar Badge Dot (`hasUnseenScan`)
 
-The `MainTabBar` subscribes to `@AppStorage(UserDefaultsKeys.hasUnseenScan)` to display an 8 pt red dot on the Scans icon.
+`MainTabBar` reads `AppSettings.hasUnseenScan` to display an 8 pt red dot on the Scans icon. The flag is persisted underneath so background completions survive process suspension, and `AppLifecycleManager` calls `AppSettings.refreshFromDefaults()` on foreground to reconcile background delegate writes.
 
 **Set to `true` (badge appears):**
 - `CaptureWorkspaceViewModel.handleInferenceProcessingChange` — when live `isProcessing` goes false **and** `activeSheet != .insight` (user is not already viewing the result).
-- `OfflineQueueManager+URLSession.processInferenceDownloadResult` — when an offline scan completes, **unless** `suppressInferenceBanners` is `true` (insight sheet is open and the user is watching the transition to results).
+- `OfflineQueueManager+URLSession.processInferenceDownloadResult` — when an offline scan completes, **unless** `AppSettings.suppressInferenceBanners` is `true` (insight sheet is open and the user is watching the transition to results).
 
 **Set to `false` (badge cleared):**
 - `CameraSheetRouter.scans.onAppear` — when the scans sheet opens from the camera tab bar.
 - `CameraSheetRouter.insight.onAppear` — when the insight sheet opens from the camera flow.
 - `ScansSheetView.onAppear` — on every scans sheet presentation.
-- `ScansSheetView.onChange(of: hasUnseenScan)` — immediately clears the badge if it fires while the scans sheet is already visible (a scan completing while the user is already in the library).
+- `ScansSheetView.onChange(of: appSettings.hasUnseenScan)` — immediately clears the badge if it fires while the scans sheet is already visible (a scan completing while the user is already in the library).
 - `InsightSheetView.onAppear` — clears the badge whenever any insight sheet opens (camera or library path).
 
 ---
 
 ## Push Notification Delivery
 
-`InsightSheetView` manages the `suppressInferenceBanners` UserDefaults flag:
+`InsightSheetView` manages the `AppSettings.suppressInferenceBanners` flag:
 - **`onAppear`**: sets `suppressInferenceBanners = true`
 - **`onDisappear`**: sets `suppressInferenceBanners = false`
 
-`PushNotificationManager.willPresent(_:withCompletionHandler:)` reads this flag when the app is in the foreground. If `true` (user is on the insight sheet), the notification is delivered silently (`completionHandler([])`). If `false` (user is elsewhere in the app), the banner is shown (`completionHandler([.banner, .sound, .list])`).
+`PushNotificationManager.willPresent(_:withCompletionHandler:)` reads the persisted key synchronously when the app is in the foreground because the delegate method is nonisolated and must call its completion handler immediately. If `true` (user is on the insight sheet), the notification is delivered silently (`completionHandler([])`). If `false` (user is elsewhere in the app), the banner is shown (`completionHandler([.banner, .sound, .list])`).
 
 Both notification call sites (`InferenceEngine` live path, `OfflineQueueManager` offline path) schedule notifications unconditionally — without an `applicationState != .active` guard. Foreground suppression is delegated entirely to `PushNotificationManager.willPresent`. When the app is backgrounded, `willPresent` is never called and the OS shows the notification automatically.
 

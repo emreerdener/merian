@@ -3,6 +3,7 @@ import UIKit
 
 struct ExplorePostCard: View {
     let post: ExplorePost
+    let speciesDisplayName: String
     let mediaReloadGeneration: UInt64
     let onLike: () -> Void
     let onComments: () -> Void
@@ -150,7 +151,7 @@ struct ExplorePostCard: View {
     }
 
     private var displaySpeciesName: String {
-        let common = post.resolvedSpeciesCommonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let common = speciesDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !common.isEmpty {
             return common
         }

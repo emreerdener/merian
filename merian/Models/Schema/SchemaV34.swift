@@ -10,8 +10,9 @@ import SwiftData
 //
 //   UserSpeciesPreference (new entity)
 //     SwiftData-backed store for the user's preferred display name per species,
-//     keyed by scientificName. Currently reads fall back to UserDefaults
-//     (see InsightSheetViewModel); full cloud sync is a future task.
+//     keyed by scientificName. Current production reads/writes flow through
+//     SpeciesPreferredNameRepository, with legacy key mirroring for no-context
+//     Explore display paths until full cloud sync exists.
 //     Also provides the unique checksum anchor distinguishing V34 from V33
 //     (V34 has one more entity in its model set).
 //

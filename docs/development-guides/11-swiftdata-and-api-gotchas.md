@@ -287,7 +287,8 @@ Scattering `@AppStorage("...")` across hot SwiftUI surfaces creates two long-ter
 - Use `diContainer.appSettings` inside `CaptureWorkspaceViewModel` and related modality extensions so previews and tests do not mutate global defaults.
 - Treat global UI flags as settings too: unread scan badge state, Explore unread/chip/onboarding state, post-identification notification prompt state, zoom controls, and foreground notification suppression all live on `AppSettings`.
 - Use `refreshFromDefaults()` on foreground when a background delegate may have written persisted state while SwiftUI was suspended.
-- Reserve direct `UserDefaults` access for keyed per-entity stores, migrations, throttle timestamps, synchronous system delegates that cannot hop to `@MainActor`, or tests validating the persistence layer itself.
+- Reserve direct `UserDefaults` access for typed keyed stores (`FieldNotesStore`, `ExploreShareStateStore`, `SpeciesPreferredNameStore`), migrations, throttle timestamps, synchronous system delegates that cannot hop to `@MainActor`, or tests validating the persistence layer itself. When a SwiftData repository exists, write SwiftData first and mirror legacy keys only after save succeeds. Network DTOs and SwiftUI presentation models should not read legacy mirrors directly; hydrate view-model state from the repository with an explicit `ModelContext` instead.
+- Per-entity stores should expose small static helpers and namespace-safe `clearAll` methods rather than letting view models concatenate key prefixes.
 
 ## 13. Detached Work Should Be Routed Through A Named Bridge
 

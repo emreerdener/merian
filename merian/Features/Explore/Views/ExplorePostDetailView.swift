@@ -81,7 +81,7 @@ struct ExplorePostDetailView: View {
                         )
                     )
                     .background(Color(uiColor: .systemBackground))
-                    .navigationTitle(post.resolvedSpeciesCommonName)
+                    .navigationTitle(viewModel.resolvedSpeciesCommonName(for: post))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
@@ -365,7 +365,7 @@ struct ExplorePostDetailView: View {
             }
 
             // Species Common Name with Emoji
-            Text(post.resolvedSpeciesCommonName)
+            Text(viewModel.resolvedSpeciesCommonName(for: post))
                 .font(.system(.largeTitle, design: .serif).weight(.bold))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)

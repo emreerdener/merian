@@ -34,7 +34,7 @@ struct ExploreCommentsSheet: View {
                     VStack(spacing: 2) {
                         Text("Comments")
                             .font(.headline)
-                        Text(post.resolvedSpeciesCommonName)
+                        Text(viewModel.resolvedSpeciesCommonName(for: post))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

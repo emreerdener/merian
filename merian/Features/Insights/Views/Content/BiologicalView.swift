@@ -7,6 +7,7 @@ struct BiologicalView: View {
     @Bindable var viewModel: InsightSheetViewModel
     @Binding var isSafariPresented: Bool
     @Binding var selectedWikiURL: URL?
+    @Environment(\.modelContext) private var modelContext
 
     // MARK: - Context State
     var timestamp: Date?
@@ -65,7 +66,7 @@ struct BiologicalView: View {
                     activeName: viewModel.resolvedHeaderTitle,
                     onSelect: { chosen in
                         if let scientificName = inferenceEngine.speciesData?.scientificName {
-                            viewModel.setPreferredCommonName(chosen, for: scientificName)
+                            viewModel.setPreferredCommonName(chosen, for: scientificName, modelContext: modelContext)
                         }
                         viewModel.state.isNamePickerPresented = false
                     }
