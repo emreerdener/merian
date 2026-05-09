@@ -513,24 +513,52 @@ final class InsightSheetViewModel {
         guard let record = activeLocalRecord else { return }
 
         var updatedCollections = record.collections ?? []
+        let actionMessage: String
 
         if updatedCollections.contains(where: { $0.id == collection.id }) {
             updatedCollections.removeAll(where: { $0.id == collection.id })
-            record.collections = updatedCollections
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = "Removed from \(collection.name)"
-            }
+            actionMessage = "Removed from \(collection.name)"
         } else {
             updatedCollections.append(collection)
-            record.collections = updatedCollections
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = "Added to \(collection.name)"
-            }
+            actionMessage = "Added to \(collection.name)"
         }
 
-        try? modelContext.save()
+        record.collections = updatedCollections
+        guard saveInsightMutation(
+            modelContext,
+            failureMessage: "Could not update collection. Please try again.",
+            logContext: "toggle scan collection"
+        ) else {
+            HapticManager.shared.triggerErrorThump()
+            return
+        }
+
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            state.toastMessage = actionMessage
+        }
         OfflineQueueManager.shared.enqueueCollectionSync()
         HapticManager.shared.triggerSelectionPulse()
+    }
+
+    @discardableResult
+    private func saveInsightMutation(
+        _ modelContext: ModelContext,
+        failureMessage: String?,
+        logContext: String
+    ) -> Bool {
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error("InsightSheetViewModel: failed to save \(logContext, privacy: .public): \(error, privacy: .private)")
+            if let failureMessage {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    state.toastMessage = failureMessage
+                }
+            }
+            return false
+        }
     }
 
 // Removed createNewCollection as this logic was extracted into NewCollectionAlertModifier
@@ -686,7 +714,11 @@ final class InsightSheetViewModel {
         guard let record = activeLocalRecord else { return }
         if !record.hasBeenViewed && (inferenceEngine?.isProcessing == false) {
             record.hasBeenViewed = true
-            try? modelContext.save()
+            _ = saveInsightMutation(
+                modelContext,
+                failureMessage: nil,
+                logContext: "mark record viewed"
+            )
         }
     }
 

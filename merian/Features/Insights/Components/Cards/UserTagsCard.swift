@@ -9,6 +9,7 @@ struct UserTagsCard: View {
     
     @State private var showingAddTagAlert = false
     @State private var newTagText = ""
+    @State private var tagMutationErrorMessage: String?
     
     init(scanId: String) {
         self.scanId = scanId
@@ -85,6 +86,12 @@ struct UserTagsCard: View {
                         }
                     }
                 }
+
+                if let tagMutationErrorMessage {
+                    Text(tagMutationErrorMessage)
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                }
             }
             .card()
             .alert("Add Tag", isPresented: $showingAddTagAlert) {
@@ -107,16 +114,31 @@ struct UserTagsCard: View {
         guard !trimmed.isEmpty, !record.customTags.contains(trimmed) else { return }
         
         record.customTags.append(trimmed)
-        try? modelContext.save()
+        guard persistTagMutation(logContext: "add custom tag") else { return }
         syncTagsToCloud(record: record)
         ScanLibraryEvents.postSearchIndexUpdate(scanId: record.id)
     }
     
     private func removeTag(_ tag: String, from record: LocalScanRecord) {
+        guard record.customTags.contains(tag) else { return }
         record.customTags.removeAll { $0 == tag }
-        try? modelContext.save()
+        guard persistTagMutation(logContext: "remove custom tag") else { return }
         syncTagsToCloud(record: record)
         ScanLibraryEvents.postSearchIndexUpdate(scanId: record.id)
+    }
+
+    @discardableResult
+    private func persistTagMutation(logContext: String) -> Bool {
+        do {
+            try modelContext.save()
+            tagMutationErrorMessage = nil
+            return true
+        } catch {
+            modelContext.rollback()
+            tagMutationErrorMessage = "Tag changes could not be saved."
+            MerianLog.data.error("UserTagsCard: failed to save \(logContext, privacy: .public): \(error, privacy: .private)")
+            return false
+        }
     }
     
     // MARK: - Cloud Sync

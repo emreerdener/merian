@@ -338,6 +338,8 @@ await cleanupActor.processAndCleanupOfflineScan(...)  // save() fails → cleanu
 
 Additionally, `processAndCleanupOfflineScan` itself should be **idempotent**: check whether a `LocalScanRecord` with the target `id` already exists before inserting, to prevent unique-constraint failures when a previous attempt partially committed:
 
+The same rule applies on the MainActor. UI mutation paths must not show success, enqueue offline sync, push cloud updates, or post search-index notifications until `modelContext.save()` succeeds. On failure, call `modelContext.rollback()`, log an `.error`, and keep external side effects untouched. `InsightSheetViewModel.toggleScanInCollection(...)`, `InsightSheetViewModel.markRecordViewedIfAppropriate(...)`, and `UserTagsCard` follow this pattern for collection membership, read receipts, and custom tags.
+
 ```swift
 var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
     predicate: #Predicate<LocalScanRecord> { $0.id == recordId }
