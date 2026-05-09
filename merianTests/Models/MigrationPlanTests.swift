@@ -14,10 +14,122 @@ import SwiftData
 @Suite(.serialized)
 @MainActor
 struct MigrationPlanTests {
+    private var repositoryRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
+    private func schemaVersionsSource() throws -> String {
+        let sourceURL = repositoryRoot
+            .appendingPathComponent("merian")
+            .appendingPathComponent("Models")
+            .appendingPathComponent("SchemaVersions.swift")
+        return try String(contentsOf: sourceURL, encoding: .utf8)
+    }
+
+    private func migrationPlanSource() throws -> String {
+        let source = try schemaVersionsSource()
+        guard let migrationStart = source.range(of: "enum MerianMigrationPlan")?.lowerBound else {
+            Issue.record("SchemaVersions.swift must declare MerianMigrationPlan")
+            return ""
+        }
+        return String(source[migrationStart...])
+    }
+
+    private func sourceLineViolations(
+        in source: String,
+        where isViolation: (String) -> Bool
+    ) -> [String] {
+        source
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .enumerated()
+            .compactMap { index, line in
+                let lineString = String(line)
+                return isViolation(lineString)
+                    ? "SchemaVersions.swift:\(index + 1): \(lineString.trimmingCharacters(in: .whitespaces))"
+                    : nil
+            }
+    }
+
     private func removeSQLiteStore(at url: URL) {
         try? FileManager.default.removeItem(at: url)
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+    }
+
+    @Test func migrationPlanCustomStagesDoNotUseSilentSaves() throws {
+        let source = try migrationPlanSource()
+        let violations = sourceLineViolations(in: source) { line in
+            let condensed = line
+                .replacingOccurrences(of: " ", with: "")
+                .replacingOccurrences(of: "\t", with: "")
+            return condensed.contains("try?context.save()")
+                || condensed.contains("try?modelContext.save()")
+        }
+
+        #expect(
+            violations.isEmpty,
+            "Custom migrations must use saveMigrationContext so save failures rollback and abort migration:\n\(violations.joined(separator: "\n"))"
+        )
+    }
+
+    @Test func migrationPlanCustomStagesDoNotFetchActiveModels() throws {
+        let source = try migrationPlanSource()
+        let activeFetchTokens = [
+            "FetchDescriptor<LocalScanRecord>",
+            "FetchDescriptor<OfflineQueuedScan>",
+            "FetchDescriptor<ScanCollection>",
+            "FetchDescriptor<CapturedMediaEntry>",
+            "FetchDescriptor<PendingCloudDeletionTask>",
+            "FetchDescriptor<UserSpeciesPreference>",
+            "FetchDescriptor<CurrentSchema"
+        ]
+        let violations = sourceLineViolations(in: source) { line in
+            activeFetchTokens.contains { line.contains($0) }
+        }
+
+        #expect(
+            violations.isEmpty,
+            "Custom migrations must fetch concrete MerianSchemaV{N} model snapshots, never active/global models:\n\(violations.joined(separator: "\n"))"
+        )
+    }
+
+    @Test func migrationPlanCustomStagesDoNotCallActiveModelConvenienceHelpers() throws {
+        let source = try migrationPlanSource()
+        let activeHelperTokens = [
+            ".replaceCapturedMedia(",
+            " replaceCapturedMedia("
+        ]
+        let violations = sourceLineViolations(in: source) { line in
+            activeHelperTokens.contains { line.contains($0) }
+        }
+
+        #expect(
+            violations.isEmpty,
+            "Custom migrations must use schema-scoped helpers instead of active model convenience methods:\n\(violations.joined(separator: "\n"))"
+        )
+    }
+
+    @Test func retiredSchemasDoNotReferenceActiveCapturedMediaEntryRelationships() throws {
+        let source = try schemaVersionsSource()
+        let retiredSchemaSource = source
+            .components(separatedBy: "enum MerianSchemaV42")
+            .first ?? source
+        let violations = sourceLineViolations(in: retiredSchemaSource) { line in
+            if line.contains("CapturedMediaEntry.self"),
+               !line.contains("MerianSchemaV") {
+                return true
+            }
+            return line.contains("[CapturedMediaEntry]")
+                || line.contains("[CapturedMediaEntry]?")
+        }
+
+        #expect(
+            violations.isEmpty,
+            "Retired schemas must freeze CapturedMediaEntry relationship targets in the schema namespace:\n\(violations.joined(separator: "\n"))"
+        )
     }
 
     /// Mirrors MerianApp.init() exactly, using in-memory storage to keep the test fast.
