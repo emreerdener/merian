@@ -25,6 +25,8 @@ This guarantees that:
 
 Fixture setup must fail loudly. Do not use `try? context.save()` or `try? modelContext.save()` when seeding SwiftData tests; make helpers `throws` or call `XCTFail` in non-throwing cleanup so persistence failures do not hide broken test state.
 
+Keep test code warning-clean. Use immutable bindings for class fixtures when the reference itself is not reassigned, discard intentionally unused intent results with `_ =`, and avoid redundant `#require` wrappers around non-optional fixture values so build logs remain useful.
+
 ## Mocking the App DI Environment (`AppDIContainer`)
 
 When previewing complex SwiftUI trees using `#Preview`, running against `AppDIContainer.shared` will accidentally trigger live production databases, camera hardware allocators, and background network sync loops.

@@ -27,7 +27,7 @@ struct DescribePromptManagerTests {
 
     @Test("activateFunnel sets subject ID and swaps question list")
     func testActivateFunnelSetsState() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         manager.activateFunnel(for: "subj_bird")
 
         #expect(manager.activeSubjectId == "subj_bird")
@@ -41,14 +41,14 @@ struct DescribePromptManagerTests {
 
     @Test("activateFunnel advances activeQuestionIndex to 1")
     func testActivateFunnelAdvancesIndex() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         manager.activateFunnel(for: "subj_bird")
         #expect(manager.activeQuestionIndex == 1)
     }
 
     @Test("activateFunnel resets interactedQuestionIndices")
     func testActivateFunnelResetsInteracted() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         manager.interactedQuestionIndices = [0, 1, 2]
         manager.activateFunnel(for: "subj_bird")
         #expect(manager.interactedQuestionIndices.isEmpty)
@@ -56,7 +56,7 @@ struct DescribePromptManagerTests {
 
     @Test("activateFunnel appends general telemetry questions")
     func testActivateFunnelAppendsGeneralTelemetry() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         guard let funnel = subjectFunnels["subj_bird"] else {
             Issue.record("subj_bird funnel missing from subjectFunnels")
             return
@@ -69,7 +69,7 @@ struct DescribePromptManagerTests {
 
     @Test("activateFunnel for unknown subject ID is a no-op")
     func testActivateFunnelUnknownSubjectIsNoOp() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         manager.activateFunnel(for: "subj_unknown_xyz")
         #expect(manager.activeQuestionIndex == 0)
         #expect(manager.activeSubjectId == nil)
@@ -93,7 +93,7 @@ struct DescribePromptManagerTests {
 
     @Test("resetFunnel restores initial state")
     func testResetFunnelRestoresInitialState() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         manager.activateFunnel(for: "subj_bird")
         manager.activeQuestionIndex = 3
         manager.interactedQuestionIndices = [0, 1, 2]
@@ -109,7 +109,7 @@ struct DescribePromptManagerTests {
 
     @Test("resetFunnel on already-reset manager is a no-op")
     func testDoubleResetIsNoOp() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         manager.resetFunnel()
         manager.resetFunnel()
         #expect(manager.activeQuestionIndex == 0)
@@ -120,7 +120,7 @@ struct DescribePromptManagerTests {
 
     @Test("Switching species resets then activates new funnel")
     func testSwitchingSpeciesActivatesNewFunnel() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         manager.activateFunnel(for: "subj_bird")
         let birdCount = manager.activeQuestions.count
 
@@ -141,7 +141,7 @@ struct DescribePromptManagerTests {
 
     @Test("activeQuestionIndex stays in valid range after activation")
     func testActiveIndexInBoundsAfterActivation() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         manager.activateFunnel(for: "subj_bird")
         let idx = manager.activeQuestionIndex
         #expect(idx >= 0)
@@ -150,7 +150,7 @@ struct DescribePromptManagerTests {
 
     @Test("activeQuestions[activeQuestionIndex] is accessible after activation")
     func testCurrentQuestionIsAccessible() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         manager.activateFunnel(for: "subj_bird")
         let idx = manager.activeQuestionIndex
         // Should not crash
@@ -168,14 +168,14 @@ struct DescribePromptManagerTests {
 
     @Test("isFunnelActive is true after activation")
     func testIsFunnelActiveAfterActivation() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         manager.activateFunnel(for: "subj_bird")
         #expect(manager.isFunnelActive)
     }
 
     @Test("isFunnelActive is false after reset")
     func testIsFunnelActiveAfterReset() {
-        var manager = DescribePromptManager()
+        let manager = DescribePromptManager()
         manager.activateFunnel(for: "subj_bird")
         manager.resetFunnel()
         #expect(!manager.isFunnelActive)
@@ -186,7 +186,7 @@ struct DescribePromptManagerTests {
     @Test("activateFunnel works for all subject IDs in subjectFunnels")
     func testActivateFunnelForAllSubjects() {
         for subjectId in subjectFunnels.keys {
-            var manager = DescribePromptManager()
+            let manager = DescribePromptManager()
             manager.activateFunnel(for: subjectId)
             #expect(manager.isFunnelActive,
                     "Funnel not active after activating subjectId: \(subjectId)")

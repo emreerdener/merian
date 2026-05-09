@@ -615,7 +615,7 @@ struct MigrationPlanTests {
             SerializedMediaItem.audio(.documents("recording.wav"))
         ])
 
-        let jsonString = try #require(String(data: encoded, encoding: .utf8))
+        let jsonString = String(decoding: encoded, as: UTF8.self)
         #expect(jsonString.contains("\"storage\":\"remoteURL\""))
         #expect(jsonString.contains("\"storage\":\"documents\""))
         #expect(MediaJSONParser.hasCloudImage(jsonString: jsonString))

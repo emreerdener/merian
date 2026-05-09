@@ -202,11 +202,9 @@ struct BackgroundDatabaseActorTests {
                 scientificName: "Cardinalis cardinalis",
                 commonName: "Older Cardinal",
                 timestamp: Date(timeIntervalSince1970: 100),
-                capturedMediaJSON: try #require(
-                    String(
-                        data: JSONEncoder().encode([SerializedMediaItem.image("old_capture.webp")]),
-                        encoding: .utf8
-                    )
+                capturedMediaJSON: String(
+                    data: try JSONEncoder().encode([SerializedMediaItem.image("old_capture.webp")]),
+                    encoding: .utf8
                 ),
                 coverImagePath: "old_capture.webp",
                 isBiological: true,
@@ -483,7 +481,7 @@ struct BackgroundDatabaseActorTests {
 
         for scenario in scenarios {
             let observationContextsJSON = try scenario.observationContexts.map {
-                try #require(String(data: JSONEncoder().encode($0), encoding: .utf8))
+                String(decoding: try JSONEncoder().encode($0), as: UTF8.self)
             }
 
             let mappedData = SpeciesData(
