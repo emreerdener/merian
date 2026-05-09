@@ -788,7 +788,7 @@ The current feed UI uses only a subset of the payload for visible card rendering
 - `author_name`
 - `author_avatar_url`
 - `public_location_label`
-- `species_common_name` (displayed using the user's preferred local common name override if configured, via `resolvedSpeciesCommonName`)
+- `species_common_name` (displayed through `ExploreFeedViewModel`'s SwiftData-backed preferred-name cache when the viewer has a `UserSpeciesPreference`)
 - `species_scientific_name`
 - `hero_image_url`
 - `like_count`
@@ -818,6 +818,8 @@ The Explore map additionally uses:
 Time and weather metadata remain in the contract for future Explore presentation experiments, but are not currently rendered on the primary feed card.
 
 Remote Explore APNs delivery is layered on top of this contract through the internal `send-push-notification` webhook path. That webhook is not called by the iOS client directly; it is triggered server-side from `public.explore_post_notifications`.
+
+Preferred species display names are not part of the Explore endpoint payload. The iOS client syncs `user_species_preferences` directly through PostgREST under Supabase RLS, hydrates `ExploreFeedViewModel.preferredSpeciesNamesByScientificName` from local SwiftData, and applies those names in feed cards, map previews, comments, detail titles, and share text.
 
 ---
 

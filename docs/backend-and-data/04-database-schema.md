@@ -50,11 +50,12 @@ Per-user preferred common name overrides. Keyed on `(user_id, scientific_name)`.
 - `user_id` (UUID FK → `users.id`, CASCADE DELETE): The owning user.
 - `scientific_name` (TEXT): The species this preference applies to.
 - `preferred_common_name` (TEXT): The user's chosen display name — one of the names from `alternative_common_names` or the species primary `common_names.en`.
+- `deleted_at` (TIMESTAMPTZ, nullable): Soft-delete tombstone for cross-device clears. Active rows have `deleted_at IS NULL` and a non-empty `preferred_common_name`; cleared rows have `deleted_at IS NOT NULL` and `preferred_common_name IS NULL`.
 - `updated_at` (TIMESTAMPTZ): Auto-updated by trigger on every write.
 - Primary key: `(user_id, scientific_name)`.
 - RLS: users can only read and write their own rows.
 
-> **Current iOS implementation note**: The iOS client does not sync to this table yet. Preferred name selections are stored locally in `UserDefaults` keyed by `"speciesPreferredName_{scientific_name}"` via `InsightSheetViewModel`. This table exists for future cloud-sync support.
+> **iOS implementation note**: `SpeciesPreferredNameRepository` uses SwiftData `UserSpeciesPreference` as the local source of truth and syncs directly to this table through the authenticated Supabase client. `MerianApp` promotes legacy `speciesPreferredName_*` `UserDefaults` keys at startup, then clears them after SwiftData saves. Local clears are queued as pending delete timestamps until the cloud tombstone upsert succeeds.
 
 ### `species_lookalikes`
 

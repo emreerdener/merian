@@ -51,6 +51,8 @@ final class AppLifecycleManager {
             let now = Date()
 
             if let context = container.offlineQueueManager.modelContext {
+                await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context)
+
                 // Restore account history on re-install or multi-device login.
                 // Throttled to once per 15 minutes to avoid redundant network syncs on every foreground.
                 let lastSyncDate = UserDefaults.standard.object(forKey: UserDefaultsKeys.lastHistoricalSyncDate) as? Date ?? Date.distantPast

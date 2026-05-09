@@ -168,6 +168,40 @@ struct AppDIContainerTests {
         #expect(SpeciesPreferredNameStore.preferredName(for: "Quercus macrocarpa", userDefaults: defaults) == nil)
     }
 
+    @Test func testSpeciesPreferredNameRepositoryQueuesCloudDeleteUntilSynced() throws {
+        let context = try makeSpeciesPreferenceContext()
+        let suiteName = "merian.tests.species-preferred-name-delete-queue.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        SpeciesPreferredNameStore.markPendingCloudDelete(for: "Quercus macrocarpa", userDefaults: defaults)
+        #expect(SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults)["Quercus macrocarpa"] != nil)
+
+        #expect(
+            SpeciesPreferredNameRepository.setPreferredName(
+                "Bur Oak",
+                for: "Quercus macrocarpa",
+                modelContext: context,
+                legacyDefaults: defaults
+            )
+        )
+        #expect(SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults)["Quercus macrocarpa"] == nil)
+
+        #expect(
+            SpeciesPreferredNameRepository.clearPreferredName(
+                for: "Quercus macrocarpa",
+                modelContext: context,
+                legacyDefaults: defaults
+            )
+        )
+        #expect(try fetchSpeciesPreference(for: "Quercus macrocarpa", modelContext: context) == nil)
+        #expect(SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults)["Quercus macrocarpa"] != nil)
+
+        SpeciesPreferredNameStore.clearPendingCloudDelete(for: "Quercus macrocarpa", userDefaults: defaults)
+        #expect(SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults).isEmpty)
+    }
+
     @Test func testSpeciesPreferredNameRepositoryPromotesLegacyFallbackToSwiftData() throws {
         let context = try makeSpeciesPreferenceContext()
         let suiteName = "merian.tests.species-preferred-name-promotion.\(UUID().uuidString)"

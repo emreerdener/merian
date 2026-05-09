@@ -238,6 +238,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Uses `UserSpeciesPreference` as the source of truth for Insight load/set/clear operations.
 - `MerianApp` calls `migrateLegacyPreferences(modelContext:)` immediately after the `ModelContainer` is available. The migration scans legacy `speciesPreferredName_*` keys, preserves any existing SwiftData value over stale legacy data, promotes missing rows, saves once, and removes legacy keys only after the save succeeds.
 - Falls back to the legacy `SpeciesPreferredNameStore` key-value bridge on read only as a safety net, promoting that legacy value into SwiftData and clearing the key after save.
+- Syncs with Supabase `user_species_preferences` on auth restore, foreground activation, and after local set/clear edits. Local clears are queued in `pendingSpeciesPreferredNameDeletes` until a remote `deleted_at` tombstone upsert succeeds.
 - Exposes a bounded display-map helper for Explore feed/map hydration. `ExploreFeedViewModel` owns the observable preferred-name cache and resolves feed cards, map previews, comments, detail titles, and share text from that cache; `ExplorePost` and `ExploreMapPost` remain pure network DTOs.
 - Successful SwiftData writes clear stale legacy keys instead of mirroring back to `UserDefaults`, so SwiftData is the only live source of truth.
 - This is intentionally not part of `AppSettings`: preferred common names are per-species data with local SwiftData durability and eventual cloud backing, not global UI preference state.

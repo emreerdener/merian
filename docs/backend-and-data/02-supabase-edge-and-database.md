@@ -243,6 +243,15 @@ The `sync-collections` function receives the full client-side collection state a
 - **`collection_scans` membership delta**: Only the diff (rows to add minus rows to remove) is written — the function does not delete and re-insert all memberships on each sync. This prevents unnecessary DB churn on large collections. All three DB operations inside `syncMembershipDelta` (scan validation, membership inserts, membership deletes) throw on error rather than swallowing via `console.error` — the controller propagates a `500` so the iOS client retries rather than treating a partial failure as confirmed.
 - **`collection_scans` SELECT cap**: The membership hydration query is capped at `.limit(10000)` to bound V8 heap exposure. The theoretical maximum (200 collections × 5000 scan IDs = 1M rows) would be unsafe to load in a single query; a per-collection streaming refactor remains the long-term solution.
 
+## Species Preferred Name Sync
+
+`user_species_preferences` is synced directly by the iOS client through Supabase PostgREST rather than through an Edge Function. RLS scopes every row to `auth.uid()`, and the table is keyed by `(user_id, scientific_name)`.
+
+- Active preferences upsert `preferred_common_name` with `deleted_at = NULL`.
+- Clears upsert a tombstone (`preferred_common_name = NULL`, `deleted_at = now`) so another device can distinguish a deliberate clear from a species that never had a preference.
+- `SpeciesPreferredNameRepository` reconciles all local SwiftData `UserSpeciesPreference` rows plus pending local delete timestamps against the remote table on auth restore, foreground activation, and after local edits.
+- Conflict resolution is timestamp based: newer remote active rows update SwiftData, newer remote tombstones delete the local row, newer local rows push back to Supabase, and pending local clears remain queued until their tombstone upsert succeeds.
+
 ## Ghost Account Merge (`merge-ghost-profile`)
 
 When an anonymous (guest) user signs up for a full account, their prior scan history is merged into the new authenticated identity:

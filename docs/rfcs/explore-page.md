@@ -386,7 +386,7 @@ Recommended response fields:
 - `shared_at`
 - `author_name`
 - `author_avatar_url`
-- `species_common_name` (displayed using the user's preferred local common name override if configured, via `resolvedSpeciesCommonName`)
+- `species_common_name` (displayed through the SwiftData-backed preferred-name cache when the viewer has a `UserSpeciesPreference`)
 - `species_scientific_name`
 - `public_location_label`
 - `time_of_day`

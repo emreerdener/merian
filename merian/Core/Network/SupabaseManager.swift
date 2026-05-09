@@ -107,7 +107,10 @@ import Supabase
                     // this write both callers fire concurrently on every cold launch.
                     if let context = AppDIContainer.shared.offlineQueueManager.modelContext {
                         UserDefaults.standard.set(Date(), forKey: UserDefaultsKeys.lastHistoricalSyncDate)
-                        Task { await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context) }
+                        Task {
+                            await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context)
+                            await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context)
+                        }
                     }
                 }
             } else {

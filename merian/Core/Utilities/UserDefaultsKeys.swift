@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import Observation
+import Supabase
 import SwiftData
 import UIKit
 
@@ -54,6 +55,8 @@ enum UserDefaultsKeys {
     /// Prefix for per-species preferred common name. Append the scientific name to form the full key.
     /// e.g. `"speciesPreferredName_Gaillardia pulchella"` → user's chosen display name.
     static let speciesPreferredNamePrefix = "speciesPreferredName_"
+    /// Dictionary of scientific name → delete timestamp for preferred-name clears waiting for cloud sync.
+    static let pendingSpeciesPreferredNameDeletes = "pendingSpeciesPreferredNameDeletes"
     /// Whether the user has been presented with the notification request post-identification.
     static let hasPromptedForNotificationsPostIdent = "hasPromptedForNotificationsPostIdent"
     /// The user's customized ordering of the primary capture tabs, stored as a comma-separated string.
@@ -238,6 +241,56 @@ enum SpeciesPreferredNameStore {
             userDefaults.removeObject(forKey: key)
         }
     }
+
+    static func pendingDeleteDates(userDefaults: UserDefaults = .standard) -> [String: Date] {
+        let rawValue = userDefaults.dictionary(forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes) ?? [:]
+        var datesByScientificName: [String: Date] = [:]
+
+        for (scientificName, value) in rawValue {
+            let normalizedName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalizedName.isEmpty else { continue }
+
+            if let timestamp = value as? Double {
+                datesByScientificName[normalizedName] = Date(timeIntervalSince1970: timestamp)
+            } else if let date = value as? Date {
+                datesByScientificName[normalizedName] = date
+            }
+        }
+
+        return datesByScientificName
+    }
+
+    static func markPendingCloudDelete(
+        for scientificName: String,
+        at date: Date = Date(),
+        userDefaults: UserDefaults = .standard
+    ) {
+        let scientificName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !scientificName.isEmpty else { return }
+
+        var rawValue = pendingDeleteDates(userDefaults: userDefaults)
+            .mapValues(\.timeIntervalSince1970)
+        rawValue[scientificName] = date.timeIntervalSince1970
+        userDefaults.set(rawValue, forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes)
+    }
+
+    static func clearPendingCloudDelete(
+        for scientificName: String,
+        userDefaults: UserDefaults = .standard
+    ) {
+        let scientificName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !scientificName.isEmpty else { return }
+
+        var rawValue = pendingDeleteDates(userDefaults: userDefaults)
+            .mapValues(\.timeIntervalSince1970)
+        rawValue.removeValue(forKey: scientificName)
+
+        if rawValue.isEmpty {
+            userDefaults.removeObject(forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes)
+        } else {
+            userDefaults.set(rawValue, forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes)
+        }
+    }
 }
 
 struct SpeciesNameMigrationResult: Equatable {
@@ -248,9 +301,49 @@ struct SpeciesNameMigrationResult: Equatable {
     let failedCount: Int
 }
 
+private struct SpeciesPreferenceCloudRow: Decodable {
+    let scientific_name: String
+    let preferred_common_name: String?
+    let updated_at: String
+    let deleted_at: String?
+}
+
+private struct SpeciesPreferenceCloudUpsert: Encodable {
+    let user_id: String
+    let scientific_name: String
+    let preferred_common_name: String?
+    let deleted_at: String?
+
+    enum CodingKeys: String, CodingKey {
+        case user_id
+        case scientific_name
+        case preferred_common_name
+        case deleted_at
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(user_id, forKey: .user_id)
+        try container.encode(scientific_name, forKey: .scientific_name)
+
+        if let preferred_common_name {
+            try container.encode(preferred_common_name, forKey: .preferred_common_name)
+        } else {
+            try container.encodeNil(forKey: .preferred_common_name)
+        }
+
+        if let deleted_at {
+            try container.encode(deleted_at, forKey: .deleted_at)
+        } else {
+            try container.encodeNil(forKey: .deleted_at)
+        }
+    }
+}
+
 @MainActor
 enum SpeciesPreferredNameRepository {
     private static let maxPreferredNameBatchSize = 1_000
+    private static let cloudSyncPageSize = 500
 
     static func preferredName(
         for scientificName: String,
@@ -334,6 +427,71 @@ enum SpeciesPreferredNameRepository {
         }
 
         return namesByScientificName
+    }
+
+    @discardableResult
+    static func syncCloudPreferences(
+        modelContext: ModelContext,
+        legacyDefaults: UserDefaults = .standard
+    ) async -> Bool {
+        guard !TestExecutionCoordinator.isRunningTests else { return false }
+        guard SupabaseManager.shared.isAuthenticated,
+              let userId = SupabaseManager.shared.currentUser?.id.uuidString else {
+            return false
+        }
+
+        do {
+            let localPreferences = fetchAllPreferences(modelContext: modelContext)
+            let pendingDeletes = SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: legacyDefaults)
+            let remoteRows = try await fetchRemotePreferences(userId: userId)
+            let remoteByScientificName = Dictionary(
+                uniqueKeysWithValues: remoteRows.map {
+                    (normalizedScientificName($0.scientific_name), $0)
+                }
+            )
+
+            let activeUpserts = activeCloudUpserts(
+                userId: userId,
+                localPreferences: localPreferences,
+                remoteByScientificName: remoteByScientificName
+            )
+            let deleteUpserts = pendingDeleteUpserts(
+                userId: userId,
+                pendingDeletes: pendingDeletes,
+                remoteByScientificName: remoteByScientificName
+            )
+            let upserts = activeUpserts + deleteUpserts
+
+            if !upserts.isEmpty {
+                try await SupabaseManager.shared.client
+                    .from("user_species_preferences")
+                    .upsert(upserts, onConflict: "user_id,scientific_name")
+                    .execute()
+
+                for upsert in deleteUpserts {
+                    SpeciesPreferredNameStore.clearPendingCloudDelete(
+                        for: upsert.scientific_name,
+                        userDefaults: legacyDefaults
+                    )
+                }
+            }
+
+            applyRemotePreferences(
+                remoteRows,
+                localPreferences: localPreferences,
+                pendingDeletes: pendingDeletes,
+                modelContext: modelContext,
+                legacyDefaults: legacyDefaults
+            )
+
+            MerianLog.data.debug(
+                "Synced species preferred names with cloud: \(localPreferences.count, privacy: .public) local, \(remoteRows.count, privacy: .public) remote, \(upserts.count, privacy: .public) pushed."
+            )
+            return true
+        } catch {
+            MerianLog.data.debug("Species preferred-name cloud sync skipped or failed: \(error.localizedDescription, privacy: .private)")
+            return false
+        }
     }
 
     @discardableResult
@@ -451,6 +609,8 @@ enum SpeciesPreferredNameRepository {
 
             try modelContext.save()
             SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
+            SpeciesPreferredNameStore.clearPendingCloudDelete(for: scientificName, userDefaults: legacyDefaults)
+            scheduleCloudSync(modelContext: modelContext, legacyDefaults: legacyDefaults)
             return true
         } catch {
             modelContext.rollback()
@@ -470,6 +630,7 @@ enum SpeciesPreferredNameRepository {
 
         guard let existing = fetchPreference(for: scientificName, modelContext: modelContext) else {
             SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
+            SpeciesPreferredNameStore.markPendingCloudDelete(for: scientificName, userDefaults: legacyDefaults)
             return true
         }
 
@@ -477,6 +638,8 @@ enum SpeciesPreferredNameRepository {
             modelContext.delete(existing)
             try modelContext.save()
             SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
+            SpeciesPreferredNameStore.markPendingCloudDelete(for: scientificName, userDefaults: legacyDefaults)
+            scheduleCloudSync(modelContext: modelContext, legacyDefaults: legacyDefaults)
             return true
         } catch {
             modelContext.rollback()
@@ -526,6 +689,186 @@ enum SpeciesPreferredNameRepository {
         } catch {
             MerianLog.data.error("Failed to batch fetch species preferred names: \(error.localizedDescription, privacy: .private)")
             return [:]
+        }
+    }
+
+    private static func fetchAllPreferences(modelContext: ModelContext) -> [UserSpeciesPreference] {
+        var descriptor = FetchDescriptor<UserSpeciesPreference>(
+            sortBy: [SortDescriptor(\.updatedAt, order: .forward)]
+        )
+        descriptor.fetchLimit = maxPreferredNameBatchSize
+
+        do {
+            return try modelContext.fetch(descriptor)
+        } catch {
+            MerianLog.data.error("Failed to fetch local species preferred names for cloud sync: \(error.localizedDescription, privacy: .private)")
+            return []
+        }
+    }
+
+    private static func fetchRemotePreferences(userId: String) async throws -> [SpeciesPreferenceCloudRow] {
+        var rows: [SpeciesPreferenceCloudRow] = []
+        rows.reserveCapacity(cloudSyncPageSize)
+
+        var offset = 0
+        while true {
+            let page: [SpeciesPreferenceCloudRow] = try await SupabaseManager.shared.client
+                .from("user_species_preferences")
+                .select("scientific_name, preferred_common_name, updated_at, deleted_at")
+                .eq("user_id", value: userId)
+                .order("updated_at", ascending: true)
+                .range(from: offset, to: offset + cloudSyncPageSize - 1)
+                .execute()
+                .value
+
+            rows.append(contentsOf: page)
+            if page.count < cloudSyncPageSize { break }
+            offset += cloudSyncPageSize
+        }
+
+        return rows
+    }
+
+    private static func activeCloudUpserts(
+        userId: String,
+        localPreferences: [UserSpeciesPreference],
+        remoteByScientificName: [String: SpeciesPreferenceCloudRow]
+    ) -> [SpeciesPreferenceCloudUpsert] {
+        localPreferences.compactMap { preference in
+            let scientificName = normalizedScientificName(preference.scientificName)
+            guard !scientificName.isEmpty,
+                  let preferredName = normalizedPreferredName(preference.preferredCommonName) else {
+                return nil
+            }
+
+            if let remote = remoteByScientificName[scientificName],
+               let remoteUpdatedAt = cloudDate(remote.updated_at),
+               remoteUpdatedAt > preference.updatedAt {
+                return nil
+            }
+
+            return SpeciesPreferenceCloudUpsert(
+                user_id: userId,
+                scientific_name: scientificName,
+                preferred_common_name: preferredName,
+                deleted_at: nil
+            )
+        }
+    }
+
+    private static func pendingDeleteUpserts(
+        userId: String,
+        pendingDeletes: [String: Date],
+        remoteByScientificName: [String: SpeciesPreferenceCloudRow]
+    ) -> [SpeciesPreferenceCloudUpsert] {
+        pendingDeletes.compactMap { scientificName, deletedAt in
+            let scientificName = normalizedScientificName(scientificName)
+            guard !scientificName.isEmpty else { return nil }
+
+            if let remote = remoteByScientificName[scientificName],
+               let remoteUpdatedAt = cloudDate(remote.updated_at),
+               remoteUpdatedAt > deletedAt {
+                return nil
+            }
+
+            return SpeciesPreferenceCloudUpsert(
+                user_id: userId,
+                scientific_name: scientificName,
+                preferred_common_name: nil,
+                deleted_at: cloudString(deletedAt)
+            )
+        }
+    }
+
+    private static func applyRemotePreferences(
+        _ remoteRows: [SpeciesPreferenceCloudRow],
+        localPreferences: [UserSpeciesPreference],
+        pendingDeletes: [String: Date],
+        modelContext: ModelContext,
+        legacyDefaults: UserDefaults
+    ) {
+        guard !remoteRows.isEmpty else { return }
+
+        var localByScientificName = Dictionary(
+            uniqueKeysWithValues: localPreferences.map {
+                (normalizedScientificName($0.scientificName), $0)
+            }
+        )
+        var didMutate = false
+
+        for remote in remoteRows {
+            let scientificName = normalizedScientificName(remote.scientific_name)
+            guard !scientificName.isEmpty,
+                  let remoteUpdatedAt = cloudDate(remote.updated_at) else {
+                continue
+            }
+
+            if let pendingDelete = pendingDeletes[scientificName],
+               pendingDelete >= remoteUpdatedAt {
+                continue
+            }
+
+            if remote.deleted_at != nil {
+                if let localPreference = localByScientificName[scientificName],
+                   remoteUpdatedAt >= localPreference.updatedAt {
+                    modelContext.delete(localPreference)
+                    localByScientificName.removeValue(forKey: scientificName)
+                    SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
+                    didMutate = true
+                }
+                SpeciesPreferredNameStore.clearPendingCloudDelete(for: scientificName, userDefaults: legacyDefaults)
+                continue
+            }
+
+            guard let remotePreferredName = normalizedPreferredName(remote.preferred_common_name) else {
+                continue
+            }
+
+            if let localPreference = localByScientificName[scientificName] {
+                guard remoteUpdatedAt > localPreference.updatedAt else { continue }
+                localPreference.preferredCommonName = remotePreferredName
+                localPreference.updatedAt = remoteUpdatedAt
+            } else {
+                let preference = UserSpeciesPreference(
+                    scientificName: scientificName,
+                    preferredCommonName: remotePreferredName,
+                    updatedAt: remoteUpdatedAt
+                )
+                modelContext.insert(preference)
+                localByScientificName[scientificName] = preference
+            }
+            SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
+            SpeciesPreferredNameStore.clearPendingCloudDelete(for: scientificName, userDefaults: legacyDefaults)
+            didMutate = true
+        }
+
+        guard didMutate else { return }
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error("Failed to apply remote species preferred names: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    private static func cloudString(_ date: Date) -> String {
+        DateUtilities.iso8601FractionalFormatter.string(from: date)
+    }
+
+    private static func cloudDate(_ value: String?) -> Date? {
+        guard let value else { return nil }
+        return DateUtilities.iso8601FractionalFormatter.date(from: value)
+            ?? DateUtilities.iso8601Formatter.date(from: value)
+    }
+
+    private static func scheduleCloudSync(
+        modelContext: ModelContext,
+        legacyDefaults: UserDefaults
+    ) {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+        Task { @MainActor in
+            await syncCloudPreferences(modelContext: modelContext, legacyDefaults: legacyDefaults)
         }
     }
 
