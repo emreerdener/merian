@@ -132,6 +132,60 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.state.sharedExplorePostId == nil)
     }
 
+    @Test func testPublishedExploreFieldNotesPromoteWhenLocalRecordIsEmpty() async throws {
+        let ctx = try createIsolatedContext()
+        let viewModel = InsightSheetViewModel()
+        let record = LocalScanRecord(
+            speciesId: "field_notes_repair_species",
+            scientificName: "Quercus alba",
+            commonName: "White Oak"
+        )
+        let notes = "Observed along the shaded creek edge."
+
+        ctx.insert(record)
+        try ctx.save()
+        FieldNotesStore.setFieldNotes(nil, for: record.id)
+        defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
+
+        viewModel.bindPresentedRecord(record, modelContext: ctx)
+        #expect(viewModel.fieldNotesText.isEmpty)
+
+        viewModel.promotePublishedExploreFieldNotesIfLocalMissing(
+            "  \(notes)  ",
+            modelContext: ctx
+        )
+
+        #expect(viewModel.fieldNotesText == notes)
+        #expect(record.fieldNotes == notes)
+        #expect(FieldNotesStore.fieldNotes(for: record.id) == notes)
+    }
+
+    @Test func testPublishedExploreFieldNotesDoNotOverwriteLocalPrivateNotes() async throws {
+        let ctx = try createIsolatedContext()
+        let viewModel = InsightSheetViewModel()
+        let record = LocalScanRecord(
+            speciesId: "field_notes_private_species",
+            scientificName: "Acer rubrum",
+            commonName: "Red Maple",
+            fieldNotes: "Private local note"
+        )
+
+        ctx.insert(record)
+        try ctx.save()
+        FieldNotesStore.setFieldNotes(nil, for: record.id)
+        defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
+
+        viewModel.bindPresentedRecord(record, modelContext: ctx)
+        viewModel.promotePublishedExploreFieldNotesIfLocalMissing(
+            "Published Explore note",
+            modelContext: ctx
+        )
+
+        #expect(viewModel.fieldNotesText == "Private local note")
+        #expect(record.fieldNotes == "Private local note")
+        #expect(FieldNotesStore.fieldNotes(for: record.id) == "Private local note")
+    }
+
     @Test func testTotalImagesWithReferenceImageLoading() async throws {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()

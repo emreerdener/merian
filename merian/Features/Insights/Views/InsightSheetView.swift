@@ -115,7 +115,7 @@ struct InsightSheetView: View {
                     if let scientificName = inferenceEngine.speciesData?.scientificName {
                         viewModel.loadPreferredCommonName(for: scientificName)
                     }
-                    await viewModel.refreshSharedExploreStateFromServer()
+                    await viewModel.refreshSharedExploreStateFromServer(modelContext: modelContext)
                 }
                 .task(id: viewModel.state.toastMessage) {
                     if viewModel.state.toastMessage != nil {

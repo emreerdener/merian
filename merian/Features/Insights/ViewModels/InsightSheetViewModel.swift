@@ -627,7 +627,7 @@ final class InsightSheetViewModel {
         )
     }
 
-    func refreshSharedExploreStateFromServer() async {
+    func refreshSharedExploreStateFromServer(modelContext: ModelContext? = nil) async {
         let scanId = activeLocalRecord?.id ?? inferenceEngine?.speciesData?.scanId
         guard let scanId, !scanId.isEmpty else { return }
 
@@ -643,13 +643,19 @@ final class InsightSheetViewModel {
 
             ExploreShareStateStore.setSharedPostId(shareState.postId, for: scanId)
             applySharedExplorePostId(shareState.postId, for: scanId, bumpRevision: false)
-            await refreshExploreFieldNotesVisibility(postId: shareState.postId)
+            await refreshExploreFieldNotesVisibility(
+                postId: shareState.postId,
+                modelContext: modelContext
+            )
         } catch {
             // Keep the optimistic local cache when the authoritative refresh is unavailable.
         }
     }
 
-    private func refreshExploreFieldNotesVisibility(postId: String?) async {
+    private func refreshExploreFieldNotesVisibility(
+        postId: String?,
+        modelContext: ModelContext?
+    ) async {
         guard let postId else {
             state.exploreFieldNotesArePublic = false
             return
@@ -657,7 +663,17 @@ final class InsightSheetViewModel {
 
         do {
             let detail = try await MerianNetworkClient.shared.getExplorePostDetail(postId: postId)
-            state.exploreFieldNotesArePublic = detail.trimmedFieldNotes != nil
+            if let fieldNotes = detail.trimmedFieldNotes {
+                state.exploreFieldNotesArePublic = true
+                if let modelContext {
+                    promotePublishedExploreFieldNotesIfLocalMissing(
+                        fieldNotes,
+                        modelContext: modelContext
+                    )
+                }
+            } else {
+                state.exploreFieldNotesArePublic = false
+            }
         } catch {
             state.exploreFieldNotesArePublic = false
         }
@@ -778,6 +794,26 @@ final class InsightSheetViewModel {
         }
 
         return nil
+    }
+
+    func promotePublishedExploreFieldNotesIfLocalMissing(_ notes: String, modelContext: ModelContext) {
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let scanId = currentFieldNotesScanId else { return }
+
+        if let localNotes = persistedFieldNotes(for: scanId, modelContext: modelContext),
+           !localNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                state.fieldNotesText = localNotes
+            }
+            return
+        }
+
+        guard state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+
+        state.fieldNotesText = trimmed
+        persistFieldNotes(trimmed, modelContext: modelContext)
     }
 
     private func preserveLocalFieldNotesIfNeeded(_ notes: String) {

@@ -418,12 +418,15 @@ Current response shape:
     "iucn_red_list_status": "least_concern",
     "wikipedia_url": "https://en.wikipedia.org/wiki/Monarch_butterfly",
     "reference_image_url": "https://upload.wikimedia.org/.../Monarch.jpg,https://inaturalist-open-data.s3.amazonaws.com/photos/123/original.jpg",
-    "wikipedia_overview": "The monarch butterfly is a milkweed butterfly in the family Nymphalidae..."
+    "wikipedia_overview": "The monarch butterfly is a milkweed butterfly in the family Nymphalidae...",
+    "field_notes": "Found at the shaded meadow edge after rain."
   }
 }
 ```
 
 This endpoint exists so Explore can render public species cards on the detail page without loading private scan state or the Insight `InferenceEngine`.
+
+For posts owned by the current viewer, iOS also uses `field_notes` as a repair source for the local insight sheet. If `LocalScanRecord.fieldNotes` and the legacy `FieldNotesStore` bridge are empty but the public Explore post still has notes, `InsightSheetViewModel` promotes the public value back into the local scan. Existing local/private notes are preserved and are not overwritten by the Explore copy.
 
 `reference_image_url` is the same comma-separated reference-media field used elsewhere in the app: the first URL is typically the cached Wikipedia image when available, followed by cached GBIF-backed field observations. Explore detail uses it to render the public reference gallery below the post's AI reasoning without making an extra authenticated scan fetch.
 
