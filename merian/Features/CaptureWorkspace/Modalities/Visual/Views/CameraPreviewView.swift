@@ -6,6 +6,8 @@ private enum CameraPanDirection { case undetermined, vertical, horizontal }
 // MARK: - Hardware Video Bridge
 // SwiftUI bridging of AVCaptureVideoPreviewLayer
 struct CameraPreviewView: UIViewRepresentable {
+    @Environment(AppSettings.self) private var appSettings
+
     // MARK: - Dependencies
     var session: AVCaptureSession
     var onTap: (CGPoint, CGPoint) -> Void
@@ -214,7 +216,7 @@ struct CameraPreviewView: UIViewRepresentable {
                     guard panDirection == .vertical else { return }
                     let range = max(1.0, CameraManager.shared.maxZoomFactor - 1.0)
                     // Default: swipe up (negative Y) = zoom in. Inverted: swipe down (positive Y) = zoom in.
-                    let sign: CGFloat = UserDefaults.standard.bool(forKey: UserDefaultsKeys.invertZoomDirection) ? 1.0 : -1.0
+                    let sign: CGFloat = parent.appSettings.invertZoomDirection ? 1.0 : -1.0
                     let delta = (sign * translation.y / 600) * range
                     let proposed = min(max(panStartZoom + delta, 1.0), CameraManager.shared.maxZoomFactor)
                     CameraManager.shared.setZoom(factor: proposed)

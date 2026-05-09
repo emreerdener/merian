@@ -283,8 +283,11 @@ Scattering `@AppStorage("...")` across hot SwiftUI surfaces creates two long-ter
 
 - Keep storage names in `UserDefaultsKeys`.
 - Expose typed, observable properties through `AppSettings`.
-- Inject `AppSettings` via environment and bind with `@Bindable`.
-- Reserve direct `UserDefaults` access for lower-level services, migrations, or tests.
+- Inject `AppSettings` via environment, or through the owning view model/manager initializer for tests.
+- Use `diContainer.appSettings` inside `CaptureWorkspaceViewModel` and related modality extensions so previews and tests do not mutate global defaults.
+- Treat global UI flags as settings too: unread scan badge state, Explore unread/chip/onboarding state, post-identification notification prompt state, zoom controls, and foreground notification suppression all live on `AppSettings`.
+- Use `refreshFromDefaults()` on foreground when a background delegate may have written persisted state while SwiftUI was suspended.
+- Reserve direct `UserDefaults` access for keyed per-entity stores, migrations, throttle timestamps, synchronous system delegates that cannot hop to `@MainActor`, or tests validating the persistence layer itself.
 
 ## 13. Detached Work Should Be Routed Through A Named Bridge
 

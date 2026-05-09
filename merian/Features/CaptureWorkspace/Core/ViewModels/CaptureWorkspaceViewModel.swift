@@ -581,7 +581,7 @@ final class CaptureWorkspaceViewModel {
     func updateNotificationSuppression() {
         // Suppress if the user is looking at the final insight sheet.
         let isActivelyWatchingScan = activeSheet == .insight
-        UserDefaults.standard.set(isActivelyWatchingScan, forKey: UserDefaultsKeys.suppressInferenceBanners)
+        diContainer.appSettings.suppressInferenceBanners = isActivelyWatchingScan
     }
 
     // MARK: - Workspace State Coordination

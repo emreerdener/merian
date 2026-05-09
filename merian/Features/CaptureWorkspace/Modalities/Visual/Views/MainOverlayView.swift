@@ -6,7 +6,7 @@ struct MainOverlayView: View {
     let activeScanImages: [UIImage]
     var isRefining: Bool = false
 
-    @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = true
+    @Environment(AppSettings.self) private var appSettings
     @Environment(\.controlBarHeight) private var controlBarHeight
 
     // MARK: - Interface Layout
@@ -23,7 +23,7 @@ struct MainOverlayView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .overlay(alignment: zoomSideLeft ? .leading : .trailing) {
+        .overlay(alignment: appSettings.zoomSideLeft ? .leading : .trailing) {
             if activeScanImages.count < stagedImageCapacity {
                 ZoomSliderView()
                     .padding(.bottom, 110)

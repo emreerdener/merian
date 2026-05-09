@@ -15,11 +15,13 @@ final class InsightSheetViewModel {
     init(
         queuedContext: QueuedScanContext? = nil,
         initialRecord: LocalScanRecord? = nil,
-        inferenceEngine: InferenceEngine? = nil
+        inferenceEngine: InferenceEngine? = nil,
+        appSettings: AppSettings? = nil
     ) {
         self.queuedContext = queuedContext
         self.activeLocalRecord = initialRecord
         self.inferenceEngine = inferenceEngine
+        self.appSettings = appSettings ?? AppSettings.shared
         self.cachedActiveMedia = queuedContext?.capturedMediaSnapshot.activeScanMedia
             ?? initialRecord?.capturedMediaSnapshot.activeScanMedia
     }
@@ -48,6 +50,7 @@ final class InsightSheetViewModel {
     @ObservationIgnored private var sharedExploreStateRevision: UInt64 = 0
     @ObservationIgnored private var sharedExploreStateRequestToken: UInt64 = 0
     @ObservationIgnored private var boundFieldNotesScanId: String?
+    @ObservationIgnored private var appSettings: AppSettings
 
     // MARK: - Interface State
     struct UIState: Equatable {
@@ -80,6 +83,10 @@ final class InsightSheetViewModel {
     }
 
     var state = UIState()
+
+    func bindSettings(_ appSettings: AppSettings) {
+        self.appSettings = appSettings
+    }
 
     var hasUserPhotos: Bool {
         !activeMedia.imagePathsForUpload.isEmpty || activeMedia.liveImageData != nil
@@ -371,12 +378,12 @@ final class InsightSheetViewModel {
                 HapticManager.shared.triggerSheetSpring()
             }
             
-            if data.isBiological && !UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasSeenExploreOnboarding) {
+            if data.isBiological && !appSettings.hasSeenExploreOnboarding {
                 Task {
                     try? await Task.sleep(nanoseconds: 3_000_000_000)
                     guard !Task.isCancelled else { return }
-                    if self.canShareToExplore && !UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasSeenExploreOnboarding) {
-                        UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasSeenExploreOnboarding)
+                    if self.canShareToExplore && !self.appSettings.hasSeenExploreOnboarding {
+                        self.appSettings.hasSeenExploreOnboarding = true
                         withAnimation {
                             self.state.showExploreOnboarding = true
                         }
@@ -439,7 +446,7 @@ final class InsightSheetViewModel {
                 scan: record,
                 fieldNotes: includeFieldNotes ? shareableFieldNotes : nil
             )
-            UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenExplorePost)
+            appSettings.hasUnseenExplorePost = true
             cacheSharedExplorePostId(response.postId, for: record.id)
             state.exploreFieldNotesArePublic = includeFieldNotes && shareableFieldNotes != nil
             HapticManager.shared.triggerSuccessPulse()

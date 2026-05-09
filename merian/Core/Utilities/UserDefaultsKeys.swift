@@ -211,14 +211,32 @@ final class AppSettings {
     var isHapticsEnabled: Bool {
         didSet { persistBool(isHapticsEnabled, oldValue: oldValue, key: UserDefaultsKeys.isHapticsEnabled) }
     }
+    var hasUnseenScan: Bool {
+        didSet { persistBool(hasUnseenScan, oldValue: oldValue, key: UserDefaultsKeys.hasUnseenScan) }
+    }
     var isPushNotificationsEnabled: Bool {
         didSet { persistBool(isPushNotificationsEnabled, oldValue: oldValue, key: UserDefaultsKeys.isPushNotificationsEnabled) }
+    }
+    var hasPromptedForNotificationsPostIdent: Bool {
+        didSet { persistBool(hasPromptedForNotificationsPostIdent, oldValue: oldValue, key: UserDefaultsKeys.hasPromptedForNotificationsPostIdent) }
     }
     var isAchievementNotificationsEnabled: Bool {
         didSet { persistBool(isAchievementNotificationsEnabled, oldValue: oldValue, key: UserDefaultsKeys.isAchievementNotificationsEnabled) }
     }
     var isExploreNotificationsEnabled: Bool {
         didSet { persistBool(isExploreNotificationsEnabled, oldValue: oldValue, key: UserDefaultsKeys.isExploreNotificationsEnabled) }
+    }
+    var hasSeenExploreOnboarding: Bool {
+        didSet { persistBool(hasSeenExploreOnboarding, oldValue: oldValue, key: UserDefaultsKeys.hasSeenExploreOnboarding) }
+    }
+    var hasSeenExploreNewChip: Bool {
+        didSet { persistBool(hasSeenExploreNewChip, oldValue: oldValue, key: UserDefaultsKeys.hasSeenExploreNewChip) }
+    }
+    var hasUnseenExplorePost: Bool {
+        didSet { persistBool(hasUnseenExplorePost, oldValue: oldValue, key: UserDefaultsKeys.hasUnseenExplorePost) }
+    }
+    var lastSeenExplorePostSharedAt: String {
+        didSet { persistString(lastSeenExplorePostSharedAt, oldValue: oldValue, key: UserDefaultsKeys.lastSeenExplorePostSharedAt) }
     }
     var invertZoomDirection: Bool {
         didSet { persistBool(invertZoomDirection, oldValue: oldValue, key: UserDefaultsKeys.invertZoomDirection) }
@@ -231,6 +249,9 @@ final class AppSettings {
     }
     var isLiveInferencePaused: Bool {
         didSet { persistBool(isLiveInferencePaused, oldValue: oldValue, key: UserDefaultsKeys.isLiveInferencePaused) }
+    }
+    var suppressInferenceBanners: Bool {
+        didSet { persistBool(suppressInferenceBanners, oldValue: oldValue, key: UserDefaultsKeys.suppressInferenceBanners) }
     }
     var saveToCameraRoll: Bool {
         didSet { persistBool(saveToCameraRoll, oldValue: oldValue, key: UserDefaultsKeys.saveToCameraRoll) }
@@ -264,13 +285,20 @@ final class AppSettings {
             UserDefaultsKeys.requiresScanConfirmation: false,
             UserDefaultsKeys.isExpeditionModeActive: false,
             UserDefaultsKeys.isHapticsEnabled: true,
+            UserDefaultsKeys.hasUnseenScan: false,
             UserDefaultsKeys.isPushNotificationsEnabled: false,
+            UserDefaultsKeys.hasPromptedForNotificationsPostIdent: false,
             UserDefaultsKeys.isAchievementNotificationsEnabled: false,
             UserDefaultsKeys.isExploreNotificationsEnabled: false,
+            UserDefaultsKeys.hasSeenExploreOnboarding: false,
+            UserDefaultsKeys.hasSeenExploreNewChip: false,
+            UserDefaultsKeys.hasUnseenExplorePost: false,
+            UserDefaultsKeys.lastSeenExplorePostSharedAt: "",
             UserDefaultsKeys.invertZoomDirection: false,
             UserDefaultsKeys.zoomSideLeft: true,
             UserDefaultsKeys.zoomSliderVisible: true,
             UserDefaultsKeys.isLiveInferencePaused: UIDevice.current.isModernIPhone,
+            UserDefaultsKeys.suppressInferenceBanners: false,
             UserDefaultsKeys.saveToCameraRoll: false,
             UserDefaultsKeys.audioHintsEnabled: true,
             UserDefaultsKeys.captureModeOrder: "visual,audio,describe",
@@ -285,14 +313,21 @@ final class AppSettings {
         requiresScanConfirmation = userDefaults.bool(forKey: UserDefaultsKeys.requiresScanConfirmation)
         isExpeditionModeActive = userDefaults.bool(forKey: UserDefaultsKeys.isExpeditionModeActive)
         isHapticsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isHapticsEnabled)
+        hasUnseenScan = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenScan)
         isPushNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled)
+        hasPromptedForNotificationsPostIdent = userDefaults.bool(forKey: UserDefaultsKeys.hasPromptedForNotificationsPostIdent)
         isAchievementNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
         isExploreNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isExploreNotificationsEnabled)
+        hasSeenExploreOnboarding = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreOnboarding)
+        hasSeenExploreNewChip = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreNewChip)
+        hasUnseenExplorePost = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenExplorePost)
+        lastSeenExplorePostSharedAt = userDefaults.string(forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt) ?? ""
         invertZoomDirection = userDefaults.bool(forKey: UserDefaultsKeys.invertZoomDirection)
         zoomSideLeft = userDefaults.bool(forKey: UserDefaultsKeys.zoomSideLeft)
         zoomSliderVisible = userDefaults.bool(forKey: UserDefaultsKeys.zoomSliderVisible)
         isLiveInferencePaused = userDefaults.object(forKey: UserDefaultsKeys.isLiveInferencePaused) as? Bool
             ?? UIDevice.current.isModernIPhone
+        suppressInferenceBanners = userDefaults.bool(forKey: UserDefaultsKeys.suppressInferenceBanners)
         saveToCameraRoll = userDefaults.bool(forKey: UserDefaultsKeys.saveToCameraRoll)
         audioHintsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.audioHintsEnabled)
         captureModeOrderRaw = userDefaults.string(forKey: UserDefaultsKeys.captureModeOrder) ?? "visual,audio,describe"
@@ -321,6 +356,10 @@ final class AppSettings {
         captureModeOrderRaw = modes.map(\.rawValue).joined(separator: ",")
     }
 
+    func refreshFromDefaults() {
+        reloadFromDefaults()
+    }
+
     private func reloadFromDefaults() {
         isReloadingFromDefaults = true
         defer { isReloadingFromDefaults = false }
@@ -333,14 +372,21 @@ final class AppSettings {
         requiresScanConfirmation = userDefaults.bool(forKey: UserDefaultsKeys.requiresScanConfirmation)
         isExpeditionModeActive = userDefaults.bool(forKey: UserDefaultsKeys.isExpeditionModeActive)
         isHapticsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isHapticsEnabled)
+        hasUnseenScan = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenScan)
         isPushNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled)
+        hasPromptedForNotificationsPostIdent = userDefaults.bool(forKey: UserDefaultsKeys.hasPromptedForNotificationsPostIdent)
         isAchievementNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
         isExploreNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isExploreNotificationsEnabled)
+        hasSeenExploreOnboarding = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreOnboarding)
+        hasSeenExploreNewChip = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreNewChip)
+        hasUnseenExplorePost = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenExplorePost)
+        lastSeenExplorePostSharedAt = userDefaults.string(forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt) ?? ""
         invertZoomDirection = userDefaults.bool(forKey: UserDefaultsKeys.invertZoomDirection)
         zoomSideLeft = userDefaults.bool(forKey: UserDefaultsKeys.zoomSideLeft)
         zoomSliderVisible = userDefaults.bool(forKey: UserDefaultsKeys.zoomSliderVisible)
         isLiveInferencePaused = userDefaults.object(forKey: UserDefaultsKeys.isLiveInferencePaused) as? Bool
             ?? UIDevice.current.isModernIPhone
+        suppressInferenceBanners = userDefaults.bool(forKey: UserDefaultsKeys.suppressInferenceBanners)
         saveToCameraRoll = userDefaults.bool(forKey: UserDefaultsKeys.saveToCameraRoll)
         audioHintsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.audioHintsEnabled)
         captureModeOrderRaw = userDefaults.string(forKey: UserDefaultsKeys.captureModeOrder) ?? "visual,audio,describe"

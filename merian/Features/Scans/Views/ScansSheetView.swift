@@ -41,8 +41,6 @@ struct ScansSheetView: View {
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.dismiss) var dismiss
     @Binding var isInsightSheetOpen: Bool
-
-    @AppStorage(UserDefaultsKeys.hasUnseenScan) private var hasUnseenScan: Bool = false
     
     // MARK: - Navigation Control
     @State private var selectedScanForInsight: LocalScanRecord?
@@ -119,17 +117,18 @@ struct ScansSheetView: View {
             .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .bottomBar)
         }
         .onAppear {
+            searchManager.bindSettings(appSettings)
             syncStateLocally()
             refreshQueuedScans()
             refreshThumbnailPipeline()
-            hasUnseenScan = false
+            appSettings.hasUnseenScan = false
             PushNotificationManager.shared.setBadgeCount(0)
         }
         // If a scan completes while this sheet is already visible, the badge fires but
         // the user is already looking at their library — clear it immediately.
-        .onChange(of: hasUnseenScan) { _, isSet in
+        .onChange(of: appSettings.hasUnseenScan) { _, isSet in
             if isSet {
-                hasUnseenScan = false
+                appSettings.hasUnseenScan = false
                 PushNotificationManager.shared.setBadgeCount(0)
             }
         }

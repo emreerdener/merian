@@ -166,7 +166,7 @@ enum UITestSeedCoordinator {
 
             try context.save()
 
-            UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
+            AppSettings.shared.hasUnseenScan = false
         } catch {
             MerianLog.general.error("UITestSeedCoordinator failed to seed data: \(error.localizedDescription, privacy: .private)")
         }
@@ -526,7 +526,7 @@ struct MerianApp: App {
                 if let container {
                     Group {
                         if appSettings.hasCompletedOnboarding {
-                            CaptureWorkspaceView()
+                            CaptureWorkspaceView(appSettings: appSettings)
                         } else {
                             OnboardingView()
                         }

@@ -56,8 +56,10 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     let maxBatchSelectionLimit = 20
 
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var appSettings: AppSettings
 
-    init() {
+    init(appSettings: AppSettings? = nil) {
+        self.appSettings = appSettings ?? AppSettings.shared
         ScanLibraryEvents.searchIndexUpdatePublisher()
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
@@ -67,6 +69,10 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 }
             }
             .store(in: &cancellables)
+    }
+
+    func bindSettings(_ appSettings: AppSettings) {
+        self.appSettings = appSettings
     }
     
     // MARK: - Data Ingestion
@@ -450,7 +456,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     func shareToExplore(scan: LocalScanRecord) async {
         do {
             _ = try await MerianNetworkClient.shared.shareScanToExplore(scan: scan)
-            UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenExplorePost)
+            appSettings.hasUnseenExplorePost = true
             HapticManager.shared.triggerSuccessPulse()
             showToast(message: "Shared to Explore")
         } catch {

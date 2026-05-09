@@ -142,6 +142,12 @@ final class ExplorePostStore {
 @MainActor
 @Observable
 final class ExploreFeedViewModel {
+    @ObservationIgnored private var appSettings: AppSettings
+
+    init(appSettings: AppSettings? = nil) {
+        self.appSettings = appSettings ?? AppSettings.shared
+    }
+
     let store = ExplorePostStore()
     var activeFilter: ExploreFeedFilter = .recent
     var isLoadingInitialFeed = false
@@ -191,6 +197,19 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var currentInitialFeedRequestId: UUID?
     @ObservationIgnored var currentLoadMoreRequestId: UUID?
     @ObservationIgnored var nearbyLocationSnapshot: ExploreNearbyLocationSnapshot?
+
+    func bindSettings(_ appSettings: AppSettings) {
+        self.appSettings = appSettings
+    }
+
+    func markRecentFeedSeen(latestSharedAt: String?) {
+        guard activeFilter == .recent else { return }
+        appSettings.hasUnseenExplorePost = false
+
+        if let latestSharedAt {
+            appSettings.lastSeenExplorePostSharedAt = latestSharedAt
+        }
+    }
 
     func post(id: String) -> ExplorePost? {
         store.post(id: id)

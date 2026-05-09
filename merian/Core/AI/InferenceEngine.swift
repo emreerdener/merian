@@ -414,7 +414,7 @@ private struct GBIFMedia: Decodable {
     }
 
     private func sendInferenceCompleteNotificationIfEnabled(for mappedData: SpeciesData) {
-        guard UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
+        guard AppSettings.shared.isPushNotificationsEnabled,
               let scanId = mappedData.scanId else { return }
 
         PushNotificationManager.shared.sendInferenceCompleteNotification(

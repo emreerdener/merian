@@ -97,13 +97,7 @@ extension ExploreFeedViewModel {
             errorMessage = nil
             reconcileActiveCommentsPost()
 
-            if activeFilter == .recent {
-                UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenExplorePost)
-            }
-
-            if activeFilter == .recent, let latestSharedAt = freshPosts.first?.sharedAt {
-                UserDefaults.standard.set(latestSharedAt, forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt)
-            }
+            markRecentFeedSeen(latestSharedAt: freshPosts.first?.sharedAt)
         } catch is CancellationError {
             // Silently absorb cancellation
         } catch let error as URLError where error.code == .cancelled {

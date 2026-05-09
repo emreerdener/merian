@@ -8,6 +8,7 @@ struct InsightSheetView: View {
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(HardwareOrchestrator.self) var hardwareOrchestrator
     @Environment(OfflineQueueManager.self) var offlineQueueManager
+    @Environment(AppSettings.self) private var appSettings
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) var dismiss
 
@@ -60,6 +61,7 @@ struct InsightSheetView: View {
 
                     // Seed both references immediately so viewModel computed properties
                     // resolve on the first frame rather than waiting for InsightContentView's onAppear.
+                    viewModel.bindSettings(appSettings)
                     viewModel.inferenceEngine = inferenceEngine
                     viewModel.queuedContext = queuedScan
                     if let initialRecord {
@@ -69,13 +71,13 @@ struct InsightSheetView: View {
                     // Suppress foreground inference banners while the sheet is visible —
                     // the user can already see the result. PushNotificationManager.willPresent
                     // reads this flag and delivers the notification silently instead of as a banner.
-                    UserDefaults.standard.set(true, forKey: UserDefaultsKeys.suppressInferenceBanners)
+                    appSettings.suppressInferenceBanners = true
                     // Clear the tab bar badge — the user is actively viewing a scan result.
-                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
+                    appSettings.hasUnseenScan = false
                     PushNotificationManager.shared.setBadgeCount(0)
                 }
                 .onDisappear {
-                    UserDefaults.standard.set(false, forKey: UserDefaultsKeys.suppressInferenceBanners)
+                    appSettings.suppressInferenceBanners = false
                 }
                 .task {
                     try? await Task.sleep(nanoseconds: 350_000_000)

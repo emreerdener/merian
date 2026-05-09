@@ -9,9 +9,7 @@ import SwiftUI
 /// `EmptyView` on hardware where zoom is not supported.
 struct ZoomSliderView: View {
     @Environment(CameraManager.self) private var camera
-    @AppStorage(UserDefaultsKeys.invertZoomDirection) private var invertZoomDirection: Bool = false
-    @AppStorage(UserDefaultsKeys.zoomSideLeft) private var zoomSideLeft: Bool = true
-    @AppStorage(UserDefaultsKeys.zoomSliderVisible) private var zoomSliderVisible: Bool = true
+    @Environment(AppSettings.self) private var appSettings
 
     // MARK: - Layout constants
     private let trackHeight: CGFloat = 220
@@ -38,16 +36,16 @@ struct ZoomSliderView: View {
 
     var body: some View {
         Group {
-            if camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible {
+            if camera.isZoomSupported && camera.isSessionRunning && appSettings.zoomSliderVisible {
                 sliderBody
-                    .scaleEffect(x: zoomSideLeft ? -1 : 1, y: 1)
+                    .scaleEffect(x: appSettings.zoomSideLeft ? -1 : 1, y: 1)
                     .transition(
-                        .move(edge: zoomSideLeft ? .leading : .trailing)
+                        .move(edge: appSettings.zoomSideLeft ? .leading : .trailing)
                         .combined(with: .opacity)
                     )
             }
         }
-        .animation(.easeOut(duration: 0.4), value: camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible)
+        .animation(.easeOut(duration: 0.4), value: camera.isZoomSupported && camera.isSessionRunning && appSettings.zoomSliderVisible)
         .onAppear {
             Task {
                 try? await Task.sleep(for: .seconds(2))
@@ -79,7 +77,7 @@ struct ZoomSliderView: View {
     private var sliderBody: some View {
         let fraction = fillFraction(for: camera.zoomFactor)
         // Default: top = max zoom, bottom = 1×. Inverted: top = 1×, bottom = max zoom.
-        let indicatorY = indicatorTickOffset + (invertZoomDirection ? fraction * trackHeight : (1.0 - fraction) * trackHeight)
+        let indicatorY = indicatorTickOffset + (appSettings.invertZoomDirection ? fraction * trackHeight : (1.0 - fraction) * trackHeight)
 
         return ZStack(alignment: .top) {
             rulerView
@@ -99,7 +97,7 @@ struct ZoomSliderView: View {
                     }
                     // Log-space delta gives 1:1 visual tracking on the logarithmic ruler.
                     // newFactor = startFactor * exp(sign * (dy / trackHeight) * log(maxZoom))
-                    let dy = invertZoomDirection ? value.translation.height : -value.translation.height
+                    let dy = appSettings.invertZoomDirection ? value.translation.height : -value.translation.height
                     let logMax = log(camera.maxZoomFactor)
                     let newFactor = min(max(dragStartFactor * exp((dy / trackHeight) * logMax), 1.0), camera.maxZoomFactor)
                     camera.setZoom(factor: newFactor)
@@ -126,7 +124,7 @@ struct ZoomSliderView: View {
             opticalTickInset: opticalTickInset,
             dotRightOffset: dotRightOffset,
             componentWidth: componentWidth,
-            invertZoomDirection: invertZoomDirection,
+            invertZoomDirection: appSettings.invertZoomDirection,
             stops: stops,
             currentFraction: currentFraction,
             activityStrength: zoomActivityStrength
@@ -146,7 +144,7 @@ struct ZoomSliderView: View {
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundColor(.black)
                     .contentTransition(.numericText())
-                    .scaleEffect(x: zoomSideLeft ? -1 : 1, y: 1)
+                    .scaleEffect(x: appSettings.zoomSideLeft ? -1 : 1, y: 1)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .background(Capsule().fill(zoomYellow))

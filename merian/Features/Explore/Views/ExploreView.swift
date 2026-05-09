@@ -9,6 +9,7 @@ enum ExploreTab: Hashable {
 
 struct ExploreView: View {
     @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(AppSettings.self) private var appSettings
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = ExploreFeedViewModel()
@@ -80,6 +81,7 @@ struct ExploreView: View {
             .toolbar { exploreToolbar }
         }
         .task {
+            viewModel.bindSettings(appSettings)
             await viewModel.loadInitialFeed()
         }
         .onChange(of: activeTab) { _, newValue in

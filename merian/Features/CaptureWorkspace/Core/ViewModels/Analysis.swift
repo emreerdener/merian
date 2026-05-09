@@ -135,7 +135,7 @@ extension CaptureWorkspaceViewModel {
     func handleInferenceProcessingChange(isStillProcessing: Bool) {
         guard !isStillProcessing else { return }
         if diContainer.inferenceEngine.speciesData?.scanId != nil, activeSheet != .insight {
-            UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenScan)
+            diContainer.appSettings.hasUnseenScan = true
             PushNotificationManager.shared.setBadgeCount(1)
         }
     }

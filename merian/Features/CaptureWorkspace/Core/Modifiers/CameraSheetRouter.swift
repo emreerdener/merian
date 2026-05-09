@@ -4,6 +4,7 @@ struct CameraSheetRouter: ViewModifier {
     @Bindable var viewModel: CaptureWorkspaceViewModel
     @State private var showNotificationPrompt = false
     @Environment(InferenceEngine.self) var inferenceEngine
+    @Environment(AppSettings.self) private var appSettings
     
     func body(content: Content) -> some View {
         content
@@ -16,17 +17,18 @@ struct CameraSheetRouter: ViewModifier {
                             set: { 
                                 if !$0 && viewModel.activeSheet == .insight { 
                                     viewModel.activeSheet = nil 
-                                    if !UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasPromptedForNotificationsPostIdent) {
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                    if !appSettings.hasPromptedForNotificationsPostIdent {
+                                        appSettings.hasPromptedForNotificationsPostIdent = true
+                                        Task { @MainActor in
+                                            try? await Task.sleep(for: .milliseconds(500))
                                             self.showNotificationPrompt = true
-                                            UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasPromptedForNotificationsPostIdent)
                                         }
                                     }
                                 } 
                             }
                         ), inferenceEngine: inferenceEngine)
                         .onAppear {
-                            UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
+                            appSettings.hasUnseenScan = false
                             PushNotificationManager.shared.setBadgeCount(0)
                         }
                     case .paywall:
@@ -45,7 +47,7 @@ struct CameraSheetRouter: ViewModifier {
                             set: { if $0 { viewModel.activeSheet = .insight } else if viewModel.activeSheet == .insight { viewModel.activeSheet = nil } }
                         ))
                         .onAppear {
-                            UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasUnseenScan)
+                            appSettings.hasUnseenScan = false
                             PushNotificationManager.shared.setBadgeCount(0)
                         }
                     }
@@ -54,7 +56,7 @@ struct CameraSheetRouter: ViewModifier {
             }
             .sheet(isPresented: $showNotificationPrompt) {
                 PostIdentificationNotificationSheetView { granted in
-                    UserDefaults.standard.set(granted, forKey: UserDefaultsKeys.isPushNotificationsEnabled)
+                    appSettings.isPushNotificationsEnabled = granted
                     showNotificationPrompt = false
                 }
                 .presentationDetents([.height(320)])

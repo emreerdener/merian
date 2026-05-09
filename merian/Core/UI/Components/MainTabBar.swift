@@ -6,10 +6,7 @@ struct MainTabBar: View {
     @Binding var isExploreOpen: Bool
     @Binding var isScansOpen: Bool
     @Binding var isUserProfileOpen: Bool
-    @AppStorage(UserDefaultsKeys.hasUnseenScan) private var hasUnseenScan: Bool = false
-    @AppStorage(UserDefaultsKeys.hasSeenExploreNewChip) private var hasSeenExploreNewChip: Bool = false
-    @AppStorage(UserDefaultsKeys.hasUnseenExplorePost) private var hasUnseenExplorePost: Bool = false
-    @AppStorage(UserDefaultsKeys.lastSeenExplorePostSharedAt) private var lastSeenExplorePostSharedAt: String = ""
+    @Environment(AppSettings.self) private var appSettings
     @State private var hasUnreadExploreNotifications: Bool = false
     
     // MARK: - Visual Layout
@@ -23,11 +20,11 @@ struct MainTabBar: View {
                 accessibilityIdentifier: "MainTabBar_Explore",
                 action: {
                     HapticManager.shared.triggerSheetSpring()
-                    hasSeenExploreNewChip = true
+                    appSettings.hasSeenExploreNewChip = true
                     isExploreOpen = true
                 },
-                showBadge: hasUnseenExplorePost || hasUnreadExploreNotifications,
-                chipText: hasUnseenExplorePost || hasUnreadExploreNotifications || hasSeenExploreNewChip ? nil : "NEW"
+                showBadge: appSettings.hasUnseenExplorePost || hasUnreadExploreNotifications,
+                chipText: appSettings.hasUnseenExplorePost || hasUnreadExploreNotifications || appSettings.hasSeenExploreNewChip ? nil : "NEW"
             )
 
             // 2. Local Taxonomy Library
@@ -39,7 +36,7 @@ struct MainTabBar: View {
                     HapticManager.shared.triggerSheetSpring()
                     isScansOpen = true
                 },
-                showBadge: hasUnseenScan
+                showBadge: appSettings.hasUnseenScan
             )
 
             // 3. User Identity Profile 
@@ -92,6 +89,7 @@ struct MainTabBar: View {
         }
     }
 
+    @MainActor
     private func refreshExploreBadge() async {
         async let fetchLatestPost: ExplorePost? = {
             do {
@@ -118,19 +116,19 @@ struct MainTabBar: View {
         }
 
         guard let latestPost else {
-            hasUnseenExplorePost = false
+            appSettings.hasUnseenExplorePost = false
             return
         }
 
         guard let latestPostDate = latestPost.sharedAtDate else { return }
-        guard !lastSeenExplorePostSharedAt.isEmpty else { return }
+        guard !appSettings.lastSeenExplorePostSharedAt.isEmpty else { return }
 
-        guard let lastSeenPostDate = DateUtilities.iso8601FractionalFormatter.date(from: lastSeenExplorePostSharedAt)
-            ?? DateUtilities.iso8601Formatter.date(from: lastSeenExplorePostSharedAt) else {
+        guard let lastSeenPostDate = DateUtilities.iso8601FractionalFormatter.date(from: appSettings.lastSeenExplorePostSharedAt)
+            ?? DateUtilities.iso8601Formatter.date(from: appSettings.lastSeenExplorePostSharedAt) else {
             return
         }
 
-        hasUnseenExplorePost = latestPostDate > lastSeenPostDate
+        appSettings.hasUnseenExplorePost = latestPostDate > lastSeenPostDate
     }
 }
 

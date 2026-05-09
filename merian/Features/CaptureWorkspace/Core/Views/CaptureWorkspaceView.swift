@@ -41,13 +41,13 @@ struct CaptureWorkspaceView: View {
     ///   captureMode    → scrollProxy.scrollTo  (programmatic, e.g. toggle tap/drag end)
     @State private var scrollPageMode: CaptureMode?
     
-    /// Instantiates the CaptureWorkspaceView by immediately checking `UserDefaults`
+    /// Instantiates the CaptureWorkspaceView by immediately checking the injected settings
     /// to retrieve the user's preferred first tab (default view).
     /// This strictly sidesteps lifecycle events like `.onAppear`, which would
     /// improperly re-snap the UI to the primary tab every time the view remounts.
     @MainActor
-    init() {
-        let raw = AppSettings.shared.captureModeOrderRaw
+    init(appSettings: AppSettings? = nil) {
+        let raw = (appSettings ?? AppSettings.shared).captureModeOrderRaw
         let mode = CaptureMode.userOrder(from: raw).first ?? .visual
         _captureMode = State(initialValue: mode)
         _scrollPageMode = State(initialValue: mode)

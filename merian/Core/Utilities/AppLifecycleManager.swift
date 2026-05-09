@@ -16,8 +16,7 @@ final class AppLifecycleManager {
     /// Handles application transition to active foreground.
     func handleActivePhase() {
         // Skip setup until onboarding is complete.
-        let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasCompletedOnboarding)
-        guard hasCompletedOnboarding else { return }
+        guard container.appSettings.hasCompletedOnboarding else { return }
 
         container.usageManager.evaluateDailyRefresh()
         container.pushNotificationManager.setupDelegate()
@@ -35,11 +34,9 @@ final class AppLifecycleManager {
             UserDefaults.standard.set(0.0, forKey: UserDefaultsKeys.lastBackgroundedDate)
         }
         
-        // Force cross-process AppStorage reconciliation. 
-        // UserDefaults updates made by the BackgroundDatabaseActor while suspended
-        // are not always natively observed by SwiftUI @AppStorage properties upon resume.
-        let unseen = UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasUnseenScan)
-        UserDefaults.standard.set(unseen, forKey: UserDefaultsKeys.hasUnseenScan)
+        // Force cross-process settings reconciliation. UserDefaults updates made by
+        // background delegates while suspended are not always observed by SwiftUI on resume.
+        container.appSettings.refreshFromDefaults()
 
         Task {
             await container.supabaseManager.initializeGhostSession()
@@ -79,8 +76,7 @@ final class AppLifecycleManager {
 
     /// Handles application transition to inactive (e.g. app switcher, system overlays).
     func handleInactivePhase() {
-        let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasCompletedOnboarding)
-        guard hasCompletedOnboarding else { return }
+        guard container.appSettings.hasCompletedOnboarding else { return }
 
         // Stop the camera session immediately — the viewfinder should freeze during any
         // interruption (app switcher, system alerts, limited photo library prompt, etc.).

@@ -105,7 +105,7 @@ extension OfflineQueueManager {
         }
         updateUnsyncedItemCount()
 
-        if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled) {
+        if AppSettings.shared.isPushNotificationsEnabled {
             #if canImport(UIKit)
             if UIApplication.shared.applicationState != .active {
                 PushNotificationManager.shared.sendUploadFailedNotification()
