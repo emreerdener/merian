@@ -35,6 +35,7 @@ Live audio still uses inline base64 because it is a foreground request and avoid
 - Any longer recording mode must lower concurrency or raise budgets deliberately on both client and edge. Never let the edge decode base64 before checking length.
 - R2 staging keys must stay under `staging/{userId}/` and must reject `..` path traversal before fetch. Edge code should call `_shared/mediaBudgets.ts` for this check instead of duplicating string-prefix logic.
 - Queue upload code must not hand-roll `staging/{userId}/...` strings. Use `MediaStagingContract` so filename sanitization, task descriptions, budget checks, and image/audio key splitting stay in one place.
+- Queue upload code must sign and dispatch only scan IDs returned by `BackgroundDatabaseActor.markScansAsUploading(scanIds:)`; if the `.pending → .uploading` save rolls back, no R2 upload task should be created.
 - `/generate-upload-urls` must prefer the structured `files` manifest over legacy `fileNames`; structured entries must validate `mediaKind`, `contentType`, and `sizeBytes` before returning a signed PUT URL.
 
 ## Regression Coverage

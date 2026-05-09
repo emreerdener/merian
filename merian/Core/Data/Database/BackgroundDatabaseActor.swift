@@ -103,6 +103,7 @@ actor BackgroundDatabaseActor {
         do {
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("tryClaimForInference: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
             return false
         }
@@ -128,6 +129,7 @@ actor BackgroundDatabaseActor {
         do {
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("transitionScanToStaged: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
         }
     }
@@ -152,6 +154,7 @@ actor BackgroundDatabaseActor {
         do {
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("markScanAsStaged: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
         }
     }
@@ -188,7 +191,9 @@ actor BackgroundDatabaseActor {
             do {
                 try modelContext.save()
             } catch {
+                modelContext.rollback()
                 MerianLog.data.error("reconcileOrphanedUploadingScans: save failed: \(error, privacy: .private)")
+                return false
             }
         }
         return changed
@@ -223,6 +228,7 @@ actor BackgroundDatabaseActor {
                 try modelContext.save()
                 MerianLog.data.debug("reconcileOrphanedInferencingScans: reset orphaned .inferencing scans to .staged")
             } catch {
+                modelContext.rollback()
                 MerianLog.data.error("reconcileOrphanedInferencingScans: save failed: \(error, privacy: .private)")
             }
         }
@@ -248,16 +254,18 @@ actor BackgroundDatabaseActor {
         do {
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("updateScanTelemetry: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
         }
     }
 
     /// Transitions scans to `.uploading` state and persists, preventing `syncPendingScans`
     /// from re-dispatching upload tasks for these scans after an app restart.
-    func markScansAsUploading(scanIds: [String]) {
-        guard !scanIds.isEmpty else { return }
+    func markScansAsUploading(scanIds: [String]) -> Set<String> {
+        guard !scanIds.isEmpty else { return [] }
         let pendingRaw   = ScanQueueState.pending.rawValue
         let uploadingRaw = ScanQueueState.uploading.rawValue
+        var claimedScanIds = Set<String>()
 
         // Process in chunks to prevent unbounded memory loads and SQL IN-clause overflow.
         let chunkSize = 50
@@ -270,17 +278,28 @@ actor BackgroundDatabaseActor {
                 predicate: #Predicate { chunk.contains($0.id) && $0.scanStateRaw == pendingRaw }
             )
 
-            if let scans = try? modelContext.fetch(descriptor) {
+            do {
+                let scans = try modelContext.fetch(descriptor)
                 for scan in scans {
                     scan.scanStateRaw = uploadingRaw
+                    claimedScanIds.insert(scan.id)
                 }
+            } catch {
+                modelContext.rollback()
+                MerianLog.data.error("markScansAsUploading: fetch failed: \(error, privacy: .private)")
+                return []
             }
         }
 
+        guard !claimedScanIds.isEmpty else { return [] }
+
         do {
             try modelContext.save()
+            return claimedScanIds
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("markScansAsUploading: save failed: \(error, privacy: .private)")
+            return []
         }
     }
 
@@ -678,7 +697,9 @@ actor BackgroundDatabaseActor {
         do {
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("saveLiveScanRecord: save failed: \(error, privacy: .private)")
+            return false
         }
         return isNewDiscovery
     }
@@ -722,7 +743,9 @@ actor BackgroundDatabaseActor {
         do {
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("saveNonVisualRecord: save failed: \(error, privacy: .private)")
+            return false
         }
         return isNewDiscovery
     }
@@ -751,6 +774,7 @@ actor BackgroundDatabaseActor {
         do {
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("updateScanWithWikipedia: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
         }
     }
@@ -765,6 +789,7 @@ actor BackgroundDatabaseActor {
         guard let record = try? modelContext.fetch(descriptor).first else { return }
         mutation(record)
         do { try modelContext.save() } catch {
+            modelContext.rollback()
             MerianLog.data.error("mutateScan: save failed for \(id, privacy: .private): \(error, privacy: .private)")
         }
     }
@@ -831,6 +856,7 @@ actor BackgroundDatabaseActor {
             do {
                 try modelContext.save()
             } catch {
+                modelContext.rollback()
                 MerianLog.data.error("clearAllLocalLookalikesCache: save failed: \(error, privacy: .private)")
                 return
             }
@@ -958,7 +984,13 @@ actor BackgroundDatabaseActor {
                 modelContext.delete(tombstone)
             }
             if !tombstones.isEmpty {
-                try? modelContext.save()
+                do {
+                    try modelContext.save()
+                } catch {
+                    modelContext.rollback()
+                    MerianLog.data.error("pushCollectionsToEdge: failed to purge synced collection tombstones: \(error, privacy: .private)")
+                    return false
+                }
             }
             
             MerianLog.data.debug("✅ Pushed \(payloadList.count, privacy: .public) collections to Edge (\(tombstones.count, privacy: .public) tombstones purged)")

@@ -48,6 +48,7 @@ final class ScanRepository {
         do {
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("configure: Favorites seed save failed: \(error, privacy: .private)")
         }
     }
@@ -229,6 +230,7 @@ final class ScanRepository {
             modelContext.delete(record)
             try modelContext.save()
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("🚨 eradicateScan: modelContext save failed — aborting file deletion to preserve consistency: \(error, privacy: .private)")
             // Do not proceed to file deletion; the record still exists and the queue task
             // was not persisted, so state remains consistent.
@@ -263,6 +265,7 @@ final class ScanRepository {
             ScanLibraryEvents.postLibraryDidUpdate()
             MerianLog.data.debug("✅ Successfully purged all SwiftData records natively.")
         } catch {
+            modelContext.rollback()
             MerianLog.data.error("🚨 Failed to erase local ModelContainer: \(error.localizedDescription, privacy: .private)")
         }
     }
@@ -542,7 +545,7 @@ actor HistoricalDatabaseActor {
             // Save and drop all chunk object references so ARC can immediately reclaim
             // the faulted LocalScanRecord heap before the next stride loads its 500 objects.
             if chunkDidUpdate {
-                do { try modelContext.save() } catch { MerianLog.data.error("🚨 updateExistingScans: chunk save failed: \(error, privacy: .private)") }
+                _ = saveHistoricalContext("updateExistingScans chunk")
             }
         }
     }
@@ -644,11 +647,11 @@ actor HistoricalDatabaseActor {
             modelContext.insert(record)
 
             if (index + 1).isMultiple(of: checkpointInterval) {
-                do { try modelContext.save() } catch { MerianLog.data.error("🚨 ingestScans: checkpoint save failed at index \(index): \(error, privacy: .private)") }
+                _ = saveHistoricalContext("ingestScans checkpoint at index \(index)")
             }
         }
 
-        do { try modelContext.save() } catch { MerianLog.data.error("🚨 ingestScans: final save failed: \(error, privacy: .private)") }
+        _ = saveHistoricalContext("ingestScans final")
     }
 
     private func syncCollections(remoteCollections: [CloudCollectionResponse]) {
@@ -743,7 +746,19 @@ actor HistoricalDatabaseActor {
             modelContext.delete(obsolete)
         }
 
-        do { try modelContext.save() } catch { MerianLog.data.error("🚨 syncCollections: save failed: \(error, privacy: .private)") }
+        _ = saveHistoricalContext("syncCollections inbound reconciliation")
+    }
+
+    @discardableResult
+    private func saveHistoricalContext(_ logContext: String) -> Bool {
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error("\(logContext, privacy: .public): save failed; rolled back context: \(error, privacy: .private)")
+            return false
+        }
     }
 
     private func fetchCollectionMembersByID(

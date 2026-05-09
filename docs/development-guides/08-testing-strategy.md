@@ -23,6 +23,8 @@ This guarantees that:
 1. Operations like `context.save()` happen strictly in RAM securely decoupling from native schemas mappings.
 2. The user's real `Scans` and `OfflineQueuedScan` records are completely shielded from parallel mutations.
 
+Fixture setup must fail loudly. Do not use `try? context.save()` or `try? modelContext.save()` when seeding SwiftData tests; make helpers `throws` or call `XCTFail` in non-throwing cleanup so persistence failures do not hide broken test state.
+
 ## Mocking the App DI Environment (`AppDIContainer`)
 
 When previewing complex SwiftUI trees using `#Preview`, running against `AppDIContainer.shared` will accidentally trigger live production databases, camera hardware allocators, and background network sync loops.

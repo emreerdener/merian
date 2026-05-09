@@ -149,3 +149,5 @@ Only use `typealias` for models that are **unchanged AND not referenced by any r
 **Two-tier regression test**: `merianTests/Models/MigrationPlanTests.swift` has two tests — both must pass on an iOS 26 simulator on every schema bump:
 - `migrationPlanContainerInitializesWithoutCrash` — fresh store (no migration), covers init-time validation.
 - `migrationFromV26ToV27DoesNotCrash` — creates a disk-based V26 store then reopens with migration plan, covers the migration execution path where iOS 26 validates ALL custom stages.
+
+**Custom migration save rule**: Never use `try? context.save()` inside `MerianMigrationPlan` custom stages. Every custom `didMigrate` save must call the shared migration save helper, rollback on failure, and rethrow so SwiftData aborts the migration rather than opening a store with missing backfilled fields. Scratchpad namespaces are cleared only after the save succeeds, and migration fetch failures must propagate instead of being logged and ignored.

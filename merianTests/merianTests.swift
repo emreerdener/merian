@@ -140,7 +140,11 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
             }
             context.delete(scan)
         }
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            XCTFail("Failed to persist queued-scan cleanup in test context: \(error)")
+        }
     }
 
     func testStartRefinementScanStagesPreparedHistoricalImage() async throws {

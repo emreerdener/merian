@@ -25,18 +25,38 @@ extension OfflineQueueManager {
     /// When `@Query` re-evaluates after this save it fetches fresh data from the persistent store,
     /// picking up both the deleted `OfflineQueuedScan` and the newly inserted `LocalScanRecord`
     /// (committed earlier by the background actor) in a single pass.
-    func flushOfflineQueuedScan(scanId: String) {
-        guard let context = modelContext else { return }
+    @discardableResult
+    func flushOfflineQueuedScan(scanId: String) -> Bool {
+        guard let context = modelContext else { return false }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
         // The background actor intentionally leaves the OfflineQueuedScan alive so this
         // deletion is always a real pending change on the main context. Guard defensively
         // in case of an unexpected concurrent deletion (e.g. deleteQueuedScan racing).
-        if let scan = (try? context.fetch(descriptor))?.first {
-            context.delete(scan)
+        let scan: OfflineQueuedScan?
+        do {
+            scan = try context.fetch(descriptor).first
+        } catch {
+            MerianLog.data.debug("flushOfflineQueuedScan: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            return false
         }
-        try? context.save()
-        updateUnsyncedItemCount()
+
+        guard let scan else {
+            updateUnsyncedItemCount()
+            return true
+        }
+
+        context.delete(scan)
+        do {
+            try context.save()
+            updateUnsyncedItemCount()
+            return true
+        } catch {
+            context.rollback()
+            MerianLog.data.error("flushOfflineQueuedScan: save failed for \(scanId, privacy: .private); rolled back queue deletion: \(error, privacy: .private)")
+            updateUnsyncedItemCount()
+            return false
+        }
     }
 
     /// Refreshes `unsyncedItemsCount` from the count of active (non-failed) `OfflineQueuedScan` records.
@@ -60,17 +80,28 @@ extension OfflineQueueManager {
     ///
     /// Used for scans whose source files are missing or whose uploads were permanently rejected.
     /// The record is excluded from future sync attempts and cleaned up by `purgeSoftDeletedRecords()`.
-    func softDeleteQueuedScan(scanId: String) {
-        guard let context = modelContext else { return }
+    @discardableResult
+    func softDeleteQueuedScan(scanId: String) -> Bool {
+        guard let context = modelContext else { return false }
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate<OfflineQueuedScan> { $0.id == scanId }
         )
-        guard let match = (try? context.fetch(descriptor))?.first else { return }
+        let match: OfflineQueuedScan?
+        do {
+            match = try context.fetch(descriptor).first
+        } catch {
+            MerianLog.data.debug("softDeleteQueuedScan: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            return false
+        }
+        guard let match else { return false }
         match.scanStateRaw = ScanQueueState.failed.rawValue
         do {
             try context.save()
         } catch {
+            context.rollback()
             MerianLog.data.error("softDeleteQueuedScan: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            updateUnsyncedItemCount()
+            return false
         }
         updateUnsyncedItemCount()
 
@@ -81,11 +112,13 @@ extension OfflineQueueManager {
             }
             #endif
         }
+        return true
     }
 
     /// Explicitly deletes an offline queued scan immediately.
     /// Cancels any in-flight background uploads and purges the item from disk.
-    func deleteQueuedScan(scanId: String, explicitlyAdoptedAudioPaths: [String] = []) async {
+    @discardableResult
+    func deleteQueuedScan(scanId: String, explicitlyAdoptedAudioPaths: [String] = []) async -> Bool {
         // 1. Cancel in-flight URLSession tasks (both upload chunks and inference download).
         let allTasks = await backgroundSession.allTasks
         for task in allTasks {
@@ -96,9 +129,16 @@ extension OfflineQueueManager {
         }
 
         // 2. Delete from SwiftData and disk.
-        guard let context = modelContext else { return }
+        guard let context = modelContext else { return false }
         let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-        guard let scan = (try? context.fetch(descriptor))?.first else { return }
+        let scan: OfflineQueuedScan?
+        do {
+            scan = try context.fetch(descriptor).first
+        } catch {
+            MerianLog.data.debug("deleteQueuedScan: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            return false
+        }
+        guard let scan else { return true }
 
         let adoptedAudioPaths = Set(explicitlyAdoptedAudioPaths)
         var pathsToDelete: [String] = []
@@ -126,8 +166,12 @@ extension OfflineQueueManager {
             try context.save()
             await FileIOActor.shared.deleteFiles(at: pathsToDelete)
             updateUnsyncedItemCount()
+            return true
         } catch {
+            context.rollback()
             MerianLog.data.error("deleteQueuedScan: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            updateUnsyncedItemCount()
+            return false
         }
     }
 
@@ -146,6 +190,7 @@ extension OfflineQueueManager {
 
         do {
             let failedScans = try context.fetch(descriptor)
+            guard !failedScans.isEmpty else { return }
             var pathsToDelete: [String] = []
             for scan in failedScans {
                 for item in scan.capturedMediaSnapshot.items {
@@ -168,7 +213,9 @@ extension OfflineQueueManager {
             }
             updateUnsyncedItemCount()
         } catch {
+            context.rollback()
             MerianLog.data.debug("purgeSoftDeletedRecords: operation failed: \(error, privacy: .private)")
+            updateUnsyncedItemCount()
         }
     }
 
@@ -459,6 +506,15 @@ extension OfflineQueueManager {
             return false
         }
 
+        guard let modelContext else {
+            MerianLog.data.error("enqueueNonVisualCapture: modelContext unavailable — scan not queued")
+            for persistedAudioName in persistedAudioNamesBySourcePath.values {
+                try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedAudioName))
+            }
+            return false
+        }
+
+        var didConsumeQuota = false
         if !RevenueCatManager.shared.isProActive {
             guard UsageManager.shared.canPerformScan(isProActive: false) else {
                 for persistedAudioName in persistedAudioNamesBySourcePath.values {
@@ -468,6 +524,7 @@ extension OfflineQueueManager {
                 return false
             }
             UsageManager.shared.consumeScan()
+            didConsumeQuota = true
         }
 
         let capturedMediaJSON = makeCapturedMediaJSON(
@@ -504,14 +561,6 @@ extension OfflineQueueManager {
             scan.replaceCapturedMedia(with: items)
         }
 
-        guard let modelContext else {
-            MerianLog.data.error("enqueueNonVisualCapture: modelContext unavailable — scan not queued")
-            for persistedAudioName in persistedAudioNamesBySourcePath.values {
-                try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedAudioName))
-            }
-            return false
-        }
-
         modelContext.insert(scan)
         do {
             try modelContext.save()
@@ -524,6 +573,10 @@ extension OfflineQueueManager {
             }
             return true
         } catch {
+            modelContext.rollback()
+            if didConsumeQuota {
+                UsageManager.shared.refundScan()
+            }
             MerianLog.data.error("enqueueNonVisualCapture: context.save() failed: \(error, privacy: .private)")
             for persistedAudioName in persistedAudioNamesBySourcePath.values {
                 try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(persistedAudioName))
@@ -624,6 +677,12 @@ extension OfflineQueueManager {
         // Enforce quota at enqueue time so every scan that enters the queue is guaranteed to upload.
         // Consuming here (not at upload time) prevents silent stalls when syncPendingScans fires
         // after the experience was already granted to the user.
+        guard let modelContext else {
+            await cleanupPersistedCaptureFiles(fileURLs)
+            return
+        }
+
+        var didConsumeQuota = false
         if !RevenueCatManager.shared.isProActive {
             guard UsageManager.shared.canPerformScan(isProActive: false) else {
                 MerianLog.data.debug("enqueueCapture: free user scan quota exhausted — scan not enqueued")
@@ -631,6 +690,7 @@ extension OfflineQueueManager {
                 return
             }
             UsageManager.shared.consumeScan()
+            didConsumeQuota = true
         }
         
         let scan = OfflineQueuedScan(
@@ -658,10 +718,6 @@ extension OfflineQueueManager {
             scan.replaceCapturedMedia(with: items)
         }
         
-        guard let modelContext else {
-            await cleanupPersistedCaptureFiles(fileURLs)
-            return
-        }
         modelContext.insert(scan)
 
         do {
@@ -670,6 +726,10 @@ extension OfflineQueueManager {
             AppTelemetry.trackOfflineQueued()
             syncPendingScans()
         } catch {
+            modelContext.rollback()
+            if didConsumeQuota {
+                UsageManager.shared.refundScan()
+            }
             MerianLog.data.error("enqueueCapture: context.save() failed — scan record lost, cleaning up image footprints: \(error, privacy: .private)")
             await cleanupPersistedCaptureFiles(fileURLs)
         }

@@ -1092,7 +1092,8 @@ struct BackgroundDatabaseActorTests {
 
         // Pass all four IDs — only the .pending one must advance.
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        await actor.markScansAsUploading(scanIds: [pending.id, uploading.id, staged.id, failed.id])
+        let claimedIds = await actor.markScansAsUploading(scanIds: [pending.id, uploading.id, staged.id, failed.id])
+        #expect(claimedIds == Set([pending.id]), "only pending scans should be claimed for upload dispatch")
 
         let allDescriptor = FetchDescriptor<OfflineQueuedScan>()
         let all = try context.fetch(allDescriptor)
@@ -1202,7 +1203,8 @@ struct BackgroundDatabaseActorTests {
         }
 
         // .pending → .uploading
-        await actor.markScansAsUploading(scanIds: [scanId])
+        let claimedIds = await actor.markScansAsUploading(scanIds: [scanId])
+        #expect(claimedIds == Set([scanId]), "pending scan should be claimed before upload dispatch")
         #expect(try fetchState() == ScanQueueState.uploading.rawValue, ".pending must advance to .uploading")
 
         // .uploading → .staged (with R2 keys persisted)

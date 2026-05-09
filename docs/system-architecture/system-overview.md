@@ -31,7 +31,7 @@ A structured schema built on native SwiftData migrations:
 - Schema versioning handles migrations cleanly.
 - `#Predicate` constraints use `.localizedStandardContains()` for robust case-insensitive SQLite matches across `ScanRepository`.
 - Implements the "Archive Safety Protocol" via `ArchiveManager.swift`, preserving Free-tier user data before the targeted 90-day domesticated edge function deletion executes.
-- **Transactional Deletions**: `ScanRepository.eradicateScan` commits SwiftData changes first (delete record, insert cloud task, save) and only purges local image files via `FileIOActor` after the save succeeds. A save failure leaves state fully consistent — no orphaned database records with missing images.
+- **Transactional Deletions**: `ScanRepository.eradicateScan` commits SwiftData changes first (delete record, insert cloud task, save) and only purges local image files via `FileIOActor` after the save succeeds. A save failure rolls back pending context changes and leaves state fully consistent — no orphaned database records with missing images.
 - **Historical Sync**: `syncHistoricalScansDown` paginates both scans and collections cloud fetches (via `.range(from:to:)`), then reconciles data dynamically via `HistoricalDatabaseActor.reconcileScanPage`, avoiding memory accumulation of the entire scan library.
 - **Centralized Policy (`MerianConfig`)**: All batch sizes, page sizes, storage thresholds, and retention window constants are defined in `MerianConfig.swift`. Tuning any policy constant requires exactly one change.
 

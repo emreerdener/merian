@@ -689,6 +689,16 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             .joined(separator: "|")
     }
 
+    private static func saveMigrationContext(_ context: ModelContext, stage: String) throws {
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            MerianLog.general.error("Migration \(stage) save failed; rolled back context: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV1.self,
@@ -829,12 +839,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         toVersion: MerianSchemaV39.self,
         willMigrate: { context in
             let namespace = migrationNamespace(for: context)
-            var localScans: [MerianSchemaV38.LocalScanRecord] = []
-            do {
-                localScans = try context.fetch(FetchDescriptor<MerianSchemaV38.LocalScanRecord>())
-            } catch {
-                MerianLog.general.error("Migration V38->V39 willMigrate failed to fetch LocalScanRecord: \(error.localizedDescription)")
-            }
+            let localScans = try context.fetch(FetchDescriptor<MerianSchemaV38.LocalScanRecord>())
             for scan in localScans {
                 if let audio = scan.audioFilePath {
                     _v38LocalAudioBackfill[namespace: namespace, key: scan.id] = [audio]
@@ -848,12 +853,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 _v38LocalSemanticTagsBackfill[namespace: namespace, key: scan.id] = scan.semanticTags
             }
 
-            var offlineScans: [MerianSchemaV38.OfflineQueuedScan] = []
-            do {
-                offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV38.OfflineQueuedScan>())
-            } catch {
-                MerianLog.general.error("Migration V38->V39 willMigrate failed to fetch OfflineQueuedScan: \(error.localizedDescription)")
-            }
+            let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV38.OfflineQueuedScan>())
             for scan in offlineScans {
                 if let audio = scan.audioFilePath {
                     _v38OfflineAudioBackfill[namespace: namespace, key: scan.id] = [audio]
@@ -866,12 +866,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         },
         didMigrate: { context in
             let namespace = migrationNamespace(for: context)
-            var localScans: [MerianSchemaV39.LocalScanRecord] = []
-            do {
-                localScans = try context.fetch(FetchDescriptor<MerianSchemaV39.LocalScanRecord>())
-            } catch {
-                MerianLog.general.error("Migration V38->V39 didMigrate failed to fetch LocalScanRecord: \(error.localizedDescription)")
-            }
+            let localScans = try context.fetch(FetchDescriptor<MerianSchemaV39.LocalScanRecord>())
             for scan in localScans {
                 if let audio = _v38LocalAudioBackfill[namespace: namespace, key: scan.id] {
                     scan.audioFilePaths = audio
@@ -881,12 +876,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
 
-            var offlineScans: [MerianSchemaV39.OfflineQueuedScan] = []
-            do {
-                offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV39.OfflineQueuedScan>())
-            } catch {
-                MerianLog.general.error("Migration V38->V39 didMigrate failed to fetch OfflineQueuedScan: \(error.localizedDescription)")
-            }
+            let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV39.OfflineQueuedScan>())
             for scan in offlineScans {
                 if let audio = _v38OfflineAudioBackfill[namespace: namespace, key: scan.id] {
                     scan.audioFilePaths = audio
@@ -896,7 +886,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
 
-            try? context.save()
+            try saveMigrationContext(context, stage: "V38->V39 didMigrate")
             _v38LocalAudioBackfill.removeAll(namespace: namespace)
             _v38LocalContextBackfill.removeAll(namespace: namespace)
             _v38OfflineAudioBackfill.removeAll(namespace: namespace)
@@ -919,12 +909,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         willMigrate: { context in
             let namespace = migrationNamespace(for: context)
             // V39 to V40: backfill capturedMediaJSON
-            var localScans: [MerianSchemaV39.LocalScanRecord] = []
-            do {
-                localScans = try context.fetch(FetchDescriptor<MerianSchemaV39.LocalScanRecord>())
-            } catch {
-                MerianLog.general.error("Migration V39->V40 willMigrate failed to fetch LocalScanRecord: \(error.localizedDescription)")
-            }
+            let localScans = try context.fetch(FetchDescriptor<MerianSchemaV39.LocalScanRecord>())
             for scan in localScans {
                 var items: [SerializedMediaItem] = []
                 
@@ -959,12 +944,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
 
-            var offlineScans: [MerianSchemaV39.OfflineQueuedScan] = []
-            do {
-                offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV39.OfflineQueuedScan>())
-            } catch {
-                MerianLog.general.error("Migration V39->V40 willMigrate failed to fetch OfflineQueuedScan: \(error.localizedDescription)")
-            }
+            let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV39.OfflineQueuedScan>())
             for scan in offlineScans {
                 var items: [SerializedMediaItem] = []
                 
@@ -997,12 +977,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         },
         didMigrate: { context in
             let namespace = migrationNamespace(for: context)
-            var localScans: [MerianSchemaV40.LocalScanRecord] = []
-            do {
-                localScans = try context.fetch(FetchDescriptor<MerianSchemaV40.LocalScanRecord>())
-            } catch {
-                MerianLog.general.error("Migration V39->V40 didMigrate failed to fetch LocalScanRecord: \(error.localizedDescription)")
-            }
+            let localScans = try context.fetch(FetchDescriptor<MerianSchemaV40.LocalScanRecord>())
             for scan in localScans {
                 if let json = _v39LocalMediaBackfill[namespace: namespace, key: scan.id] {
                     scan.capturedMediaJSON = json
@@ -1012,12 +987,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
             
-            var offlineScans: [MerianSchemaV40.OfflineQueuedScan] = []
-            do {
-                offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV40.OfflineQueuedScan>())
-            } catch {
-                MerianLog.general.error("Migration V39->V40 didMigrate failed to fetch OfflineQueuedScan: \(error.localizedDescription)")
-            }
+            let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV40.OfflineQueuedScan>())
             for scan in offlineScans {
                 if let json = _v39OfflineMediaBackfill[namespace: namespace, key: scan.id] {
                     scan.capturedMediaJSON = json
@@ -1027,7 +997,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 }
             }
             
-            try? context.save()
+            try saveMigrationContext(context, stage: "V39->V40 didMigrate")
             _v39LocalMediaBackfill.removeAll(namespace: namespace)
             _v39OfflineMediaBackfill.removeAll(namespace: namespace)
             _v39LocalCoverBackfill.removeAll(namespace: namespace)
@@ -1040,31 +1010,27 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         toVersion: MerianSchemaV41.self,
         willMigrate: { _ in },
         didMigrate: { context in
-            do {
-                let localScans = try context.fetch(FetchDescriptor<LocalScanRecord>())
-                for scan in localScans {
-                    guard scan.capturedMediaEntries?.isEmpty ?? true,
-                          let jsonString = scan.capturedMediaJSON,
-                          let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
-                        continue
-                    }
-                    scan.replaceCapturedMedia(with: items)
+            let localScans = try context.fetch(FetchDescriptor<LocalScanRecord>())
+            for scan in localScans {
+                guard scan.capturedMediaEntries?.isEmpty ?? true,
+                      let jsonString = scan.capturedMediaJSON,
+                      let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
+                    continue
                 }
-
-                let offlineScans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
-                for scan in offlineScans {
-                    guard scan.capturedMediaEntries?.isEmpty ?? true,
-                          let jsonString = scan.capturedMediaJSON,
-                          let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
-                        continue
-                    }
-                    scan.replaceCapturedMedia(with: items)
-                }
-
-                try context.save()
-            } catch {
-                MerianLog.general.error("Migration V40->V41 didMigrate failed: \(error.localizedDescription)")
+                scan.replaceCapturedMedia(with: items)
             }
+
+            let offlineScans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+            for scan in offlineScans {
+                guard scan.capturedMediaEntries?.isEmpty ?? true,
+                      let jsonString = scan.capturedMediaJSON,
+                      let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
+                    continue
+                }
+                scan.replaceCapturedMedia(with: items)
+            }
+
+            try saveMigrationContext(context, stage: "V40->V41 didMigrate")
         }
     )
 
@@ -1098,7 +1064,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                     scan.scanStateRaw = state
                 }
             }
-            try context.save()
+            try saveMigrationContext(context, stage: "V32->V33 didMigrate")
             _scanStateBackfill.removeAll(namespace: namespace)
         }
     )
@@ -1179,7 +1145,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                     record.diagnosticLookalikes = array
                 }
             }
-            try context.save()
+            try saveMigrationContext(context, stage: "V24->V25 didMigrate")
             _diagnosticLookalikesBackfill.removeAll(namespace: namespace)
         }
     )
@@ -1207,7 +1173,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                     record.similarSpecies = array
                 }
             }
-            try context.save()
+            try saveMigrationContext(context, stage: "V25->V26 didMigrate")
             _similarSpeciesBackfill.removeAll(namespace: namespace)
         }
     )
@@ -1309,7 +1275,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             for record in allRecords where _poisonousIds.contains(record.id, namespace: namespace) {
                 record.hazardType = "poisonous"
             }
-            try context.save()
+            try saveMigrationContext(context, stage: "V15->V16 didMigrate")
             _poisonousIds.removeAll(namespace: namespace)
         }
     )
@@ -1346,7 +1312,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                     record.aiReasoning = description
                 }
             }
-            try context.save()
+            try saveMigrationContext(context, stage: "V16->V17 didMigrate")
             _insightDescriptionBackfill.removeAll(namespace: namespace)
         }
     )

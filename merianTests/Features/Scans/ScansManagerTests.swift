@@ -29,7 +29,7 @@ final class ScansManagerTests: XCTestCase {
         semanticTags: [String] = [],
         taxonomyClass: String? = nil,
         taxonomyKingdom: String? = nil
-    ) -> LocalScanRecord {
+    ) throws -> LocalScanRecord {
         let record = LocalScanRecord(
             id: UUID().uuidString,
             speciesId: UUID().uuidString,
@@ -47,7 +47,7 @@ final class ScansManagerTests: XCTestCase {
             inferenceTier: "pro"
         )
         context.insert(record)
-        try? context.save()
+        try context.save()
         return record
     }
 
@@ -98,14 +98,14 @@ final class ScansManagerTests: XCTestCase {
     }
     
     func testEmptySearchReturnsAllScans() async throws {
-        let olderScan = createTestScan(
+        let olderScan = try createTestScan(
             commonName: "Older Robin",
             scientificName: "Turdus migratorius",
             ecologyType: "wild"
         )
         olderScan.timestamp = Date(timeIntervalSince1970: 100)
 
-        let newerScan = createTestScan(
+        let newerScan = try createTestScan(
             commonName: "Newer Sparrow",
             scientificName: "Passer domesticus",
             ecologyType: "wild"
@@ -121,7 +121,7 @@ final class ScansManagerTests: XCTestCase {
     }
     
     func testTextSearchFiltering() async throws {
-        let taggedBird = createTestScan(
+        let taggedBird = try createTestScan(
             commonName: "Backyard Finch",
             scientificName: "Haemorhous mexicanus",
             ecologyType: "wild",
@@ -129,7 +129,7 @@ final class ScansManagerTests: XCTestCase {
             taxonomyClass: "Aves"
         )
         taggedBird.customTags = ["backyard"]
-        let mushroom = createTestScan(
+        let mushroom = try createTestScan(
             commonName: "Forest Mushroom",
             scientificName: "Amanita muscaria",
             ecologyType: "fungus",
@@ -148,12 +148,12 @@ final class ScansManagerTests: XCTestCase {
     }
 
     func testSubstringSearchFilteringPreservesContainsSemantics() async throws {
-        let taggedBird = createTestScan(
+        let taggedBird = try createTestScan(
             commonName: "Backyard Finch",
             scientificName: "Haemorhous mexicanus",
             ecologyType: "wild"
         )
-        let mushroom = createTestScan(
+        let mushroom = try createTestScan(
             commonName: "Forest Mushroom",
             scientificName: "Amanita muscaria",
             ecologyType: "fungus",
@@ -194,12 +194,12 @@ final class ScansManagerTests: XCTestCase {
     }
 
     func testSingleCharacterSearchUsesUnigramIndex() async throws {
-        let zebra = createTestScan(
+        let zebra = try createTestScan(
             commonName: "Zebra Finch",
             scientificName: "Taeniopygia guttata",
             ecologyType: "wild"
         )
-        let oak = createTestScan(
+        let oak = try createTestScan(
             commonName: "Oak",
             scientificName: "Quercus alba",
             ecologyType: "plant",
@@ -218,18 +218,18 @@ final class ScansManagerTests: XCTestCase {
     }
 
     func testFullRebuildIgnoresStaleSnapshotAfterRapidReplacement() async throws {
-        let finch = createTestScan(
+        let finch = try createTestScan(
             commonName: "Garden Finch",
             scientificName: "Haemorhous mexicanus",
             ecologyType: "wild"
         )
-        let mushroom = createTestScan(
+        let mushroom = try createTestScan(
             commonName: "Forest Mushroom",
             scientificName: "Amanita muscaria",
             ecologyType: "fungus",
             taxonomyKingdom: "Fungi"
         )
-        let oak = createTestScan(
+        let oak = try createTestScan(
             commonName: "Bur Oak",
             scientificName: "Quercus macrocarpa",
             ecologyType: "plant",
@@ -253,13 +253,13 @@ final class ScansManagerTests: XCTestCase {
     }
     
     func testTaxonomicCategoryFiltering() async throws {
-        let bird = createTestScan(
+        let bird = try createTestScan(
             commonName: "Blue Jay",
             scientificName: "Cyanocitta cristata",
             ecologyType: "wild",
             taxonomyClass: "Aves"
         )
-        let plant = createTestScan(
+        let plant = try createTestScan(
             commonName: "Oak",
             scientificName: "Quercus alba",
             ecologyType: "plant",
@@ -278,12 +278,12 @@ final class ScansManagerTests: XCTestCase {
     }
 
     func testDebounceCancellation() async throws {
-        let bird = createTestScan(
+        let bird = try createTestScan(
             commonName: "Backyard Finch",
             scientificName: "Haemorhous mexicanus",
             ecologyType: "wild"
         )
-        let oak = createTestScan(
+        let oak = try createTestScan(
             commonName: "Oak",
             scientificName: "Quercus alba",
             ecologyType: "plant",
@@ -328,7 +328,7 @@ final class ScansManagerTests: XCTestCase {
     
     func testCustomTag_DynamicHotSwap() async throws {
         // 1. Create a dummy scan with default empty custom tags
-        let scan = createTestScan(commonName: "Test Bird", scientificName: "Testius avius", ecologyType: "wild")
+        let scan = try createTestScan(commonName: "Test Bird", scientificName: "Testius avius", ecologyType: "wild")
         await waitForIndexing(expectedDocumentCount: 1) {
             searchManager.allScans = [scan]
         }
@@ -341,7 +341,7 @@ final class ScansManagerTests: XCTestCase {
         
         // 2. Add a custom tag directly modifying the object
         scan.customTags.append("backyard")
-        try? context.save()
+        try context.save()
         
         // Perform a search for the new tag before firing the notification — Should yield 0 results
         // because SearchDatabaseActor runs ONLY on delta inserts normally.
@@ -367,13 +367,13 @@ final class ScansManagerTests: XCTestCase {
     
     func testSearchDatabaseActor_IndexPayloadExtraction() async throws {
         // Create a model with various nils and complex tags
-        let scan = createTestScan(commonName: "Spotted Lanternfly", scientificName: "Lycorma delicatula", ecologyType: "insect")
+        let scan = try createTestScan(commonName: "Spotted Lanternfly", scientificName: "Lycorma delicatula", ecologyType: "insect")
         scan.semanticTags = ["insect", "red", "spotted"]
         scan.customTags = ["invasive_alert", "backyard"]
         scan.taxonomyClass = "Insecta"
         scan.aiReasoning = nil // Ensure nil handling works securely
         
-        try? context.save()
+        try context.save()
         
         // Isolate the background extraction actor explicitly
         let actor = SearchDatabaseActor(modelContainer: container)

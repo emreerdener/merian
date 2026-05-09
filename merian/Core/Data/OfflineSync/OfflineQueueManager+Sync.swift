@@ -56,6 +56,7 @@ extension OfflineQueueManager {
             do {
                 try context.save()
             } catch {
+                context.rollback()
                 MerianLog.data.error("syncPendingDeletions: save failed: \(error, privacy: .private)")
             }
         }
@@ -164,17 +165,29 @@ extension OfflineQueueManager {
                 return
             }
 
-            await dbActor.markScansAsUploading(scanIds: Array(Set(uploadItems.map(\.scanId))))
+            let claimedScanIds = await dbActor.markScansAsUploading(scanIds: Array(Set(uploadItems.map(\.scanId))))
+            let claimedUploadPairs = zip(uploadItems, preparation.uploadFiles).filter { claimedScanIds.contains($0.0.scanId) }
+            let claimedUploadItems = claimedUploadPairs.map { $0.0 }
+            let claimedUploadFiles = claimedUploadPairs.map { $0.1 }
+
+            guard !claimedUploadItems.isEmpty else {
+                MerianLog.data.error("syncPendingScans: no scans could be claimed for upload; leaving queue for retry")
+                await MainActor.run {
+                    self.isSyncing = false
+                    SyncStateManager.shared.completeUploadPhase()
+                }
+                return
+            }
 
             do {
                 let presignedUrls = try await MerianNetworkClient.shared.generateUploadURLs(
-                    uploadFiles: preparation.uploadFiles
+                    uploadFiles: claimedUploadFiles
                 )
                 await MainActor.run { self.uploadRetryDelay = 0 }
 
                 let dispatchedScanIDs = await self.dispatchUploadTasks(
                     session: session,
-                    uploadItems: uploadItems,
+                    uploadItems: claimedUploadItems,
                     presignedUrls: presignedUrls
                 )
 

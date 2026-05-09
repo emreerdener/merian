@@ -401,9 +401,9 @@ private struct GBIFMedia: Decodable {
     private func completeQueuedLiveInferenceIfNeeded(scanId: String?, audioPathsToKeep: [String]) {
         guard let scanId else { return }
 
-        // flushOfflineQueuedScan is the guaranteed @Query wake-up before the completion
-        // notification. deleteQueuedScan stays async so it can cancel any parallel URLSession
-        // upload without blocking the visible success path.
+        // flushOfflineQueuedScan gives the main context an immediate @Query wake-up on the
+        // happy path. deleteQueuedScan stays async so it can cancel any parallel URLSession
+        // upload and retry queue cleanup without blocking the visible success path.
         OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
         executeTrackedBackgroundTask { [audioPathsToKeep] in
             await OfflineQueueManager.shared.deleteQueuedScan(

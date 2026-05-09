@@ -202,7 +202,7 @@ extension OfflineQueueManager {
             
             if isFileMissing {
                 MerianLog.data.debug("Terminal file corruption — tombstoning \(scanId, privacy: .private)")
-                await MainActor.run { OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
+                await MainActor.run { _ = OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
                 return true
             }
 
@@ -239,7 +239,7 @@ extension OfflineQueueManager {
                 MerianLog.data.debug("Background upload recoverable (\(code, privacy: .public)) — retaining in queue")
             } else {
                 MerianLog.data.debug("Background upload rejected (\(code, privacy: .public)) — tombstoning scan")
-                await MainActor.run { OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
+                await MainActor.run { _ = OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
             }
             return true
         }
@@ -402,7 +402,7 @@ extension OfflineQueueManager {
             let code = statusCode ?? 0
             if (400...499).contains(code) {
                 MerianLog.data.debug("Inference failed permanently for \(scanId, privacy: .private) [\(code)] — tombstoning scan")
-                await MainActor.run { OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
+                await MainActor.run { _ = OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
             } else {
                 MerianLog.data.debug("Inference download non-200 [\(code)] for \(scanId, privacy: .private) — retry")
                 await handleInferenceRetry(scanId: scanId)
@@ -453,13 +453,18 @@ extension OfflineQueueManager {
         // any open sheet. The background actor intentionally left it alive (see wasCleaned doc);
         // this deletion guarantees the main context has a real pending change when it saves —
         // the only reliable @Query trigger in a presented sheet (SwiftData platform limitation).
+        let didFlushQueuedScan: Bool
         if processingResult.wasCleaned {
-            await MainActor.run {
+            didFlushQueuedScan = await MainActor.run {
                 OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
             }
+        } else {
+            didFlushQueuedScan = false
         }
 
-        if let speciesName = processingResult.resolvedSpeciesName, let dbScanId = processingResult.finalScanId {
+        if didFlushQueuedScan,
+           let speciesName = processingResult.resolvedSpeciesName,
+           let dbScanId = processingResult.finalScanId {
             let capturedContainer = extracted.container
             await MainActor.run {
                 // Only set the badge when the insight sheet is not already open.
@@ -518,8 +523,8 @@ extension OfflineQueueManager {
         MerianLog.data.debug("⏱️ Background pipeline total: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
         await MainActor.run {
             // updateUnsyncedItemCount() is already called by flushOfflineQueuedScan above;
-            // only call it here for the wasCleaned==false path (save failed) where flush was skipped.
-            if !processingResult.wasCleaned {
+            // only call it here when flush was skipped or failed.
+            if !didFlushQueuedScan {
                 OfflineQueueManager.shared.updateUnsyncedItemCount()
             }
             CircuitBreakerManager.shared.recordSuccess()

@@ -81,7 +81,16 @@ struct SelectMultipleScansView: View {
                 scan.collections = updatedCollections
             }
         }
-        try? modelContext.save()
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error("SelectMultipleScansView: failed to update collection membership: \(error, privacy: .private)")
+            HapticManager.shared.triggerErrorThump()
+            return
+        }
+
         ScanLibraryEvents.postLibraryDidUpdate()
         refreshCollectionSnapshot()
         OfflineQueueManager.shared.enqueueCollectionSync()

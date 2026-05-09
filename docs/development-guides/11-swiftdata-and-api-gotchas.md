@@ -118,10 +118,14 @@ Validate the media staging manifest first, then transition scans to `.uploading`
 let preparation = prepareUploadItems(from: filteredScans, userId: stagingUserId)
 
 // Always persist state BEFORE crossing the URLSession boundary.
-await dbActor.markScansAsUploading(scanIds: Array(Set(preparation.uploadItems.map(\.scanId))))
+let claimedScanIds = await dbActor.markScansAsUploading(
+    scanIds: Array(Set(preparation.uploadItems.map(\.scanId)))
+)
+let claimedUploadItems = preparation.uploadItems.filter { claimedScanIds.contains($0.scanId) }
+guard !claimedUploadItems.isEmpty else { return }
 
 // Then dispatch
-for item in preparation.uploadItems {
+for item in claimedUploadItems {
     let uploadTask = session.uploadTask(with: request, fromFile: item.fileURL)
     uploadTask.taskDescription = MediaStagingContract.uploadTaskDescription(
         scanId: item.scanId,
@@ -131,7 +135,7 @@ for item in preparation.uploadItems {
 }
 ```
 
-The same principle applies to any durable operation that must survive a crash: write the intent before performing the action, not after.
+The same principle applies to any durable operation that must survive a crash: write the intent before performing the action, not after. If the intent save fails, rollback and do not dispatch the external action.
 
 ---
 
@@ -338,7 +342,7 @@ await cleanupActor.processAndCleanupOfflineScan(...)  // save() fails → cleanu
 
 Additionally, `processAndCleanupOfflineScan` itself should be **idempotent**: check whether a `LocalScanRecord` with the target `id` already exists before inserting, to prevent unique-constraint failures when a previous attempt partially committed:
 
-The same rule applies on the MainActor. UI mutation paths must not show success, enqueue offline sync, push cloud updates, or post search-index notifications until `modelContext.save()` succeeds. On failure, call `modelContext.rollback()`, log an `.error`, and keep external side effects untouched. `InsightSheetViewModel.toggleScanInCollection(...)`, `InsightSheetViewModel.markRecordViewedIfAppropriate(...)`, and `UserTagsCard` follow this pattern for collection membership, read receipts, and custom tags.
+The same rule applies on the MainActor, queue manager, migration plan, and historical sync actors. UI mutation paths must not show success, enqueue offline sync, push cloud updates, or post search-index notifications until `modelContext.save()` succeeds. Queue paths must not delete staged files, fire push notifications, dispatch URLSession uploads, or consume a free-tier scan slot unless the local queue mutation committed (or the slot is refunded on failure). Custom migration stages must not clear scratchpad backfill data or complete the migration after a failed save, and migration fetch failures must propagate instead of being logged and ignored. Historical reconciliation must not continue with failed pending updates or inserts still attached to its context. On failure, call `modelContext.rollback()`, log an `.error`, and keep external side effects untouched. `InsightSheetViewModel.toggleScanInCollection(...)`, `InsightSheetViewModel.markRecordViewedIfAppropriate(...)`, `UserTagsCard`, `OfflineQueueManager.flushOfflineQueuedScan(...)`, `OfflineQueueManager.softDeleteQueuedScan(...)`, `OfflineQueueManager.deleteQueuedScan(...)`, `OfflineQueueManager.enqueueCapture(...)`, `OfflineQueueManager.enqueueNonVisualCapture(...)`, `BackgroundDatabaseActor.markScansAsUploading(...)`, `MerianMigrationPlan` custom saves, `ScanRepository.eradicateScan(...)`, `ScanRepository.purgeAllData(...)`, and historical `updateExistingScans` / `ingestScans` / `syncCollections` follow this containment pattern.
 
 ```swift
 var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
@@ -604,4 +608,5 @@ The repository resolves SwiftData records before the legacy bridge, mirrors succ
 - Treat `ModelContainer` startup failures as data-loss-sensitive. Only corruption-class failures may trigger store recovery, and any recovery flow must quarantine `default.store`, `default.store-wal`, and `default.store-shm` before attempting recreation.
 - Never delete local media before the corresponding SwiftData delete/save succeeds. Broken ordering leaves detached records pointing at missing files and is now explicitly forbidden.
 - Background actor delete paths must use `rollback()` on save failure rather than `try? save()`. Silent save failure is architecture drift, not acceptable resilience.
+- `MerianMigrationPlan` custom stages must use the shared migration save helper rather than `try? context.save()` or bare `try context.save()`. If a backfill cannot be committed, rollback and throw; opening the upgraded store without the backfilled fields is worse than surfacing a migration failure.
 - Lookalike cache invalidation must stay batched and biological-only. `BackgroundDatabaseActor.clearAllLocalLookalikesCache()` is regression-tested with more than one batch of biological records plus a non-biological control record so a future unbounded fetch or predicate drift is caught.
