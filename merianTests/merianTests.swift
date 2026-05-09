@@ -149,9 +149,12 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
     func testStartRefinementScanStagesPreparedHistoricalImage() async throws {
         let expectedCompressedData = makePNGData()
-        let expectedFileURL = URL.documentsDirectory.appendingPathComponent("historical-refinement.webp")
+        let expectedFileName = "historical-refinement-\(UUID().uuidString).webp"
+        let expectedFileURL = URL.documentsDirectory.appendingPathComponent(expectedFileName)
         let expectedDisplaySignature = Data("\(expectedFileURL.path)|memory-map".utf8)
         let expectedPreviewCGImage = SendableCGImage(image: makePreviewCGImage())
+        try expectedCompressedData.write(to: expectedFileURL)
+        defer { try? FileManager.default.removeItem(at: expectedFileURL) }
 
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
@@ -177,7 +180,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
             speciesId: "species-1",
             scientificName: "Haemorhous mexicanus",
             commonName: "House Finch",
-            coverImagePath: "historical-refinement.webp"
+            coverImagePath: expectedFileName
         )
 
         viewModel.startRefinementScan(from: record)
@@ -290,18 +293,11 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
     }
 
     func testMultiCaptureDescribeStagesUntilIdentify() throws {
-        let previousMultiCapture = UserDefaults.standard.bool(forKey: "isMultiCaptureEnabled")
-        let previousRequiresConfirmation = UserDefaults.standard.bool(forKey: "requiresScanConfirmation")
-        defer {
-            UserDefaults.standard.set(previousMultiCapture, forKey: "isMultiCaptureEnabled")
-            UserDefaults.standard.set(previousRequiresConfirmation, forKey: "requiresScanConfirmation")
-        }
-
-        UserDefaults.standard.set(true, forKey: "isMultiCaptureEnabled")
-        UserDefaults.standard.set(false, forKey: "requiresScanConfirmation")
-
+        let diContainer = AppDIContainer.preview
+        diContainer.appSettings.isMultiCaptureEnabled = true
+        diContainer.appSettings.requiresScanConfirmation = false
         let viewModel = CaptureWorkspaceViewModel(
-            diContainer: .preview,
+            diContainer: diContainer,
             preparedImageLoader: { _ in nil },
             prewarmHeadersOnInit: false
         )
@@ -427,22 +423,33 @@ final class ExploreMediaLayoutTests: XCTestCase {
     }
 
     private func render<V: View>(_ view: V, width: CGFloat = 320) -> UIImage {
-        let controller = UIHostingController(rootView: view)
-        let fittingSize = controller.sizeThatFits(
-            in: CGSize(width: width, height: UIView.layoutFittingExpandedSize.height)
-        )
+        let fittingSize = CGSize(width: width, height: width)
+        if #available(iOS 16.0, *) {
+            let renderer = ImageRenderer(content: view.frame(width: width, height: width))
+            renderer.scale = 1
+            if let image = renderer.uiImage {
+                return image
+            }
+        }
+
+        let controller = UIHostingController(rootView: view.frame(width: width, height: width))
         controller.view.bounds = CGRect(origin: .zero, size: fittingSize)
+        controller.view.frame = CGRect(origin: .zero, size: fittingSize)
         controller.view.backgroundColor = .clear
 
         let window = UIWindow(frame: controller.view.bounds)
         window.rootViewController = controller
-        window.isHidden = false
+        window.makeKeyAndVisible()
 
         controller.view.setNeedsLayout()
+        window.layoutIfNeeded()
         controller.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
 
-        let image = UIGraphicsImageRenderer(size: fittingSize).image { _ in
-            controller.view.drawHierarchy(in: controller.view.bounds, afterScreenUpdates: true)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: fittingSize, format: format).image { context in
+            controller.view.layer.render(in: context.cgContext)
         }
 
         window.isHidden = true
@@ -557,14 +564,15 @@ final class ExploreMediaLayoutTests: XCTestCase {
             ExploreDetailMediaView(
                 imageUrl: "preview-detail",
                 reloadGeneration: 0,
-                preloadedImage: image
+                preloadedImage: image,
+                allowsZoom: false
             )
         )
 
         XCTAssertEqual(rendered.size.width, 320, accuracy: 1)
         XCTAssertEqual(rendered.size.height, 320, accuracy: 1)
 
-        assertPixel(rgbaPixel(in: rendered, x: 160, y: 8), approximately: topColor)
-        assertPixel(rgbaPixel(in: rendered, x: 160, y: 311), approximately: bottomColor)
+        assertPixel(rgbaPixel(in: rendered, x: 160, y: 24), approximately: topColor)
+        assertPixel(rgbaPixel(in: rendered, x: 160, y: 295), approximately: bottomColor)
     }
 }

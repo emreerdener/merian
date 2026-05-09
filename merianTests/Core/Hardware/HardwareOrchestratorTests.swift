@@ -4,6 +4,7 @@ import TelemetryClient
 @testable import Merian
 
 @MainActor
+@Suite(.serialized)
 struct HardwareOrchestratorTests {
     
     init() {
@@ -13,9 +14,16 @@ struct HardwareOrchestratorTests {
     @Test func testExpeditionModeDisablesBackgroundSyncs() async throws {
         // Arrange
         let orchestrator = HardwareOrchestrator.shared
+        AppSettings.shared.isExpeditionModeActive = false
+        orchestrator.isIdleLocked = false
+        defer {
+            AppSettings.shared.isExpeditionModeActive = false
+            orchestrator.isIdleLocked = false
+            orchestrator.evaluateConstraints(thermalState: .nominal)
+        }
         
         // Assert base execution sets Expedition mode bounds internally
-        UserDefaults.standard.set(true, forKey: "isExpeditionModeActive")
+        AppSettings.shared.isExpeditionModeActive = true
         orchestrator.evaluateConstraints(thermalState: .nominal)
         #expect(orchestrator.isExpeditionModeActive == true, "ExpeditionMode maps to UserDefaults")
         
@@ -27,16 +35,19 @@ struct HardwareOrchestratorTests {
         // Assert Offline Queue skips syncing while battery bounds are aggressive
         #expect(OfflineQueueManager.shared.unsyncedItemsCount == initialUploadTries, "Pending offline queue should short-circuit and completely ignore queue execution natively when protecting hardware limits")
         
-        // Cleanup mapping back to simulator bounds globally across test cases
-        UserDefaults.standard.set(false, forKey: "isExpeditionModeActive")
-        orchestrator.evaluateConstraints(thermalState: .nominal)
     }
     
     @Test func testThermalStateThrottlingProperlyReducesFPS() {
         let orchestrator = HardwareOrchestrator.shared
         
         // Arrange & base boundaries disabled
+        AppSettings.shared.isExpeditionModeActive = false
         orchestrator.isIdleLocked = false
+        defer {
+            AppSettings.shared.isExpeditionModeActive = false
+            orchestrator.isIdleLocked = false
+            orchestrator.evaluateConstraints(thermalState: .nominal)
+        }
         
         // 1. Act & Assert Nominal
         orchestrator.evaluateConstraints(thermalState: .nominal)
@@ -61,14 +72,10 @@ struct HardwareOrchestratorTests {
         #expect(orchestrator.isCriticalHeatWarningActive == true)
         
         // 5. Assert Expedition Mode completely overrides physical heat maps
-        UserDefaults.standard.set(true, forKey: "isExpeditionModeActive")
+        AppSettings.shared.isExpeditionModeActive = true
         orchestrator.evaluateConstraints(thermalState: .nominal)
         #expect(orchestrator.targetFPS == 24)
         #expect(orchestrator.isGlassmorphismEnabled == false)
-        
-        // Reset defaults
-        UserDefaults.standard.set(false, forKey: "isExpeditionModeActive")
-        orchestrator.evaluateConstraints(thermalState: .nominal)
     }
     
     @Test func testIdleLockPreventsThermalOverride() {
@@ -94,22 +101,23 @@ struct HardwareOrchestratorTests {
     
     @Test func testExpeditionModeOverridesSettings() {
         let orchestrator = HardwareOrchestrator.shared
+        defer {
+            AppSettings.shared.isExpeditionModeActive = false
+            orchestrator.isIdleLocked = false
+            orchestrator.evaluateConstraints(thermalState: .nominal)
+        }
         
         // Assert nominal map
-        UserDefaults.standard.set(false, forKey: "isExpeditionModeActive")
+        AppSettings.shared.isExpeditionModeActive = false
         orchestrator.evaluateConstraints(thermalState: .nominal)
         #expect(orchestrator.targetFPS == 60)
         
         // Simulate User toggling "Expedition Mode" in SettingsView
-        UserDefaults.standard.set(true, forKey: "isExpeditionModeActive")
+        AppSettings.shared.isExpeditionModeActive = true
         orchestrator.evaluateConstraints(thermalState: .nominal)
         
         #expect(orchestrator.targetFPS == 24)
         #expect(orchestrator.isGlassmorphismEnabled == false)
-        
-        // Reset defaults
-        UserDefaults.standard.set(false, forKey: "isExpeditionModeActive")
-        orchestrator.evaluateConstraints(thermalState: .nominal)
     }
 }
 

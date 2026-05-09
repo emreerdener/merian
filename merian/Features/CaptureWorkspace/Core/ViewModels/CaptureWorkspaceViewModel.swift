@@ -141,7 +141,7 @@ final class CaptureWorkspaceViewModel {
     @ObservationIgnored var pendingAnalyzeScanId: String?
 
     var stagedCaptureLimit: Int {
-        (AppSettings.shared.isMultiCaptureEnabled || baseRefinementRecord != nil) ? stagedCaptureCapacity : 1
+        (diContainer.appSettings.isMultiCaptureEnabled || baseRefinementRecord != nil) ? stagedCaptureCapacity : 1
     }
 
     var availableStagedCaptureSlots: Int {

@@ -232,6 +232,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - Writes through to `UserDefaults` on mutation and reloads from `UserDefaults.didChangeNotification` so legacy writers and modern bindings stay coherent during migration.
 - Injected through `AppDIContainer` and SwiftUI environment. Settings-first views should bind `@Environment(AppSettings.self)` and use `@Bindable var appSettings = appSettings` instead of declaring local `@AppStorage` wrappers.
 - Rule: `UserDefaultsKeys` remains the storage registry; `AppSettings` is the preferred UI-facing boundary.
+- `CaptureWorkspaceViewModel` and its modality extensions read capture preferences through `diContainer.appSettings`, not `AppSettings.shared`, so preview/test containers can isolate multi-capture and confirmation behavior without mutating global defaults.
 
 ## Media & Image Processing
 

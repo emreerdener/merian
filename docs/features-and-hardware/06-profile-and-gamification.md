@@ -97,7 +97,7 @@ All `ProfileDatabaseActor` fetches use `propertiesToFetch` projections to minimi
 
 All species-based criteria de-duplicate by canonical species key (`confirmedSpeciesId`, then `speciesId`, then display scientific name) — scanning the same species 10 times counts as 1 toward a species-based award.
 
-The first-scan achievement is resolved by finding the oldest timestamp in the projection, with scan ID as a deterministic tie-breaker. Each accumulator also tracks a `lastInteractionDate` as the most recent qualifying contribution. Note that `timestamp` strictly represents the system upload and processing time, completely decoupled from the original image's EXIF `captureDate`. This ensures that historical backfills from users' photo libraries do not retroactively trigger streaks or skew gamification timing mechanics.
+The first-scan achievement is resolved by finding the oldest timestamp in the projection, with scan ID as a deterministic tie-breaker. Each accumulator also tracks a `lastInteractionDate` as the most recent qualifying contribution. `currentCount` reflects the full de-duplicated qualifying count, even after an award is unlocked; `progressFraction` clamps the visual progress against `targetCount`, and the detail sheet can show every qualifying contribution. Note that `timestamp` strictly represents the system upload and processing time, completely decoupled from the original image's EXIF `captureDate`. This ensures that historical backfills from users' photo libraries do not retroactively trigger streaks or skew gamification timing mechanics.
 
 ---
 
@@ -144,7 +144,7 @@ public struct AwardPayload: Sendable, Identifiable {
 
 Extension properties:
 - `isCompleted: Bool` — `currentCount >= targetCount`
-- `progressFraction: Double` — clamped `currentCount / targetCount`
+- `progressFraction: Double` — clamped `currentCount / targetCount`; `currentCount` itself is never truncated to the target
 - `difficultyLevel: Int` — 0 (Easy), 1 (Medium), 2 (Hard), derived from the `type` key
 - `difficultyString: String` — human-readable label
 

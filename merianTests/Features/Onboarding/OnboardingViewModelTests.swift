@@ -6,17 +6,26 @@ import SwiftUI
 final class OnboardingViewModelTests: XCTestCase {
     
     var viewModel: OnboardingViewModel!
+    var appSettings: AppSettings!
+    var userDefaults: UserDefaults!
+    var suiteName: String!
     
     override func setUp() {
         super.setUp()
-        // Reset the explicit AppStorage binding manually on the physical host
-        UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
-        viewModel = OnboardingViewModel()
+        suiteName = "merian.tests.onboarding.\(UUID().uuidString)"
+        userDefaults = UserDefaults(suiteName: suiteName)
+        userDefaults.removePersistentDomain(forName: suiteName)
+        appSettings = AppSettings(userDefaults: userDefaults, observeExternalChanges: false)
+        appSettings.hasCompletedOnboarding = false
+        viewModel = OnboardingViewModel(appSettings: appSettings)
     }
     
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
+        userDefaults.removePersistentDomain(forName: suiteName)
         viewModel = nil
+        appSettings = nil
+        userDefaults = nil
+        suiteName = nil
         super.tearDown()
     }
     
@@ -55,6 +64,6 @@ final class OnboardingViewModelTests: XCTestCase {
         
         // Verify AppStorage binding actually triggers the physical override
         XCTAssertTrue(viewModel.hasCompletedOnboarding, "The completeOnboarding physical action MUST explicitly flip the global teardown flag in SwiftUI memory.")
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: "hasCompletedOnboarding"), "The physical standard defaults mapping must confirm persistence for WindowGroup reconfiguration on next launch.")
+        XCTAssertTrue(userDefaults.bool(forKey: UserDefaultsKeys.hasCompletedOnboarding), "The injected defaults mapping must confirm persistence for WindowGroup reconfiguration on next launch.")
     }
 }

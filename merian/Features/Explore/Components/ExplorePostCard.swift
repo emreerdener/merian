@@ -345,28 +345,31 @@ struct ExploreDetailMediaView: View {
     let imageUrl: String
     let reloadGeneration: UInt64
     let preloadedImage: UIImage?
+    let allowsZoom: Bool
 
     init(
         imageUrl: String,
         reloadGeneration: UInt64,
-        preloadedImage: UIImage? = nil
+        preloadedImage: UIImage? = nil,
+        allowsZoom: Bool = true
     ) {
         self.imageUrl = imageUrl
         self.reloadGeneration = reloadGeneration
         self.preloadedImage = preloadedImage
+        self.allowsZoom = allowsZoom
     }
 
     var body: some View {
         // Detail is the only path that opts into transient zoom behavior.
         ExploreSquareMediaView {
-            ExploreDetailZoomView {
-                ExploreHeroImageView(
-                    imageUrl: imageUrl,
-                    reloadGeneration: reloadGeneration,
-                    preloadedImage: preloadedImage
-                )
+            if allowsZoom {
+                ExploreDetailZoomView {
+                    heroImage
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                heroImage
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
@@ -374,6 +377,14 @@ struct ExploreDetailMediaView: View {
                 .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
         )
         .padding(.horizontal, 16)
+    }
+
+    private var heroImage: some View {
+        ExploreHeroImageView(
+            imageUrl: imageUrl,
+            reloadGeneration: reloadGeneration,
+            preloadedImage: preloadedImage
+        )
     }
 }
 
@@ -710,6 +721,7 @@ struct ExploreDetailZoomView<Content: View>: UIViewControllerRepresentable {
         hostingController.didMove(toParent: viewController)
 
         context.coordinator.hostingController = hostingController
+        context.coordinator.scrollView = scrollView
         context.coordinator.onSingleTap = onSingleTap
         context.coordinator.onDoubleTap = onDoubleTap
 
@@ -742,6 +754,7 @@ struct ExploreDetailZoomView<Content: View>: UIViewControllerRepresentable {
         context.coordinator.hostingController?.rootView = content
         context.coordinator.onSingleTap = onSingleTap
         context.coordinator.onDoubleTap = onDoubleTap
+        context.coordinator.layoutHostedContent(in: uiViewController)
     }
 
     func sizeThatFits(
@@ -759,10 +772,20 @@ struct ExploreDetailZoomView<Content: View>: UIViewControllerRepresentable {
 
     final class Coordinator: NSObject, UIScrollViewDelegate {
         var hostingController: UIHostingController<Content>?
+        weak var scrollView: UIScrollView?
         var onSingleTap: (() -> Void)?
         var onDoubleTap: (() -> Void)?
         weak var singleTapRecognizer: UITapGestureRecognizer?
         weak var doubleTapRecognizer: UITapGestureRecognizer?
+
+        func layoutHostedContent(in viewController: UIViewController) {
+            viewController.view.setNeedsLayout()
+            viewController.view.layoutIfNeeded()
+            scrollView?.setNeedsLayout()
+            scrollView?.layoutIfNeeded()
+            hostingController?.view.setNeedsLayout()
+            hostingController?.view.layoutIfNeeded()
+        }
 
         func viewForZooming(in scrollView: UIScrollView) -> UIView? {
             hostingController?.view

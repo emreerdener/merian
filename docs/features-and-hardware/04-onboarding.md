@@ -9,7 +9,7 @@ Merian gates all hardware initialization, background sync, and lifecycle handler
 | File | Role |
 |---|---|
 | `OnboardingStep` enum | Defines the 6 steps in order |
-| `OnboardingViewModel` | `@Observable @MainActor` — owns `currentStep` and the `hasCompletedOnboarding` flag |
+| `OnboardingViewModel` | `@Observable @MainActor` — owns `currentStep` and the injected `AppSettings.hasCompletedOnboarding` flag |
 | `OnboardingView` | Root view, switches content based on `currentStep` |
 | Step component views | One view per step, in `Features/Onboarding/Components/` |
 | `LocationPermissionDelegate` | `CLLocationManagerDelegate` for native location permission priming |
@@ -49,7 +49,7 @@ func advanceStep() {
 
 func completeOnboarding() {
     AppTelemetry.trackOnboardingCompleted()  // fires before flag write — activation funnel signal
-    hasCompletedOnboarding = true            // writes to UserDefaults("hasCompletedOnboarding")
+    hasCompletedOnboarding = true            // writes through AppSettings/UserDefaults("hasCompletedOnboarding")
 }
 ```
 
@@ -65,16 +65,16 @@ This means during onboarding: no camera session starts, no offline sync runs, no
 
 ## The `hasCompletedOnboarding` Gate
 
-`OnboardingViewModel` exposes `hasCompletedOnboarding` as a computed property backed by `UserDefaults`:
+`OnboardingViewModel` exposes `hasCompletedOnboarding` as a computed property backed by its injected `AppSettings` boundary:
 
 ```swift
 var hasCompletedOnboarding: Bool {
-    get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
-    set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
+    get { appSettings.hasCompletedOnboarding }
+    set { appSettings.hasCompletedOnboarding = newValue }
 }
 ```
 
-`MerianApp.swift` reads this flag via `@AppStorage("hasCompletedOnboarding")` to decide whether to show `OnboardingView` or the main `CaptureWorkspaceView`. Once `completeOnboarding()` is called, the app never shows onboarding again (unless `UserDefaults` is reset via a hard reinstall).
+`MerianApp.swift` reads the same flag through `AppSettings.shared` to decide whether to show `OnboardingView` or the main `CaptureWorkspaceView`. Production construction uses `AppSettings.shared`; tests can inject an isolated `AppSettings(userDefaults:observeExternalChanges:)` instance without mutating global defaults. Once `completeOnboarding()` is called, the app never shows onboarding again (unless `UserDefaults` is reset via a hard reinstall).
 
 ---
 

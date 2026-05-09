@@ -373,13 +373,57 @@ enum MerianSchemaV41: VersionedSchema {
     static var versionIdentifier = Schema.Version(41, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        [MerianSchemaV41.LocalScanRecord.self, MerianSchemaV41.OfflineQueuedScan.self, CapturedMediaEntry.self,
+        [MerianSchemaV41.LocalScanRecord.self, MerianSchemaV41.OfflineQueuedScan.self, MerianSchemaV41.CapturedMediaEntry.self,
          MerianSchemaV41.ScanCollection.self, PendingCloudDeletionTask.self,
          UserSpeciesPreference.self]
     }
 }
 
 extension MerianSchemaV41 {
+    @Model
+    final class CapturedMediaEntry {
+        @Attribute(.unique) var id: String
+        var orderIndex: Int
+        var kindRaw: String
+        var storageRaw: String
+        var mediaPath: String
+        var observationContextJSON: String
+
+        init(
+            id: String = UUID().uuidString,
+            orderIndex: Int,
+            item: SerializedMediaItem
+        ) {
+            self.id = id
+            self.orderIndex = orderIndex
+
+            switch item {
+            case .image(let reference):
+                self.kindRaw = PersistedCapturedMediaKind.image.rawValue
+                self.storageRaw = reference.storage.rawValue
+                self.mediaPath = reference.serializedPath
+                self.observationContextJSON = ""
+            case .audio(let reference):
+                self.kindRaw = PersistedCapturedMediaKind.audio.rawValue
+                self.storageRaw = reference.storage.rawValue
+                self.mediaPath = reference.serializedPath
+                self.observationContextJSON = ""
+            case .description(let context):
+                self.kindRaw = PersistedCapturedMediaKind.description.rawValue
+                self.storageRaw = ""
+                self.mediaPath = ""
+                let contextData = try? JSONEncoder().encode(context)
+                self.observationContextJSON = contextData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            }
+        }
+
+        static func makeEntries(from items: [SerializedMediaItem]) -> [MerianSchemaV41.CapturedMediaEntry] {
+            items.enumerated().map { index, item in
+                MerianSchemaV41.CapturedMediaEntry(orderIndex: index, item: item)
+            }
+        }
+    }
+
     @Model
     final class LocalScanRecord {
         @Attribute(.unique) var id: String
@@ -389,7 +433,7 @@ extension MerianSchemaV41 {
         var timestamp: Date
         var captureDate: Date?
         var capturedMediaJSON: String?
-        @Relationship(deleteRule: .cascade) var capturedMediaEntries: [CapturedMediaEntry]? = []
+        @Relationship(deleteRule: .cascade) var capturedMediaEntries: [MerianSchemaV41.CapturedMediaEntry]? = []
 
         var semanticTags: [String]
         var hazardType: String = "none"
@@ -575,7 +619,7 @@ extension MerianSchemaV41 {
         @Attribute(.unique) var id: String
         var timestamp: Date
         var capturedMediaJSON: String?
-        @Relationship(deleteRule: .cascade) var capturedMediaEntries: [CapturedMediaEntry]? = []
+        @Relationship(deleteRule: .cascade) var capturedMediaEntries: [MerianSchemaV41.CapturedMediaEntry]? = []
 
         var gpsLatitude: Double?
         var gpsLongitude: Double?
@@ -697,6 +741,45 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianLog.general.error("Migration \(stage) save failed; rolled back context: \(error.localizedDescription)")
             throw error
         }
+    }
+
+    private static func migrationFirstImagePath(in items: [SerializedMediaItem]) -> String? {
+        for item in items {
+            if case .image(let reference) = item {
+                return reference.serializedPath
+            }
+        }
+        return nil
+    }
+
+    private static func replaceMigratedCapturedMedia(
+        on scan: MerianSchemaV41.LocalScanRecord,
+        with items: [SerializedMediaItem]
+    ) {
+        if let context = scan.modelContext {
+            for existingEntry in scan.capturedMediaEntries ?? [] {
+                context.delete(existingEntry)
+            }
+        }
+
+        scan.capturedMediaJSON = MediaJSONParser.jsonString(from: items)
+        scan.coverImagePath = migrationFirstImagePath(in: items)
+        scan.capturedMediaEntries = MerianSchemaV41.CapturedMediaEntry.makeEntries(from: items)
+    }
+
+    private static func replaceMigratedCapturedMedia(
+        on scan: MerianSchemaV41.OfflineQueuedScan,
+        with items: [SerializedMediaItem]
+    ) {
+        if let context = scan.modelContext {
+            for existingEntry in scan.capturedMediaEntries ?? [] {
+                context.delete(existingEntry)
+            }
+        }
+
+        scan.capturedMediaJSON = MediaJSONParser.jsonString(from: items)
+        scan.coverImagePath = migrationFirstImagePath(in: items)
+        scan.capturedMediaEntries = MerianSchemaV41.CapturedMediaEntry.makeEntries(from: items)
     }
 
     static var schemas: [any VersionedSchema.Type] {
@@ -1010,24 +1093,24 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         toVersion: MerianSchemaV41.self,
         willMigrate: { _ in },
         didMigrate: { context in
-            let localScans = try context.fetch(FetchDescriptor<LocalScanRecord>())
+            let localScans = try context.fetch(FetchDescriptor<MerianSchemaV41.LocalScanRecord>())
             for scan in localScans {
                 guard scan.capturedMediaEntries?.isEmpty ?? true,
                       let jsonString = scan.capturedMediaJSON,
                       let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
                     continue
                 }
-                scan.replaceCapturedMedia(with: items)
+                replaceMigratedCapturedMedia(on: scan, with: items)
             }
 
-            let offlineScans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+            let offlineScans = try context.fetch(FetchDescriptor<MerianSchemaV41.OfflineQueuedScan>())
             for scan in offlineScans {
                 guard scan.capturedMediaEntries?.isEmpty ?? true,
                       let jsonString = scan.capturedMediaJSON,
                       let items = MediaJSONParser.serializedItems(jsonString: jsonString) else {
                     continue
                 }
-                scan.replaceCapturedMedia(with: items)
+                replaceMigratedCapturedMedia(on: scan, with: items)
             }
 
             try saveMigrationContext(context, stage: "V40->V41 didMigrate")
@@ -1058,7 +1141,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         },
         didMigrate: { context in
             let namespace = migrationNamespace(for: context)
-            let scans = try context.fetch(FetchDescriptor<OfflineQueuedScan>())
+            let scans = try context.fetch(FetchDescriptor<MerianSchemaV33.OfflineQueuedScan>())
             for scan in scans {
                 if let state = _scanStateBackfill[namespace: namespace, key: scan.id] {
                     scan.scanStateRaw = state

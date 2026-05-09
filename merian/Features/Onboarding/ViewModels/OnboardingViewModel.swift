@@ -4,12 +4,19 @@ import SwiftUI
 @Observable final class OnboardingViewModel {
     // MARK: - Published State
     var currentStep: OnboardingStep = .welcome
+
+    // MARK: - Dependencies
+    @ObservationIgnored private let appSettings: AppSettings
+
+    init(appSettings: AppSettings? = nil) {
+        self.appSettings = appSettings ?? AppSettings.shared
+    }
     
     // MARK: - App Storage
     // Isolated for strict unit testing without requiring SwiftUI view hosts
     var hasCompletedOnboarding: Bool {
-        get { AppSettings.shared.hasCompletedOnboarding }
-        set { AppSettings.shared.hasCompletedOnboarding = newValue }
+        get { appSettings.hasCompletedOnboarding }
+        set { appSettings.hasCompletedOnboarding = newValue }
     }
     
     // MARK: - State Transitions
