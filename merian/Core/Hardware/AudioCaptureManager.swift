@@ -329,6 +329,12 @@ final class AudioCaptureManager {
         recordingTask = nil
         playbackCompletionTask?.cancel()
         playbackCompletionTask = nil
+        teardownEngine()
+        cleanupPendingFile()
+        if let name = pendingPlaybackPath {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+            try? FileManager.default.removeItem(at: url)
+        }
         isRecording = false
         isPaused = false
         recordingProgress = 0

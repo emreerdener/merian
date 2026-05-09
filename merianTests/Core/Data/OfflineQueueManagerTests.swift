@@ -27,6 +27,33 @@ struct OfflineQueueManagerTests {
         case description(String)
     }
 
+    private struct MediaStagingUploadManifestContract: Decodable {
+        let endpoint: String
+        let maxFilesPerRequest: Int
+        let maxImageBytes: Int
+        let maxAudioBytes: Int
+        let maxAudioFiles: Int
+        let imageContentTypes: [String]
+        let audioContentTypes: [String]
+        let canonicalQueuedImageContentType: String
+        let canonicalQueuedWavContentType: String
+        let canonicalQueuedM4AContentType: String
+        let legacyFileNamesAccepted: Bool
+    }
+
+    private func loadMediaStagingContract() throws -> MediaStagingUploadManifestContract {
+        var rootURL = URL(fileURLWithPath: #filePath)
+        for _ in 0..<4 {
+            rootURL.deleteLastPathComponent()
+        }
+        let contractURL = rootURL
+            .appendingPathComponent("docs")
+            .appendingPathComponent("contracts")
+            .appendingPathComponent("media-staging-upload-manifest.json")
+        let data = try Data(contentsOf: contractURL)
+        return try JSONDecoder().decode(MediaStagingUploadManifestContract.self, from: data)
+    }
+
     @MainActor
     private func createIsolatedContext() throws -> ModelContext {
         let schema = Schema(CurrentSchema.models)
@@ -89,6 +116,109 @@ struct OfflineQueueManagerTests {
             timestamp: "2026-04-24T00:00:00Z",
             zoomFactor: 1.0
         )
+    }
+
+    @Test func testMediaStagingContractMatchesDocumentedUploadManifestContract() throws {
+        let contract = try loadMediaStagingContract()
+
+        #expect(contract.endpoint == "/generate-upload-urls")
+        #expect(MerianConfig.mediaStagingMaxFilesPerRequest == contract.maxFilesPerRequest)
+        #expect(MerianConfig.mediaStagingMaxAudioFilesPerRequest == contract.maxAudioFiles)
+        #expect(MerianConfig.stagedImagePayloadMaxBytes == contract.maxImageBytes)
+        #expect(MerianConfig.audioPayloadMaxBytes == contract.maxAudioBytes)
+        #expect(StagedMediaKind.image.contentType(for: "queued.webp") == contract.canonicalQueuedImageContentType)
+        #expect(StagedMediaKind.audio.contentType(for: "queued.wav") == contract.canonicalQueuedWavContentType)
+        #expect(StagedMediaKind.audio.contentType(for: "queued.m4a") == contract.canonicalQueuedM4AContentType)
+        #expect(contract.imageContentTypes.contains(StagedMediaKind.image.contentType(for: "queued.webp")))
+        #expect(contract.audioContentTypes.contains(StagedMediaKind.audio.contentType(for: "queued.wav")))
+        #expect(contract.audioContentTypes.contains(StagedMediaKind.audio.contentType(for: "queued.m4a")))
+        #expect(contract.legacyFileNamesAccepted)
+    }
+
+    @Test func testMediaStagingContractBuildsSanitizedMixedMediaKeys() throws {
+        let payload = PendingScanPayload(
+            id: "scan_with_symbols",
+            localImagePaths: ["image one.webp"],
+            localAudioPaths: ["field/audio one.wav"]
+        )
+
+        let items = MediaStagingContract.uploadItems(for: payload, userId: "USER/ABC")
+        #expect(items.count == 2)
+
+        #expect(items[0].mediaKind == .image)
+        #expect(items[0].fileName == "scan_with_symbols_image_one.webp")
+        #expect(items[0].contentType == "image/webp")
+        #expect(items[0].objectKey == "staging/user_abc/scan_with_symbols_image_one.webp")
+
+        #expect(items[1].mediaKind == .audio)
+        #expect(items[1].fileName == "scan_with_symbols_field_audio_one.wav")
+        #expect(items[1].contentType == "audio/wav")
+        #expect(items[1].objectKey == "staging/user_abc/scan_with_symbols_field_audio_one.wav")
+
+        let splitKeys = MediaStagingContract.splitObjectKeys(
+            items.map(\.objectKey),
+            scanId: payload.id,
+            localImagePaths: payload.localImagePaths,
+            localAudioPaths: payload.localAudioPaths
+        )
+        #expect(splitKeys.imageR2ObjectKeys == [items[0].objectKey])
+        #expect(splitKeys.audioR2ObjectKeys == [items[1].objectKey])
+    }
+
+    @Test func testMediaStagingUploadTaskDescriptionPreservesUnderscoredScanIds() {
+        let scanId = "queued_nonvisual_audio_only"
+        let description = MediaStagingContract.uploadTaskDescription(scanId: scanId, uploadIndex: 12)
+        let identity = MediaStagingContract.parseUploadTaskDescription(description)
+
+        #expect(identity?.scanId == scanId)
+        #expect(identity?.uploadIndex == 12)
+        #expect(MediaStagingContract.uploadTaskDescription(description, belongsTo: scanId))
+    }
+
+    @Test func testMediaStagingContractRejectsOversizedAudioBeforeUpload() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let audioName = "oversized.wav"
+        let audioURL = directory.appendingPathComponent(audioName)
+        _ = FileManager.default.createFile(atPath: audioURL.path, contents: nil)
+        let handle = try FileHandle(forWritingTo: audioURL)
+        try handle.truncate(atOffset: UInt64(MerianConfig.audioPayloadMaxBytes + 1))
+        try handle.close()
+
+        let payload = PendingScanPayload(id: "scan-audio-budget", localImagePaths: [], localAudioPaths: [audioName])
+        let items = MediaStagingContract.uploadItems(
+            for: payload,
+            userId: "user-a",
+            documentsDirectory: directory
+        )
+
+        #expect(throws: MerianError.payloadTooLarge) {
+            try MediaStagingContract.validateUploadBudget(items)
+        }
+    }
+
+    @Test func testMediaStagingContractRejectsTooManyAudioFilesBeforeUpload() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let audioNames = (0...MerianConfig.mediaStagingMaxAudioFilesPerRequest).map { "queued-\($0).wav" }
+        for audioName in audioNames {
+            try Data(repeating: 0x21, count: 64).write(to: directory.appendingPathComponent(audioName))
+        }
+
+        let payload = PendingScanPayload(id: "scan-too-many-audio", localImagePaths: [], localAudioPaths: audioNames)
+        let items = MediaStagingContract.uploadItems(
+            for: payload,
+            userId: "user-a",
+            documentsDirectory: directory
+        )
+
+        #expect(throws: MerianError.payloadTooLarge) {
+            try MediaStagingContract.validateUploadBudget(items)
+        }
     }
 
     @Test func testEnqueueCapture_WithValidData_PersistsQueuedScan() async throws {
@@ -222,6 +352,7 @@ struct OfflineQueueManagerTests {
             let audioFileNames: [String]
             let observationContexts: [ObservationContext]
             let mediaTimeline: [CaptureSubmissionMediaItem]
+            let expectedQueueState: ScanQueueState
             let expected: [ExpectedSerializedMedia]
         }
 
@@ -231,6 +362,7 @@ struct OfflineQueueManagerTests {
                 audioFileNames: [audioOnly],
                 observationContexts: [],
                 mediaTimeline: [.audio(audioOnly)],
+                expectedQueueState: .pending,
                 expected: [.audio(audioOnly)]
             ),
             .init(
@@ -238,6 +370,7 @@ struct OfflineQueueManagerTests {
                 audioFileNames: [firstAudio, secondAudio],
                 observationContexts: [],
                 mediaTimeline: [.audio(firstAudio), .audio(secondAudio)],
+                expectedQueueState: .pending,
                 expected: [.audio(firstAudio), .audio(secondAudio)]
             ),
             .init(
@@ -245,6 +378,7 @@ struct OfflineQueueManagerTests {
                 audioFileNames: [audioWithDescription],
                 observationContexts: [descriptionA],
                 mediaTimeline: [.audio(audioWithDescription), .description(descriptionA)],
+                expectedQueueState: .pending,
                 expected: [.audio(audioWithDescription), .description(descriptionA.freeText)]
             ),
             .init(
@@ -252,6 +386,7 @@ struct OfflineQueueManagerTests {
                 audioFileNames: [],
                 observationContexts: [descriptionA],
                 mediaTimeline: [.description(descriptionA)],
+                expectedQueueState: .staged,
                 expected: [.description(descriptionA.freeText)]
             ),
             .init(
@@ -259,6 +394,7 @@ struct OfflineQueueManagerTests {
                 audioFileNames: [],
                 observationContexts: [descriptionA, descriptionB],
                 mediaTimeline: [.description(descriptionA), .description(descriptionB)],
+                expectedQueueState: .staged,
                 expected: [.description(descriptionA.freeText), .description(descriptionB.freeText)]
             )
         ]
@@ -276,7 +412,7 @@ struct OfflineQueueManagerTests {
             let scanId = scenario.scanId
             let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
             let fetched = try #require(ctx.fetch(descriptor).first)
-            #expect(fetched.queueState == .staged)
+            #expect(fetched.queueState == scenario.expectedQueueState)
 
             let capturedMediaJSON = try #require(fetched.capturedMediaJSON)
             let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))

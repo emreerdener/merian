@@ -667,21 +667,13 @@ actor HistoricalDatabaseActor {
         }()
         let localScansLookup = Dictionary(localScans.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
 
-        // Read membership from the `LocalScanRecord.collections` side to avoid faulting
-        // `ScanCollection.scans` arrays into memory during reconciliation.
+        // Read membership from the `LocalScanRecord.collections` side in bounded batches to
+        // avoid faulting every `ScanCollection.scans` array or the entire scan library at once.
         let relevantCollectionIDs = Set(remoteCollections.map { $0.id.lowercased() })
-        var membershipDescriptor = FetchDescriptor<LocalScanRecord>()
-        membershipDescriptor.propertiesToFetch = [\.id, \.coverImagePath]
-        membershipDescriptor.relationshipKeyPathsForPrefetching = [\.collections]
-        let membershipScans = (try? modelContext.fetch(membershipDescriptor)) ?? []
-        var collectionMembersByID: [String: [LocalScanRecord]] = [:]
-        for scan in membershipScans {
-            for attachedCollection in scan.collections ?? [] {
-                let attachedID = attachedCollection.id.lowercased()
-                guard relevantCollectionIDs.contains(attachedID) else { continue }
-                collectionMembersByID[attachedID, default: []].append(scan)
-            }
-        }
+        var collectionMembersByID = fetchCollectionMembersByID(
+            relevantCollectionIDs: relevantCollectionIDs,
+            modelContext: modelContext
+        )
 
         for remote in remoteCollections {
             if Task.isCancelled { break }
@@ -752,5 +744,43 @@ actor HistoricalDatabaseActor {
         }
 
         do { try modelContext.save() } catch { MerianLog.data.error("🚨 syncCollections: save failed: \(error, privacy: .private)") }
+    }
+
+    private func fetchCollectionMembersByID(
+        relevantCollectionIDs: Set<String>,
+        modelContext: ModelContext
+    ) -> [String: [LocalScanRecord]] {
+        guard !relevantCollectionIDs.isEmpty else { return [:] }
+
+        let batchSize = 200
+        var offset = 0
+        var collectionMembersByID: [String: [LocalScanRecord]] = [:]
+
+        while true {
+            var descriptor = FetchDescriptor<LocalScanRecord>(
+                sortBy: [SortDescriptor(\.timestamp)]
+            )
+            descriptor.fetchLimit = batchSize
+            descriptor.fetchOffset = offset
+            descriptor.propertiesToFetch = [\.id, \.coverImagePath]
+            descriptor.relationshipKeyPathsForPrefetching = [\.collections]
+
+            guard let batch = try? modelContext.fetch(descriptor), !batch.isEmpty else {
+                break
+            }
+
+            for scan in batch {
+                for attachedCollection in scan.collections ?? [] {
+                    let attachedID = attachedCollection.id.lowercased()
+                    guard relevantCollectionIDs.contains(attachedID) else { continue }
+                    collectionMembersByID[attachedID, default: []].append(scan)
+                }
+            }
+
+            offset += batch.count
+            if batch.count < batchSize { break }
+        }
+
+        return collectionMembersByID
     }
 }

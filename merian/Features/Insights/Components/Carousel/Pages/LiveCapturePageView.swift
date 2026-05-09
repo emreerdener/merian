@@ -8,36 +8,48 @@ let liveCaptureCache: NSCache<NSNumber, UIImage> = {
     return c
 }()
 
-/// Executes downsampling directly on layout evaluation. Modern A-Series silicon resolves 
-/// the ImageIO downsample significantly fast enough to guarantee the Carousel
-/// launches synchronously pre-mounted with the photo, completely eradicating transient black frames.
 struct LiveCapturePageView: View {
     let data: Data
-    
-    private var instantImage: UIImage? {
-        let key = NSNumber(value: data.hashValue)
-        if let cached = liveCaptureCache.object(forKey: key) {
-            return cached
+
+    @State private var decodedImage: UIImage?
+    @State private var decodedImageKey: Int?
+
+    @MainActor
+    private func loadImageIfNeeded() async {
+        let key = data.hashValue
+        if decodedImageKey == key, decodedImage != nil { return }
+
+        let cacheKey = NSNumber(value: key)
+        if let cached = liveCaptureCache.object(forKey: cacheKey) {
+            decodedImage = cached
+            decodedImageKey = key
+            return
         }
-        
-        // Force synchronous decode natively
-        let img = autoreleasepool { () -> UIImage? in
-            if let cgImage = ImageDownsampler.downsample(data: data, maxSize: 2048) {
-                return UIImage(cgImage: cgImage)
+
+        let imageData = data
+        let preparedImage = try? await DetachedWork.value(
+            priority: .utility,
+            category: .imagePreparation
+        ) {
+            autoreleasepool {
+                ImageDownsampler.downsample(data: imageData, maxSize: 2048)
+                    .map { SendableCGImage(image: $0) }
             }
-            return nil
         }
-        
-        if let img {
+
+        guard let preparedImage else { return }
+        let img = UIImage(cgImage: preparedImage.image)
+        if !Task.isCancelled {
             let cost = Int(img.size.width * img.size.height * 4)
-            liveCaptureCache.setObject(img, forKey: key, cost: cost)
+            liveCaptureCache.setObject(img, forKey: cacheKey, cost: cost)
+            decodedImage = img
+            decodedImageKey = key
         }
-        return img
     }
 
     var body: some View {
         Group {
-            if let img = instantImage {
+            if let img = decodedImage {
                 Image(uiImage: img)
                     .resizable()
                     .scaledToFill()
@@ -47,5 +59,8 @@ struct LiveCapturePageView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        .task(id: data.hashValue) {
+            await loadImageIfNeeded()
+        }
     }
 }

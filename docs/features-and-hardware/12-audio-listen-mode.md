@@ -135,7 +135,7 @@ The `[weak manager]` capture in the inner `@MainActor` task breaks the retain cy
 | `seekPlayback(to:)` | Sets `audioPlayer.currentTime = duration * clamped` and updates `playbackProgress` — works while playing or stopped |
 | `confirmAndSubmit()` | Stops playback, sets `audioFilePath = pendingPlaybackPath`, clears `pendingPlaybackPath` — triggers `onChange` in `CaptureWorkspaceView` |
 | `discardPending()` | Stops playback, deletes file from `tmp/` if `pendingPlaybackPath` is set, clears `pendingPlaybackPath`, **always** clears `spectrogramColumns`, `snrLevel`, `snrHoldTicks` |
-| `reset()` | Calls `stopPlayback()`, cancels task, clears all published state including `pendingPlaybackPath`, calls `spectrogram.reset()` |
+| `reset()` | Calls `stopPlayback()`, cancels tasks, tears down the engine/tap/session lease, deletes any unsubmitted pending temp file, clears all published state including `pendingPlaybackPath`, calls `spectrogram.reset()` |
 
 **`discardPending()` clears display state unconditionally**: The spectrogram column clear and SNR reset run outside the `if let pendingPlaybackPath` branch so that calling `discardPending()` during an active recording (e.g. immediately before `startRecording()`) also wipes the previous session's visual state. The prior `guard let name = pendingPlaybackPath else { return }` early-exit pattern leaked these columns into the next recording's UI.
 
@@ -182,7 +182,7 @@ submitNonVisualCapture(
 )
 ```
 
-**Live + offline dual-path**: audio-bearing captures always enqueue durably first (moving the WAV into `Documents/` and creating a `.staged` queue record). When offline the flow shows a toast and stops. When online it eagerly opens the insight sheet and fires `InferenceEngine.analyzeNonVisual(...)`. On live success, `flushOfflineQueuedScan` + `deleteQueuedScan` immediately clean up the queue record — preventing the background replay cycle from making a redundant Gemini call on the same file.
+**Live + offline dual-path**: audio-bearing captures always enqueue durably first (moving the WAV into `Documents/` and creating a `.pending` queue record for R2 staging). When offline the flow shows a toast and stops without calling `InferenceEngine.prepareForNewScan()`. When online it prepares the live engine, opens the insight sheet, and fires `InferenceEngine.analyzeNonVisual(...)`. On live success, `flushOfflineQueuedScan` + `deleteQueuedScan` immediately clean up the queue record — preventing the background replay cycle from making a redundant Gemini call on the same file.
 
 ---
 
@@ -196,7 +196,7 @@ Audio now uses the same canonical queue shape as every other mixed-media submiss
 move tmp/<uuid>.wav → Documents/<uuid>.wav
     ↓ quota check (UsageManager.canPerformScan / consumeScan)
 OfflineQueuedScan(
-    scanState: .staged,         ← no R2 upload phase for audio
+    scanState: .pending,        ← audio uploads through R2 before replay
     capturedMediaJSON: ...,
     capturedMediaEntries: ...
 )
@@ -204,9 +204,10 @@ modelContext.insert(scan)
 modelContext.save()
 updateUnsyncedItemCount()
 AppTelemetry.trackOfflineQueued()
+syncPendingScans()
 ```
 
-Audio-only `.staged` records are replayed through the shared non-visual branch in `dispatchInferenceDownloadTask`. That branch reads the WAV from `Documents/` through `ExtractedScanData.capturedMediaItems`, base64-encodes it off the main actor, and sends it as `audioBase64s` to `/identify-multimodal`. The two-phase R2 audio path remains future work, not a prerequisite for replay.
+Audio-only records upload their WAV/M4A via background `URLSession.uploadTask(with:fromFile:)` and persist the resulting staging key in `stagedR2Keys`. `dispatchInferenceDownloadTask` splits those keys into image `r2ObjectKeys` and audio `audioR2ObjectKeys`, so queued replay never builds a large inline audio request body.
 
 **Cleanup on delete**: Audio files stored in `Documents/` are cleaned up through the same canonical media snapshot walk used for images. Delete and purge paths no longer special-case image arrays and therefore do not lose audio cleanup.
 
@@ -218,7 +219,7 @@ There is no longer a dedicated `InferenceEngine+Audio.swift` path. Audio uses th
 
 1. `CaptureWorkspaceViewModel.submitAudio(...)` delegates to `submitNonVisualCapture(...)`.
 2. `InferenceEngine.analyzeNonVisual(...)` forwards `audioFilePaths`, any `observationContexts`, and the ordered `mediaTimeline`.
-3. `MerianNetworkClient.buildMultiModalRequest(...)` reads the WAV and sends it as `audioBase64s` to `/identify-multimodal`.
+3. `MerianNetworkClient.buildMultiModalRequest(...)` sends live foreground WAVs as size-preflighted `audioBase64s`; queued replay sends R2-backed `audioR2ObjectKeys`.
 4. `InferenceProcessingActor.parseAndSave(...)` routes the result through `BackgroundDatabaseActor.saveNonVisualRecord(...)`.
 
 Replay uses the same endpoint and payload shape through the offline queue’s shared non-visual branch.
@@ -380,12 +381,12 @@ The camera session is **not** started when the user is on `.audio` (camera is st
 
 The active audio pipeline now routes through `/identify-multimodal`, not a standalone `/audio-spec` endpoint. The handler:
 
-1. Accepts inline `audioBase64s` from both the live path and offline replay.
+1. Accepts inline `audioBase64s` from live foreground requests and staged `audioR2ObjectKeys` from queued replay.
 2. Runs `processWAV(...)` to normalise the clip to mono 16 kHz WAV before Gemini ingestion.
 3. Chooses `BIOACOUSTIC_SYSTEM_INSTRUCTION` for audio-only requests or `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` when audio and images are combined.
 4. Reuses the same `_shared/identify` DB, threshold, and moderation primitives as the image pipeline.
 
-For audio-only scans, `insertScan` persists `image_storage_urls: []` and the same scan metadata contract used elsewhere. There is no shipped `audio_r2_key` path in the current client contract.
+For audio-only scans, `insertScan` persists `image_storage_urls: []` and the same scan metadata contract used elsewhere. Staged audio keys are inference inputs only and are deleted from R2 after successful background ingestion.
 
 ### Error Status Semantics
 
@@ -399,13 +400,14 @@ Mirrors the other inference endpoints: Gemini API failures → 503 (transient, i
 |---|---|
 | `/identify-multimodal` audio path | **Complete** — live and replay audio route here |
 | `InferenceEngine.analyzeAudio` live path | **Complete** — in `InferenceEngine.swift` |
-| iOS audio request via inline `audioBase64s` | **Complete** — `MerianNetworkClient.buildMultiModalRequest` |
-| Offline replay audio dispatch path | **Complete** — dedicated audio branch in `dispatchInferenceDownloadTask` |
-| Two-phase R2 audio upload (`audio_r2_key`) | **Deferred** — documented in `07-background-inference-body-safe.md` as future work |
+| iOS live audio request via inline `audioBase64s` | **Complete** — byte-preflighted in `MerianNetworkClient.buildMultiModalRequest` |
+| Offline replay audio dispatch path | **Complete** — queued audio uploads to R2 and replays as `audioR2ObjectKeys` |
+| Two-phase R2 audio upload | **Complete for queued replay** — foreground live audio remains inline by design |
 | `deleteQueuedScan` / purge audio cleanup | **Complete** — cleans Documents WAV on delete/purge |
 
 ## 2026-04 Hardening Updates
 
 - Recording startup cancellation is now fully symmetric with normal stop: input tap removed, engine stopped, DSP task cancelled, spectrogram stream finished, session deactivated, and temp WAV deleted.
 - Live spectrogram history and `SpectrogramActor` noise-floor tracking now use bounded circular buffers instead of repeated `removeFirst()` shifts in the hot path.
+- WatchOS acoustic handoff now reads and base64-encodes the recorded file in a detached utility task. `WatchAcousticManager` returns to `@MainActor` only to update state and dispatch the `WCSession` payload, preventing main-thread stalls on Apple Watch.
 - `AudioCaptureManager` now centralizes spectrogram reset through one helper so cancellation, discard, and full reset all clear identical UI/audio state.

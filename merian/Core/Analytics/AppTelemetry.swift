@@ -19,6 +19,12 @@ enum AppTelemetry {
 
     /// Initializes TelemetryDeck with the app's configured ID.
     static func initialize() {
+        guard !MerianEnvironment.telemetryAppID.isEmpty else {
+            MerianLog.general.error("TelemetryDeck configuration skipped because TELEMETRY_APP_ID is missing.")
+            isInitialized = false
+            return
+        }
+
         let configuration = TelemetryDeck.Config(appID: MerianEnvironment.telemetryAppID)
         TelemetryDeck.initialize(config: configuration)
         isInitialized = true

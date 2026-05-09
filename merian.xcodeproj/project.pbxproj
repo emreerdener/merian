@@ -176,6 +176,7 @@
 		727EF9AD5A01FA3EB073C6F6 /* UnderReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C6F888E39C65A9524FB8F4 /* UnderReviewView.swift */; };
 		727F6F96C261F622537E1922 /* SizeEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 289B759C00BA86244AB66BCE /* SizeEstimator.swift */; };
 		7478E8E47BB311B22E0952F2 /* SchemaV32.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FA1AB430E1CE978E3D2BE6 /* SchemaV32.swift */; };
+		74B8F7E9139D939267B80823 /* IconButtonModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782E250EA01D009A5E1D55FF /* IconButtonModifiers.swift */; };
 		7629EC559E6BCA357199A23B /* ExploreNotificationsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F9C4F256A6930BE168F479C /* ExploreNotificationsViewModel.swift */; };
 		76C19F1CB285E994C360285E /* ZoomSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78198D611AB8D4D047245BD9 /* ZoomSliderView.swift */; };
 		76E0AFE51AF47EC6E4A6F06B /* CandidateSwipeIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54EBBFE6B1AA49E0F9377567 /* CandidateSwipeIndicator.swift */; };
@@ -626,6 +627,7 @@
 		7723801380C439DC716AD39D /* BackgroundTaskWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskWrapper.swift; sourceTree = "<group>"; };
 		77C12971993CED81E6874934 /* PremiumScanningOverlayModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumScanningOverlayModifier.swift; sourceTree = "<group>"; };
 		78198D611AB8D4D047245BD9 /* ZoomSliderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomSliderView.swift; sourceTree = "<group>"; };
+		782E250EA01D009A5E1D55FF /* IconButtonModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconButtonModifiers.swift; sourceTree = "<group>"; };
 		78FFA92527CDEC38A16C12CB /* ExploreHabitatDistributionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreHabitatDistributionCard.swift; sourceTree = "<group>"; };
 		79877AD867FE814CEC12DBCB /* ExploreOverviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreOverviewCard.swift; sourceTree = "<group>"; };
 		79F3B44FD7DA14D4A22FFE5A /* HardwareOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareOrchestrator.swift; sourceTree = "<group>"; };
@@ -1944,6 +1946,7 @@
 			children = (
 				FF40B3720194B7404A558D0F /* CardEntranceModifier.swift */,
 				F1C5B47951F57832A807CD27 /* CollectionModifiers.swift */,
+				782E250EA01D009A5E1D55FF /* IconButtonModifiers.swift */,
 				3A6B26227EA82867EFB20D0E /* MerianSystemFeedbackModifier.swift */,
 			);
 			path = Modifiers;
@@ -2576,6 +2579,7 @@
 				ED8DF5841CABE681C19E3FBC /* HapticManager.swift in Sources */,
 				54433F5A82149BC9715E2608 /* HardwareOrchestrator.swift in Sources */,
 				3B2E0E9B245EF05DB4F7686E /* HeatmapCellView.swift in Sources */,
+				74B8F7E9139D939267B80823 /* IconButtonModifiers.swift in Sources */,
 				3D1D0F35053B581BD89358BC /* ImageCache.swift in Sources */,
 				585EEEE6CE33F5F894D1FA56 /* ImageCropProcessor.swift in Sources */,
 				9CDF4E14A2ED7DBDA4D77A40 /* ImageCropperView.swift in Sources */,

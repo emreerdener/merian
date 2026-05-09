@@ -13,6 +13,8 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 
 @MainActor
 @Observable final class ScansManager {
+    private static let rawSnapshotExtractionBatchSize = 128
+
     #if DEBUG
     enum SearchDebugEvent: Equatable {
         case indexingCompleted(documentCount: Int)
@@ -76,9 +78,11 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var indexingTask: Task<Void, Never>?
     @ObservationIgnored private var scanIndexById: [String: Int] = [:]
+    @ObservationIgnored private var scanRecordById: [String: LocalScanRecord] = [:]
     @ObservationIgnored private var sortPrimitivesById: [String: ScanSortPrimitive] = [:]
     @ObservationIgnored private var allScanSortPrimitives: [ScanSortPrimitive] = []
     @ObservationIgnored private var sortedAllScanIDsCache: [String: [String]] = [:]
+    @ObservationIgnored private var searchCacheGeneration: UInt64 = 0
     #if DEBUG
     @ObservationIgnored var debugEventHandler: ((SearchDebugEvent) -> Void)?
     #endif
@@ -87,6 +91,8 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     private func rebuildSearchCaches(oldScans: [LocalScanRecord]) {
         var updatedScanIndexById: [String: Int] = [:]
         updatedScanIndexById.reserveCapacity(allScans.count)
+        var updatedScanRecordById: [String: LocalScanRecord] = [:]
+        updatedScanRecordById.reserveCapacity(allScans.count)
 
         var updatedSortPrimitivesById: [String: ScanSortPrimitive] = [:]
         updatedSortPrimitivesById.reserveCapacity(allScans.count)
@@ -101,14 +107,17 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 commonName: scan.commonName
             )
             updatedScanIndexById[scan.id] = index
+            updatedScanRecordById[scan.id] = scan
             updatedSortPrimitivesById[scan.id] = primitive
             updatedAllScanSortPrimitives.append(primitive)
         }
 
         scanIndexById = updatedScanIndexById
+        scanRecordById = updatedScanRecordById
         sortPrimitivesById = updatedSortPrimitivesById
         allScanSortPrimitives = updatedAllScanSortPrimitives
         sortedAllScanIDsCache.removeAll(keepingCapacity: true)
+        searchCacheGeneration &+= 1
 
         updateSearchableData(oldScans: oldScans)
     }
@@ -143,43 +152,27 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 
         let needsFullRebuild = self.searchIndexSnapshot.isEmpty && !allScans.isEmpty
 
+        let cacheGeneration = searchCacheGeneration
+
         if needsFullRebuild {
-            // Full rebuild: allScans is already resident in @MainActor memory via @Query.
-            // Extract lightweight Sendable snapshots here rather than passing IDs to
-            // SearchDatabaseActor, which would fetch the same rows a second time into a
-            // separate ModelContext — doubling memory usage for the initial library load.
-            let snapshots = allScans.map { record in
-                RawScanSnapshot(
-                    id: record.id,
-                    commonName: record.commonName,
-                    scientificName: record.scientificName,
-                    ecologyType: record.ecologyType,
-                    semanticTags: record.semanticTags,
-                    customTags: record.customTags,
-                    isInvasive: record.isInvasive,
-                    taxonomyKingdom: record.taxonomyKingdom,
-                    taxonomyClass: record.taxonomyClass,
-                    taxonomyOrder: record.taxonomyOrder,
-                    taxonomyFamily: record.taxonomyFamily,
-                    aiReasoning: record.aiReasoning,
-                    locationName: record.locationName,
-                    habitatDescription: record.habitatDescription,
-                    weatherCondition: record.weatherCondition,
-                    lifeStage: record.lifeStage,
-                    reproductiveCondition: record.reproductiveCondition,
-                    similarSpecies: record.similarSpecies,
-                    iucnRedListStatus: record.iucnRedListStatus,
-                    hazardType: record.hazardType,
-                    ecologicalInteractions: record.ecologicalInteractions
-                )
-            }
-            indexingTask = Task.detached(priority: .utility) { [weak self] in
-                let processed = SearchDatabaseActor.buildSearchablePayloads(from: snapshots)
-                let snapshot = SearchIndexSnapshot(searchableScans: processed)
+            // Full rebuild: keep SwiftData model reads on @MainActor, but split the
+            // extraction into yielding chunks so a large @Query snapshot does not monopolize
+            // the UI thread before detached string/index construction begins.
+            indexingTask = Task { [weak self] in
+                guard let self else { return }
+                guard let snapshots = await self.extractRawScanSnapshotsCooperatively(
+                    cacheGeneration: cacheGeneration
+                ) else { return }
                 guard !Task.isCancelled else { return }
-                await MainActor.run { [weak self] in
-                    self?.commitSearchIndexSnapshot(snapshot)
-                }
+
+                let processed = await Task.detached(priority: .utility) {
+                    SearchDatabaseActor.buildSearchablePayloads(from: snapshots)
+                }.value
+                guard !Task.isCancelled else { return }
+
+                let snapshot = SearchIndexSnapshot(searchableScans: processed)
+                guard self.searchCacheGeneration == cacheGeneration else { return }
+                self.commitSearchIndexSnapshot(snapshot)
             }
         } else {
             // Incremental: only newly added scans. These IDs may not be faulted yet in the
@@ -193,15 +186,40 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 guard !Task.isCancelled else { return }
                 await MainActor.run { [weak self] in
                     guard let self else { return }
+                    guard self.searchCacheGeneration == cacheGeneration else { return }
                     self.commitSearchIndexSnapshot(self.searchIndexSnapshot.upserting(processedNewScans))
                 }
             }
         }
     }
+
+    private func extractRawScanSnapshotsCooperatively(cacheGeneration: UInt64) async -> [RawScanSnapshot]? {
+        let expectedCount = allScans.count
+        var snapshots: [RawScanSnapshot] = []
+        snapshots.reserveCapacity(expectedCount)
+
+        var startIndex = 0
+        while startIndex < expectedCount {
+            guard !Task.isCancelled, searchCacheGeneration == cacheGeneration else { return nil }
+
+            let endIndex = min(startIndex + Self.rawSnapshotExtractionBatchSize, expectedCount)
+            for index in startIndex..<endIndex {
+                snapshots.append(RawScanSnapshot(record: allScans[index]))
+            }
+
+            startIndex = endIndex
+            if startIndex < expectedCount {
+                await Task.yield()
+            }
+        }
+
+        guard !Task.isCancelled, searchCacheGeneration == cacheGeneration else { return nil }
+        return snapshots
+    }
     
     // MARK: - Dedicated Reindexing
     private func forceReindex(scanId: String) {
-        guard let scan = allScans.first(where: { $0.id == scanId }), let container = scan.modelContext?.container else { return }
+        guard let scan = record(for: scanId), let container = scan.modelContext?.container else { return }
         setSearchIndexSnapshot(self.searchIndexSnapshot.removing(ids: Set([scanId])), emitCompletion: false)
 
         // Cancel any prior reindex so two rapid calls cannot both append to searchableData,
@@ -307,14 +325,16 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     }
 
     private func records(for ids: [String]) -> [LocalScanRecord] {
-        ids.compactMap { id in
-            guard let index = scanIndexById[id], allScans.indices.contains(index) else {
-                return allScans.first { $0.id == id }
-            }
+        ids.compactMap { record(for: $0) }
+    }
 
-            let record = allScans[index]
-            return record.id == id ? record : allScans.first { $0.id == id }
+    private func record(for id: String) -> LocalScanRecord? {
+        guard let index = scanIndexById[id], allScans.indices.contains(index) else {
+            return scanRecordById[id]
         }
+
+        let record = allScans[index]
+        return record.id == id ? record : scanRecordById[id]
     }
 
     private func sortedAllScanIDs(for sortOption: ScanSortOption) async -> [String] {
@@ -479,6 +499,31 @@ struct RawScanSnapshot: Sendable {
     let iucnRedListStatus: String?
     let hazardType: String
     let ecologicalInteractions: [String]?
+
+    @MainActor
+    init(record: LocalScanRecord) {
+        self.id = record.id
+        self.commonName = record.commonName
+        self.scientificName = record.scientificName
+        self.ecologyType = record.ecologyType
+        self.semanticTags = record.semanticTags
+        self.customTags = record.customTags
+        self.isInvasive = record.isInvasive
+        self.taxonomyKingdom = record.taxonomyKingdom
+        self.taxonomyClass = record.taxonomyClass
+        self.taxonomyOrder = record.taxonomyOrder
+        self.taxonomyFamily = record.taxonomyFamily
+        self.aiReasoning = record.aiReasoning
+        self.locationName = record.locationName
+        self.habitatDescription = record.habitatDescription
+        self.weatherCondition = record.weatherCondition
+        self.lifeStage = record.lifeStage
+        self.reproductiveCondition = record.reproductiveCondition
+        self.similarSpecies = record.similarSpecies
+        self.iucnRedListStatus = record.iucnRedListStatus
+        self.hazardType = record.hazardType
+        self.ecologicalInteractions = record.ecologicalInteractions
+    }
 }
 
 @ModelActor

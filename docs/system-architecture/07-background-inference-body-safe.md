@@ -1,47 +1,46 @@
 # Background Inference: Body-Safe Pattern
 
-This document captures the current background inference body contract and the future two-phase audio upload design.
+This document captures the current background inference body contract after the May 2026 zero-OOM hardening pass.
 
 ## Current State
 
-- Images already use the staged-R2 path: background upload to `staging/{userId}/...`, then a tiny inference request carrying `r2ObjectKeys`.
-- Audio does **not** use an `audio_r2_key` contract today.
-- Both live audio submission and offline replay route through `/identify-multimodal` with inline `audioBase64s`.
-- `dispatchInferenceDownloadTask` still uses a background `downloadTask(with:)` request body for audio, so the request is operationally safe in current use but not fully “by-the-book” for arbitrarily large audio bodies.
+- Images use the staged-R2 path: background `uploadTask(with:fromFile:)` to `staging/{userId}/...`, then a tiny inference request carrying `r2ObjectKeys`.
+- Queued audio now uses the same staged-R2 upload phase. Audio-bearing `OfflineQueuedScan` records enter `.pending`; `MediaStagingContract` builds the sanitized filename/object-key manifest, includes `sizeBytes` in the `/generate-upload-urls` request, validates byte budgets and audio-file count locally and on the Edge before signing, uploads the WAV/M4A file with the correct signed `Content-Type`, persists the resulting staging key in `stagedR2Keys`, and sends `audioR2ObjectKeys` to `/identify-multimodal`.
+- Live foreground audio remains inline as `audioBase64s`, but `MerianNetworkClient` preflights file byte size before reading or base64-encoding the WAV. Oversized audio fails with `MerianError.payloadTooLarge` before any large body is built.
+- `identify-multimodal` accepts both inline `audioBase64s` and staged `audioR2ObjectKeys`. It validates clip count, base64 length, raw byte length, IDOR ownership, and path traversal before decoding or fetching. Staged audio is cleaned up after successful ingestion.
+- `audio-spec` has matching inline/R2 byte-budget checks before decode and before/after R2 download.
 
-## Why This Is Acceptable Today
+## Why This Is Body-Safe
 
-- Audio clips are short (15 s max) and persisted to `Documents/` before inference starts.
-- The current replay path is retriable: if the background request fails, the scan returns to `.staged` and is retried on the next connectivity cycle.
-- The active payload contract is simple and stable: `MerianNetworkClient.buildMultiModalRequest(...)` reads the WAV from disk, base64-encodes it off the main actor, and sends it as `audioBase64s`.
+Queued replay no longer serializes large audio into a background `URLRequest.httpBody`. The OS background session owns media bytes only through file-backed R2 upload tasks, while the inference download task carries a small JSON payload of object keys, telemetry, and observation contexts.
 
-## Future Work: Two-Phase Audio Upload
-
-If audio payload size or background-session reliability becomes a problem, the correct long-term shape is:
-
-1. Upload the WAV to R2 via `uploadTask(with:fromFile:)`.
-2. Dispatch `/identify-multimodal` with a tiny body containing an audio staging key.
-3. Have the edge function fetch the staging object, process it, and clean it up after ingest.
-
-That future contract is **not implemented today**. The current client/server pair does not ship an `audio_r2_key` or `audioR2Keys` request field.
-
-## Triggers For Implementing The Two-Phase Path
-
-| Trigger | Action |
-|---|---|
-| Audio bodies approach background-session reliability limits | Implement R2 staging for audio |
-| Observed replay failures suggest body loss on OS task restart | Implement R2 staging for audio |
-| Longer recordings or higher-quality capture materially increase payload size | Implement R2 staging for audio |
-| Current inline `audioBase64s` path remains stable in production | Keep the simpler current path |
+Live audio still uses inline base64 because it is a foreground request and avoids the extra R2 round trip. The client and edge budget checks keep that path bounded.
 
 ## Source Of Truth
 
-- iOS request builder: `MerianNetworkClient.buildMultiModalRequest(...)`
+- iOS request builders: `MerianNetworkClient.buildIdentifyRequest(...)`, `analyzeSubject(...)`, and `buildMultiModalRequest(...)`, all backed by the private `InferencePayloadBuilder` so user context, telemetry formatting, observation contexts, and inline media budget checks stay identical across `/identify` and `/identify-multimodal`.
+- Upload staging contract: `MediaStagingContract` in `OfflineSyncTypes.swift`
+- Cross-language upload manifest contract: `docs/contracts/media-staging-upload-manifest.json`
+- Upload orchestration: `OfflineQueueManager+Sync.prepareUploadItems(from:userId:)`
 - Replay dispatcher: `OfflineQueueManager+URLSession.dispatchInferenceDownloadTask(...)`
+- Shared Edge media budget helpers: `supabase/functions/_shared/mediaBudgets.ts`
 - Edge handler: `supabase/functions/identify-multimodal/index.ts`
+- Pre-signed URL signing and manifest validation: `supabase/functions/generate-upload-urls/storage.ts`
 
-## 2026-04 Hardening Updates
+## Guardrails
 
-- `InferenceEngine.pendingBackgroundTasks` is now generation-scoped rather than an unbounded logical queue across scan sessions. Resetting for a new scan or cancelling the active request clears pending closures and invalidates previously spawned background write tasks.
-- Queue draining now rejects stale generations instead of replaying old Wikipedia/GBIF/award writes into the next live scan.
-- This keeps the zero-OOM bounded queue behavior intact while restoring scan handoff correctness under rapid cancel/restart flows.
+- Do not reintroduce inline audio bodies for queued replay.
+- Do not build inference JSON bodies by hand in new call sites. Route `/identify` and `/identify-multimodal` request assembly through `MerianNetworkClient`'s shared inference payload builder so body-size checks happen before large inline base64 payloads are serialized.
+- Keep `audioR2ObjectKeys` separate from image `r2ObjectKeys`; image moderation/publication still runs only on visual media.
+- Any longer recording mode must lower concurrency or raise budgets deliberately on both client and edge. Never let the edge decode base64 before checking length.
+- R2 staging keys must stay under `staging/{userId}/` and must reject `..` path traversal before fetch. Edge code should call `_shared/mediaBudgets.ts` for this check instead of duplicating string-prefix logic.
+- Queue upload code must not hand-roll `staging/{userId}/...` strings. Use `MediaStagingContract` so filename sanitization, task descriptions, budget checks, and image/audio key splitting stay in one place.
+- `/generate-upload-urls` must prefer the structured `files` manifest over legacy `fileNames`; structured entries must validate `mediaKind`, `contentType`, and `sizeBytes` before returning a signed PUT URL.
+
+## Regression Coverage
+
+- Swift tests cover `buildMultiModalRequestBody` emitting `audioR2ObjectKeys` without inline `audioBase64s`, visual inline bodies using the same camelCase payload contract, oversized inline image payloads failing before network dispatch, and `MerianNetworkClient.validateInlineAudioFileBudget(fileURLs:)` rejecting oversized WAV files before `Data(contentsOf:)` or base64 allocation.
+- Deno tests cover `_shared/mediaBudgets.ts` directly, plus endpoint-level uses in `identify-multimodal`, `audio-spec`, and `generate-upload-urls`.
+- Queue tests assert audio-bearing nonvisual captures enter `.pending` for R2 staging, while description-only queued captures remain `.staged`. `MediaStagingContract` tests cover sanitized mixed-media keys, underscore-safe upload task descriptions, and staged-audio byte rejection before upload dispatch.
+- Capture workspace tests assert offline visual and audio queued-only submissions do not call `InferenceEngine.prepareForNewScan()` or open the live insight sheet.
+- Edge tests mirror the staged-audio budget contract for `identify-multimodal` and `audio-spec`: clip count, inline base64 length, missing source, and R2 path traversal are rejected before decode/fetch.

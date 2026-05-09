@@ -75,13 +75,14 @@ export async function generatePresignedPutUrl(
   config: R2Config,
   key: string,
   expirySeconds = 86400,
+  contentType = "image/webp",
 ): Promise<string> {
   const { s3Client, bucketName, endpoint } = config;
   const url = new URL(`${endpoint}/${bucketName}/${key}`);
   url.searchParams.set("X-Amz-Expires", String(expirySeconds));
   const signed = await s3Client.sign(url.toString(), {
     method: "PUT",
-    headers: { "Content-Type": "image/webp" },
+    headers: { "Content-Type": contentType },
     aws: { signQuery: true },
   });
   return signed.url;

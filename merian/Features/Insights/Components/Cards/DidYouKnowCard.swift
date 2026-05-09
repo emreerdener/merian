@@ -11,13 +11,7 @@ struct DidYouKnowCard: View {
         VStack(alignment: .leading, spacing: 16) {
 
             // Header
-            HStack(spacing: 8) {
-                Image(systemName: "info.circle")
-                    .foregroundColor(.secondary)
-                Text("Did you know?")
-                    .font(.system(.headline))
-                    .foregroundColor(.primary)
-            }
+            InsightCardHeader(systemImage: "info.circle", title: "Did you know?")
 
             // Rotating fact
             ZStack(alignment: .topLeading) {

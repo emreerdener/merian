@@ -85,6 +85,60 @@ struct BackgroundDatabaseActorTests {
         #expect(payloads.first?.id == queuedScan.id, "Sendable Payload struct MUST explicitly carry the offline scan UUID")
     }
 
+    @Test func testClearAllLocalLookalikesCacheClearsBiologicalRecordsAcrossBatchesOnly() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let lookalikeBlob = Data(#"[{"scientificName":"Danaus gilippus"}]"#.utf8)
+
+        for index in 0..<250 {
+            context.insert(
+                LocalScanRecord(
+                    id: "lookalike_batch_\(index)",
+                    speciesId: "species_\(index)",
+                    scientificName: "Species \(index)",
+                    commonName: "Species \(index)",
+                    timestamp: Date(timeIntervalSince1970: TimeInterval(index)),
+                    isBiological: true,
+                    similarSpecies: ["Danaus gilippus"],
+                    lookalikesData: lookalikeBlob
+                )
+            )
+        }
+
+        context.insert(
+            LocalScanRecord(
+                id: "lookalike_nonbiological_control",
+                speciesId: "nonbio",
+                scientificName: "Concrete",
+                commonName: "Concrete",
+                isBiological: false,
+                similarSpecies: ["Should remain"],
+                lookalikesData: lookalikeBlob
+            )
+        )
+        try context.save()
+
+        await actor.clearAllLocalLookalikesCache()
+
+        let verificationContext = ModelContext(container)
+        let biologicalDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.isBiological == true }
+        )
+        let biologicalRecords = try verificationContext.fetch(biologicalDescriptor)
+        #expect(biologicalRecords.count == 250)
+        #expect(biologicalRecords.allSatisfy { $0.lookalikesData == nil })
+        #expect(biologicalRecords.allSatisfy { $0.similarSpecies == nil })
+
+        let controlID = "lookalike_nonbiological_control"
+        let controlDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == controlID }
+        )
+        let control = try #require(verificationContext.fetch(controlDescriptor).first)
+        #expect(control.lookalikesData == lookalikeBlob)
+        #expect(control.similarSpecies == ["Should remain"])
+    }
+
     @Test func testProcessAndCleanupOfflineScanPreservesOriginalTimestamp() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)
@@ -133,6 +187,63 @@ struct BackgroundDatabaseActorTests {
         let record = try #require(context.fetch(descriptor).first)
         #expect(record.timestamp == originalTimestamp, "Offline scan timestamp must preserve capture chronology")
         #expect(record.captureDate == originalTimestamp, "captureDate must remain the original capture time")
+    }
+
+    @Test func testSaveLiveScanRecordReplacesCollisionPreservingFieldNotesAndSpeciesId() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let scanId = "live_collision_scan_001"
+
+        context.insert(
+            LocalScanRecord(
+                id: scanId,
+                speciesId: "stable-species-id",
+                scientificName: "Cardinalis cardinalis",
+                commonName: "Older Cardinal",
+                timestamp: Date(timeIntervalSince1970: 100),
+                capturedMediaJSON: try #require(
+                    String(
+                        data: JSONEncoder().encode([SerializedMediaItem.image("old_capture.webp")]),
+                        encoding: .utf8
+                    )
+                ),
+                coverImagePath: "old_capture.webp",
+                isBiological: true,
+                isLiveCapture: true,
+                fieldNotes: "  feeder call notes  "
+            )
+        )
+        try context.save()
+
+        let mappedData = SpeciesData(
+            scanId: scanId,
+            commonName: "Northern Cardinal",
+            scientificName: "Cardinalis cardinalis",
+            insightData: InsightData(aiReasoning: "Fresh visual result.", hazardType: "none"),
+            confidenceScore: 0.96,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        let isNewDiscovery = await actor.saveLiveScanRecord(
+            mappedData: mappedData,
+            localImagePaths: ["new_capture.webp"]
+        )
+
+        let verificationContext = ModelContext(container)
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        let records = try verificationContext.fetch(descriptor)
+        let record = try #require(records.first)
+
+        #expect(isNewDiscovery == false, "Replacing a same-species collision must not count as a new discovery")
+        #expect(records.count == 1, "Collision replacement must leave exactly one LocalScanRecord for the scan ID")
+        #expect(record.speciesId == "stable-species-id", "Shared species lookup must preserve the existing species UUID")
+        #expect(record.commonName == "Northern Cardinal")
+        #expect(record.fieldNotes == "feeder call notes", "Collision replacement must preserve trimmed user field notes")
+        #expect(record.coverImagePath == "new_capture.webp")
     }
 
     @Test func testSaveLiveScanRecordKeepsExistingDocumentsAudio() async throws {

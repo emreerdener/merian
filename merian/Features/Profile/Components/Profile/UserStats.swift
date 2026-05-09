@@ -6,7 +6,7 @@ import SwiftUI
 /// guaranteeing flawless iOS 120Hz native Scroll geometries.
 @ModelActor
 actor ProfileDatabaseActor {
-    private struct ProfileAnalyticsProjection: AchievementRecordRepresentable {
+    private struct ProfileAnalyticsProjection: AchievementRecordRepresentable, Sendable {
         let id: String
         let speciesId: String
         let scientificName: String
@@ -25,7 +25,7 @@ actor ProfileDatabaseActor {
         let confidenceScore: Double?
     }
 
-    private struct ProfileAchievementDetailProjection: AchievementRecordRepresentable {
+    private struct ProfileAchievementDetailProjection: AchievementRecordRepresentable, Sendable {
         let id: String
         let speciesId: String
         let scientificName: String
@@ -50,8 +50,136 @@ actor ProfileDatabaseActor {
         let placeholderStyle: ScanThumbnailPlaceholderStyle
     }
 
+    private struct ProfileProjectionFingerprint: Equatable {
+        let recordCount: Int
+        let latestScanId: String?
+        let latestTimestamp: Date?
+
+        static let empty = ProfileProjectionFingerprint(
+            recordCount: 0,
+            latestScanId: nil,
+            latestTimestamp: nil
+        )
+
+        init(recordCount: Int, latestScanId: String?, latestTimestamp: Date?) {
+            self.recordCount = recordCount
+            self.latestScanId = latestScanId
+            self.latestTimestamp = latestTimestamp
+        }
+
+        init(analyticsRecords records: [ProfileAnalyticsProjection]) {
+            self.init(
+                recordCount: records.count,
+                latestScanId: records.first?.id,
+                latestTimestamp: records.first?.timestamp
+            )
+        }
+
+        init(detailRecords records: [ProfileAchievementDetailProjection]) {
+            self.init(
+                recordCount: records.count,
+                latestScanId: records.first?.id,
+                latestTimestamp: records.first?.timestamp
+            )
+        }
+    }
+
+    private struct ProfileStatsProjection {
+        let fingerprint: ProfileProjectionFingerprint
+        let records: [ProfileAnalyticsProjection]
+        let timestamps: [Date]
+        let speciesCount: Int
+
+        init(records: [ProfileAnalyticsProjection]) {
+            var timestamps: [Date] = []
+            timestamps.reserveCapacity(records.count)
+
+            var uniqueSpecies = Set<String>()
+            uniqueSpecies.reserveCapacity(records.count)
+
+            for record in records {
+                timestamps.append(record.timestamp)
+                uniqueSpecies.insert(record.scientificName)
+            }
+
+            self.fingerprint = ProfileProjectionFingerprint(analyticsRecords: records)
+            self.records = records
+            self.timestamps = timestamps
+            self.speciesCount = uniqueSpecies.count
+        }
+    }
+
+    private var cachedStatsProjection: ProfileStatsProjection?
+    private var cachedAwardPayloads: [AwardPayload]?
+    private var cachedAchievementDetailProjection: (
+        fingerprint: ProfileProjectionFingerprint,
+        records: [ProfileAchievementDetailProjection]
+    )?
+
+    private func currentProjectionFingerprint() -> ProfileProjectionFingerprint {
+        let count = (try? modelContext.fetchCount(FetchDescriptor<LocalScanRecord>())) ?? 0
+        guard count > 0 else { return .empty }
+
+        var latestDescriptor = FetchDescriptor<LocalScanRecord>(
+            sortBy: [
+                SortDescriptor(\.timestamp, order: .reverse),
+                SortDescriptor(\.id, order: .reverse)
+            ]
+        )
+        latestDescriptor.fetchLimit = 1
+        latestDescriptor.propertiesToFetch = [\.id, \.timestamp]
+
+        let latestRecord = ((try? modelContext.fetch(latestDescriptor)) ?? []).first
+        return ProfileProjectionFingerprint(
+            recordCount: count,
+            latestScanId: latestRecord?.id,
+            latestTimestamp: latestRecord?.timestamp
+        )
+    }
+
+    private func loadStatsProjection() -> ProfileStatsProjection {
+        if let cachedStatsProjection,
+           currentProjectionFingerprint() == cachedStatsProjection.fingerprint {
+            return cachedStatsProjection
+        }
+
+        let projection = ProfileStatsProjection(records: fetchAnalyticsProjection())
+        cachedStatsProjection = projection
+        cachedAwardPayloads = nil
+        return projection
+    }
+
+    private func loadAchievementDetailProjection() -> [ProfileAchievementDetailProjection] {
+        if let cachedAchievementDetailProjection,
+           currentProjectionFingerprint() == cachedAchievementDetailProjection.fingerprint {
+            return cachedAchievementDetailProjection.records
+        }
+
+        let records = fetchAchievementDetailProjection()
+        cachedAchievementDetailProjection = (
+            fingerprint: ProfileProjectionFingerprint(detailRecords: records),
+            records: records
+        )
+        return records
+    }
+
+    private func awardPayloads(for projection: ProfileStatsProjection) -> [AwardPayload] {
+        if let cachedAwardPayloads {
+            return cachedAwardPayloads
+        }
+
+        let awards = AchievementsCalculator.calculate(from: projection.records)
+        cachedAwardPayloads = awards
+        return awards
+    }
+
     private func fetchAnalyticsProjection() -> [ProfileAnalyticsProjection] {
-        var descriptor = FetchDescriptor<LocalScanRecord>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            sortBy: [
+                SortDescriptor(\.timestamp, order: .reverse),
+                SortDescriptor(\.id, order: .reverse)
+            ]
+        )
         descriptor.propertiesToFetch = [
             \.id, \.speciesId, \.scientificName, \.userIdentificationOverride, \.confirmedSpeciesId, \.captureDate,
             \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
@@ -83,7 +211,12 @@ actor ProfileDatabaseActor {
     }
 
     private func fetchAchievementDetailProjection() -> [ProfileAchievementDetailProjection] {
-        var descriptor = FetchDescriptor<LocalScanRecord>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            sortBy: [
+                SortDescriptor(\.timestamp, order: .reverse),
+                SortDescriptor(\.id, order: .reverse)
+            ]
+        )
         descriptor.propertiesToFetch = [
             \.id, \.speciesId, \.scientificName, \.userIdentificationOverride, \.confirmedSpeciesId,
             \.timestamp, \.captureDate, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
@@ -222,38 +355,37 @@ actor ProfileDatabaseActor {
         )
     }
 
+    func invalidateCachedProfileProjections() {
+        cachedStatsProjection = nil
+        cachedAwardPayloads = nil
+        cachedAchievementDetailProjection = nil
+    }
+
     func calculateProfileStats() -> (speciesCount: Int, streak: Int) {
-        var descriptor = FetchDescriptor<LocalScanRecord>()
-        // CRITICAL SEC FIX: Severely drop V8/JetSam memory expansion bounds manually limiting the 
-        // fetch columns exactly to strictly required Strings and Dates. (Massive photo hashes ignored!)
-        descriptor.propertiesToFetch = [\.scientificName, \.timestamp]
-        
-        guard let allRecords = try? modelContext.fetch(descriptor) else { return (0, 0) }
-        
-        let speciesCount = Set(allRecords.map { $0.scientificName }).count
-        let streak = calculateStreak(from: allRecords.map(\.timestamp))
-        return (speciesCount, streak)
+        let projection = loadStatsProjection()
+        let streak = calculateStreak(from: projection.timestamps)
+        return (projection.speciesCount, streak)
     }
     
     func calculateAll() -> ProfileAllStatsPayload {
-        let allRecords = fetchAnalyticsProjection()
-        guard !allRecords.isEmpty else {
+        let projection = loadStatsProjection()
+        let awards = awardPayloads(for: projection)
+
+        guard !projection.records.isEmpty else {
             return ProfileAllStatsPayload(
                 speciesCount: 0,
                 streak: 0,
                 heatmap: ProfileHeatmapData(totalCaptures: 0, currentMonthCaptures: 0, yearString: "", weeks: []),
-                awards: AchievementsCalculator.calculate(from: allRecords)
+                awards: awards
             )
         }
 
         let now = Date()
-        let speciesCount = Set(allRecords.map(\.scientificName)).count
-        let streak = calculateStreak(from: allRecords.map(\.timestamp), now: now)
-        let heatmap = buildHeatmapData(from: allRecords.map(\.timestamp), now: now)
-        let awards = AchievementsCalculator.calculate(from: allRecords)
+        let streak = calculateStreak(from: projection.timestamps, now: now)
+        let heatmap = buildHeatmapData(from: projection.timestamps, now: now)
 
         return ProfileAllStatsPayload(
-            speciesCount: speciesCount,
+            speciesCount: projection.speciesCount,
             streak: streak,
             heatmap: heatmap,
             awards: awards
@@ -261,21 +393,17 @@ actor ProfileDatabaseActor {
     }
 
     func calculateHeatmapData() -> ProfileHeatmapData {
-        var descriptor = FetchDescriptor<LocalScanRecord>()
-        descriptor.propertiesToFetch = [\.timestamp]
-        
-        guard let allRecords = try? modelContext.fetch(descriptor) else { 
-            return ProfileHeatmapData(totalCaptures: 0, currentMonthCaptures: 0, yearString: "", weeks: [])
-        }
-        return buildHeatmapData(from: allRecords.map(\.timestamp))
+        let projection = loadStatsProjection()
+        return buildHeatmapData(from: projection.timestamps)
     }
 
     func calculateAwardsProjection() -> [AwardPayload] {
-        AchievementsCalculator.calculate(from: fetchAnalyticsProjection())
+        let projection = loadStatsProjection()
+        return awardPayloads(for: projection)
     }
 
     func calculateAchievementDetail(for type: AchievementType) -> AchievementDetailPayload? {
-        AchievementsCalculator.detail(for: type, from: fetchAchievementDetailProjection())
+        AchievementsCalculator.detail(for: type, from: loadAchievementDetailProjection())
     }
     
 }

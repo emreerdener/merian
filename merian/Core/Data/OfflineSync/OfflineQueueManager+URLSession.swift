@@ -89,7 +89,7 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
             let remaining = await session.allTasks
             let activeUploadTasks = remaining.filter {
                 $0.taskIdentifier != taskIdentifier &&
-                !($0.taskDescription?.hasPrefix("inference_") ?? false)
+                MediaStagingContract.parseUploadTaskDescription($0.taskDescription) != nil
             }
             if activeUploadTasks.isEmpty {
                 await MainActor.run {
@@ -129,16 +129,14 @@ extension OfflineQueueManager {
         taskIdentifier: Int,
         session: URLSession
     ) async {
-        guard let taskDesc = taskDescription else { return }
-
-        let components = taskDesc.components(separatedBy: "_")
-        let scanId = components[0]
+        guard let uploadIdentity = MediaStagingContract.parseUploadTaskDescription(taskDescription) else { return }
+        let scanId = uploadIdentity.scanId
 
         // 1. Compute completion state universally upfront to prevent state-machine deadlocks.
         let remainingTasks = await session.allTasks
         let hasActiveTasksForScan = remainingTasks.contains {
             $0.taskIdentifier != taskIdentifier &&
-            ($0.taskDescription?.starts(with: "\(scanId)_") ?? false)
+            MediaStagingContract.uploadTaskDescription($0.taskDescription, belongsTo: scanId)
         }
 
         let didFail = await handleUploadFallback(scanId: scanId, uploadError: uploadError, responseStatusCode: responseStatusCode)
@@ -157,13 +155,17 @@ extension OfflineQueueManager {
         let extracted = await fetchScanMetadata(for: scanId)
         guard let extracted else { return }
 
-        // Compute the R2 object keys using the auth session active at upload time and persist
-        // them atomically with the .staged transition. Storing keys now eliminates the
-        // auth-expiry 403 edge case that occurred when keys were reconstructed at inference time.
-        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
-        let userId = (authUserId ?? deviceId).lowercased()
-        let r2Keys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
+        // Compute confirmed object keys through the shared media staging contract so
+        // completion, replay, and request construction cannot drift on filename rules.
+        let stagingUserId = await currentMediaStagingUserId()
+        let stagedKeys = MediaStagingContract.splitObjectKeys(
+            [],
+            scanId: scanId,
+            userId: stagingUserId,
+            localImagePaths: extracted.localImagePaths,
+            localAudioPaths: extracted.audioFilePaths ?? []
+        )
+        let r2Keys = stagedKeys.all
 
         // Use the same shared actor as replayInferenceForUploadedScans so that
         // markScanAsStaged and tryClaimForInference are serialized on a single executor.
@@ -353,17 +355,18 @@ extension OfflineQueueManager {
         let request: URLRequest
         do {
             // All scans natively route through the unified /identify-multimodal endpoint, securely supporting arrays over legacy properties
-            let willRouteAudioBody = extracted.audioFilePaths?.isEmpty == false
-            if willRouteAudioBody {
-                // PENDING: migrate to two-phase R2 upload so the WAV body is provided
-                // via uploadTask(with:fromFile:) rather than httpBody on a background
-                // download task. See docs/system-architecture/07-background-inference-body-safe.md
-                MerianLog.data.warning("⚠️ [PENDING] Audio inference dispatched with httpBody on background session — migrate to R2 two-phase path (see 07-background-inference-body-safe.md)")
-            }
+            let audioPaths = extracted.audioFilePaths ?? []
+            let stagedKeys = MediaStagingContract.splitObjectKeys(
+                extracted.r2Keys,
+                scanId: scanId,
+                localImagePaths: extracted.localImagePaths,
+                localAudioPaths: audioPaths
+            )
             request = try await MerianNetworkClient.shared.buildMultiModalRequest(
-                r2ObjectKeys: extracted.r2Keys,
+                r2ObjectKeys: stagedKeys.imageR2ObjectKeys,
+                audioR2ObjectKeys: stagedKeys.audioR2ObjectKeys,
                 base64ImageDatas: [], // Uploads rely purely on references through R2 object keys
-                audioFilePaths: extracted.audioFilePaths ?? [],
+                audioFilePaths: stagedKeys.audioR2ObjectKeys.isEmpty ? audioPaths : [],
                 observationContextsJSON: extracted.observationContextsJSON ?? [],
                 telemetry: finalTelemetry,
                 clientScanId: scanId

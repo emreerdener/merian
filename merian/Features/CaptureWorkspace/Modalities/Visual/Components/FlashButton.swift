@@ -12,9 +12,7 @@ struct FlashButton: View {
             Image(systemName: isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(isFlashEnabled ? .yellow : .white)
-                .frame(width: 50, height: 50)
-                .background(.ultraThinMaterial, in: Circle())
-                .environment(\.colorScheme, .dark)
+                .circularMaterialControl(colorScheme: .dark)
         }
         .buttonStyle(.plain)
         .padding(.trailing, 32)

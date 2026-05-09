@@ -11,7 +11,7 @@ flowchart TD
     C -->|NWPathMonitor Awoken by Cell Tower| D{Network Status 200 OK}
 
     D -->|/generate-upload-urls| E[Cloudflare R2 Staging Bucket]
-    E -->|URLSession Background PUT (staged images only)| F((Cloudflare R2))
+    E -->|URLSession Background PUT (staged images + queued audio)| F((Cloudflare R2))
     F -->|Background replay or live request| G([⚡️ Supabase Edge /identify-multimodal])
 
     G -->|Resolves mixed media & validates| H[🤖 Gemini 2.5 Flash / Pro]

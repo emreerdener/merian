@@ -4,18 +4,31 @@ Merian operates decoupled. The iOS application exclusively hits Supabase Edge Fu
 
 ## Deno `/generate-upload-urls` Edge Node
 
-To fetch cryptographic keys for direct-to-Cloudflare uploads, the client sends a filename array:
+To fetch cryptographic keys for direct-to-Cloudflare uploads, the client sends a structured media manifest. The cross-language contract lives in `docs/contracts/media-staging-upload-manifest.json`; Swift and Deno tests both load that file so limits and allowed content types cannot drift silently.
 
 ### Request Payload
 
 ```json
 {
   "user_id": "Supabase Auth UUID linking RevenueCat and PostHog",
-  "fileNames": ["photo_1.webp", "photo_2.webp"]
+  "files": [
+    {
+      "fileName": "scan-id_photo_1.webp",
+      "mediaKind": "image",
+      "contentType": "image/webp",
+      "sizeBytes": 124000
+    },
+    {
+      "fileName": "scan-id_audio_1.wav",
+      "mediaKind": "audio",
+      "contentType": "audio/wav",
+      "sizeBytes": 42000
+    }
+  ]
 }
 ```
 
-The server extracts the verified user identity from the `Authorization` Header JWT (`supabaseAdmin.auth.getUser()`), ignoring any `user_id` value in the request body. To prevent array-abuse memory locking on the Edge Node, the endpoint strictly requires exactly 1 to 5 `fileNames`. Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours). This extended window gives iOS `BackgroundTasks` flexibility to transmit overnight, subject to OS memory, thermal, and Wi-Fi conditions, without hitting 403 errors.
+The server extracts the verified user identity from the `Authorization` Header JWT (`supabaseAdmin.auth.getUser()`), ignoring any `user_id` value in the request body. To prevent array-abuse memory locking on the Edge Node, the endpoint strictly requires exactly 1 to 5 `files`, with at most 2 audio files. iOS builds this manifest through `MediaStagingContract`, which applies the same filename sanitization as the Edge function before upload URL generation. The Edge parser rejects unsanitized filenames, invalid `mediaKind` values, content-type/kind mismatches, and oversized media before signing. Structured manifests require `sizeBytes`; the legacy `fileNames` array remains accepted for older clients but is compatibility-only and cannot express byte budgets. Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours). This extended window gives iOS `BackgroundTasks` flexibility to transmit overnight, subject to OS memory, thermal, and Wi-Fi conditions, without hitting 403 errors.
 
 The Edge function uses the `fileName` parameter from the JSON body (after applying basic sanitization to prevent path traversal vectors) rather than generating random internal UUIDs. This guarantees that the pre-signed S3 `objectKey` will deterministically match the paths requested by the iOS client during subsequent offline inference triggers.
 
@@ -39,7 +52,9 @@ The Edge function uses the `fileName` parameter from the JSON body (after applyi
 
 ### The JSON Request Payload (From Swift `OfflineQueueManager`)
 
-When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server enforces that all paths within `r2ObjectKeys` begin with `staging/${user.id}/` and rejects `../` traversal attempts with `HTTP 400`. 
+When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server enforces that all paths within `r2ObjectKeys` begin with `staging/${user.id}/` and rejects `../` traversal attempts with `HTTP 400`.
+
+The endpoint rejects media JSON requests whose `Content-Length` exceeds the shared `/identify` body ceiling before parsing the body. Inline `imageBase64s` are then validated against the shared aggregate base64 budget in `_shared/mediaBudgets.ts`; staged `r2ObjectKeys` are validated through `_shared/identify/media.ts` before any R2 body is allocated.
 
 > **Important IDOR Constraint:** The `user.id` resolved by the Deno Edge Function from the Supabase JWT is always a **lowercase** Postgres UUID format. Swift's `UUID().uuidString` evaluates to uppercase by default. Therefore, the iOS client must explicitly lowercase any user UUID injected into `r2ObjectKeys` payloads; otherwise, the case-sensitive string matching (`!r2ObjectKey.startsWith`) will fail the IDOR check and return a `403 Forbidden`.
 
@@ -49,7 +64,7 @@ When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server 
     "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename_1.webp",
     "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_filename_2.webp"
   ],
-  "imageBase64s": ["<base64 encoded string array for instant processing (up to 2 limits, skips r2ObjectKeys)>"],
+  "imageBase64s": ["<base64 encoded string array for instant processing within the shared aggregate budget>"],
   "user_id": "Supabase Auth UUID linking via GoTrue Session",
   "gpsLatitude": 37.7749,
   "gpsLongitude": -122.4194,
@@ -814,6 +829,9 @@ A unified identification pipeline that merges the active capabilities of `/ident
   "r2ObjectKeys": [
     "staging/A1B2C3D4.../uuid_image_1.webp"
   ],
+  "audioR2ObjectKeys": [
+    "staging/a1b2c3d4.../uuid_audio.wav"
+  ],
   "imageBase64s": ["<base64>"],
   "audioBase64s": ["<base64>"],
   "user_id": "Supabase Auth UUID",
@@ -841,10 +859,10 @@ A unified identification pipeline that merges the active capabilities of `/ident
 }
 ```
 
-- Features dynamic `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` execution if both `audioBase64s` and `imageBase64s` are present.
+- Features dynamic `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` execution if audio and image evidence are both present, regardless of whether the audio arrived inline or from R2 staging.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini ingestion.
-- Audio currently stays inline as `audioBase64s` on this path; there is no shipped `audioR2Keys` request field in the active client/server contract.
-- The canonical request contract is camelCase telemetry (`gpsLatitude`, `semanticLocation`, `deviceTimeZone`, etc.) plus `observation_contexts: [{ freeText, addedAt? }]`, matching `MerianNetworkClient.buildMultiModalRequest(...)` and the iOS `ObservationContext` model.
+- Queued replay audio uses `audioR2ObjectKeys`; live foreground audio uses size-preflighted inline `audioBase64s`. The edge rejects oversized media JSON `Content-Length` before body parsing, then validates clip count, byte budgets, IDOR ownership, and path traversal through `_shared/identify/media.ts` before decode/fetch.
+- The canonical request contract is camelCase telemetry (`gpsLatitude`, `semanticLocation`, `deviceTimeZone`, etc.) plus `observation_contexts: [{ freeText, addedAt? }]`, matching `MerianNetworkClient.buildMultiModalRequest(...)` and the iOS `ObservationContext` model. The same Swift inference payload builder also backs `/identify` so visual and multimodal requests share telemetry formatting, user context, and pre-serialization inline media budget validation.
 - The server still accepts legacy snake_case telemetry aliases (`gps_latitude`, `semantic_location`, `time_of_day`, etc.) and legacy `free_text` context keys so offline queue replays and older internal tooling do not break mid-migration.
 - Candidate handling now matches `/identify`: the response strips `candidates` when `confidence_score >= diagnosticTrigger`, enriches forwarded candidates with cached English common names when available, and schedules background enrichment for cache misses.
 - The multimodal background ingestion path shares the same `_shared/identify` DB, media, schema, threshold, and moderation primitives as `/identify`.

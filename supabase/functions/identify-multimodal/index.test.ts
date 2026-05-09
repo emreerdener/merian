@@ -1,6 +1,15 @@
-import { assert, assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import {
+  assert,
+  assertEquals,
+} from "https://deno.land/std@0.224.0/testing/asserts.ts";
 
 import { sanitizeScientificName } from "../identify/sanitize.ts";
+import {
+  MEDIA_BUDGETS,
+  validateAudioClipCount,
+  validateInlineAudioBase64Budget,
+  validateStagingObjectKey,
+} from "../_shared/mediaBudgets.ts";
 
 type R2KeyError = "path_traversal" | "wrong_user" | null;
 
@@ -54,8 +63,23 @@ function isPayloadEmpty(
 }
 
 function validateR2ObjectKey(key: string, userId: string): R2KeyError {
-  if (key.includes("..")) return "path_traversal";
-  if (!key.startsWith(`staging/${userId}/`)) return "wrong_user";
+  return validateStagingObjectKey(key, userId);
+}
+
+function validateAudioPayloadShape(
+  audioR2ObjectKeys: string[],
+  audioBase64s: string[],
+): number | null {
+  const clipCountError = validateAudioClipCount(
+    audioR2ObjectKeys.length,
+    audioBase64s.length,
+  );
+  if (clipCountError) return clipCountError.status;
+  if (
+    audioBase64s.some((payload) => validateInlineAudioBase64Budget(payload))
+  ) {
+    return 413;
+  }
   return null;
 }
 
@@ -103,8 +127,8 @@ function normalizeTelemetry(body: Record<string, unknown>) {
     gpsElevation: body.gpsElevation ?? body.gps_elevation ?? null,
     semanticLocation: body.semanticLocation ?? body.semantic_location ?? null,
     weatherCondition: body.weatherCondition ?? body.weather_condition ?? null,
-    weatherTemperatureF:
-      body.weatherTemperatureF ?? body.weather_temperature_f ?? null,
+    weatherTemperatureF: body.weatherTemperatureF ??
+      body.weather_temperature_f ?? null,
     deviceLocale: body.deviceLocale ?? body.device_locale ?? null,
     deviceTimeZone: body.deviceTimeZone ?? body.device_time_zone ?? null,
     deviceRegion: body.deviceRegion ?? body.device_region ?? null,
@@ -152,9 +176,7 @@ function sanitizeLifeStage(value: string | undefined): string {
 
 function sanitizeReproductiveCondition(value: string | undefined): string {
   if (value == null) return "not_applicable";
-  return VALID_REPRODUCTIVE_CONDITIONS.has(value)
-    ? value
-    : "not_applicable";
+  return VALID_REPRODUCTIVE_CONDITIONS.has(value) ? value : "not_applicable";
 }
 
 function sanitizeCandidates(
@@ -220,7 +242,10 @@ Deno.test("payload guard - image + telemetry -> accept", () => {
 
 Deno.test("IDOR guard - key belonging to correct user passes", () => {
   const userId = "abc-123";
-  assertEquals(validateR2ObjectKey(`staging/${userId}/photo.webp`, userId), null);
+  assertEquals(
+    validateR2ObjectKey(`staging/${userId}/photo.webp`, userId),
+    null,
+  );
 });
 
 Deno.test("IDOR guard - key belonging to different user is rejected", () => {
@@ -234,6 +259,39 @@ Deno.test("IDOR guard - path traversal is rejected", () => {
   assertEquals(
     validateR2ObjectKey("staging/abc-123/../../etc/passwd", "abc-123"),
     "path_traversal",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Audio staging budget guards
+// ---------------------------------------------------------------------------
+
+Deno.test("audio staging budget - two R2 clips are accepted", () => {
+  assertEquals(
+    validateAudioPayloadShape([
+      "staging/abc-123/one.wav",
+      "staging/abc-123/two.wav",
+    ], []),
+    null,
+  );
+});
+
+Deno.test("audio staging budget - mixed R2 and inline clips over cap are rejected before decode", () => {
+  assertEquals(
+    validateAudioPayloadShape([
+      "staging/abc-123/one.wav",
+      "staging/abc-123/two.wav",
+    ], ["ZmFrZQ=="]),
+    413,
+  );
+});
+
+Deno.test("audio staging budget - oversized inline base64 is rejected before decode", () => {
+  assertEquals(
+    validateAudioPayloadShape([], [
+      "A".repeat(MEDIA_BUDGETS.maxAudioBase64Chars + 1),
+    ]),
+    413,
   );
 });
 

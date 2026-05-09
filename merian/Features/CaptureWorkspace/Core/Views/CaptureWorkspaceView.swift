@@ -292,6 +292,7 @@ struct CaptureWorkspaceView: View {
         }
         .onDisappear {
             cameraManager.stopSession()
+            audioCaptureManager.reset()
             AppDIContainer.shared.environmentContextManager.stopLiveLocationTracking()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in

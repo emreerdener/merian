@@ -1,25 +1,45 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { Schema, Type } from "https://esm.sh/@google/genai@1.0.0";
-import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 
-import { jsonResponse, withEdgeHandler, runBackground, logStructuredError } from "../_shared/edgeHandler.ts";
+import {
+  jsonResponse,
+  logStructuredError,
+  runBackground,
+  withEdgeHandler,
+} from "../_shared/edgeHandler.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
-import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
-import { processWavBuffer, TARGET_AUDIO_SAMPLE_RATE } from "../_shared/audioProcessing.ts";
-import { buildContextText, normalizeCurrentMonth } from "../_shared/identify/context.ts";
-
-import { AudioClientRequest, AudioIdentification, AudioClientPayload, AudioCandidate } from "./types.ts";
+import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
 import {
-  upsertGhostUserIfMissing,
+  processWavBuffer,
+  TARGET_AUDIO_SAMPLE_RATE,
+} from "../_shared/audioProcessing.ts";
+import { resolveAudioBuffers } from "../_shared/identify/media.ts";
+import {
+  buildContextText,
+  normalizeCurrentMonth,
+} from "../_shared/identify/context.ts";
+import {
+  MEDIA_BUDGETS,
+  validateRequestContentLength,
+} from "../_shared/mediaBudgets.ts";
+
+import {
+  AudioCandidate,
+  AudioClientPayload,
+  AudioClientRequest,
+  AudioIdentification,
+} from "./types.ts";
+import {
   fetchCachedSpecies,
-  upsertSpeciesDictionary,
   insertScan,
   updateGroupTags,
+  upsertGhostUserIfMissing,
+  upsertSpeciesDictionary,
 } from "./db.ts";
 // Gemini confidence threshold below which candidates are forwarded to the iOS client.
 const DIAGNOSTIC_TRIGGER = 0.95;
@@ -62,7 +82,11 @@ const audioSchema: Record<string, unknown> = {
           confidence_score: { type: Type.NUMBER },
           distinguishing_feature: { type: Type.STRING },
         },
-        required: ["scientific_name", "confidence_score", "distinguishing_feature"],
+        required: [
+          "scientific_name",
+          "confidence_score",
+          "distinguishing_feature",
+        ],
       },
     },
   },
@@ -72,13 +96,26 @@ const audioSchema: Record<string, unknown> = {
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
+    const bodySizeError = validateRequestContentLength(
+      req,
+      MEDIA_BUDGETS.maxAudioJsonBodyBytes,
+    );
+    if (bodySizeError) {
+      return jsonResponse(
+        { error: bodySizeError.message },
+        bodySizeError.status,
+      );
+    }
+
     const rawBody: Record<string, unknown> = await req.json();
 
     const paramError = requireParams(rawBody, ["user_id"]);
     if (paramError) return paramError;
 
     if (!rawBody.audio_r2_key && !rawBody.audio_base64) {
-      return jsonResponse({ error: "Missing required parameter: audio_r2_key or audio_base64" }, 400);
+      return jsonResponse({
+        error: "Missing required parameter: audio_r2_key or audio_base64",
+      }, 400);
     }
 
     const body = rawBody as unknown as AudioClientRequest;
@@ -104,44 +141,41 @@ serve((req: Request) =>
     // GPS range validation — out-of-bounds values are sanitised to null (same policy as identify).
     const safeGpsLat: number | null =
       gps_latitude != null && Number.isFinite(gps_latitude) &&
-      gps_latitude >= -90 && gps_latitude <= 90
-        ? gps_latitude : null;
+        gps_latitude >= -90 && gps_latitude <= 90
+        ? gps_latitude
+        : null;
     const safeGpsLon: number | null =
       gps_longitude != null && Number.isFinite(gps_longitude) &&
-      gps_longitude >= -180 && gps_longitude <= 180
-        ? gps_longitude : null;
+        gps_longitude >= -180 && gps_longitude <= 180
+        ? gps_longitude
+        : null;
 
     // 1. Load audio — either from base64 inline payload (iOS live path) or R2 staging.
     let rawWavBuffer: ArrayBuffer;
     let r2Config: ReturnType<typeof getR2Config> | null = null;
 
-    if (audio_base64) {
-      // Inline path: iOS sends the WAV base64-encoded in the request body.
-      try {
-        rawWavBuffer = decodeBase64(audio_base64).buffer as ArrayBuffer;
-      } catch {
-        return jsonResponse({ error: "Invalid audio encoding: malformed base64." }, 400);
-      }
-      console.log(`[⏱ BENCH] base64_decode: ${Date.now() - fnStart}ms, size=${rawWavBuffer.byteLength}`);
-    } else {
-      // R2 path: IDOR + path traversal guards only apply here.
-      if (!audio_r2_key!.startsWith(`staging/${user.id}/`)) {
-        logStructuredError("audio_spec/idor_attempt", { user_id: user.id, audio_r2_key });
-        return jsonResponse({ error: "Forbidden: audio_r2_key does not belong to the requesting user." }, 403);
-      }
-      if (audio_r2_key!.includes("..")) {
-        return jsonResponse({ error: "Bad Request: path traversal detected." }, 400);
-      }
-      r2Config = getR2Config();
-      const { s3Client, bucketName, endpoint } = r2Config;
-      const r2Url = `${endpoint}/${bucketName}/${audio_r2_key}`;
-      const r2Resp = await s3Client.fetch(r2Url, { method: "GET" });
-      if (!r2Resp.ok) {
-        return jsonResponse({ error: `Audio file not found in staging (${r2Resp.status}).` }, 404);
-      }
-      rawWavBuffer = await r2Resp.arrayBuffer();
-      console.log(`[⏱ BENCH] r2_download: ${Date.now() - fnStart}ms, size=${rawWavBuffer.byteLength}`);
-    }
+    const audioResolution = await resolveAudioBuffers({
+      userId: user.id,
+      audioR2ObjectKeys: audio_base64 ? [] : [audio_r2_key!],
+      audioBase64s: audio_base64 ? [audio_base64] : [],
+      idorEvent: "audio_spec/idor_attempt",
+      r2FetchFailedEvent: "audio_spec/audio_r2_fetch_failed",
+      pathTraversalMessage: "Bad Request: path traversal detected.",
+      wrongUserMessage:
+        "Forbidden: audio_r2_key does not belong to the requesting user.",
+      r2FetchError: (response) => ({
+        message: `Audio file not found in staging (${response.status}).`,
+        status: 404,
+      }),
+    });
+    if (audioResolution.errorResponse) return audioResolution.errorResponse;
+    rawWavBuffer = audioResolution.audioBuffers[0];
+    r2Config = audioResolution.r2Config ?? null;
+    console.log(
+      `[⏱ BENCH] ${audio_base64 ? "base64_decode" : "r2_download"}: ${
+        Date.now() - fnStart
+      }ms, size=${rawWavBuffer.byteLength}`,
+    );
 
     // 2. Process audio: parse → mono → trim silence → resample → re-encode
     let base64Audio: string;
@@ -150,13 +184,16 @@ serve((req: Request) =>
       base64Audio = processedAudio.base64Audio;
       console.log(
         `[audio-spec] WAV: ${processedAudio.sourceSampleRate}Hz ${processedAudio.sourceChannels}ch → ` +
-        `${TARGET_AUDIO_SAMPLE_RATE}Hz mono, trimmed ${processedAudio.originalSampleCount}` +
-        `→${processedAudio.trimmedSampleCount} samples, resampled=${processedAudio.resampledSampleCount}, ` +
-        `encoded ${processedAudio.encodedByteLength} bytes`,
+          `${TARGET_AUDIO_SAMPLE_RATE}Hz mono, trimmed ${processedAudio.originalSampleCount}` +
+          `→${processedAudio.trimmedSampleCount} samples, resampled=${processedAudio.resampledSampleCount}, ` +
+          `encoded ${processedAudio.encodedByteLength} bytes`,
       );
     } catch (wavErr) {
       const msg = wavErr instanceof Error ? wavErr.message : String(wavErr);
-      logStructuredError("audio_spec/wav_parse_failed", { user_id: user.id, error: msg });
+      logStructuredError("audio_spec/wav_parse_failed", {
+        user_id: user.id,
+        error: msg,
+      });
       return jsonResponse({ error: "Invalid audio file format." }, 400);
     }
 
@@ -220,7 +257,9 @@ serve((req: Request) =>
       // Defensive fallback for @google/genai@1.0.0 text getter edge case
       if (!responseText) {
         const firstPart = result.candidates?.[0]?.content?.parts?.[0];
-        if (firstPart && "text" in firstPart && typeof firstPart.text === "string") {
+        if (
+          firstPart && "text" in firstPart && typeof firstPart.text === "string"
+        ) {
           responseText = firstPart.text;
         }
       }
@@ -235,7 +274,11 @@ serve((req: Request) =>
           `Token Usage [audio-spec | ${user.id}]: Prompt: ${llmPromptTokens} | Candidates: ${llmCandidateTokens} | Thinking: ${llmThinkingTokens} | Total: ${llmTotalTokens}`,
         );
       }
-      console.log(`[⏱ BENCH] gemini_done: ${Date.now() - fnStart}ms total, ${Date.now() - geminiStart}ms inference`);
+      console.log(
+        `[⏱ BENCH] gemini_done: ${Date.now() - fnStart}ms total, ${
+          Date.now() - geminiStart
+        }ms inference`,
+      );
     } catch (genErr) {
       const errMsg = genErr instanceof Error ? genErr.message : String(genErr);
       logStructuredError("audio_spec/gemini_failed", {
@@ -243,13 +286,26 @@ serve((req: Request) =>
         elapsed_ms: Date.now() - geminiStart,
         error: errMsg,
       });
-      return jsonResponse({ error: "AI processing error. Please try again." }, 503);
+      return jsonResponse(
+        { error: "AI processing error. Please try again." },
+        503,
+      );
     }
 
-    if (finishReason && finishReason !== "STOP" && finishReason !== "FINISH_REASON_UNSPECIFIED") {
-      const isPermanent = finishReason === "SAFETY" || finishReason === "PROHIBITED_CONTENT";
-      logStructuredError("audio_spec/non_stop_finish", { user_id: user.id, finish_reason: finishReason });
-      return jsonResponse({ error: "AI processing error. Please try again." }, isPermanent ? 400 : 503);
+    if (
+      finishReason && finishReason !== "STOP" &&
+      finishReason !== "FINISH_REASON_UNSPECIFIED"
+    ) {
+      const isPermanent = finishReason === "SAFETY" ||
+        finishReason === "PROHIBITED_CONTENT";
+      logStructuredError("audio_spec/non_stop_finish", {
+        user_id: user.id,
+        finish_reason: finishReason,
+      });
+      return jsonResponse(
+        { error: "AI processing error. Please try again." },
+        isPermanent ? 400 : 503,
+      );
     }
 
     // 6. Parse Gemini response
@@ -264,7 +320,10 @@ serve((req: Request) =>
         response_preview: responseText.slice(0, 500),
         error: parseErr instanceof Error ? parseErr.message : String(parseErr),
       });
-      return jsonResponse({ error: "Processing Error: Malformed AI response." }, 422);
+      return jsonResponse(
+        { error: "Processing Error: Malformed AI response." },
+        422,
+      );
     }
 
     // Cap candidates list (schema enforces this but extractJson is an unvalidated cast)
@@ -277,7 +336,8 @@ serve((req: Request) =>
         ? client_scan_id
         : crypto.randomUUID();
 
-    const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
+    const isIdentifiedBio =
+      !!(parsedData.is_biological_subject && parsedData.scientific_name);
 
     // Strip candidates when confidence meets the diagnostic trigger threshold
     const forwardCandidates =
@@ -319,7 +379,10 @@ serve((req: Request) =>
         const needsGroupTags = isIdentifiedBio;
 
         if (isIdentifiedBio) {
-          cachedSpecies = await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin);
+          cachedSpecies = await fetchCachedSpecies(
+            parsedData.scientific_name!,
+            supabaseAdmin,
+          );
 
           if (cachedSpecies?.kingdom) {
             // Cache hit: serve taxonomy and species metadata
@@ -332,27 +395,36 @@ serve((req: Request) =>
               family: cachedSpecies.family ?? "Unknown",
               genus: cachedSpecies.genus ?? "Unknown",
             };
-            payloadReadyForClient.iucn_red_list_status = cachedSpecies.iucn_red_list_status ?? undefined;
-            payloadReadyForClient.reference_image_url = cachedSpecies.reference_image_url;
+            payloadReadyForClient.iucn_red_list_status =
+              cachedSpecies.iucn_red_list_status ?? undefined;
+            payloadReadyForClient.reference_image_url =
+              cachedSpecies.reference_image_url;
             payloadReadyForClient.wikipedia_url = cachedSpecies.wikipedia_url;
-            payloadReadyForClient.wikipedia_overview = cachedSpecies.wikipedia_overview;
+            payloadReadyForClient.wikipedia_overview =
+              cachedSpecies.wikipedia_overview;
             if (cachedSpecies.group_tags?.length) {
               payloadReadyForClient.group_tags = cachedSpecies.group_tags;
             }
             if (cachedSpecies.gbif_taxon_key != null) {
-              payloadReadyForClient.gbif_taxon_key = cachedSpecies.gbif_taxon_key;
+              payloadReadyForClient.gbif_taxon_key =
+                cachedSpecies.gbif_taxon_key;
             }
             if (cachedSpecies.common_names?.en) {
               payloadReadyForClient.common_name = cachedSpecies.common_names.en;
             }
             if (cachedSpecies.alternative_common_names?.length) {
-              const primaryEn = (payloadReadyForClient.common_name ?? "").toLowerCase();
-              payloadReadyForClient.alternative_common_names = cachedSpecies.alternative_common_names.filter(
-                (n) => n.toLowerCase() !== primaryEn,
-              );
+              const primaryEn = (payloadReadyForClient.common_name ?? "")
+                .toLowerCase();
+              payloadReadyForClient.alternative_common_names = cachedSpecies
+                .alternative_common_names.filter(
+                  (n) => n.toLowerCase() !== primaryEn,
+                );
             }
-            if (cachedSpecies.hazard_type && payloadReadyForClient.insight_data) {
-              payloadReadyForClient.insight_data.hazard_type = cachedSpecies.hazard_type;
+            if (
+              cachedSpecies.hazard_type && payloadReadyForClient.insight_data
+            ) {
+              payloadReadyForClient.insight_data.hazard_type =
+                cachedSpecies.hazard_type;
             }
             if (cachedSpecies.habitat_description) {
               payloadReadyForClient.species_insights = {
@@ -361,10 +433,17 @@ serve((req: Request) =>
             }
           } else {
             // Cache miss: enrich species_dictionary in the background
-            console.log(`Cache Miss: ${parsedData.scientific_name}. Background enrichment queued.`);
+            console.log(
+              `Cache Miss: ${parsedData.scientific_name}. Background enrichment queued.`,
+            );
             const bgStart = Date.now();
-            const externalData = await fetchExternalEnrichment(parsedData.scientific_name!);
-            const freshSpecies = await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin);
+            const externalData = await fetchExternalEnrichment(
+              parsedData.scientific_name!,
+            );
+            const freshSpecies = await fetchCachedSpecies(
+              parsedData.scientific_name!,
+              supabaseAdmin,
+            );
 
             const newCommonNames = {
               ...(freshSpecies?.common_names ?? {}),
@@ -373,7 +452,9 @@ serve((req: Request) =>
             const primaryEn = (newCommonNames.en ?? "").toLowerCase();
             const newAltNames: string[] | null =
               externalData.alternativeCommonNames.length > 0
-                ? externalData.alternativeCommonNames.filter((n) => n.toLowerCase() !== primaryEn)
+                ? externalData.alternativeCommonNames.filter((n) =>
+                  n.toLowerCase() !== primaryEn
+                )
                 : freshSpecies?.alternative_common_names ?? null;
 
             const upsertedId = await upsertSpeciesDictionary(
@@ -387,14 +468,20 @@ serve((req: Request) =>
                 order: freshSpecies?.order || "Unknown",
                 family: freshSpecies?.family || "Unknown",
                 genus: freshSpecies?.genus || "Unknown",
-                wikipedia_overview: freshSpecies?.wikipedia_overview ?? externalData.wikiExtract ?? null,
+                wikipedia_overview: freshSpecies?.wikipedia_overview ??
+                  externalData.wikiExtract ?? null,
                 hazard_type: freshSpecies?.hazard_type ?? "none",
                 native_region: "Unknown",
-                iucn_red_list_status: freshSpecies?.iucn_red_list_status ?? "not_evaluated",
-                habitat_description: freshSpecies?.habitat_description ?? undefined,
-                wikipedia_url: freshSpecies?.wikipedia_url || externalData.wikipediaUrl,
-                gbif_taxon_key: freshSpecies?.gbif_taxon_key ?? externalData.gbifKey,
-                reference_image_url: freshSpecies?.reference_image_url || externalData.referenceImageUrl,
+                iucn_red_list_status: freshSpecies?.iucn_red_list_status ??
+                  "not_evaluated",
+                habitat_description: freshSpecies?.habitat_description ??
+                  undefined,
+                wikipedia_url: freshSpecies?.wikipedia_url ||
+                  externalData.wikipediaUrl,
+                gbif_taxon_key: freshSpecies?.gbif_taxon_key ??
+                  externalData.gbifKey,
+                reference_image_url: freshSpecies?.reference_image_url ||
+                  externalData.referenceImageUrl,
               },
               supabaseAdmin,
             );
@@ -404,9 +491,10 @@ serve((req: Request) =>
         }
 
         // Group tags (species-level, fire-and-forget)
-        const groupTagsPromise = (needsGroupTags && !cachedSpecies?.group_tags?.length)
-          ? fetchGroupTags(user, parsedData.scientific_name!)
-          : Promise.resolve(null);
+        const groupTagsPromise =
+          (needsGroupTags && !cachedSpecies?.group_tags?.length)
+            ? fetchGroupTags(user, parsedData.scientific_name!)
+            : Promise.resolve(null);
 
         await insertScan(
           {
@@ -454,13 +542,20 @@ serve((req: Request) =>
         // Delete audio staging file after successful scan insert (R2 path only).
         if (audio_r2_key && r2Config) {
           deleteR2Object(audio_r2_key, r2Config).catch((e) =>
-            console.error(`audio_spec: failed to delete staging file ${audio_r2_key}:`, e),
+            console.error(
+              `audio_spec: failed to delete staging file ${audio_r2_key}:`,
+              e,
+            )
           );
         }
 
         const groupTagsResult = await groupTagsPromise;
         if (groupTagsResult?.group_tags?.length && isIdentifiedBio) {
-          await updateGroupTags(parsedData.scientific_name!, groupTagsResult.group_tags, supabaseAdmin);
+          await updateGroupTags(
+            parsedData.scientific_name!,
+            groupTagsResult.group_tags,
+            supabaseAdmin,
+          );
         }
 
         trackPostHogEvent(user, "AudioScanCompleted", {
@@ -486,7 +581,11 @@ serve((req: Request) =>
           try {
             const { error: dlErr } = await supabaseAdmin
               .from("failed_scan_ingestions")
-              .insert({ scan_id: generatedScanId, user_id: user.id, error_message: errorMsg });
+              .insert({
+                scan_id: generatedScanId,
+                user_id: user.id,
+                error_message: errorMsg,
+              });
             if (dlErr) {
               logStructuredError("audio_spec/dead_letter_write_failed", {
                 scan_id: generatedScanId,
@@ -507,5 +606,5 @@ serve((req: Request) =>
 
     console.log(`[⏱ BENCH] total_to_response: ${Date.now() - fnStart}ms`);
     return jsonResponse({ success: true, data: payloadReadyForClient }, 200);
-  }),
+  })
 );

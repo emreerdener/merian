@@ -23,14 +23,18 @@ Within parallel inference scopes, applying `group.addTask { @MainActor [self] in
 ### DRY SwiftData Boilerplate Abstraction (`BackgroundDatabaseActor`)
 Repeating `FetchDescriptor` and localized `try? modelContext.save()` blocks across different inference override endpoints (`updateScanWithOverride`, `updateScanAsFlagged`) injected unnecessary SQLite boilerplate and compilation overhead. These endpoints are consolidated efficiently via a shared `private func mutateScan(id: String, mutation: (LocalScanRecord) -> Void)`. By stripping repeated fetches and saves, localized data mutations are isolated within primitive Swift closures, protecting background threads and streamlining SQL execution performance.
 
+The scan-creation paths follow the same bounded abstraction rule without merging modality behavior. Offline result processing, live visual persistence, and nonvisual persistence now share `resolveSpeciesIdAndDiscoveryStatus(...)`, `fetchLocalScanRecord(id:)`, and the small collision helpers around `buildScanRecord(...)`. Offline replay still uses `insertLocalScanRecordIfMissing(...)` so a completed queue result cannot overwrite an existing local record; live and nonvisual saves use `insertReplacingLocalScanRecord(...)` so a richer foreground inference can replace a queued skeleton while preserving the existing species UUID and staged field notes. The helpers stay private to `BackgroundDatabaseActor`, keeping SwiftData fetch/delete/insert work on the actor executor.
+
 ### SwiftData Memory Exhaustion (`InsightSheetView`, `ScansSheetView`, & `BackgroundDatabaseActor`)
 When querying records from large user-generated biological libraries in SwiftData, executing a generic `FetchDescriptor` and filtering the `records.first(where:)` array synchronously in memory triggers an OS JetSam crash for power users. This applies specifically to underlying actor resolution arrays which expand to multi-megabyte payloads in SQLite mappings.
 
-View models and actor blocks must absolutely not hold persistent strong references to global `@Model` arrays! `ScansManager.swift` deliberately avoids a root-level `[String: LocalScanRecord]` cache. Instead, it stores only lightweight lookup primitives: `[String: Int]` index positions into `allScans`, `[String: ScanSortPrimitive]` sort snapshots, and cached sorted ID arrays. This preserves O(1) resolution without pinning every `LocalScanRecord` into an auxiliary dictionary, so SwiftData is still free to release heavyweight model state under pressure.
+View models and actor blocks must absolutely not fetch duplicate persistent `@Model` arrays! `ScansManager.swift` now builds lookup state only from the already-resident `@Query` result: `[String: Int]` index positions, a `[String: LocalScanRecord]` mirror of those same live references for stale-index fallback, `[String: ScanSortPrimitive]` sort snapshots, and cached sorted ID arrays. This keeps search result materialization O(1) without issuing a second SwiftData fetch or falling back to repeated `allScans.first(where:)` scans.
 
 Search no longer linearly scans every `SearchableScan` on each keystroke. `ScansManager` now maintains a detached-built `SearchIndexSnapshot` containing exact-term, unigram, bigram, and trigram posting lists plus precomputed category buckets. Queries intersect those posting lists first, then verify the narrowed candidates against `searchString.contains(...)`. This preserves the previous substring semantics while moving the expensive work from "full library per keypress" to "bounded candidate verification per keypress", including single-character queries that used to fall back to the entire library.
 
 The same principle applies to `BackgroundDatabaseActor.pushCollectionsToEdge()`, which previously fetched every `ScanCollection` unconditionally including Favorites (which is never synced). The fetch now uses a `#Predicate { $0.name != "Favorites" }` to exclude Favorites at the SQLite layer. `propertiesToFetch` is intentionally absent: `ScanCollection` has only three stored attributes (`id`, `name`, `createdAt`) so there is nothing to skip, and partial-attribute mode can prevent the `scans` relationship fault from firing correctly, causing `scan_ids` to be serialised as `[]`.
+
+`pushCollectionsToEdge()` no longer reads `ScanCollection.scans` at all. It builds collection membership from bounded batches of `LocalScanRecord.collections`, keeping relationship faulting under a fixed page size. The same bounded inverse-side strategy is used during historical collection sync, and stale lookalike cache clearing now loops with a biological/cache-present predicate plus `fetchLimit` instead of fetching the whole library.
 
 ### Photo Picker and Refinement Staging Unification (`CaptureWorkspaceViewModel`)
 The gallery import path previously bounced back to `@MainActor` on every selected item to clear picker state, re-check the staged-image cap, re-check the paywall gate, and append each decoded image individually. The refinement path had the opposite problem: it eagerly loaded the full on-disk image into `Data`, then potentially decoded it again into `UIImage`, creating unnecessary byte copies for a path that is supposed to be latency-sensitive and zero-OOM safe.
@@ -130,7 +134,7 @@ When opening a historical scan, `load(from:)` previously spawned up to 4 indepen
 
 **Background:** `InsightContentView` routes to `AnalyzingContentView` only when `inferenceEngine.isProcessing == true && inferenceEngine.speciesData == nil`. After `load(from:)` finishes for a library scan, `isProcessing = false` and `speciesData` is fully populated. If the user then submits a new scan, `CaptureWorkspaceViewModel.submitActiveScan()` opens the sheet immediately (`activeSheet = .insight`) but calls `analyze()` only after an async telemetry-resolution Task resolves — a gap that can span hundreds of milliseconds. During that window, the router evaluated the stale library state and briefly rendered `BiologicalView` (or `NonBiologicalView`) before `analyze()` cleared `speciesData`.
 
-**Fix:** `InferenceEngine` exposes `prepareForNewScan()`, called synchronously by `submitActiveScan()` **before** setting `activeSheet = .insight`. It:
+**Fix:** `InferenceEngine` exposes `prepareForNewScan()`, called synchronously only when a live inference path is confirmed online and immediately before setting `activeSheet = .insight`. Offline queued-only submissions must not call it; otherwise `isProcessing` can be left true with no live task to clear it. It:
 - Cancels all in-flight tasks: `inferenceTask`, `liveHydrationTask`, `historicHydrationTask`, `gbifHydrationTask`, `enrichmentWriteTask`, `phaseRotationTask`.
 - Nil-s the task handles for `historicHydrationTask`, `gbifHydrationTask`, and `enrichmentWriteTask`.
 - Resets all loading flags (`isEnrichmentLoading`, `isLookalikesLoading`) and `scanningPhaseText`.
@@ -138,6 +142,14 @@ When opening a historical scan, `load(from:)` previously spawned up to 4 indepen
 - Clears all image and telemetry state (`activeMedia`, `activeImageData`, all environmental telemetry fields).
 
 `analyze()` subsequently overwrites the image and telemetry fields with the new scan's data once the async Task resolves. `analyze()` also cancels `historicHydrationTask` internally so the offline-queue reprocessing path (which calls `analyze()` directly without going through `submitActiveScan()`) gets the same protection.
+
+### Camera Capture Decode Boundary
+
+The camera shutter path (`CaptureWorkspaceViewModel.executeCapture`) captures hardware/location state on the main actor, but the 12MP ImageIO downsample, composing-zone crop, and WebP/JPEG encode run through `DetachedWork.value(category: .imagePreparation)`. The detached worker returns only bounded inference/display `Data` plus a `SendableCGImage` preview wrapper. `AVCapturePhoto.fileDataRepresentation()` is wrapped in an `autoreleasepool` so AVFoundation intermediates are released promptly after the continuation resumes.
+
+### Non-Crashing Startup Contract
+
+`MerianEnvironment.load()` now returns typed configuration plus issue diagnostics rather than calling `fatalError`. Missing Supabase config blocks network endpoint construction with `MerianError.invalidURL`; optional analytics/payment SDKs skip setup when their keys are absent. `MerianApp` attempts persistent SwiftData, corruption quarantine + retry, in-memory safe mode, and finally a startup-blocked UI if no `ModelContainer` can be created. No auth/config/store bootstrap path may hard-crash before user-visible recovery UI.
 
 ### Unbounded GBIF Reference Image Accumulation (`InferenceEngine`)
 
@@ -310,7 +322,7 @@ Generating a global Darwin Core Archive (DwC-A) over the `/request-export-dwca` 
 `ExportScans` now launches the export request from a structured `Task` owned by the view lifecycle, keeping `isExporting` on `@MainActor` while the actual network request runs asynchronously off-thread. Only when the API returns the `200 OK` queue confirmation does execution update the main-thread toast state, notifying the user that the archive link has been securely dispatched to their email address.
 
 ### Main Thread Search Thrashing (`ScansManager`)
-When mapping raw SwiftData query results across thousands of user records, extracting strings synchronously inside `@MainActor` property observers can cause visible stuttering during library updates. `ScansManager` now splits this work into two paths. Full rebuilds extract `RawScanSnapshot: Sendable` values from `allScans` on `@MainActor` and ship those plain structs into a detached utility task for string construction. Incremental inserts stay inside `SearchDatabaseActor`, which batch-fetches only the new IDs and appends their `SearchableScan` payloads once the work completes. The entire sequence is guarded by `indexingTask` cancellation so rapid changes coalesce cleanly.
+When mapping raw SwiftData query results across thousands of user records, extracting strings synchronously inside `@MainActor` property observers can cause visible stuttering during library updates. `ScansManager` now splits this work into two paths. Full rebuilds extract `RawScanSnapshot: Sendable` values from `allScans` on `@MainActor` in 128-record chunks, yielding between chunks before shipping those plain structs into a detached utility task for string construction. Incremental inserts stay inside `SearchDatabaseActor`, which batch-fetches only the new IDs and appends their `SearchableScan` payloads once the work completes. The entire sequence is guarded by `indexingTask` cancellation and `searchCacheGeneration` checks so rapid changes coalesce cleanly and stale builds cannot overwrite newer snapshots.
 
 ### SwiftData Fault Caching Thrash (`ScansManager`)
 While `SearchDatabaseActor.extractSearchablePayloads` insulated the Main Thread, an older implementation still faulted rows individually. The batch-fetch refactor now resolves deltas through one `FetchDescriptor<LocalScanRecord>(predicate: #Predicate { ids.contains($0.id) })`, which materially lowers SQLite churn and prevents thousands of sequential row faults on large libraries.
@@ -334,14 +346,16 @@ Updating or deleting a single record previously triggered the `allScans` observe
 
 **The Refactor**: The global array re-indexing loop was removed. `ScansManager.updateSearchableData` uses a `Set`-based delta update. Deleted records invoke `.removeAll { ... }` directly against the discrete array without touching the background processing thread. Newly captured records jump the background worker queue, incrementally appending only the new entries onto `@MainActor`.
 * **Hot-Swap Updates (Custom Tags)**: Because `Set`-based ID diffing inherently ignores internal property mutations on existing scans, updates to fields like `customTags` are handled via an explicit `NSNotification.Name("ScanRequiresSearchIndexUpdate")`. The `ScansManager` catches this trigger, isolates the singular scan ID, and natively hot-swaps only that scan's indexed search payload via the background `SearchDatabaseActor` thread in under 10ms.
-* **Initial Rebuild Double-Fetch Elimination**: The full-rebuild branch in `updateSearchableData` previously performed two sequential SwiftData fetches — one on `@MainActor` (via `allScans`) and one inside `SearchDatabaseActor` to materialise the same records a second time for index construction. Because `LocalScanRecord` is a SwiftData `@Model` (non-`Sendable`), it cannot cross actor boundaries directly. The fix introduces `RawScanSnapshot: Sendable` — a plain struct mirroring all 21 `LocalScanRecord` fields — extracted on `@MainActor` from the in-memory `allScans` array, then passed into a `Task.detached` that calls `SearchDatabaseActor.buildSearchablePayloads(from: [RawScanSnapshot])` (a `static` method requiring no `ModelContext` fetch). This eliminates the redundant SQL `SELECT` entirely.
+* **Initial Rebuild Double-Fetch Elimination**: The full-rebuild branch in `updateSearchableData` previously performed two sequential SwiftData fetches — one on `@MainActor` (via `allScans`) and one inside `SearchDatabaseActor` to materialise the same records a second time for index construction. Because `LocalScanRecord` is a SwiftData `@Model` (non-`Sendable`), it cannot cross actor boundaries directly. The fix introduces `RawScanSnapshot: Sendable` — a plain struct mirroring all 21 `LocalScanRecord` fields — extracted on `@MainActor` from the in-memory `allScans` array in yielding chunks, then passed into a `Task.detached` that calls `SearchDatabaseActor.buildSearchablePayloads(from: [RawScanSnapshot])` (a `static` method requiring no `ModelContext` fetch). This eliminates the redundant SQL `SELECT` entirely without monopolizing the main actor during very large initial libraries.
 * **`forceReindex` Task Coalescing**: `forceReindex` (called after every new cloud sync) previously discarded its spawned `Task` handle, allowing rapid successive syncs to launch duplicate concurrent appends into `searchableData`. The task handle is now stored in `indexingTask`; each call cancels the prior task before starting a new one, making append ordering deterministic.
-* **Search-time cache reuse**: Query execution now reuses lightweight `[String: Int]` and `[String: ScanSortPrimitive]` caches built when `allScans` changes. This removes the old per-keystroke `[id: LocalScanRecord]` rebuild while still avoiding a strong parallel model dictionary.
+* **Search-time cache reuse**: Query execution now reuses `[String: Int]`, `[String: LocalScanRecord]`, and `[String: ScanSortPrimitive]` caches built from the already-resident `allScans` array when it changes. This removes the old per-keystroke `[id: LocalScanRecord]` rebuild and the old `allScans.first(where:)` fallback without issuing any additional SwiftData fetch.
 
 ### UI Body Array Calculations (`UserStats` & Contribution Heatmap)
 Executing heavy O(N) array manipulations (such as `Set(allRecords.map { ... }).count` or `Calendar` date-normalization for a 52-week heatmap) directly inside a SwiftUI `var body: some View` forces the Main Thread to re-evaluate the math on every `@Query` binding update. For Pro users with 5,000+ captures, this causes stuttering during Profile scrolls. Merian moves this work off-thread:
 
 - `ProfileDatabaseActor` isolates unique species mapping and the 52-week `ProfileHeatmapData` generation inside `@ModelActor`, executing the calendar loops off-thread. `NumberFormatter` and `Calendar` loops are removed from `ScansHeatmap`'s body; `currentMonthCaptures` is processed inside `ProfileDatabaseActor`, producing an O(1) render value on the UI thread.
+- Profile stats, heatmap generation, and award calculation now share one compact `ProfileStatsProjection` cache made from `propertiesToFetch` scalar columns. The actor stores only `Sendable` projection structs, precomputed timestamps, and the unique-species count; it never caches live `LocalScanRecord` model objects or media blobs.
+- The projection cache is guarded by a cheap fingerprint (`recordCount`, latest scan ID, latest timestamp). Inserts, deletes, and latest-scan changes refresh the projection automatically; long-lived callers that mutate existing records in place must call `invalidateCachedProfileProjections()` before requesting new profile stats.
 - Results are packaged as flat `Sendable` configurations before updating lightweight `@State` primitives on the `@MainActor`, insulating `ScansHeatmap` from any O(N) loop dependencies.
 - **View Graph Explosion Protection**: Dense inner views evaluating 364+ element block grids in `ScansHeatmap` were migrated to `LazyHStack` bindings, preventing massive node instantiations across the `ScrollView` and limiting rendering to on-screen elements only.
 
@@ -639,15 +653,16 @@ await MainActor.run { self.filteredScans = finalSorted }
 The detached task holds no reference to the `@MainActor`-isolated `ScansManager` or unsafe model references. Once the sorted IDs are cached, subsequent query clears and sort toggles can reuse the same full-library order without rebuilding it.
 
 ### Lightweight ID/Primitive Cache (`ScansManager`)
-`ScansManager` still needs efficient ID → record resolution, but a full `[String: LocalScanRecord]` map keeps a second strong reference set to every model object. The replacement cache keeps only the minimum metadata:
+`ScansManager` still needs efficient ID → record resolution without scanning the full `@Query` result for every search result. The cache is rebuilt from the already-resident `allScans` array and keeps only live references plus lightweight sort metadata:
 
 ```swift
 @ObservationIgnored private var scanIndexById: [String: Int] = [:]
+@ObservationIgnored private var scanRecordById: [String: LocalScanRecord] = [:]
 @ObservationIgnored private var sortPrimitivesById: [String: ScanSortPrimitive] = [:]
 @ObservationIgnored private var allScanSortPrimitives: [ScanSortPrimitive] = []
 ```
 
-The caches are rebuilt once when `allScans` changes, then reused across all query/filter/sort passes. `scanIndexById` resolves back into the current `allScans` array for the final UI result, while `sortPrimitivesById` avoids recreating primitive sort payloads on every keystroke. This keeps CPU predictable without violating the zero-strong-duplicate-model rule.
+The caches are rebuilt once when `allScans` changes, then reused across all query/filter/sort passes. `record(for:)` resolves through `scanIndexById` first and only falls back to `scanRecordById` if the indexed slot is unavailable or stale during a snapshot transition. `sortPrimitivesById` avoids recreating primitive sort payloads on every keystroke. This keeps CPU predictable without a second SwiftData fetch or per-result linear scan.
 
 ### Concurrent Archive Downloads with Sliding Window (`ArchiveManager`)
 `initiatePrePurgeSync(pendingImages:)` previously downloaded images to the Photo Library in a serial `for` loop — one `PHPhotoLibrary.performChanges` call at a time. For users archiving dozens of images before a purge cycle, serial execution left NVMe bandwidth idle between operations.
@@ -687,11 +702,11 @@ species_dictionary(scientific_name, kingdom, phylum, class, order, family, genus
 
 After a successful live inference result, three bare fire-and-forget `Task { [weak self] in ... }` blocks were dispatched for Wikipedia hydration, `fetchAndApplyEnrichment`, and GBIF image hydration. None were stored in a task handle. If the user triggered a second scan immediately, `analyze()` cancelled `inferenceTask` — but the three previous hydration tasks continued running alongside three new ones. On a fast device scanning rapidly: up to 6 concurrent background network requests accumulated per scan burst, with stale Wikipedia/enrichment/GBIF results from the previous scan able to overwrite `speciesData` state set by the new result.
 
-`InferenceEngine` now owns `@ObservationIgnored private var liveHydrationTask: Task<Void, Never>?`. At the top of every `analyze()` call, `liveHydrationTask?.cancel()` fires alongside `inferenceTask?.cancel()`. The three bare task blocks are replaced by a single sequential tracked task:
-- Wikipedia completes first (its result sets `referenceImageUrl` and `wikipediaOverview`)
-- Enrichment and GBIF then run concurrently via `async let` after a `guard !Task.isCancelled` check
+`InferenceEngine` now owns `@ObservationIgnored private var liveHydrationTask: Task<Void, Never>?`. At the top of every `analyze()` / `analyzeNonVisual()` call, `liveHydrationTask?.cancel()` fires alongside `inferenceTask?.cancel()`. The live visual and nonvisual success paths both enter `schedulePostInferenceHydrationIfNeeded(...)`, which creates one tracked task containing:
+- a Wikipedia child task, skipped when the identify response already included `wikipediaOverview`
+- an enrichment child task that can update taxonomy / habitat / lookalikes, then sequentially fetch GBIF reference images with a cancellation check before the GBIF call
 
-Ordering matters: `fetchAndApplyEnrichment` writes `habitatDescription`; GBIF writes `referenceImageUrl`. Running them after Wikipedia ensures GBIF doesn't overwrite a Wikipedia reference image that was just written. The cancellation check between Wikipedia and enrichment/GBIF allows a new scan to preempt the hydration pipeline mid-way without unnecessary network calls completing for a discarded result.
+The helper preserves the one intentional modality difference through `LiveReferenceHydrationPolicy`: visual captures may set `activeMedia.referenceState = .loading` while waiting for missing reference imagery; describe/audio success paths keep that loading state quiet. Both paths wait for the same bounded two-second hydration window, then let the tracked task finish in the background or be cancelled by the next scan.
 
 ### Singleton Lifecycle Consistency in Child Tasks (`OfflineQueueManager+Sync`)
 
@@ -787,6 +802,15 @@ let needsLookalikes = record.lookalikesData == nil || lookalikesHaveNoCommonName
 GBIF image hydration continues to run unconditionally because it writes `referenceImageUrl` to the specific scan record. Only the `enrich-scan` Edge calls (which write species-level fields shared across all scans) are skipped when already present. For users scanning the same species repeatedly in a field session, this eliminates all but the first enrichment calls per species.
 
 **Rule:** `enrichmentAttemptedScanIds` is scan-ID-scoped (guards re-fires on historic scan opens) and is session-scoped (resets on launch). `enrichedSpeciesTimestamps` is species-name-scoped (guards redundant Edge calls during live-inference bursts) and is **cross-session-persistent** via `UserDefaults` with a 24-hour TTL — a species enriched yesterday will not re-enrich today. The persistent cross-session backstop is the enrichment data itself: `load(from:)` computes `needsMetadata` and `needsLookalikes` from stored field presence — no separate `needsEnrichment: Bool` column exists on `LocalScanRecord`. Do not add an explicit boolean flag; the stored field presence is the correct signal. Do not gate on `similarSpecies` field presence alone; see the "Persistent Field Gate — REMOVED" section for the regression that approach introduced.
+
+## 2026-05 Regression Test Anchors
+
+The hardening invariants are now codified in tests rather than documented only as engineering intent:
+
+- `MerianEnvironment.load(infoDictionary:)` verifies missing or malformed plist values produce fallback configuration plus typed diagnostics instead of startup crashes.
+- Capture workspace offline visual/audio tests verify queued-only flows leave the live inference engine idle and do not cross `@MainActor` UI state into false processing state.
+- Network payload and media-staging tests verify staged audio is represented by `audioR2ObjectKeys`, upload object keys/task descriptions are generated by `MediaStagingContract`, and inline foreground audio is rejected by file-size preflight before base64 allocation.
+- Database actor tests verify local lookalike cache clearing walks batches and leaves non-biological records untouched.
 
 ### WAL Flush Frequency (`MerianConfig.ingestCheckpointInterval`)
 

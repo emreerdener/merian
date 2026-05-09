@@ -67,6 +67,14 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         return image.cgImage ?? UIImage(systemName: "photo")!.cgImage!
     }
 
+    private func makeUIImage(color: UIColor = .systemTeal) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
+        return renderer.image { context in
+            color.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        }
+    }
+
     private func waitUntil(
         timeoutNanoseconds: UInt64 = 1_000_000_000,
         pollingIntervalNanoseconds: UInt64 = 10_000_000,
@@ -92,6 +100,47 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         let configuration = ModelConfiguration(schema: schema, url: tempURL)
         let container = try ModelContainer(for: schema, configurations: [configuration])
         return ModelContext(container)
+    }
+
+    private func enableUnlimitedFreeScansForTest() {
+        let deviceId = DeviceIdentityManager.shared.deviceId
+        UserDefaults.standard.removeObject(forKey: "Merian_LastScanDate_\(deviceId)")
+        UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
+        UsageManager.debugFreeScanLimitOverride = true
+        UsageManager.shared.evaluateDailyRefresh()
+    }
+
+    private func restoreFreeScanLimitForTest() {
+        let deviceId = DeviceIdentityManager.shared.deviceId
+        UserDefaults.standard.removeObject(forKey: "Merian_LastScanDate_\(deviceId)")
+        UserDefaults.standard.removeObject(forKey: "Merian_ScansUsedToday_\(deviceId)")
+        UsageManager.debugFreeScanLimitOverride = nil
+        UsageManager.shared.evaluateDailyRefresh()
+    }
+
+    private func makeTempAudioFilename(prefix: String = "capture_vm_audio") throws -> String {
+        let filename = "\(prefix)_\(UUID().uuidString).wav"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try Data(repeating: 0x4D, count: 128).write(to: url)
+        return filename
+    }
+
+    private func cleanupQueuedScans(in context: ModelContext) {
+        let scans = (try? context.fetch(FetchDescriptor<OfflineQueuedScan>())) ?? []
+        for scan in scans {
+            for item in scan.capturedMediaSnapshot.items {
+                switch item {
+                case .image(let reference), .audio(let reference):
+                    if let targetURL = reference.resolvedURL {
+                        try? FileManager.default.removeItem(at: targetURL)
+                    }
+                case .description:
+                    break
+                }
+            }
+            context.delete(scan)
+        }
+        try? context.save()
     }
 
     func testStartRefinementScanStagesPreparedHistoricalImage() async throws {
@@ -157,6 +206,83 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertEqual(viewModel.baseRefinementRecord?.id, record.id)
         XCTAssertTrue(viewModel.stagedCapture.images.isEmpty)
         XCTAssertEqual(viewModel.requestedCaptureMode, CaptureMode.describe)
+    }
+
+    func testOfflineVisualSubmissionDoesNotActivateInferenceProcessing() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
+        let diContainer = AppDIContainer.preview
+        let originalContext = OfflineQueueManager.shared.modelContext
+        let originalOnline = OfflineQueueManager.shared.isOnline
+        let modelContext = try makeModelContext()
+        OfflineQueueManager.shared.modelContext = modelContext
+        OfflineQueueManager.shared.isOnline = false
+        defer {
+            cleanupQueuedScans(in: modelContext)
+            OfflineQueueManager.shared.modelContext = originalContext
+            OfflineQueueManager.shared.isOnline = originalOnline
+        }
+
+        let uiImage = makeUIImage()
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: diContainer,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        viewModel.stagedCapture.images = [
+            StagedImage(
+                compressedData: makePNGData(),
+                displayData: makePNGData(color: .systemBlue),
+                uiImage: uiImage,
+                original: IdentifiableImage(image: uiImage)
+            )
+        ]
+
+        viewModel.submitStagedCapture(modelContext: modelContext)
+
+        try await waitUntil { viewModel.offlineToastMessage == "No network connection. Queued for upload." }
+        XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
+        XCTAssertNil(viewModel.activeSheet)
+    }
+
+    func testOfflineAudioSubmissionDoesNotActivateInferenceProcessingAndQueuesPending() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
+        let diContainer = AppDIContainer.preview
+        let originalContext = OfflineQueueManager.shared.modelContext
+        let originalOnline = OfflineQueueManager.shared.isOnline
+        let modelContext = try makeModelContext()
+        OfflineQueueManager.shared.modelContext = modelContext
+        OfflineQueueManager.shared.isOnline = false
+        defer {
+            cleanupQueuedScans(in: modelContext)
+            OfflineQueueManager.shared.modelContext = originalContext
+            OfflineQueueManager.shared.isOnline = originalOnline
+        }
+
+        let audioFilename = try makeTempAudioFilename()
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: diContainer,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+
+        viewModel.submitNonVisualCapture(
+            audioFileNames: [audioFilename],
+            observationContexts: [],
+            mediaTimeline: [.audio(audioFilename)],
+            modelContext: modelContext
+        )
+
+        try await waitUntil { viewModel.offlineToastMessage == "No network connection. Queued for analysis." }
+        XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
+        XCTAssertNil(viewModel.activeSheet)
+
+        let queuedScans = try modelContext.fetch(FetchDescriptor<OfflineQueuedScan>())
+        XCTAssertEqual(queuedScans.count, 1)
+        XCTAssertEqual(queuedScans.first?.queueState, .pending)
     }
 
     func testMultiCaptureDescribeStagesUntilIdentify() throws {

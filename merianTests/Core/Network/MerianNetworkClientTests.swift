@@ -99,6 +99,15 @@ struct MerianNetworkClientTests {
             // Assert Request correctness
             #expect(request.url?.path.hasSuffix("/identify") == true)
             #expect(request.httpMethod == "POST")
+
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["imageBase64s"] as? [String] == ["fake_base64_string"])
+            #expect(payload["mimeType"] as? String == "image/webp")
+            #expect(payload["semanticLocation"] as? String == "Central Park")
+            #expect(payload["zoomFactor"] as? Double == 1.5)
+            #expect(payload["gps_latitude"] == nil)
+            #expect(payload["semantic_location"] == nil)
             return (mockResponse, testData)
         }
         
@@ -129,6 +138,41 @@ struct MerianNetworkClientTests {
         #expect(decoded.success == true)
         #expect(decoded.data.common_name == "Raccoon")
         #expect(decoded.data.scan_id == "test_scan_001")
+    }
+
+    @Test func testAnalyzeSubjectRejectsOversizedInlineImagePayloadBeforeNetwork() async throws {
+        MockURLProtocol.mockEndpoints["/identify"] = { _ in
+            Issue.record("Oversized inline image payload should fail before the network request is sent")
+            let response = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data("{}".utf8))
+        }
+
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: nil,
+            gpsLatitude: nil,
+            gpsLongitude: nil,
+            gpsElevation: nil,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil,
+            timeOfDay: nil,
+            timestamp: nil,
+            zoomFactor: nil,
+            estimatedSizeCm: nil
+        )
+
+        do {
+            _ = try await MerianNetworkClient.shared.analyzeSubject(
+                r2ObjectKeys: nil,
+                base64ImageDatas: [String(repeating: "X", count: MerianNetworkClient.maxInlineInferenceBodyBytes + 1)],
+                telemetry: telemetry
+            )
+            Issue.record("Expected MerianError.payloadTooLarge")
+        } catch MerianError.payloadTooLarge {
+            // Expected path
+        } catch {
+            Issue.record("Expected MerianError.payloadTooLarge, got \(error)")
+        }
     }
     
     @Test func testFetchEnrichmentSuccessfullyConstructsPayloadAndParsesJSON() async throws {
@@ -314,7 +358,7 @@ struct MerianNetworkClientTests {
         #expect(posts[0].rankingValue == nil)
     }
 
-    @Test func testGenerateUploadURLs() async throws {
+    @Test func testGenerateUploadURLsUsesStructuredMediaManifest() async throws {
         let testData = """
         {
             "urls": [
@@ -331,10 +375,28 @@ struct MerianNetworkClientTests {
         MockURLProtocol.mockEndpoints["/generate-upload-urls"] = { request in
             #expect(request.url?.path.hasSuffix("/generate-upload-urls") == true)
             #expect(request.httpMethod == "POST")
+            let bodyData = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+            #expect(payload["fileNames"] == nil)
+            let files = try #require(payload["files"] as? [[String: Any]])
+            #expect(files.count == 1)
+            #expect(files[0]["fileName"] as? String == "image_1")
+            #expect(files[0]["mediaKind"] as? String == "image")
+            #expect(files[0]["contentType"] as? String == "image/webp")
+            #expect(files[0]["sizeBytes"] as? Int == 1024)
             return (mockResponse, testData)
         }
         
-        let urls = try await MerianNetworkClient.shared.generateUploadURLs(fileNames: ["image_1"])
+        let urls = try await MerianNetworkClient.shared.generateUploadURLs(
+            uploadFiles: [
+                StagingUploadFile(
+                    fileName: "image_1",
+                    mediaKind: .image,
+                    contentType: "image/webp",
+                    sizeBytes: 1024
+                )
+            ]
+        )
         #expect(urls.count == 1)
         #expect(urls[0].signedUrl == "https://example.com/put/image_1")
     }
@@ -460,7 +522,7 @@ struct MerianNetworkClientTests {
         #expect(Data(base64Encoded: intermediateHash) != nil, "Intermediate CA hash must be valid base64")
 
         // SHA-256/DER hashes are always 32 bytes → 44-character base64 with padding.
-        let decoded = try? #require(Data(base64Encoded: leafHash))
+        let decoded = Data(base64Encoded: leafHash)
         #expect(decoded?.count == 32, "SHA-256 DER cert hash must decode to exactly 32 bytes")
     }
 
@@ -567,6 +629,46 @@ struct MerianNetworkClientTests {
         #expect(contexts[0]["free_text"] == nil)
     }
 
+    @Test func multimodalRequestBodyCarriesStagedAudioR2KeysWithoutInlineAudio() throws {
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: nil,
+            gpsLatitude: nil,
+            gpsLongitude: nil,
+            gpsElevation: nil,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil,
+            timeOfDay: nil,
+            timestamp: "2026-04-24T10:30:00.000Z",
+            zoomFactor: nil,
+            estimatedSizeCm: nil
+        )
+
+        let bodyData = try MerianNetworkClient.buildMultiModalRequestBody(
+            r2ObjectKeys: ["staging/test-user/image.webp"],
+            audioR2ObjectKeys: ["staging/test-user/audio.wav"],
+            base64ImageDatas: [],
+            audioBase64s: [],
+            userId: "test-user",
+            telemetry: telemetry,
+            deviceLocale: "en",
+            deviceTimeZone: "America/Chicago",
+            deviceRegion: "US",
+            currentMonth: 4,
+            timeOfDay: "10:30 AM",
+            depthScaleText: nil,
+            clientScanId: "scan-audio-r2"
+        )
+
+        let json = try JSONSerialization.jsonObject(with: bodyData)
+        let payload = try #require(json as? [String: Any])
+
+        #expect(payload["r2ObjectKeys"] as? [String] == ["staging/test-user/image.webp"])
+        #expect(payload["audioR2ObjectKeys"] as? [String] == ["staging/test-user/audio.wav"])
+        #expect(payload["audioBase64s"] == nil)
+        #expect(payload["client_scan_id"] as? String == "scan-audio-r2")
+    }
+
     // MARK: - validateMultiModalPayloadBudget
 
     @Test func budgetValidationPassesWhenUnderLimit() throws {
@@ -619,6 +721,22 @@ struct MerianNetworkClientTests {
             imageBase64s: [image, image, image],
             audioBase64s: []
         )
+    }
+
+    @Test func inlineAudioBudgetValidationRejectsOversizedFileBeforeEncoding() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let oversizedAudioURL = directory.appendingPathComponent("oversized.wav")
+        FileManager.default.createFile(atPath: oversizedAudioURL.path, contents: nil)
+        let handle = try FileHandle(forWritingTo: oversizedAudioURL)
+        try handle.truncate(atOffset: UInt64(MerianNetworkClient.maxInlineAudioBytes + 1))
+        try handle.close()
+
+        #expect(throws: MerianError.payloadTooLarge) {
+            try MerianNetworkClient.validateInlineAudioFileBudget(fileURLs: [oversizedAudioURL])
+        }
     }
 }
 

@@ -131,6 +131,11 @@ private struct GBIFMedia: Decodable {
     }
     @ObservationIgnored private var pendingBackgroundTasks: [PendingBackgroundWrite] = []
 
+    private enum LiveReferenceHydrationPolicy: Sendable, Equatable {
+        case none
+        case showLoadingWhenReferenceMissing
+    }
+
     private func executeTrackedBackgroundTask(operation: @escaping @Sendable () async -> Void) {
         let generation = backgroundWriteGeneration
         guard backgroundWriteTasks.count < backgroundWriteTaskCap else {
@@ -306,6 +311,13 @@ private struct GBIFMedia: Decodable {
         return FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
     }
 
+    nonisolated static func normalizedReferenceURLs(from rawValue: String?) -> [String] {
+        rawValue?
+            .components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+    }
+
     private func mediaItems(
         from mediaTimeline: [CaptureSubmissionMediaItem],
         liveImageDatas: [Data]?,
@@ -330,6 +342,190 @@ private struct GBIFMedia: Decodable {
         }
 
         return items
+    }
+
+    private func applyNewDiscoveryIfNeeded(_ isNewDiscovery: Bool, to mappedData: inout SpeciesData) {
+        guard isNewDiscovery else { return }
+        mappedData.isNewDiscovery = true
+        GamificationManager.shared.recordNewSpeciesDiscovered()
+    }
+
+    private func refreshAchievementNotificationsIfPossible(modelContext: ModelContext?) async {
+        guard let container = modelContext?.container else { return }
+        // Reuse the process-lifetime shared profile actor — avoids a full
+        // ModelContext + actor allocation on every scan result.
+        let profileActor = OfflineQueueManager.shared.resolvedProfileDbActor(container: container)
+        let updatedAwards = await profileActor.calculateAwards()
+        GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
+    }
+
+    private func transferReplacementMetadataIfNeeded(
+        from oldRecord: LocalScanRecord?,
+        to newScanId: String?,
+        modelContext: ModelContext?
+    ) {
+        guard let oldRecord else { return }
+        guard let context = modelContext else {
+            assertionFailure("targetEradicationRecord provided but modelContext is nil")
+            return
+        }
+
+        // Transfer user-generated metadata to the new scan before the old record is deleted.
+        // Review state intentionally resets because this is a fresh analysis.
+        if let newScanId {
+            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == newScanId })
+            if let newRecord = try? context.fetch(descriptor).first {
+                newRecord.customTags = oldRecord.customTags
+                if let oldCollections = oldRecord.collections, !oldCollections.isEmpty {
+                    newRecord.collections = oldCollections
+                }
+                let newRecordHasFieldNotes = !(newRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+                if let oldFieldNotes = oldRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !oldFieldNotes.isEmpty,
+                   !newRecordHasFieldNotes {
+                    newRecord.fieldNotes = oldRecord.fieldNotes
+                }
+            }
+        }
+
+        ScanRepository.shared.eradicateScan(record: oldRecord, modelContext: context)
+    }
+
+    private func applyReferenceStateIfAvailable(from mappedData: SpeciesData) {
+        let refs = Self.normalizedReferenceURLs(from: mappedData.referenceImageUrl)
+        if !refs.isEmpty {
+            activeMedia.referenceState = .loaded(refs)
+        }
+    }
+
+    private func completeQueuedLiveInferenceIfNeeded(scanId: String?, audioPathsToKeep: [String]) {
+        guard let scanId else { return }
+
+        // flushOfflineQueuedScan is the guaranteed @Query wake-up before the completion
+        // notification. deleteQueuedScan stays async so it can cancel any parallel URLSession
+        // upload without blocking the visible success path.
+        OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
+        executeTrackedBackgroundTask { [audioPathsToKeep] in
+            await OfflineQueueManager.shared.deleteQueuedScan(
+                scanId: scanId,
+                explicitlyAdoptedAudioPaths: audioPathsToKeep
+            )
+        }
+    }
+
+    private func sendInferenceCompleteNotificationIfEnabled(for mappedData: SpeciesData) {
+        guard UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
+              let scanId = mappedData.scanId else { return }
+
+        PushNotificationManager.shared.sendInferenceCompleteNotification(
+            speciesName: mappedData.commonName,
+            scanId: scanId
+        )
+    }
+
+    private func waitForLiveHydrationWindow() async {
+        guard let hydrationTask = liveHydrationTask else { return }
+
+        do {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask { await hydrationTask.value }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    throw CancellationError()
+                }
+                try await group.next()
+                group.cancelAll()
+            }
+        } catch {
+            // Timeout reached; proceed and let the images finish loading in the background.
+        }
+    }
+
+    private func schedulePostInferenceHydrationIfNeeded(
+        for mappedData: SpeciesData,
+        modelContext: ModelContext?,
+        referencePolicy: LiveReferenceHydrationPolicy
+    ) async {
+        guard mappedData.isBiological else { return }
+
+        let capturedScientificName = mappedData.scientificName
+        let capturedScanId = mappedData.scanId
+        let capturedGbifKey = mappedData.gbifTaxonKey
+        let capturedHasWikipedia = mappedData.wikipediaOverview != nil
+        let shouldShowReferenceLoading = referencePolicy == .showLoadingWhenReferenceMissing &&
+            capturedGbifKey != nil &&
+            Self.normalizedReferenceURLs(from: mappedData.referenceImageUrl).isEmpty
+
+        liveHydrationTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if shouldShowReferenceLoading {
+                    Task { @MainActor [weak self] in
+                        if self?.speciesData?.scanId == capturedScanId,
+                           self?.activeMedia.referenceState == .loading {
+                            self?.activeMedia.referenceState = .empty
+                        }
+                    }
+                }
+            }
+
+            if shouldShowReferenceLoading {
+                await MainActor.run { self.activeMedia.referenceState = .loading }
+            }
+
+            let capturedIsEnriched = self.isSpeciesEnriched(capturedScientificName)
+            let plannedScopes = Self.plannedEnrichmentScopes(
+                needsMetadata: true,
+                needsLookalikes: true,
+                speciesIsEnriched: capturedIsEnriched
+            )
+
+            await withTaskGroup(of: Void.self) { group in
+                if !capturedHasWikipedia {
+                    group.addTask { @MainActor [weak self] in
+                        guard let self else { return }
+                        await self.fetchWikipediaAndHydrate(
+                            for: capturedScientificName,
+                            scanId: capturedScanId,
+                            modelContext: modelContext
+                        )
+                    }
+                }
+
+                group.addTask { @MainActor [weak self] in
+                    guard let self else { return }
+                    var taxonKeyToUse = capturedGbifKey
+
+                    if plannedScopes.metadata || plannedScopes.lookalikes {
+                        await self.fetchAndApplyEnrichment(
+                            modelContext: modelContext,
+                            needsMetadata: plannedScopes.metadata,
+                            needsLookalikes: plannedScopes.lookalikes
+                        )
+                        taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
+                    }
+
+                    guard !Task.isCancelled else { return }
+
+                    if let key = taxonKeyToUse {
+                        await self.fetchGBIFImagesAndHydrate(
+                            for: key,
+                            scanId: capturedScanId,
+                            modelContext: modelContext
+                        )
+                    }
+                }
+            }
+
+            // Only mark the species as enriched when the call actually succeeded.
+            if !capturedIsEnriched && !Task.isCancelled,
+               self.speciesData?.habitatDescription != nil,
+               self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
+                self.markSpeciesEnriched(capturedScientificName)
+            }
+        }
+
+        await waitForLiveHydrationWindow()
     }
 
     /// Runs the live AI taxonomy pipeline for a new scan submission.
@@ -505,45 +701,13 @@ private struct GBIFMedia: Decodable {
                 // --- Step 4: UI State Updates & Gamification ---
                 
                 if var mappedData = finalMappedData {
-                    if isNewDisc {
-                        mappedData.isNewDiscovery = true
-                        GamificationManager.shared.recordNewSpeciesDiscovered()
-                    }
-
-                    if let container = modelContext?.container {
-                        // Reuse the process-lifetime shared profile actor — avoids a full
-                        // ModelContext + actor allocation on every scan result.
-                        let profileActor = OfflineQueueManager.shared.resolvedProfileDbActor(container: container)
-                        let updatedAwards = await profileActor.calculateAwards()
-                        // Already on @MainActor — no hop needed.
-                        GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
-                    }
-                    
-                    if let oldRecord = targetEradicationRecord {
-                        if let context = modelContext {
-                            // Transfer user-generated metadata to the new scan before the old record is deleted.
-                            // Only customTags and collections carry over — review state (overrides, flags)
-                            // intentionally resets because this is a fresh analysis.
-                            if let newScanId = mappedData.scanId {
-                                let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == newScanId })
-                                if let newRecord = try? context.fetch(descriptor).first {
-                                    newRecord.customTags = oldRecord.customTags
-                                    if let oldCollections = oldRecord.collections, !oldCollections.isEmpty {
-                                        newRecord.collections = oldCollections
-                                    }
-                                    let newRecordHasFieldNotes = !(newRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-                                    if let oldFieldNotes = oldRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines),
-                                       !oldFieldNotes.isEmpty,
-                                       !newRecordHasFieldNotes {
-                                        newRecord.fieldNotes = oldRecord.fieldNotes
-                                    }
-                                }
-                            }
-                            ScanRepository.shared.eradicateScan(record: oldRecord, modelContext: context)
-                        } else {
-                            assertionFailure("targetEradicationRecord provided but modelContext is nil")
-                        }
-                    }
+                    applyNewDiscoveryIfNeeded(isNewDisc, to: &mappedData)
+                    await refreshAchievementNotificationsIfPossible(modelContext: modelContext)
+                    transferReplacementMetadataIfNeeded(
+                        from: targetEradicationRecord,
+                        to: mappedData.scanId,
+                        modelContext: modelContext
+                    )
 
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
@@ -555,156 +719,24 @@ private struct GBIFMedia: Decodable {
                             persistedImagePaths: savedImagePaths
                         )
                         self.speciesData = mappedData
-                        if let refs = mappedData.referenceImageUrl?.components(separatedBy: ",").map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }), !refs.isEmpty {
-                            self.activeMedia.referenceState = .loaded(refs)
-                        }
+                        applyReferenceStateIfAvailable(from: mappedData)
                     }
 
-                    // Live inference succeeded — flush the queued scan record synchronously
-                    // on the main context before the completion notification fires.
-                    // flushOfflineQueuedScan is the guaranteed @Query re-evaluation trigger:
-                    // it performs a real pending-change save on the main ModelContext, which
-                    // reliably wakes @Query in any open sheet. deleteQueuedScan is async
-                    // (it awaits backgroundSession.allTasks before touching SwiftData), so
-                    // scheduling it via executeTrackedBackgroundTask means the notification
-                    // fires first — leaving the library grid stuck in loading state while
-                    // the user reacts to the banner.
-                    //
-                    // Ordering guarantee: flushOfflineQueuedScan runs synchronously here →
-                    // SwiftUI's next render pass fires @Query → library updates → THEN the
-                    // notification fires. Human reaction time (~200ms+) ensures the grid is
-                    // correct before the user looks at it.
-                    //
-                    // deleteQueuedScan is still called in a background Task to cancel the
-                    // parallel URLSession upload. It will find no SwiftData record (already
-                    // flushed) and return early after cancelling the task — no duplicate
-                    // LocalScanRecord is created because processAndCleanupOfflineScan's
-                    // idempotency guard detects the existing record and skips insertion.
-                    if let scanId {
-                        OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
-                        executeTrackedBackgroundTask { [audioPathsToKeep = mappedData.audioFilePaths ?? []] in
-                            await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId, explicitlyAdoptedAudioPaths: audioPathsToKeep)
-                        }
-                    }
-
-                    // Schedule a local notification for inference complete.
-                    // Foreground banner suppression is handled by PushNotificationManager.willPresent:
-                    // InsightSheetView sets suppressInferenceBanners=true while it is visible so the
-                    // banner is silently delivered (not shown) when the user is already reading results.
-                    // When the user is elsewhere in the app (library, camera) the banner is allowed.
-                    // Background delivery bypasses willPresent entirely — the OS shows it automatically.
-                    if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
-                       let scanId = mappedData.scanId {
-                        PushNotificationManager.shared.sendInferenceCompleteNotification(
-                            speciesName: mappedData.commonName,
-                            scanId: scanId
-                        )
-                    }
+                    completeQueuedLiveInferenceIfNeeded(
+                        scanId: scanId,
+                        audioPathsToKeep: mappedData.audioFilePaths ?? []
+                    )
+                    sendInferenceCompleteNotificationIfEnabled(for: mappedData)
 
                     MerianLog.general.debug("[⏱ BENCH] Post-flight (parse+save+state): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - postFlightStart), privacy: .public)s")
                     MerianLog.general.debug("[⏱ BENCH] Total pipeline: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
 
                     // --- Step 5: Post-Inference Background Hydration ---
-                    
-                    if mappedData.isBiological {
-                        // Capture value types before crossing into the task boundary.
-                        let capturedScientificName = mappedData.scientificName
-                        let capturedScanId = mappedData.scanId
-                        let capturedGbifKey = mappedData.gbifTaxonKey
-                        let willFetchGBIF = capturedGbifKey != nil && (mappedData.referenceImageUrl == nil || mappedData.referenceImageUrl?.isEmpty == true)
-                        
-                        // Single tracked task — cancelled by the next `analyze()` call so stale
-                        // hydration results from a previous scan cannot overwrite the new one.
-                        // Wikipedia and Enrichment run concurrently; GBIF runs sequentially after Enrichment.
-                        // Capture wikipediaOverview before the task boundary — if the identify
-                        // response already included it from the species_dictionary join, the
-                        // Wikipedia round-trip can be skipped entirely.
-                        let capturedHasWikipedia = mappedData.wikipediaOverview != nil
-                        liveHydrationTask = Task { [weak self] in
-                            guard let self else { return }
-                            defer {
-                                Task { @MainActor [weak self] in
-                                    if self?.speciesData?.scanId == capturedScanId {
-                                        if self?.activeMedia.referenceState == .loading {
-                                            self?.activeMedia.referenceState = .empty
-                                        }
-                                    }
-                                }
-                            }
-                            if willFetchGBIF {
-                                await MainActor.run { self.activeMedia.referenceState = .loading }
-                            }
-                            
-                            let capturedIsEnriched = self.isSpeciesEnriched(capturedScientificName)
-                            let plannedScopes = Self.plannedEnrichmentScopes(
-                                needsMetadata: true,
-                                needsLookalikes: true,
-                                speciesIsEnriched: capturedIsEnriched
-                            )
-                            // Use withTaskGroup + @MainActor child tasks so the ModelContext
-                            // capture stays actor-bound — async let closures are implicitly
-                            // @Sendable and cannot capture non-Sendable @MainActor types.
-                            await withTaskGroup(of: Void.self) { group in
-                                // Task 1: Wikipedia Hydration
-                                if !capturedHasWikipedia {
-                                    group.addTask { @MainActor [weak self] in
-                                        guard let self else { return }
-                                        await self.fetchWikipediaAndHydrate(for: capturedScientificName, scanId: capturedScanId, modelContext: modelContext)
-                                    }
-                                }
-                                
-                                // Task 2: Enrichment followed by GBIF Images
-                                group.addTask { @MainActor [weak self] in
-                                    guard let self else { return }
-                                    var taxonKeyToUse = capturedGbifKey
-                                    
-                                    if plannedScopes.metadata || plannedScopes.lookalikes {
-                                        await self.fetchAndApplyEnrichment(
-                                            modelContext: modelContext,
-                                            needsMetadata: plannedScopes.metadata,
-                                            needsLookalikes: plannedScopes.lookalikes
-                                        )
-                                        // Retrieve the newly updated taxon key if one was provided in the enrichment response
-                                        taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
-                                    }
-                                    
-                                    // Make sure we check for cancellation before proceeding to the next sequential network fetch
-                                    guard !Task.isCancelled else { return }
-                                    
-                                    if let key = taxonKeyToUse {
-                                        await self.fetchGBIFImagesAndHydrate(for: key, scanId: capturedScanId, modelContext: modelContext)
-                                    }
-                                }
-                            }
-                            // Only mark the species as enriched when the call actually succeeded.
-                            // If the network call failed silently, habitatDescription stays nil.
-                            // Inserting on failure would permanently skip enrichment for this
-                            // species in the current session — causing the retry state on every
-                            // subsequent scan of the same species with no auto path out.
-                            if !capturedIsEnriched && !Task.isCancelled,
-                               self.speciesData?.habitatDescription != nil,
-                               self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
-                                self.markSpeciesEnriched(capturedScientificName)
-                            }
-                        }
-                        
-                        // Wait up to 3 seconds for hydration so reference images are available before UI clears the "Analyzing" state.
-                        if let hydrationTask = liveHydrationTask {
-                            do {
-                                try await withThrowingTaskGroup(of: Void.self) { group in
-                                    group.addTask { await hydrationTask.value }
-                                    group.addTask {
-                                        try await Task.sleep(nanoseconds: 2_000_000_000)
-                                        throw CancellationError()
-                                    }
-                                    try await group.next()
-                                    group.cancelAll()
-                                }
-                            } catch {
-                                // Timeout reached; proceed and let the images finish loading in the background
-                            }
-                        }
-                    }
+                    await schedulePostInferenceHydrationIfNeeded(
+                        for: mappedData,
+                        modelContext: modelContext,
+                        referencePolicy: .showLoadingWhenReferenceMissing
+                    )
                 }
             } catch {
                 // --- Step 6: Failure Handling & Error State ---
@@ -839,39 +871,13 @@ private struct GBIFMedia: Decodable {
                 let isNewDisc = parseResult.isNewDiscovery
 
                 if var mappedData = finalMappedData {
-                    if isNewDisc {
-                        mappedData.isNewDiscovery = true
-                        GamificationManager.shared.recordNewSpeciesDiscovered()
-                    }
-
-                    if let container = modelContext?.container {
-                        let profileActor = OfflineQueueManager.shared.resolvedProfileDbActor(container: container)
-                        let updatedAwards = await profileActor.calculateAwards()
-                        GamificationManager.shared.evaluateAchievementsForNotifications(awards: updatedAwards)
-                    }
-
-                    if let oldRecord = targetEradicationRecord {
-                        if let context = modelContext {
-                            if let newScanId = mappedData.scanId {
-                                let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == newScanId })
-                                if let newRecord = try? context.fetch(descriptor).first {
-                                    newRecord.customTags = oldRecord.customTags
-                                    if let oldCollections = oldRecord.collections, !oldCollections.isEmpty {
-                                        newRecord.collections = oldCollections
-                                    }
-                                    let newRecordHasFieldNotes = !(newRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-                                    if let oldFieldNotes = oldRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines),
-                                       !oldFieldNotes.isEmpty,
-                                       !newRecordHasFieldNotes {
-                                        newRecord.fieldNotes = oldRecord.fieldNotes
-                                    }
-                                }
-                            }
-                            ScanRepository.shared.eradicateScan(record: oldRecord, modelContext: context)
-                        } else {
-                            assertionFailure("targetEradicationRecord provided but modelContext is nil")
-                        }
-                    }
+                    applyNewDiscoveryIfNeeded(isNewDisc, to: &mappedData)
+                    await refreshAchievementNotificationsIfPossible(modelContext: modelContext)
+                    transferReplacementMetadataIfNeeded(
+                        from: targetEradicationRecord,
+                        to: mappedData.scanId,
+                        modelContext: modelContext
+                    )
 
                     CircuitBreakerManager.shared.recordSuccess()
                     AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
@@ -879,97 +885,21 @@ private struct GBIFMedia: Decodable {
                     if self.activeScanId == ownedScanId {
                         HapticManager.shared.triggerHeavyImpact()
                         self.speciesData = mappedData
-                        if let refs = mappedData.referenceImageUrl?.components(separatedBy: ",").map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }).filter({ !$0.isEmpty }), !refs.isEmpty {
-                            self.activeMedia.referenceState = .loaded(refs)
-                        }
+                        applyReferenceStateIfAvailable(from: mappedData)
                     }
 
-                    if shouldFlushQueuedScan, let scanId = ownedScanId {
-                        OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
-                        executeTrackedBackgroundTask { [audioPathsToKeep = mappedData.audioFilePaths ?? []] in
-                            await OfflineQueueManager.shared.deleteQueuedScan(scanId: scanId, explicitlyAdoptedAudioPaths: audioPathsToKeep)
-                        }
-                    }
-
-                    if UserDefaults.standard.bool(forKey: UserDefaultsKeys.isPushNotificationsEnabled),
-                       let completedScanId = mappedData.scanId {
-                        PushNotificationManager.shared.sendInferenceCompleteNotification(
-                            speciesName: mappedData.commonName,
-                            scanId: completedScanId
+                    if shouldFlushQueuedScan {
+                        completeQueuedLiveInferenceIfNeeded(
+                            scanId: ownedScanId,
+                            audioPathsToKeep: mappedData.audioFilePaths ?? []
                         )
                     }
-
-                    if mappedData.isBiological {
-                        let capturedScientificName = mappedData.scientificName
-                        let capturedScanId = mappedData.scanId
-                        let capturedGbifKey = mappedData.gbifTaxonKey
-                        let capturedHasWikipedia = mappedData.wikipediaOverview != nil
-
-                        liveHydrationTask = Task { [weak self] in
-                            guard let self else { return }
-                            let capturedIsEnriched = self.isSpeciesEnriched(capturedScientificName)
-                            let plannedScopes = Self.plannedEnrichmentScopes(
-                                needsMetadata: true,
-                                needsLookalikes: true,
-                                speciesIsEnriched: capturedIsEnriched
-                            )
-
-                            await withTaskGroup(of: Void.self) { group in
-                                if !capturedHasWikipedia {
-                                    group.addTask { @MainActor [weak self] in
-                                        guard let self else { return }
-                                        await self.fetchWikipediaAndHydrate(
-                                            for: capturedScientificName,
-                                            scanId: capturedScanId,
-                                            modelContext: modelContext
-                                        )
-                                    }
-                                }
-                                group.addTask { @MainActor [weak self] in
-                                    guard let self else { return }
-                                    var taxonKeyToUse = capturedGbifKey
-                                    if plannedScopes.metadata || plannedScopes.lookalikes {
-                                        await self.fetchAndApplyEnrichment(
-                                            modelContext: modelContext,
-                                            needsMetadata: plannedScopes.metadata,
-                                            needsLookalikes: plannedScopes.lookalikes
-                                        )
-                                        taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
-                                    }
-                                    guard !Task.isCancelled else { return }
-                                    if let key = taxonKeyToUse {
-                                        await self.fetchGBIFImagesAndHydrate(
-                                            for: key,
-                                            scanId: capturedScanId,
-                                            modelContext: modelContext
-                                        )
-                                    }
-                                }
-                            }
-
-                            if !capturedIsEnriched && !Task.isCancelled,
-                               self.speciesData?.habitatDescription != nil,
-                               self.hasUsableLookalikeTaxonomy(self.speciesData?.taxonomy) {
-                                self.markSpeciesEnriched(capturedScientificName)
-                            }
-                        }
-
-                        if let hydrationTask = liveHydrationTask {
-                            do {
-                                try await withThrowingTaskGroup(of: Void.self) { group in
-                                    group.addTask { await hydrationTask.value }
-                                    group.addTask {
-                                        try await Task.sleep(nanoseconds: 2_000_000_000)
-                                        throw CancellationError()
-                                    }
-                                    try await group.next()
-                                    group.cancelAll()
-                                }
-                            } catch {
-                                // Timeout reached; proceed and let the images finish loading in the background
-                            }
-                        }
-                    }
+                    sendInferenceCompleteNotificationIfEnabled(for: mappedData)
+                    await schedulePostInferenceHydrationIfNeeded(
+                        for: mappedData,
+                        modelContext: modelContext,
+                        referencePolicy: .none
+                    )
                 }
             } catch {
                 if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
@@ -1092,7 +1022,7 @@ private struct GBIFMedia: Decodable {
                     updated.wikipediaOverview = descriptionText
                     updated.wikipediaUrl = webUrl
                     if let img = imageUrl, !img.isEmpty {
-                        var currentUrls = updated.referenceImageUrl?.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } ?? []
+                        var currentUrls = Self.normalizedReferenceURLs(from: updated.referenceImageUrl)
                         if !currentUrls.contains(img) {
                             currentUrls.insert(img, at: 0)
                         }
@@ -1181,10 +1111,7 @@ private struct GBIFMedia: Decodable {
             // Back on @MainActor (InferenceEngine is @MainActor) — direct access, no hop needed.
             var persistUrls: String?
             if var updated = self.speciesData, updated.scanId == scanId {
-                var currentUrls = updated.referenceImageUrl?
-                    .components(separatedBy: ",")
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty } ?? []
+                var currentUrls = Self.normalizedReferenceURLs(from: updated.referenceImageUrl)
 
                 for urlStr in newUrls where !currentUrls.contains(urlStr) {
                     currentUrls.append(urlStr)
@@ -1848,9 +1775,7 @@ private struct GBIFMedia: Decodable {
         }
 
         if var updated = self.speciesData, let currentRef = updated.referenceImageUrl {
-            var parts = currentRef.components(separatedBy: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
+            var parts = Self.normalizedReferenceURLs(from: currentRef)
 
             if let idx = parts.firstIndex(of: identifier) {
                 parts.remove(at: idx)
@@ -1981,7 +1906,7 @@ private struct GBIFMedia: Decodable {
 
             // Step 1: Determine initial reference image loading state.
             guard !Task.isCancelled else { return }
-            let refUrls = record.referenceImageUrl?.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty } ?? []
+            let refUrls = Self.normalizedReferenceURLs(from: record.referenceImageUrl)
             let shouldLoadImages = recordIsBiological && refUrls.isEmpty && (gbifKey != nil || needsEnrichment)
             self.activeMedia.referenceState = shouldLoadImages ? .loading : (refUrls.isEmpty ? .empty : .loaded(refUrls))
 

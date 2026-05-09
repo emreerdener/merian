@@ -18,13 +18,7 @@ struct FieldNotesCard: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "square.and.pencil")
-                        .foregroundColor(.secondary)
-                    Text("Field notes")
-                        .font(.system(.headline))
-                        .foregroundColor(.primary)
-
+                InsightCardHeader(systemImage: "square.and.pencil", title: "Field notes") {
                     if isPublished {
                         publishedBadge
                     }
@@ -70,8 +64,7 @@ struct FieldNotesCard: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32)
-                        .background(.ultraThinMaterial, in: Circle())
+                        .circularMaterialControl(size: 32)
                 }
                 .buttonStyle(.plain)
                 .offset(x: 4, y: -4)

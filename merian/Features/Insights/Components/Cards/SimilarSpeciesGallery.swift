@@ -16,13 +16,7 @@ struct SimilarSpeciesGallery: View {
         if !validEntries.isEmpty {
             VStack(alignment: .leading, spacing: 16) {
                 // Header
-                HStack(spacing: 8) {
-                    Image(systemName: "camera.filters")
-                        .foregroundColor(.secondary)
-                    Text("Similar species")
-                        .font(.system(.headline))
-                        .foregroundColor(.primary)
-                }
+                InsightCardHeader(systemImage: "camera.filters", title: "Similar species")
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 16) {
@@ -148,13 +142,7 @@ extension SimilarSpeciesGallery {
         var body: some View {
             VStack(alignment: .leading, spacing: 12) {
                 // Header
-                HStack(spacing: 8) {
-                    Image(systemName: "camera.filters")
-                        .foregroundColor(.secondary)
-                    Text("Similar species")
-                        .font(.system(.headline))
-                        .foregroundColor(.primary)
-                }
+                InsightCardHeader(systemImage: "camera.filters", title: "Similar species")
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 16) {

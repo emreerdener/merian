@@ -32,6 +32,14 @@ enum MerianConfig {
     static let uploadBatchSize = 5
     /// Maximum number of pending `OfflineQueuedScan` records fetched per sync cycle.
     static let pendingScanFetchLimit = 50
+    /// Maximum number of media objects accepted by `generate-upload-urls` per request.
+    static let mediaStagingMaxFilesPerRequest = 5
+    /// Maximum number of audio media objects accepted by `generate-upload-urls` per request.
+    static let mediaStagingMaxAudioFilesPerRequest = 2
+    /// Maximum compressed image bytes the edge can safely fetch from staging for one inference request.
+    static let stagedImagePayloadMaxBytes = 5 * 1024 * 1024
+    /// Maximum raw audio bytes accepted by live inline audio and queued staged-audio inference.
+    static let audioPayloadMaxBytes = 2_700_000
 
     // MARK: - Historical Sync Pagination
 

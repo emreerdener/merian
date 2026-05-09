@@ -30,9 +30,10 @@ struct ToastBanner<Content: View>: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 24, height: 24)
-                        .background(.ultraThinMaterial, in: Circle())
-                        .overlay(Circle().stroke(Color(UIColor.separator), lineWidth: 0.5))
+                        .circularMaterialControl(
+                            size: 24,
+                            borderColor: Color(UIColor.separator)
+                        )
                 }
                 .buttonStyle(.plain)
             }

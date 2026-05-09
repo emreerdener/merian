@@ -99,7 +99,7 @@ extension OfflineQueueManager {
 
     /// Fetches `.pending` scans and schedules background `PUT` uploads to Cloudflare R2 staging.
     ///
-    /// Upload tasks are tracked by `taskDescription` (`"\(scanId)_\(imageIndex)"`).
+    /// Upload tasks are tracked by `MediaStagingContract.uploadTaskDescription(scanId:uploadIndex:)`.
     /// Scans are atomically transitioned to `.uploading` state before tasks are dispatched,
     /// so `syncPendingScans` never re-dispatches in-flight uploads after an app restart.
     /// Confirmed R2 keys are persisted on the record at upload completion (in URLSession delegate).
@@ -129,7 +129,7 @@ extension OfflineQueueManager {
             let scanData = await dbActor.fetchPendingScans(limit: MerianConfig.pendingScanFetchLimit)
             let session  = await MainActor.run { self.backgroundSession }
 
-            let filteredScans = Array(scanData.prefix(MerianConfig.uploadBatchSize))
+            let filteredScans = self.selectUploadBatch(from: scanData)
 
             guard !filteredScans.isEmpty else {
                 await MainActor.run {
@@ -143,9 +143,18 @@ extension OfflineQueueManager {
                 SyncStateManager.shared.beginSync(itemCount: filteredScans.count)
             }
 
-            await dbActor.markScansAsUploading(scanIds: filteredScans.map(\.id))
+            let stagingUserId = await self.currentMediaStagingUserId()
+            let preparation = self.prepareUploadItems(from: filteredScans, userId: stagingUserId)
 
-            let uploadItems = self.prepareUploadItems(from: filteredScans)
+            if !preparation.rejectedScanIds.isEmpty {
+                await MainActor.run {
+                    for scanId in preparation.rejectedScanIds {
+                        self.softDeleteQueuedScan(scanId: scanId)
+                    }
+                }
+            }
+
+            let uploadItems = preparation.uploadItems
 
             guard !uploadItems.isEmpty else {
                 await MainActor.run {
@@ -155,9 +164,11 @@ extension OfflineQueueManager {
                 return
             }
 
+            await dbActor.markScansAsUploading(scanIds: Array(Set(uploadItems.map(\.scanId))))
+
             do {
                 let presignedUrls = try await MerianNetworkClient.shared.generateUploadURLs(
-                    fileNames: uploadItems.map(\.fileName)
+                    uploadFiles: preparation.uploadFiles
                 )
                 await MainActor.run { self.uploadRetryDelay = 0 }
 
@@ -194,20 +205,60 @@ extension OfflineQueueManager {
 
     // MARK: - Upload Helpers
 
-    nonisolated private func prepareUploadItems(from scans: [PendingScanPayload]) -> [ScanUploadItem] {
-        let documentsDirectory = URL.documentsDirectory
+    nonisolated func currentMediaStagingUserId() async -> String {
+        await MainActor.run {
+            (SupabaseManager.shared.currentUser?.id.uuidString ?? DeviceIdentityManager.shared.deviceId).lowercased()
+        }
+    }
+
+    nonisolated private func prepareUploadItems(
+        from scans: [PendingScanPayload],
+        userId: String
+    ) -> MediaStagingPreparation {
         var uploadItems: [ScanUploadItem] = []
+        var uploadFiles: [StagingUploadFile] = []
+        var rejectedScanIds: [String] = []
+
         for scan in scans {
-            for (imageIndex, path) in scan.localImagePaths.enumerated() {
-                uploadItems.append(ScanUploadItem(
-                    scanId: scan.id,
-                    imageIndex: imageIndex,
-                    fileName: "\(scan.id)_\(path)",
-                    fileURL: documentsDirectory.appendingPathComponent(path)
-                ))
+            let scanItems = MediaStagingContract.uploadItems(for: scan, userId: userId)
+            do {
+                try MediaStagingContract.validateUploadBudget(scanItems)
+                let scanUploadFiles = try MediaStagingContract.uploadFiles(for: scanItems)
+                uploadItems.append(contentsOf: scanItems)
+                uploadFiles.append(contentsOf: scanUploadFiles)
+            } catch {
+                MerianLog.data.error("prepareUploadItems: rejecting staged media for \(scan.id, privacy: .private): \(error, privacy: .private)")
+                rejectedScanIds.append(scan.id)
             }
         }
-        return uploadItems
+
+        return MediaStagingPreparation(
+            uploadItems: uploadItems,
+            uploadFiles: uploadFiles,
+            rejectedScanIds: rejectedScanIds
+        )
+    }
+
+    nonisolated private func selectUploadBatch(from scans: [PendingScanPayload]) -> [PendingScanPayload] {
+        let maxPresignedURLsPerRequest = MediaStagingContract.maxUploadItemsPerRequest
+        var selected: [PendingScanPayload] = []
+        selected.reserveCapacity(MerianConfig.uploadBatchSize)
+        var uploadItemCount = 0
+
+        for scan in scans.prefix(MerianConfig.uploadBatchSize) {
+            let scanUploadCount = scan.localUploadPaths.count
+            guard scanUploadCount > 0 else { continue }
+            if !selected.isEmpty, uploadItemCount + scanUploadCount > maxPresignedURLsPerRequest {
+                break
+            }
+            selected.append(scan)
+            uploadItemCount += scanUploadCount
+            if uploadItemCount >= maxPresignedURLsPerRequest {
+                break
+            }
+        }
+
+        return selected
     }
 
     private func dispatchUploadTasks(
@@ -229,6 +280,13 @@ extension OfflineQueueManager {
 
                 let item = uploadItems[index]
 
+                guard presignedURL.fileName == item.fileName,
+                      presignedURL.objectKey == item.objectKey else {
+                    MerianLog.data.error("dispatchUploadTasks: staging contract mismatch for \(item.scanId, privacy: .private)")
+                    Task { @MainActor in self.softDeleteQueuedScan(scanId: item.scanId) }
+                    continue
+                }
+
                 guard FileManager.default.fileExists(atPath: item.fileURL.path) else {
                     MerianLog.data.debug("dispatchUploadTasks: source missing for \(item.fileURL.lastPathComponent, privacy: .private)")
                     Task { @MainActor in self.softDeleteQueuedScan(scanId: item.scanId) }
@@ -238,9 +296,12 @@ extension OfflineQueueManager {
                 group.addTask { () -> String? in
                     var request = URLRequest(url: remoteUrl)
                     request.httpMethod = "PUT"
-                    request.setValue("image/webp", forHTTPHeaderField: "Content-Type")
+                    request.setValue(item.contentType, forHTTPHeaderField: "Content-Type")
                     let uploadTask = session.uploadTask(with: request, fromFile: item.fileURL)
-                    uploadTask.taskDescription = "\(item.scanId)_\(item.imageIndex)"
+                    uploadTask.taskDescription = MediaStagingContract.uploadTaskDescription(
+                        scanId: item.scanId,
+                        uploadIndex: item.uploadIndex
+                    )
                     uploadTask.resume()
                     MerianLog.data.debug("🚀 BACKGROUND UPLOAD: Dispatched upload task for \(item.scanId, privacy: .public)")
                     return item.scanId
@@ -260,9 +321,8 @@ extension OfflineQueueManager {
         
         // Reset orphaned uploads
         let liveTasks = await session.allTasks
-        let activeUploadIds = Set(liveTasks.compactMap { task -> String? in
-            guard let desc = task.taskDescription, !desc.hasPrefix("inference_") else { return nil }
-            return desc.components(separatedBy: "_").first
+        let activeUploadIds = Set(liveTasks.compactMap { task in
+            MediaStagingContract.parseUploadTaskDescription(task.taskDescription)?.scanId
         })
         await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadIds)
         

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "endpoint": "/generate-upload-urls",
+  "maxFilesPerRequest": 5,
+  "maxImageBytes": 5242880,
+  "maxAudioBytes": 2700000,
+  "maxAudioFiles": 2,
+  "imageContentTypes": [
+    "image/webp",
+    "image/jpeg",
+    "image/png",
+    "image/heic",
+    "image/heif"
+  ],
+  "audioContentTypes": [
+    "audio/wav",
+    "audio/mp4"
+  ],
+  "canonicalQueuedImageContentType": "image/webp",
+  "canonicalQueuedWavContentType": "audio/wav",
+  "canonicalQueuedM4AContentType": "audio/mp4",
+  "fileNameSafeCharacterPattern": "^[A-Za-z0-9_.-]+$",
+  "legacyFileNamesAccepted": true
+}

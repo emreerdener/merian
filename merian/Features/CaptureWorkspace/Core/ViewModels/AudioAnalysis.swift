@@ -40,7 +40,6 @@ extension CaptureWorkspaceViewModel {
     ) {
         guard !mediaTimeline.isEmpty else { return }
 
-        diContainer.inferenceEngine.prepareForNewScan()
         diContainer.cameraManager.resetZoom()
 
         let filteredAudioFileNames = audioFileNames.filter { !$0.isEmpty }
@@ -93,11 +92,13 @@ extension CaptureWorkspaceViewModel {
                 }
 
                 guard isOnline else {
+                    self.pendingAnalyzeScanId = nil
                     self.offlineToastMessage = "No network connection. Queued for analysis."
                     return
                 }
 
                 guard self.pendingAnalyzeScanId == scanId else { return }
+                self.diContainer.inferenceEngine.prepareForNewScan()
                 self.activeSheet = .insight
                 self.diContainer.inferenceEngine.analyzeNonVisual(
                     scanId: scanId,

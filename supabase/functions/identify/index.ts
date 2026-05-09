@@ -1,14 +1,27 @@
-import { SafetyRating, Part, HarmCategory, HarmBlockThreshold } from "https://esm.sh/@google/genai@1.0.0";
+import {
+  HarmBlockThreshold,
+  HarmCategory,
+  Part,
+  SafetyRating,
+} from "https://esm.sh/@google/genai@1.0.0";
 import { evaluateAndProcessPayload } from "../_shared/identify/moderation.ts";
-import { getR2Config, deleteR2Object } from "../_shared/aws.ts";
-import { jsonResponse, withEdgeHandler, runBackground, logStructuredError } from "../_shared/edgeHandler.ts";
+import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
+import {
+  jsonResponse,
+  logStructuredError,
+  runBackground,
+  withEdgeHandler,
+} from "../_shared/edgeHandler.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
-import { coalesceTaxonomyValue, normalizeTaxonomyValue } from "../_shared/taxonomy.ts";
+import {
+  coalesceTaxonomyValue,
+  normalizeTaxonomyValue,
+} from "../_shared/taxonomy.ts";
 import {
   buildContextText,
   normalizeCurrentMonth,
@@ -16,18 +29,36 @@ import {
   sanitizeReproductiveCondition,
 } from "../_shared/identify/context.ts";
 
-import { MerianIdentification, ClientPayload, CachedSpeciesRow } from "../_shared/identify/types.ts";
-import { getSystemInstruction, getMerianResponseSchema } from "../_shared/identify/schema.ts";
-import { FLASH_DIAGNOSTIC_TRIGGER, PRO_DIAGNOSTIC_TRIGGER, diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
-import { resolveImagePayloads } from "../_shared/identify/media.ts";
+import {
+  CachedSpeciesRow,
+  ClientPayload,
+  MerianIdentification,
+} from "../_shared/identify/types.ts";
+import {
+  getMerianResponseSchema,
+  getSystemInstruction,
+} from "../_shared/identify/schema.ts";
+import {
+  diagnosticTriggerForTier,
+  FLASH_DIAGNOSTIC_TRIGGER,
+  PRO_DIAGNOSTIC_TRIGGER,
+} from "../_shared/identify/thresholds.ts";
+import {
+  resolveImagePayloads,
+  validateImageR2ObjectKeys,
+} from "../_shared/identify/media.ts";
+import {
+  MEDIA_BUDGETS,
+  validateRequestContentLength,
+} from "../_shared/mediaBudgets.ts";
 import { sanitizeScientificName } from "./sanitize.ts";
 import {
-  upsertGhostUserIfMissing,
   fetchCachedSpecies,
   fetchCandidateCommonNames,
-  upsertSpeciesDictionary,
   insertScan,
   updateGroupTags,
+  upsertGhostUserIfMissing,
+  upsertSpeciesDictionary,
 } from "../_shared/identify/db.ts";
 import { hydratePayloadFromCachedSpecies } from "../_shared/identify/clientPayload.ts";
 
@@ -41,8 +72,14 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 // unambiguously harmful material. HARASSMENT and HATE_SPEECH remain at defaults —
 // they are not relevant to biological photography.
 const BIOLOGICAL_SAFETY_SETTINGS = [
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
 ];
 
 // Vision model config objects — pre-built at module scope for warm isolate re-use.
@@ -97,6 +134,17 @@ const modelConfigs = {
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
+    const bodySizeError = validateRequestContentLength(
+      req,
+      MEDIA_BUDGETS.maxIdentifyJsonBodyBytes,
+    );
+    if (bodySizeError) {
+      return jsonResponse(
+        { error: bodySizeError.message },
+        bodySizeError.status,
+      );
+    }
+
     const body = await req.json();
 
     const paramError = requireParams(body, ["user_id"]);
@@ -132,42 +180,37 @@ serve((req: Request) =>
     // Location is supplementary context; a bad coord should not kill identification.
     const safeGpsLat: number | null =
       gpsLatitude != null && Number.isFinite(gpsLatitude) &&
-      gpsLatitude >= -90 && gpsLatitude <= 90
-        ? gpsLatitude : null;
+        gpsLatitude >= -90 && gpsLatitude <= 90
+        ? gpsLatitude
+        : null;
     const safeGpsLon: number | null =
       gpsLongitude != null && Number.isFinite(gpsLongitude) &&
-      gpsLongitude >= -180 && gpsLongitude <= 180
-        ? gpsLongitude : null;
+        gpsLongitude >= -180 && gpsLongitude <= 180
+        ? gpsLongitude
+        : null;
 
     if (
       (!r2ObjectKeys || r2ObjectKeys.length === 0) &&
       (!imageBase64s || imageBase64s.length === 0)
     ) {
       return jsonResponse(
-        { error: "Missing structural boundary (neither r2ObjectKeys nor imageBase64s provided)." },
+        {
+          error:
+            "Missing structural boundary (neither r2ObjectKeys nor imageBase64s provided).",
+        },
         400,
       );
     }
 
-    if (r2ObjectKeys && r2ObjectKeys.length > 0) {
-      for (const r2ObjectKey of r2ObjectKeys) {
-        if (r2ObjectKey.includes("..")) {
-          return jsonResponse({ error: "Bad Request: Path traversal detected." }, 400);
-        }
-        // Reject r2ObjectKeys that don't belong to the requesting user (IDOR prevention).
-        // When imageBase64s are provided, the key is used only for the destination filename.
-        if (
-          (!imageBase64s || imageBase64s.length === 0) &&
-          !r2ObjectKey.startsWith(`staging/${user.id}/`)
-        ) {
-          console.error(`IDOR: r2ObjectKey ${r2ObjectKey} does not belong to user ${user.id}`);
-          return jsonResponse(
-            { error: "Forbidden: r2ObjectKey does not belong to the requesting user." },
-            403,
-          );
-        }
-      }
-    }
+    const keyValidationError = validateImageR2ObjectKeys(
+      r2ObjectKeys,
+      user.id,
+      {
+        enforceOwnership: !imageBase64s || imageBase64s.length === 0,
+        idorEvent: "identify/image_idor_attempt",
+      },
+    );
+    if (keyValidationError) return keyValidationError;
 
     const { base64Payloads, errorResponse } = await resolveImagePayloads(
       r2ObjectKeys,
@@ -190,8 +233,12 @@ serve((req: Request) =>
 
     // Pro users get gemini-2.5-pro for maximum identification depth (rare species, fossils,
     // subspecies, cultivars). Free users use gemini-2.5-flash for 2–3× lower latency.
-    const targetModel = userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
-    const diagnosticTrigger = diagnosticTriggerForTier(userTier === "pro" ? "pro" : "flash");
+    const targetModel = userTier === "pro"
+      ? "gemini-2.5-pro"
+      : "gemini-2.5-flash";
+    const diagnosticTrigger = diagnosticTriggerForTier(
+      userTier === "pro" ? "pro" : "flash",
+    );
 
     const modelCfg = userTier === "pro" ? modelConfigs.pro : modelConfigs.flash;
 
@@ -200,10 +247,12 @@ serve((req: Request) =>
     // appended only when the user staged a describe note alongside their images —
     // it provides morphological cues (colour, size, behaviour) that the image alone
     // may not convey, sharpening subspecies and look-alike disambiguation.
-    const descriptionPart: Part[] =
-      description && description.trim().length > 0
-        ? [{ text: `\n\nAdditional observation context from user:\n${description.trim()}` }]
-        : [];
+    const descriptionPart: Part[] = description && description.trim().length > 0
+      ? [{
+        text:
+          `\n\nAdditional observation context from user:\n${description.trim()}`,
+      }]
+      : [];
 
     const parts: Part[] = [
       {
@@ -266,9 +315,13 @@ serve((req: Request) =>
       // Directly reading parts[0].text recovers the response in that case.
       if (!responseText) {
         const firstPart = result.candidates?.[0]?.content?.parts?.[0];
-        if (firstPart && "text" in firstPart && typeof firstPart.text === "string") {
+        if (
+          firstPart && "text" in firstPart && typeof firstPart.text === "string"
+        ) {
           responseText = firstPart.text;
-          console.log(`[identify] result.text was empty; recovered ${responseText.length} chars from parts[0].text`);
+          console.log(
+            `[identify] result.text was empty; recovered ${responseText.length} chars from parts[0].text`,
+          );
         }
       }
 
@@ -290,12 +343,16 @@ serve((req: Request) =>
         );
       }
       console.log(
-        `[⏱ BENCH] gemini_done: ${Date.now() - fnStart}ms total, ${Date.now() - geminiStart}ms inference`,
+        `[⏱ BENCH] gemini_done: ${Date.now() - fnStart}ms total, ${
+          Date.now() - geminiStart
+        }ms inference`,
       );
     } catch (genError) {
       // Extract structured details so Supabase function logs surface the exact
       // Gemini error without needing to decode a stringified Error object.
-      const errMsg = genError instanceof Error ? genError.message : String(genError);
+      const errMsg = genError instanceof Error
+        ? genError.message
+        : String(genError);
       const errStatus = (genError as Record<string, unknown>)?.status ??
         (genError as Record<string, unknown>)?.statusCode ?? null;
       logStructuredError("identify/gemini_failed", {
@@ -309,7 +366,10 @@ serve((req: Request) =>
       // and retries up to maxUploadRetries times rather than tombstoning the scan permanently.
       // 400 is reserved for genuine client errors (bad params, IDOR). Gemini API errors
       // (rate limits, timeouts, internal errors) are all transient and should be retried.
-      return jsonResponse({ error: "AI processing error. Please try again." }, 503);
+      return jsonResponse(
+        { error: "AI processing error. Please try again." },
+        503,
+      );
     }
 
     // Guard non-STOP finish reasons before attempting JSON extraction.
@@ -317,9 +377,12 @@ serve((req: Request) =>
     // extractJson throws "no JSON object found" — producing a confusing 422.
     // SAFETY / PROHIBITED_CONTENT = permanent content policy failure → 400 (tombstone on iOS).
     // All other non-STOP reasons (MAX_TOKENS, RECITATION, OTHER) are transient → 503 (retry).
-    if (finishReason && finishReason !== "STOP" && finishReason !== "FINISH_REASON_UNSPECIFIED") {
-      const isPermanentContentFailure =
-        finishReason === "SAFETY" || finishReason === "PROHIBITED_CONTENT";
+    if (
+      finishReason && finishReason !== "STOP" &&
+      finishReason !== "FINISH_REASON_UNSPECIFIED"
+    ) {
+      const isPermanentContentFailure = finishReason === "SAFETY" ||
+        finishReason === "PROHIBITED_CONTENT";
       logStructuredError("identify/non_stop_finish", {
         user_id: user.id,
         finish_reason: finishReason,
@@ -344,15 +407,22 @@ serve((req: Request) =>
         finish_reason: finishReason ?? "unknown",
         response_length: responseText.length,
         response_preview: responseText.slice(0, 500),
-        error: parseError instanceof Error ? parseError.message : String(parseError),
+        error: parseError instanceof Error
+          ? parseError.message
+          : String(parseError),
       });
-      return jsonResponse({ error: "Processing Error: Malformed AI response." }, 422);
+      return jsonResponse(
+        { error: "Processing Error: Malformed AI response." },
+        422,
+      );
     }
 
     // Sanitize scientific names at write time so the database is scientific-grade
     // and interoperable with GBIF, iNaturalist, and partner taxonomy systems.
     if (parsedData.scientific_name) {
-      parsedData.scientific_name = sanitizeScientificName(parsedData.scientific_name);
+      parsedData.scientific_name = sanitizeScientificName(
+        parsedData.scientific_name,
+      );
     }
     if (Array.isArray(parsedData.candidates)) {
       parsedData.candidates = parsedData.candidates.map((c) => ({
@@ -371,12 +441,17 @@ serve((req: Request) =>
     // prevent oversized DB rows. Limits are generous — they exceed realistic model
     // output and exist purely as a hard safety boundary against malformed responses.
     if (Array.isArray(parsedData.extracted_visual_traits)) {
-      parsedData.extracted_visual_traits = parsedData.extracted_visual_traits.slice(0, 10);
+      parsedData.extracted_visual_traits = parsedData.extracted_visual_traits
+        .slice(0, 10);
     }
     if (Array.isArray(parsedData.ecological_interactions)) {
-      parsedData.ecological_interactions = parsedData.ecological_interactions.slice(0, 10);
+      parsedData.ecological_interactions = parsedData.ecological_interactions
+        .slice(0, 10);
     }
-    if (typeof parsedData.ai_reasoning === "string" && parsedData.ai_reasoning.length > 2000) {
+    if (
+      typeof parsedData.ai_reasoning === "string" &&
+      parsedData.ai_reasoning.length > 2000
+    ) {
       parsedData.ai_reasoning = parsedData.ai_reasoning.slice(0, 2000);
     }
     // individual_count: must be a positive integer; reject negatives and impossibly large values.
@@ -384,7 +459,8 @@ serve((req: Request) =>
     // converts undefined → null via ?? for the nullable DB column.
     if (parsedData.individual_count != null) {
       parsedData.individual_count =
-        Number.isFinite(parsedData.individual_count) && parsedData.individual_count > 0
+        Number.isFinite(parsedData.individual_count) &&
+          parsedData.individual_count > 0
           ? Math.min(Math.round(parsedData.individual_count), 99999)
           : undefined;
     }
@@ -393,7 +469,10 @@ serve((req: Request) =>
     // biologically correct term not yet in the DB enum — without this guard the
     // insertScan call throws 22P02 and silently drops the entire scan row.
     const sanitizedLifeStage = sanitizeLifeStage(parsedData.life_stage);
-    if (parsedData.life_stage != null && sanitizedLifeStage != parsedData.life_stage) {
+    if (
+      parsedData.life_stage != null &&
+      sanitizedLifeStage != parsedData.life_stage
+    ) {
       logStructuredError("identify/unknown_life_stage", {
         user_id: user.id,
         value: parsedData.life_stage,
@@ -401,7 +480,9 @@ serve((req: Request) =>
     }
     parsedData.life_stage = sanitizedLifeStage;
 
-    const sanitizedReproductiveCondition = sanitizeReproductiveCondition(parsedData.reproductive_condition);
+    const sanitizedReproductiveCondition = sanitizeReproductiveCondition(
+      parsedData.reproductive_condition,
+    );
     if (
       parsedData.reproductive_condition != null &&
       sanitizedReproductiveCondition != parsedData.reproductive_condition
@@ -414,7 +495,10 @@ serve((req: Request) =>
     parsedData.reproductive_condition = sanitizedReproductiveCondition;
 
     // Derive blur_score from sharpness (1-10) for latency savings
-    parsedData.blur_score = Math.max(0, (10 - (parsedData.image_quality?.sharpness ?? 10)) / 10);
+    parsedData.blur_score = Math.max(
+      0,
+      (10 - (parsedData.image_quality?.sharpness ?? 10)) / 10,
+    );
 
     // Use the client-provided scan ID when available so the iOS offline queue can
     // correlate the server record with its local OfflineQueuedScan. Combined with the
@@ -437,7 +521,8 @@ serve((req: Request) =>
       payloadReadyForClient.candidates = null;
     }
 
-    const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
+    const isIdentifiedBio =
+      !!(parsedData.is_biological_subject && parsedData.scientific_name);
     let speciesId: string | null = null;
     let cachedSpecies: CachedSpeciesRow | null = null;
     let missingCandidates: string[] = [];
@@ -453,16 +538,15 @@ serve((req: Request) =>
     //
     // Both queries depend only on parsedData (resolved above) and are independent of each other.
     // Running them serially added a full DB round-trip to every scan that satisfied both conditions.
-    const hasCandidates =
-      Array.isArray(payloadReadyForClient.candidates) &&
+    const hasCandidates = Array.isArray(payloadReadyForClient.candidates) &&
       payloadReadyForClient.candidates.length > 0;
 
     const [commonNameMap, fetchedCachedSpecies] = await Promise.all([
       hasCandidates
         ? fetchCandidateCommonNames(
-            payloadReadyForClient.candidates!.map((c) => c.scientific_name),
-            supabaseAdmin,
-          )
+          payloadReadyForClient.candidates!.map((c) => c.scientific_name),
+          supabaseAdmin,
+        )
         : Promise.resolve(new Map<string, string>()),
       isIdentifiedBio
         ? fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin)
@@ -470,13 +554,16 @@ serve((req: Request) =>
     ]);
 
     if (hasCandidates) {
-      const candidateNames = payloadReadyForClient.candidates!.map((c) => c.scientific_name);
+      const candidateNames = payloadReadyForClient.candidates!.map((c) =>
+        c.scientific_name
+      );
       missingCandidates = candidateNames.filter((n) => !commonNameMap.has(n));
       if (commonNameMap.size > 0) {
-        payloadReadyForClient.candidates = payloadReadyForClient.candidates!.map((c) => ({
-          ...c,
-          common_name: commonNameMap.get(c.scientific_name),
-        }));
+        payloadReadyForClient.candidates = payloadReadyForClient.candidates!
+          .map((c) => ({
+            ...c,
+            common_name: commonNameMap.get(c.scientific_name),
+          }));
       }
     }
 
@@ -484,7 +571,9 @@ serve((req: Request) =>
       cachedSpecies = fetchedCachedSpecies;
 
       if (cachedSpecies && normalizeTaxonomyValue(cachedSpecies.kingdom)) {
-        console.log(`Cache Hit: Generating payload from DB for ${parsedData.scientific_name}`);
+        console.log(
+          `Cache Hit: Generating payload from DB for ${parsedData.scientific_name}`,
+        );
         speciesId = cachedSpecies.id;
         payloadReadyForClient = hydratePayloadFromCachedSpecies(
           {
@@ -500,7 +589,9 @@ serve((req: Request) =>
         // Cache Miss: taxonomy, IUCN, and species insights are not in the vision response.
         // DB enrichment (Flash text + GBIF/Wikipedia upsert) runs in the background task so
         // the next scan of the same species becomes a Cache Hit with full metadata.
-        console.log(`Cache Miss: ${parsedData.scientific_name}. Background enrichment queued.`);
+        console.log(
+          `Cache Miss: ${parsedData.scientific_name}. Background enrichment queued.`,
+        );
         payloadReadyForClient.insight_data = {
           ai_reasoning: parsedData.ai_reasoning || "Reasoning omitted.",
           hazard_type: "none",
@@ -511,7 +602,9 @@ serve((req: Request) =>
     const runBackgroundIngestion = async () => {
       // modResult is hoisted outside the try so the catch can reference publicUrls
       // for R2 rollback if insertScan fails after media has already been committed.
-      let modResult: Awaited<ReturnType<typeof evaluateAndProcessPayload>> | undefined;
+      let modResult:
+        | Awaited<ReturnType<typeof evaluateAndProcessPayload>>
+        | undefined;
       let scanInserted = false;
 
       try {
@@ -532,20 +625,25 @@ serve((req: Request) =>
           // Moderation pipeline failed (e.g. abuse strike write, R2 upload error).
           // Do not insert the scan — image_storage_urls would be null and the DB row
           // would be permanently orphaned with no media.
-          console.error("Moderation pipeline returned ERROR. Halting background data ingestion.");
+          console.error(
+            "Moderation pipeline returned ERROR. Halting background data ingestion.",
+          );
           return;
         }
         if (
           modResult.status === "SHADOWBANNED" ||
           modResult.status === "DELETED_WARNING"
         ) {
-          console.error("Media flagged by safety moderation. Halting background data ingestion.");
+          console.error(
+            "Media flagged by safety moderation. Halting background data ingestion.",
+          );
           return;
         }
 
         // Start diagnostic group-tag Flash call.
         // Cheap, species-level, and skipped when already cached.
-        const needsGroupTags = isIdentifiedBio && !cachedSpecies?.group_tags?.length;
+        const needsGroupTags = isIdentifiedBio &&
+          !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
           ? fetchGroupTags(user, parsedData.scientific_name!)
           : Promise.resolve(null);
@@ -554,7 +652,9 @@ serve((req: Request) =>
         // Runs after moderation so we don't persist data for flagged content.
         if (!speciesId && isIdentifiedBio) {
           const bgEnrichStart = Date.now();
-          const externalData = await fetchExternalEnrichment(parsedData.scientific_name!);
+          const externalData = await fetchExternalEnrichment(
+            parsedData.scientific_name!,
+          );
 
           // Re-read the species row immediately before the upsert to coalesce any taxonomy
           // written by a concurrent enrich-scan call that raced this background task.
@@ -564,10 +664,14 @@ serve((req: Request) =>
           // (ON CONFLICT DO UPDATE), so any real taxonomy already written by enrich-scan
           // would be overwritten with "Unknown" skeleton values from the original cache-miss
           // snapshot taken at the start of the request.
-          const freshSpecies = await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin);
+          const freshSpecies = await fetchCachedSpecies(
+            parsedData.scientific_name!,
+            supabaseAdmin,
+          );
 
           const newCommonNames = {
-            ...(freshSpecies?.common_names ?? cachedSpecies?.common_names ?? {}),
+            ...(freshSpecies?.common_names ?? cachedSpecies?.common_names ??
+              {}),
             ...(parsedData.common_name ? { en: parsedData.common_name } : {}),
           };
 
@@ -578,7 +682,9 @@ serve((req: Request) =>
           const primaryEn = (newCommonNames.en ?? "").toLowerCase();
           const newAltNames: string[] | null =
             externalData.alternativeCommonNames.length > 0
-              ? externalData.alternativeCommonNames.filter((n) => n.toLowerCase() !== primaryEn)
+              ? externalData.alternativeCommonNames.filter((n) =>
+                n.toLowerCase() !== primaryEn
+              )
               : freshSpecies?.alternative_common_names ?? null;
 
           const upsertedId = await upsertSpeciesDictionary(
@@ -589,30 +695,46 @@ serve((req: Request) =>
               // Preserve any real taxonomy written by a concurrent enrich-scan call.
               // Null means "not known yet" and is intentionally safer than the old "Unknown"
               // sentinel, which polluted lookalike validation and same-genus linking.
-              kingdom: coalesceTaxonomyValue(freshSpecies?.kingdom, cachedSpecies?.kingdom),
-              phylum: coalesceTaxonomyValue(freshSpecies?.phylum, cachedSpecies?.phylum),
-              class: coalesceTaxonomyValue(freshSpecies?.class, cachedSpecies?.class),
-              order: coalesceTaxonomyValue(freshSpecies?.order, cachedSpecies?.order),
-              family: coalesceTaxonomyValue(freshSpecies?.family, cachedSpecies?.family),
-              genus: coalesceTaxonomyValue(freshSpecies?.genus, cachedSpecies?.genus),
-              wikipedia_overview:
-                freshSpecies?.wikipedia_overview ??
+              kingdom: coalesceTaxonomyValue(
+                freshSpecies?.kingdom,
+                cachedSpecies?.kingdom,
+              ),
+              phylum: coalesceTaxonomyValue(
+                freshSpecies?.phylum,
+                cachedSpecies?.phylum,
+              ),
+              class: coalesceTaxonomyValue(
+                freshSpecies?.class,
+                cachedSpecies?.class,
+              ),
+              order: coalesceTaxonomyValue(
+                freshSpecies?.order,
+                cachedSpecies?.order,
+              ),
+              family: coalesceTaxonomyValue(
+                freshSpecies?.family,
+                cachedSpecies?.family,
+              ),
+              genus: coalesceTaxonomyValue(
+                freshSpecies?.genus,
+                cachedSpecies?.genus,
+              ),
+              wikipedia_overview: freshSpecies?.wikipedia_overview ??
                 cachedSpecies?.wikipedia_overview ??
                 externalData.wikiExtract ?? null,
-              hazard_type: freshSpecies?.hazard_type ?? cachedSpecies?.hazard_type ?? "none",
+              hazard_type: freshSpecies?.hazard_type ??
+                cachedSpecies?.hazard_type ?? "none",
               native_region: "Unknown",
-              iucn_red_list_status:
-                freshSpecies?.iucn_red_list_status ??
+              iucn_red_list_status: freshSpecies?.iucn_red_list_status ??
                 cachedSpecies?.iucn_red_list_status ??
                 "not_evaluated",
-              habitat_description:
-                freshSpecies?.habitat_description || cachedSpecies?.habitat_description || undefined,
-              wikipedia_url:
-                freshSpecies?.wikipedia_url || cachedSpecies?.wikipedia_url || externalData.wikipediaUrl,
-              gbif_taxon_key:
-                freshSpecies?.gbif_taxon_key ?? cachedSpecies?.gbif_taxon_key ?? externalData.gbifKey,
-              reference_image_url:
-                freshSpecies?.reference_image_url ||
+              habitat_description: freshSpecies?.habitat_description ||
+                cachedSpecies?.habitat_description || undefined,
+              wikipedia_url: freshSpecies?.wikipedia_url ||
+                cachedSpecies?.wikipedia_url || externalData.wikipediaUrl,
+              gbif_taxon_key: freshSpecies?.gbif_taxon_key ??
+                cachedSpecies?.gbif_taxon_key ?? externalData.gbifKey,
+              reference_image_url: freshSpecies?.reference_image_url ||
                 cachedSpecies?.reference_image_url ||
                 externalData.referenceImageUrl,
             },
@@ -621,8 +743,11 @@ serve((req: Request) =>
           // freshSpecies?.id covers the case where the row already existed (created by a
           // concurrent enrich-scan write) but the upsert returned null because ignoreDuplicates
           // behaviour updated the row without returning the id separately.
-          speciesId = upsertedId || freshSpecies?.id || cachedSpecies?.id || null;
-          console.log(`[⏱ BENCH] bg_enrichment: ${Date.now() - bgEnrichStart}ms`);
+          speciesId = upsertedId || freshSpecies?.id || cachedSpecies?.id ||
+            null;
+          console.log(
+            `[⏱ BENCH] bg_enrichment: ${Date.now() - bgEnrichStart}ms`,
+          );
         }
 
         await insertScan(
@@ -656,17 +781,22 @@ serve((req: Request) =>
             llm_total_tokens: llmTotalTokens,
             image_storage_urls: modResult.publicUrls ?? [],
             life_stage: parsedData.life_stage ?? "unknown",
-            reproductive_condition: parsedData.reproductive_condition ?? "not_applicable",
+            reproductive_condition: parsedData.reproductive_condition ??
+              "not_applicable",
             individual_count: parsedData.individual_count ?? null,
             ecological_interactions: parsedData.ecological_interactions ?? [],
-            estimated_size_cm: (estimated_size_cm != null && Number.isFinite(estimated_size_cm) && estimated_size_cm > 0)
+            estimated_size_cm: (estimated_size_cm != null &&
+                Number.isFinite(estimated_size_cm) && estimated_size_cm > 0)
               ? Math.min(estimated_size_cm, 50000)
               : null,
             inference_tier: userTier === "pro" ? "pro" : "flash",
             candidates: payloadReadyForClient.candidates ?? null,
-            image_quality_score: parsedData.image_quality?.overall_score ?? null,
+            image_quality_score: parsedData.image_quality?.overall_score ??
+              null,
             is_live_capture: parsedData.is_live_capture,
-            user_observation_context: (observation_context != null && typeof observation_context === "object" && !Array.isArray(observation_context))
+            user_observation_context: (observation_context != null &&
+                typeof observation_context === "object" &&
+                !Array.isArray(observation_context))
               ? observation_context as Record<string, unknown>
               : null,
           },
@@ -687,16 +817,19 @@ serve((req: Request) =>
             capturedCandidates.map(async (candidateName) => {
               const externalData = await fetchExternalEnrichment(candidateName);
 
-              const primaryEnName = (externalData.wikiTitle && externalData.wikiTitle.toLowerCase() !== candidateName.toLowerCase())
+              const primaryEnName = (externalData.wikiTitle &&
+                  externalData.wikiTitle.toLowerCase() !==
+                    candidateName.toLowerCase())
                 ? externalData.wikiTitle.replace(/\s*\([^)]+\)$/, "").trim()
                 : (externalData.alternativeCommonNames[0] ?? null);
 
               const primaryEnLower = (primaryEnName ?? "").toLowerCase();
-              const newAltNames: string[] | null = externalData.alternativeCommonNames.length > 0
-                ? externalData.alternativeCommonNames.filter(
+              const newAltNames: string[] | null =
+                externalData.alternativeCommonNames.length > 0
+                  ? externalData.alternativeCommonNames.filter(
                     (n) => n.toLowerCase() !== primaryEnLower,
                   )
-                : null;
+                  : null;
 
               await upsertSpeciesDictionary(
                 {
@@ -720,23 +853,33 @@ serve((req: Request) =>
                 },
                 supabaseAdmin,
               );
-            })
+            }),
           ).then((results) => {
             for (let i = 0; i < results.length; i++) {
               const res = results[i];
               if (res.status === "rejected") {
-                console.error(`[bg_candidate_enrichment] Failed to enrich ${capturedCandidates[i]}:`, res.reason instanceof Error ? res.reason.message : String(res.reason));
+                console.error(
+                  `[bg_candidate_enrichment] Failed to enrich ${
+                    capturedCandidates[i]
+                  }:`,
+                  res.reason instanceof Error
+                    ? res.reason.message
+                    : String(res.reason),
+                );
               }
             }
-            console.log(`[⏱ BENCH] bg_candidate_enrichment: ${Date.now() - bgCandidateEnrichStart}ms`);
+            console.log(
+              `[⏱ BENCH] bg_candidate_enrichment: ${
+                Date.now() - bgCandidateEnrichStart
+              }ms`,
+            );
           });
         }
 
         // Await species-level Flash call
         const groupTagsResult = await groupTagsPromise;
 
-        const totalTokens =
-          (llmTotalTokens ?? 0) +
+        const totalTokens = (llmTotalTokens ?? 0) +
           (groupTagsResult?.usage?.totalTokenCount ?? 0);
 
         // Fire PostHog as fire-and-forget — analytics must never add latency to ingestion.
@@ -759,7 +902,11 @@ serve((req: Request) =>
         const bgWriteStart = Date.now();
         const bgWriteResults = await Promise.allSettled([
           needsGroupTags && groupTagsResult?.group_tags?.length
-            ? updateGroupTags(parsedData.scientific_name!, groupTagsResult.group_tags, supabaseAdmin)
+            ? updateGroupTags(
+              parsedData.scientific_name!,
+              groupTagsResult.group_tags,
+              supabaseAdmin,
+            )
             : Promise.resolve(),
           // Bind candidate enrichment into the waitUntil execution lock so the isolate
           // cannot terminate before all upsertSpeciesDictionary writes have resolved.
@@ -770,12 +917,16 @@ serve((req: Request) =>
             console.error(JSON.stringify({
               event: "bg_species_write_failed",
               scan_id: generatedScanId,
-              error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+              error: result.reason instanceof Error
+                ? result.reason.message
+                : String(result.reason),
               ts: new Date().toISOString(),
             }));
           }
         }
-        console.log(`[⏱ BENCH] bg_species_writes: ${Date.now() - bgWriteStart}ms`);
+        console.log(
+          `[⏱ BENCH] bg_species_writes: ${Date.now() - bgWriteStart}ms`,
+        );
       } catch (e) {
         // Revert R2 uploads to prevent untracked orphans when the scan DB write failed.
         // Only roll back if modResult exists (media was committed) but the scan row wasn't
@@ -784,12 +935,14 @@ serve((req: Request) =>
           console.log("Rolling back R2 uploads due to scan insert failure.");
           const r2Config = getR2Config();
           const keysToPurge = modResult.publicUrls.map((url: string) =>
-            url.replace("https://media.merian.app/", ""),
+            url.replace("https://media.merian.app/", "")
           );
           const rollbackResults = await Promise.allSettled(
             keysToPurge.map((key: string) => deleteR2Object(key, r2Config)),
           );
-          const failedRollbacks = rollbackResults.filter((r) => r.status === "rejected");
+          const failedRollbacks = rollbackResults.filter((r) =>
+            r.status === "rejected"
+          );
           if (failedRollbacks.length > 0) {
             logStructuredError("r2_rollback_partial_failure", {
               scan_id: generatedScanId,
@@ -826,7 +979,11 @@ serve((req: Request) =>
         try {
           const { error: dlErr } = await supabaseAdmin
             .from("failed_scan_ingestions")
-            .insert({ scan_id: generatedScanId, user_id: user.id, error_message: errorMsg });
+            .insert({
+              scan_id: generatedScanId,
+              user_id: user.id,
+              error_message: errorMsg,
+            });
           // PostgREST surfaces DB-level failures in { error }, not as thrown exceptions.
           if (dlErr) {
             logStructuredError("dead_letter_write_failed", {
@@ -848,5 +1005,5 @@ serve((req: Request) =>
 
     console.log(`[⏱ BENCH] total_to_response: ${Date.now() - fnStart}ms`);
     return jsonResponse({ success: true, data: payloadReadyForClient }, 200);
-  }),
+  })
 );

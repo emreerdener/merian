@@ -1,35 +1,28 @@
 // deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { generateStagingUrls } from "./storage.ts";
+import { generateStagingUrls, parseStagingUploadFiles } from "./storage.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, _supabaseAdmin) => {
-    let fileNames: string[];
+    let body: unknown;
 
     try {
-      const body = await req.json();
-      fileNames = body.fileNames;
+      body = await req.json();
     } catch {
       return jsonResponse({ error: "Invalid JSON body" }, 400);
     }
 
-    // Limit uploads to 5 files per request to prevent R2 abuse
-    if (
-      !Array.isArray(fileNames) ||
-      fileNames.length === 0 ||
-      fileNames.length > 5
-    ) {
+    const parsed = parseStagingUploadFiles(body);
+    if (parsed.error || !parsed.files) {
       return jsonResponse(
-        {
-          error: "Bad Request: 'fileNames' must be an array of 1 to 5 values.",
-        },
-        400,
+        { error: parsed.error ?? "Invalid upload manifest" },
+        parsed.status ?? 400,
       );
     }
 
-    const urls = await generateStagingUrls(user.id, fileNames);
+    const urls = await generateStagingUrls(user.id, parsed.files);
 
     return jsonResponse({ success: true, urls }, 200);
-  }),
+  })
 );

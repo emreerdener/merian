@@ -11,7 +11,7 @@ This document covers the Profile tab architecture, how scan statistics are compu
 | `ProfileTabView` | Root profile tab view |
 | `SettingsTabView` | Settings sub-tab |
 | `ProfileViewModel` | `@Observable @MainActor` — cloud preferences (geoprivacy), auth state, sign-in/out |
-| `ProfileDatabaseActor` | `@ModelActor` — fetches all `LocalScanRecord` rows, computes profile stats, heatmap, and awards |
+| `ProfileDatabaseActor` | `@ModelActor` — builds compact SwiftData projections, computes profile stats, heatmap, and awards off-main |
 | `AchievementsCalculator` | Pure `struct` with `static func calculate(from:) -> [AwardPayload]` |
 | `GamificationManager` | `@MainActor @Observable` singleton — in-memory award cache, notification triggers |
 | `GamificationModels` | `AwardPayload`, `AwardState`, and `UserPersona` enumerations |
@@ -57,25 +57,27 @@ Heavy data operations (fetching all scan records for stats, computing awards) ar
 
 ```
 LocalScanRecord[] (SwiftData)
-    → ProfileDatabaseActor.calculateProfileStats()   → (speciesCount: Int, streak: Int)
-    → ProfileDatabaseActor.calculateHeatmapData()    → ProfileHeatmapData
-    → ProfileDatabaseActor.calculateAwards()
+    → ProfileDatabaseActor.loadStatsProjection()
+        → cached ProfileStatsProjection
+        → calculateProfileStats()       → (speciesCount: Int, streak: Int)
+        → calculateHeatmapData()        → ProfileHeatmapData
+        → calculateAwardsProjection()
         → AchievementsCalculator.calculate(from:)
             → [AwardPayload]
     → GamificationManager.evaluateAchievementsForNotifications(awards:)
 ```
 
-`ProfileDatabaseActor` is instantiated in `ProfileTabView.body` inside a `.task` modifier. All three calculations run sequentially on the actor, then their results are dispatched back to `@MainActor` in a single `MainActor.run` block.
+`ProfileDatabaseActor` is instantiated in `ProfileTabView.body` inside a `.task` modifier. `calculateAll()` is the primary profile render entry point: it loads one `ProfileStatsProjection`, derives species count, streak, heatmap, and awards from that projection, then dispatches the flat `Sendable` result back to `@MainActor` in a single `MainActor.run` block.
 
 `ProfileDatabaseActor.calculateAwards()` is also called by `InferenceEngine` after **every** successful inference — not just new discoveries. This is intentional: awards can trigger on conditions unrelated to species novelty (time-of-day, elevation, temperature, IUCN status, etc.).
 
-All `ProfileDatabaseActor` fetches use `propertiesToFetch` projections to minimise the SQLite column surface loaded into memory, preventing JetSam pressure on accounts with large scan histories.
+All `ProfileDatabaseActor` fetches use `propertiesToFetch` projections to minimise the SQLite column surface loaded into memory, preventing JetSam pressure on accounts with large scan histories. The stats projection cache stores only scalar `Sendable` structs, timestamps, and precomputed counts — never live `LocalScanRecord` model objects. Cache reuse is fingerprinted by scan count, latest scan ID, and latest timestamp; call `invalidateCachedProfileProjections()` before reusing a long-lived actor after in-place scan edits.
 
 ---
 
 ## AchievementsCalculator
 
-`AchievementsCalculator.calculate(from: [LocalScanRecord]) -> [AwardPayload]` is a pure, synchronous function with no side effects. It iterates all records once, maintaining running `Set<String>` accumulators keyed on `scientificName` per award criterion:
+`AchievementsCalculator.calculate(from:) -> [AwardPayload]` is a pure, synchronous function with no side effects. It accepts any `AchievementRecordRepresentable`, so profile rendering can pass lightweight projection structs instead of full SwiftData models. It iterates all records once, maintaining running canonical-species accumulators per award criterion:
 
 | Award title | Type key | Criterion | Target |
 |---|---|---|---|
@@ -93,17 +95,17 @@ All `ProfileDatabaseActor` fetches use `propertiesToFetch` projections to minimi
 | The Toxicologist | `toxicologist` | Unique poisonous species scans | 5 |
 | The Perfect Lens | `perfect_lens` | Unique scans with confidence ≥ 0.98 | 25 |
 
-All species-based criteria use `Set<String>` keyed on `scientificName` to de-duplicate — scanning the same species 10 times counts as 1 toward a species-based award.
+All species-based criteria de-duplicate by canonical species key (`confirmedSpeciesId`, then `speciesId`, then display scientific name) — scanning the same species 10 times counts as 1 toward a species-based award.
 
-The `firstScanDate` is taken from `allRecords.first?.timestamp` (the oldest record, since the fetch is sorted `timestamp` descending). Each accumulator also tracks a `lastInteractionDate` as the timestamp of the first qualifying record seen during the iteration. Note that `timestamp` strictly represents the system upload and processing time, completely decoupled from the original image's EXIF `captureDate`. This ensures that historical backfills from users' photo libraries do not retroactively trigger streaks or skew gamification timing mechanics.
+The first-scan achievement is resolved by finding the oldest timestamp in the projection, with scan ID as a deterministic tie-breaker. Each accumulator also tracks a `lastInteractionDate` as the most recent qualifying contribution. Note that `timestamp` strictly represents the system upload and processing time, completely decoupled from the original image's EXIF `captureDate`. This ensures that historical backfills from users' photo libraries do not retroactively trigger streaks or skew gamification timing mechanics.
 
 ---
 
 ## Adding a New Award
 
-1. Add a new tracking `Set<String>` and `Date?` variable in `AchievementsCalculator.calculate`.
-2. Add the accumulation logic inside the `for record in allRecords` loop.
-3. Append a new `AwardPayload(title:type:currentCount:targetCount:lastInteractionDate:)` to the return array.
+1. Add a new `AchievementType` case and definition in `GamificationModels.swift`.
+2. Choose a contribution kind (`firstScan` or `uniqueSpecies`) and provide the qualifying closure.
+3. Ensure any new fields required by the closure are included in `ProfileAnalyticsProjection.propertiesToFetch`.
 4. Add the award's visual representation to the `Achievements` SwiftUI component (and optionally an `AwardCard` difficulty mapping in `GamificationModels`).
 5. `ProfileDatabaseActor.calculateAwards()` and `GamificationManager.evaluateAchievementsForNotifications` require no changes — they consume the `[AwardPayload]` array dynamically.
 

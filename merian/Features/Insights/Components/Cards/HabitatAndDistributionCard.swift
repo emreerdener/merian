@@ -16,36 +16,23 @@ struct HabitatAndDistributionCard: View {
                 taxonKey: inferenceEngine.speciesData?.gbifTaxonKey,
                 showsMissingTaxonKeyFallback: !inferenceEngine.isEnrichmentLoading
             )
-                .frame(height: 260)
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.black.opacity(0.3), lineWidth: 4)
-                        .blur(radius: 6)
-                        .offset(y: 2)
-                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.primary.opacity(0.1), lineWidth: 1) // Crisp inner border line
-                )
+                .gbifHeatmapCardChrome()
             .padding(.horizontal, 16)
 
             // MARK: - Content Below Map
             VStack(alignment: .leading, spacing: 16) {
                 // MARK: - Header
-                HStack(spacing: 8) {
-                    Image(systemName: "globe")
-                        .foregroundColor(.secondary)
-                    Text("Habitat & distribution")
-                        .font(.system(.headline))
-                        .foregroundColor(.primary)
-                }
+                InsightCardHeader(systemImage: "globe", title: "Habitat & distribution")
 
                 // MARK: - Habitat Description
                 if let habitat = habitatDescription {
                     // MARK: - LOADED STATE
-                    Text(styledHabitat(text: habitat, name: scientificName))
+                    Text(
+                        InsightScientificNameStyler.highlightedText(
+                            habitat,
+                            scientificName: scientificName
+                        )
+                    )
                         .font(.body)
                         .lineSpacing(4)
                         .fixedSize(horizontal: false, vertical: true)
@@ -109,22 +96,5 @@ struct HabitatAndDistributionCard: View {
             needsMetadata: true,
             needsLookalikes: false
         )
-    }
-    
-    // MARK: - View Helpers
-    
-    private func styledHabitat(text: String, name: String?) -> AttributedString {
-        var result = AttributedString(text)
-        
-        if let name = name, !name.isEmpty {
-            var searchRange = result.startIndex..<result.endIndex
-            while let range = result[searchRange].range(of: name, options: .caseInsensitive) {
-                result[range].font = .system(.body, design: .monospaced)
-                result[range].backgroundColor = Color.secondary.opacity(0.15)
-                searchRange = range.upperBound..<result.endIndex
-            }
-        }
-        
-        return result
     }
 }

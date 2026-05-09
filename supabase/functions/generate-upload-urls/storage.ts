@@ -1,4 +1,24 @@
-import { getR2Config, generatePresignedPutUrl } from "../_shared/aws.ts";
+import { generatePresignedPutUrl, getR2Config } from "../_shared/aws.ts";
+import {
+  MEDIA_BUDGETS,
+  STAGING_ALLOWED_CONTENT_TYPES,
+} from "../_shared/mediaBudgets.ts";
+import type { StagingMediaKind } from "../_shared/mediaBudgets.ts";
+
+export type { StagingMediaKind };
+export { STAGING_ALLOWED_CONTENT_TYPES };
+
+export const MAX_STAGING_FILES = MEDIA_BUDGETS.maxStagingFiles;
+export const MAX_STAGED_IMAGE_BYTES = MEDIA_BUDGETS.maxImageRawBytes;
+export const MAX_STAGED_AUDIO_BYTES = MEDIA_BUDGETS.maxAudioRawBytes;
+export const MAX_STAGED_AUDIO_FILES = MEDIA_BUDGETS.maxStagedAudioFiles;
+
+export interface StagingUploadFile {
+  fileName: string;
+  mediaKind: StagingMediaKind;
+  contentType: string;
+  sizeBytes?: number;
+}
 
 export interface PresignedUrlPayload {
   fileName: string;
@@ -6,21 +26,192 @@ export interface PresignedUrlPayload {
   objectKey: string;
 }
 
+export interface ParseStagingUploadFilesResult {
+  files?: StagingUploadFile[];
+  error?: string;
+  status?: number;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function sanitizeStagingFileName(fileName: string): string {
+  const safe = fileName.replace(/[^a-zA-Z0-9_.-]/g, "_");
+  return safe.length > 0 ? safe : "upload";
+}
+
+function legacyContentTypeForFileName(fileName: string): string {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".wav")) return "audio/wav";
+  if (lower.endsWith(".m4a")) return "audio/mp4";
+  return "image/webp";
+}
+
+function legacyMediaKindForFileName(fileName: string): StagingMediaKind {
+  const lower = fileName.toLowerCase();
+  return lower.endsWith(".wav") || lower.endsWith(".m4a") ? "audio" : "image";
+}
+
+function allowedContentTypesForKind(kind: StagingMediaKind): Set<string> {
+  return new Set(STAGING_ALLOWED_CONTENT_TYPES[kind]);
+}
+
+function maxBytesForKind(kind: StagingMediaKind): number {
+  return kind === "audio" ? MAX_STAGED_AUDIO_BYTES : MAX_STAGED_IMAGE_BYTES;
+}
+
+function error(status: number, message: string): ParseStagingUploadFilesResult {
+  return { status, error: message };
+}
+
+function validateStructuredUploadFiles(
+  rawFiles: unknown[],
+): ParseStagingUploadFilesResult {
+  const files: StagingUploadFile[] = [];
+  let totalImageBytes = 0;
+  let audioFileCount = 0;
+
+  for (const rawFile of rawFiles) {
+    if (!isRecord(rawFile)) {
+      return error(400, "Bad Request: each file must be an object.");
+    }
+
+    const { fileName, mediaKind, contentType, sizeBytes } = rawFile;
+    if (typeof fileName !== "string" || fileName.trim().length === 0) {
+      return error(400, "Bad Request: fileName must be a non-empty string.");
+    }
+
+    const safeFileName = sanitizeStagingFileName(fileName);
+    if (safeFileName !== fileName) {
+      return error(400, "Bad Request: fileName must already be sanitized.");
+    }
+
+    if (mediaKind !== "image" && mediaKind !== "audio") {
+      return error(400, "Bad Request: mediaKind must be 'image' or 'audio'.");
+    }
+
+    if (
+      typeof contentType !== "string" ||
+      !allowedContentTypesForKind(mediaKind).has(contentType)
+    ) {
+      return error(400, "Bad Request: contentType is not valid for mediaKind.");
+    }
+
+    if (
+      typeof sizeBytes !== "number" ||
+      !Number.isInteger(sizeBytes) ||
+      sizeBytes < 0
+    ) {
+      return error(
+        400,
+        "Bad Request: sizeBytes must be a non-negative integer.",
+      );
+    }
+
+    if (sizeBytes > maxBytesForKind(mediaKind)) {
+      return error(
+        413,
+        "Payload Too Large: staged media exceeds its byte budget.",
+      );
+    }
+
+    if (mediaKind === "image") {
+      totalImageBytes += sizeBytes;
+      if (totalImageBytes > MAX_STAGED_IMAGE_BYTES) {
+        return error(
+          413,
+          "Payload Too Large: staged images exceed the combined byte budget.",
+        );
+      }
+    } else {
+      audioFileCount += 1;
+      if (audioFileCount > MAX_STAGED_AUDIO_FILES) {
+        return error(400, "Bad Request: too many staged audio files.");
+      }
+    }
+
+    files.push({ fileName, mediaKind, contentType, sizeBytes });
+  }
+
+  return { files };
+}
+
+function parseLegacyFileNames(
+  fileNames: unknown[],
+): ParseStagingUploadFilesResult {
+  const files: StagingUploadFile[] = [];
+  for (const fileName of fileNames) {
+    if (typeof fileName !== "string" || fileName.trim().length === 0) {
+      return error(
+        400,
+        "Bad Request: fileNames must contain non-empty strings.",
+      );
+    }
+
+    const safeFileName = sanitizeStagingFileName(fileName);
+    const mediaKind = legacyMediaKindForFileName(safeFileName);
+    files.push({
+      fileName: safeFileName,
+      mediaKind,
+      contentType: legacyContentTypeForFileName(safeFileName),
+    });
+  }
+
+  return { files };
+}
+
+export function parseStagingUploadFiles(
+  body: unknown,
+): ParseStagingUploadFilesResult {
+  if (!isRecord(body)) {
+    return error(400, "Invalid JSON body");
+  }
+
+  if (Array.isArray(body.files)) {
+    if (body.files.length === 0 || body.files.length > MAX_STAGING_FILES) {
+      return error(
+        400,
+        "Bad Request: 'files' must be an array of 1 to 5 values.",
+      );
+    }
+    return validateStructuredUploadFiles(body.files);
+  }
+
+  if (Array.isArray(body.fileNames)) {
+    if (
+      body.fileNames.length === 0 || body.fileNames.length > MAX_STAGING_FILES
+    ) {
+      return error(
+        400,
+        "Bad Request: 'fileNames' must be an array of 1 to 5 values.",
+      );
+    }
+    return parseLegacyFileNames(body.fileNames);
+  }
+
+  return error(400, "Bad Request: expected 'files' or legacy 'fileNames'.");
+}
+
 export async function generateStagingUrls(
   userId: string,
-  fileNames: string[],
+  files: StagingUploadFile[],
 ): Promise<PresignedUrlPayload[]> {
   const r2Config = getR2Config();
 
   const urls = await Promise.all(
-    fileNames.map(async (fileName: string) => {
-      // Sanitize fileName to prevent directory traversal
-      const safeFileName = fileName.replace(/[^a-zA-Z0-9_.-]/g, "_");
+    files.map(async (file: StagingUploadFile) => {
+      const safeFileName = sanitizeStagingFileName(file.fileName);
       const key = `staging/${userId}/${safeFileName}`;
 
       return {
-        fileName,
-        signedUrl: await generatePresignedPutUrl(r2Config, key),
+        fileName: safeFileName,
+        signedUrl: await generatePresignedPutUrl(
+          r2Config,
+          key,
+          86400,
+          file.contentType,
+        ),
         objectKey: key,
       };
     }),

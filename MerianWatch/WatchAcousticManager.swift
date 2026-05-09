@@ -5,6 +5,10 @@ import WeatherKit
 import WatchKit
 import WatchConnectivity
 
+private struct WatchConnectivityPayload: @unchecked Sendable {
+    let value: [String: Any]
+}
+
 @MainActor
 class WatchAcousticManager: NSObject, ObservableObject, AVAudioRecorderDelegate, CLLocationManagerDelegate, WCSessionDelegate {
     @Published var isRecording: Bool = false
@@ -130,8 +134,9 @@ class WatchAcousticManager: NSObject, ObservableObject, AVAudioRecorderDelegate,
         }
         
         do {
-            let audioData = try Data(contentsOf: fileURL)
-            let base64Audio = audioData.base64EncodedString()
+            let base64Audio = try await Task.detached(priority: .utility) {
+                try Data(contentsOf: fileURL, options: [.mappedIfSafe]).base64EncodedString()
+            }.value
             
             var payload: [String: Any] = [
                 "audioData": base64Audio,
@@ -151,15 +156,16 @@ class WatchAcousticManager: NSObject, ObservableObject, AVAudioRecorderDelegate,
             }
             
             print("Successfully encoded WatchOS Payload! Keys: \(payload.keys)")
+            let sendablePayload = WatchConnectivityPayload(value: payload)
             
             // Dispatch completely over WatchConnectivity explicitly bridging to the iPhone OfflineQueueManager
             if let session = self.session, session.isReachable {
-                session.sendMessage(payload, replyHandler: nil) { error in
+                session.sendMessage(sendablePayload.value, replyHandler: nil) { error in
                     print("Foreground WCSession Error. Transitioning to background transport: \(error)")
-                    self.session?.transferUserInfo(payload)
+                    WCSession.default.transferUserInfo(sendablePayload.value)
                 }
             } else {
-                session?.transferUserInfo(payload)
+                session?.transferUserInfo(sendablePayload.value)
             }
             
         } catch {

@@ -50,13 +50,7 @@ struct ExploreOverviewCard: View {
     var body: some View {
         if normalizedIucnStatus != nil || trimmedWikipediaOverview != nil {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "book")
-                        .foregroundColor(.secondary)
-                    Text("Overview")
-                        .font(.system(.headline))
-                        .foregroundColor(.primary)
-                }
+                InsightCardHeader(systemImage: "book", title: "Overview")
 
                 if let status = normalizedIucnStatus {
                     let iconName: String? = {
@@ -92,35 +86,13 @@ struct ExploreOverviewCard: View {
                 }
 
                 if let trimmedWikipediaOverview {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("WIKIPEDIA")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.secondary)
-
-                        Text(trimmedWikipediaOverview)
-                            .font(.system(.body))
-                            .lineLimit(8)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    WikipediaSummarySection(text: trimmedWikipediaOverview)
 
                     if let wikiUrl = URL(string: "https://en.wikipedia.org/wiki/\(scientificName.replacingOccurrences(of: " ", with: "_"))") {
-                        Button(action: {
+                        WikipediaReadMoreButton {
                             selectedWikiURL = wikiUrl
                             isSafariPresented = true
-                        }) {
-                            Text("Read more on Wikipedia")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
                         }
-                        .foregroundColor(.blue)
-                        .background(.regularMaterial)
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.blue.opacity(0.2), lineWidth: 1)
-                        )
                     }
                 }
             }

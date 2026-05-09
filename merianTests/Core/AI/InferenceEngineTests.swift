@@ -613,6 +613,15 @@ struct InferenceEngineTests {
         #expect(scopes.lookalikes == true)
     }
 
+    @Test func testNormalizedReferenceURLsDropsEmptyCommaSegments() {
+        let refs = InferenceEngine.normalizedReferenceURLs(
+            from: " https://example.com/a.jpg, ,https://example.com/b.jpg ,"
+        )
+
+        #expect(refs == ["https://example.com/a.jpg", "https://example.com/b.jpg"])
+        #expect(InferenceEngine.normalizedReferenceURLs(from: nil).isEmpty)
+    }
+
     @Test func testLoadFromBiologicalRecordFetchesLookalikesWhenSpeciesAlreadyMarkedEnriched() async throws {
         let scientificName = "Opuntia engelmannii"
         UserDefaults.standard.set(

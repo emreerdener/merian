@@ -216,6 +216,41 @@ final class ScansManagerTests: XCTestCase {
 
         XCTAssertEqual(searchManager.filteredScans.map(\.id), [zebra.id])
     }
+
+    func testFullRebuildIgnoresStaleSnapshotAfterRapidReplacement() async throws {
+        let finch = createTestScan(
+            commonName: "Garden Finch",
+            scientificName: "Haemorhous mexicanus",
+            ecologyType: "wild"
+        )
+        let mushroom = createTestScan(
+            commonName: "Forest Mushroom",
+            scientificName: "Amanita muscaria",
+            ecologyType: "fungus",
+            taxonomyKingdom: "Fungi"
+        )
+        let oak = createTestScan(
+            commonName: "Bur Oak",
+            scientificName: "Quercus macrocarpa",
+            ecologyType: "plant",
+            taxonomyKingdom: "Plantae"
+        )
+
+        await waitForIndexing(expectedDocumentCount: 1) {
+            searchManager.allScans = [finch, mushroom]
+            searchManager.allScans = [oak]
+        }
+
+        await waitForSearchCompletion(for: "oak") {
+            searchManager.performSearch(query: "oak")
+        }
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [oak.id])
+
+        await waitForSearchCompletion(for: "finch") {
+            searchManager.performSearch(query: "finch")
+        }
+        XCTAssertTrue(searchManager.filteredScans.isEmpty)
+    }
     
     func testTaxonomicCategoryFiltering() async throws {
         let bird = createTestScan(

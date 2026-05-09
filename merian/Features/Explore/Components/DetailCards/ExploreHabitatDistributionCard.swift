@@ -15,32 +15,19 @@ struct ExploreHabitatDistributionCard: View {
         if gbifTaxonKey != nil || trimmedHabitatDescription != nil {
             VStack(alignment: .leading, spacing: 0) {
                 GBIFHeatmapMapView(taxonKey: gbifTaxonKey)
-                    .frame(height: 260)
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.black.opacity(0.3), lineWidth: 4)
-                            .blur(radius: 6)
-                            .offset(y: 2)
-                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                    )
-                .padding(.horizontal, 16)
+                    .gbifHeatmapCardChrome()
+                    .padding(.horizontal, 16)
 
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "globe")
-                            .foregroundColor(.secondary)
-                        Text("Habitat & distribution")
-                            .font(.system(.headline))
-                            .foregroundColor(.primary)
-                    }
+                    InsightCardHeader(systemImage: "globe", title: "Habitat & distribution")
 
                     if let trimmedHabitatDescription {
-                        Text(styledHabitat(text: trimmedHabitatDescription))
+                        Text(
+                            InsightScientificNameStyler.highlightedText(
+                                trimmedHabitatDescription,
+                                scientificName: scientificName
+                            )
+                        )
                             .font(.body)
                             .lineSpacing(4)
                             .fixedSize(horizontal: false, vertical: true)
@@ -52,19 +39,5 @@ struct ExploreHabitatDistributionCard: View {
             }
             .padding(.horizontal, -16)
         }
-    }
-
-    private func styledHabitat(text: String) -> AttributedString {
-        var result = AttributedString(text)
-        guard !scientificName.isEmpty else { return result }
-
-        var searchRange = result.startIndex..<result.endIndex
-        while let range = result[searchRange].range(of: scientificName, options: .caseInsensitive) {
-            result[range].font = .system(.body, design: .monospaced)
-            result[range].backgroundColor = Color.secondary.opacity(0.15)
-            searchRange = range.upperBound..<result.endIndex
-        }
-
-        return result
     }
 }

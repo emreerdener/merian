@@ -67,10 +67,12 @@ import Supabase
     // MARK: - Initialization
 
     private override init() {
-        guard let url = URL(string: MerianEnvironment.supabaseUrl) else {
-            fatalError("Invalid Supabase URL in environment configuration.")
+        if !MerianEnvironment.configurationIssues.isEmpty {
+            let issues = MerianEnvironment.configurationIssues.map(\.description).joined(separator: " | ")
+            MerianLog.auth.fault("Environment configuration degraded: \(issues, privacy: .public)")
         }
 
+        let url = URL(string: MerianEnvironment.supabaseUrl) ?? URL(string: MerianEnvironment.fallbackSupabaseURL)!
         self.client = SupabaseClient(
             supabaseURL: url,
             supabaseKey: MerianEnvironment.supabaseAnonKey,

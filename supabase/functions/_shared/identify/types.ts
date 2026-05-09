@@ -91,6 +91,7 @@ export interface MultimodalPayload {
   user_id: string;
   imageBase64s?: string[];
   audioBase64s?: string[];
+  audioR2ObjectKeys?: string[];
   observation_contexts?: ObservationContextDTO[];
   r2ObjectKeys?: string[];
 

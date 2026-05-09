@@ -54,13 +54,7 @@ struct ExploreObservationContextCard: View {
     var body: some View {
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "viewfinder")
-                        .foregroundColor(.secondary)
-                    Text("Observation")
-                        .font(.system(.headline))
-                        .foregroundColor(.primary)
-                }
+                InsightCardHeader(systemImage: "viewfinder", title: "Observation")
 
                 VStack(spacing: 12) {
                     ForEach(rows) { row in
@@ -120,13 +114,7 @@ struct ExploreFieldNotesCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Image(systemName: "square.and.pencil")
-                    .foregroundColor(.secondary)
-                Text("Field notes")
-                    .font(.system(.headline))
-                    .foregroundColor(.primary)
-
+            InsightCardHeader(systemImage: "square.and.pencil", title: "Field notes") {
                 Spacer()
 
                 if canEdit {

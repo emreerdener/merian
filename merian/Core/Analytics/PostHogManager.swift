@@ -21,6 +21,11 @@ final class PostHogManager {
 
     /// Configures the PostHog SDK.
     func configure() {
+        guard !MerianEnvironment.postHogApiKey.isEmpty else {
+            MerianLog.general.error("PostHog configuration skipped because POSTHOG_API_KEY is missing.")
+            return
+        }
+
         let configuration = PostHogConfig(
             apiKey: MerianEnvironment.postHogApiKey,
             host: "https://us.i.posthog.com"

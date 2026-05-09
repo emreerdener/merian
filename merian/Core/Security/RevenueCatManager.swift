@@ -35,6 +35,15 @@ import os
         Purchases.logLevel = .warn
 
         let apiKey = MerianEnvironment.revenueCatApiKey
+        guard !apiKey.isEmpty else {
+            MerianLog.general.error("RevenueCat configuration skipped because REVENUECAT_API_KEY is missing.")
+            isProActive = false
+            isSubscribed = false
+            trialDaysRemaining = nil
+            currentOfferings = nil
+            isFetchingOfferings = false
+            return
+        }
 
         #if !DEBUG
         if apiKey.hasPrefix("test_") {

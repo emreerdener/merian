@@ -318,9 +318,7 @@ private struct TableOfContentsButton: View {
             Image(systemName: "list.bullet")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(width: 50, height: 50)
-                .background(.ultraThinMaterial, in: Circle())
-                .environment(\.colorScheme, .dark)
+                .circularMaterialControl(colorScheme: .dark)
         }
         .buttonStyle(.plain)
         .padding(.leading, 32)
@@ -342,9 +340,7 @@ private struct AudioDeleteButton: View {
             Image(systemName: isRecording ? "xmark" : "trash")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(.red)
-                .frame(width: 50, height: 50)
-                .background(.ultraThinMaterial, in: Circle())
-                .environment(\.colorScheme, .dark)
+                .circularMaterialControl(colorScheme: .dark)
                 .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)
@@ -366,9 +362,7 @@ private struct AudioDoneButton: View {
             Image(systemName: "checkmark")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(width: 50, height: 50)
-                .background(.ultraThinMaterial, in: Circle())
-                .environment(\.colorScheme, .dark)
+                .circularMaterialControl(colorScheme: .dark)
         }
         .buttonStyle(.plain)
         .padding(.trailing, 32)
@@ -393,9 +387,7 @@ private struct AudioReviewPlayButton: View {
             Image(systemName: audioCaptureManager.isPlaying ? "stop.fill" : "play.fill")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(.white)
-                .frame(width: 50, height: 50)
-                .background(.ultraThinMaterial, in: Circle())
-                .environment(\.colorScheme, .dark)
+                .circularMaterialControl(colorScheme: .dark)
                 .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)

@@ -758,7 +758,7 @@ import UIKit
 
         if let error = error {
             request.continuation.resume(throwing: error)
-        } else if let data = photo.fileDataRepresentation() {
+        } else if let data = autoreleasepool(invoking: { photo.fileDataRepresentation() }) {
             request.continuation.resume(returning: data)
         } else {
             request.continuation.resume(throwing: NSError(domain: "CameraManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to generate file data representation"]))

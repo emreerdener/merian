@@ -44,7 +44,12 @@ actor BackgroundDatabaseActor {
             return []
         }
         return pending.map { scan in
-            PendingScanPayload(id: scan.id, localImagePaths: scan.capturedMediaSnapshot.imagePaths)
+            let snapshot = scan.capturedMediaSnapshot
+            return PendingScanPayload(
+                id: scan.id,
+                localImagePaths: snapshot.imagePaths,
+                localAudioPaths: snapshot.audioPaths
+            )
         }
     }
 
@@ -491,9 +496,7 @@ actor BackgroundDatabaseActor {
     }
 
     private func resolvedFieldNotesText(for scanId: String) -> String? {
-        var localDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        localDescriptor.fetchLimit = 1
-        if let localNotes = (try? modelContext.fetch(localDescriptor))?.first?.fieldNotes?
+        if let localNotes = fetchLocalScanRecord(id: scanId)?.fieldNotes?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !localNotes.isEmpty {
             return localNotes
@@ -504,6 +507,21 @@ actor BackgroundDatabaseActor {
         let queuedNotes = (try? modelContext.fetch(queuedDescriptor))?.first?.fieldNotes?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return (queuedNotes?.isEmpty == false) ? queuedNotes : nil
+    }
+
+    private func fetchLocalScanRecord(id recordId: String) -> LocalScanRecord? {
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == recordId }
+        )
+        descriptor.fetchLimit = 1
+        return (try? modelContext.fetch(descriptor))?.first
+    }
+
+    @discardableResult
+    private func deleteLocalScanRecordIfPresent(id recordId: String) -> Bool {
+        guard let existing = fetchLocalScanRecord(id: recordId) else { return false }
+        modelContext.delete(existing)
+        return true
     }
 
     /// Idempotently inserts a new LocalScanRecord.
@@ -517,13 +535,7 @@ actor BackgroundDatabaseActor {
         audioFilePaths: [String]? = nil,
         capturedMediaJSON: String? = nil
     ) async {
-        var existingIdDescriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate<LocalScanRecord> { $0.id == recordId }
-        )
-        existingIdDescriptor.fetchLimit = 1
-        let alreadyExists = (try? modelContext.fetch(existingIdDescriptor))?.isEmpty == false
-
-        if !alreadyExists {
+        if fetchLocalScanRecord(id: recordId) == nil {
             let resolvedFieldNotes = resolvedFieldNotesText(for: recordId)
             let resolvedCapturedMediaJSON: String?
             if let capturedMediaJSON {
@@ -550,6 +562,33 @@ actor BackgroundDatabaseActor {
 
             modelContext.insert(record)
         }
+    }
+
+    private func insertReplacingLocalScanRecord(
+        mappedData: SpeciesData,
+        recordId: String,
+        speciesId: String,
+        timestamp: Date,
+        captureDate: Date,
+        capturedMediaJSON: String?,
+        coverImagePath: String?,
+        isLiveCapture: Bool,
+        fieldNotes: String?
+    ) {
+        deleteLocalScanRecordIfPresent(id: recordId)
+
+        let record = buildScanRecord(
+            from: mappedData,
+            recordId: recordId,
+            speciesId: speciesId,
+            timestamp: timestamp,
+            captureDate: captureDate,
+            capturedMediaJSON: capturedMediaJSON,
+            coverImagePath: coverImagePath,
+            isLiveCapture: isLiveCapture,
+            fieldNotes: fieldNotes
+        )
+        modelContext.insert(record)
     }
 
     private func decodedObservationContexts(from observationContextsJSON: [String]?) -> [ObservationContext] {
@@ -610,22 +649,7 @@ actor BackgroundDatabaseActor {
             return false
         }
 
-        let targetName = mappedData.scientificName
-        var fetchDescriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate { $0.scientificName == targetName }
-        )
-        fetchDescriptor.fetchLimit = 1
-        fetchDescriptor.propertiesToFetch = [\.speciesId]
-        let existingRecords: [LocalScanRecord]
-        do {
-            existingRecords = try modelContext.fetch(fetchDescriptor)
-        } catch {
-            MerianLog.data.debug("saveLiveScanRecord: species lookup failed: \(error, privacy: .private)")
-            existingRecords = []
-        }
-
-        let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
-        let isNewDiscovery = existingRecords.isEmpty
+        let (activeSpeciesId, isNewDiscovery) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
 
         let capturedMediaJSON = await buildCapturedMediaJSON(
             localImagePaths: localImagePaths,
@@ -636,18 +660,12 @@ actor BackgroundDatabaseActor {
 
         let recordId = mappedData.scanId ?? UUID().uuidString
         let preservedFieldNotes = resolvedFieldNotesText(for: recordId)
-        
-        // Prevent duplicate insertion collisions or silent drops from offline queue background races.
-        // If the offline queue already inserted a skeleton/partial record, purge it so the 
-        // comprehensive live inference result (which correctly includes audio paths) takes over.
-        var collisionDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == recordId })
-        collisionDescriptor.fetchLimit = 1
-        if let existing = (try? modelContext.fetch(collisionDescriptor))?.first {
-            modelContext.delete(existing)
-        }
 
-        let record = buildScanRecord(
-            from: mappedData,
+        // Prevent duplicate insertion collisions or silent drops from offline queue background races.
+        // If the offline queue already inserted a skeleton/partial record, purge it so the
+        // comprehensive live inference result (which correctly includes audio paths) takes over.
+        insertReplacingLocalScanRecord(
+            mappedData: mappedData,
             recordId: recordId,
             speciesId: activeSpeciesId,
             timestamp: Date(),
@@ -657,7 +675,6 @@ actor BackgroundDatabaseActor {
             isLiveCapture: mappedData.isLiveCapture,
             fieldNotes: preservedFieldNotes
         )
-        modelContext.insert(record)
         do {
             try modelContext.save()
         } catch {
@@ -681,22 +698,7 @@ actor BackgroundDatabaseActor {
     ) async -> Bool {
         guard mappedData.confidenceScore > 0.0 else { return false }
 
-        let targetName = mappedData.scientificName
-        var fetchDescriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate { $0.scientificName == targetName }
-        )
-        fetchDescriptor.fetchLimit = 1
-        fetchDescriptor.propertiesToFetch = [\.speciesId]
-        let existingRecords: [LocalScanRecord]
-        do {
-            existingRecords = try modelContext.fetch(fetchDescriptor)
-        } catch {
-            MerianLog.data.debug("saveNonVisualRecord: species lookup failed: \(error, privacy: .private)")
-            existingRecords = []
-        }
-
-        let activeSpeciesId = existingRecords.first?.speciesId ?? UUID().uuidString
-        let isNewDiscovery = existingRecords.isEmpty
+        let (activeSpeciesId, isNewDiscovery) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
 
         let capturedMediaJSON = await buildCapturedMediaJSON(
             observationContextsJSON: observationContextsJSON,
@@ -706,14 +708,8 @@ actor BackgroundDatabaseActor {
 
         let recordId = mappedData.scanId ?? UUID().uuidString
         let preservedFieldNotes = resolvedFieldNotesText(for: recordId)
-        var collisionDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == recordId })
-        collisionDescriptor.fetchLimit = 1
-        if let existing = (try? modelContext.fetch(collisionDescriptor))?.first {
-            modelContext.delete(existing)
-        }
-
-        let record = buildScanRecord(
-            from: mappedData,
+        insertReplacingLocalScanRecord(
+            mappedData: mappedData,
             recordId: recordId,
             speciesId: activeSpeciesId,
             timestamp: Date(),
@@ -723,7 +719,6 @@ actor BackgroundDatabaseActor {
             isLiveCapture: false,
             fieldNotes: preservedFieldNotes
         )
-        modelContext.insert(record)
         do {
             try modelContext.save()
         } catch {
@@ -806,26 +801,39 @@ actor BackgroundDatabaseActor {
     /// began enforcing validated taxonomy. Clearing both the rich blob and legacy flat
     /// array forces future scan opens to rehydrate from the server under the new rules.
     func clearAllLocalLookalikesCache() {
-        let descriptor = FetchDescriptor<LocalScanRecord>()
-        guard let records = try? modelContext.fetch(descriptor) else { return }
+        let batchSize = 200
 
-        var mutated = false
-        for record in records where record.isBiological == true {
-            if record.lookalikesData != nil {
+        while true {
+            var descriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate {
+                    $0.isBiological == true &&
+                    ($0.lookalikesData != nil || $0.similarSpecies != nil)
+                },
+                sortBy: [SortDescriptor(\.timestamp)]
+            )
+            descriptor.fetchLimit = batchSize
+
+            let records: [LocalScanRecord]
+            do {
+                records = try modelContext.fetch(descriptor)
+            } catch {
+                MerianLog.data.error("clearAllLocalLookalikesCache: fetch failed: \(error, privacy: .private)")
+                return
+            }
+
+            guard !records.isEmpty else { return }
+
+            for record in records {
                 record.lookalikesData = nil
-                mutated = true
-            }
-            if record.similarSpecies != nil {
                 record.similarSpecies = nil
-                mutated = true
             }
-        }
 
-        guard mutated else { return }
-        do {
-            try modelContext.save()
-        } catch {
-            MerianLog.data.error("clearAllLocalLookalikesCache: save failed: \(error, privacy: .private)")
+            do {
+                try modelContext.save()
+            } catch {
+                MerianLog.data.error("clearAllLocalLookalikesCache: save failed: \(error, privacy: .private)")
+                return
+            }
         }
     }
 
@@ -925,15 +933,16 @@ actor BackgroundDatabaseActor {
             return false
         }
 
-        let payloadList = collections.compactMap { col -> SyncCollectionPayload? in
-            // Fault one collection membership set at a time instead of prefetching every
-            // `scans` relationship up-front, which spikes RAM on large libraries.
-            return SyncCollectionPayload(
+        let relevantCollectionIDs = Set(collections.map { $0.id.lowercased() })
+        let membersByCollectionID = fetchCollectionMemberIds(relevantCollectionIDs: relevantCollectionIDs)
+
+        let payloadList = collections.map { col -> SyncCollectionPayload in
+            SyncCollectionPayload(
                 id: col.id,
                 name: col.name,
                 created_at: DateUtilities.iso8601Formatter.string(from: col.createdAt),
                 is_deleted: col.isDeleted,
-                scan_ids: col.scans?.compactMap(\.id) ?? []
+                scan_ids: membersByCollectionID[col.id.lowercased()] ?? []
             )
         }
 
@@ -958,5 +967,46 @@ actor BackgroundDatabaseActor {
             MerianLog.data.debug("pushCollectionsToEdge: sync failed: \(error, privacy: .private)")
             return false
         }
+    }
+
+    private func fetchCollectionMemberIds(relevantCollectionIDs: Set<String>) -> [String: [String]] {
+        guard !relevantCollectionIDs.isEmpty else { return [:] }
+
+        let batchSize = 200
+        var offset = 0
+        var membersByCollectionID: [String: [String]] = [:]
+
+        while true {
+            var descriptor = FetchDescriptor<LocalScanRecord>(
+                sortBy: [SortDescriptor(\.timestamp)]
+            )
+            descriptor.fetchLimit = batchSize
+            descriptor.fetchOffset = offset
+            descriptor.propertiesToFetch = [\.id]
+            descriptor.relationshipKeyPathsForPrefetching = [\.collections]
+
+            let batch: [LocalScanRecord]
+            do {
+                batch = try modelContext.fetch(descriptor)
+            } catch {
+                MerianLog.data.error("fetchCollectionMemberIds: fetch failed: \(error, privacy: .private)")
+                return membersByCollectionID
+            }
+
+            guard !batch.isEmpty else { break }
+
+            for scan in batch {
+                for collection in scan.collections ?? [] {
+                    let collectionID = collection.id.lowercased()
+                    guard relevantCollectionIDs.contains(collectionID) else { continue }
+                    membersByCollectionID[collectionID, default: []].append(scan.id)
+                }
+            }
+
+            offset += batch.count
+            if batch.count < batchSize { break }
+        }
+
+        return membersByCollectionID
     }
 }

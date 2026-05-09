@@ -90,7 +90,7 @@ extension OfflineQueueManager {
         let allTasks = await backgroundSession.allTasks
         for task in allTasks {
             if let desc = task.taskDescription,
-               desc.starts(with: "\(scanId)_") || desc == "inference_\(scanId)" {
+               MediaStagingContract.uploadTaskDescription(desc, belongsTo: scanId) || desc == "inference_\(scanId)" {
                 task.cancel()
             }
         }
@@ -199,7 +199,7 @@ extension OfflineQueueManager {
             Task {
                 let allTasks = await backgroundSession.allTasks
                 let activeIds = Set(allTasks.compactMap {
-                    $0.taskDescription?.components(separatedBy: "_").first
+                    MediaStagingContract.parseUploadTaskDescription($0.taskDescription)?.scanId
                 })
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
                 let hadOrphans = await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeIds)
@@ -245,9 +245,8 @@ extension OfflineQueueManager {
             // A fresh actor's save() can invalidate sharedActor's cached fault objects
             // (§6 of swiftdata-and-api-gotchas), causing tryClaimForInference to miss a
             // scan it just transitioned if it still shows the stale pre-save state.
-            let activeUploadScanIds = Set(allTasks.compactMap { task -> String? in
-                guard let desc = task.taskDescription, !desc.hasPrefix("inference_") else { return nil }
-                return desc.components(separatedBy: "_").first
+            let activeUploadScanIds = Set(allTasks.compactMap { task in
+                MediaStagingContract.parseUploadTaskDescription(task.taskDescription)?.scanId
             })
             await sharedActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadScanIds)
 
@@ -291,17 +290,21 @@ extension OfflineQueueManager {
                 await MainActor.run { self.replayedStagedScanCount += 1 }
 #endif
 
-                // Migration fallback: pre-V33 image scans have no stagedR2Keys.
+                // Migration fallback: pre-V33 media scans have no stagedR2Keys.
                 // Reconstruct from the current auth session — safe because the userId
                 // embedded in the R2 key matches the session that performed the upload.
-                // Describe-only scans intentionally have both r2Keys and localImagePaths
+                // Describe-only scans intentionally have both r2Keys and localUploadPaths
                 // empty — guard on !localImagePaths.isEmpty to skip this path for them.
                 let finalExtracted: ExtractedScanData
-                if extracted.r2Keys.isEmpty && !extracted.localImagePaths.isEmpty {
-                    let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-                    let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
-                    let userId = (authUserId ?? deviceId).lowercased()
-                    let reconstructedKeys = extracted.localImagePaths.map { "staging/\(userId)/\(scanId)_\($0)" }
+                if extracted.r2Keys.isEmpty && !extracted.localUploadPaths.isEmpty {
+                    let stagingUserId = await self.currentMediaStagingUserId()
+                    let reconstructedKeys = MediaStagingContract.splitObjectKeys(
+                        [],
+                        scanId: scanId,
+                        userId: stagingUserId,
+                        localImagePaths: extracted.localImagePaths,
+                        localAudioPaths: extracted.audioFilePaths ?? []
+                    ).all
                     finalExtracted = ExtractedScanData(
                         telemetry: extracted.telemetry,
                         r2Keys: reconstructedKeys,
@@ -472,6 +475,7 @@ extension OfflineQueueManager {
             imageFileNames: [],
             persistedAudioNamesBySourcePath: persistedAudioNamesBySourcePath
         )
+        let hasAudio = !persistedAudioNamesBySourcePath.isEmpty
 
         let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
         let scan = OfflineQueuedScan(
@@ -492,7 +496,7 @@ extension OfflineQueueManager {
             relativeHumidity: nil,
             uvIndex: nil,
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
-            scanState: .staged,
+            scanState: hasAudio ? .pending : .staged,
             stagedR2Keys: []
         )
         if let capturedMediaJSON,
@@ -513,6 +517,11 @@ extension OfflineQueueManager {
             try modelContext.save()
             updateUnsyncedItemCount()
             AppTelemetry.trackOfflineQueued()
+            if hasAudio {
+                syncPendingScans()
+            } else if isOnline {
+                replayInferenceForUploadedScans()
+            }
             return true
         } catch {
             MerianLog.data.error("enqueueNonVisualCapture: context.save() failed: \(error, privacy: .private)")

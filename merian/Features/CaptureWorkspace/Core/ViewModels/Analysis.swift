@@ -41,33 +41,30 @@ extension CaptureWorkspaceViewModel {
             return
         }
 
-        // 1. Reset all InferenceEngine display state synchronously so the content router
-        //    immediately sees `isProcessing == true && speciesData == nil`.
-        diContainer.inferenceEngine.prepareForNewScan()
-
         let isOnline = diContainer.offlineQueueManager.isOnline
 
-        // 2. Eagerly set the Insight sheet to open in its "Analyzing" skeleton state.
+        // 1. Eagerly set the live Insight sheet only when live inference will run.
         if isOnline {
+            diContainer.inferenceEngine.prepareForNewScan()
             activeSheet = .insight
         }
 
-        // 3. Capture the context needed for inference before clearing the staging buffers.
+        // 2. Capture the context needed for inference before clearing the staging buffers.
         let capturedImages          = stagedCapture.images
         let capturedPreFetchTask    = preFetchTask
         let targetEradicationRecord = baseRefinementRecord
 
-        // 4. Clear the staging buffers immediately so the UI resets behind the overlay.
+        // 3. Clear the staging buffers immediately so the UI resets behind the overlay.
         stagedCapture.clearAll()
         baseRefinementRecord = nil
         preFetchTask = nil
         diContainer.cameraManager.resetZoom()
 
-        // 5. Generate a stable scanId shared by the queue record and live inference.
+        // 4. Generate a stable scanId shared by the queue record and live inference.
         let scanId = UUID().uuidString.lowercased()
         pendingAnalyzeScanId = scanId
 
-        // 6. Enqueue immediately — in-foreground — so the scan reaches disk and SwiftData
+        // 5. Enqueue immediately — in-foreground — so the scan reaches disk and SwiftData
         //    before any async boundary is crossed. Carries the observation context JSON so
         //    the offline-retry path can reconstruct the full combined payload.
         let cachedLocation = diContainer.environmentContextManager.lastKnownLocation
@@ -97,11 +94,12 @@ extension CaptureWorkspaceViewModel {
 
         // If completely offline, skip live inference and show a toast immediately.
         guard isOnline else {
+            pendingAnalyzeScanId = nil
             self.offlineToastMessage = "No network connection. Queued for upload."
             return
         }
 
-        // 7. Concurrently resolve the full telemetry and fire live inference.
+        // 6. Concurrently resolve the full telemetry and fire live inference.
         Task {
             let resolvedContext = await capturedPreFetchTask?.value
 

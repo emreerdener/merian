@@ -14,7 +14,10 @@ import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
-import { coalesceTaxonomyValue, normalizeTaxonomyValue } from "../_shared/taxonomy.ts";
+import {
+  coalesceTaxonomyValue,
+  normalizeTaxonomyValue,
+} from "../_shared/taxonomy.ts";
 
 import {
   CachedSpeciesRow,
@@ -32,8 +35,16 @@ import {
   upsertSpeciesDictionary,
 } from "../_shared/identify/db.ts";
 import { processWAV } from "./audio.ts";
-import { resolveImagePayloads } from "../_shared/identify/media.ts";
+import {
+  resolveAudioBuffers,
+  resolveImagePayloads,
+  validateImageR2ObjectKeys,
+} from "../_shared/identify/media.ts";
 import { evaluateAndProcessPayload } from "../_shared/identify/moderation.ts";
+import {
+  MEDIA_BUDGETS,
+  validateRequestContentLength,
+} from "../_shared/mediaBudgets.ts";
 import {
   buildContextText,
   normalizeCurrentMonth,
@@ -80,6 +91,17 @@ You are an expert encyclopedic field-guide biologist and taxonomist with special
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
+    const bodySizeError = validateRequestContentLength(
+      req,
+      MEDIA_BUDGETS.maxMultimodalJsonBodyBytes,
+    );
+    if (bodySizeError) {
+      return jsonResponse(
+        { error: bodySizeError.message },
+        bodySizeError.status,
+      );
+    }
+
     const rawBody: Record<string, unknown> = await req.json();
 
     const paramError = requireParams(rawBody, ["user_id"]);
@@ -91,6 +113,7 @@ serve((req: Request) =>
       timestamp,
       imageBase64s = [],
       audioBase64s = [],
+      audioR2ObjectKeys = [],
       observation_contexts = [],
       r2ObjectKeys = [],
       mimeType = "image/webp",
@@ -102,25 +125,23 @@ serve((req: Request) =>
     const gpsLatitude = payload.gpsLatitude ?? payload.gps_latitude;
     const gpsLongitude = payload.gpsLongitude ?? payload.gps_longitude;
     const gpsElevation = payload.gpsElevation ?? payload.gps_elevation;
-    const semanticLocation =
-      payload.semanticLocation ?? payload.semantic_location;
-    const weatherCondition =
-      payload.weatherCondition ?? payload.weather_condition;
-    const weatherTemperatureF =
-      payload.weatherTemperatureF ?? payload.weather_temperature_f;
+    const semanticLocation = payload.semanticLocation ??
+      payload.semantic_location;
+    const weatherCondition = payload.weatherCondition ??
+      payload.weather_condition;
+    const weatherTemperatureF = payload.weatherTemperatureF ??
+      payload.weather_temperature_f;
     const deviceLocale = payload.deviceLocale ?? payload.device_locale;
-    const deviceTimeZone =
-      payload.deviceTimeZone ?? payload.device_time_zone;
+    const deviceTimeZone = payload.deviceTimeZone ?? payload.device_time_zone;
     const deviceRegion = payload.deviceRegion ?? payload.device_region;
     const currentMonth = normalizeCurrentMonth(
       payload.currentMonth ?? payload.current_month,
     );
     const timeOfDay = payload.timeOfDay ?? payload.time_of_day;
-    const depthScaleText =
-      payload.depthScaleText ?? payload.depth_scale_text;
+    const depthScaleText = payload.depthScaleText ?? payload.depth_scale_text;
     const zoomFactor = payload.zoomFactor;
-    const estimatedSizeCm =
-      payload.estimatedSizeCm ?? payload.estimated_size_cm;
+    const estimatedSizeCm = payload.estimatedSizeCm ??
+      payload.estimated_size_cm;
 
     const generatedScanId =
       typeof client_scan_id === "string" && client_scan_id.length > 0
@@ -139,27 +160,15 @@ serve((req: Request) =>
         : null;
 
     // 1. Image Resolution (R2 Fetching + IDOR Check)
-    if (r2ObjectKeys && r2ObjectKeys.length > 0) {
-      for (const r2ObjectKey of r2ObjectKeys) {
-        if (r2ObjectKey.includes("..")) {
-          return jsonResponse({
-            error: "Bad Request: Path traversal detected.",
-          }, 400);
-        }
-        if (!r2ObjectKey.startsWith(`staging/${user.id}/`)) {
-          console.error(
-            `IDOR: r2ObjectKey ${r2ObjectKey} does not belong to user ${user.id}`,
-          );
-          return jsonResponse(
-            {
-              error:
-                "Forbidden: r2ObjectKey does not belong to the requesting user.",
-            },
-            403,
-          );
-        }
-      }
-    }
+    const keyValidationError = validateImageR2ObjectKeys(
+      r2ObjectKeys,
+      user.id,
+      {
+        enforceOwnership: true,
+        idorEvent: "multimodal/image_idor_attempt",
+      },
+    );
+    if (keyValidationError) return keyValidationError;
 
     const { base64Payloads, errorResponse } = await resolveImagePayloads(
       r2ObjectKeys,
@@ -173,13 +182,20 @@ serve((req: Request) =>
 
     // 2. WAV Preprocessing Loop
     let processedAudios: string[] = [];
-    if (audioBase64s.length > 0) {
-      try {
-        const decodes = audioBase64s.map((b64) => {
-          const buf = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer;
-          return processWAV(buf);
+    if (audioBase64s.length > 0 || audioR2ObjectKeys.length > 0) {
+      const { audioBuffers, errorResponse: audioErrorResponse } =
+        await resolveAudioBuffers({
+          userId: user.id,
+          audioR2ObjectKeys,
+          audioBase64s,
+          idorEvent: "multimodal/audio_idor_attempt",
+          r2FetchFailedEvent: "multimodal/audio_r2_fetch_failed",
         });
-        processedAudios = await Promise.all(decodes);
+      if (audioErrorResponse) return audioErrorResponse;
+      try {
+        for (const audioBuffer of audioBuffers) {
+          processedAudios.push(await processWAV(audioBuffer));
+        }
       } catch (wavErr) {
         logStructuredError("multimodal/wav_parse_failed", {
           user_id: user.id,
@@ -354,12 +370,12 @@ serve((req: Request) =>
         .slice(0, 5);
     }
     if (Array.isArray(parsedData.extracted_visual_traits)) {
-      parsedData.extracted_visual_traits =
-        parsedData.extracted_visual_traits.slice(0, 10);
+      parsedData.extracted_visual_traits = parsedData.extracted_visual_traits
+        .slice(0, 10);
     }
     if (Array.isArray(parsedData.ecological_interactions)) {
-      parsedData.ecological_interactions =
-        parsedData.ecological_interactions.slice(0, 10);
+      parsedData.ecological_interactions = parsedData.ecological_interactions
+        .slice(0, 10);
     }
     if (
       typeof parsedData.ai_reasoning === "string" &&
@@ -375,7 +391,10 @@ serve((req: Request) =>
           : undefined;
     }
     const sanitizedLifeStage = sanitizeLifeStage(parsedData.life_stage);
-    if (parsedData.life_stage != null && sanitizedLifeStage != parsedData.life_stage) {
+    if (
+      parsedData.life_stage != null &&
+      sanitizedLifeStage != parsedData.life_stage
+    ) {
       logStructuredError("multimodal/unknown_life_stage", {
         user_id: user.id,
         value: parsedData.life_stage,
@@ -383,7 +402,9 @@ serve((req: Request) =>
     }
     parsedData.life_stage = sanitizedLifeStage;
 
-    const sanitizedReproductiveCondition = sanitizeReproductiveCondition(parsedData.reproductive_condition);
+    const sanitizedReproductiveCondition = sanitizeReproductiveCondition(
+      parsedData.reproductive_condition,
+    );
     if (
       parsedData.reproductive_condition != null &&
       sanitizedReproductiveCondition != parsedData.reproductive_condition
@@ -442,8 +463,7 @@ serve((req: Request) =>
       payloadReadyForClient.candidates = null;
     }
 
-    const hasCandidates =
-      Array.isArray(payloadReadyForClient.candidates) &&
+    const hasCandidates = Array.isArray(payloadReadyForClient.candidates) &&
       payloadReadyForClient.candidates.length > 0;
 
     const [commonNameMap, fetchedCachedSpecies] = await Promise.all([
@@ -466,9 +486,9 @@ serve((req: Request) =>
     ]);
 
     if (hasCandidates) {
-      const candidateNames = payloadReadyForClient.candidates!.map((candidate) =>
-        candidate.scientific_name
-      );
+      const candidateNames = payloadReadyForClient.candidates!.map((
+        candidate,
+      ) => candidate.scientific_name);
       missingCandidates = candidateNames.filter((name) =>
         !commonNameMap.has(name)
       );
@@ -505,10 +525,9 @@ serve((req: Request) =>
             wikipediaOverview = externalData.wikiExtract;
             const primaryEn = (payloadReadyForClient.common_name ?? "")
               .toLowerCase();
-            alternativeCommonNames =
-              externalData.alternativeCommonNames.filter((name) =>
-                name.toLowerCase() !== primaryEn
-              );
+            alternativeCommonNames = externalData.alternativeCommonNames.filter(
+              (name) => name.toLowerCase() !== primaryEn,
+            );
           }
         } catch (err) {
           console.error("Synchronous enrichment error:", err);
@@ -561,8 +580,8 @@ serve((req: Request) =>
         }
 
         let speciesId: string | null = null;
-        const needsGroupTags =
-          isIdentifiedBio && !cachedSpecies?.group_tags?.length;
+        const needsGroupTags = isIdentifiedBio &&
+          !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
           ? fetchGroupTags(user, parsedData.scientific_name!)
           : Promise.resolve(null);
@@ -636,8 +655,8 @@ serve((req: Request) =>
             llm_total_tokens: llmTotalTokens,
             image_storage_urls: modResult?.publicUrls ?? [],
             life_stage: parsedData.life_stage ?? "unknown",
-            reproductive_condition:
-              parsedData.reproductive_condition ?? "not_applicable",
+            reproductive_condition: parsedData.reproductive_condition ??
+              "not_applicable",
             individual_count: parsedData.individual_count ?? null,
             ecological_interactions: parsedData.ecological_interactions ?? [],
             estimated_size_cm:
@@ -647,13 +666,27 @@ serve((req: Request) =>
                 : null,
             inference_tier: userTier === "pro" ? "pro" : "flash",
             candidates: payloadReadyForClient.candidates ?? null,
-            image_quality_score: parsedData.image_quality?.overall_score ?? null,
+            image_quality_score: parsedData.image_quality?.overall_score ??
+              null,
             is_live_capture: parsedData.is_live_capture,
             user_observation_context: persistedObservationContext ?? null,
           },
           supabaseAdmin,
         );
         scanInserted = true;
+        if (audioR2ObjectKeys.length > 0) {
+          const r2Config = getR2Config();
+          Promise.allSettled(
+            audioR2ObjectKeys.map((key: string) =>
+              deleteR2Object(key, r2Config)
+            ),
+          ).catch((e) =>
+            console.error(
+              "multimodal: failed to cleanup staged audio objects",
+              e,
+            )
+          );
+        }
 
         let candidateEnrichmentTask: Promise<void> = Promise.resolve();
         if (missingCandidates.length > 0) {
@@ -664,20 +697,19 @@ serve((req: Request) =>
                 candidateName,
               );
 
-              const primaryEnName =
-                (candidateExternalData.wikiTitle &&
-                    candidateExternalData.wikiTitle.toLowerCase() !==
-                      candidateName.toLowerCase())
-                  ? candidateExternalData.wikiTitle.replace(/\s*\([^)]+\)$/, "")
-                    .trim()
-                  : (candidateExternalData.alternativeCommonNames[0] ?? null);
+              const primaryEnName = (candidateExternalData.wikiTitle &&
+                  candidateExternalData.wikiTitle.toLowerCase() !==
+                    candidateName.toLowerCase())
+                ? candidateExternalData.wikiTitle.replace(/\s*\([^)]+\)$/, "")
+                  .trim()
+                : (candidateExternalData.alternativeCommonNames[0] ?? null);
 
               const primaryEnLower = (primaryEnName ?? "").toLowerCase();
               const newAltNames: string[] | null =
                 candidateExternalData.alternativeCommonNames.length > 0
-                  ? candidateExternalData.alternativeCommonNames.filter((name) =>
-                    name.toLowerCase() !== primaryEnLower
-                  )
+                  ? candidateExternalData.alternativeCommonNames.filter((
+                    name,
+                  ) => name.toLowerCase() !== primaryEnLower)
                   : null;
 
               await upsertSpeciesDictionary(

@@ -67,9 +67,13 @@ If you suspect an issue:
 
 ## 2026-05 Hardening Addendum
 
-- Never call `fatalError` from auth or persistence bootstrap paths. Apple Sign-In anchor discovery, nonce generation, and `ModelContainer` recovery must log, cancel, quarantine, or fall back safely.
+- Never call `fatalError` from auth, configuration, or persistence bootstrap paths. `MerianEnvironment.load()` returns typed diagnostics, optional SDKs skip missing-key setup, Supabase endpoint construction throws, and `ModelContainer` recovery must log, quarantine, fall back to in-memory safe mode, or show startup-blocked UI.
+- Camera shutter ImageIO work must run through `DetachedWork.value(category: .imagePreparation)`. `Task {}` inside a `@MainActor` view model is orchestration only; it must not synchronously downsample, crop, or encode 12MP buffers.
+- Offline queued-only submissions must not call `InferenceEngine.prepareForNewScan()`. Prepare the live engine only after online live inference is confirmed, otherwise `isProcessing` can stay true with no active request.
+- Queued audio must stage through R2 and replay as `audioR2ObjectKeys`; only live foreground audio may use inline `audioBase64s`, and only after byte-size preflight.
 - Never build collection UI from `ScanCollection.scans` on the main thread. Use scan-side membership projections (`LocalScanRecord.collections` → `CollectionMembershipSnapshot`) so large libraries do not fault full relationship graphs into memory.
 - Explore restore media uploads must stay file-backed with `URLSession.upload(for:fromFile:)` and bounded concurrency. Reading each image into `Data` and then assigning `httpBody` is a zero-OOM violation.
 - Remote export media must pass exact-host allowlisting through `URLComponents` and `https` enforcement before any download begins. The approved host is `media.merian.app`.
 - Settings-heavy SwiftUI surfaces should bind through `AppSettings`, not scattered `@AppStorage("...")` literals. The view layer should express intent (`appSettings.themeMode`, `appSettings.gridColumns`), not storage keys.
 - Detached work should route through `DetachedWork`, which marks intentional executor escapes and makes raw `Task.detached` searchable and lintable.
+- Regression tests must pin every zero-OOM invariant introduced by hardening work. The current suite covers non-crashing `MerianEnvironment` fallback loading, offline visual/audio submissions that never activate `InferenceEngine.isProcessing`, staged audio queue state (`.pending` for R2 upload), `MediaStagingContract` object-key/task-description/budget behavior, inline audio byte preflight before base64 encoding, and batched biological-only lookalike cache clearing.

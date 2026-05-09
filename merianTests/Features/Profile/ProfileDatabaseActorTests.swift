@@ -53,6 +53,49 @@ final class ProfileDatabaseActorTests: XCTestCase {
         XCTAssertEqual(payload.awards.count, AchievementType.allCases.count, "Brand-new accounts should still receive the full locked achievements set.")
         XCTAssertTrue(payload.awards.allSatisfy { !$0.isCompleted && $0.currentCount == 0 }, "Empty libraries should render achievements as locked with zero progress.")
     }
+
+    func testProfileProjectionCacheRefreshesAfterInsertedScan() async throws {
+        let context = container.mainContext
+        let firstScan = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Quercus alba",
+            commonName: "White Oak",
+            timestamp: Date().addingTimeInterval(-60),
+            ecologyType: "forest",
+            taxonomyKingdom: "Plantae"
+        )
+        context.insert(firstScan)
+        try context.save()
+
+        let actor = ProfileDatabaseActor(modelContainer: container)
+        let initialPayload = await actor.calculateAll()
+        XCTAssertEqual(initialPayload.speciesCount, 1)
+        XCTAssertEqual(initialPayload.heatmap.totalCaptures, 1)
+
+        let secondScan = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Amanita muscaria",
+            commonName: "Fly Agaric",
+            timestamp: Date(),
+            ecologyType: "forest",
+            taxonomyKingdom: "Fungi"
+        )
+        context.insert(secondScan)
+        try context.save()
+
+        let refreshedStats = await actor.calculateProfileStats()
+        let refreshedHeatmap = await actor.calculateHeatmapData()
+        let refreshedAwards = await actor.calculateAwardsProjection()
+        let explorerAward = refreshedAwards.first { $0.type == .explorer }
+
+        XCTAssertEqual(refreshedStats.speciesCount, 2, "Profile actor caches must refresh when the library count changes.")
+        XCTAssertEqual(refreshedHeatmap.totalCaptures, 2, "Heatmap generation should reuse the refreshed projection, not a stale timestamp cache.")
+        XCTAssertEqual(explorerAward?.currentCount, 2, "Award payloads must be recomputed after the shared projection refreshes.")
+
+        await actor.invalidateCachedProfileProjections()
+        let invalidatedPayload = await actor.calculateAll()
+        XCTAssertEqual(invalidatedPayload.speciesCount, 2)
+    }
     
     func testStreakActiveGracePeriod() async throws {
         // Simulate missing today (0), but having scanned continuously for 3 preceding days.

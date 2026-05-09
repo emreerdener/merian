@@ -44,13 +44,7 @@ struct ScanInformationCard: View {
         
         if hasValidData {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "viewfinder")
-                        .foregroundColor(.secondary)
-                    Text("Scan")
-                        .font(.system(.headline))
-                        .foregroundColor(.primary)
-                }
+                InsightCardHeader(systemImage: "viewfinder", title: "Scan")
                 
                 VStack(spacing: 12) {
                     // Location

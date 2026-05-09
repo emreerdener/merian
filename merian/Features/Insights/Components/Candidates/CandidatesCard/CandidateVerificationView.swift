@@ -61,8 +61,7 @@ struct CandidateVerificationView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32)
-                        .background(.ultraThinMaterial, in: Circle())
+                        .circularMaterialControl(size: 32)
                 }
                 .buttonStyle(.plain)
                 .offset(x: 4, y: -4)

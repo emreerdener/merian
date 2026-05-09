@@ -7,13 +7,7 @@ struct TaxonomyCard: View {
     var body: some View {
         if let taxonomy = taxonomyData {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "square.stack.3d.down.right")
-                        .foregroundColor(.secondary)
-                    Text("Taxonomy")
-                        .font(.system(.headline))
-                        .foregroundColor(.primary)
-                }
+                InsightCardHeader(systemImage: "square.stack.3d.down.right", title: "Taxonomy")
                 
                 VStack(spacing: 12) {
                     if let kingdom = taxonomy.kingdom { KeyValueRow(title: "KINGDOM", value: kingdom, isValueItalic: true) }

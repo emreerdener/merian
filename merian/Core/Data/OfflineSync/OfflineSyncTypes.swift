@@ -20,17 +20,258 @@ import SwiftData
 struct PendingScanPayload: Sendable {
     let id: String
     let localImagePaths: [String]
+    let localAudioPaths: [String]
+
+    var localUploadPaths: [String] {
+        localImagePaths + localAudioPaths
+    }
+}
+
+// MARK: - Media Staging Contract
+
+enum StagedMediaKind: String, Codable, Sendable, Equatable {
+    case image
+    case audio
+
+    func contentType(for path: String) -> String {
+        switch self {
+        case .image:
+            return "image/webp"
+        case .audio:
+            return path.lowercased().hasSuffix(".m4a") ? "audio/mp4" : "audio/wav"
+        }
+    }
+
+    var maxStagedBytes: Int {
+        switch self {
+        case .image:
+            return MerianConfig.stagedImagePayloadMaxBytes
+        case .audio:
+            return MerianConfig.audioPayloadMaxBytes
+        }
+    }
+}
+
+struct StagedMediaObjectKeys: Sendable, Equatable {
+    let imageR2ObjectKeys: [String]
+    let audioR2ObjectKeys: [String]
+
+    var all: [String] {
+        imageR2ObjectKeys + audioR2ObjectKeys
+    }
+}
+
+struct MediaStagingUploadTaskIdentity: Sendable, Equatable {
+    let scanId: String
+    let uploadIndex: Int?
+}
+
+struct StagingUploadFile: Codable, Sendable, Equatable {
+    let fileName: String
+    let mediaKind: StagedMediaKind
+    let contentType: String
+    let sizeBytes: Int?
+}
+
+enum MediaStagingContract {
+    static let maxUploadItemsPerRequest = MerianConfig.mediaStagingMaxFilesPerRequest
+    private static let uploadTaskPrefix = "upload"
+
+    static func sanitizedFileName(_ rawFileName: String) -> String {
+        var sanitized = ""
+        sanitized.reserveCapacity(rawFileName.count)
+
+        for scalar in rawFileName.unicodeScalars {
+            switch scalar.value {
+            case 45, 46, 48...57, 65...90, 95, 97...122:
+                sanitized.unicodeScalars.append(scalar)
+            default:
+                sanitized.append("_")
+            }
+        }
+
+        return sanitized.isEmpty ? "upload" : sanitized
+    }
+
+    static func stagingFileName(scanId: String, localPath: String) -> String {
+        sanitizedFileName("\(scanId)_\(localPath)")
+    }
+
+    static func objectKey(userId: String, fileName: String) -> String {
+        "staging/\(sanitizedFileName(userId.lowercased()))/\(fileName)"
+    }
+
+    static func uploadItems(
+        for scan: PendingScanPayload,
+        userId: String,
+        documentsDirectory: URL = .documentsDirectory
+    ) -> [ScanUploadItem] {
+        var items: [ScanUploadItem] = []
+        items.reserveCapacity(scan.localUploadPaths.count)
+
+        func append(kind: StagedMediaKind, localPath: String) {
+            let fileName = stagingFileName(scanId: scan.id, localPath: localPath)
+            items.append(ScanUploadItem(
+                scanId: scan.id,
+                uploadIndex: items.count,
+                mediaKind: kind,
+                localPath: localPath,
+                fileName: fileName,
+                fileURL: documentsDirectory.appendingPathComponent(localPath),
+                contentType: kind.contentType(for: localPath),
+                objectKey: objectKey(userId: userId, fileName: fileName)
+            ))
+        }
+
+        for path in scan.localImagePaths {
+            append(kind: .image, localPath: path)
+        }
+        for path in scan.localAudioPaths {
+            append(kind: .audio, localPath: path)
+        }
+
+        return items
+    }
+
+    static func objectKeys(for scan: PendingScanPayload, userId: String) -> StagedMediaObjectKeys {
+        let items = uploadItems(for: scan, userId: userId)
+        return StagedMediaObjectKeys(
+            imageR2ObjectKeys: items.filter { $0.mediaKind == .image }.map(\.objectKey),
+            audioR2ObjectKeys: items.filter { $0.mediaKind == .audio }.map(\.objectKey)
+        )
+    }
+
+    static func splitObjectKeys(
+        _ objectKeys: [String],
+        scanId: String,
+        userId: String? = nil,
+        localImagePaths: [String],
+        localAudioPaths: [String]
+    ) -> StagedMediaObjectKeys {
+        let keysToSplit: [String]
+        if objectKeys.isEmpty, let userId {
+            let payload = PendingScanPayload(
+                id: scanId,
+                localImagePaths: localImagePaths,
+                localAudioPaths: localAudioPaths
+            )
+            keysToSplit = self.objectKeys(for: payload, userId: userId).all
+        } else {
+            keysToSplit = objectKeys
+        }
+
+        let audioFileNames = Set(localAudioPaths.map { stagingFileName(scanId: scanId, localPath: $0) })
+        let audioKeys = keysToSplit.filter { key in
+            let fileName = key.split(separator: "/").last.map(String.init) ?? key
+            return audioFileNames.contains(fileName) || localAudioPaths.contains { key.hasSuffix("_\($0)") }
+        }
+        let audioKeySet = Set(audioKeys)
+        let imageKeys = keysToSplit.filter { !audioKeySet.contains($0) }
+
+        return StagedMediaObjectKeys(
+            imageR2ObjectKeys: imageKeys,
+            audioR2ObjectKeys: audioKeys
+        )
+    }
+
+    static func validateUploadBudget(_ items: [ScanUploadItem]) throws {
+        guard items.count <= maxUploadItemsPerRequest else {
+            throw MerianError.payloadTooLarge
+        }
+
+        var totalImageBytes = 0
+        var audioItemCount = 0
+        for item in items {
+            let size = try fileSize(at: item.fileURL)
+            guard size <= item.mediaKind.maxStagedBytes else {
+                throw MerianError.payloadTooLarge
+            }
+
+            if item.mediaKind == .image {
+                totalImageBytes += size
+                guard totalImageBytes <= MerianConfig.stagedImagePayloadMaxBytes else {
+                    throw MerianError.payloadTooLarge
+                }
+            } else {
+                audioItemCount += 1
+                guard audioItemCount <= MerianConfig.mediaStagingMaxAudioFilesPerRequest else {
+                    throw MerianError.payloadTooLarge
+                }
+            }
+        }
+    }
+
+    static func uploadFiles(for items: [ScanUploadItem]) throws -> [StagingUploadFile] {
+        try items.map { item in
+            StagingUploadFile(
+                fileName: item.fileName,
+                mediaKind: item.mediaKind,
+                contentType: item.contentType,
+                sizeBytes: try fileSizeBytes(at: item.fileURL)
+            )
+        }
+    }
+
+    static func uploadTaskDescription(scanId: String, uploadIndex: Int) -> String {
+        "\(uploadTaskPrefix)|\(scanId)|\(uploadIndex)"
+    }
+
+    static func parseUploadTaskDescription(_ description: String?) -> MediaStagingUploadTaskIdentity? {
+        guard let description, !description.hasPrefix("inference_") else { return nil }
+
+        let parts = description.split(separator: "|", omittingEmptySubsequences: false)
+        if parts.count == 3, String(parts[0]) == uploadTaskPrefix {
+            return MediaStagingUploadTaskIdentity(
+                scanId: String(parts[1]),
+                uploadIndex: Int(parts[2])
+            )
+        }
+
+        let legacyParts = description.components(separatedBy: "_")
+        guard let legacyScanId = legacyParts.first, !legacyScanId.isEmpty else { return nil }
+        return MediaStagingUploadTaskIdentity(
+            scanId: legacyScanId,
+            uploadIndex: legacyParts.dropFirst().first.flatMap(Int.init)
+        )
+    }
+
+    static func uploadTaskDescription(_ description: String?, belongsTo scanId: String) -> Bool {
+        guard let identity = parseUploadTaskDescription(description) else { return false }
+        return identity.scanId == scanId
+    }
+
+    static func fileSizeBytes(at url: URL) throws -> Int {
+        try fileSize(at: url)
+    }
+
+    private static func fileSize(at url: URL) throws -> Int {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        if let size = attributes[.size] as? NSNumber {
+            return size.intValue
+        }
+        throw MerianError.invalidResponse
+    }
 }
 
 // MARK: - Scan Upload Item
 
-/// Flat representation of a single image file ready for a presigned R2 PUT.
-struct ScanUploadItem {
+/// Flat representation of a single local media file ready for a presigned R2 PUT.
+struct ScanUploadItem: Sendable {
     let scanId: String
     /// Per-scan slot index (0…N-1). Distinct from the flat batch position across all scans.
-    let imageIndex: Int
+    let uploadIndex: Int
+    let mediaKind: StagedMediaKind
+    let localPath: String
     let fileName: String
     let fileURL: URL
+    let contentType: String
+    let objectKey: String
+}
+
+struct MediaStagingPreparation: Sendable {
+    let uploadItems: [ScanUploadItem]
+    let uploadFiles: [StagingUploadFile]
+    let rejectedScanIds: [String]
 }
 
 // MARK: - Extracted Scan Data
@@ -58,6 +299,10 @@ struct ExtractedScanData: Sendable {
     /// Filenames of local images relative to the Documents directory.
     var localImagePaths: [String] {
         capturedMediaSnapshot.imagePaths
+    }
+
+    var localUploadPaths: [String] {
+        localImagePaths + (audioFilePaths ?? [])
     }
 
     /// Pre-serialized `ObservationContext` text for combined image+description scans.

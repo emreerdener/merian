@@ -57,13 +57,7 @@ struct OverviewCard: View {
             if hasAnyMetadata {
                 VStack(alignment: .leading, spacing: 16) {
                     
-                    HStack(spacing: 8) {
-                        Image(systemName: "book")
-                            .foregroundColor(.secondary)
-                        Text("Overview")
-                            .font(.system(.headline))
-                            .foregroundColor(.primary)
-                    }
+                    InsightCardHeader(systemImage: "book", title: "Overview")
                     
                     VStack(alignment: .leading, spacing: 8) {
                         if let val = size {
@@ -134,35 +128,14 @@ struct OverviewCard: View {
                     }
                     
                     if hasWiki, let extract = wikiExtract {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("WIKIPEDIA")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.secondary)
-                            
-                            Text(extract)
-                                .font(.system(.body))
-                                .lineLimit(8)
-                        }
+                        WikipediaSummarySection(text: extract)
                     }
                     
                     if hasWiki, let wikiString = data.wikipediaUrl, let wikiUrl = URL(string: wikiString) {
-                        Button(action: {
+                        WikipediaReadMoreButton {
                             selectedWikiURL = wikiUrl
                             isSafariPresented = true
-                        }) {
-                            Text("Read more on Wikipedia")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
                         }
-                        .foregroundColor(.blue)
-                        .background(.regularMaterial)
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.blue.opacity(0.2), lineWidth: 1)
-                        )
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

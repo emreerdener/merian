@@ -338,7 +338,7 @@ struct StartupRecoveryNotice {
 }
 
 struct ModelContainerBootstrapOutcome {
-    let container: ModelContainer
+    let container: ModelContainer?
     let startupNotice: StartupRecoveryNotice?
 }
 
@@ -377,7 +377,7 @@ struct MerianApp: App {
     let lifecycleManager = AppLifecycleManager(container: AppDIContainer.shared)
     
     // MARK: - SwiftData Container
-    let container: ModelContainer
+    let container: ModelContainer?
     let startupRecoveryNotice: StartupRecoveryNotice?
     
     // MARK: - Lifecycle Bootstrapping
@@ -392,10 +392,12 @@ struct MerianApp: App {
 
         let bootstrapOutcome = Self.bootstrapModelContainer()
         container = bootstrapOutcome.container
-        startupRecoveryNotice = bootstrapOutcome.startupNotice
-        AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
+        startupRecoveryNotice = Self.combinedStartupNotice(storeNotice: bootstrapOutcome.startupNotice)
+        if let container {
+            AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
 
-        UITestSeedCoordinator.prepareIfNeeded(container: container)
+            UITestSeedCoordinator.prepareIfNeeded(container: container)
+        }
         
         // Keep app-hosted test sessions hermetic: no analytics startup, no disk-backed
         // production store, and no background sync noise racing the test containers.
@@ -478,13 +480,41 @@ struct MerianApp: App {
     }
 
     private static func fallbackInMemoryBootstrap(reason: String) -> ModelContainerBootstrapOutcome {
-        let container = try! makeInMemoryContainer()
-        return ModelContainerBootstrapOutcome(
-            container: container,
-            startupNotice: StartupRecoveryNotice(
-                title: "Safe Mode Enabled",
-                message: reason
+        do {
+            return ModelContainerBootstrapOutcome(
+                container: try makeInMemoryContainer(),
+                startupNotice: StartupRecoveryNotice(
+                    title: "Safe Mode Enabled",
+                    message: reason
+                )
             )
+        } catch {
+            MerianLog.general.fault("In-memory ModelContainer bootstrap failed: \(error.localizedDescription, privacy: .private)")
+            return ModelContainerBootstrapOutcome(
+                container: nil,
+                startupNotice: StartupRecoveryNotice(
+                    title: "Startup Blocked",
+                    message: "Merian could not open either the persistent library or the safe-mode in-memory store. Restart the app after freeing storage or reinstalling if the issue persists."
+                )
+            )
+        }
+    }
+
+    private static func combinedStartupNotice(storeNotice: StartupRecoveryNotice?) -> StartupRecoveryNotice? {
+        let configurationIssues = MerianEnvironment.configurationIssues
+        guard !configurationIssues.isEmpty else { return storeNotice }
+
+        let configurationMessage = "Configuration warnings: " + configurationIssues.map(\.description).joined(separator: " ")
+        guard let storeNotice else {
+            return StartupRecoveryNotice(
+                title: "Configuration Warning",
+                message: configurationMessage
+            )
+        }
+
+        return StartupRecoveryNotice(
+            title: storeNotice.title,
+            message: "\(storeNotice.message)\n\n\(configurationMessage)"
         )
     }
 
@@ -493,19 +523,33 @@ struct MerianApp: App {
         WindowGroup {
             let appSettings = diContainer.appSettings
             Group {
-                if appSettings.hasCompletedOnboarding {
-                    CaptureWorkspaceView()
+                if let container {
+                    Group {
+                        if appSettings.hasCompletedOnboarding {
+                            CaptureWorkspaceView()
+                        } else {
+                            OnboardingView()
+                        }
+                    }
+                    .modelContainer(container)
+                    .injectAppDependencies(container: diContainer)
+                    .overlay(alignment: .top) {
+                        if let startupRecoveryNotice {
+                            StartupRecoveryNoticeView(notice: startupRecoveryNotice)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 12)
+                        }
+                    }
                 } else {
-                    OnboardingView()
-                }
-            }
-            .modelContainer(container)
-            .injectAppDependencies(container: diContainer)
-            .overlay(alignment: .top) {
-                if let startupRecoveryNotice {
-                    StartupRecoveryNoticeView(notice: startupRecoveryNotice)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
+                    StartupRecoveryNoticeView(
+                        notice: startupRecoveryNotice ?? StartupRecoveryNotice(
+                            title: "Startup Blocked",
+                            message: "Merian could not initialize its local library."
+                        )
+                    )
+                    .padding(16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .background(Color(.systemBackground))
                 }
             }
             .onAppear {

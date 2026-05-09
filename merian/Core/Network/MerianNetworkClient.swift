@@ -16,6 +16,187 @@ struct PreSignedURL: Codable {
     let objectKey: String
 }
 
+private struct UploadURLRequestBody: Encodable {
+    let files: [StagingUploadFile]
+    let userId: String
+
+    private enum CodingKeys: String, CodingKey {
+        case files
+        case userId = "user_id"
+    }
+}
+
+private struct InferenceRequestContext: Sendable {
+    let userId: String
+    let deviceLocale: String
+    let deviceTimeZone: String
+    let deviceRegion: String?
+    let currentMonth: Int
+    let timeOfDay: String
+    let depthScaleText: String?
+}
+
+private enum InferencePayloadBuilder {
+    static func makeContext(userId: String, telemetry: CaptureTelemetry) -> InferenceRequestContext {
+        let captureDate: Date = telemetry.timestamp.flatMap {
+            DateUtilities.iso8601Formatter.date(from: $0)
+        } ?? Date()
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+
+        return InferenceRequestContext(
+            userId: userId.lowercased(),
+            deviceLocale: Locale.current.language.languageCode?.identifier ?? "en",
+            deviceTimeZone: TimeZone.current.identifier,
+            deviceRegion: Locale.current.region?.identifier,
+            currentMonth: Calendar.current.component(.month, from: captureDate),
+            timeOfDay: formatter.string(from: captureDate),
+            depthScaleText: telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
+        )
+    }
+
+    static func identifyBody(
+        r2ObjectKeys: [String]?,
+        imageBase64s: [String]?,
+        mimeType: String,
+        telemetry: CaptureTelemetry,
+        context: InferenceRequestContext,
+        clientScanId: String?,
+        description: String?,
+        observationContextJSON: String?
+    ) throws -> Data {
+        try MerianNetworkClient.validateMultiModalPayloadBudget(
+            imageBase64s: imageBase64s ?? [],
+            audioBase64s: []
+        )
+
+        var payload = telemetryPayloadFields(
+            telemetry: telemetry,
+            context: context,
+            clientScanId: clientScanId
+        )
+        setIfPresent(r2ObjectKeys, forKey: "r2ObjectKeys", in: &payload)
+        setIfPresent(imageBase64s, forKey: "imageBase64s", in: &payload)
+        payload["mimeType"] = mimeType
+
+        if let description, !description.isEmpty {
+            payload["description"] = description
+        }
+
+        setIfPresent(
+            observationContextObject(from: observationContextJSON),
+            forKey: "observation_context",
+            in: &payload
+        )
+
+        return try jsonData(from: payload)
+    }
+
+    static func multimodalBody(
+        r2ObjectKeys: [String],
+        audioR2ObjectKeys: [String],
+        imageBase64s: [String],
+        audioBase64s: [String],
+        observationContextsJSON: [String],
+        mimeType: String,
+        telemetry: CaptureTelemetry,
+        context: InferenceRequestContext,
+        clientScanId: String
+    ) throws -> Data {
+        try MerianNetworkClient.validateMultiModalPayloadBudget(
+            imageBase64s: imageBase64s,
+            audioBase64s: audioBase64s
+        )
+
+        var payload = telemetryPayloadFields(
+            telemetry: telemetry,
+            context: context,
+            clientScanId: clientScanId
+        )
+        if !r2ObjectKeys.isEmpty {
+            payload["r2ObjectKeys"] = r2ObjectKeys
+        }
+        if !audioR2ObjectKeys.isEmpty {
+            payload["audioR2ObjectKeys"] = audioR2ObjectKeys
+        }
+        if !imageBase64s.isEmpty {
+            payload["imageBase64s"] = imageBase64s
+        }
+        if !audioBase64s.isEmpty {
+            payload["audioBase64s"] = audioBase64s
+        }
+
+        let observationContexts = observationContextObjects(from: observationContextsJSON)
+        if !observationContexts.isEmpty {
+            payload["observation_contexts"] = observationContexts
+        }
+        payload["mimeType"] = mimeType
+
+        return try jsonData(from: payload)
+    }
+
+    private static func telemetryPayloadFields(
+        telemetry: CaptureTelemetry,
+        context: InferenceRequestContext,
+        clientScanId: String?
+    ) -> [String: Any] {
+        var payload: [String: Any] = [
+            "user_id": context.userId,
+            "deviceLocale": context.deviceLocale,
+            "deviceTimeZone": context.deviceTimeZone,
+            "currentMonth": context.currentMonth,
+            "timeOfDay": context.timeOfDay
+        ]
+
+        setIfPresent(context.depthScaleText, forKey: "depthScaleText", in: &payload)
+        setIfPresent(telemetry.zoomFactor.map { Double($0) }, forKey: "zoomFactor", in: &payload)
+        setIfPresent(telemetry.gpsLatitude, forKey: "gpsLatitude", in: &payload)
+        setIfPresent(telemetry.gpsLongitude, forKey: "gpsLongitude", in: &payload)
+        setIfPresent(telemetry.gpsElevation, forKey: "gpsElevation", in: &payload)
+        setIfPresent(telemetry.locationName, forKey: "semanticLocation", in: &payload)
+        setIfPresent(telemetry.weatherCondition, forKey: "weatherCondition", in: &payload)
+        setIfPresent(telemetry.weatherTemperatureF, forKey: "weatherTemperatureF", in: &payload)
+        setIfPresent(context.deviceRegion, forKey: "deviceRegion", in: &payload)
+        setIfPresent(telemetry.timestamp, forKey: "timestamp", in: &payload)
+        setIfPresent(telemetry.estimatedSizeCm, forKey: "estimated_size_cm", in: &payload)
+        setIfPresent(clientScanId, forKey: "client_scan_id", in: &payload)
+
+        return payload
+    }
+
+    private static func observationContextObject(from json: String?) -> [String: Any]? {
+        json.flatMap { rawJSON in
+            guard let data = rawJSON.data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return nil
+            }
+            return object
+        }
+    }
+
+    private static func observationContextObjects(from jsons: [String]) -> [[String: Any]] {
+        jsons.compactMap { json in
+            guard let data = json.data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return nil
+            }
+            return object
+        }
+    }
+
+    private static func setIfPresent<T>(_ value: T?, forKey key: String, in payload: inout [String: Any]) {
+        if let value {
+            payload[key] = value
+        }
+    }
+
+    private static func jsonData(from payload: [String: Any]) throws -> Data {
+        try JSONSerialization.data(withJSONObject: payload)
+    }
+}
+
 // MARK: - TLS Certificate Pinning
 
 /// Validates the server certificate chain for *.supabase.co against pinned SHA-256 hashes.
@@ -125,6 +306,10 @@ final class MerianNetworkClient {
     /// Builds a URL for the given Edge Function path segment.
     /// Throws `MerianError.invalidURL` rather than crashing if `supabaseUrl` is misconfigured.
     private func endpointURL(_ function: String) throws -> URL {
+        guard MerianEnvironment.isSupabaseConfigured else {
+            MerianLog.network.error("Network request blocked because Supabase environment configuration is incomplete.")
+            throw MerianError.invalidURL
+        }
         guard let url = URL(string: "\(supabaseUrl)/functions/v1/\(function)") else {
             throw MerianError.invalidURL
         }
@@ -135,6 +320,33 @@ final class MerianNetworkClient {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return decoder
+    }
+
+    private func makeInferenceRequestContext(telemetry: CaptureTelemetry) async -> InferenceRequestContext {
+        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        return InferencePayloadBuilder.makeContext(
+            userId: authUserId ?? deviceId,
+            telemetry: telemetry
+        )
+    }
+
+    private func makeAuthenticatedJSONRequest(
+        url: URL,
+        bodyData: Data,
+        timeoutInterval: TimeInterval = 90.0
+    ) async throws -> URLRequest {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeoutInterval)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+
+        let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
+        for (key, val) in authHeaders {
+            request.setValue(val, forHTTPHeaderField: key)
+        }
+
+        return request
     }
 
     // MARK: - Authenticated Request Core
@@ -245,140 +457,49 @@ final class MerianNetworkClient {
         observationContextJSON: String? = nil
     ) async throws -> URLRequest {
         let functionUrl = try endpointURL("identify")
-
-        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
-        let userId = (authUserId ?? deviceId).lowercased()
-        let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
-        // IANA timezone identifier (e.g. "America/Los_Angeles") — permission-free geographic
-        // signal. Narrows the plausible species universe even when GPS is not authorized.
-        let deviceTimeZone = TimeZone.current.identifier
-        // ISO 3166-1 region code (e.g. "US", "DE") — complements the language-only locale.
-        let deviceRegion = Locale.current.region?.identifier
-
-        // For gallery photos, derive month and time-of-day from the image's own capture date
-        // (populated from EXIF via PHAsset.creationDate) so Gemini receives the correct
-        // season and light context for the photo rather than the current wall-clock values.
-        // Falls back to now() for live captures and gallery photos with no EXIF date.
-        let captureDate: Date = telemetry.timestamp.flatMap {
-            DateUtilities.iso8601Formatter.date(from: $0)
-        } ?? Date()
-        let currentMonth = Calendar.current.component(.month, from: captureDate)
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        let timeOfDay = formatter.string(from: captureDate)
-
-        let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
+        let context = await makeInferenceRequestContext(telemetry: telemetry)
+        let capturedR2ObjectKeys = r2ObjectKeys
         let capturedScanId = clientScanId
         let capturedTelemetry = telemetry
         let capturedDescription = description
         let capturedObservationContextJSON = observationContextJSON
         let bodyData = try await Task.detached(priority: .userInitiated) {
-            let observationContextObject: [String: Any]? = capturedObservationContextJSON.flatMap { json in
-                guard let data = json.data(using: .utf8),
-                      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-                return obj
-            }
-            let isolatedPayload: [String: Any?] = [
-                "r2ObjectKeys": r2ObjectKeys,
-                "imageBase64s": nil,
-                "user_id": userId,
-                "mimeType": "image/webp",
-                "depthScaleText": depthScaleText,
-                "zoomFactor": capturedTelemetry.zoomFactor.map { Double($0) },
-                "gpsLatitude": capturedTelemetry.gpsLatitude,
-                "gpsLongitude": capturedTelemetry.gpsLongitude,
-                "gpsElevation": capturedTelemetry.gpsElevation,
-                "semanticLocation": capturedTelemetry.locationName,
-                "weatherCondition": capturedTelemetry.weatherCondition,
-                "weatherTemperatureF": capturedTelemetry.weatherTemperatureF,
-                "deviceLocale": deviceLocale,
-                "deviceTimeZone": deviceTimeZone,
-                "deviceRegion": deviceRegion,
-                "currentMonth": currentMonth,
-                "timeOfDay": timeOfDay,
-                "timestamp": capturedTelemetry.timestamp,
-                "estimated_size_cm": capturedTelemetry.estimatedSizeCm,
-                "client_scan_id": capturedScanId,
-                "description": capturedDescription?.isEmpty == false ? capturedDescription : nil,
-                "observation_context": observationContextObject
-            ]
-            return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
+            try InferencePayloadBuilder.identifyBody(
+                r2ObjectKeys: capturedR2ObjectKeys,
+                imageBase64s: nil,
+                mimeType: "image/webp",
+                telemetry: capturedTelemetry,
+                context: context,
+                clientScanId: capturedScanId,
+                description: capturedDescription,
+                observationContextJSON: capturedObservationContextJSON
+            )
         }.value
 
-        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 90.0)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = bodyData
-
-        let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
-        for (key, val) in authHeaders {
-            request.setValue(val, forHTTPHeaderField: key)
-        }
-
-        return request
+        return try await makeAuthenticatedJSONRequest(url: functionUrl, bodyData: bodyData)
     }
 
     func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, mimeType: String = "image/webp", telemetry: CaptureTelemetry, clientScanId: String? = nil, description: String? = nil, observationContextJSON: String? = nil) async throws -> Data {
         let functionUrl = try endpointURL("identify")
-
-        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
-        let userId = (authUserId ?? deviceId).lowercased()
-        let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
-        let deviceTimeZone = TimeZone.current.identifier
-        let deviceRegion = Locale.current.region?.identifier
-
-        let captureDate: Date = telemetry.timestamp.flatMap {
-            DateUtilities.iso8601Formatter.date(from: $0)
-        } ?? Date()
-        let currentMonth = Calendar.current.component(.month, from: captureDate)
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        let timeOfDay = formatter.string(from: captureDate)
-
-        let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
+        let context = await makeInferenceRequestContext(telemetry: telemetry)
+        let capturedR2ObjectKeys = r2ObjectKeys
+        let capturedImageBase64s = base64ImageDatas
+        let capturedMimeType = mimeType
+        let capturedTelemetry = telemetry
         let capturedClientScanId = clientScanId
         let capturedDescription = description
-        let capturedObservationContextJSON2 = observationContextJSON
+        let capturedObservationContextJSON = observationContextJSON
         let bodyData = try await Task.detached(priority: .userInitiated) {
-            let observationContextObject: [String: Any]? = capturedObservationContextJSON2.flatMap { json in
-                guard let data = json.data(using: .utf8),
-                      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-                return obj
-            }
-            let isolatedPayload: [String: Any?] = [
-                "r2ObjectKeys": r2ObjectKeys,
-                "imageBase64s": base64ImageDatas,
-                "user_id": userId,
-                "mimeType": mimeType,
-                "depthScaleText": depthScaleText,
-                "zoomFactor": telemetry.zoomFactor.map { Double($0) },
-                "gpsLatitude": telemetry.gpsLatitude,
-                "gpsLongitude": telemetry.gpsLongitude,
-                "gpsElevation": telemetry.gpsElevation,
-                "semanticLocation": telemetry.locationName,
-                "weatherCondition": telemetry.weatherCondition,
-                "weatherTemperatureF": telemetry.weatherTemperatureF,
-                "deviceLocale": deviceLocale,
-                "deviceTimeZone": deviceTimeZone,
-                "deviceRegion": deviceRegion,
-                "currentMonth": currentMonth,
-                "timeOfDay": timeOfDay,
-                "timestamp": telemetry.timestamp,
-                "estimated_size_cm": telemetry.estimatedSizeCm,
-                "client_scan_id": capturedClientScanId,
-                // Combined path: non-nil when the user staged a describe description alongside images.
-                // The edge function injects this as additional Gemini context beside the image parts.
-                "description": capturedDescription?.isEmpty == false ? capturedDescription : nil,
-                "observation_context": observationContextObject
-            ]
-
-            return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
+            try InferencePayloadBuilder.identifyBody(
+                r2ObjectKeys: capturedR2ObjectKeys,
+                imageBase64s: capturedImageBase64s,
+                mimeType: capturedMimeType,
+                telemetry: capturedTelemetry,
+                context: context,
+                clientScanId: capturedClientScanId,
+                description: capturedDescription,
+                observationContextJSON: capturedObservationContextJSON
+            )
         }.value
         // Inference calls can take up to 25–30s on gemini-2.5-pro with slow connections.
         // Use a 90s timeout matching timeoutIntervalForResource to prevent false timeouts.
@@ -390,6 +511,7 @@ final class MerianNetworkClient {
 
     static func buildMultiModalRequestBody(
         r2ObjectKeys: [String] = [],
+        audioR2ObjectKeys: [String] = [],
         base64ImageDatas: [String] = [],
         audioBase64s: [String] = [],
         observationContextsJSON: [String] = [],
@@ -404,46 +526,32 @@ final class MerianNetworkClient {
         depthScaleText: String?,
         clientScanId: String
     ) throws -> Data {
-        let observationContextsObjects: [[String: Any]] = observationContextsJSON.compactMap { json in
-            guard let data = json.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-            return obj
-        }
-
-        try validateMultiModalPayloadBudget(
-            imageBase64s: base64ImageDatas,
-            audioBase64s: audioBase64s
+        let context = InferenceRequestContext(
+            userId: userId.lowercased(),
+            deviceLocale: deviceLocale,
+            deviceTimeZone: deviceTimeZone,
+            deviceRegion: deviceRegion,
+            currentMonth: currentMonth,
+            timeOfDay: timeOfDay,
+            depthScaleText: depthScaleText
         )
 
-        let isolatedPayload: [String: Any?] = [
-            "r2ObjectKeys": r2ObjectKeys.isEmpty ? nil : r2ObjectKeys,
-            "imageBase64s": base64ImageDatas.isEmpty ? nil : base64ImageDatas,
-            "audioBase64s": audioBase64s.isEmpty ? nil : audioBase64s,
-            "observation_contexts": observationContextsObjects.isEmpty ? nil : observationContextsObjects,
-            "user_id": userId,
-            "mimeType": mimeType,
-            "depthScaleText": depthScaleText,
-            "zoomFactor": telemetry.zoomFactor.map { Double($0) },
-            "gpsLatitude": telemetry.gpsLatitude,
-            "gpsLongitude": telemetry.gpsLongitude,
-            "gpsElevation": telemetry.gpsElevation,
-            "semanticLocation": telemetry.locationName,
-            "weatherCondition": telemetry.weatherCondition,
-            "weatherTemperatureF": telemetry.weatherTemperatureF,
-            "deviceLocale": deviceLocale,
-            "deviceTimeZone": deviceTimeZone,
-            "deviceRegion": deviceRegion,
-            "currentMonth": currentMonth,
-            "timeOfDay": timeOfDay,
-            "timestamp": telemetry.timestamp,
-            "estimated_size_cm": telemetry.estimatedSizeCm,
-            "client_scan_id": clientScanId
-        ]
-        return try JSONSerialization.data(withJSONObject: isolatedPayload.compactMapValues { $0 })
+        return try InferencePayloadBuilder.multimodalBody(
+            r2ObjectKeys: r2ObjectKeys,
+            audioR2ObjectKeys: audioR2ObjectKeys,
+            imageBase64s: base64ImageDatas,
+            audioBase64s: audioBase64s,
+            observationContextsJSON: observationContextsJSON,
+            mimeType: mimeType,
+            telemetry: telemetry,
+            context: context,
+            clientScanId: clientScanId
+        )
     }
 
     func buildMultiModalRequest(
         r2ObjectKeys: [String] = [],
+        audioR2ObjectKeys: [String] = [],
         base64ImageDatas: [String] = [],
         mimeType: String = "image/webp",
         audioFilePaths: [String] = [],
@@ -452,78 +560,90 @@ final class MerianNetworkClient {
         clientScanId: String
     ) async throws -> URLRequest {
         let functionUrl = try endpointURL("identify-multimodal")
-
-        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
-        let userId = (authUserId ?? deviceId).lowercased()
-        let deviceLocale = Locale.current.language.languageCode?.identifier ?? "en"
-        let deviceTimeZone = TimeZone.current.identifier
-        let deviceRegion = Locale.current.region?.identifier
-
-        let captureDate: Date = telemetry.timestamp.flatMap {
-            DateUtilities.iso8601Formatter.date(from: $0)
-        } ?? Date()
-        let currentMonth = Calendar.current.component(.month, from: captureDate)
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        let timeOfDay = formatter.string(from: captureDate)
-
-        let depthScaleText = telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
+        let context = await makeInferenceRequestContext(telemetry: telemetry)
+        let capturedR2ObjectKeys = r2ObjectKeys
+        let capturedBase64ImageDatas = base64ImageDatas
         let capturedClientScanId = clientScanId
 
         let capturedAudioPaths = audioFilePaths
+        let capturedAudioR2ObjectKeys = audioR2ObjectKeys
         let capturedContextsJSON = observationContextsJSON
         let capturedTelemetry = telemetry
         let capturedMimeType = mimeType
 
         let bodyData = try await Task.detached(priority: .userInitiated) {
-            var audioBase64s: [String] = []
-            for path in capturedAudioPaths {
-                let url = URL.documentsDirectory.appendingPathComponent(path)
-                if let wavData = try? Data(contentsOf: url, options: [.mappedIfSafe]) {
-                    audioBase64s.append(wavData.base64EncodedString())
-                }
-            }
+            let audioBase64s = try MerianNetworkClient.loadInlineAudioBase64s(from: capturedAudioPaths)
             return try MerianNetworkClient.buildMultiModalRequestBody(
-                r2ObjectKeys: r2ObjectKeys,
-                base64ImageDatas: base64ImageDatas,
+                r2ObjectKeys: capturedR2ObjectKeys,
+                audioR2ObjectKeys: capturedAudioR2ObjectKeys,
+                base64ImageDatas: capturedBase64ImageDatas,
                 audioBase64s: audioBase64s,
                 observationContextsJSON: capturedContextsJSON,
-                userId: userId,
+                userId: context.userId,
                 mimeType: capturedMimeType,
                 telemetry: capturedTelemetry,
-                deviceLocale: deviceLocale,
-                deviceTimeZone: deviceTimeZone,
-                deviceRegion: deviceRegion,
-                currentMonth: currentMonth,
-                timeOfDay: timeOfDay,
-                depthScaleText: depthScaleText,
+                deviceLocale: context.deviceLocale,
+                deviceTimeZone: context.deviceTimeZone,
+                deviceRegion: context.deviceRegion,
+                currentMonth: context.currentMonth,
+                timeOfDay: context.timeOfDay,
+                depthScaleText: context.depthScaleText,
                 clientScanId: capturedClientScanId
             )
         }.value
 
-        var request = URLRequest(url: functionUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 90.0)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = bodyData
-
-        let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
-        for (key, val) in authHeaders {
-            request.setValue(val, forHTTPHeaderField: key)
-        }
-
-        return request
+        return try await makeAuthenticatedJSONRequest(url: functionUrl, bodyData: bodyData)
     }
 
     /// Validates that the combined base64 image + audio payload fits the V8 isolator memory budget.
     /// Exposed as `internal` so test targets can exercise budget boundaries without auth dependencies.
+    static let maxInlineInferenceBodyBytes = 3_600_000
+
     static func validateMultiModalPayloadBudget(imageBase64s: [String], audioBase64s: [String]) throws {
         let totalSize = (imageBase64s + audioBase64s).reduce(0) { $0 + $1.utf8.count }
-        if totalSize > 3_600_000 {
+        if totalSize > maxInlineInferenceBodyBytes {
             throw MerianError.payloadTooLarge
         }
+    }
+
+    static let maxInlineAudioBytes = MerianConfig.audioPayloadMaxBytes
+
+    private static func loadInlineAudioBase64s(from audioFilePaths: [String]) throws -> [String] {
+        guard !audioFilePaths.isEmpty else { return [] }
+
+        let fileURLs = audioFilePaths.map { URL.documentsDirectory.appendingPathComponent($0) }
+        try validateInlineAudioFileBudget(fileURLs: fileURLs)
+
+        var audioBase64s: [String] = []
+        audioBase64s.reserveCapacity(audioFilePaths.count)
+
+        for url in fileURLs {
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }
+
+            let wavData = try Data(contentsOf: url, options: [.mappedIfSafe])
+            audioBase64s.append(wavData.base64EncodedString())
+        }
+
+        return audioBase64s
+    }
+
+    static func validateInlineAudioFileBudget(fileURLs: [URL]) throws {
+        var totalAudioBytes = 0
+        for url in fileURLs {
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }
+            totalAudioBytes += try audioFileSize(at: url)
+            guard totalAudioBytes <= maxInlineAudioBytes else {
+                throw MerianError.payloadTooLarge
+            }
+        }
+    }
+
+    private static func audioFileSize(at url: URL) throws -> Int {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        if let size = attributes[.size] as? NSNumber {
+            return size.intValue
+        }
+        throw MerianError.invalidResponse
     }
 
     func identifyMultiModal(
@@ -574,6 +694,17 @@ final class MerianNetworkClient {
     }
 
     // MARK: - R2 Storage
+
+    func generateUploadURLs(uploadFiles: [StagingUploadFile]) async throws -> [PreSignedURL] {
+        let functionUrl = try endpointURL("generate-upload-urls")
+        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
+        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        let userId = (authUserId ?? deviceId).lowercased()
+        let bodyData = try JSONEncoder().encode(UploadURLRequestBody(files: uploadFiles, userId: userId))
+
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try JSONDecoder().decode(PreSignedURLResponse.self, from: data).urls
+    }
 
     func generateUploadURLs(fileNames: [String]) async throws -> [PreSignedURL] {
         let functionUrl = try endpointURL("generate-upload-urls")
@@ -966,10 +1097,20 @@ final class MerianNetworkClient {
         let fileNames = localImagePaths.enumerated().map { index, path in
             let ext = URL(fileURLWithPath: path).pathExtension
             let normalizedExt = ext.isEmpty ? "webp" : ext
-            return "\(scan.id)_explore_restore_\(index).\(normalizedExt)"
+            return MediaStagingContract.sanitizedFileName("\(scan.id)_explore_restore_\(index).\(normalizedExt)")
         }
 
-        let uploadUrls = try await generateUploadURLs(fileNames: fileNames)
+        let uploadFiles = try zip(localImagePaths, fileNames).map { path, fileName in
+            let fileURL = URL.documentsDirectory.appendingPathComponent(path)
+            return StagingUploadFile(
+                fileName: fileName,
+                mediaKind: .image,
+                contentType: exploreRestoreMimeType(for: fileURL),
+                sizeBytes: try MediaStagingContract.fileSizeBytes(at: fileURL)
+            )
+        }
+
+        let uploadUrls = try await generateUploadURLs(uploadFiles: uploadFiles)
         guard uploadUrls.count == localImagePaths.count else {
             throw MerianError.invalidResponse
         }

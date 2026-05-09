@@ -111,15 +111,22 @@ Always predicate on the raw stored `Int`, never on the typed computed wrapper. T
 
 ### ✅ The Pattern: Persist State Before Dispatching
 
-Transition scans to `.uploading` in SwiftData **before** calling `uploadTask.resume()`. If the process dies between the state write and the task dispatch, startup reconciliation detects the orphaned `.uploading` scans (no corresponding active URLSession task) and resets them to `.pending`. If the task was dispatched but the process died mid-upload, iOS's background URLSession re-attaches the task on relaunch — the `.uploading` state correctly prevents re-dispatch.
+Validate the media staging manifest first, then transition scans to `.uploading` in SwiftData **before** calling `uploadTask.resume()`. `MediaStagingContract` owns the preflight budget checks and deterministic upload task descriptions, so oversized or malformed local media is tombstoned while the scan is still `.pending`. If the process dies between the state write and the task dispatch, startup reconciliation detects the orphaned `.uploading` scans (no corresponding active URLSession task) and resets them to `.pending`. If the task was dispatched but the process died mid-upload, iOS's background URLSession re-attaches the task on relaunch — the `.uploading` state correctly prevents re-dispatch.
 
 ```swift
-// Always persist state BEFORE crossing the URLSession boundary
-await dbActor.markScansAsUploading(scanIds: filteredScans.map(\.id))
+// Validate local media budgets and object-key contract first.
+let preparation = prepareUploadItems(from: filteredScans, userId: stagingUserId)
+
+// Always persist state BEFORE crossing the URLSession boundary.
+await dbActor.markScansAsUploading(scanIds: Array(Set(preparation.uploadItems.map(\.scanId))))
 
 // Then dispatch
-for item in uploadItems {
+for item in preparation.uploadItems {
     let uploadTask = session.uploadTask(with: request, fromFile: item.fileURL)
+    uploadTask.taskDescription = MediaStagingContract.uploadTaskDescription(
+        scanId: item.scanId,
+        uploadIndex: item.uploadIndex
+    )
     uploadTask.resume()
 }
 ```
@@ -227,6 +234,8 @@ diContainer.offlineQueueManager.enqueueCapture(
 - Build lightweight membership snapshots from `LocalScanRecord.collections`.
 - Cache collection counts, member ID sets, and optional cover scans in value types such as `CollectionMembershipSnapshot`.
 - Use those snapshots in SwiftUI instead of repeatedly asking a collection for `scans?.count`, `contains`, or full member arrays.
+- For sync paths, scan `LocalScanRecord.collections` in bounded batches (`fetchLimit`, `fetchOffset`) and save between mutation batches. Do not fetch every scan relationship in one `FetchDescriptor`.
+- Recovery sweeps such as lookalike-cache clearing must include a predicate and fetch limit; unbounded full-library fetches are zero-OOM violations.
 
 ## 10. Auth and Store Bootstrap Must Not `fatalError`
 
@@ -235,8 +244,21 @@ Login/bootstrap failures happen on real devices: no key window yet, a cleared Ap
 ### ✅ The Pattern: Recover Or Degrade
 
 - Apple Sign-In should log and cancel if a presentation anchor or nonce is unavailable.
+- `MerianEnvironment.load()` should return typed diagnostics, not hard-crash on missing plist keys. Optional SDKs can skip setup, and Supabase endpoint construction should throw `MerianError.invalidURL` until config is valid.
 - `ModelContainer` creation should attempt corruption-specific quarantine once and then fall back to an in-memory safe mode if recovery still fails.
+- If in-memory safe mode also fails, render a startup-blocked recovery surface without attaching `.modelContainer`; do not use `try!`.
 - User-facing startup banners are acceptable; crash loops are not.
+
+## 10.1 Offline Queue Must Not Prime Live Inference State
+
+Offline queued-only visual and non-visual submissions must not call `InferenceEngine.prepareForNewScan()`. That method intentionally sets `isProcessing = true` so the insight sheet routes to the analyzing skeleton. If the device is offline and the code returns after enqueueing, no live inference task exists to clear that state.
+
+### ✅ The Pattern: Prepare Only After Online Confirmation
+
+1. Snapshot and enqueue durable media.
+2. Check `OfflineQueueManager.isOnline`.
+3. If offline, clear `pendingAnalyzeScanId`, show a toast, and return.
+4. If online, call `prepareForNewScan()`, open the insight sheet, and start live inference.
 
 ## 11. Remote Media Validation Requires Exact Host Checks
 
@@ -348,9 +370,8 @@ In the `generateUploadURLs` catch block, cross-reference live URLSession tasks a
     // .uploading scan without a live task is an orphan. Without this reset,
     // syncPendingScans only fetches .pending and the scan is never retried.
     let liveTasks = await session.allTasks
-    let activeUploadIds = Set(liveTasks.compactMap { task -> String? in
-        guard let desc = task.taskDescription, !desc.hasPrefix("inference_") else { return nil }
-        return desc.components(separatedBy: "_").first
+    let activeUploadIds = Set(liveTasks.compactMap { task in
+        MediaStagingContract.parseUploadTaskDescription(task.taskDescription)?.scanId
     })
     await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadIds)
     // ... schedule backoff retry
@@ -551,3 +572,4 @@ if let scan = (try? modelContext.fetch(descriptor))?.first {
 - Treat `ModelContainer` startup failures as data-loss-sensitive. Only corruption-class failures may trigger store recovery, and any recovery flow must quarantine `default.store`, `default.store-wal`, and `default.store-shm` before attempting recreation.
 - Never delete local media before the corresponding SwiftData delete/save succeeds. Broken ordering leaves detached records pointing at missing files and is now explicitly forbidden.
 - Background actor delete paths must use `rollback()` on save failure rather than `try? save()`. Silent save failure is architecture drift, not acceptable resilience.
+- Lookalike cache invalidation must stay batched and biological-only. `BackgroundDatabaseActor.clearAllLocalLookalikesCache()` is regression-tested with more than one batch of biological records plus a non-biological control record so a future unbounded fetch or predicate drift is caught.

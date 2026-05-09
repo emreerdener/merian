@@ -6,5 +6,5 @@ The client then uploads the multi-megabyte `Data` payloads natively to the Cloud
 
 ## Architecture
 
-- **`index.ts`**: The HTTP orchestrator. It safely catches `.json()` parse anomalies, blocks requests that exceed 5 concurrent `fileNames` (mitigating Deno array-loop abuse), and sequentially pipes the authorized request.
-- **`storage.ts`**: Enforces the `Promise.all` key generation mapping, injecting the `userId` to strictly namespace objects dynamically and executing regex sanitization against the `fileName` to prevent `/../` directory traversal vulnerabilities on Cloudflare's staging bucket.
+- **`index.ts`**: The HTTP orchestrator. It safely catches `.json()` parse anomalies, accepts the structured `files` manifest (`fileName`, `mediaKind`, `contentType`, `sizeBytes`), keeps legacy `fileNames` compatibility, and blocks requests that exceed 5 media objects.
+- **`storage.ts`**: Validates media kind/content type/byte budgets before signing, enforces the `Promise.all` key generation mapping, injects the verified `userId` to strictly namespace objects dynamically, and executes regex sanitization against `fileName` to prevent `/../` directory traversal vulnerabilities on Cloudflare's staging bucket.

@@ -43,16 +43,14 @@ Merian uses two different categories of keys/configuration:
 
 That means committed client config is acceptable for values in the second group, while the first group must stay server-side only.
 
-`MerianEnvironment.swift` reads all build-config keys from `Bundle.main.infoDictionary` at runtime, crashing with a `fatalError` if any required key is absent:
+`MerianEnvironment.swift` reads all build-config keys from `Bundle.main.infoDictionary` at runtime and returns typed configuration diagnostics if a key is absent. Missing optional analytics/payment keys skip SDK setup. Missing or invalid Supabase config blocks outbound endpoint construction with `MerianError.invalidURL` while still allowing the app to boot into recovery UI.
 
 ```swift
 // MerianEnvironment.swift — read from xcconfig, not hardcoded
 enum MerianEnvironment {
-    static let supabaseUrl: String = { /* reads SUPABASE_URL from Info.plist */ }()
-    static let supabaseAnonKey: String = { /* reads SUPABASE_ANON_KEY from Info.plist */ }()
-    static let revenueCatApiKey: String = { /* reads REVENUECAT_API_KEY from Info.plist */ }()
-    static let postHogApiKey: String = { /* reads POSTHOG_API_KEY from Info.plist */ }()
-    static let telemetryAppID: String = { /* reads TELEMETRY_APP_ID from Info.plist */ }()
+    static let configuration = load()
+    static var configurationIssues: [ConfigurationIssue] { configuration.issues }
+    static var isSupabaseConfigured: Bool { configuration.hasSupabaseConfiguration }
 }
 ```
 

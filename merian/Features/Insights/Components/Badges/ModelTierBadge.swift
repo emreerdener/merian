@@ -12,60 +12,40 @@ struct ModelTierBadge: View {
         let isTrialActive = trialDays > 0 && !RevenueCatManager.shared.isSubscribed
         
         if isTrialActive {
-            Button(action: {
-                showPaywall = true
-            }) {
-                HStack(alignment: .center, spacing: 8) {
-                     Image(systemName: "sparkle")
-                        .font(.footnote.weight(.bold))
-
-                    Text("\(trialDays) days of pro remaining")
-                        .font(.subheadline.weight(.semibold))
-                        
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.bold))
-                }
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule()
-                        .fill(Color.primary)
-                )
-            }
-            .buttonStyle(.plain)
-            .sheet(isPresented: $showPaywall) {
-                PaywallView()
-            }
+            paywallButton(text: "\(trialDays) days of pro remaining")
         } else if !RevenueCatManager.shared.isProActive, let score = confidenceScore {
             let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
             if score >= bands.possible && score < bands.strong {
-            Button(action: {
-                showPaywall = true
-            }) {
-                HStack(alignment: .center, spacing: 8) {
-                     Image(systemName: "sparkle")
-                        .font(.footnote.weight(.bold))
+                paywallButton(text: label)
+            }
+        }
+    }
 
-                    Text(label)
-                        .font(.subheadline.weight(.semibold))
-                        
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.bold))
-                }
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule()
-                        .fill(Color.primary)
-                )
+    private func paywallButton(text: String) -> some View {
+        Button(action: {
+            showPaywall = true
+        }) {
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: "sparkle")
+                    .font(.footnote.weight(.bold))
+
+                Text(text)
+                    .font(.subheadline.weight(.semibold))
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.bold))
             }
-            .buttonStyle(.plain)
-            .sheet(isPresented: $showPaywall) {
-                PaywallView()
-            }
-            }
+            .foregroundStyle(Color(uiColor: .systemBackground))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(Color.primary)
+            )
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
     }
 }

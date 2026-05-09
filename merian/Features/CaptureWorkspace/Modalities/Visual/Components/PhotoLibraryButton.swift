@@ -24,9 +24,7 @@ struct PhotoLibraryButton: View {
                     .foregroundColor(.white)
             }
         }
-        .frame(width: 50, height: 50)
-        .background(.ultraThinMaterial, in: Circle())
-        .environment(\.colorScheme, .dark)
+        .circularMaterialControl(colorScheme: .dark)
         .accessibilityIdentifier("PhotoLibraryButton")
     }
     

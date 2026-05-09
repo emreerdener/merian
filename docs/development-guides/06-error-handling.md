@@ -72,7 +72,7 @@ Cloud deletion (PendingCloudDeletionTask)
     └── All other errors → retain in queue
 ```
 
-Both uploads and inference use the same background `URLSession` (`URLSessionConfiguration.background`) with `sessionSendsLaunchEvents = true`, so iOS can re-attach in-flight tasks on app relaunch and deliver inference results while the app is completely suspended. Upload task descriptions are `"\(scanId)_\(imageIndex)"` and inference task descriptions are `"inference_\(scanId)"` — both are used for deduplication against already-running tasks after a relaunch.
+Both uploads and inference use the same background `URLSession` (`URLSessionConfiguration.background`) with `sessionSendsLaunchEvents = true`, so iOS can re-attach in-flight tasks on app relaunch and deliver inference results while the app is completely suspended. Upload task descriptions are `"\(scanId)_\(uploadIndex)"` and inference task descriptions are `"inference_\(scanId)"` — both are used for deduplication against already-running tasks after a relaunch.
 
 ---
 

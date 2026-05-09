@@ -22,13 +22,7 @@ struct UserTagsCard: View {
     var body: some View {
         if let record = record {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "tag")
-                        .foregroundColor(.secondary)
-                    Text("Tags")
-                        .font(.system(.headline))
-                        .foregroundColor(.primary)
-                    
+                InsightCardHeader(systemImage: "tag", title: "Tags") {
                     Spacer()
                     
                     Button {

@@ -24,12 +24,8 @@ Every capture produces **two independent downsampled images** from the same raw 
 
 ```swift
 // Camera shutter path (Capture.swift) — same captureData source, two passes
-let inferenceCGImage = ImageDownsampler.downsample(
-    data: captureData,
-    maxSize: MerianConfig.inferenceImageMaxSize(isProActive: diContainer.revenueCatManager.isProActive))  // → Gemini
-
-let displayCGImage = ImageDownsampler.downsample(
-    data: captureData, maxSize: MerianConfig.displayImageMaxSize)    // → disk / insight sheet
+// Runs inside DetachedWork.value(category: .imagePreparation), not on @MainActor.
+let prepared = try await CaptureWorkspaceViewModel.prepareCameraCapture(...)
 
 // Gallery picker path (CaptureWorkspaceViewModel) — same dual pattern from a file URL
 let inferenceCGImage = ImageDownsampler.downsample(
@@ -46,6 +42,8 @@ Three staging buffers are populated in `CaptureWorkspaceViewModel` after each ca
 - `StagedImage.displayData` — 2048 px display payloads (square-cropped WebP `Data`, same geometry)
 - `StagedImage.uiImage` — in-memory `UIImage` thumbnails for the Active Scan Toolbar. The camera path wraps the already-decoded `CGImage` directly; the gallery path reconstructs the image once during the final main-actor commit from the prepared inference payload.
 
+The camera shutter path explicitly separates orchestration from ImageIO work. `executeCapture()` snapshots location, composing-zone center, and Pro tier on the main actor, then calls `DetachedWork.value(category: .imagePreparation)` to downsample, crop, and encode the 12MP buffer. The detached worker returns bounded inference/display bytes plus a `SendableCGImage` preview wrapper. No `CGImageSourceCreateThumbnailAtIndex` or `CGImageDestinationFinalize` work is allowed to inherit the view model's `@MainActor` executor.
+
 The gallery picker now uses a bounded snapshot pipeline. `CaptureWorkspaceViewModel.handlePhotoPickerSelection` snapshots the staged-image budget (`availableSlots`) and paywall gate once on `@MainActor`, clears `selectedPhotoItems`, and then performs all file-backed downsampling in a detached task. Historical GPS/weather metadata is converted into a `HistoricalEnvironmentContextSnapshot: Sendable` before leaving the main actor, and the detached task returns only `PreparedStagedImage` values (`Data` + sendable metadata). A single main-actor commit then appends the final `StagedImage` array entries. This preserves Swift 6 isolation rules while removing repeated `MainActor.run` hops during gallery imports.
 
 The refinement path now shares that same prepared-image staging helper instead of issuing an eager `Data(contentsOf:)` copy of the stored scan image. `startRefinementScan(from:)` builds a `PreparedStagedImageRequest` with `.memoryMapOriginalFile`, sends it through the injected `PreparedStagedImageLoader`, and then commits the result on the main actor. In production the loader uses `ImageDownsampler` plus `.mappedIfSafe`; in tests the same seam is stubbed to verify request routing and staging state transitions without UI automation. This keeps refinement staging byte-bounded, testable, and free from a second full-file copy before the user even captures the supplementary image.
@@ -53,6 +51,8 @@ The refinement path now shares that same prepared-image staging helper instead o
 `PreparedStagedImage` now also carries a sendable preview `CGImage`, so `commitPreparedStagedImages` can build the toolbar thumbnail from an already-decoded image instead of calling `UIImage(data:)` on the main actor during the final commit step.
 
 Using the already-decoded `CGImage` directly for camera captures eliminates a WebP round-trip decode step (encode to `Data` → decode back to `UIImage`). The `stagedCapture.images.count` change is what the `onChange(of: viewModel.stagedCapture.images.count)` observer in `CaptureWorkspaceView` watches to auto-trigger `submitActiveScan`.
+
+`CameraManager.photoOutput(_:didFinishProcessingPhoto:)` wraps `AVCapturePhoto.fileDataRepresentation()` in an `autoreleasepool`, releasing AVFoundation intermediates immediately after the continuation resumes.
 
 `Analysis.submitActiveScan()` first calls `enqueueCapture` synchronously — before any `async` boundary — writing images to disk and dispatching the background URLSession upload while the app is in the foreground (see [Offline Sync Pipeline → Scan Submission & Immediate Durability](../backend-and-data/01-offline-sync-pipeline.md)). It then passes both `Data` arrays to `InferenceEngine.analyze(imageDatas:displayDatas:)`. Inside the engine, `imageDatas` is base64-encoded for the AI call and discarded after encoding — there is no retained inference buffer; durability is fully owned by the offline queue. `displayDatas.first` is assigned to `activeImageData: Data?` and wrapped into `activeMedia` as a single-frame preview used by the insight sheet carousel during the inference window. The full `displayDatas` array is forwarded to `InferenceProcessingActor.parseAndSave(displayDatas:)` and written to disk via `FileIOActor.writeTemporaryImages`; once saved, the persisted user timeline is rebuilt into `activeMedia` and the carousel switches from the live preview to on-disk `MediaItem.image` entries (two-phase transition). The AI never receives the larger payload.
 
