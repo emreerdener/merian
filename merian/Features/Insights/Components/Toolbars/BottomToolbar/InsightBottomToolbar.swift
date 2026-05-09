@@ -11,9 +11,12 @@ struct InsightBottomToolbar: ToolbarContent {
     let shareExternally: () -> Void
     let onShareToExplore: ((Bool) -> Void)?
     let isSharingToExplore: Bool
+    let isUpdatingExploreFieldNotes: Bool
     var fieldNotesPreview: String?
     var sharedExplorePostId: String?
+    var fieldNotesArePublicOnExplore: Bool
     var onViewInExplore: (() -> Void)?
+    var onUpdateFieldNotesVisibility: ((Bool) async -> FieldNotesVisibilityUpdateFeedback)?
     
     var body: some ToolbarContent {
         if showBottomBarTools, let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
@@ -22,9 +25,12 @@ struct InsightBottomToolbar: ToolbarContent {
                     shareExternally: shareExternally,
                     onShareToExplore: onShareToExplore,
                     isSharingToExplore: isSharingToExplore,
+                    isUpdatingExploreFieldNotes: isUpdatingExploreFieldNotes,
                     fieldNotesPreview: fieldNotesPreview,
                     sharedExplorePostId: sharedExplorePostId,
-                    onViewInExplore: onViewInExplore
+                    fieldNotesArePublicOnExplore: fieldNotesArePublicOnExplore,
+                    onViewInExplore: onViewInExplore,
+                    onUpdateFieldNotesVisibility: onUpdateFieldNotesVisibility
                 )
 
                 Spacer()

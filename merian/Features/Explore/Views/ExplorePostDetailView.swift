@@ -1,22 +1,36 @@
+import SwiftData
 import SwiftUI
 
 struct ExplorePostDetailView: View {
     @Bindable var viewModel: ExploreFeedViewModel
     let postId: String
     let shouldFocusCommentComposer: Bool
+    let shouldOpenInsight: Bool
 
+    @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isComposerFocused: Bool
     @State private var detail: ExplorePostDetail?
     @State private var isLoadingDetail = false
     @State private var detailErrorMessage: String?
     @State private var reactingCommentId: String?
+    @State private var isUpdatingFieldNotesVisibility = false
+    @State private var showHideFieldNotesConfirmation = false
+    @State private var localFieldNotes: String?
+    @State private var selectedInsightRecord: LocalScanRecord?
+    @State private var isRefreshingAfterInsightDismiss = false
+    @State private var didAutoOpenInsight = false
 
     private let commentsSectionId = "explore-comments-section"
     private let commentsComposerId = "explore-comments-composer"
 
     private var currentPost: ExplorePost? {
         viewModel.post(id: postId)
+    }
+
+    private var fieldNotesArePublicOnExplore: Bool {
+        detail?.trimmedFieldNotes != nil
     }
 
     var body: some View {
@@ -40,9 +54,11 @@ struct ExplorePostDetailView: View {
                             VStack(spacing: 24) {
                                 speciesSection(for: post)
 
+                                fieldNotesSection(for: post)
+
                                 insightCardsSection(for: post)
 
-                                ExploreObservationContextCard(post: post, detail: detail)
+                                ExploreObservationContextCard(post: post)
                             }
                             .padding(.horizontal, 16)
                             .padding(.top, 16)
@@ -74,9 +90,19 @@ struct ExplorePostDetailView: View {
                         async let detailTask: Void = loadPostDetail()
                         async let commentsTask: Void = viewModel.openComments(for: post)
                         _ = await (detailTask, commentsTask)
+                        syncLocalFieldNotes(for: post)
 
                         if shouldFocusCommentComposer {
                             focusComments(using: scrollProxy, animated: false)
+                        }
+
+                        if shouldOpenInsight && !didAutoOpenInsight {
+                            didAutoOpenInsight = true
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 250_000_000)
+                                guard !Task.isCancelled else { return }
+                                openInsight(for: post)
+                            }
                         }
                     }
                     .onChange(of: currentPost?.id) { _, newValue in
@@ -100,6 +126,48 @@ struct ExplorePostDetailView: View {
             if newValue.count > 500 {
                 viewModel.commentDraft = String(newValue.prefix(500))
             }
+        }
+        .confirmationDialog(
+            fieldNotesArePublicOnExplore ? "Hide field notes?" : "Show field notes?",
+            isPresented: $showHideFieldNotesConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(
+                fieldNotesArePublicOnExplore ? "Unpublish notes" : "Show notes"
+            ) {
+                Task { await updateFieldNotesVisibility(isPublic: !fieldNotesArePublicOnExplore) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(fieldNotesArePublicOnExplore
+                ? "Your post stays live, but these notes will be hidden."
+                : "These notes will be visible on your Explore post.")
+
+        }
+        .sheet(item: $selectedInsightRecord, onDismiss: {
+            let shouldSyncPublicFieldNotes = fieldNotesArePublicOnExplore
+            isRefreshingAfterInsightDismiss = true
+            Task {
+                if let post = currentPost {
+                    syncLocalFieldNotes(for: post)
+                    if shouldSyncPublicFieldNotes {
+                        await syncPublicFieldNotesAfterInsightDismiss(for: post)
+                    }
+                    syncLocalFieldNotes(for: post)
+                }
+                await loadPostDetail()
+                isRefreshingAfterInsightDismiss = false
+            }
+        }) { record in
+            InsightSheetView(
+                isPresented: Binding(
+                    get: { selectedInsightRecord != nil },
+                    set: { if !$0 { selectedInsightRecord = nil } }
+                ),
+                initialRecord: record,
+                inferenceEngine: inferenceEngine,
+                allowsExplorePresentation: false
+            )
         }
     }
 
@@ -238,6 +306,19 @@ struct ExplorePostDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func fieldNotesSection(for post: ExplorePost) -> some View {
+        if !isRefreshingAfterInsightDismiss, let fieldNotes = detail?.trimmedFieldNotes {
+            ExploreFieldNotesCard(
+                fieldNotes: fieldNotes,
+                fieldNotesArePublic: true,
+                canToggleVisibility: isOwnedByCurrentUser(post),
+                isUpdating: isUpdatingFieldNotesVisibility,
+                onToggleVisibility: { showHideFieldNotesConfirmation = true }
+            )
+        }
     }
 
     @ViewBuilder
@@ -487,7 +568,25 @@ struct ExplorePostDetailView: View {
 
     private func detailMenuButton(for post: ExplorePost) -> some View {
         Menu {
-            if post.isOwnedByViewer {
+            if isOwnedByCurrentUser(post) {
+                Button {
+                    openInsight(for: post)
+                } label: {
+                    Label("Open insight", systemImage: "sparkles")
+                }
+
+                if detail?.trimmedFieldNotes != nil || localFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    Button {
+                        showHideFieldNotesConfirmation = true
+                    } label: {
+                        Label(
+                            fieldNotesArePublicOnExplore ? "Hide field notes" : "Show field notes",
+                            systemImage: fieldNotesArePublicOnExplore ? "eye.slash" : "eye"
+                        )
+                    }
+                    .disabled(isUpdatingFieldNotesVisibility)
+                }
+
                 Button(role: .destructive) {
                     Task { await viewModel.unshare(post) }
                 } label: {
@@ -552,6 +651,137 @@ struct ExplorePostDetailView: View {
         } catch {
             detailErrorMessage = ExploreErrorFormatter.message(for: error)
         }
+    }
+
+    private func updateFieldNotesVisibility(isPublic: Bool) async {
+        guard let post = currentPost, isOwnedByCurrentUser(post) else { return }
+        guard !isUpdatingFieldNotesVisibility else { return }
+
+        let notesToPublish = (localFieldNotes ?? detail?.trimmedFieldNotes)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !isPublic || notesToPublish?.isEmpty == false else {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                viewModel.toastMessage = "Add field notes before publishing them"
+            }
+            return
+        }
+
+        isUpdatingFieldNotesVisibility = true
+        defer { isUpdatingFieldNotesVisibility = false }
+
+        do {
+            if !isPublic, let notesToPublish {
+                preserveLocalFieldNotes(notesToPublish, for: post)
+            }
+
+            let response = try await MerianNetworkClient.shared.updateExplorePostFieldNotes(
+                postId: post.id,
+                fieldNotes: isPublic ? notesToPublish : nil
+            )
+            if response.postId == post.id {
+                detail?.fieldNotes = response.fieldNotes
+            } else {
+                detail?.fieldNotes = isPublic ? notesToPublish : nil
+            }
+            HapticManager.shared.triggerSuccessPulse()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                viewModel.toastMessage = detail?.trimmedFieldNotes == nil
+                    ? "Field notes are now private"
+                    : "Field notes are now public on Explore"
+            }
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+            }
+        }
+    }
+
+    private func syncLocalFieldNotes(for post: ExplorePost) {
+        guard isOwnedByCurrentUser(post) else {
+            localFieldNotes = nil
+            return
+        }
+
+        let scanId = post.scanId
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let notes = (try? modelContext.fetch(descriptor).first?.fieldNotes)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        localFieldNotes = notes?.isEmpty == false ? notes : nil
+    }
+
+    private func syncPublicFieldNotesAfterInsightDismiss(for post: ExplorePost) async {
+        guard isOwnedByCurrentUser(post) else { return }
+
+        do {
+            let response = try await MerianNetworkClient.shared.updateExplorePostFieldNotes(
+                postId: post.id,
+                fieldNotes: localFieldNotes
+            )
+            if response.postId == post.id {
+                detail?.fieldNotes = response.fieldNotes
+            }
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+            }
+        }
+    }
+
+    private func preserveLocalFieldNotes(_ notes: String, for post: ExplorePost) {
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let scanId = post.scanId
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+
+        guard let record = try? modelContext.fetch(descriptor).first else { return }
+
+        let existing = record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard existing.isEmpty else {
+            localFieldNotes = record.fieldNotes
+            return
+        }
+
+        record.fieldNotes = notes
+        try? modelContext.save()
+        localFieldNotes = notes
+    }
+
+    private func openInsight(for post: ExplorePost) {
+        guard isOwnedByCurrentUser(post) else { return }
+
+        let scanId = post.scanId
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+
+        guard let record = try? modelContext.fetch(descriptor).first else {
+            HapticManager.shared.triggerErrorThump()
+            viewModel.toastMessage = "This scan is not available on this device."
+            return
+        }
+
+        if let fieldNotes = detail?.trimmedFieldNotes,
+           record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            record.fieldNotes = fieldNotes
+            try? modelContext.save()
+            localFieldNotes = fieldNotes
+        }
+
+        inferenceEngine.load(from: record)
+        HapticManager.shared.triggerSelectionPulse()
+        selectedInsightRecord = record
+    }
+
+    private func isOwnedByCurrentUser(_ post: ExplorePost) -> Bool {
+        let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString
+        return post.isOwnedByViewer || currentUserId == post.authorUserId
     }
 
     private func resolvedAuthorAvatarUrl(for post: ExplorePost) -> URL? {

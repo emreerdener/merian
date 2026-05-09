@@ -14,6 +14,7 @@ struct InsightSheetView: View {
     @Binding var isPresented: Bool
     var queuedScan: QueuedScanContext?
     var initialRecord: LocalScanRecord?
+    var allowsExplorePresentation: Bool
 
     // MARK: - State
     @State private var viewModel: InsightSheetViewModel
@@ -24,11 +25,13 @@ struct InsightSheetView: View {
         isPresented: Binding<Bool>,
         queuedScan: QueuedScanContext? = nil,
         initialRecord: LocalScanRecord? = nil,
-        inferenceEngine: InferenceEngine? = nil
+        inferenceEngine: InferenceEngine? = nil,
+        allowsExplorePresentation: Bool = true
     ) {
         _isPresented = isPresented
         self.queuedScan = queuedScan
         self.initialRecord = initialRecord
+        self.allowsExplorePresentation = allowsExplorePresentation
         _viewModel = State(
             initialValue: InsightSheetViewModel(
                 queuedContext: queuedScan,
@@ -176,7 +179,10 @@ struct InsightSheetView: View {
                 }
             )
         }
-        .sheet(isPresented: $viewModel.state.showExploreSheet, onDismiss: {
+        .sheet(isPresented: Binding(
+            get: { allowsExplorePresentation && viewModel.state.showExploreSheet },
+            set: { viewModel.state.showExploreSheet = $0 }
+        ), onDismiss: {
             viewModel.refreshSharedExploreStateFromLocalCache()
         }) {
             ExploreView(initialPostId: viewModel.state.sharedExplorePostId)
@@ -258,10 +264,15 @@ private extension InsightSheetView {
                 Task { await viewModel.shareToExplore(includeFieldNotes: includeFieldNotes) }
             } : nil,
             isSharingToExplore: viewModel.state.isSharingToExplore,
+            isUpdatingExploreFieldNotes: viewModel.state.isUpdatingExploreFieldNotes,
             fieldNotesPreview: viewModel.shareableFieldNotes,
             sharedExplorePostId: viewModel.state.sharedExplorePostId,
-            onViewInExplore: {
+            fieldNotesArePublicOnExplore: viewModel.state.exploreFieldNotesArePublic,
+            onViewInExplore: allowsExplorePresentation ? {
                 viewModel.state.showExploreSheet = true
+            } : nil,
+            onUpdateFieldNotesVisibility: { isPublic in
+                await viewModel.updateExploreFieldNotesVisibility(isPublic: isPublic)
             }
         )
     }

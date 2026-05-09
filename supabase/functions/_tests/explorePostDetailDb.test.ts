@@ -13,6 +13,7 @@ import {
 
 type ExplorePostDetailRow = {
   post_id: string;
+  field_notes: string | null;
   ai_reasoning: string | null;
   gbif_taxon_key: number | null;
   wikipedia_url: string | null;
@@ -79,12 +80,14 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
       id: postId,
       userId: ownerId,
       scanId,
+      fieldNotes: "Found near the shaded edge of the trail after rain.",
     });
 
     const result = await client.queryObject<ExplorePostDetailRow>(
       `
         SELECT
           post_id,
+          field_notes,
           ai_reasoning,
           gbif_taxon_key,
           wikipedia_url,
@@ -98,6 +101,7 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
     const row = result.rows[0];
     assertExists(row);
     assertEquals(row.post_id, postId);
+    assertEquals(row.field_notes, "Found near the shaded edge of the trail after rain.");
     assertEquals(row.ai_reasoning, "Petal shape and thorn spacing match Rosa galeria.");
     assertEquals(row.gbif_taxon_key, 424242);
     assertEquals(row.wikipedia_url, wikipediaUrl);

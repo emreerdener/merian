@@ -28,11 +28,12 @@ struct FieldNotesCard: View {
                     .foregroundStyle(.primary)
                     .lineLimit(4)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(Color.primary.opacity(0.05))
-                    )
+                    .contentShape(Rectangle())
+                    .textSelection(.disabled)
+                    .onTapGesture(perform: action)
+                    .onLongPressGesture(perform: action)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("Opens field notes for editing.")
             }
 
             Button(action: action) {

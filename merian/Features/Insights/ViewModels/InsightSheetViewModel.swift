@@ -70,8 +70,10 @@ final class InsightSheetViewModel {
         var selectedWikiURL: URL?
         var isSavingPhotos = false
         var isSharingToExplore = false
+        var isUpdatingExploreFieldNotes = false
         var showExploreOnboarding = false
         var sharedExplorePostId: String?
+        var exploreFieldNotesArePublic = false
         var showExploreSheet = false
         var fieldNotesText = ""
     }
@@ -428,6 +430,7 @@ final class InsightSheetViewModel {
             )
             UserDefaults.standard.set(true, forKey: UserDefaultsKeys.hasUnseenExplorePost)
             cacheSharedExplorePostId(response.postId, for: record.id)
+            state.exploreFieldNotesArePublic = includeFieldNotes && shareableFieldNotes != nil
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = "Shared to Explore"
@@ -441,6 +444,37 @@ final class InsightSheetViewModel {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = ExploreErrorFormatter.message(for: error)
             }
+        }
+    }
+
+    func updateExploreFieldNotesVisibility(isPublic: Bool) async -> FieldNotesVisibilityUpdateFeedback {
+        guard let postId = state.sharedExplorePostId, !state.isUpdatingExploreFieldNotes else {
+            return .failure("Field notes visibility is already updating")
+        }
+
+        guard !isPublic || shareableFieldNotes != nil else {
+            return .failure("Add field notes before publishing them")
+        }
+
+        state.isUpdatingExploreFieldNotes = true
+        defer { state.isUpdatingExploreFieldNotes = false }
+
+        do {
+            if !isPublic, let shareableFieldNotes {
+                preserveLocalFieldNotesIfNeeded(shareableFieldNotes)
+            }
+
+            let response = try await MerianNetworkClient.shared.updateExplorePostFieldNotes(
+                postId: postId,
+                fieldNotes: isPublic ? shareableFieldNotes : nil
+            )
+            let publicNotes = response.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            state.exploreFieldNotesArePublic = publicNotes
+            HapticManager.shared.triggerSuccessPulse()
+            return .success(isPublic: publicNotes)
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            return .failure(ExploreErrorFormatter.message(for: error))
         }
     }
 
@@ -589,8 +623,23 @@ final class InsightSheetViewModel {
 
             ExploreShareStateStore.setSharedPostId(shareState.postId, for: scanId)
             applySharedExplorePostId(shareState.postId, for: scanId, bumpRevision: false)
+            await refreshExploreFieldNotesVisibility(postId: shareState.postId)
         } catch {
             // Keep the optimistic local cache when the authoritative refresh is unavailable.
+        }
+    }
+
+    private func refreshExploreFieldNotesVisibility(postId: String?) async {
+        guard let postId else {
+            state.exploreFieldNotesArePublic = false
+            return
+        }
+
+        do {
+            let detail = try await MerianNetworkClient.shared.getExplorePostDetail(postId: postId)
+            state.exploreFieldNotesArePublic = detail.trimmedFieldNotes != nil
+        } catch {
+            state.exploreFieldNotesArePublic = false
         }
     }
 
@@ -723,6 +772,26 @@ final class InsightSheetViewModel {
         }
     }
 
+    private func preserveLocalFieldNotesIfNeeded(_ notes: String) {
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        if state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            state.fieldNotesText = notes
+        }
+
+        guard let scanId = currentFieldNotesScanId else { return }
+        boundFieldNotesScanId = scanId
+
+        if let activeLocalRecord, activeLocalRecord.id == scanId {
+            let existing = activeLocalRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if existing.isEmpty {
+                activeLocalRecord.fieldNotes = notes
+                try? activeLocalRecord.modelContext?.save()
+            }
+        }
+    }
+
     private func clearLegacyFieldNotesIfNeeded(for scanId: String) {
         FieldNotesStore.setFieldNotes(nil, for: scanId)
     }
@@ -734,11 +803,15 @@ final class InsightSheetViewModel {
 
         guard scanId != nil else {
             state.sharedExplorePostId = nil
+            state.exploreFieldNotesArePublic = false
             return
         }
 
         let trimmed = postId?.trimmingCharacters(in: .whitespacesAndNewlines)
         state.sharedExplorePostId = (trimmed?.isEmpty == false) ? trimmed : nil
+        if state.sharedExplorePostId == nil {
+            state.exploreFieldNotesArePublic = false
+        }
     }
 
 }

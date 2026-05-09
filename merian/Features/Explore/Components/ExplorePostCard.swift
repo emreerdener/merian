@@ -8,6 +8,7 @@ struct ExplorePostCard: View {
     let onComments: () -> Void
     let onShare: () -> Void
     let onOpenDetail: () -> Void
+    let onOpenInsight: () -> Void
     let onUnshare: () -> Void
     let onBlock: () -> Void
     let onReport: () -> Void
@@ -214,6 +215,10 @@ struct ExplorePostCard: View {
     private var menuButton: some View {
         Menu {
             if post.isOwnedByViewer {
+                Button(action: onOpenInsight) {
+                    Label("Open insight", systemImage: "sparkles")
+                }
+
                 Button(role: .destructive, action: onUnshare) {
                     Label("Remove post", systemImage: "trash")
                 }

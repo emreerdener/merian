@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -7,10 +8,13 @@ enum ExploreTab: Hashable {
 }
 
 struct ExploreView: View {
+    @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = ExploreFeedViewModel()
     @State private var mapViewModel = ExploreMapViewModel()
     @State private var selectedPostRoute: ExplorePostRoute?
+    @State private var selectedInsightRecord: LocalScanRecord?
     @State private var activeTab: ExploreTab = .feed
 
     private var tabSelectionBinding: Binding<ExploreTab?> {
@@ -22,7 +26,7 @@ struct ExploreView: View {
 
     init(initialPostId: String? = nil) {
         if let postId = initialPostId {
-            _selectedPostRoute = State(initialValue: ExplorePostRoute(postId: postId, shouldFocusCommentComposer: false))
+            _selectedPostRoute = State(initialValue: ExplorePostRoute(postId: postId, shouldFocusCommentComposer: false, shouldOpenInsight: false))
         }
     }
 
@@ -32,7 +36,8 @@ struct ExploreView: View {
                 HStack(spacing: 0) {
                     ExploreFeedTabContent(
                         viewModel: viewModel,
-                        onOpenPostDetail: { openPostDetail(for: $0) }
+                        onOpenPostDetail: { openPostDetail(for: $0) },
+                        onOpenInsight: { openInsight(for: $0) }
                     )
                     .id(ExploreTab.feed)
 
@@ -63,7 +68,8 @@ struct ExploreView: View {
                     ExplorePostDetailView(
                         viewModel: viewModel,
                         postId: selectedPostRoute.postId,
-                        shouldFocusCommentComposer: selectedPostRoute.shouldFocusCommentComposer
+                        shouldFocusCommentComposer: selectedPostRoute.shouldFocusCommentComposer,
+                        shouldOpenInsight: selectedPostRoute.shouldOpenInsight
                     )
                 }
             }
@@ -117,6 +123,17 @@ struct ExploreView: View {
                 }
             )
         }
+        .sheet(item: $selectedInsightRecord) { record in
+            InsightSheetView(
+                isPresented: Binding(
+                    get: { selectedInsightRecord != nil },
+                    set: { if !$0 { selectedInsightRecord = nil } }
+                ),
+                initialRecord: record,
+                inferenceEngine: inferenceEngine,
+                allowsExplorePresentation: false
+            )
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             Task { await viewModel.refreshUnreadNotificationCount() }
         }
@@ -155,11 +172,36 @@ struct ExploreView: View {
         }
     }
 
-    private func openPostDetail(for post: ExplorePost, focusCommentComposer: Bool = false) {
+    private func openPostDetail(for post: ExplorePost, focusCommentComposer: Bool = false, openInsight: Bool = false) {
         selectedPostRoute = ExplorePostRoute(
             postId: post.id,
-            shouldFocusCommentComposer: focusCommentComposer
+            shouldFocusCommentComposer: focusCommentComposer,
+            shouldOpenInsight: openInsight
         )
+    }
+
+    private func openInsight(for post: ExplorePost) {
+        guard isOwnedByCurrentUser(post) else { return }
+
+        let scanId = post.scanId
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+
+        guard let record = try? modelContext.fetch(descriptor).first else {
+            HapticManager.shared.triggerErrorThump()
+            viewModel.toastMessage = "This scan is not available on this device."
+            return
+        }
+
+        inferenceEngine.load(from: record)
+        HapticManager.shared.triggerSelectionPulse()
+        selectedInsightRecord = record
+    }
+
+    private func isOwnedByCurrentUser(_ post: ExplorePost) -> Bool {
+        let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString
+        return post.isOwnedByViewer || currentUserId == post.authorUserId
     }
 
     private var bellButton: some View {
@@ -221,6 +263,7 @@ private struct ExploreFeedTabContent: View {
     @State private var isLocationSettingsAlertPresented = false
     @State private var isResolvingNearbyLocation = false
     let onOpenPostDetail: (ExplorePost) -> Void
+    let onOpenInsight: (ExplorePost) -> Void
 
     var body: some View {
         ZStack {
@@ -268,6 +311,7 @@ private struct ExploreFeedTabContent: View {
                             onComments: { Task { await viewModel.openCommentsSheet(for: post) } },
                             onShare: { viewModel.share(post) },
                             onOpenDetail: { onOpenPostDetail(post) },
+                            onOpenInsight: { onOpenInsight(post) },
                             onUnshare: { Task { await viewModel.unshare(post) } },
                             onBlock: { Task { await viewModel.blockAuthor(of: post) } },
                             onReport: { Task { await viewModel.report(post) } }
@@ -458,4 +502,5 @@ private struct ExploreFeedTabContent: View {
 struct ExplorePostRoute: Equatable {
     let postId: String
     let shouldFocusCommentComposer: Bool
+    let shouldOpenInsight: Bool
 }

@@ -160,6 +160,7 @@ type InsertExplorePostOptions = {
   userId: string;
   scanId: string;
   sharedAt?: string | null;
+  fieldNotes?: string | null;
 };
 
 export async function insertExplorePost(
@@ -172,10 +173,11 @@ export async function insertExplorePost(
         id,
         user_id,
         scan_id,
-        shared_at
+        shared_at,
+        field_notes
       )
-      VALUES ($1, $2, $3, COALESCE($4::timestamptz, now()))
+      VALUES ($1, $2, $3, COALESCE($4::timestamptz, now()), $5)
     `,
-    [options.id, options.userId, options.scanId, options.sharedAt ?? null],
+    [options.id, options.userId, options.scanId, options.sharedAt ?? null, options.fieldNotes ?? null],
   );
 }

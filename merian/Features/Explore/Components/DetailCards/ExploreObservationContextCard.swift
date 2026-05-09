@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ExploreObservationContextCard: View {
     let post: ExplorePost
-    let detail: ExplorePostDetail?
 
     private var rows: [ExploreObservationContextRow] {
         var rows: [ExploreObservationContextRow] = []
@@ -53,9 +52,7 @@ struct ExploreObservationContextCard: View {
     }
 
     var body: some View {
-        let fieldNotes = detail?.trimmedFieldNotes
-
-        if fieldNotes != nil || !rows.isEmpty {
+        if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 8) {
                     Image(systemName: "viewfinder")
@@ -73,27 +70,6 @@ struct ExploreObservationContextCard: View {
                             valueIcon: row.valueIcon
                         )
                     }
-                }
-
-                if let fieldNotes {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("FIELD NOTES")
-                            .font(.system(.caption, design: .monospaced))
-                            .fontWeight(.bold)
-                            .tracking(1)
-                            .foregroundColor(.secondary)
-
-                        Text(fieldNotes)
-                            .font(.system(.body))
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color(uiColor: .secondarySystemBackground))
-                    )
                 }
             }
             .card()
@@ -122,5 +98,59 @@ struct ExploreObservationContextRow: Identifiable {
 
     var id: String {
         "\(title)-\(value)-\(valueIcon ?? "none")"
+    }
+}
+
+struct ExploreFieldNotesCard: View {
+    let fieldNotes: String
+    let fieldNotesArePublic: Bool
+    let canToggleVisibility: Bool
+    let isUpdating: Bool
+    let onToggleVisibility: () -> Void
+
+    private var visibilityActionIconName: String {
+        fieldNotesArePublic ? "eye.slash" : "eye"
+    }
+
+    private var visibilityActionAccessibilityLabel: String {
+        fieldNotesArePublic ? "Hide field notes" : "Show field notes"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: "square.and.pencil")
+                    .foregroundColor(.secondary)
+                Text("Field notes")
+                    .font(.system(.headline))
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                if canToggleVisibility {
+                    Button(action: onToggleVisibility) {
+                        if isUpdating {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .frame(width: 28, height: 28)
+                        } else {
+                            Image(systemName: visibilityActionIconName)
+                                .font(.system(size: 15, weight: .semibold))
+                                .frame(width: 28, height: 28)
+                        }
+                    }
+                    .disabled(isUpdating)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel(visibilityActionAccessibilityLabel)
+                }
+            }
+
+            Text(fieldNotes)
+                .font(.system(.body))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .card()
     }
 }

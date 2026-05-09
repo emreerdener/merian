@@ -826,12 +826,12 @@ final class MerianNetworkClient {
         fieldNotes: String? = nil
     ) async throws -> ExploreShareResponse {
         let functionUrl = try endpointURL("share-scan-to-explore")
-        var payload: [String: Any] = ["scan_id": scanId]
+        var payload: [String: Any] = [
+            "scan_id": scanId,
+            "field_notes": fieldNotes ?? NSNull()
+        ]
         if let restoredObjectKeys, !restoredObjectKeys.isEmpty {
             payload["restored_object_keys"] = restoredObjectKeys
-        }
-        if let fieldNotes {
-            payload["field_notes"] = fieldNotes
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
@@ -863,6 +863,17 @@ final class MerianNetworkClient {
         let functionUrl = try endpointURL("unshare-explore-post")
         let bodyData = try JSONSerialization.data(withJSONObject: ["post_id": postId])
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+    }
+
+    func updateExplorePostFieldNotes(postId: String, fieldNotes: String?) async throws -> ExploreUpdateFieldNotesResponse {
+        let functionUrl = try endpointURL("update-explore-field-notes")
+        let payload: [String: Any] = [
+            "post_id": postId,
+            "field_notes": fieldNotes ?? NSNull()
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreUpdateFieldNotesResponse.self, from: data)
     }
 
     func setExplorePostLike(postId: String, liked: Bool) async throws -> ExploreLikeResponse {

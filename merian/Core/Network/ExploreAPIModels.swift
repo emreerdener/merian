@@ -204,7 +204,7 @@ struct ExploreMarkNotificationsReadResponse: Decodable {
 
 struct ExplorePostDetail: Decodable {
     let postId: String
-    let fieldNotes: String?
+    var fieldNotes: String?
     let speciesDictionaryId: String?
     let taxonomyKingdom: String?
     let taxonomyPhylum: String?
@@ -424,4 +424,10 @@ struct ExploreDeleteCommentResponse: Decodable {
     let commentId: String
     let commentCount: Int
     let action: String
+}
+
+struct ExploreUpdateFieldNotesResponse: Decodable {
+    let success: Bool
+    let postId: String
+    let fieldNotes: String?
 }

@@ -36,7 +36,7 @@ struct TopToolbar: ToolbarContent {
                 Menu {
                     if hasUserPhotos {
                         Button(action: { onSavePhotos() }) {
-                            Label("Download my photos", systemImage: "arrow.down.circle")
+                            Label("Download scan", systemImage: "arrow.down.circle")
                         }
                     }
                     

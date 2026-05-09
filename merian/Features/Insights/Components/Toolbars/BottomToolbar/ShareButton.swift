@@ -1,5 +1,19 @@
 import SwiftUI
 
+enum FieldNotesVisibilityUpdateFeedback {
+    case success(isPublic: Bool)
+    case failure(String)
+
+    var message: String {
+        switch self {
+        case .success(let isPublic):
+            return isPublic ? "Field notes are now public on Explore" : "Field notes are now private"
+        case .failure(let message):
+            return message
+        }
+    }
+}
+
 struct ShareButton: View {
     private enum PendingAction {
         case externalShare
@@ -10,14 +24,18 @@ struct ShareButton: View {
     let shareExternally: () -> Void
     let onShareToExplore: ((Bool) -> Void)?
     let isSharingToExplore: Bool
+    let isUpdatingExploreFieldNotes: Bool
     var fieldNotesPreview: String?
     var sharedExplorePostId: String?
+    var fieldNotesArePublicOnExplore: Bool
     var onViewInExplore: (() -> Void)?
+    var onUpdateFieldNotesVisibility: ((Bool) async -> FieldNotesVisibilityUpdateFeedback)?
     
     @Environment(\.colorScheme) private var colorScheme
     @State private var showingOptions = false
     @State private var pendingAction: PendingAction?
     @State private var includeFieldNotesInExplore = false
+    @State private var fieldNotesVisibilityFeedback: FieldNotesVisibilityUpdateFeedback?
 
     private var showsExploreAction: Bool {
         onShareToExplore != nil || onViewInExplore != nil
@@ -47,6 +65,10 @@ struct ShareButton: View {
     // BUTTONS TEXT
     private var exploreActionTitle: String {
         sharedExplorePostId != nil ? "View post" : "Share discovery"
+    }
+
+    private var showsExplorePanelActionButton: Bool {
+        sharedExplorePostId == nil || onViewInExplore != nil
     }
 
     private var exploreDescription: String {
@@ -97,6 +119,20 @@ struct ShareButton: View {
                     // EXPLORE FEATURE PANEL
                     exploreFeaturePanel
 
+                    if let fieldNotesVisibilityFeedback {
+                        ToastBanner(onDismiss: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                self.fieldNotesVisibilityFeedback = nil
+                            }
+                        }) {
+                            Text(fieldNotesVisibilityFeedback.message)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.primary)
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+
                     // SHARE TO EXTERNAL APPS
                     VStack(alignment: .leading, spacing: 10) {
                         Button {
@@ -144,6 +180,14 @@ struct ShareButton: View {
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        }
+        .task(id: fieldNotesVisibilityFeedback?.message) {
+            guard fieldNotesVisibilityFeedback != nil else { return }
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                fieldNotesVisibilityFeedback = nil
+            }
         }
     }
 
@@ -219,34 +263,74 @@ struct ShareButton: View {
                 }
             }
 
-            Button {
-                pendingAction = sharedExplorePostId != nil
-                    ? .viewInExplore
-                    : .shareToExplore(includeFieldNotes: includeFieldNotesInExplore)
-                showingOptions = false
-            } label: {
-                HStack(alignment: .center) {
-                    Label(
-                        isSharingToExplore && sharedExplorePostId == nil
-                            ? "Sharing..."
-                            : exploreActionTitle,
-                        systemImage: sharedExplorePostId != nil ? "eye" : "safari"
-                    )
-                    .font(.headline)
+            if sharedExplorePostId != nil, hasFieldNotesToShare {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle(
+                        isOn: Binding(
+                            get: { fieldNotesArePublicOnExplore },
+                            set: { updateFieldNotesVisibility(isPublic: $0) }
+                        )
+                    ) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Show field notes on Explore")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+
+                            Text(fieldNotesArePublicOnExplore ? "Visible on the published post." : "Private to this scan.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    .disabled(isUpdatingExploreFieldNotes)
+
+                    if fieldNotesArePublicOnExplore, let fieldNotesExcerpt {
+                        Text(fieldNotesExcerpt)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(4)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(Color.primary.opacity(0.04))
+                            )
+                    }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 13)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(exploreActionFillColor)
-                )
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(exploreActionForegroundColor)
-            .disabled(isSharingToExplore && sharedExplorePostId == nil)
+
+            if showsExplorePanelActionButton {
+                Button {
+                    pendingAction = sharedExplorePostId != nil
+                        ? .viewInExplore
+                        : .shareToExplore(includeFieldNotes: includeFieldNotesInExplore)
+                    showingOptions = false
+                } label: {
+                    HStack(alignment: .center) {
+                        Label(
+                            isSharingToExplore && sharedExplorePostId == nil
+                                ? "Sharing..."
+                                : exploreActionTitle,
+                            systemImage: sharedExplorePostId != nil ? "eye" : "safari"
+                        )
+                        .font(.headline)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 13)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(exploreActionFillColor)
+                    )
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(exploreActionForegroundColor)
+                .disabled(isSharingToExplore && sharedExplorePostId == nil)
+            }
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -274,6 +358,18 @@ struct ShareButton: View {
             onShareToExplore?(includeFieldNotes)
         case .viewInExplore:
             onViewInExplore?()
+        }
+    }
+
+    private func updateFieldNotesVisibility(isPublic: Bool) {
+        guard let onUpdateFieldNotesVisibility else { return }
+
+        fieldNotesVisibilityFeedback = nil
+        Task {
+            let feedback = await onUpdateFieldNotesVisibility(isPublic)
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                fieldNotesVisibilityFeedback = feedback
+            }
         }
     }
 }
