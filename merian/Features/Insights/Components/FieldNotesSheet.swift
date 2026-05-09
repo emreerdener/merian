@@ -5,9 +5,16 @@ struct FieldNotesSheet: View {
     @Binding var text: String
     let promptContext: FieldNotesPromptContext
 
+    @Environment(SpeechManager.self) private var speechManager
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isTextFieldFocused: Bool
     @State private var showDeleteConfirmation = false
+    @State private var dictationTask: Task<Void, Never>?
+    @State private var dictationErrorMessage: String?
+
+    private var isDictating: Bool {
+        dictationTask != nil && speechManager.isRecording
+    }
 
     var body: some View {
         ZStack {
@@ -44,6 +51,15 @@ struct FieldNotesSheet: View {
                         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .onTapGesture {
                             isTextFieldFocused = true
+                        }
+
+                        dictationButton
+
+                        if let dictationErrorMessage {
+                            Text(dictationErrorMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     .padding(.horizontal)
@@ -92,6 +108,15 @@ struct FieldNotesSheet: View {
                     }
                 }
             }
+            .onChange(of: speechManager.isRecording) { _, isRecording in
+                if !isRecording {
+                    dictationTask?.cancel()
+                    dictationTask = nil
+                }
+            }
+            .onDisappear {
+                stopDictation()
+            }
 
             if showDeleteConfirmation {
                 clearNotesConfirmationOverlay
@@ -100,6 +125,46 @@ struct FieldNotesSheet: View {
         .presentationDragIndicator(.visible)
         .presentationDetents([.medium, .large])
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var dictationButton: some View {
+        Button {
+            HapticManager.shared.triggerMediumPulse()
+            if isDictating {
+                stopDictation()
+            } else {
+                startDictation()
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: isDictating ? "stop.fill" : "mic.fill")
+                    .font(.system(size: 16, weight: .semibold))
+
+                Text(isDictating ? "Stop dictation" : "Dictate field notes")
+                    .font(.headline)
+
+                if speechManager.isStarting {
+                    Spacer(minLength: 8)
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(isDictating ? .white : .primary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .foregroundStyle(isDictating ? .white : .primary)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isDictating ? Color.red : Color.primary.opacity(0.08))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(Color.primary.opacity(isDictating ? 0 : 0.1), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(speechManager.isStarting)
+        .animation(.easeInOut(duration: 0.2), value: isDictating)
     }
 
     private var clearNotesConfirmationOverlay: some View {
@@ -172,9 +237,35 @@ struct FieldNotesSheet: View {
     }
 
     private func clearFieldNotes() {
+        stopDictation()
         isTextFieldFocused = false
         text = ""
         showDeleteConfirmation = false
         dismiss()
+    }
+
+    private func startDictation() {
+        dictationErrorMessage = nil
+        isTextFieldFocused = false
+        let base = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        dictationTask = Task {
+            do {
+                try await speechManager.startDictation { transcribed in
+                    let trimmedTranscription = transcribed.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmedTranscription.isEmpty else { return }
+                    text = base.isEmpty ? trimmedTranscription : base + " " + trimmedTranscription
+                }
+            } catch {
+                dictationErrorMessage = error.localizedDescription
+                dictationTask = nil
+            }
+        }
+    }
+
+    private func stopDictation() {
+        speechManager.stopDictation()
+        dictationTask?.cancel()
+        dictationTask = nil
     }
 }

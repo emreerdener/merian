@@ -4,7 +4,7 @@ import Speech
 
 struct PermissionError: LocalizedError {
     var errorDescription: String? {
-        return "Microphone access required. Check Settings."
+        return "Microphone access required. Check device settings."
     }
 }
 

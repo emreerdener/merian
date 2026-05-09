@@ -48,7 +48,7 @@ enum AudioCaptureError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .microphonePermissionDenied: return "Microphone access required. Check Settings."
+        case .microphonePermissionDenied: return "Microphone access required. Check device settings."
         case .hardwareSampleRateZero:     return "Audio hardware unavailable."
         }
     }

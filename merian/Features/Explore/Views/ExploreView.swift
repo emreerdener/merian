@@ -218,8 +218,16 @@ struct ExploreView: View {
                     .frame(minWidth: 18, minHeight: 18)
                     .background(
                         Capsule(style: .continuous)
-                            .fill(Color.red)
+                            .fill(Color(uiColor: .systemRed))
                     )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color(uiColor: .systemBackground), lineWidth: 1.5)
+                    )
+                    .compositingGroup()
+                    .shadow(color: .black.opacity(0.18), radius: 3, x: 0, y: 1)
+                    .offset(x: 6, y: -6)
+                    .zIndex(1)
             }
         }
         .accessibilityLabel(accessibilityNotificationLabel)

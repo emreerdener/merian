@@ -105,7 +105,9 @@ struct ExploreFieldNotesCard: View {
     let fieldNotes: String
     let fieldNotesArePublic: Bool
     let canToggleVisibility: Bool
+    let canEdit: Bool
     let isUpdating: Bool
+    let onEdit: () -> Void
     let onToggleVisibility: () -> Void
 
     private var visibilityActionIconName: String {
@@ -126,6 +128,17 @@ struct ExploreFieldNotesCard: View {
                     .foregroundColor(.primary)
 
                 Spacer()
+
+                if canEdit {
+                    Button(action: onEdit) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 15, weight: .semibold))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel("Edit field notes")
+                }
 
                 if canToggleVisibility {
                     Button(action: onToggleVisibility) {

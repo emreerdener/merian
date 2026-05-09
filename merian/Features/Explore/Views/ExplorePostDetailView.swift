@@ -17,6 +17,7 @@ struct ExplorePostDetailView: View {
     @State private var reactingCommentId: String?
     @State private var isUpdatingFieldNotesVisibility = false
     @State private var showHideFieldNotesConfirmation = false
+    @State private var showFieldNotesEditor = false
     @State private var localFieldNotes: String?
     @State private var selectedInsightRecord: LocalScanRecord?
     @State private var isRefreshingAfterInsightDismiss = false
@@ -127,22 +128,10 @@ struct ExplorePostDetailView: View {
                 viewModel.commentDraft = String(newValue.prefix(500))
             }
         }
-        .confirmationDialog(
-            fieldNotesArePublicOnExplore ? "Hide field notes?" : "Show field notes?",
-            isPresented: $showHideFieldNotesConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button(
-                fieldNotesArePublicOnExplore ? "Unpublish notes" : "Show notes"
-            ) {
-                Task { await updateFieldNotesVisibility(isPublic: !fieldNotesArePublicOnExplore) }
+        .overlay {
+            if showHideFieldNotesConfirmation {
+                fieldNotesVisibilityConfirmationOverlay
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(fieldNotesArePublicOnExplore
-                ? "Your post stays live, but these notes will be hidden."
-                : "These notes will be visible on your Explore post.")
-
         }
         .sheet(item: $selectedInsightRecord, onDismiss: {
             let shouldSyncPublicFieldNotes = fieldNotesArePublicOnExplore
@@ -169,6 +158,102 @@ struct ExplorePostDetailView: View {
                 allowsExplorePresentation: false
             )
         }
+        .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
+            let shouldSyncPublicFieldNotes = fieldNotesArePublicOnExplore
+            Task {
+                if let post = currentPost {
+                    syncLocalFieldNotes(for: post)
+                    if shouldSyncPublicFieldNotes {
+                        await syncPublicFieldNotesAfterInsightDismiss(for: post)
+                    }
+                    await loadPostDetail()
+                }
+            }
+        }) {
+            FieldNotesSheet(
+                text: Binding(
+                    get: { localFieldNotes ?? detail?.trimmedFieldNotes ?? "" },
+                    set: { updateLocalFieldNotes($0) }
+                ),
+                promptContext: .resolved(subjectId: nil)
+            )
+        }
+    }
+
+    private var fieldNotesVisibilityConfirmationOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.28)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showHideFieldNotesConfirmation = false
+                    }
+                }
+
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(fieldNotesArePublicOnExplore ? "Hide field notes?" : "Show field notes?")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+
+                    Text(fieldNotesArePublicOnExplore
+                        ? "Your post stays live, but these notes will be hidden."
+                        : "These notes will be visible on your Explore post.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack(spacing: 12) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showHideFieldNotesConfirmation = false
+                        }
+                    } label: {
+                        Text("Cancel")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.primary.opacity(0.08))
+                    )
+
+                    Button {
+                        let nextVisibility = !fieldNotesArePublicOnExplore
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showHideFieldNotesConfirmation = false
+                        }
+                        Task { await updateFieldNotesVisibility(isPublic: nextVisibility) }
+                    } label: {
+                        Text(fieldNotesArePublicOnExplore ? "Hide" : "Show")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color(uiColor: .systemBackground))
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.primary)
+                    )
+                    .disabled(isUpdatingFieldNotesVisibility)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: 340)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+            .padding(.horizontal, 24)
+        }
+        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+        .zIndex(100)
     }
 
     private func headerRow(for post: ExplorePost) -> some View {
@@ -315,7 +400,9 @@ struct ExplorePostDetailView: View {
                 fieldNotes: fieldNotes,
                 fieldNotesArePublic: true,
                 canToggleVisibility: isOwnedByCurrentUser(post),
+                canEdit: isOwnedByCurrentUser(post),
                 isUpdating: isUpdatingFieldNotesVisibility,
+                onEdit: { openFieldNotesEditor(for: post) },
                 onToggleVisibility: { showHideFieldNotesConfirmation = true }
             )
         }
@@ -577,6 +664,12 @@ struct ExplorePostDetailView: View {
 
                 if detail?.trimmedFieldNotes != nil || localFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
                     Button {
+                        openFieldNotesEditor(for: post)
+                    } label: {
+                        Label("Edit field notes", systemImage: "pencil")
+                    }
+
+                    Button {
                         showHideFieldNotesConfirmation = true
                     } label: {
                         Label(
@@ -710,6 +803,37 @@ struct ExplorePostDetailView: View {
         let notes = (try? modelContext.fetch(descriptor).first?.fieldNotes)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         localFieldNotes = notes?.isEmpty == false ? notes : nil
+    }
+
+    private func openFieldNotesEditor(for post: ExplorePost) {
+        guard isOwnedByCurrentUser(post) else { return }
+
+        syncLocalFieldNotes(for: post)
+        if localFieldNotes == nil, let publicNotes = detail?.trimmedFieldNotes {
+            preserveLocalFieldNotes(publicNotes, for: post)
+        }
+
+        HapticManager.shared.triggerSelectionPulse()
+        showFieldNotesEditor = true
+    }
+
+    private func updateLocalFieldNotes(_ notes: String) {
+        guard let post = currentPost, isOwnedByCurrentUser(post) else { return }
+
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scanId = post.scanId
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+
+        guard let record = try? modelContext.fetch(descriptor).first else { return }
+
+        let existing = record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard existing != trimmed || record.fieldNotes != notes else { return }
+
+        record.fieldNotes = trimmed.isEmpty ? nil : notes
+        try? modelContext.save()
+        localFieldNotes = trimmed.isEmpty ? nil : notes
     }
 
     private func syncPublicFieldNotesAfterInsightDismiss(for post: ExplorePost) async {

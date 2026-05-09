@@ -71,18 +71,9 @@ struct BiologicalView: View {
                 .presentationDragIndicator(.visible)
             }
 
-            FieldNotesCard(
-                previewText: viewModel.fieldNotesText,
-                promptContext: viewModel.fieldNotesPromptContext,
-                action: {
-                    viewModel.state.isFieldNotesSheetPresented = true
-                }
-            )
-            .cardEntrance(index: 1)
-
             // MARK: - Toxicity Banner
             ToxicityBanner()
-                .cardEntrance(index: 2)
+                .cardEntrance(index: 1)
 
             // MARK: - Layout Guards
             let isBiological = inferenceEngine.speciesData?.isBiological ?? false
@@ -109,20 +100,29 @@ struct BiologicalView: View {
                         onMatchConfirmed: { viewModel.state.toastMessage = "Match confirmed" },
                         onRefineScan: refinementAction
                     )
-                    .cardEntrance(index: 4)
+                    .cardEntrance(index: 2)
                 }
+
+                FieldNotesCard(
+                    previewText: viewModel.fieldNotesText,
+                    promptContext: viewModel.fieldNotesPromptContext,
+                    action: {
+                        viewModel.state.isFieldNotesSheetPresented = true
+                    }
+                )
+                .cardEntrance(index: 3)
 
                 // MARK: - Educational Reference
                 OverviewCard(
                     isSafariPresented: $isSafariPresented,
                     selectedWikiURL: $selectedWikiURL
                 )
-                .cardEntrance(index: 6)
+                .cardEntrance(index: 4)
     
                 // MARK: - Habitat & Distribution
                 if !isUnknownSubject {
                     HabitatAndDistributionCard()
-                        .cardEntrance(index: 7)
+                        .cardEntrance(index: 5)
                 }
     
                 // MARK: - Biological Classification
@@ -131,7 +131,7 @@ struct BiologicalView: View {
                         taxonomyData: inferenceEngine.speciesData?.taxonomy,
                         scientificName: inferenceEngine.speciesData?.scientificName
                     )
-                    .cardEntrance(index: 8)
+                    .cardEntrance(index: 6)
                 }
     
                  // MARK: - Similar Species Gallery
@@ -150,7 +150,7 @@ struct BiologicalView: View {
                         }
                     }
                     .animation(.easeInOut, value: inferenceEngine.isLookalikesLoading)
-                    .cardEntrance(index: 9)
+                    .cardEntrance(index: 7)
                 }
     
                 // MARK: - Spatiotemporal Context
@@ -159,12 +159,12 @@ struct BiologicalView: View {
                     timestamp: timestamp,
                     imageCount: max(1, viewModel.activeLocalRecord?.capturedMediaSnapshot.imagePaths.count ?? 0)
                 )
-                .cardEntrance(index: 10)
+                .cardEntrance(index: 8)
     
                 // MARK: - Custom Tags
                 if let scanId = inferenceEngine.speciesData?.scanId {
                     UserTagsCard(scanId: scanId)
-                        .cardEntrance(index: 11)
+                        .cardEntrance(index: 9)
                 }
             }
         }

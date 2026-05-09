@@ -18,11 +18,11 @@ The context is intentionally not reset after submission, so users can swipe back
 
 `submitDescribe(observationContext:modelContext:)` is an extension on `CaptureWorkspaceViewModel` in `DescribeAnalysis.swift`. It routes based on what else is staged:
 
-| Condition | Path |
-|---|---|
-| `isMultiCaptureEnabled == true` | Stages the description in `stagedCapture.observationContexts`, preserving chronological order against any staged image/audio items |
-| Images already staged + single-capture mode | Stages the description into the shared mixed-media toolbar state, then `submitStagedCapture` owns the final send |
-| Nothing else staged | Solo non-visual path via `submitDescribeSolo`, which delegates to `submitNonVisualCapture` |
+| Condition                                   | Path                                                                                                                               |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `isMultiCaptureEnabled == true`             | Stages the description in `stagedCapture.observationContexts`, preserving chronological order against any staged image/audio items |
+| Images already staged + single-capture mode | Stages the description into the shared mixed-media toolbar state, then `submitStagedCapture` owns the final send                   |
+| Nothing else staged                         | Solo non-visual path via `submitDescribeSolo`, which delegates to `submitNonVisualCapture`                                         |
 
 `submitDescribeSolo` mirrors the resilience pattern of the other capture paths: if online, opens the insight sheet and fires `InferenceEngine.analyzeNonVisual`; if offline, enqueues through the durable non-visual queue path with cached GPS telemetry and surfaces a toast.
 
@@ -36,30 +36,30 @@ The context is intentionally not reset after submission, so users can swipe back
 
 `GuidedQuestion` is the primitive that drives the tag-sheet carousel. Each question has a `prompt: String` and a `tags: [Tag]` array. A `Tag` carries:
 
-| Field | Type | Purpose |
-|---|---|---|
-| `tagId` | `String` | Stable identifier used for funnel keying and selection state |
-| `label` | `String` | Display text on the tag chip |
-| `aiText` | `String` | Natural-language fragment appended to `freeText` when tapped |
-| `defaultWeight` | `Int` | Sort priority within the question |
-| `imageName` | `String?` | Asset catalog name for image-tile rendering (non-nil on the subject question only) |
+| Field           | Type      | Purpose                                                                            |
+| --------------- | --------- | ---------------------------------------------------------------------------------- |
+| `tagId`         | `String`  | Stable identifier used for funnel keying and selection state                       |
+| `label`         | `String`  | Display text on the tag chip                                                       |
+| `aiText`        | `String`  | Natural-language fragment appended to `freeText` when tapped                       |
+| `defaultWeight` | `Int`     | Sort priority within the question                                                  |
+| `imageName`     | `String?` | Asset catalog name for image-tile rendering (non-nil on the subject question only) |
 
 Tags with a non-nil `imageName` render as 96×104 pt `RoundedRectangle(cornerRadius: 16)` tiles (image above label). All others render as `Capsule` text chips. The subject question (index 0) uses image tiles for all 9 entries (Bird, Insect, Spider, Reptile, Plant, Mushroom, Mammal, Fish, Other). The `Other` tag has `aiText: ""` — selecting it appends nothing to `freeText`, leaving the AI prompt unchanged.
 
 The global `guidedQuestions: [GuidedQuestion]` array has 9 entries:
 
-| Index | Prompt |
-|---|---|
-| 0 | "What did you find?" — subject selector (image tiles, activates species funnel) |
-| 1 | "What was the surrounding environment like?" |
-| 2 | "Where exactly did you spot it?" |
-| 3 | "Roughly how big was it?" |
-| 4 | "How would you describe its overall shape?" |
-| 5 | "Did you notice any distinct features, like wings or a shell?" |
-| 6 | "Did it have any distinct colors or patterns?" |
-| 7 | "What was it doing when you observed it?" |
-| 8 | "Was it alone, or in a group?" |
-| 9 | "Are there any other interesting details you noticed?" — text-only (`tags: []`) |
+| Index | Prompt                                                                          |
+| ----- | ------------------------------------------------------------------------------- |
+| 0     | "What did you find?" — subject selector (image tiles, activates species funnel) |
+| 1     | "What was the surrounding environment like?"                                    |
+| 2     | "Where exactly did you spot it?"                                                |
+| 3     | "Roughly how big was it?"                                                       |
+| 4     | "How would you describe its overall shape?"                                     |
+| 5     | "Did you notice any distinct features, like wings or a shell?"                  |
+| 6     | "Did it have any distinct colors or patterns?"                                  |
+| 7     | "What was it doing when you observed it?"                                       |
+| 8     | "Was it alone, or in a group?"                                                  |
+| 9     | "Are there any other interesting details you noticed?" — text-only (`tags: []`) |
 
 ---
 
@@ -69,16 +69,16 @@ The global `guidedQuestions: [GuidedQuestion]` array has 9 entries:
 
 Defined funnels:
 
-| `tagId` | Subject | Funnel questions |
-|---|---|---|
-| `subj_bird` | Bird | Type of bird · Size · Beak shape · Plumage · Behavior |
-| `subj_insec` | Insect | Insect type · Wing visibility · Body texture · Markings |
-| `subj_plan` | Plant | Plant type · Leaf shape · Flower presence · Habitat |
-| `subj_mush` | Mushroom | Cap shape · Color · Habitat · Stalk |
-| `subj_spid` | Spider | Body size · Web presence · Color · Leg count |
-| `subj_rept` | Reptile | Type · Scale pattern · Limb presence · Behavior |
-| `subj_mamm` | Mammal | Size · Fur color · Tail · Behavior |
-| `subj_fish` | Fish | Body shape · Fin pattern · Scale color · Habitat |
+| `tagId`      | Subject  | Funnel questions                                        |
+| ------------ | -------- | ------------------------------------------------------- |
+| `subj_bird`  | Bird     | Type of bird · Size · Beak shape · Plumage · Behavior   |
+| `subj_insec` | Insect   | Insect type · Wing visibility · Body texture · Markings |
+| `subj_plan`  | Plant    | Plant type · Leaf shape · Flower presence · Habitat     |
+| `subj_mush`  | Mushroom | Cap shape · Color · Habitat · Stalk                     |
+| `subj_spid`  | Spider   | Body size · Web presence · Color · Leg count            |
+| `subj_rept`  | Reptile  | Type · Scale pattern · Limb presence · Behavior         |
+| `subj_mamm`  | Mammal   | Size · Fur color · Tail · Behavior                      |
+| `subj_fish`  | Fish     | Body shape · Fin pattern · Scale color · Habitat        |
 
 (`subj_othr` has no entry in `subjectFunnels` — `activateFunnel(for: "subj_othr")` silently no-ops.)
 
@@ -94,11 +94,11 @@ A pure static struct. `infer(from: String) -> String?` lowercases and tokenizes 
 
 New funnel-state properties added alongside the existing `activeQuestionIndex` and `interactedQuestionIndices`:
 
-| Property | Type | Purpose |
-|---|---|---|
-| `activeSubjectId` | `String?` | `tagId` of the currently selected subject (`nil` = no funnel) |
+| Property          | Type               | Purpose                                                                         |
+| ----------------- | ------------------ | ------------------------------------------------------------------------------- |
+| `activeSubjectId` | `String?`          | `tagId` of the currently selected subject (`nil` = no funnel)                   |
 | `activeQuestions` | `[GuidedQuestion]` | The live question list — either `guidedQuestions` or a funnel-customized subset |
-| `isFunnelActive` | `Bool` (computed) | `activeSubjectId != nil` |
+| `isFunnelActive`  | `Bool` (computed)  | `activeSubjectId != nil`                                                        |
 
 **`activateFunnel(for subjectId: String)`**: guards `subjectFunnels[subjectId]` exists, sets `activeSubjectId`, builds `activeQuestions` as `[guidedQuestions[0]] + funnel + [guidedQuestions[1], guidedQuestions[2], guidedQuestions.last!]`, resets `interactedQuestionIndices`, and advances `activeQuestionIndex` to 1 (stepping past the subject question the user just answered).
 
@@ -113,6 +113,7 @@ Lives at `merian/Features/Describe/Views/DescribeInputView.swift`.
 **Layout contract**: fills the full page frame. The fixed `MediaModeToggle` overlay sits above it in the `CaptureWorkspaceView` Z-stack and must remain interactive — no content above `safeAreaInsets.top + 64` pt.
 
 **Key properties**:
+
 - `@Binding var context: ObservationContext` — two-way binding to `CaptureWorkspaceView`'s lifted state.
 - `let onSubmit: (ObservationContext) -> Void` — called when the user taps "Identify" / "Add description".
 - `@FocusState private var isTextFieldFocused: Bool` — drives the text area border highlight and `.scrollDismissesKeyboard(.interactively)`.
@@ -124,6 +125,7 @@ The `TextEditor` binds to `$context.freeText`. The placeholder is a separate `Te
 ### Tag Rendering
 
 The tag strip iterates `promptManager.activeQuestions` (not the static `guidedQuestions`). Each tag is rendered conditionally:
+
 - **Non-nil `imageName`** → 96×104 pt tile (`RoundedRectangle(cornerRadius: 16)`): `Image(imageName)` (56×56 pt `.scaledToFit`) above the label. Background is `.primary` / foreground `.systemBackground` when selected as the active funnel subject; otherwise `.secondarySystemBackground` / `.primary`.
 - **Nil `imageName`** → standard `Capsule` chip. Same selection-state colour logic applies.
 
@@ -134,6 +136,7 @@ The tag scroll view carries `.id("tags_scroll_\(promptManager.activeQuestionInde
 **Subject tap → funnel activation**: On the subject question (index 0), tapping a tag checks `promptManager.activeSubjectId == tag.tagId`. If the tag is already the active subject (toggle-off), `promptManager.resetFunnel()` is called and the tags are re-sorted. Otherwise, the normal `appendTag` path runs, then `promptManager.activateFunnel(for: tag.tagId)` is called, advancing to the first funnel question. Auto-advance is suppressed when `isSelectedFunnel == true` to prevent double-stepping.
 
 **Text-driven auto-activation (1.5s debounce)**: `onChange(of: context.freeText)`:
+
 1. If `freeText` is empty → `promptManager.resetFunnel()` and early return.
 2. If `isFunnelActive` → no-op (funnel already running).
 3. Otherwise: cancel any in-flight `inferenceDebounceTask`, start a new `Task` that sleeps 1.5 seconds, then calls `SubjectKeywordMatcher.infer(from: freeText)`. If a subject is inferred, `promptManager.activateFunnel(for: subjectId)` activates the funnel. Useful when the user dictates "I saw a hawk" before tapping any tags — the funnel activates automatically after typing settles.
@@ -160,7 +163,7 @@ Lives at `merian/Features/Describe/Managers/SpeechManager.swift`. Registered as 
 struct PermissionError: LocalizedError { ... }
 ```
 
-Thrown exclusively when speech recognition authorization or microphone permission is denied. The `LocalizedError` description is "Microphone access required. Check Settings." — surfaced at the `CaptureWorkspaceView` call site as `viewModel.offlineToastMessage`.
+Thrown exclusively when speech recognition authorization or microphone permission is denied. The `LocalizedError` description is "Microphone access required. ." — surfaced at the `CaptureWorkspaceView` call site as `viewModel.offlineToastMessage`.
 
 ### `startDictation` lifecycle
 
@@ -273,12 +276,12 @@ Cancelling `dictationTask` before calling `stopDictation()` ensures `startDictat
 
 `private struct CaptureButton: View` accepts four parameters:
 
-| Parameter | Type | Purpose |
-|---|---|---|
-| `captureMode` | `CaptureMode` | Drives visual style |
-| `isRecording` | `Bool` | Drives pulse animation on `mic.fill` |
-| `onCapture` | `() -> Void` | Shutter tap in `.visual` mode |
-| `onTranscribe` | `() -> Void` | Mic tap in `.describe` mode (toggle) |
+| Parameter      | Type          | Purpose                              |
+| -------------- | ------------- | ------------------------------------ |
+| `captureMode`  | `CaptureMode` | Drives visual style                  |
+| `isRecording`  | `Bool`        | Drives pulse animation on `mic.fill` |
+| `onCapture`    | `() -> Void`  | Shutter tap in `.visual` mode        |
+| `onTranscribe` | `() -> Void`  | Mic tap in `.describe` mode (toggle) |
 
 ---
 
@@ -286,9 +289,9 @@ Cancelling `dictationTask` before calling `stopDictation()` ensures `startDictat
 
 Both required `Info.plist` strings are already present:
 
-| Key | Value |
-|---|---|
-| `NSMicrophoneUsageDescription` | "Merian needs microphone access for aviary and insect sound classification." |
+| Key                                   | Value                                                                                |
+| ------------------------------------- | ------------------------------------------------------------------------------------ |
+| `NSMicrophoneUsageDescription`        | "Merian needs microphone access for aviary and insect sound classification."         |
 | `NSSpeechRecognitionUsageDescription` | "Merian uses speech recognition to quickly search your Scans using voice dictation." |
 
 Permission requests happen inside `startDictation` — not at app launch or onboarding. First-time users see both iOS system permission dialogs on their first mic tap. Subsequent taps skip the dialogs (already authorized). Denial on either dialog causes `startDictation` to throw `PermissionError`, which surfaces as the toast.
@@ -297,12 +300,12 @@ Permission requests happen inside `startDictation` — not at app launch or onbo
 
 ## 7. AVAudioSession Lifecycle
 
-| Event | Action |
-|---|---|
-| `startDictation` called | `setCategory(.record, mode: .measurement)` + `setActive(true)` |
-| `stopDictation()` called | `setActive(false, options: .notifyOthersOnDeactivation)` via `teardownAudioEngine` |
-| Task cancelled mid-setup (after session activated) | `setActive(false, ...)` before returning from `startDictation` |
-| `SFSpeechRecognitionTask` auto-terminates | `stopDictation()` → `teardownAudioEngine` → session deactivated |
+| Event                                              | Action                                                                             |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `startDictation` called                            | `setCategory(.record, mode: .measurement)` + `setActive(true)`                     |
+| `stopDictation()` called                           | `setActive(false, options: .notifyOthersOnDeactivation)` via `teardownAudioEngine` |
+| Task cancelled mid-setup (after session activated) | `setActive(false, ...)` before returning from `startDictation`                     |
+| `SFSpeechRecognitionTask` auto-terminates          | `stopDictation()` → `teardownAudioEngine` → session deactivated                    |
 
 `notifyOthersOnDeactivation` on deactivation signals the audio subsystem to restore any previously ducked audio (e.g., music playback) once dictation ends. This also ensures `AudioCaptureManager` on the `.audio` page can acquire its own `AVAudioSession` cleanly after the user swipes away from `.describe`. Both `SpeechManager` and `AudioCaptureManager` use the same `.record` / `.measurement` session category and the same `Task.detached` activation pattern — whichever page the user is on last cleanly deactivates before the other activates.
 
