@@ -186,6 +186,99 @@ struct InsightSheetViewModelTests {
         #expect(FieldNotesStore.fieldNotes(for: record.id) == "Private local note")
     }
 
+    @Test func testFieldNotesRepositoryPromotesLegacyStoreIntoLocalRecord() async throws {
+        let ctx = try createIsolatedContext()
+        let record = LocalScanRecord(
+            speciesId: "legacy_field_notes_species",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch"
+        )
+        let legacyNotes = "Legacy bridged note"
+
+        ctx.insert(record)
+        try ctx.save()
+        FieldNotesStore.setFieldNotes(legacyNotes, for: record.id)
+        defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
+
+        let resolvedNotes = FieldNotesRepository.fieldNotes(
+            for: record.id,
+            modelContext: ctx,
+            activeRecord: record
+        )
+
+        #expect(resolvedNotes == legacyNotes)
+        #expect(record.fieldNotes == legacyNotes)
+        #expect(FieldNotesStore.fieldNotes(for: record.id) == legacyNotes)
+    }
+
+    @Test func testFieldNotesRepositoryClearsLocalRecordAndLegacyBridgeTogether() async throws {
+        let ctx = try createIsolatedContext()
+        let record = LocalScanRecord(
+            speciesId: "clear_field_notes_species",
+            scientificName: "Amanita muscaria",
+            commonName: "Fly Agaric",
+            fieldNotes: "Private note to clear"
+        )
+
+        ctx.insert(record)
+        try ctx.save()
+        FieldNotesStore.setFieldNotes(record.fieldNotes, for: record.id)
+        defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
+
+        FieldNotesRepository.setFieldNotes(
+            "   ",
+            for: record.id,
+            modelContext: ctx,
+            activeRecord: record
+        )
+
+        #expect(record.fieldNotes == nil)
+        #expect(FieldNotesStore.fieldNotes(for: record.id) == nil)
+    }
+
+    @Test func testFieldNotesRepositoryMirrorsUnchangedLocalRecordIntoLegacyBridge() async throws {
+        let ctx = try createIsolatedContext()
+        let record = LocalScanRecord(
+            speciesId: "unchanged_field_notes_species",
+            scientificName: "Taraxacum officinale",
+            commonName: "Common Dandelion",
+            fieldNotes: "Already saved locally"
+        )
+
+        ctx.insert(record)
+        try ctx.save()
+        FieldNotesStore.setFieldNotes(nil, for: record.id)
+        defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
+
+        let changed = FieldNotesRepository.setFieldNotes(
+            "Already saved locally",
+            for: record.id,
+            modelContext: ctx,
+            activeRecord: record
+        )
+
+        #expect(changed == false)
+        #expect(record.fieldNotes == "Already saved locally")
+        #expect(FieldNotesStore.fieldNotes(for: record.id) == "Already saved locally")
+    }
+
+    @Test func testFieldNotesRepositoryPersistsBridgeOnlyWhenNoSwiftDataRecordExists() async throws {
+        let ctx = try createIsolatedContext()
+        let scanId = "bridge_only_field_notes_scan"
+
+        FieldNotesStore.setFieldNotes(nil, for: scanId)
+        defer { FieldNotesStore.setFieldNotes(nil, for: scanId) }
+
+        let changed = FieldNotesRepository.setFieldNotes(
+            "Bridge-only note",
+            for: scanId,
+            modelContext: ctx
+        )
+
+        #expect(changed == true)
+        #expect(FieldNotesStore.fieldNotes(for: scanId) == "Bridge-only note")
+    }
+
     @Test func testTotalImagesWithReferenceImageLoading() async throws {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()

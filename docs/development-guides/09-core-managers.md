@@ -219,6 +219,13 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 
 `KeychainKeys.hasAuthenticatedOAuth` is the single source of truth for the authenticated-session marker used by `SupabaseManager`, `MerianNetworkClient`, and `KeychainManager` migration logic. Do not inline `"Merian_HasAuthenticatedOAuth"`.
 
+### `FieldNotesRepository`
+- `@MainActor` local/private field-note boundary living in `Core/Utilities/FieldNotesRepository.swift`.
+- Resolves notes in durability order: `LocalScanRecord.fieldNotes`, `OfflineQueuedScan.fieldNotes`, then the legacy `FieldNotesStore` bridge. Successful SwiftData reads mirror the bridge; bridge-only reads are promoted back into SwiftData.
+- SwiftData writes save explicitly and call `modelContext.rollback()` on failure. The legacy bridge is mirrored only after a SwiftData commit succeeds, preventing `UserDefaults` from claiming a note that the local database rejected.
+- Owns Explore-to-local repair through `promoteExternalFieldNotesIfLocalMissing(...)`. Public Explore notes are accepted only when every local/private store is empty, so publishing or hiding Explore notes cannot erase private scan-library notes.
+- UI code in Insights and Explore should call this repository instead of directly mutating `LocalScanRecord.fieldNotes` or `FieldNotesStore`.
+
 ### `AppSettings`
 - `@MainActor @Observable` service living alongside `UserDefaultsKeys` in `Core/Utilities`.
 - Owns the typed, in-memory representation of high-churn persisted settings such as `themeMode`, `isMultiCaptureEnabled`, `requiresScanConfirmation`, `gridColumns`, `saveToCameraRoll`, and notification toggles.

@@ -458,7 +458,10 @@ final class InsightSheetViewModel {
         }
     }
 
-    func updateExploreFieldNotesVisibility(isPublic: Bool) async -> FieldNotesVisibilityUpdateFeedback {
+    func updateExploreFieldNotesVisibility(
+        isPublic: Bool,
+        modelContext: ModelContext
+    ) async -> FieldNotesVisibilityUpdateFeedback {
         guard let postId = state.sharedExplorePostId, !state.isUpdatingExploreFieldNotes else {
             return .failure("Field notes visibility is already updating")
         }
@@ -472,7 +475,7 @@ final class InsightSheetViewModel {
 
         do {
             if !isPublic, let shareableFieldNotes {
-                preserveLocalFieldNotesIfNeeded(shareableFieldNotes)
+                preserveLocalFieldNotesIfNeeded(shareableFieldNotes, modelContext: modelContext)
             }
 
             let response = try await MerianNetworkClient.shared.updateExplorePostFieldNotes(
@@ -732,91 +735,39 @@ final class InsightSheetViewModel {
         guard let scanId = currentFieldNotesScanId else { return false }
         boundFieldNotesScanId = scanId
 
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        FieldNotesStore.setFieldNotes(trimmed.isEmpty ? nil : text, for: scanId)
-
-        if let activeLocalRecord, activeLocalRecord.id == scanId {
-            let existing = activeLocalRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard existing != trimmed || activeLocalRecord.fieldNotes != text else { return false }
-            activeLocalRecord.fieldNotes = trimmed.isEmpty ? nil : text
-            try? modelContext.save()
-            return true
-        }
-
-        let recordDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        if let record = (try? modelContext.fetch(recordDescriptor))?.first {
-            let existing = record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard existing != trimmed || record.fieldNotes != text else { return false }
-            record.fieldNotes = trimmed.isEmpty ? nil : text
-            try? modelContext.save()
-            return true
-        }
-
-        let queuedDescriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-        if let queuedScan = (try? modelContext.fetch(queuedDescriptor))?.first {
-            let existing = queuedScan.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard existing != trimmed || queuedScan.fieldNotes != text else { return false }
-            queuedScan.fieldNotes = trimmed.isEmpty ? nil : text
-            try? modelContext.save()
-            return true
-        }
-
-        return false
+        return FieldNotesRepository.setFieldNotes(
+            text,
+            for: scanId,
+            modelContext: modelContext,
+            activeRecord: activeLocalRecord
+        )
     }
 
     private func persistedFieldNotes(for scanId: String, modelContext: ModelContext) -> String? {
-        let recordFieldNotes: String? = {
-            if let activeLocalRecord, activeLocalRecord.id == scanId {
-                return activeLocalRecord.fieldNotes
-            }
-            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-            return (try? modelContext.fetch(descriptor))?.first?.fieldNotes
-        }()
-
-        let trimmedRecordFieldNotes = recordFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedRecordFieldNotes?.isEmpty == false {
-            FieldNotesStore.setFieldNotes(recordFieldNotes, for: scanId)
-            return recordFieldNotes
-        }
-
-        let queuedDescriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
-        let queuedFieldNotes = (try? modelContext.fetch(queuedDescriptor))?.first?.fieldNotes
-        let trimmedQueuedFieldNotes = queuedFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedQueuedFieldNotes?.isEmpty == false {
-            FieldNotesStore.setFieldNotes(queuedFieldNotes, for: scanId)
-            return queuedFieldNotes
-        }
-
-        let legacyFieldNotes = FieldNotesStore.fieldNotes(for: scanId)
-        if let legacyFieldNotes, !legacyFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            _ = persistFieldNotes(legacyFieldNotes, modelContext: modelContext)
-            return legacyFieldNotes
-        }
-
-        return nil
+        FieldNotesRepository.fieldNotes(
+            for: scanId,
+            modelContext: modelContext,
+            activeRecord: activeLocalRecord
+        )
     }
 
     func promotePublishedExploreFieldNotesIfLocalMissing(_ notes: String, modelContext: ModelContext) {
-        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let scanId = currentFieldNotesScanId else { return }
-
-        if let localNotes = persistedFieldNotes(for: scanId, modelContext: modelContext),
-           !localNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            if state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                state.fieldNotesText = localNotes
-            }
+        guard let scanId = currentFieldNotesScanId,
+              state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
 
-        guard state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return
+        if let resolvedNotes = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
+            notes,
+            for: scanId,
+            modelContext: modelContext,
+            activeRecord: activeLocalRecord
+        ) {
+            state.fieldNotesText = resolvedNotes
         }
-
-        state.fieldNotesText = trimmed
-        persistFieldNotes(trimmed, modelContext: modelContext)
     }
 
-    private func preserveLocalFieldNotesIfNeeded(_ notes: String) {
+    private func preserveLocalFieldNotesIfNeeded(_ notes: String, modelContext: ModelContext) {
         let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
@@ -827,14 +778,12 @@ final class InsightSheetViewModel {
         guard let scanId = currentFieldNotesScanId else { return }
         boundFieldNotesScanId = scanId
 
-        if let activeLocalRecord, activeLocalRecord.id == scanId {
-            let existing = activeLocalRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if existing.isEmpty {
-                activeLocalRecord.fieldNotes = notes
-                try? activeLocalRecord.modelContext?.save()
-                FieldNotesStore.setFieldNotes(notes, for: scanId)
-            }
-        }
+        _ = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
+            notes,
+            for: scanId,
+            modelContext: modelContext,
+            activeRecord: activeLocalRecord
+        )
     }
 
     private func applySharedExplorePostId(_ postId: String?, for scanId: String?, bumpRevision: Bool) {

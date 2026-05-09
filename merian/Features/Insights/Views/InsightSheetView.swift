@@ -282,7 +282,10 @@ private extension InsightSheetView {
                 viewModel.state.showExploreSheet = true
             } : nil,
             onUpdateFieldNotesVisibility: { isPublic in
-                await viewModel.updateExploreFieldNotesVisibility(isPublic: isPublic)
+                await viewModel.updateExploreFieldNotesVisibility(
+                    isPublic: isPublic,
+                    modelContext: modelContext
+                )
             }
         )
     }

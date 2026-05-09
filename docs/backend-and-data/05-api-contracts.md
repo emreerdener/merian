@@ -426,7 +426,7 @@ Current response shape:
 
 This endpoint exists so Explore can render public species cards on the detail page without loading private scan state or the Insight `InferenceEngine`.
 
-For posts owned by the current viewer, iOS also uses `field_notes` as a repair source for the local insight sheet. If `LocalScanRecord.fieldNotes` and the legacy `FieldNotesStore` bridge are empty but the public Explore post still has notes, `InsightSheetViewModel` promotes the public value back into the local scan. Existing local/private notes are preserved and are not overwritten by the Explore copy.
+For posts owned by the current viewer, iOS also uses `field_notes` as a repair source for the local insight sheet. `FieldNotesRepository` checks `LocalScanRecord.fieldNotes`, `OfflineQueuedScan.fieldNotes`, and then the legacy `FieldNotesStore` bridge before accepting the Explore value. If all local/private stores are empty but the public Explore post still has notes, the repository promotes the public value back into SwiftData and mirrors the bridge. Existing local/private notes are preserved and are not overwritten by the Explore copy.
 
 `reference_image_url` is the same comma-separated reference-media field used elsewhere in the app: the first URL is typically the cached Wikipedia image when available, followed by cached GBIF-backed field observations. Explore detail uses it to render the public reference gallery below the post's AI reasoning without making an extra authenticated scan fetch.
 

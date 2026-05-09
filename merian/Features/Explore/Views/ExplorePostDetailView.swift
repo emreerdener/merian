@@ -796,19 +796,10 @@ struct ExplorePostDetailView: View {
         }
 
         let scanId = post.scanId
-        let descriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate { $0.id == scanId }
+        localFieldNotes = FieldNotesRepository.fieldNotes(
+            for: scanId,
+            modelContext: modelContext
         )
-        let notes = (try? modelContext.fetch(descriptor).first?.fieldNotes)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if notes?.isEmpty == false {
-            FieldNotesStore.setFieldNotes(notes, for: scanId)
-            localFieldNotes = notes
-        } else if let storedNotes = FieldNotesStore.fieldNotes(for: scanId) {
-            localFieldNotes = storedNotes
-        } else {
-            localFieldNotes = nil
-        }
     }
 
     private func openFieldNotesEditor(for post: ExplorePost) {
@@ -828,25 +819,11 @@ struct ExplorePostDetailView: View {
 
         let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         let scanId = post.scanId
-        FieldNotesStore.setFieldNotes(trimmed.isEmpty ? nil : notes, for: scanId)
-
-        let descriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate { $0.id == scanId }
+        _ = FieldNotesRepository.setFieldNotes(
+            notes,
+            for: scanId,
+            modelContext: modelContext
         )
-
-        guard let record = try? modelContext.fetch(descriptor).first else {
-            localFieldNotes = trimmed.isEmpty ? nil : notes
-            return
-        }
-
-        let existing = record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard existing != trimmed || record.fieldNotes != notes else {
-            localFieldNotes = trimmed.isEmpty ? nil : notes
-            return
-        }
-
-        record.fieldNotes = trimmed.isEmpty ? nil : notes
-        try? modelContext.save()
         localFieldNotes = trimmed.isEmpty ? nil : notes
     }
 
@@ -887,26 +864,11 @@ struct ExplorePostDetailView: View {
         guard !trimmed.isEmpty else { return }
 
         let scanId = post.scanId
-        FieldNotesStore.setFieldNotes(notes, for: scanId)
-
-        let descriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate { $0.id == scanId }
+        localFieldNotes = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
+            notes,
+            for: scanId,
+            modelContext: modelContext
         )
-
-        guard let record = try? modelContext.fetch(descriptor).first else {
-            localFieldNotes = notes
-            return
-        }
-
-        let existing = record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard existing.isEmpty else {
-            localFieldNotes = record.fieldNotes
-            return
-        }
-
-        record.fieldNotes = notes
-        try? modelContext.save()
-        localFieldNotes = notes
     }
 
     private func openInsight(for post: ExplorePost) {
@@ -924,12 +886,13 @@ struct ExplorePostDetailView: View {
             return
         }
 
-        if let fieldNotes = detail?.trimmedFieldNotes,
-           record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
-            record.fieldNotes = fieldNotes
-            try? modelContext.save()
-            FieldNotesStore.setFieldNotes(fieldNotes, for: scanId)
-            localFieldNotes = fieldNotes
+        if let fieldNotes = detail?.trimmedFieldNotes {
+            localFieldNotes = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
+                fieldNotes,
+                for: scanId,
+                modelContext: modelContext,
+                activeRecord: record
+            )
         }
 
         inferenceEngine.load(from: record)

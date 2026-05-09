@@ -567,6 +567,36 @@ if let scan = (try? modelContext.fetch(descriptor))?.first {
 
 **`InsightSheetViewModel.queuedContext: QueuedScanContext?`**: All computed properties that previously switched on a live `OfflineQueuedScan?` now switch on `queuedContext == nil`. `AnalyzingContentView` receives `queuedContext: QueuedScanContext?` rather than a `@Model` reference, and the queued media path is always rebuilt from `queuedContext.capturedMediaSnapshot` instead of faulting properties off the deleted model.
 
+---
+
+## 19. Field Notes Need a Single Local/Private Boundary
+
+Field notes exist in three local stores during migration and offline flows: `LocalScanRecord.fieldNotes`, `OfflineQueuedScan.fieldNotes`, and the legacy `FieldNotesStore` bridge in `UserDefaults`. Explore posts can also expose a public copy through `field_notes`, but that value is not the private source of truth.
+
+### The Vulnerability
+If each view fetches and writes these stores independently, subtle ordering differences can erase notes. For example, an Explore post may still have public field notes while the local scan appears empty; a direct write from the Explore UI can accidentally clear or overwrite the private scan-library note when toggling visibility or reopening the insight sheet.
+
+### The Pattern: `FieldNotesRepository`
+
+Use `FieldNotesRepository` for all local/private note reads, writes, clears, and Explore repair:
+
+```swift
+let notes = FieldNotesRepository.fieldNotes(
+    for: scanId,
+    modelContext: modelContext,
+    activeRecord: record
+)
+
+FieldNotesRepository.setFieldNotes(
+    updatedText,
+    for: scanId,
+    modelContext: modelContext,
+    activeRecord: record
+)
+```
+
+The repository resolves SwiftData records before the legacy bridge, mirrors successful reads into the bridge, and promotes bridge-only values back into SwiftData. Writes must explicitly save SwiftData, roll back on failure, and update `FieldNotesStore` only after the database commit succeeds. Public Explore notes may only enter local storage through `promoteExternalFieldNotesIfLocalMissing(...)`, which refuses to overwrite existing local/private notes.
+
 ## 2026-04 Hardening Updates
 
 - Treat `ModelContainer` startup failures as data-loss-sensitive. Only corruption-class failures may trigger store recovery, and any recovery flow must quarantine `default.store`, `default.store-wal`, and `default.store-shm` before attempting recreation.
