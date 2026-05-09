@@ -23,19 +23,27 @@ struct FieldNotesSheet: View {
                                         .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                                 )
 
-                            TextField(
-                                "Write down what you noticed...",
-                                text: $text,
-                                axis: .vertical
-                            )
-                            .lineLimit(8...16)
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .focused($isTextFieldFocused)
-                            .padding(.horizontal, 16)
-                            .padding(.top, 16)
-                            .padding(.bottom, 16)
-                            .frame(maxWidth: .infinity, minHeight: 220, alignment: .topLeading)
+                            TextEditor(text: $text)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .focused($isTextFieldFocused)
+                                .scrollContentBackground(.hidden)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .frame(maxWidth: .infinity, minHeight: 220, alignment: .topLeading)
+
+                            if text.isEmpty {
+                                Text("Write down what you noticed...")
+                                    .font(.body)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 18)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .onTapGesture {
+                            isTextFieldFocused = true
                         }
                     }
                     .padding(.horizontal)
