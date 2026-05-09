@@ -190,6 +190,27 @@ enum SpeciesPreferredNameStore {
         UserDefaultsKeys.speciesPreferredNamePrefix + scientificName
     }
 
+    static func legacyPreferences(userDefaults: UserDefaults = .standard) -> [String: String] {
+        let prefix = UserDefaultsKeys.speciesPreferredNamePrefix
+        var preferences: [String: String] = [:]
+
+        for (key, value) in userDefaults.dictionaryRepresentation()
+        where key.hasPrefix(prefix) {
+            let scientificName = String(key.dropFirst(prefix.count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let preferredName = (value as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !scientificName.isEmpty, let preferredName, !preferredName.isEmpty else {
+                continue
+            }
+
+            preferences[scientificName] = preferredName
+        }
+
+        return preferences
+    }
+
     static func preferredName(for scientificName: String, userDefaults: UserDefaults = .standard) -> String? {
         guard !scientificName.isEmpty else { return nil }
         let value = userDefaults.string(forKey: key(for: scientificName))?
@@ -219,6 +240,14 @@ enum SpeciesPreferredNameStore {
     }
 }
 
+struct SpeciesNameMigrationResult: Equatable {
+    let scannedCount: Int
+    let promotedCount: Int
+    let preservedExistingCount: Int
+    let removedLegacyCount: Int
+    let failedCount: Int
+}
+
 @MainActor
 enum SpeciesPreferredNameRepository {
     private static let maxPreferredNameBatchSize = 1_000
@@ -234,7 +263,7 @@ enum SpeciesPreferredNameRepository {
         if let record = fetchPreference(for: scientificName, modelContext: modelContext) {
             let preferredName = normalizedPreferredName(record.preferredCommonName)
             if let preferredName {
-                SpeciesPreferredNameStore.setPreferredName(preferredName, for: scientificName, userDefaults: legacyDefaults)
+                SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
                 return preferredName
             }
         }
@@ -283,7 +312,7 @@ enum SpeciesPreferredNameRepository {
         for scientificName in boundedNames {
             if let record = recordsByScientificName[scientificName],
                let preferredName = normalizedPreferredName(record.preferredCommonName) {
-                SpeciesPreferredNameStore.setPreferredName(preferredName, for: scientificName, userDefaults: legacyDefaults)
+                SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
                 namesByScientificName[scientificName] = preferredName
                 continue
             }
@@ -305,6 +334,88 @@ enum SpeciesPreferredNameRepository {
         }
 
         return namesByScientificName
+    }
+
+    @discardableResult
+    static func migrateLegacyPreferences(
+        modelContext: ModelContext,
+        legacyDefaults: UserDefaults = .standard
+    ) -> SpeciesNameMigrationResult {
+        let legacyPreferences = SpeciesPreferredNameStore.legacyPreferences(userDefaults: legacyDefaults)
+        guard !legacyPreferences.isEmpty else {
+            return SpeciesNameMigrationResult(
+                scannedCount: 0,
+                promotedCount: 0,
+                preservedExistingCount: 0,
+                removedLegacyCount: 0,
+                failedCount: 0
+            )
+        }
+
+        let scientificNames = legacyPreferences.keys.sorted()
+        let recordsByScientificName = fetchPreferences(for: scientificNames, modelContext: modelContext)
+
+        var didMutateSwiftData = false
+        var pendingPromotedCount = 0
+        var preservedExistingCount = 0
+
+        for scientificName in scientificNames {
+            guard let legacyName = normalizedPreferredName(legacyPreferences[scientificName]) else { continue }
+
+            if let existing = recordsByScientificName[scientificName],
+               normalizedPreferredName(existing.preferredCommonName) != nil {
+                preservedExistingCount += 1
+                continue
+            }
+
+            if let existing = recordsByScientificName[scientificName] {
+                existing.preferredCommonName = legacyName
+                existing.updatedAt = Date()
+            } else {
+                modelContext.insert(
+                    UserSpeciesPreference(
+                        scientificName: scientificName,
+                        preferredCommonName: legacyName
+                    )
+                )
+            }
+            didMutateSwiftData = true
+            pendingPromotedCount += 1
+        }
+
+        do {
+            if didMutateSwiftData {
+                try modelContext.save()
+            }
+
+            for scientificName in scientificNames {
+                SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
+            }
+
+            if pendingPromotedCount > 0 || preservedExistingCount > 0 {
+                MerianLog.data.debug(
+                    "Migrated \(pendingPromotedCount, privacy: .public) legacy species preferred names and removed \(scientificNames.count, privacy: .public) legacy keys."
+                )
+            }
+
+            return SpeciesNameMigrationResult(
+                scannedCount: scientificNames.count,
+                promotedCount: pendingPromotedCount,
+                preservedExistingCount: preservedExistingCount,
+                removedLegacyCount: scientificNames.count,
+                failedCount: 0
+            )
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error("Failed to migrate legacy species preferred names: \(error.localizedDescription, privacy: .private)")
+            return SpeciesNameMigrationResult(
+                scannedCount: scientificNames.count,
+                promotedCount: 0,
+                preservedExistingCount: 0,
+                removedLegacyCount: 0,
+                failedCount: scientificNames.count
+            )
+        }
     }
 
     @discardableResult
@@ -339,7 +450,7 @@ enum SpeciesPreferredNameRepository {
             }
 
             try modelContext.save()
-            SpeciesPreferredNameStore.setPreferredName(preferredName, for: scientificName, userDefaults: legacyDefaults)
+            SpeciesPreferredNameStore.clearPreferredName(for: scientificName, userDefaults: legacyDefaults)
             return true
         } catch {
             modelContext.rollback()

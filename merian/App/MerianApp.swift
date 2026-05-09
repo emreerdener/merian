@@ -394,7 +394,9 @@ struct MerianApp: App {
         container = bootstrapOutcome.container
         startupRecoveryNotice = Self.combinedStartupNotice(storeNotice: bootstrapOutcome.startupNotice)
         if let container {
-            AppDIContainer.shared.scanRepository.configure(with: container.mainContext)
+            let mainContext = container.mainContext
+            AppDIContainer.shared.scanRepository.configure(with: mainContext)
+            SpeciesPreferredNameRepository.migrateLegacyPreferences(modelContext: mainContext)
 
             UITestSeedCoordinator.prepareIfNeeded(container: container)
         }

@@ -11,8 +11,8 @@ import SwiftData
 //   UserSpeciesPreference (new entity)
 //     SwiftData-backed store for the user's preferred display name per species,
 //     keyed by scientificName. Current production reads/writes flow through
-//     SpeciesPreferredNameRepository, with legacy key mirroring for no-context
-//     Explore display paths until full cloud sync exists.
+//     SpeciesPreferredNameRepository. Legacy per-species UserDefaults keys are
+//     promoted at startup and removed after a successful SwiftData save.
 //     Also provides the unique checksum anchor distinguishing V34 from V33
 //     (V34 has one more entity in its model set).
 //
