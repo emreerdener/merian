@@ -26,7 +26,10 @@ struct BiologicalView: View {
             guard !hasCloudImage, imageCount <= 1 else { return }
             
             HapticManager.shared.triggerSelectionPulse()
-            AppEventPublisher.shared.send(.triggerRefinement(record: record))
+            AppEventPublisher.shared.send(.triggerRefinement(
+                record: record,
+                initialDescription: viewModel.shareableFieldNotes
+            ))
             dismiss()
         }
     }

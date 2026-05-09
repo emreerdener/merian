@@ -52,12 +52,6 @@ struct AnalyzingContentView: View {
                 analyzingPhrase: inferenceEngine.scanningPhaseText
             )
 
-            // Text("Analyzing")
-            //     .font(.system(.largeTitle, design: .serif).weight(.bold))
-            //     .foregroundColor(.primary)
-            //     .multilineTextAlignment(.center)
-            //     .accessibilityAddTraits(.isHeader)
-
             FieldNotesCard(
                 previewText: viewModel.fieldNotesText,
                 promptContext: .analyzing,

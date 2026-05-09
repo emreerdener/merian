@@ -113,6 +113,7 @@ final class CaptureWorkspaceViewModel {
     /// The historical scan actively chosen by the user to be appended with new photographic context.
     /// Drives the multi-image composition path in `submitActiveScan`.
     var baseRefinementRecord: LocalScanRecord?
+    var refinementInitialDescriptionDraft: String?
     var isStagingRefinement: Bool = false
     @ObservationIgnored private var refinementStagingTask: Task<Void, Never>?
     /// Set to `.describe` when reanalysis is triggered so `CaptureWorkspaceView` navigates to the
@@ -194,8 +195,8 @@ final class CaptureWorkspaceViewModel {
                     self?.handleDeepLinkRoute(scanId: scanId)
                 case .appDidEnterActivePhaseWithExplorePost(let postId):
                     self?.handleExploreDeepLinkRoute(postId: postId)
-                case .triggerRefinement(let record):
-                    self?.startRefinementScan(from: record)
+                case .triggerRefinement(let record, let initialDescription):
+                    self?.startRefinementScan(from: record, initialDescription: initialDescription)
                 default:
                     break
                 }
@@ -401,8 +402,10 @@ final class CaptureWorkspaceViewModel {
         self.imageToCrop = stagedCapture.images[index].original
     }
     
-    func startRefinementScan(from record: LocalScanRecord) {
+    func startRefinementScan(from record: LocalScanRecord, initialDescription: String? = nil) {
         self.baseRefinementRecord = record
+        let trimmedDescription = initialDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.refinementInitialDescriptionDraft = trimmedDescription?.isEmpty == false ? trimmedDescription : nil
         self.activeSheet = nil
         self.requestedCaptureMode = .describe
         
@@ -453,6 +456,7 @@ final class CaptureWorkspaceViewModel {
         refinementStagingTask?.cancel()
         isStagingRefinement = false
         baseRefinementRecord = nil
+        refinementInitialDescriptionDraft = nil
     }
     
     // MARK: - Tooltip Orchestration

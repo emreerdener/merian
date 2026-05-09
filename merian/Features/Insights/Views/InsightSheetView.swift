@@ -234,7 +234,10 @@ private extension InsightSheetView {
                 if RevenueCatManager.shared.isProActive {
                     if let record = viewModel.activeLocalRecord {
                         HapticManager.shared.triggerSelectionPulse()
-                        AppEventPublisher.shared.send(.triggerRefinement(record: record))
+                        AppEventPublisher.shared.send(.triggerRefinement(
+                            record: record,
+                            initialDescription: viewModel.shareableFieldNotes
+                        ))
                     }
                 } else {
                     viewModel.state.showPaywall = true

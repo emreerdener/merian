@@ -22,7 +22,7 @@ enum AppEvent {
     
     /// Dispatched to seamlessly jump the user from an ambiguous Insight Sheet back to the Camera, 
     /// carrying the `LocalScanRecord` context forward into a supplementary multi-image generation sequence.
-    case triggerRefinement(record: LocalScanRecord)
+    case triggerRefinement(record: LocalScanRecord, initialDescription: String? = nil)
 }
 
 /// A centralized, `@MainActor`-bound event bus for system-wide internal message routing.

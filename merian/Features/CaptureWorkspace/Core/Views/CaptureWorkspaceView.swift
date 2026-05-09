@@ -377,7 +377,10 @@ struct CaptureWorkspaceView: View {
             guard let requested else { return }
             captureMode = requested
             viewModel.requestedCaptureMode = nil
-            observationContext = ObservationContext()
+            observationContext = ObservationContext(
+                freeText: viewModel.refinementInitialDescriptionDraft ?? ""
+            )
+            viewModel.refinementInitialDescriptionDraft = nil
         }
         .onChange(of: audioCaptureManager.audioFilePath) { _, fileName in
             guard let fileName else { return }

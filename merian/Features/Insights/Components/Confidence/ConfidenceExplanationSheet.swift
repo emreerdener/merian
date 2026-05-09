@@ -40,7 +40,10 @@ struct ConfidenceExplanationSheet: View {
         return {
             if RevenueCatManager.shared.isProActive {
                 HapticManager.shared.triggerSelectionPulse()
-                AppEventPublisher.shared.send(.triggerRefinement(record: record))
+                AppEventPublisher.shared.send(.triggerRefinement(
+                    record: record,
+                    initialDescription: record.fieldNotes
+                ))
                 dismiss()
             } else {
                 showPaywall = true

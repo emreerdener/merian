@@ -111,7 +111,10 @@ struct InsightContentView: View {
                         let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
                         if let record = try? modelContext.fetch(descriptor).first {
                             HapticManager.shared.triggerSelectionPulse()
-                            AppEventPublisher.shared.send(.triggerRefinement(record: record))
+                            AppEventPublisher.shared.send(.triggerRefinement(
+                                record: record,
+                                initialDescription: viewModel.shareableFieldNotes
+                            ))
                         }
                     }
                 )

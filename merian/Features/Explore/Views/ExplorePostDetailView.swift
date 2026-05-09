@@ -134,17 +134,13 @@ struct ExplorePostDetailView: View {
             }
         }
         .sheet(item: $selectedInsightRecord, onDismiss: {
-            let shouldSyncPublicFieldNotes = fieldNotesArePublicOnExplore
             isRefreshingAfterInsightDismiss = true
             Task {
                 if let post = currentPost {
-                    syncLocalFieldNotes(for: post)
-                    if shouldSyncPublicFieldNotes {
-                        await syncPublicFieldNotesAfterInsightDismiss(for: post)
-                    }
-                    syncLocalFieldNotes(for: post)
+                    await reconcileFieldNotesAfterInsightDismiss(for: post)
+                } else {
+                    await loadPostDetail()
                 }
-                await loadPostDetail()
                 isRefreshingAfterInsightDismiss = false
             }
         }) { record in
@@ -159,13 +155,10 @@ struct ExplorePostDetailView: View {
             )
         }
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
-            let shouldSyncPublicFieldNotes = fieldNotesArePublicOnExplore
             Task {
                 if let post = currentPost {
-                    syncLocalFieldNotes(for: post)
-                    if shouldSyncPublicFieldNotes {
-                        await syncPublicFieldNotesAfterInsightDismiss(for: post)
-                    }
+                    await reconcileFieldNotesAfterInsightDismiss(for: post)
+                } else {
                     await loadPostDetail()
                 }
             }
@@ -853,6 +846,19 @@ struct ExplorePostDetailView: View {
                 viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
             }
         }
+    }
+
+    private func reconcileFieldNotesAfterInsightDismiss(for post: ExplorePost) async {
+        syncLocalFieldNotes(for: post)
+        await loadPostDetail()
+
+        guard detail?.trimmedFieldNotes != nil else {
+            syncLocalFieldNotes(for: post)
+            return
+        }
+
+        await syncPublicFieldNotesAfterInsightDismiss(for: post)
+        syncLocalFieldNotes(for: post)
     }
 
     private func preserveLocalFieldNotes(_ notes: String, for post: ExplorePost) {
