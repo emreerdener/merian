@@ -28,14 +28,21 @@ struct NonBiologicalView: View {
             .frame(maxWidth: .infinity)
             .card()
 
-            FieldNotesCard(
-                previewText: viewModel.fieldNotesText,
-                promptContext: viewModel.fieldNotesPromptContext,
-                isPublished: viewModel.state.exploreFieldNotesArePublic,
-                action: {
-                    viewModel.state.isFieldNotesSheetPresented = true
-                }
-            )
+            if viewModel.shouldShowFieldNotesCard {
+                FieldNotesCard(
+                    previewText: viewModel.fieldNotesText,
+                    promptContext: viewModel.fieldNotesPromptContext,
+                    isPublished: viewModel.state.exploreFieldNotesArePublic,
+                    onDismiss: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            viewModel.dismissFieldNotesCard()
+                        }
+                    },
+                    action: {
+                        viewModel.state.isFieldNotesSheetPresented = true
+                    }
+                )
+            }
             
             ScanInformationCard(speciesData: species, timestamp: timestamp)
             

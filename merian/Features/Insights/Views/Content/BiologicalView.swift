@@ -106,15 +106,22 @@ struct BiologicalView: View {
                     .cardEntrance(index: 2)
                 }
 
-                FieldNotesCard(
-                    previewText: viewModel.fieldNotesText,
-                    promptContext: viewModel.fieldNotesPromptContext,
-                    isPublished: viewModel.state.exploreFieldNotesArePublic,
-                    action: {
-                        viewModel.state.isFieldNotesSheetPresented = true
-                    }
-                )
-                .cardEntrance(index: 3)
+                if viewModel.shouldShowFieldNotesCard {
+                    FieldNotesCard(
+                        previewText: viewModel.fieldNotesText,
+                        promptContext: viewModel.fieldNotesPromptContext,
+                        isPublished: viewModel.state.exploreFieldNotesArePublic,
+                        onDismiss: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                viewModel.dismissFieldNotesCard()
+                            }
+                        },
+                        action: {
+                            viewModel.state.isFieldNotesSheetPresented = true
+                        }
+                    )
+                    .cardEntrance(index: 3)
+                }
 
                 // MARK: - Educational Reference
                 OverviewCard(

@@ -52,14 +52,21 @@ struct AnalyzingContentView: View {
                 analyzingPhrase: inferenceEngine.scanningPhaseText
             )
 
-            FieldNotesCard(
-                previewText: viewModel.fieldNotesText,
-                promptContext: .analyzing,
-                action: {
-                    viewModel.state.isFieldNotesSheetPresented = true
-                }
-            )
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            if viewModel.shouldShowFieldNotesCard {
+                FieldNotesCard(
+                    previewText: viewModel.fieldNotesText,
+                    promptContext: .analyzing,
+                    onDismiss: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            viewModel.dismissFieldNotesCard()
+                        }
+                    },
+                    action: {
+                        viewModel.state.isFieldNotesSheetPresented = true
+                    }
+                )
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
 
             DidYouKnowCard()
                 .transition(.opacity.combined(with: .move(edge: .bottom)))

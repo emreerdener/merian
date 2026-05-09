@@ -233,6 +233,10 @@ private extension InsightSheetView {
             showDeleteConfirmation: $viewModel.state.showDeleteConfirmation,
             hasUserPhotos: viewModel.hasUserPhotos,
             onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },
+            hasFieldNotes: viewModel.hasFieldNotes,
+            onFieldNotes: {
+                viewModel.state.isFieldNotesSheetPresented = true
+            },
             onReanalyze: viewModel.canReanalyze ? {
                 if RevenueCatManager.shared.isProActive {
                     if let record = viewModel.activeLocalRecord {

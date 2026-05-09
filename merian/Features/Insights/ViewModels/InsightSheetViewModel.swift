@@ -76,6 +76,7 @@ final class InsightSheetViewModel {
         var exploreFieldNotesArePublic = false
         var showExploreSheet = false
         var fieldNotesText = ""
+        var dismissedFieldNotesCardScanId: String?
     }
 
     var state = UIState()
@@ -153,6 +154,16 @@ final class InsightSheetViewModel {
 
     var fieldNotesText: String {
         state.fieldNotesText
+    }
+
+    var hasFieldNotes: Bool {
+        !state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var shouldShowFieldNotesCard: Bool {
+        guard !hasFieldNotes else { return true }
+        guard let currentFieldNotesScanId else { return true }
+        return state.dismissedFieldNotesCardScanId != currentFieldNotesScanId
     }
 
     var shareableFieldNotes: String? {
@@ -543,7 +554,16 @@ final class InsightSheetViewModel {
 
     func updateFieldNotes(_ text: String, modelContext: ModelContext) {
         state.fieldNotesText = text
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            state.dismissedFieldNotesCardScanId = nil
+        }
         persistFieldNotes(text, modelContext: modelContext)
+    }
+
+    func dismissFieldNotesCard() {
+        guard let currentFieldNotesScanId else { return }
+        HapticManager.shared.triggerLightImpact()
+        state.dismissedFieldNotesCardScanId = currentFieldNotesScanId
     }
 
     func syncFieldNotesFromCurrentScan(modelContext: ModelContext) {

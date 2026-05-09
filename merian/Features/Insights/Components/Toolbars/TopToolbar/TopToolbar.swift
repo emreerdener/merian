@@ -10,6 +10,8 @@ struct TopToolbar: ToolbarContent {
     @Binding var showDeleteConfirmation: Bool
     let hasUserPhotos: Bool
     let onSavePhotos: () -> Void
+    let hasFieldNotes: Bool
+    let onFieldNotes: () -> Void
     var onReanalyze: (() -> Void)?
     var onReviewAlternatives: (() -> Void)?
     var onConfirmIdentification: (() -> Void)?
@@ -38,6 +40,10 @@ struct TopToolbar: ToolbarContent {
                         Button(action: { onSavePhotos() }) {
                             Label("Download scan", systemImage: "arrow.down.circle")
                         }
+                    }
+
+                    Button(action: onFieldNotes) {
+                        Label(hasFieldNotes ? "Update field notes" : "Add field notes", systemImage: "square.and.pencil")
                     }
                     
                     Section("Identification") {
