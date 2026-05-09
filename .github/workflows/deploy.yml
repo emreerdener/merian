@@ -38,6 +38,18 @@ jobs:
       - name: Deploy Edge Function - Identify
         run: supabase functions deploy identify --project-ref $PROJECT_ID
 
+      - name: Deploy Edge Function - Identify Multimodal
+        run: supabase functions deploy identify-multimodal --project-ref $PROJECT_ID
+
+      - name: Deploy Edge Function - Identify Describe
+        run: supabase functions deploy identify-describe --project-ref $PROJECT_ID
+
+      - name: Deploy Edge Function - Audio Spec
+        run: supabase functions deploy audio-spec --project-ref $PROJECT_ID
+
+      - name: Deploy Edge Function - Auto Purge Nonbio
+        run: supabase functions deploy auto-purge-nonbio --project-ref $PROJECT_ID --no-verify-jwt
+
       - name: Deploy Edge Function - Generate Upload URLs
         run: supabase functions deploy generate-upload-urls --project-ref $PROJECT_ID
 

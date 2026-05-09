@@ -408,9 +408,55 @@ final class CaptureWorkspaceViewModel {
         self.refinementInitialDescriptionDraft = trimmedDescription?.isEmpty == false ? trimmedDescription : nil
         self.activeSheet = nil
         self.requestedCaptureMode = .describe
-        
-        guard let localPath = record.coverImagePath,
-              !localPath.starts(with: "http") else { return }
+
+        stageHistoricalMediaForRefinement(from: record)
+    }
+
+    private func stageHistoricalMediaForRefinement(from record: LocalScanRecord) {
+        let mediaSnapshot = record.capturedMediaSnapshot
+
+        for imageReference in mediaSnapshot.imageReferences
+            where stageHistoricalImageForRefinement(imageReference) {
+            return
+        }
+
+        if let fallbackImagePath = record.coverImagePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !fallbackImagePath.isEmpty,
+           stageHistoricalImageForRefinement(StoredMediaReference(legacyPath: fallbackImagePath)) {
+            return
+        }
+
+        for audioReference in mediaSnapshot.audioReferences
+            where stageHistoricalAudioForRefinement(audioReference) {
+            return
+        }
+
+        if let descriptionContext = mediaSnapshot.observationContexts.first(where: { !$0.isEmpty }),
+           stageHistoricalDescriptionForRefinement(descriptionContext) {
+            return
+        }
+    }
+
+    @discardableResult
+    private func stageHistoricalAudioForRefinement(_ audioReference: StoredMediaReference) -> Bool {
+        guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
+        let audioPath = audioReference.resolvedLocalPath ?? audioReference.serializedPath
+        guard !audioPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        stagedCapture.audios.append(StagedAudio(filePath: audioPath))
+        return true
+    }
+
+    @discardableResult
+    private func stageHistoricalDescriptionForRefinement(_ descriptionContext: ObservationContext) -> Bool {
+        guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
+        stagedCapture.observationContexts.append(StagedObservationContext(context: descriptionContext))
+        return true
+    }
+
+    @discardableResult
+    private func stageHistoricalImageForRefinement(_ imageReference: StoredMediaReference) -> Bool {
+        guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
+        guard let sourceURL = imageReference.resolvedURL else { return false }
 
         self.isStagingRefinement = true
         self.refinementStagingTask?.cancel()
@@ -422,12 +468,30 @@ final class CaptureWorkspaceViewModel {
             category: .imagePreparation
         ) { [weak self, isPro] in
             guard let self = self else { return }
-            // localImagePath stores a bare filename relative to the documents directory
-            // (written by FileIOActor.writeTemporaryImages). Reconstruct the full URL
-            // the same way every other consumer does — see FileIOActor.validPaths and deleteImages.
-            let fileURL = URL.documentsDirectory.appendingPathComponent(localPath)
-            
+            var temporaryDownloadURL: URL?
+            let fileURL: URL
+
             do {
+                if imageReference.isRemote {
+                    guard let downloadedURL = try await Self.downloadRefinementImage(from: sourceURL) else {
+                        await MainActor.run { self.isStagingRefinement = false }
+                        return
+                    }
+                    temporaryDownloadURL = downloadedURL
+                    fileURL = downloadedURL
+                } else if FileManager.default.fileExists(atPath: sourceURL.path) {
+                    fileURL = sourceURL
+                } else {
+                    await MainActor.run { self.isStagingRefinement = false }
+                    return
+                }
+
+                defer {
+                    if let temporaryDownloadURL {
+                        try? FileManager.default.removeItem(at: temporaryDownloadURL)
+                    }
+                }
+
                 let request = PreparedStagedImageRequest(
                     fileURL: fileURL,
                     isPro: isPro,
@@ -450,6 +514,34 @@ final class CaptureWorkspaceViewModel {
                 await MainActor.run { self.isStagingRefinement = false }
             }
         }
+        return true
+    }
+
+    private nonisolated static func downloadRefinementImage(from remoteURL: URL) async throws -> URL? {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 120
+        config.httpShouldSetCookies = false
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.urlCache = nil
+
+        let session = URLSession(configuration: config)
+        let (downloadURL, response) = try await session.download(from: remoteURL)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            return nil
+        }
+
+        let extensionHint = remoteURL.pathExtension.isEmpty ? "jpg" : remoteURL.pathExtension
+        let destinationURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(extensionHint)
+
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
+        }
+        try FileManager.default.moveItem(at: downloadURL, to: destinationURL)
+        return destinationURL
     }
     
     func cancelRefinementStaging() {

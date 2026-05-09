@@ -32,14 +32,19 @@ extension CaptureWorkspaceViewModel {
 
         let isMultiCaptureEnabled = AppSettings.shared.isMultiCaptureEnabled
         let requiresScanConfirmation = AppSettings.shared.requiresScanConfirmation
+        let isRefining = baseRefinementRecord != nil
 
-        if isMultiCaptureEnabled {
+        if isRefining {
+            guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
+            stagedCapture.observationContexts.append(StagedObservationContext(context: stagedContext))
+            return true
+        } else if isMultiCaptureEnabled {
             guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
             stagedCapture.observationContexts.append(StagedObservationContext(context: stagedContext))
             return true
         } else {
-            if !stagedCapture.images.isEmpty {
-                // Images already staged — add the description to the toolbar without submitting.
+            if !stagedCapture.images.isEmpty || !stagedCapture.audios.isEmpty || !stagedCapture.observationContexts.isEmpty {
+                // Already-staged media composes through the toolbar.
                 // The ActiveScanToolbar's Identify button owns submission in this state.
                 stagedCapture.observationContexts = [StagedObservationContext(context: stagedContext)]
                 return true

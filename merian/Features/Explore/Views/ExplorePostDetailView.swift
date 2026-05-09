@@ -6,6 +6,7 @@ struct ExplorePostDetailView: View {
     let postId: String
     let shouldFocusCommentComposer: Bool
     let shouldOpenInsight: Bool
+    let allowsInsightPresentation: Bool
 
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
@@ -97,7 +98,7 @@ struct ExplorePostDetailView: View {
                             focusComments(using: scrollProxy, animated: false)
                         }
 
-                        if shouldOpenInsight && !didAutoOpenInsight {
+                        if allowsInsightPresentation && shouldOpenInsight && !didAutoOpenInsight {
                             didAutoOpenInsight = true
                             Task { @MainActor in
                                 try? await Task.sleep(nanoseconds: 250_000_000)
@@ -126,6 +127,14 @@ struct ExplorePostDetailView: View {
         .onChange(of: viewModel.commentDraft) { _, newValue in
             if newValue.count > 500 {
                 viewModel.commentDraft = String(newValue.prefix(500))
+            }
+        }
+        .onReceive(AppEventPublisher.shared.publisher) { event in
+            guard case .explorePostNeedsRefresh(let changedPostId) = event,
+                  changedPostId == postId else { return }
+            Task {
+                await viewModel.refreshPost(postId: changedPostId)
+                await loadPostDetail()
             }
         }
         .overlay {
@@ -342,45 +351,33 @@ struct ExplorePostDetailView: View {
 
     private func speciesSection(for post: ExplorePost) -> some View {
         let aiReasoning = detail?.trimmedAiReasoning
-        let referenceGalleryImages = detail?.referenceGalleryImages ?? []
 
-        return VStack(alignment: .center, spacing: 24) {
-            VStack(alignment: .center, spacing: 8) {
-                // Scientific name
-                if !post.speciesScientificName.isEmpty && post.speciesScientificName.lowercased() != post.speciesCommonName.lowercased() && post.speciesScientificName != "Taxonomy Unavailable" {
-                    Text(post.speciesScientificName.replacingOccurrences(of: "'", with: "").trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\n", with: " "))
-                        .font(.system(.title3))
-                        .italic()
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-
-                // Species Common Name with Emoji
-                Text(post.resolvedSpeciesCommonName)
-                    .font(.system(.largeTitle, design: .serif).weight(.bold))
-                    .foregroundStyle(.primary)
+        return VStack(alignment: .center, spacing: 8) {
+            // Scientific name
+            if !post.speciesScientificName.isEmpty && post.speciesScientificName.lowercased() != post.speciesCommonName.lowercased() && post.speciesScientificName != "Taxonomy Unavailable" {
+                Text(post.speciesScientificName.replacingOccurrences(of: "'", with: "").trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\n", with: " "))
+                    .font(.system(.title3))
+                    .italic()
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-
-                // AI Reasoning
-                if let aiReasoning {
-                    Text(styledAiReasoning(text: aiReasoning, scientificName: post.speciesScientificName))
-                        .font(.system(.body))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(4)
-                        .padding(.top, 8)
-                }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
 
-            // Reference Gallery Images
-            if !referenceGalleryImages.isEmpty {
-                ExploreReferenceGallery(
-                    scientificName: post.speciesScientificName,
-                    images: referenceGalleryImages
-                )
-                .padding(.top, aiReasoning == nil ? 8 : 16)
+            // Species Common Name with Emoji
+            Text(post.resolvedSpeciesCommonName)
+                .font(.system(.largeTitle, design: .serif).weight(.bold))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.center)
+
+            // AI Reasoning
+            if let aiReasoning {
+                Text(styledAiReasoning(text: aiReasoning, scientificName: post.speciesScientificName))
+                    .font(.system(.body))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+                    .padding(.top, 8)
             }
         }
         .frame(maxWidth: .infinity)
@@ -417,6 +414,13 @@ struct ExplorePostDetailView: View {
                             scientificName: post.speciesScientificName,
                             iucnRedListStatus: detail.iucnRedListStatus,
                             wikipediaOverview: detail.wikipediaOverview
+                        )
+                    }
+
+                    if let referenceGalleryImages = detail?.referenceGalleryImages, !referenceGalleryImages.isEmpty {
+                        ExploreReferenceGallery(
+                            scientificName: post.speciesScientificName,
+                            images: referenceGalleryImages
                         )
                     }
 
@@ -649,10 +653,12 @@ struct ExplorePostDetailView: View {
     private func detailMenuButton(for post: ExplorePost) -> some View {
         Menu {
             if isOwnedByCurrentUser(post) {
-                Button {
-                    openInsight(for: post)
-                } label: {
-                    Label("Open insight", systemImage: "sparkles")
+                if allowsInsightPresentation {
+                    Button {
+                        openInsight(for: post)
+                    } label: {
+                        Label("Open insight", systemImage: "sparkles")
+                    }
                 }
 
                 if detail?.trimmedFieldNotes != nil || localFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
@@ -795,7 +801,14 @@ struct ExplorePostDetailView: View {
         )
         let notes = (try? modelContext.fetch(descriptor).first?.fieldNotes)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        localFieldNotes = notes?.isEmpty == false ? notes : nil
+        if notes?.isEmpty == false {
+            FieldNotesStore.setFieldNotes(notes, for: scanId)
+            localFieldNotes = notes
+        } else if let storedNotes = FieldNotesStore.fieldNotes(for: scanId) {
+            localFieldNotes = storedNotes
+        } else {
+            localFieldNotes = nil
+        }
     }
 
     private func openFieldNotesEditor(for post: ExplorePost) {
@@ -815,14 +828,22 @@ struct ExplorePostDetailView: View {
 
         let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         let scanId = post.scanId
+        FieldNotesStore.setFieldNotes(trimmed.isEmpty ? nil : notes, for: scanId)
+
         let descriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate { $0.id == scanId }
         )
 
-        guard let record = try? modelContext.fetch(descriptor).first else { return }
+        guard let record = try? modelContext.fetch(descriptor).first else {
+            localFieldNotes = trimmed.isEmpty ? nil : notes
+            return
+        }
 
         let existing = record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard existing != trimmed || record.fieldNotes != notes else { return }
+        guard existing != trimmed || record.fieldNotes != notes else {
+            localFieldNotes = trimmed.isEmpty ? nil : notes
+            return
+        }
 
         record.fieldNotes = trimmed.isEmpty ? nil : notes
         try? modelContext.save()
@@ -866,11 +887,16 @@ struct ExplorePostDetailView: View {
         guard !trimmed.isEmpty else { return }
 
         let scanId = post.scanId
+        FieldNotesStore.setFieldNotes(notes, for: scanId)
+
         let descriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate { $0.id == scanId }
         )
 
-        guard let record = try? modelContext.fetch(descriptor).first else { return }
+        guard let record = try? modelContext.fetch(descriptor).first else {
+            localFieldNotes = notes
+            return
+        }
 
         let existing = record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard existing.isEmpty else {
@@ -884,6 +910,7 @@ struct ExplorePostDetailView: View {
     }
 
     private func openInsight(for post: ExplorePost) {
+        guard allowsInsightPresentation else { return }
         guard isOwnedByCurrentUser(post) else { return }
 
         let scanId = post.scanId
@@ -901,6 +928,7 @@ struct ExplorePostDetailView: View {
            record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
             record.fieldNotes = fieldNotes
             try? modelContext.save()
+            FieldNotesStore.setFieldNotes(fieldNotes, for: scanId)
             localFieldNotes = fieldNotes
         }
 

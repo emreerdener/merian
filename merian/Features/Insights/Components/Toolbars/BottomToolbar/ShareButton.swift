@@ -114,24 +114,26 @@ struct ShareButton: View {
             }
         }
         .sheet(isPresented: $showingOptions, onDismiss: handlePendingAction) {
+            shareOptionsSheet
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .task(id: fieldNotesVisibilityFeedback?.message) {
+            guard fieldNotesVisibilityFeedback != nil else { return }
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                fieldNotesVisibilityFeedback = nil
+            }
+        }
+    }
+
+    private var shareOptionsSheet: some View {
+        ZStack(alignment: .bottom) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
                     // EXPLORE FEATURE PANEL
                     exploreFeaturePanel
-
-                    if let fieldNotesVisibilityFeedback {
-                        ToastBanner(onDismiss: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                self.fieldNotesVisibilityFeedback = nil
-                            }
-                        }) {
-                            Text(fieldNotesVisibilityFeedback.message)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundStyle(.primary)
-                        }
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
 
                     // SHARE TO EXTERNAL APPS
                     VStack(alignment: .leading, spacing: 10) {
@@ -172,21 +174,26 @@ struct ShareButton: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 32)
-                .padding(.bottom, 24)
+                .padding(.bottom, 96)
             }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-        .task(id: fieldNotesVisibilityFeedback?.message) {
-            guard fieldNotesVisibilityFeedback != nil else { return }
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                fieldNotesVisibilityFeedback = nil
+
+            if let fieldNotesVisibilityFeedback {
+                ToastBanner(onDismiss: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        self.fieldNotesVisibilityFeedback = nil
+                    }
+                }) {
+                    Text(fieldNotesVisibilityFeedback.message)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.primary)
+                }
+                .padding(.bottom, 24)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(2)
             }
         }
     }

@@ -615,6 +615,7 @@ serve((req: Request) =>
             gps_long_exact: safeGpsLon,
             gps_elevation: gpsElevation ?? null,
             ai_confidence_score: parsedData.confidence_score,
+            is_biological_subject: parsedData.is_biological_subject,
             blur_score: parsedData.blur_score,
             ecology_type: parsedData.ecology_type,
             is_invasive: parsedData.is_invasive,

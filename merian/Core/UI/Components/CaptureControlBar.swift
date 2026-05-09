@@ -77,6 +77,9 @@ struct CaptureControlBar: View {
                 //   • confirm-before-submit ON (every input must be staged first)
                 // Show "↑" only for immediate solo-describe when none of the above apply.
                 let willStageOnly = !viewModel.stagedCapture.images.isEmpty
+                    || !viewModel.stagedCapture.audios.isEmpty
+                    || !viewModel.stagedCapture.observationContexts.isEmpty
+                    || viewModel.baseRefinementRecord != nil
                     || appSettings.isMultiCaptureEnabled
                     || appSettings.requiresScanConfirmation
                 // All modes disabled when staging area is full — no new input can be added.

@@ -26,6 +26,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 enum ModelStoreRecoveryCoordinator {
     private static let sqliteCorruptionCodes: Set<Int> = [11, 26] // SQLITE_CORRUPT, SQLITE_NOTADB
+    private static let unknownModelVersionErrorCode = 134504
     private static let corruptionPhrases = [
         "database disk image is malformed",
         "file is not a database",
@@ -33,7 +34,9 @@ enum ModelStoreRecoveryCoordinator {
         "sqlite_corrupt",
         "sqlite_notadb",
         "malformed database schema",
-        "corrupt"
+        "corrupt",
+        "cannot use staged migration with an unknown model version",
+        "unknown model version"
     ]
 
     static func defaultStoreURL() -> URL {
@@ -49,6 +52,9 @@ enum ModelStoreRecoveryCoordinator {
             if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileReadCorruptFileError {
                 return true
             }
+            if nsError.domain == NSCocoaErrorDomain, nsError.code == unknownModelVersionErrorCode {
+                return true
+            }
 
             let normalizedText = [
                 nsError.localizedDescription,
@@ -60,6 +66,10 @@ enum ModelStoreRecoveryCoordinator {
 
             return corruptionPhrases.contains { normalizedText.contains($0) }
         }
+    }
+
+    static func hasStoreArtifacts(at storeURL: URL, fileManager: FileManager = .default) -> Bool {
+        !storeArtifacts(for: storeURL, fileManager: fileManager).isEmpty
     }
 
     @discardableResult
@@ -430,10 +440,14 @@ struct MerianApp: App {
         } catch {
             MerianLog.general.error("CRITICAL: Failed to initialize ModelContainer. Error: \(error.localizedDescription)")
 
-            if ModelStoreRecoveryCoordinator.shouldAttemptRecovery(for: error) {
+            let storeURL = ModelStoreRecoveryCoordinator.defaultStoreURL()
+            let shouldAttemptRecovery = ModelStoreRecoveryCoordinator.shouldAttemptRecovery(for: error)
+                || ModelStoreRecoveryCoordinator.hasStoreArtifacts(at: storeURL)
+
+            if shouldAttemptRecovery {
                 do {
                     let quarantineDirectory = try ModelStoreRecoveryCoordinator.quarantineStoreArtifacts(
-                        at: ModelStoreRecoveryCoordinator.defaultStoreURL()
+                        at: storeURL
                     )
                     let recoveredContainer = try makePersistentContainer()
                     MerianLog.general.error(

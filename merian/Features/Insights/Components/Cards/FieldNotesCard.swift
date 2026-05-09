@@ -3,6 +3,7 @@ import SwiftUI
 struct FieldNotesCard: View {
     let previewText: String
     let promptContext: FieldNotesPromptContext
+    var isPublished = false
     let action: () -> Void
 
     private var trimmedPreview: String {
@@ -21,6 +22,10 @@ struct FieldNotesCard: View {
                 Text("Field notes")
                     .font(.system(.headline))
                     .foregroundColor(.primary)
+
+                if isPublished {
+                    publishedBadge
+                }
             }
             if hasNotes {
                 Text(trimmedPreview)
@@ -34,6 +39,8 @@ struct FieldNotesCard: View {
                     .onLongPressGesture(perform: action)
                     .accessibilityAddTraits(.isButton)
                     .accessibilityHint("Opens field notes for editing.")
+            } else {
+                zeroStateIntro
             }
 
             Button(action: action) {
@@ -54,5 +61,45 @@ struct FieldNotesCard: View {
             )
         }
         .card()
+    }
+
+    private var zeroStateIntro: some View {
+        VStack(alignment: .center, spacing: 14) {
+            Image("insights_journal")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 200)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .center, spacing: 6) {
+                Text("Add your field notes")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.primary)
+
+                Text("Save details, questions, and observations you want to remember with this scan.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var publishedBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "eye.fill")
+                .font(.system(size: 10, weight: .semibold))
+            Text("Published")
+                .font(.caption.weight(.semibold))
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.primary.opacity(0.08))
+        )
+        .accessibilityLabel("Published field notes")
     }
 }

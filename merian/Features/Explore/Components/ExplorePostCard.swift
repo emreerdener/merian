@@ -8,7 +8,7 @@ struct ExplorePostCard: View {
     let onComments: () -> Void
     let onShare: () -> Void
     let onOpenDetail: () -> Void
-    let onOpenInsight: () -> Void
+    let onOpenInsight: (() -> Void)?
     let onUnshare: () -> Void
     let onBlock: () -> Void
     let onReport: () -> Void
@@ -215,8 +215,10 @@ struct ExplorePostCard: View {
     private var menuButton: some View {
         Menu {
             if post.isOwnedByViewer {
-                Button(action: onOpenInsight) {
-                    Label("Open insight", systemImage: "sparkles")
+                if let onOpenInsight {
+                    Button(action: onOpenInsight) {
+                        Label("Open insight", systemImage: "sparkles")
+                    }
                 }
 
                 Button(role: .destructive, action: onUnshare) {
@@ -366,6 +368,12 @@ struct ExploreDetailMediaView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+        )
+        .padding(.horizontal, 16)
     }
 }
 

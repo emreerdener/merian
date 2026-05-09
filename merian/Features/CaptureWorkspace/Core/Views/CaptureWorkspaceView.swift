@@ -193,7 +193,7 @@ struct CaptureWorkspaceView: View {
                 VStack {
                     Spacer()
 
-                    if viewModel.stagedCapture.isEmpty {
+                    if viewModel.stagedCapture.isEmpty && viewModel.baseRefinementRecord == nil {
                         MainTabBar(
                             isExploreOpen: $viewModel.activeSheet.mapped(to: .explore),
                             isScansOpen: $viewModel.activeSheet.mapped(to: .scans),

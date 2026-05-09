@@ -15,6 +15,8 @@ function jsonResponse(payload: unknown, status = 200) {
 }
 
 serve(async (req: Request) => {
+  let step = "request";
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -24,6 +26,7 @@ serve(async (req: Request) => {
   }
 
   // 1. Authenticate the Webhook via Service Role Key natively
+  step = "auth";
   const expectedAuth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
   const providedAuth = req.headers.get("Authorization") ?? "";
 
@@ -38,6 +41,7 @@ serve(async (req: Request) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
     // 2. Query non-biological scans older than 30 days
+    step = "fetch_stale_nonbio_scans";
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const boundaryIso = thirtyDaysAgo.toISOString();
@@ -65,13 +69,19 @@ serve(async (req: Request) => {
 
     // 4. Delete all aggregated R2 images via Cloudflare AWS protocol natively
     if (mediaToWipe.length > 0) {
+      step = "delete_r2_objects";
       await deleteR2Objects(mediaToWipe, r2Config);
     }
 
     // 5. Purge the IDs cleanly from Postgres
+    step = "delete_scan_rows";
     await deleteScansBulk(idsToDelete, supabaseAdmin);
 
-    console.log(`Purged ${idsToDelete.length} stale non-biological scans`);
+    console.log(JSON.stringify({
+      event: "auto_purge_nonbio_complete",
+      scan_count: idsToDelete.length,
+      media_count: mediaToWipe.length,
+    }));
 
     return jsonResponse(
       { success: true, count: idsToDelete.length },
@@ -79,7 +89,11 @@ serve(async (req: Request) => {
     );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error(`Auto Purge Error: ${message}`);
-    return jsonResponse({ error: message }, 500);
+    console.error(JSON.stringify({
+      event: "auto_purge_nonbio_failed",
+      step,
+      error: message,
+    }));
+    return jsonResponse({ error: message, step }, 500);
   }
 });

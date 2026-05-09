@@ -96,6 +96,7 @@ export interface ScanInsertRow {
   gps_long_exact?: number | null;
   gps_elevation?: number | null;
   ai_confidence_score?: number;
+  is_biological_subject: boolean;
   blur_score?: number;
   ecology_type?: string;
   is_invasive?: boolean;

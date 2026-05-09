@@ -1756,6 +1756,10 @@ private struct GBIFMedia: Decodable {
                 .eq("id", value: scanId)
                 .eq("user_id", value: userId)
                 .execute()
+
+            if let postId = ExploreShareStateStore.sharedPostId(for: scanId) {
+                AppEventPublisher.shared.send(.explorePostNeedsRefresh(postId: postId))
+            }
         } catch {
             MerianLog.general.debug("syncIdentificationReviewToCloud failed: \(error, privacy: .private)")
         }

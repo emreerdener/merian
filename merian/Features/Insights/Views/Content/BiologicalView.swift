@@ -109,6 +109,7 @@ struct BiologicalView: View {
                 FieldNotesCard(
                     previewText: viewModel.fieldNotesText,
                     promptContext: viewModel.fieldNotesPromptContext,
+                    isPublished: viewModel.state.exploreFieldNotesArePublic,
                     action: {
                         viewModel.state.isFieldNotesSheetPresented = true
                     }

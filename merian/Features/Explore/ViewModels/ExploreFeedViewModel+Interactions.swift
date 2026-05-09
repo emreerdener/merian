@@ -120,6 +120,15 @@ extension ExploreFeedViewModel {
         reconcileActiveCommentsPost()
     }
 
+    func refreshPost(postId: String) async {
+        do {
+            let refreshedPost = try await MerianNetworkClient.shared.getExplorePost(postId: postId)
+            upsertPost(refreshedPost)
+        } catch {
+            toastMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+
     func removePost(id: String) {
         store.removePost(id: id)
         if activeCommentsPostId == id {

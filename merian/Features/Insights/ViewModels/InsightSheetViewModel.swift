@@ -189,16 +189,16 @@ final class InsightSheetViewModel {
 
     var canReanalyze: Bool {
         guard queuedContext == nil else { return false }
-        if isReviewLocked { return false }
         guard activeLocalRecord != nil else { return false }
         return true
     }
 
     var canReviewAlternatives: Bool {
         guard queuedContext == nil else { return false }
-        if isReviewLocked { return false }
         guard let speciesData = inferenceEngine?.speciesData else { return false }
-        return !(speciesData.candidates ?? []).isEmpty && !speciesData.alternativesExhausted
+        return !(speciesData.candidates ?? []).isEmpty &&
+            !speciesData.alternativesExhausted &&
+            !speciesData.isFlagged
     }
 
     var canConfirm: Bool {
@@ -215,7 +215,7 @@ final class InsightSheetViewModel {
 
     var isAlreadyFlagged: Bool {
         guard queuedContext == nil else { return false }
-        return (inferenceEngine?.speciesData?.isFlagged ?? false) || isReviewLocked
+        return inferenceEngine?.speciesData?.isFlagged ?? false
     }
 
     // MARK: - Content Routing
@@ -697,13 +697,13 @@ final class InsightSheetViewModel {
         boundFieldNotesScanId = scanId
 
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        FieldNotesStore.setFieldNotes(trimmed.isEmpty ? nil : text, for: scanId)
 
         if let activeLocalRecord, activeLocalRecord.id == scanId {
             let existing = activeLocalRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard existing != trimmed || activeLocalRecord.fieldNotes != text else { return false }
             activeLocalRecord.fieldNotes = trimmed.isEmpty ? nil : text
             try? modelContext.save()
-            migrateLegacyFieldNotesIfNeeded(for: scanId, consumedText: text)
             return true
         }
 
@@ -713,7 +713,6 @@ final class InsightSheetViewModel {
             guard existing != trimmed || record.fieldNotes != text else { return false }
             record.fieldNotes = trimmed.isEmpty ? nil : text
             try? modelContext.save()
-            migrateLegacyFieldNotesIfNeeded(for: scanId, consumedText: text)
             return true
         }
 
@@ -723,7 +722,6 @@ final class InsightSheetViewModel {
             guard existing != trimmed || queuedScan.fieldNotes != text else { return false }
             queuedScan.fieldNotes = trimmed.isEmpty ? nil : text
             try? modelContext.save()
-            migrateLegacyFieldNotesIfNeeded(for: scanId, consumedText: text)
             return true
         }
 
@@ -741,7 +739,7 @@ final class InsightSheetViewModel {
 
         let trimmedRecordFieldNotes = recordFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedRecordFieldNotes?.isEmpty == false {
-            clearLegacyFieldNotesIfNeeded(for: scanId)
+            FieldNotesStore.setFieldNotes(recordFieldNotes, for: scanId)
             return recordFieldNotes
         }
 
@@ -749,27 +747,17 @@ final class InsightSheetViewModel {
         let queuedFieldNotes = (try? modelContext.fetch(queuedDescriptor))?.first?.fieldNotes
         let trimmedQueuedFieldNotes = queuedFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedQueuedFieldNotes?.isEmpty == false {
-            clearLegacyFieldNotesIfNeeded(for: scanId)
+            FieldNotesStore.setFieldNotes(queuedFieldNotes, for: scanId)
             return queuedFieldNotes
         }
 
         let legacyFieldNotes = FieldNotesStore.fieldNotes(for: scanId)
         if let legacyFieldNotes, !legacyFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             _ = persistFieldNotes(legacyFieldNotes, modelContext: modelContext)
-            clearLegacyFieldNotesIfNeeded(for: scanId)
             return legacyFieldNotes
         }
 
         return nil
-    }
-
-    private func migrateLegacyFieldNotesIfNeeded(for scanId: String, consumedText: String) {
-        let legacyFieldNotes = FieldNotesStore.fieldNotes(for: scanId)
-        let trimmedConsumedText = consumedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedLegacyFieldNotes = legacyFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if trimmedConsumedText == trimmedLegacyFieldNotes || trimmedConsumedText.isEmpty {
-            clearLegacyFieldNotesIfNeeded(for: scanId)
-        }
     }
 
     private func preserveLocalFieldNotesIfNeeded(_ notes: String) {
@@ -788,12 +776,9 @@ final class InsightSheetViewModel {
             if existing.isEmpty {
                 activeLocalRecord.fieldNotes = notes
                 try? activeLocalRecord.modelContext?.save()
+                FieldNotesStore.setFieldNotes(notes, for: scanId)
             }
         }
-    }
-
-    private func clearLegacyFieldNotesIfNeeded(for scanId: String) {
-        FieldNotesStore.setFieldNotes(nil, for: scanId)
     }
 
     private func applySharedExplorePostId(_ postId: String?, for scanId: String?, bumpRevision: Bool) {

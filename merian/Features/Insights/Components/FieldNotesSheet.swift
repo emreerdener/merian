@@ -8,90 +8,98 @@ struct FieldNotesSheet: View {
     @Environment(SpeechManager.self) private var speechManager
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isTextFieldFocused: Bool
+    @State private var draftText: String
     @State private var showDeleteConfirmation = false
     @State private var dictationTask: Task<Void, Never>?
     @State private var dictationErrorMessage: String?
+
+    init(text: Binding<String>, promptContext: FieldNotesPromptContext) {
+        self._text = text
+        self.promptContext = promptContext
+        self._draftText = State(initialValue: text.wrappedValue)
+    }
 
     private var isDictating: Bool {
         dictationTask != nil && speechManager.isRecording
     }
 
+    private var hasNotes: Bool {
+        !draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         ZStack {
             NavigationStack {
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        // MARK: - Text Field
-                        ZStack(alignment: .topLeading) {
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .fill(Color(uiColor: .systemBackground))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                                )
+                VStack(alignment: .leading, spacing: 16) {
+                    // MARK: - Text Field
+                    ZStack(alignment: .topLeading) {
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(Color(uiColor: .systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                            )
 
-                            TextEditor(text: $text)
+                        TextEditor(text: $draftText)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .focused($isTextFieldFocused)
+                            .scrollContentBackground(.hidden)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+                        if draftText.isEmpty {
+                            Text("Write down what you noticed...")
                                 .font(.body)
-                                .foregroundStyle(.primary)
-                                .focused($isTextFieldFocused)
-                                .scrollContentBackground(.hidden)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
-                                .frame(maxWidth: .infinity, minHeight: 220, alignment: .topLeading)
-
-                            if text.isEmpty {
-                                Text("Write down what you noticed...")
-                                    .font(.body)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 16)
-                                    .padding(.top, 18)
-                                    .allowsHitTesting(false)
-                            }
-                        }
-                        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                        .onTapGesture {
-                            isTextFieldFocused = true
-                        }
-
-                        dictationButton
-
-                        if let dictationErrorMessage {
-                            Text(dictationErrorMessage)
-                                .font(.footnote)
                                 .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 18)
+                                .allowsHitTesting(false)
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .onTapGesture {
+                        isTextFieldFocused = true
+                    }
+
+                    dictationButton
+
+                    if let dictationErrorMessage {
+                        Text(dictationErrorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
-                .background(
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            isTextFieldFocused = false
-                        }
-                )
+                .padding(.horizontal)
+                .padding(.bottom, 24)
                 .navigationTitle("Field notes")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button(role: .destructive, action: {
-                                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                                    showDeleteConfirmation = true
-                                }
-                            }) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 16, weight: .bold))
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(role: .destructive, action: {
+                            guard hasNotes else { return }
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                showDeleteConfirmation = true
                             }
-                            .buttonStyle(.borderedProminent)
-                            .buttonBorderShape(.circle)
-                            .tint(.red)
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 16, weight: .bold))
                         }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.circle)
+                        .tint(.red)
+                        .disabled(!hasNotes)
+                        .opacity(hasNotes ? 1 : 0.35)
                     }
+
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button(action: { dismiss() }) {
+                        Button(action: {
+                            commitDraft()
+                            dismiss()
+                        }) {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 16, weight: .bold))
                         }
@@ -116,6 +124,7 @@ struct FieldNotesSheet: View {
             }
             .onDisappear {
                 stopDictation()
+                commitDraft()
             }
 
             if showDeleteConfirmation {
@@ -123,8 +132,8 @@ struct FieldNotesSheet: View {
             }
         }
         .presentationDragIndicator(.visible)
-        .presentationDetents([.medium, .large])
-        .scrollDismissesKeyboard(.interactively)
+        .presentationDetents([.large])
+        .presentationContentInteraction(.resizes)
     }
 
     private var dictationButton: some View {
@@ -239,7 +248,8 @@ struct FieldNotesSheet: View {
     private func clearFieldNotes() {
         stopDictation()
         isTextFieldFocused = false
-        text = ""
+        draftText = ""
+        commitDraft()
         showDeleteConfirmation = false
         dismiss()
     }
@@ -247,14 +257,14 @@ struct FieldNotesSheet: View {
     private func startDictation() {
         dictationErrorMessage = nil
         isTextFieldFocused = false
-        let base = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         dictationTask = Task {
             do {
                 try await speechManager.startDictation { transcribed in
                     let trimmedTranscription = transcribed.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmedTranscription.isEmpty else { return }
-                    text = base.isEmpty ? trimmedTranscription : base + " " + trimmedTranscription
+                    draftText = base.isEmpty ? trimmedTranscription : base + " " + trimmedTranscription
                 }
             } catch {
                 dictationErrorMessage = error.localizedDescription
@@ -267,5 +277,10 @@ struct FieldNotesSheet: View {
         speechManager.stopDictation()
         dictationTask?.cancel()
         dictationTask = nil
+    }
+
+    private func commitDraft() {
+        guard text != draftText else { return }
+        text = draftText
     }
 }

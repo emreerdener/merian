@@ -17,6 +17,8 @@ struct ExploreView: View {
     @State private var selectedInsightRecord: LocalScanRecord?
     @State private var activeTab: ExploreTab = .feed
 
+    private let allowsInsightPresentation: Bool
+
     private var tabSelectionBinding: Binding<ExploreTab?> {
         Binding(
             get: { activeTab },
@@ -24,7 +26,8 @@ struct ExploreView: View {
         )
     }
 
-    init(initialPostId: String? = nil) {
+    init(initialPostId: String? = nil, allowsInsightPresentation: Bool = true) {
+        self.allowsInsightPresentation = allowsInsightPresentation
         if let postId = initialPostId {
             _selectedPostRoute = State(initialValue: ExplorePostRoute(postId: postId, shouldFocusCommentComposer: false, shouldOpenInsight: false))
         }
@@ -37,7 +40,7 @@ struct ExploreView: View {
                     ExploreFeedTabContent(
                         viewModel: viewModel,
                         onOpenPostDetail: { openPostDetail(for: $0) },
-                        onOpenInsight: { openInsight(for: $0) }
+                        onOpenInsight: allowsInsightPresentation ? { openInsight(for: $0) } : nil
                     )
                     .id(ExploreTab.feed)
 
@@ -69,7 +72,8 @@ struct ExploreView: View {
                         viewModel: viewModel,
                         postId: selectedPostRoute.postId,
                         shouldFocusCommentComposer: selectedPostRoute.shouldFocusCommentComposer,
-                        shouldOpenInsight: selectedPostRoute.shouldOpenInsight
+                        shouldOpenInsight: selectedPostRoute.shouldOpenInsight,
+                        allowsInsightPresentation: allowsInsightPresentation
                     )
                 }
             }
@@ -137,6 +141,10 @@ struct ExploreView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             Task { await viewModel.refreshUnreadNotificationCount() }
         }
+        .onReceive(AppEventPublisher.shared.publisher) { event in
+            guard case .explorePostNeedsRefresh(let postId) = event else { return }
+            Task { await viewModel.refreshPost(postId: postId) }
+        }
         .merianSystemFeedback(
             toastMessage: Binding(
                 get: { viewModel.toastMessage },
@@ -176,11 +184,12 @@ struct ExploreView: View {
         selectedPostRoute = ExplorePostRoute(
             postId: post.id,
             shouldFocusCommentComposer: focusCommentComposer,
-            shouldOpenInsight: openInsight
+            shouldOpenInsight: allowsInsightPresentation && openInsight
         )
     }
 
     private func openInsight(for post: ExplorePost) {
+        guard allowsInsightPresentation else { return }
         guard isOwnedByCurrentUser(post) else { return }
 
         let scanId = post.scanId
@@ -271,7 +280,7 @@ private struct ExploreFeedTabContent: View {
     @State private var isLocationSettingsAlertPresented = false
     @State private var isResolvingNearbyLocation = false
     let onOpenPostDetail: (ExplorePost) -> Void
-    let onOpenInsight: (ExplorePost) -> Void
+    let onOpenInsight: ((ExplorePost) -> Void)?
 
     var body: some View {
         ZStack {
@@ -319,7 +328,9 @@ private struct ExploreFeedTabContent: View {
                             onComments: { Task { await viewModel.openCommentsSheet(for: post) } },
                             onShare: { viewModel.share(post) },
                             onOpenDetail: { onOpenPostDetail(post) },
-                            onOpenInsight: { onOpenInsight(post) },
+                            onOpenInsight: onOpenInsight.map { callback in
+                                { callback(post) }
+                            },
                             onUnshare: { Task { await viewModel.unshare(post) } },
                             onBlock: { Task { await viewModel.blockAuthor(of: post) } },
                             onReport: { Task { await viewModel.report(post) } }

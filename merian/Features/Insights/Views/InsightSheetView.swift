@@ -185,7 +185,10 @@ struct InsightSheetView: View {
         ), onDismiss: {
             viewModel.refreshSharedExploreStateFromLocalCache()
         }) {
-            ExploreView(initialPostId: viewModel.state.sharedExplorePostId)
+            ExploreView(
+                initialPostId: viewModel.state.sharedExplorePostId,
+                allowsInsightPresentation: false
+            )
         }
     }
 }
