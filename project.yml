@@ -124,6 +124,9 @@ targets:
         SKIP_INSTALL: YES
         CODE_SIGN_STYLE: Automatic
         APPLICATION_EXTENSION_API_ONLY: YES
+      configs:
+        Release:
+          CODE_SIGN_IDENTITY: "Apple Development"
 
   merianTests:
     type: bundle.unit-test
