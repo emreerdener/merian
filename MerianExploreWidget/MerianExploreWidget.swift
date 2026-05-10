@@ -80,6 +80,7 @@ struct ExploreImageWidgetView: View {
             Color.black
             imageView
         }
+        .unredacted()
         .containerBackground(for: .widget) {
             Color.black
         }
@@ -94,12 +95,14 @@ struct ExploreImageWidgetView: View {
                 .scaledToFill()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
-        } else if let placeholder = UIImage(named: "ExploreWidgetPlaceholder") {
+                .unredacted()
+        } else if let placeholder = loadPlaceholderImage() {
             Image(uiImage: placeholder)
                 .resizable()
                 .scaledToFill()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
+                .unredacted()
         } else {
             Color.black
         }
@@ -107,6 +110,25 @@ struct ExploreImageWidgetView: View {
 
     private func loadImage(for item: ExploreWidgetItem) -> UIImage? {
         guard let url = ExploreWidgetConstants.imageURL(for: item.imageFilename) else {
+            return nil
+        }
+
+        return UIImage(contentsOfFile: url.path)
+    }
+
+    private func loadPlaceholderImage() -> UIImage? {
+        if let image = UIImage(
+            named: "ExploreWidgetPlaceholder",
+            in: Bundle.main,
+            compatibleWith: nil
+        ) {
+            return image
+        }
+
+        guard let url = Bundle.main.url(
+            forResource: "ExploreWidgetPlaceholder",
+            withExtension: "jpg"
+        ) else {
             return nil
         }
 

@@ -156,6 +156,7 @@
 		610327936D5323082EED32A8 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0B067DCAA5202FCC7F4287 /* CameraManager.swift */; };
 		62A01070DF6E95233435EF7E /* ImageFileWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413DCCABCCAFDD1CD84ABC00 /* ImageFileWrapper.swift */; };
 		636FC2A87E6506B7889EBB19 /* HapticManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D45E7DA9D9A12974FD515C /* HapticManagerTests.swift */; };
+		63B4F8C64B4CAEE98B1A93E7 /* ExploreWidgetPlaceholder.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 2A65F9093F1EC4A4ACC36776 /* ExploreWidgetPlaceholder.jpg */; };
 		643ACE5681914BDFAF7BF1AF /* NotificationRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D17F536E31CEE886202B9031 /* NotificationRowView.swift */; };
 		647627E499B9502FC1061EA4 /* SchemaV39.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAFBC7AB4C0E26E6C0F8837 /* SchemaV39.swift */; };
 		64988217EAB70473602C74EB /* AchievementsCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EB885D5AC52115AFFB2CCC5 /* AchievementsCalculator.swift */; };
@@ -526,6 +527,7 @@
 		28C44D2B266E2E38F95F8389 /* SchemaV34.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV34.swift; sourceTree = "<group>"; };
 		29CFED76002AE7614430824E /* SocialGuardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialGuardManager.swift; sourceTree = "<group>"; };
 		29E4037EA252BD2880564A77 /* FieldNotesRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldNotesRepository.swift; sourceTree = "<group>"; };
+		2A65F9093F1EC4A4ACC36776 /* ExploreWidgetPlaceholder.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = ExploreWidgetPlaceholder.jpg; sourceTree = "<group>"; };
 		2A7AA16C7C0EA9C53B8966E9 /* FlagIdentificationViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlagIdentificationViewModelTests.swift; sourceTree = "<group>"; };
 		2ACC6F74665D9727627D2148 /* Terrarium.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Terrarium.swift; sourceTree = "<group>"; };
 		2BA8000EC026BEE739B90C4A /* ShareSheetUtility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheetUtility.swift; sourceTree = "<group>"; };
@@ -1706,6 +1708,14 @@
 			path = Visual;
 			sourceTree = "<group>";
 		};
+		8DD9EEF36A1358A27FA562D6 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				2A65F9093F1EC4A4ACC36776 /* ExploreWidgetPlaceholder.jpg */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		90CCEEA862C84A1F4EBE8748 /* Hardware */ = {
 			isa = PBXGroup;
 			children = (
@@ -1940,6 +1950,7 @@
 				CCF8AFBFA8539F3DA8CCA36E /* Assets.xcassets */,
 				47B8E9B5FDC975E39C6A4350 /* MerianExploreWidget.swift */,
 				AE21EBA683FF7EC0EA7C0B21 /* Configuration */,
+				8DD9EEF36A1358A27FA562D6 /* Resources */,
 			);
 			path = MerianExploreWidget;
 			sourceTree = "<group>";
@@ -2424,6 +2435,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				834025BBBA26DDABE1E3D87C /* Assets.xcassets in Resources */,
+				63B4F8C64B4CAEE98B1A93E7 /* ExploreWidgetPlaceholder.jpg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
