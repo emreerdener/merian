@@ -98,6 +98,9 @@ extension ExploreFeedViewModel {
             reconcileActiveCommentsPost()
 
             markRecentFeedSeen(latestSharedAt: freshPosts.first?.sharedAt)
+            if activeFilter == .recent {
+                ExploreWidgetSnapshotWriter.refreshRecentFeedSnapshot(from: freshPosts)
+            }
         } catch is CancellationError {
             // Silently absorb cancellation
         } catch let error as URLError where error.code == .cancelled {

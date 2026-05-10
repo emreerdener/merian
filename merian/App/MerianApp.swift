@@ -564,6 +564,9 @@ struct MerianApp: App {
                 if GIDSignIn.sharedInstance.handle(url) {
                     return
                 }
+                if handleMerianDeepLink(url) {
+                    return
+                }
                 Task {
                     do {
                         try await diContainer.supabaseManager.client.auth.session(from: url)
@@ -601,5 +604,24 @@ struct MerianApp: App {
                 window.overrideUserInterfaceStyle = themeMode.userInterfaceStyle
             }
         }
+    }
+
+    private func handleMerianDeepLink(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "merian",
+              url.host?.lowercased() == "explore" else {
+            return false
+        }
+
+        let pathComponents = url.pathComponents.filter { $0 != "/" }
+        guard pathComponents.count == 2,
+              pathComponents[0] == "post",
+              !pathComponents[1].isEmpty else {
+            return false
+        }
+
+        diContainer.appEventPublisher.send(
+            .appDidEnterActivePhaseWithExplorePost(postId: pathComponents[1])
+        )
+        return true
     }
 }

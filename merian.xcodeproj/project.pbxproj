@@ -21,6 +21,7 @@
 		0A63B4C4CBF6AECE32D89FFD /* ExplorePostCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B73321B8E3469B6880D5D8 /* ExplorePostCard.swift */; };
 		0B7940E2E63163D92680D316 /* ViewfinderHints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9422DAF0474D2DE4DCF8F17E /* ViewfinderHints.swift */; };
 		0D02EB9406777E2AB6AE5794 /* deploy_testflight.md in Resources */ = {isa = PBXBuildFile; fileRef = 552585AA8F7659BF3A413C80 /* deploy_testflight.md */; };
+		0F2579566962B2285EC69B1D /* ExploreWidgetSnapshotWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2B017CE53B6658061688F7 /* ExploreWidgetSnapshotWriter.swift */; };
 		0FECE61EF61F8121A88FBDBD /* SchemaV29.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EA525EC56CBF5104A65581E /* SchemaV29.swift */; };
 		10BA5A99C0B17DCB265E6A2B /* ExplorePostDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D75E6280C19811CDB2195CCC /* ExplorePostDetailView.swift */; };
 		10BEB730D1E5DF1869415C09 /* ExploreLoadingInsightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08120C59A6F795CD5597F0B8 /* ExploreLoadingInsightCard.swift */; };
@@ -60,6 +61,7 @@
 		276593AF2C6448CEF8ECDEB7 /* ArchiveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D4C1F3503F86A6023F4841B /* ArchiveManager.swift */; };
 		293620C0F76E05685BDE2FE1 /* ScansSheetModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD13DE59A800CB6DF786DD43 /* ScansSheetModifiers.swift */; };
 		29DEB09BB7C5D71C12CE03AC /* AudioAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54BDAA8B73B5533EFACF5B6F /* AudioAnalysis.swift */; };
+		29F7CFA23A434DE7AFEC34CD /* ExploreWidgetCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877D1235A2C5D0DE0BA8CEED /* ExploreWidgetCache.swift */; };
 		2A46BC973DB37270078EAFE1 /* PhotoLibraryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC7FF1EBCBEFC549740AA302 /* PhotoLibraryButton.swift */; };
 		2ACE533EDCFE7B4F4251A7BE /* ReportInsightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62C9BD3AEDB6B548CCF2AA3F /* ReportInsightView.swift */; };
 		2BF1BEB4A71119405DD5F026 /* WatchAcousticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1A5A4F88C1B623CFF5B25F /* WatchAcousticManager.swift */; };
@@ -72,6 +74,7 @@
 		2DDB090C607F029E73834224 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 858DB8CD19117FFA622CEBF1 /* KeychainManager.swift */; };
 		2E7884946F39C92371615A2B /* ShutterButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57452A6DF286A905C84060FA /* ShutterButton.swift */; };
 		2E9D62EBB0D7B4A8661384E4 /* ToastBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C355005DA062F992218B40D /* ToastBanner.swift */; };
+		2F64D17DA2C13A7C3A8BB9A2 /* MerianExploreWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A54AA33A22172FBAAF9AA233 /* MerianExploreWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		2F95B9CE2E94414AA5D4A67F /* PushNotificationRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DB476E9827A1DA749AADE21 /* PushNotificationRoutingTests.swift */; };
 		3181D445199FE668E5377CCE /* ScanRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020F0388F37E0B5EC371FAF0 /* ScanRepository.swift */; };
 		329169F2439B45C14F911359 /* PostHogManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32F31F1296ED7CCA1F086905 /* PostHogManagerTests.swift */; };
@@ -105,6 +108,7 @@
 		3D7EF7085FD0F4FB16509661 /* SchemaV16.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4743375BF89F55877436DEA6 /* SchemaV16.swift */; };
 		3DA4BFC2BDBB16B9AAD0B74A /* SizeEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B79B3343ECF40333A227054E /* SizeEstimatorTests.swift */; };
 		3DCF4802C985582E2BDEDE4C /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A844D7CB388D3278FD0FEC /* PushNotificationManager.swift */; };
+		4184CFC250BB416E568E5F4C /* ExploreWidgetCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877D1235A2C5D0DE0BA8CEED /* ExploreWidgetCache.swift */; };
 		423FDB0DC5762801A0F0D712 /* SchemaV33.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEEC1868E1269C2CAB8DE263 /* SchemaV33.swift */; };
 		458FD44AF33F294B40AF0936 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D18C90D13189D2A4639987F /* OnboardingView.swift */; };
 		47A29D6514785E7ED58ED4A7 /* ViewfinderIntelligenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45A4A13D898657D8E4EBF3C /* ViewfinderIntelligenceTests.swift */; };
@@ -245,6 +249,7 @@
 		99EDFBC90F37FC91DC9470E2 /* SchemaV34.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C44D2B266E2E38F95F8389 /* SchemaV34.swift */; };
 		9A3DAA85467E410801880746 /* MainOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 817B470366BEFC69BB53A192 /* MainOverlayView.swift */; };
 		9A8DE079A462091777830DE3 /* CategoryFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02B7E1E92BDB2BD202A654E6 /* CategoryFilterBar.swift */; };
+		9AC25BD2AF5362EE55BFEDA5 /* MerianExploreWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B8E9B5FDC975E39C6A4350 /* MerianExploreWidget.swift */; };
 		9B4FF67729A998957D1DE870 /* OfflineQueueManager+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43D201EC55DA3A973D73665D /* OfflineQueueManager+Sync.swift */; };
 		9B64DBB30C3D479C161F7EFF /* FadingScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 245BBF144F7FDAE3EC3B1567 /* FadingScrollView.swift */; };
 		9BFB398F5E46B39FBD56832E /* PremiumScanningOverlayModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C12971993CED81E6874934 /* PremiumScanningOverlayModifier.swift */; };
@@ -409,6 +414,13 @@
 			remoteGlobalIDString = D06FD3E9CDCF533A0C2D2843;
 			remoteInfo = Merian;
 		};
+		4D78F37095C4CAFB9BECF373 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C2202C8EFE32EB682F84E931 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8C6C470AF317C18F229FF75B;
+			remoteInfo = MerianExploreWidget;
+		};
 		57CA45A0CA6171010ACC3EBA /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C2202C8EFE32EB682F84E931 /* Project object */;
@@ -426,6 +438,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		9366E30E8D330C75D1C78E44 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				2F64D17DA2C13A7C3A8BB9A2 /* MerianExploreWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BD2DB57784E75CA81D57CF89 /* Embed Watch Content */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -513,6 +536,7 @@
 		32C16B1B5FCFC75007ADBD99 /* InsightMediaExportManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightMediaExportManagerTests.swift; sourceTree = "<group>"; };
 		32F31F1296ED7CCA1F086905 /* PostHogManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostHogManagerTests.swift; sourceTree = "<group>"; };
 		348D2EBA6A3B912D4D6E400E /* SchemaV7.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV7.swift; sourceTree = "<group>"; };
+		349CEA4650495C94324C1450 /* MerianExploreWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MerianExploreWidget.entitlements; sourceTree = "<group>"; };
 		34E1A4A838CA0CA8C915D1E9 /* SchemaV28.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV28.swift; sourceTree = "<group>"; };
 		350A3518AB3F04FCCDC07C7D /* ScanThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanThumbnail.swift; sourceTree = "<group>"; };
 		368E463C9AB332FE32AFC3D1 /* schema_update.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = schema_update.md; sourceTree = "<group>"; };
@@ -549,6 +573,7 @@
 		4743375BF89F55877436DEA6 /* SchemaV16.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV16.swift; sourceTree = "<group>"; };
 		477D3F75B0315ADE8EB8FC7A /* ImageCropProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCropProcessor.swift; sourceTree = "<group>"; };
 		4796641B0B82A19B6154E443 /* CollectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionsView.swift; sourceTree = "<group>"; };
+		47B8E9B5FDC975E39C6A4350 /* MerianExploreWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianExploreWidget.swift; sourceTree = "<group>"; };
 		48CB9DCADE23B1C041953D91 /* UsageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageManager.swift; sourceTree = "<group>"; };
 		490F41816E759F1E7A753C0A /* CandidateSwipeModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateSwipeModal.swift; sourceTree = "<group>"; };
 		4A063E54292FEFA80363C8F2 /* SchemaV27.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV27.swift; sourceTree = "<group>"; };
@@ -559,6 +584,7 @@
 		4C5F6F7591B650CB83AFBB48 /* ImagesCarousel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagesCarousel.swift; sourceTree = "<group>"; };
 		4C63FA60C9C44FFEC12A077A /* ExplorePost+Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExplorePost+Formatting.swift"; sourceTree = "<group>"; };
 		4D098FD247175AF2EE644341 /* SlideToConfirm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlideToConfirm.swift; sourceTree = "<group>"; };
+		4D2B017CE53B6658061688F7 /* ExploreWidgetSnapshotWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreWidgetSnapshotWriter.swift; sourceTree = "<group>"; };
 		4D63F4B5F7B4CBA00D4F0561 /* ScanThumbnailBackfillActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanThumbnailBackfillActor.swift; sourceTree = "<group>"; };
 		4DCA51E12BE587C16AB233D7 /* CelebrationBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelebrationBanner.swift; sourceTree = "<group>"; };
 		4E5C6061CA3C43D1664FD14D /* SchemaV6.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV6.swift; sourceTree = "<group>"; };
@@ -583,7 +609,7 @@
 		58A404B3836F26B21F6D4A72 /* deploy_edge_functions.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = deploy_edge_functions.md; sourceTree = "<group>"; };
 		591053348AF0FC57876A9915 /* ModelTierBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelTierBadge.swift; sourceTree = "<group>"; };
 		591C022E7CC47A6C5BD62DAC /* Capture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Capture.swift; sourceTree = "<group>"; };
-		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		595E6381B45FC4DAA8014A89 /* Merian.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Merian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5C13B883EC1E84FADE28119E /* InferenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceEngine.swift; sourceTree = "<group>"; };
 		5EA525EC56CBF5104A65581E /* SchemaV29.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV29.swift; sourceTree = "<group>"; };
 		5EF82ACADA4304E828DA8E5F /* SocialGuardManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialGuardManagerTests.swift; sourceTree = "<group>"; };
@@ -650,6 +676,7 @@
 		85C3A198474E67CC8A102353 /* SpectrogramActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrogramActor.swift; sourceTree = "<group>"; };
 		85E9AC6BA80B896F3E0790F9 /* Aliases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Aliases.swift; sourceTree = "<group>"; };
 		87699ED15DF2EEC5630EA3B3 /* Array+Safe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Array+Safe.swift"; sourceTree = "<group>"; };
+		877D1235A2C5D0DE0BA8CEED /* ExploreWidgetCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreWidgetCache.swift; sourceTree = "<group>"; };
 		8814515686230D7B0873E952 /* ExploreFeedViewModel+Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExploreFeedViewModel+Notifications.swift"; sourceTree = "<group>"; };
 		8919CB0436184C3B5D2EC5D7 /* StagedDescriptionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagedDescriptionSheet.swift; sourceTree = "<group>"; };
 		895CF20120FD4F93BFECBF04 /* ZoomableScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomableScrollView.swift; sourceTree = "<group>"; };
@@ -699,6 +726,7 @@
 		A34B0907EF50B8461526CEEF /* SchemaV1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV1.swift; sourceTree = "<group>"; };
 		A4072F0FA14230E7E71686B2 /* SpeechManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechManager.swift; sourceTree = "<group>"; };
 		A499F2024BD26EB481BA1929 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
+		A54AA33A22172FBAAF9AA233 /* MerianExploreWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = MerianExploreWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A6EEFF7324FFB3D3F9221113 /* GamificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationManagerTests.swift; sourceTree = "<group>"; };
 		A6FB6F37DCBD4D23D072D413 /* HardwareOrchestratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareOrchestratorTests.swift; sourceTree = "<group>"; };
 		A8166641171629DC4E41B081 /* MerianWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianWatchApp.swift; sourceTree = "<group>"; };
@@ -784,7 +812,7 @@
 		D7C1786BBAE3F637EB0F88BC /* FocusTapGestureModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTapGestureModifier.swift; sourceTree = "<group>"; };
 		D7E1C7E75E33156CDE80C1AB /* SchemaV18.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV18.swift; sourceTree = "<group>"; };
 		D7EE5448EC5BE7B1CD79436B /* ViewfinderIntelligence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderIntelligence.swift; sourceTree = "<group>"; };
-		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA536E7832ABD93D6C6AA2DF /* FieldNotesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldNotesCard.swift; sourceTree = "<group>"; };
 		DB29D9A3B45B12406252B87F /* FlashButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashButton.swift; sourceTree = "<group>"; };
 		DB5EDAEF5CA56D6C01A183F6 /* SchemaV20.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV20.swift; sourceTree = "<group>"; };
@@ -817,7 +845,7 @@
 		F1C5B47951F57832A807CD27 /* CollectionModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionModifiers.swift; sourceTree = "<group>"; };
 		F46DCFEE66BAAA12BA2C19C3 /* SyncStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStateManager.swift; sourceTree = "<group>"; };
 		F484E531B314ACE7B92AAA74 /* FileIOActorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIOActorTests.swift; sourceTree = "<group>"; };
-		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F57079A8F64D6E84B4C47409 /* merianUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5FA1AB430E1CE978E3D2BE6 /* SchemaV32.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV32.swift; sourceTree = "<group>"; };
 		F7FB60BA9000CE685E2CD023 /* SchemaV5.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV5.swift; sourceTree = "<group>"; };
 		F8840D387B4F1CEA2842AF1B /* StagedCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagedCapture.swift; sourceTree = "<group>"; };
@@ -830,9 +858,10 @@
 		FE0594E9AFEBB51268C6009C /* FactLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactLibrary.swift; sourceTree = "<group>"; };
 		FE1CA9F50D499C5D4673E8E1 /* FileIOActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIOActor.swift; sourceTree = "<group>"; };
 		FE3E25984CC1FA2E1AFD07B4 /* TipRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipRow.swift; sourceTree = "<group>"; };
+		FEB6DB6990C9B78E868E9DB3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		FEEC1868E1269C2CAB8DE263 /* SchemaV33.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV33.swift; sourceTree = "<group>"; };
 		FF40B3720194B7404A558D0F /* CardEntranceModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardEntranceModifier.swift; sourceTree = "<group>"; };
-		FF6E60873669C4E07405DDF6 /* build.log */ = {isa = PBXFileReference; lastKnownFileType = text; path = build.log; sourceTree = "<group>"; };
+		FF6E60873669C4E07405DDF6 /* build.log */ = {isa = PBXFileReference; path = build.log; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1646,6 +1675,15 @@
 			path = Images;
 			sourceTree = "<group>";
 		};
+		858885EF6DE50D0FF70D221A /* Widgets */ = {
+			isa = PBXGroup;
+			children = (
+				877D1235A2C5D0DE0BA8CEED /* ExploreWidgetCache.swift */,
+				4D2B017CE53B6658061688F7 /* ExploreWidgetSnapshotWriter.swift */,
+			);
+			path = Widgets;
+			sourceTree = "<group>";
+		};
 		86D61F2D9291F5C6EC2712C0 /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -1773,6 +1811,15 @@
 			path = Camera;
 			sourceTree = "<group>";
 		};
+		AE21EBA683FF7EC0EA7C0B21 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				FEB6DB6990C9B78E868E9DB3 /* Info.plist */,
+				349CEA4650495C94324C1450 /* MerianExploreWidget.entitlements */,
+			);
+			path = Configuration;
+			sourceTree = "<group>";
+		};
 		B011022FCF574E2361C4A9A0 /* Intents */ = {
 			isa = PBXGroup;
 			children = (
@@ -1885,11 +1932,21 @@
 			path = CandidateSwipe;
 			sourceTree = "<group>";
 		};
+		CB8A9CB0465E275098F1E92A /* MerianExploreWidget */ = {
+			isa = PBXGroup;
+			children = (
+				47B8E9B5FDC975E39C6A4350 /* MerianExploreWidget.swift */,
+				AE21EBA683FF7EC0EA7C0B21 /* Configuration */,
+			);
+			path = MerianExploreWidget;
+			sourceTree = "<group>";
+		};
 		CD1C36A63AE192CF4E651D3F = {
 			isa = PBXGroup;
 			children = (
 				4614202F6465E0F5BE4F99BA /* merian */,
 				42215451709432CECF3123A7 /* merian */,
+				CB8A9CB0465E275098F1E92A /* MerianExploreWidget */,
 				048ECCB88D3C834C4104B28C /* merianTests */,
 				1C0D3C9DA71DBF5B6BAB72BB /* merianUITests */,
 				FA698C58EA619367BF3921C1 /* MerianWatch */,
@@ -2048,6 +2105,7 @@
 				7E05D113A27FA82107895E2C /* Models */,
 				D5E4DF324A5ECA2AABFB2153 /* ViewModels */,
 				F7BD6EBAA3DEEBCDC5508062 /* Views */,
+				858885EF6DE50D0FF70D221A /* Widgets */,
 			);
 			path = Explore;
 			sourceTree = "<group>";
@@ -2103,6 +2161,7 @@
 			isa = PBXGroup;
 			children = (
 				595E6381B45FC4DAA8014A89 /* Merian.app */,
+				A54AA33A22172FBAAF9AA233 /* MerianExploreWidget.appex */,
 				D9741C90901A3F830B6B1869 /* merianTests.xctest */,
 				F57079A8F64D6E84B4C47409 /* merianUITests.xctest */,
 				0481771C41C383D2737DDEC7 /* MerianWatch.app */,
@@ -2219,6 +2278,23 @@
 			productReference = D9741C90901A3F830B6B1869 /* merianTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		8C6C470AF317C18F229FF75B /* MerianExploreWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C535F290D7D4F3FE7B646FA1 /* Build configuration list for PBXNativeTarget "MerianExploreWidget" */;
+			buildPhases = (
+				2970F2AD158432B0B0EB8F1D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MerianExploreWidget;
+			packageProductDependencies = (
+			);
+			productName = MerianExploreWidget;
+			productReference = A54AA33A22172FBAAF9AA233 /* MerianExploreWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		D06FD3E9CDCF533A0C2D2843 /* Merian */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 349F75561072D4C00D971A2E /* Build configuration list for PBXNativeTarget "Merian" */;
@@ -2226,12 +2302,14 @@
 				CCD1122796932DE51F271174 /* Sources */,
 				AAFE341D60F3C52B0EEC299C /* Resources */,
 				21CC6ACD2ED3E29E2FC749EF /* Frameworks */,
+				9366E30E8D330C75D1C78E44 /* Embed Foundation Extensions */,
 				BD2DB57784E75CA81D57CF89 /* Embed Watch Content */,
 				8DF4334D5BA49F07F9CD8D10 /* SwiftLint Validation */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				6A5A9154E14DAF6FC549D6BE /* PBXTargetDependency */,
 				A9FB5DF4CB7089758D570E73 /* PBXTargetDependency */,
 			);
 			name = Merian;
@@ -2272,7 +2350,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0B94C342D2F7F49D11202598 = {
 						DevelopmentTeam = "$(MERIAN_DEVELOPMENT_TEAM)";
@@ -2280,6 +2358,10 @@
 						TestTargetID = D06FD3E9CDCF533A0C2D2843;
 					};
 					41E99D9B85E8766DDB53DB37 = {
+						DevelopmentTeam = "$(MERIAN_DEVELOPMENT_TEAM)";
+						ProvisioningStyle = Automatic;
+					};
+					8C6C470AF317C18F229FF75B = {
 						DevelopmentTeam = "$(MERIAN_DEVELOPMENT_TEAM)";
 						ProvisioningStyle = Automatic;
 					};
@@ -2316,6 +2398,7 @@
 			projectRoot = "";
 			targets = (
 				D06FD3E9CDCF533A0C2D2843 /* Merian */,
+				8C6C470AF317C18F229FF75B /* MerianExploreWidget */,
 				E59BC2C6A28D64E9B810676B /* MerianWatch */,
 				41E99D9B85E8766DDB53DB37 /* merianTests */,
 				0B94C342D2F7F49D11202598 /* merianUITests */,
@@ -2373,6 +2456,15 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		2970F2AD158432B0B0EB8F1D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				29F7CFA23A434DE7AFEC34CD /* ExploreWidgetCache.swift in Sources */,
+				9AC25BD2AF5362EE55BFEDA5 /* MerianExploreWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2B63B1B99BACB223084BFFCD /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -2559,6 +2651,8 @@
 				0A63B4C4CBF6AECE32D89FFD /* ExplorePostCard.swift in Sources */,
 				10BA5A99C0B17DCB265E6A2B /* ExplorePostDetailView.swift in Sources */,
 				A0639041905EBBC96395080A /* ExploreView.swift in Sources */,
+				4184CFC250BB416E568E5F4C /* ExploreWidgetCache.swift in Sources */,
+				0F2579566962B2285EC69B1D /* ExploreWidgetSnapshotWriter.swift in Sources */,
 				672A97497EF7E89730D67638 /* ExportScans.swift in Sources */,
 				4EF49FC87FA0B1B9EC2506E8 /* FactLibrary.swift in Sources */,
 				9B64DBB30C3D479C161F7EFF /* FadingScrollView.swift in Sources */,
@@ -2779,6 +2873,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		6A5A9154E14DAF6FC549D6BE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8C6C470AF317C18F229FF75B /* MerianExploreWidget */;
+			targetProxy = 4D78F37095C4CAFB9BECF373 /* PBXContainerItemProxy */;
+		};
 		A02FA46CCB2E2221257DED13 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = D06FD3E9CDCF533A0C2D2843 /* Merian */;
@@ -2797,6 +2896,28 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		072C28AF747B7398E622F4B8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = MerianExploreWidget/Configuration/MerianExploreWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MerianExploreWidget/Configuration/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.merian.Merian.ExploreWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		16E59262791D4BC7B239672B /* Release */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1F8286D3012156A7941E601D /* Signing.xcconfig */;
@@ -2936,7 +3057,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 199;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -2961,7 +3081,6 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -3009,6 +3128,28 @@
 			};
 			name = Release;
 		};
+		DEF7F5BC7F05F5C0A189FC2C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = MerianExploreWidget/Configuration/MerianExploreWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MerianExploreWidget/Configuration/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.merian.Merian.ExploreWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		DFA8A85D68846B429AD00C28 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -3046,7 +3187,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 199;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -3064,7 +3204,6 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -3138,6 +3277,15 @@
 			buildConfigurations = (
 				301E8FE096A2173E876D72C9 /* Debug */,
 				63E2FCD72D2C4BB7FEB7197E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C535F290D7D4F3FE7B646FA1 /* Build configuration list for PBXNativeTarget "MerianExploreWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DEF7F5BC7F05F5C0A189FC2C /* Debug */,
+				072C28AF747B7398E622F4B8 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
