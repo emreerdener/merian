@@ -9,7 +9,7 @@ Merian ships a small iOS Home Screen widget that behaves like an image carousel 
 - Content source: Recent Explore feed, not Trending or Nearby.
 - Tap behavior: `merian://explore/post/{postId}` opens `ExploreView` and routes to `ExplorePostDetailView`.
 - Carousel behavior: WidgetKit timeline entries rotate through cached images. This is not a swipeable carousel; iOS controls when timeline snapshots actually advance.
-- Empty state: black, image-only fallback. The app populates the cache after Recent Explore successfully loads.
+- Empty state: bundled image-only flower photo fallback. The app populates the cache after Recent Explore successfully loads.
 
 ## Architecture
 
@@ -34,6 +34,7 @@ Shared types live in `merian/Features/Explore/Widgets/ExploreWidgetCache.swift` 
 - Max cached items: `12`
 - Timeline rotation interval: `30 minutes`
 - Empty-state refresh interval: `60 minutes`
+- Bundled fallback asset: `ExploreWidgetPlaceholder` in the widget extension asset catalog, sourced from `merian/Assets.xcassets/Widget/widget-flower.imageset/widget-flower.jpg`
 
 Each `ExploreWidgetItem` stores only:
 

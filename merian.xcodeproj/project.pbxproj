@@ -203,6 +203,7 @@
 		81A5A742EB498726A31F72D4 /* OverviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ECE6FB2BE70CF4CF72E85A1 /* OverviewCard.swift */; };
 		83318D4149C5BC0DD78D2B85 /* SlideToConfirm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D098FD247175AF2EE644341 /* SlideToConfirm.swift */; };
 		83393068DEB9F08F798CBF17 /* ExploreHabitatDistributionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FFA92527CDEC38A16C12CB /* ExploreHabitatDistributionCard.swift */; };
+		834025BBBA26DDABE1E3D87C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CCF8AFBFA8539F3DA8CCA36E /* Assets.xcassets */; };
 		836C64501004C15FCEFBB6D6 /* CardEntranceModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF40B3720194B7404A558D0F /* CardEntranceModifier.swift */; };
 		83BF25CA22C19340534B4140 /* FieldNotesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44F0AB3DB6B69A3EB48FD98F /* FieldNotesSheet.swift */; };
 		842B2CA69B5C00C338B6DDDB /* ShareButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D904C059F3B8D8922E4C0D /* ShareButton.swift */; };
@@ -790,6 +791,7 @@
 		CC7FF1EBCBEFC549740AA302 /* PhotoLibraryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryButton.swift; sourceTree = "<group>"; };
 		CC8FA124A2E1CA3365F9FB2E /* verify_api_contracts.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = verify_api_contracts.md; sourceTree = "<group>"; };
 		CCA6818D68208BFDD693D642 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CCF8AFBFA8539F3DA8CCA36E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CD9782E594C5BA8989A988CF /* WelcomeStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeStepView.swift; sourceTree = "<group>"; };
 		CDF8A96218CBFB025A46E9A1 /* ImageCropperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCropperView.swift; sourceTree = "<group>"; };
 		CE34821A816D0732BC42944F /* AudioCaptureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureManager.swift; sourceTree = "<group>"; };
@@ -1935,6 +1937,7 @@
 		CB8A9CB0465E275098F1E92A /* MerianExploreWidget */ = {
 			isa = PBXGroup;
 			children = (
+				CCF8AFBFA8539F3DA8CCA36E /* Assets.xcassets */,
 				47B8E9B5FDC975E39C6A4350 /* MerianExploreWidget.swift */,
 				AE21EBA683FF7EC0EA7C0B21 /* Configuration */,
 			);
@@ -2283,6 +2286,7 @@
 			buildConfigurationList = C535F290D7D4F3FE7B646FA1 /* Build configuration list for PBXNativeTarget "MerianExploreWidget" */;
 			buildPhases = (
 				2970F2AD158432B0B0EB8F1D /* Sources */,
+				9956A4A4A8677E2D1C2962A2 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -2412,6 +2416,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				7167258103BD53E6E9BF6D58 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9956A4A4A8677E2D1C2962A2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				834025BBBA26DDABE1E3D87C /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

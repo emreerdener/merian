@@ -94,6 +94,12 @@ struct ExploreImageWidgetView: View {
                 .scaledToFill()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
+        } else if let placeholder = UIImage(named: "ExploreWidgetPlaceholder") {
+            Image(uiImage: placeholder)
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
         } else {
             Color.black
         }
