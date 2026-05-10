@@ -57,6 +57,18 @@ enum UserDefaultsKeys {
     static let speciesPreferredNamePrefix = "speciesPreferredName_"
     /// Dictionary of scientific name → delete timestamp for preferred-name clears waiting for cloud sync.
     static let pendingSpeciesPreferredNameDeletes = "pendingSpeciesPreferredNameDeletes"
+    /// Last wall-clock attempt for preferred-name cloud sync.
+    static let speciesPreferredNameSyncLastAttemptAt = "speciesPreferredNameSyncLastAttemptAt"
+    /// Last successful preferred-name cloud sync completion time.
+    static let speciesPreferredNameSyncLastSuccessAt = "speciesPreferredNameSyncLastSuccessAt"
+    /// Last preferred-name cloud sync state: running, success, failure, or skipped.
+    static let speciesPreferredNameSyncStatus = "speciesPreferredNameSyncStatus"
+    /// Human-readable preferred-name cloud sync failure/skip reason for support diagnostics.
+    static let speciesPreferredNameSyncMessage = "speciesPreferredNameSyncMessage"
+    /// Number of preferred-name rows pushed during the last successful cloud sync.
+    static let speciesPreferredNameSyncLastPushedCount = "speciesPreferredNameSyncLastPushedCount"
+    /// Number of preferred-name rows pulled during the last successful cloud sync.
+    static let speciesPreferredNameSyncLastPulledCount = "speciesPreferredNameSyncLastPulledCount"
     /// Whether the user has been presented with the notification request post-identification.
     static let hasPromptedForNotificationsPostIdent = "hasPromptedForNotificationsPostIdent"
     /// The user's customized ordering of the primary capture tabs, stored as a comma-separated string.
@@ -291,6 +303,85 @@ enum SpeciesPreferredNameStore {
             userDefaults.set(rawValue, forKey: UserDefaultsKeys.pendingSpeciesPreferredNameDeletes)
         }
     }
+
+    static func syncDiagnostics(userDefaults: UserDefaults = .standard) -> SpeciesPreferredNameSyncDiagnostics {
+        let status = userDefaults.string(forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus)
+            .flatMap(SpeciesPreferredNameSyncDiagnostics.Status.init(rawValue:))
+
+        return SpeciesPreferredNameSyncDiagnostics(
+            lastAttemptAt: userDefaults.object(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt) as? Date,
+            lastSuccessAt: userDefaults.object(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastSuccessAt) as? Date,
+            status: status,
+            message: userDefaults.string(forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage),
+            lastPushedCount: userDefaults.integer(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPushedCount),
+            lastPulledCount: userDefaults.integer(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPulledCount)
+        )
+    }
+
+    static func recordSyncAttempt(at date: Date = Date(), userDefaults: UserDefaults = .standard) {
+        userDefaults.set(date, forKey: UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt)
+        userDefaults.set(
+            SpeciesPreferredNameSyncDiagnostics.Status.running.rawValue,
+            forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus
+        )
+        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage)
+    }
+
+    static func recordSyncSuccess(
+        at date: Date = Date(),
+        pushedCount: Int,
+        pulledCount: Int,
+        userDefaults: UserDefaults = .standard
+    ) {
+        userDefaults.set(date, forKey: UserDefaultsKeys.speciesPreferredNameSyncLastSuccessAt)
+        userDefaults.set(
+            SpeciesPreferredNameSyncDiagnostics.Status.success.rawValue,
+            forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus
+        )
+        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage)
+        userDefaults.set(max(0, pushedCount), forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPushedCount)
+        userDefaults.set(max(0, pulledCount), forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPulledCount)
+    }
+
+    static func recordSyncFailure(
+        _ message: String,
+        at date: Date = Date(),
+        userDefaults: UserDefaults = .standard
+    ) {
+        userDefaults.set(date, forKey: UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt)
+        userDefaults.set(
+            SpeciesPreferredNameSyncDiagnostics.Status.failure.rawValue,
+            forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus
+        )
+        userDefaults.set(normalizedDiagnosticMessage(message), forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage)
+    }
+
+    static func recordSyncSkip(
+        _ reason: String,
+        at date: Date = Date(),
+        userDefaults: UserDefaults = .standard
+    ) {
+        userDefaults.set(date, forKey: UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt)
+        userDefaults.set(
+            SpeciesPreferredNameSyncDiagnostics.Status.skipped.rawValue,
+            forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus
+        )
+        userDefaults.set(normalizedDiagnosticMessage(reason), forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage)
+    }
+
+    static func clearSyncDiagnostics(userDefaults: UserDefaults = .standard) {
+        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAt)
+        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastSuccessAt)
+        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncStatus)
+        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncMessage)
+        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPushedCount)
+        userDefaults.removeObject(forKey: UserDefaultsKeys.speciesPreferredNameSyncLastPulledCount)
+    }
+
+    private static func normalizedDiagnosticMessage(_ message: String) -> String {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Unknown sync outcome." : trimmed
+    }
 }
 
 struct SpeciesNameMigrationResult: Equatable {
@@ -299,6 +390,22 @@ struct SpeciesNameMigrationResult: Equatable {
     let preservedExistingCount: Int
     let removedLegacyCount: Int
     let failedCount: Int
+}
+
+struct SpeciesPreferredNameSyncDiagnostics: Equatable, Sendable {
+    enum Status: String, Equatable, Sendable {
+        case running
+        case success
+        case failure
+        case skipped
+    }
+
+    let lastAttemptAt: Date?
+    let lastSuccessAt: Date?
+    let status: Status?
+    let message: String?
+    let lastPushedCount: Int
+    let lastPulledCount: Int
 }
 
 private struct SpeciesPreferenceCloudRow: Decodable {
@@ -344,6 +451,8 @@ private struct SpeciesPreferenceCloudUpsert: Encodable {
 enum SpeciesPreferredNameRepository {
     private static let maxPreferredNameBatchSize = 1_000
     private static let cloudSyncPageSize = 500
+    private static var activeCloudSyncTask: Task<Bool, Never>?
+    private static var pendingCloudSyncRequest: (modelContext: ModelContext, legacyDefaults: UserDefaults)?
 
     static func preferredName(
         for scientificName: String,
@@ -435,8 +544,51 @@ enum SpeciesPreferredNameRepository {
         legacyDefaults: UserDefaults = .standard
     ) async -> Bool {
         guard !TestExecutionCoordinator.isRunningTests else { return false }
+        if let activeCloudSyncTask {
+            pendingCloudSyncRequest = (modelContext, legacyDefaults)
+            return await activeCloudSyncTask.value
+        }
+
+        let syncTask = Task { @MainActor in
+            defer {
+                activeCloudSyncTask = nil
+                pendingCloudSyncRequest = nil
+            }
+
+            var nextModelContext = modelContext
+            var nextLegacyDefaults = legacyDefaults
+
+            while true {
+                let latestResult = await performCloudPreferenceSync(
+                    modelContext: nextModelContext,
+                    legacyDefaults: nextLegacyDefaults
+                )
+
+                guard let pendingCloudSyncRequest else {
+                    return latestResult
+                }
+
+                nextModelContext = pendingCloudSyncRequest.modelContext
+                nextLegacyDefaults = pendingCloudSyncRequest.legacyDefaults
+                SpeciesPreferredNameRepository.pendingCloudSyncRequest = nil
+            }
+        }
+        activeCloudSyncTask = syncTask
+        return await syncTask.value
+    }
+
+    private static func performCloudPreferenceSync(
+        modelContext: ModelContext,
+        legacyDefaults: UserDefaults
+    ) async -> Bool {
+        SpeciesPreferredNameStore.recordSyncAttempt(userDefaults: legacyDefaults)
+
         guard SupabaseManager.shared.isAuthenticated,
               let userId = SupabaseManager.shared.currentUser?.id.uuidString else {
+            SpeciesPreferredNameStore.recordSyncSkip(
+                "No authenticated Supabase user.",
+                userDefaults: legacyDefaults
+            )
             return false
         }
 
@@ -483,12 +635,21 @@ enum SpeciesPreferredNameRepository {
                 modelContext: modelContext,
                 legacyDefaults: legacyDefaults
             )
+            SpeciesPreferredNameStore.recordSyncSuccess(
+                pushedCount: upserts.count,
+                pulledCount: remoteRows.count,
+                userDefaults: legacyDefaults
+            )
 
             MerianLog.data.debug(
                 "Synced species preferred names with cloud: \(localPreferences.count, privacy: .public) local, \(remoteRows.count, privacy: .public) remote, \(upserts.count, privacy: .public) pushed."
             )
             return true
         } catch {
+            SpeciesPreferredNameStore.recordSyncFailure(
+                error.localizedDescription,
+                userDefaults: legacyDefaults
+            )
             MerianLog.data.debug("Species preferred-name cloud sync skipped or failed: \(error.localizedDescription, privacy: .private)")
             return false
         }

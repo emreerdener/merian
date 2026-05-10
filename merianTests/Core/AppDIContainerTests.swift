@@ -202,6 +202,70 @@ struct AppDIContainerTests {
         #expect(SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: defaults).isEmpty)
     }
 
+    @Test func testSpeciesPreferredNameStoreTracksCloudSyncDiagnostics() {
+        let suiteName = "merian.tests.species-preferred-name-sync-diagnostics.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults).status == nil)
+
+        let attemptDate = Date(timeIntervalSince1970: 1_000)
+        SpeciesPreferredNameStore.recordSyncAttempt(at: attemptDate, userDefaults: defaults)
+
+        var diagnostics = SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults)
+        #expect(diagnostics.lastAttemptAt == attemptDate)
+        #expect(diagnostics.status == .running)
+        #expect(diagnostics.message == nil)
+
+        let failureDate = Date(timeIntervalSince1970: 2_000)
+        SpeciesPreferredNameStore.recordSyncFailure(
+            "Network unavailable",
+            at: failureDate,
+            userDefaults: defaults
+        )
+
+        diagnostics = SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults)
+        #expect(diagnostics.lastAttemptAt == failureDate)
+        #expect(diagnostics.status == .failure)
+        #expect(diagnostics.message == "Network unavailable")
+
+        let skipDate = Date(timeIntervalSince1970: 3_000)
+        SpeciesPreferredNameStore.recordSyncSkip(
+            "No authenticated Supabase user.",
+            at: skipDate,
+            userDefaults: defaults
+        )
+
+        diagnostics = SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults)
+        #expect(diagnostics.lastAttemptAt == skipDate)
+        #expect(diagnostics.status == .skipped)
+        #expect(diagnostics.message == "No authenticated Supabase user.")
+
+        let successDate = Date(timeIntervalSince1970: 4_000)
+        SpeciesPreferredNameStore.recordSyncSuccess(
+            at: successDate,
+            pushedCount: 2,
+            pulledCount: 3,
+            userDefaults: defaults
+        )
+
+        diagnostics = SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults)
+        #expect(diagnostics.lastSuccessAt == successDate)
+        #expect(diagnostics.status == .success)
+        #expect(diagnostics.message == nil)
+        #expect(diagnostics.lastPushedCount == 2)
+        #expect(diagnostics.lastPulledCount == 3)
+
+        SpeciesPreferredNameStore.clearSyncDiagnostics(userDefaults: defaults)
+        diagnostics = SpeciesPreferredNameStore.syncDiagnostics(userDefaults: defaults)
+        #expect(diagnostics.lastAttemptAt == nil)
+        #expect(diagnostics.lastSuccessAt == nil)
+        #expect(diagnostics.status == nil)
+        #expect(diagnostics.lastPushedCount == 0)
+        #expect(diagnostics.lastPulledCount == 0)
+    }
+
     @Test func testSpeciesPreferredNameRepositoryPromotesLegacyFallbackToSwiftData() throws {
         let context = try makeSpeciesPreferenceContext()
         let suiteName = "merian.tests.species-preferred-name-promotion.\(UUID().uuidString)"

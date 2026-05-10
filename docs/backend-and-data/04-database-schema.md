@@ -55,7 +55,7 @@ Per-user preferred common name overrides. Keyed on `(user_id, scientific_name)`.
 - Primary key: `(user_id, scientific_name)`.
 - RLS: users can only read and write their own rows.
 
-> **iOS implementation note**: `SpeciesPreferredNameRepository` uses SwiftData `UserSpeciesPreference` as the local source of truth and syncs directly to this table through the authenticated Supabase client. `MerianApp` promotes legacy `speciesPreferredName_*` `UserDefaults` keys at startup, then clears them after SwiftData saves. Local clears are queued as pending delete timestamps until the cloud tombstone upsert succeeds.
+> **iOS implementation note**: `SpeciesPreferredNameRepository` uses SwiftData `UserSpeciesPreference` as the local source of truth and syncs directly to this table through the authenticated Supabase client. `MerianApp` promotes legacy `speciesPreferredName_*` `UserDefaults` keys at startup, then clears them after SwiftData saves. Local clears are queued as pending delete timestamps until the cloud tombstone upsert succeeds. Preferred-name sync is single-flight on the repository boundary, records a trailing follow-up request for mid-flight triggers, and persists lightweight diagnostics (`lastAttemptAt`, `lastSuccessAt`, status/message, last pushed/pulled counts) in `UserDefaults`; those diagnostics are not database state and should not be modeled in Postgres.
 
 ### `species_lookalikes`
 

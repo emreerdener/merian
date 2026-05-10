@@ -250,6 +250,7 @@ The `sync-collections` function receives the full client-side collection state a
 - Active preferences upsert `preferred_common_name` with `deleted_at = NULL`.
 - Clears upsert a tombstone (`preferred_common_name = NULL`, `deleted_at = now`) so another device can distinguish a deliberate clear from a species that never had a preference.
 - `SpeciesPreferredNameRepository` reconciles all local SwiftData `UserSpeciesPreference` rows plus pending local delete timestamps against the remote table on auth restore, foreground activation, and after local edits.
+- iOS keeps this reconciliation single-flight inside the `@MainActor` repository: duplicate lifecycle/auth/edit triggers await the active sync task rather than issuing overlapping remote reads and upserts. If a trigger arrives while a sync is running, the repository stores a trailing follow-up request and reruns reconciliation until no follow-up remains, so local edits made after the active task's local fetch are not left for a later lifecycle event. `SpeciesPreferredNameStore.syncDiagnostics` persists last attempt/success/status/message and last pushed/pulled counts in `UserDefaults` for supportability; these keys are diagnostic only and do not participate in conflict resolution.
 - Conflict resolution is timestamp based: newer remote active rows update SwiftData, newer remote tombstones delete the local row, newer local rows push back to Supabase, and pending local clears remain queued until their tombstone upsert succeeds.
 
 ## Ghost Account Merge (`merge-ghost-profile`)
