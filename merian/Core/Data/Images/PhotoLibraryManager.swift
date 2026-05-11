@@ -141,7 +141,7 @@ import UniformTypeIdentifiers
         let shouldSave = appSettings.saveToCameraRoll
         guard shouldSave else { return }
         
-        let success = await executePhotoLibraryWrite(payload: .data(imageData), location: location, accessLevel: .readWrite)
+        let success = await executePhotoLibraryWrite(payload: .data(imageData), location: location, accessLevel: .addOnly)
         if success {
             MerianLog.data.debug("📸 Captured image efficiently pushed down into native Camera Roll.")
         }

@@ -273,7 +273,7 @@ struct CameraSettingsView: View {
     @Environment(AppSettings.self) private var appSettings
     
     @State private var showPermissionPrompt = false
-    @State private var authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    @State private var addOnlyAuthStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
 
     var body: some View {
         @Bindable var appSettings = appSettings
@@ -298,10 +298,10 @@ struct CameraSettingsView: View {
                         get: { appSettings.saveToCameraRoll },
                         set: { newValue in
                             if newValue {
-                                if authStatus == .notDetermined {
-                                    showPermissionPrompt = true
-                                } else {
+                                if canSaveToPhotos {
                                     appSettings.saveToCameraRoll = true
+                                } else {
+                                    showPermissionPrompt = true
                                 }
                             } else {
                                 appSettings.saveToCameraRoll = false
@@ -344,9 +344,10 @@ struct CameraSettingsView: View {
         .navigationTitle("Camera")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPermissionPrompt) {
-            PhotoLibraryPermissionSheetView {
-                authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-                if authStatus == .authorized || authStatus == .limited {
+            PhotoLibraryPermissionSheetView(kind: .saveToCameraRoll) {
+                let updatedStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+                addOnlyAuthStatus = updatedStatus
+                if updatedStatus == .authorized || updatedStatus == .limited {
                     appSettings.saveToCameraRoll = true
                 }
                 showPermissionPrompt = false
@@ -354,7 +355,7 @@ struct CameraSettingsView: View {
             .presentationDetents([.height(350)])
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+            addOnlyAuthStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
         }
     }
 
@@ -366,6 +367,10 @@ struct CameraSettingsView: View {
                 CameraManager.shared.isLiveInferencePaused = !newValue
             }
         )
+    }
+
+    private var canSaveToPhotos: Bool {
+        addOnlyAuthStatus == .authorized || addOnlyAuthStatus == .limited
     }
 }
 

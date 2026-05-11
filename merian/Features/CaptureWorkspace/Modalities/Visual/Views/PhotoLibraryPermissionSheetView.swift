@@ -2,21 +2,81 @@ import Photos
 import SwiftUI
 
 struct PhotoLibraryPermissionSheetView: View {
+    enum PermissionKind {
+        case importPhotos
+        case saveToCameraRoll
+
+        var accessLevel: PHAccessLevel {
+            switch self {
+            case .importPhotos:
+                return .readWrite
+            case .saveToCameraRoll:
+                return .addOnly
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .importPhotos:
+                return "photo.on.rectangle"
+            case .saveToCameraRoll:
+                return "square.and.arrow.down"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .importPhotos:
+                return .purple
+            case .saveToCameraRoll:
+                return .teal
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .importPhotos:
+                return "Photo library access"
+            case .saveToCameraRoll:
+                return "Save captures to Photos"
+            }
+        }
+
+        var message: String {
+            switch self {
+            case .importPhotos:
+                return "Merian needs access to your Photo Library to upload your images to be analyzed."
+            case .saveToCameraRoll:
+                return "Merian can save new scan photos to your library without seeing your existing photos."
+            }
+        }
+
+        var actionTitle: String {
+            switch self {
+            case .importPhotos:
+                return "Enable photo access"
+            case .saveToCameraRoll:
+                return "Allow saving"
+            }
+        }
+    }
+
+    var kind: PermissionKind = .importPhotos
     let onDismiss: () -> Void
 
     var body: some View {
         VStack(spacing: 24) {
-            Image(systemName: "photo.on.rectangle")
+            Image(systemName: kind.icon)
                 .font(.system(size: 48))
-                .foregroundColor(.purple)
+                .foregroundColor(kind.tint)
                 .padding(.top, 32)
             
             VStack(spacing: 8) {
-                Text("Photo library access")
+                Text(kind.title)
                     .font(.title2)
                     .fontWeight(.bold)
                 
-                Text("Merian needs access to your Photo Library to upload your images to be analyzed, and save your photos.")
+                Text(kind.message)
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -25,9 +85,9 @@ struct PhotoLibraryPermissionSheetView: View {
             
             VStack(spacing: 16) {
                 Button {
-                    let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+                    let status = PHPhotoLibrary.authorizationStatus(for: kind.accessLevel)
                     if status == .notDetermined {
-                        PHPhotoLibrary.requestAuthorization(for: .readWrite) { _ in
+                        PHPhotoLibrary.requestAuthorization(for: kind.accessLevel) { _ in
                             Task { @MainActor in onDismiss() }
                         }
                     } else if status == .denied || status == .restricted {
@@ -39,12 +99,12 @@ struct PhotoLibraryPermissionSheetView: View {
                         onDismiss()
                     }
                 } label: {
-                    Text("Enable photo access")
+                    Text(kind.actionTitle)
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.purple)
+                        .background(kind.tint)
                         .clipShape(Capsule())
                 }
                 
