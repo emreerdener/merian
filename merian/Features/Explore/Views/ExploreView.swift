@@ -187,7 +187,9 @@ struct ExploreView: View {
         }
 
         ToolbarItem(placement: .topBarTrailing) {
-            bellButton
+            HStack(spacing: 0) {
+                bellButton
+            }
         }
     }
 
@@ -227,39 +229,31 @@ struct ExploreView: View {
     }
 
     private var bellButton: some View {
-        Button(action: { viewModel.presentNotifications() }) {
-            Image(systemName: "bell")
-                .font(.system(size: 16, weight: .bold))
-        }
-        .overlay(alignment: .topTrailing) {
+        ZStack(alignment: .topTrailing) {
+            Button(action: { viewModel.presentNotifications() }) {
+                Image(systemName: "bell")
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 24, height: 24)
+            }
+            
             if viewModel.unreadNotificationCount > 0 {
-                Text(badgeText)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, viewModel.unreadNotificationCount > 9 ? 5 : 0)
-                    .frame(minWidth: 18, minHeight: 18)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color(uiColor: .systemRed))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(Color(uiColor: .systemBackground), lineWidth: 1.5)
-                    )
-                    .compositingGroup()
-                    .shadow(color: .black.opacity(0.18), radius: 3, x: 0, y: 1)
-                    .offset(x: 6, y: -6)
-                    .zIndex(1)
+                notificationUnreadDot
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
             }
         }
         .accessibilityLabel(accessibilityNotificationLabel)
     }
 
-    private var badgeText: String {
-        if viewModel.unreadNotificationCount > 99 {
-            return "99+"
-        }
-        return "\(viewModel.unreadNotificationCount)"
+    private var notificationUnreadDot: some View {
+        Circle()
+            .fill(Color(uiColor: .systemRed))
+            .frame(width: 11, height: 11)
+            .overlay(
+                Circle()
+                    .stroke(Color(uiColor: .systemBackground), lineWidth: 1.5)
+            )
+            .shadow(color: .black.opacity(0.18), radius: 2, x: 0, y: 1)
     }
 
     private var accessibilityNotificationLabel: String {

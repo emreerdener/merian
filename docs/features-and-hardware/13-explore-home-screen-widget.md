@@ -34,7 +34,7 @@ Shared types live in `merian/Features/Explore/Widgets/ExploreWidgetCache.swift` 
 - Max cached items: `12`
 - Timeline rotation interval: `30 minutes`
 - Empty-state refresh interval: `60 minutes`
-- Bundled fallback asset: `ExploreWidgetPlaceholder` in the widget extension asset catalog, sourced from `merian/Assets.xcassets/Widget/widget-flower.imageset/widget-flower.jpg`. The same photo is also copied into `MerianExploreWidget/Resources/ExploreWidgetPlaceholder.jpg` as a direct bundle fallback for WidgetKit gallery rendering.
+- Bundled fallback asset: `ExploreWidgetPlaceholder` in the widget extension asset catalog, sourced from `merian/Assets.xcassets/Widget/widget-flower.imageset/widget-flower.jpg`. The same photo is also copied into `MerianExploreWidget/Resources/ExploreWidgetPlaceholder.jpg` as a direct bundle fallback for WidgetKit gallery rendering. Keep the widget extension copies downsampled for WidgetKit memory limits; the current bundled copies are `1024x1024`.
 
 Each `ExploreWidgetItem` stores only:
 
@@ -76,5 +76,5 @@ The app target embeds `MerianExploreWidget`; the widget target also directly com
 - The widget is populated opportunistically by the app. If the user never opens Explore, the widget remains in the empty state.
 - Avoid network work in the widget extension unless there is a strong product reason. Widget refresh budgets are limited, and authenticated Supabase work belongs in the app.
 - Keep the widget view text-free. Widget gallery display name and description are allowed because they are system configuration metadata, not in-widget UI.
-- If the visual design changes, preserve `.contentMarginsDisabled()` and `.scaledToFill()` so the image remains full-bleed.
+- If the visual design changes, preserve `.contentMarginsDisabled()`, `.scaledToFill()`, and the iOS 18+ `.widgetAccentedRenderingMode(.fullColor)` image modifier so the image remains full-bleed and full-color.
 - If cache shape changes, keep decoding backward-compatible or tolerate a missing/old snapshot by showing the empty state.

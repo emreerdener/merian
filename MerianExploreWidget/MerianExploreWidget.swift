@@ -77,34 +77,47 @@ struct ExploreImageWidgetView: View {
 
     var body: some View {
         ZStack {
-            Color.black
-            imageView
+            fallbackImage
+
+            if let image = entry.item.flatMap(loadImage) {
+                fullBleedImage(image)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
         .unredacted()
         .containerBackground(for: .widget) {
-            Color.black
+            fallbackImage
         }
         .widgetURL(entry.item.flatMap { ExploreWidgetConstants.deepLinkURL(postId: $0.postId) })
     }
 
     @ViewBuilder
-    private var imageView: some View {
-        if let image = entry.item.flatMap(loadImage) {
+    private var fallbackImage: some View {
+        if let placeholder = loadPlaceholderImage() {
+            fullBleedImage(placeholder)
+        } else {
+            Color.black
+        }
+    }
+
+    @ViewBuilder
+    private func fullBleedImage(_ image: UIImage) -> some View {
+        if #available(iOS 18.0, *) {
+            Image(uiImage: image)
+                .resizable()
+                .widgetAccentedRenderingMode(.fullColor)
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .unredacted()
+        } else {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
                 .unredacted()
-        } else if let placeholder = loadPlaceholderImage() {
-            Image(uiImage: placeholder)
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .unredacted()
-        } else {
-            Color.black
         }
     }
 
