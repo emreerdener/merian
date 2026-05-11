@@ -1334,24 +1334,43 @@ private struct ExploreReferenceGallery: View {
     let scientificName: String
     let images: [ExploreReferenceGalleryImage]
     @State private var selectedImageId: String?
+    @State private var failedImageIds: Set<String> = []
+
+    private var activeImages: [ExploreReferenceGalleryImage] {
+        let valid = images.filter { !failedImageIds.contains($0.id) }
+        let failed = images.filter { failedImageIds.contains($0.id) }
+        return valid + failed
+    }
 
     private var carouselHeight: CGFloat {
         min(UIScreen.main.bounds.width * 0.96, 420)
     }
 
     private var currentImageId: String? {
-        selectedImageId ?? images.first?.id
+        selectedImageId ?? activeImages.first?.id
     }
 
     var body: some View {
         VStack(spacing: 12) {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 0) {
-                    ForEach(images) { image in
+                    ForEach(activeImages) { image in
                         ExploreReferenceGalleryPage(
                             scientificName: scientificName,
                             image: image,
-                            height: carouselHeight
+                            height: carouselHeight,
+                            onLoadFailed: {
+                                Task { @MainActor in
+                                    if !failedImageIds.contains(image.id) {
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            failedImageIds.insert(image.id)
+                                            if selectedImageId == image.id {
+                                                selectedImageId = activeImages.first?.id
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         )
                         .frame(height: carouselHeight)
                         .containerRelativeFrame(.horizontal)
@@ -1369,9 +1388,9 @@ private struct ExploreReferenceGallery: View {
             .background(Color(uiColor: .secondarySystemBackground))
             .clipped()
 
-            if images.count > 1 {
+            if activeImages.count > 1 {
                 HStack(spacing: 8) {
-                    ForEach(images) { image in
+                    ForEach(activeImages) { image in
                         Circle()
                             .fill(image.id == currentImageId ? Color.primary : Color.primary.opacity(0.18))
                             .frame(width: 7, height: 7)
@@ -1385,7 +1404,7 @@ private struct ExploreReferenceGallery: View {
         .padding(.horizontal, -16)
         .onAppear {
             if selectedImageId == nil {
-                selectedImageId = images.first?.id
+                selectedImageId = activeImages.first?.id
             }
         }
     }
@@ -1395,13 +1414,15 @@ private struct ExploreReferenceGalleryPage: View {
     let scientificName: String
     let image: ExploreReferenceGalleryImage
     let height: CGFloat
+    var onLoadFailed: (() -> Void)?
 
     var body: some View {
         GeometryReader { proxy in
             AsyncLocalImageView(
                 path: nil,
                 fallbackImageUrl: image.url,
-                fillHeight: true
+                fillHeight: true,
+                onImageLoadFailed: onLoadFailed
             )
             .frame(width: proxy.size.width, height: proxy.size.height)
             .background(Color(uiColor: .secondarySystemBackground))
