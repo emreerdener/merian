@@ -4,17 +4,25 @@ import { jsonResponse } from "../_shared/edgeHandler.ts";
 export async function verifyGhostUser(
   ghostId: string,
   requestingUserId: string,
-  supabaseAdmin: SupabaseClient
+  supabaseAdmin: SupabaseClient,
 ) {
-  const { data: ghostUser, error: ghostUserError } = await supabaseAdmin.auth.admin.getUserById(ghostId);
+  const { data: ghostUser, error: ghostUserError } = await supabaseAdmin.auth
+    .admin.getUserById(ghostId);
 
   if (ghostUserError || !ghostUser?.user) {
-    return jsonResponse({ error: "Ghost user not found or already merged." }, 404);
+    return jsonResponse(
+      { error: "Ghost user not found or already merged." },
+      404,
+    );
   }
 
   if (!ghostUser.user.is_anonymous) {
-    console.warn(`IDOR attempt: User ${requestingUserId} tried to merge authenticated account ${ghostId}`);
-    return jsonResponse({ error: "Forbidden: The target account is not a guest account." }, 403);
+    console.warn(
+      `IDOR attempt: User ${requestingUserId} tried to merge authenticated account ${ghostId}`,
+    );
+    return jsonResponse({
+      error: "Forbidden: The target account is not a guest account.",
+    }, 403);
   }
 
   return null; // Passes verification
@@ -23,7 +31,7 @@ export async function verifyGhostUser(
 export async function transferScans(
   ghostId: string,
   targetUserId: string,
-  supabaseAdmin: SupabaseClient
+  supabaseAdmin: SupabaseClient,
 ) {
   const { error: scansUpdateError } = await supabaseAdmin
     .from("scans")
@@ -56,15 +64,37 @@ export async function transferCollections(
   }
 }
 
+/// Re-parents Explore posts published while the user was still anonymous.
+/// Explore posts duplicate the scan owner into `explore_posts.user_id` for feed
+/// indexes and author-profile reads, so scan transfer alone is not enough.
+export async function transferExplorePosts(
+  ghostId: string,
+  targetUserId: string,
+  supabaseAdmin: SupabaseClient,
+) {
+  const { error } = await supabaseAdmin
+    .from("explore_posts")
+    .update({ user_id: targetUserId })
+    .eq("user_id", ghostId);
+
+  if (error) {
+    throw new Error(`Explore posts migration failed: ${error.message}`);
+  }
+}
+
 export async function purgeGhostUser(
   ghostId: string,
-  supabaseAdmin: SupabaseClient
+  supabaseAdmin: SupabaseClient,
 ) {
   // Delete auth.users first — cascades to collections and export_jobs (both reference auth.users).
-  const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(ghostId);
+  const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(
+    ghostId,
+  );
 
   if (deleteError) {
-    console.warn(`Failed to delete ghost user ${ghostId}: ${deleteError.message}`);
+    console.warn(
+      `Failed to delete ghost user ${ghostId}: ${deleteError.message}`,
+    );
   }
 
   // public.users has no FK to auth.users, so it must be deleted explicitly.
@@ -77,6 +107,8 @@ export async function purgeGhostUser(
     .eq("id", ghostId);
 
   if (publicUserDeleteError) {
-    console.warn(`Failed to delete public.users for ghost ${ghostId}: ${publicUserDeleteError.message}`);
+    console.warn(
+      `Failed to delete public.users for ghost ${ghostId}: ${publicUserDeleteError.message}`,
+    );
   }
 }

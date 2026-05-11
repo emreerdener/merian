@@ -7,6 +7,7 @@ struct ExplorePostDetailView: View {
     let shouldFocusCommentComposer: Bool
     let shouldOpenInsight: Bool
     let allowsInsightPresentation: Bool
+    let allowsAuthorProfilePresentation: Bool
 
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
@@ -21,11 +22,28 @@ struct ExplorePostDetailView: View {
     @State private var showFieldNotesEditor = false
     @State private var localFieldNotes: String?
     @State private var selectedInsightRecord: LocalScanRecord?
+    @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
     @State private var isRefreshingAfterInsightDismiss = false
     @State private var didAutoOpenInsight = false
 
     private let commentsSectionId = "explore-comments-section"
     private let commentsComposerId = "explore-comments-composer"
+
+    init(
+        viewModel: ExploreFeedViewModel,
+        postId: String,
+        shouldFocusCommentComposer: Bool,
+        shouldOpenInsight: Bool,
+        allowsInsightPresentation: Bool,
+        allowsAuthorProfilePresentation: Bool = true
+    ) {
+        self.viewModel = viewModel
+        self.postId = postId
+        self.shouldFocusCommentComposer = shouldFocusCommentComposer
+        self.shouldOpenInsight = shouldOpenInsight
+        self.allowsInsightPresentation = allowsInsightPresentation
+        self.allowsAuthorProfilePresentation = allowsAuthorProfilePresentation
+    }
 
     private var currentPost: ExplorePost? {
         viewModel.post(id: postId)
@@ -163,6 +181,9 @@ struct ExplorePostDetailView: View {
                 allowsExplorePresentation: false
             )
         }
+        .sheet(item: $selectedAuthorProfileRoute) { route in
+            ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
+        }
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
             Task {
                 if let post = currentPost {
@@ -278,6 +299,11 @@ struct ExplorePostDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard allowsAuthorProfilePresentation else { return }
+            selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
+        }
     }
 
     @ViewBuilder

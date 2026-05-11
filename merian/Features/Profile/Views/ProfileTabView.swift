@@ -6,7 +6,6 @@ import SwiftUI
 /// visual data visualizations (Terrarium, Heatmap) and abstracts intense offline SQLite
 /// hardware calculations completely away from the orchestrator logic natively.
 struct ProfileTabView: View {
-    var supabase: SupabaseManager
     @Environment(\.modelContext) private var modelContext
     @Binding var showPaywall: Bool
     
@@ -15,6 +14,8 @@ struct ProfileTabView: View {
     @State private var currentStreak: Int = 0
     @State private var heatmapData: ProfileHeatmapData?
     @State private var awards: [AwardPayload] = []
+    @State private var exploreViewModel = ExploreFeedViewModel()
+    @State private var selectedPostRoute: ExplorePostRoute?
     
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -37,6 +38,12 @@ struct ProfileTabView: View {
                 
                 // MARK: - Heatmap
                 ScansHeatmap(heatmapData: heatmapData)
+
+                // MARK: - Public Explore Scans
+                ProfilePublicScansPreview(
+                    viewModel: exploreViewModel,
+                    onOpenPost: openPublicScanPreview
+                )
                 
                 // MARK: - Gamification Awards
                 if !awards.isEmpty {
@@ -49,6 +56,22 @@ struct ProfileTabView: View {
             .sheet(isPresented: $showPaywall) {
                 PaywallView()
                     .environment(RevenueCatManager.shared)
+            }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { selectedPostRoute != nil },
+                    set: { if !$0 { selectedPostRoute = nil } }
+                )
+            ) {
+                if let selectedPostRoute {
+                    ExplorePostDetailView(
+                        viewModel: exploreViewModel,
+                        postId: selectedPostRoute.postId,
+                        shouldFocusCommentComposer: selectedPostRoute.shouldFocusCommentComposer,
+                        shouldOpenInsight: selectedPostRoute.shouldOpenInsight,
+                        allowsInsightPresentation: false
+                    )
+                }
             }
             // MARK: - Off-Thread SQLite Data Generation
             .task {
@@ -69,5 +92,19 @@ struct ProfileTabView: View {
         // Explicitly binds this list to exactly 100% of the screen width securely, 
         // creating a perfect 1-to-1 swipeable "Page" geometry identical to SettingsTabView!
         .containerRelativeFrame(.horizontal)
+    }
+
+    private func openPublicScanPreview(_ post: ExplorePost) {
+        HapticManager.shared.triggerSelectionPulse()
+        exploreViewModel.upsertPost(post)
+        exploreViewModel.refreshPreferredSpeciesNames(
+            for: [post.speciesScientificName],
+            modelContext: modelContext
+        )
+        selectedPostRoute = ExplorePostRoute(
+            postId: post.id,
+            shouldFocusCommentComposer: false,
+            shouldOpenInsight: false
+        )
     }
 }

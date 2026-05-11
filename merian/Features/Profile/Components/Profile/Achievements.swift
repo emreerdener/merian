@@ -14,6 +14,7 @@ struct Achievements: View {
     @Environment(\.modelContext) private var modelContext
 
     let awards: [AwardPayload]
+    var allowsDetailPresentation = true
 
     @State private var sortOption: AwardSortOption = .smartSort
     @State private var selectedAward: AwardPayload?
@@ -110,16 +111,24 @@ struct Achievements: View {
 
             VStack(spacing: 12) {
                 ForEach(sortedAwards) { award in
-                    Button {
-                        selectedAward = award
-                    } label: {
+                    if allowsDetailPresentation {
+                        Button {
+                            selectedAward = award
+                        } label: {
+                            AchievementCard(award: award)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("AchievementCard_\(award.type.rawValue)")
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(award.cardAccessibilityLabel)
+                        .accessibilityHint(award.cardAccessibilityHint)
+                    } else {
                         AchievementCard(award: award)
+                            .accessibilityIdentifier("AchievementCard_\(award.type.rawValue)")
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(award.cardAccessibilityLabel)
+                            .accessibilityHint("Public achievement progress. Qualifying scans are private.")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("AchievementCard_\(award.type.rawValue)")
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(award.cardAccessibilityLabel)
-                    .accessibilityHint(award.cardAccessibilityHint)
                 }
             }
         }

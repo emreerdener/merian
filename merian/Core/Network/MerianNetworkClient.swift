@@ -902,6 +902,39 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExplorePostDetailResponse.self, from: data).data
     }
 
+    func getExploreAuthorProfile(authorUserId: String, previewLimit: Int = 9) async throws -> ExploreAuthorProfile {
+        let functionUrl = try endpointURL("get-explore-author-profile")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "author_user_id": authorUserId,
+            "preview_limit": previewLimit
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreAuthorProfileResponse.self, from: data).data
+    }
+
+    func getExploreAuthorPosts(
+        authorUserId: String,
+        limit: Int = 30,
+        cursor: ExploreAuthorPostCursor? = nil
+    ) async throws -> [ExplorePost] {
+        let functionUrl = try endpointURL("get-explore-author-posts")
+        var payload: [String: Any] = [
+            "author_user_id": authorUserId,
+            "limit": limit
+        ]
+
+        if let cursor,
+           let beforeSharedAt = cursor.beforeSharedAt,
+           let beforePostId = cursor.beforePostId {
+            payload["before_shared_at"] = beforeSharedAt
+            payload["before_post_id"] = beforePostId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreAuthorPostsResponse.self, from: data).data
+    }
+
     func getExploreShareState(scanId: String) async throws -> ExploreScanShareState {
         let functionUrl = try endpointURL("get-scan-explore-share-state")
         let bodyData = try JSONSerialization.data(withJSONObject: ["scan_id": scanId])

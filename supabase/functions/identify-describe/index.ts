@@ -389,6 +389,7 @@ serve((req: Request) =>
             weather_temperature_f: weatherTemperatureF,
             semantic_location: semanticLocation,
             device_locale: deviceLocale,
+            device_time_zone: deviceTimeZone,
             current_month: normalizedCurrentMonth ?? null,
             time_of_day: timeOfDay,
             ai_reasoning: parsedData.ai_reasoning ?? null,

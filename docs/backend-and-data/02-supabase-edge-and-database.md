@@ -69,6 +69,7 @@ The `/identify-multimodal` Edge Function is the primary client-facing inference 
 Explore uses a dedicated set of Edge Functions and SQL RPCs rather than sharing the identify pipeline. The current shipped surface includes:
 
 - feed + detail reads: `get-explore-feed`, `get-explore-post`, `get-explore-post-detail`, `get-explore-comments`
+- author profile reads: `get-explore-author-profile`, `get-explore-author-posts`
 - map reads: `get-explore-map-points`
 - mutations: `share-scan-to-explore`, `unshare-explore-post`, `set-explore-post-like`, `create-explore-comment`, `delete-explore-comment`, `report-explore-comment`
 - activity reads: `get-explore-notifications`, `get-explore-unread-notification-count`, `mark-explore-notifications-read`
@@ -77,6 +78,8 @@ Explore uses a dedicated set of Edge Functions and SQL RPCs rather than sharing 
 The in-app notifications feed is backed by `public.explore_post_notifications`, not by local client state. Like notifications are recomputed from the authoritative `explore_post_likes` table after each insert/delete so concurrency cannot drift the aggregate count, comment notifications are created and removed via triggers on `explore_post_comments`, comment-reaction notifications are recomputed per `(comment, emoji)` from `explore_comment_reactions`, self-notifications are suppressed server-side, and notification rows are pruned when a post is unshared or a comment is author-deleted or owner-moderated.
 
 `get-explore-post` is an important routing helper for the iOS client: it returns a single feed-card projection so notification taps and future deep links do not depend on the target post already existing in the currently paged `ExploreFeedViewModel.posts` array.
+
+Author profile reads are split the same way as feed/detail reads. `get-explore-author-profile` returns a privacy-scoped profile sheet payload only when the target author has at least one visible Explore post for the requester. Aggregates are computed from the author's non-tombstoned scans, while preview posts are filtered to currently visible Explore posts. `get-explore-author-posts` returns the full published library projection with stable `(shared_at, post_id)` cursor pagination. Neither endpoint exposes raw auth metadata, exact coordinates, private scan IDs for achievements, or qualifying achievement scans.
 
 `get-explore-feed` now supports three shipped feed modes through one edge contract:
 

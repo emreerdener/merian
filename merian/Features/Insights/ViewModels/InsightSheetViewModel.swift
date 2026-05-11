@@ -789,6 +789,7 @@ final class InsightSheetViewModel {
 
     private func cacheSharedExplorePostId(_ postId: String?, for scanId: String) {
         ExploreShareStateStore.setSharedPostId(postId, for: scanId)
+        AppEventPublisher.shared.send(.exploreShareStateChanged(scanId: scanId, postId: postId))
         applySharedExplorePostId(
             ExploreShareStateStore.sharedPostId(for: scanId),
             for: scanId,

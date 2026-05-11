@@ -9,6 +9,14 @@ struct ExplorePostResponse: Decodable {
     let data: ExplorePost
 }
 
+struct ExploreAuthorProfileResponse: Decodable {
+    let data: ExploreAuthorProfile
+}
+
+struct ExploreAuthorPostsResponse: Decodable {
+    let data: [ExplorePost]
+}
+
 struct ExplorePost: Decodable, Identifiable, Equatable {
     let postId: String
     let scanId: String
@@ -76,6 +84,109 @@ struct ExploreFeedCursor: Equatable {
 
     var isEmpty: Bool {
         beforeSharedAt == nil && beforePostId == nil && beforeRankingValue == nil
+    }
+}
+
+struct ExploreAuthorPostCursor: Equatable {
+    let beforeSharedAt: String?
+    let beforePostId: String?
+
+    static let empty = ExploreAuthorPostCursor(
+        beforeSharedAt: nil,
+        beforePostId: nil
+    )
+
+    var isEmpty: Bool {
+        beforeSharedAt == nil && beforePostId == nil
+    }
+}
+
+struct ExploreAuthorProfile: Decodable, Equatable {
+    let authorUserId: String
+    let authorName: String
+    let authorAvatarUrl: String?
+    let speciesCount: Int
+    let currentStreak: Int
+    let heatmap: ExploreAuthorProfileHeatmap
+    let awards: [ExploreAuthorProfileAward]
+    let publishedPostCount: Int
+    let previewPosts: [ExplorePost]
+
+    var authorAvatarURL: URL? {
+        guard let authorAvatarUrl else { return nil }
+        return URL(string: authorAvatarUrl)
+    }
+
+    var profileHeatmapData: ProfileHeatmapData {
+        heatmap.profileHeatmapData
+    }
+
+    var awardPayloads: [AwardPayload] {
+        awards.compactMap(\.awardPayload)
+    }
+}
+
+struct ExploreAuthorProfileAward: Decodable, Equatable {
+    let type: String
+    let currentCount: Int
+    let lastInteractionAt: String?
+
+    var awardPayload: AwardPayload? {
+        guard let achievementType = AchievementType(rawValue: type) else {
+            return nil
+        }
+
+        return AwardPayload(
+            type: achievementType,
+            currentCount: currentCount,
+            lastInteractionDate: parsedLastInteractionDate
+        )
+    }
+
+    private var parsedLastInteractionDate: Date? {
+        guard let lastInteractionAt else { return nil }
+        return DateUtilities.iso8601FractionalFormatter.date(from: lastInteractionAt)
+            ?? DateUtilities.iso8601Formatter.date(from: lastInteractionAt)
+    }
+}
+
+struct ExploreAuthorProfileHeatmap: Decodable, Equatable {
+    let totalCaptures: Int
+    let currentMonthCaptures: Int
+    let yearString: String
+    let weeks: [ExploreAuthorProfileHeatmapWeek]
+
+    var profileHeatmapData: ProfileHeatmapData {
+        ProfileHeatmapData(
+            totalCaptures: totalCaptures,
+            currentMonthCaptures: currentMonthCaptures,
+            yearString: yearString,
+            weeks: weeks.map(\.profileHeatmapWeek)
+        )
+    }
+}
+
+struct ExploreAuthorProfileHeatmapWeek: Decodable, Equatable {
+    let monthLabel: String?
+    let days: [ExploreAuthorProfileHeatmapDay]
+
+    var profileHeatmapWeek: HeatmapWeek {
+        HeatmapWeek(
+            days: days.map(\.profileHeatmapDay),
+            monthLabel: monthLabel
+        )
+    }
+}
+
+struct ExploreAuthorProfileHeatmapDay: Decodable, Equatable {
+    let count: Int
+    let date: String
+
+    var profileHeatmapDay: HeatmapDay {
+        HeatmapDay(
+            count: count,
+            date: DateUtilities.iso8601Formatter.date(from: date) ?? Date(timeIntervalSince1970: 0)
+        )
     }
 }
 

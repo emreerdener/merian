@@ -514,6 +514,7 @@ serve((req: Request) =>
             weather_temperature_f: weather_temperature_f ?? undefined,
             semantic_location: semantic_location ?? undefined,
             device_locale: device_locale ?? undefined,
+            device_time_zone: device_time_zone ?? undefined,
             current_month: normalizedCurrentMonth ?? null,
             time_of_day: time_of_day ?? undefined,
             ai_reasoning: parsedData.ai_reasoning ?? null,

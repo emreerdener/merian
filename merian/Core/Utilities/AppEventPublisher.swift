@@ -26,6 +26,8 @@ enum AppEvent {
 
     /// Dispatched after a scan review changes data that Explore renders through the scan join.
     case explorePostNeedsRefresh(postId: String)
+    /// Dispatched after a local scan's Explore publication state changes.
+    case exploreShareStateChanged(scanId: String, postId: String?)
 }
 
 /// A centralized, `@MainActor`-bound event bus for system-wide internal message routing.

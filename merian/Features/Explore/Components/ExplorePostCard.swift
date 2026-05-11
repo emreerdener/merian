@@ -9,6 +9,7 @@ struct ExplorePostCard: View {
     let onComments: () -> Void
     let onShare: () -> Void
     let onOpenDetail: () -> Void
+    let onOpenAuthorProfile: () -> Void
     let onOpenInsight: (() -> Void)?
     let onUnshare: () -> Void
     let onBlock: () -> Void
@@ -86,7 +87,7 @@ struct ExplorePostCard: View {
                 }
             }
             .contentShape(Rectangle())
-            .onTapGesture(perform: onOpenDetail)
+            .onTapGesture(perform: onOpenAuthorProfile)
 
             Spacer(minLength: 12)
 

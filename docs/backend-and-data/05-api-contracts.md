@@ -98,7 +98,7 @@ The endpoint rejects media JSON requests whose `Content-Length` exceeds the shar
 
 `currentMonth` and `timeOfDay` are derived from the image's own capture date (`telemetry.timestamp`) when available — not always from the current wall clock. For gallery photos with a valid EXIF date, this ensures Gemini receives the correct season and light context for the original photo (e.g., an October photo scanned in April sends `Month: 10`, not `Month: 4`). Falls back to current date/time for live captures and gallery photos with no EXIF.
 
-`timestamp` is omitted (null) for gallery photos with no EXIF date rather than sending the current submission time. The server defaults `scans.timestamp` to `now()` in that case, which honestly represents when the scan was submitted. `deviceTimeZone` (IANA identifier, e.g. `"America/Los_Angeles"`) and `deviceRegion` (ISO 3166-1, e.g. `"US"`) are permission-free geographic signals sent as fallback context when GPS is not authorised. The Edge function injects them into the Gemini context string as `TZ:` and `Region:` tokens alongside `Locale:`, `Month:`, and `Time:` — grounding the model's regional species priors without requiring location permission. Neither field is stored in the `scans` table; they are inference-context only.
+`timestamp` is omitted (null) for gallery photos with no EXIF date rather than sending the current submission time. The server defaults `scans.timestamp` to `now()` in that case, which honestly represents when the scan was submitted. `deviceTimeZone` (IANA identifier, e.g. `"America/Los_Angeles"`) and `deviceRegion` (ISO 3166-1, e.g. `"US"`) are permission-free geographic signals sent as fallback context when GPS is not authorised. The Edge function injects them into the Gemini context string as `TZ:` and `Region:` tokens alongside `Locale:`, `Month:`, and `Time:` — grounding the model's regional species priors without requiring location permission. `deviceTimeZone` is also persisted to `scans.device_time_zone` for timezone-aware public profile streaks and heatmaps; `deviceRegion` remains inference-context only.
 
 ### The JSON Response Schema (From Gemini Back to Swift)
 
@@ -437,6 +437,124 @@ For posts owned by the current viewer, iOS also uses `field_notes` as a repair s
 - `user_identification_override IS NULL`
 
 That means the Explore detail page automatically hides the reasoning if the user later flags the identification or overrides it, while still allowing AI-confirmed scans to show the original per-photo reasoning.
+
+### `/get-explore-author-profile`
+
+Returns a privacy-scoped public author profile for an Explore author. This endpoint exists for the author profile sheet opened from Explore feed/detail author headers.
+
+Request body:
+
+```json
+{
+  "author_user_id": "uuid",
+  "preview_limit": 9
+}
+```
+
+Validation and availability rules:
+
+- `author_user_id` is required and must be a UUID.
+- `preview_limit` is optional, defaults to `9`, and is capped at `30`.
+- The endpoint returns `404` if the target author has no currently visible Explore post for the requesting viewer.
+- Shadowbanned authors and either direction of user blocking return no profile.
+- Profile aggregates are computed from all non-tombstoned scans owned by the author.
+- Species count and achievement progress use biological species-backed scans via `COALESCE(confirmed_species_id, species_id)`.
+- Preview posts use the same Explore visibility rules as feed/library posts and never include private, unshared, tombstoned, media-less, or non-species-backed posts.
+- Achievement progress never includes qualifying scan IDs.
+
+Current response shape:
+
+```json
+{
+  "data": {
+    "author_user_id": "uuid",
+    "author_name": "River W.",
+    "author_avatar_url": "https://...",
+    "species_count": 42,
+    "current_streak": 5,
+    "published_post_count": 19,
+    "heatmap": {
+      "total_captures": 124,
+      "current_month_captures": 8,
+      "year_string": "2026",
+      "weeks": [
+        {
+          "month_label": "May",
+          "days": [
+            { "count": 1, "date": "2026-05-03T00:00:00Z" },
+            { "count": 0, "date": "2026-05-04T00:00:00Z" },
+            { "count": -1, "date": "2026-05-05T00:00:00Z" }
+          ]
+        }
+      ]
+    },
+    "awards": [
+      {
+        "type": "explorer",
+        "current_count": 5,
+        "last_interaction_at": "2026-05-03T12:00:00.000Z"
+      }
+    ],
+    "preview_posts": [
+      {
+        "post_id": "uuid",
+        "scan_id": "uuid",
+        "hero_image_url": "https://...",
+        "shared_at": "2026-05-03T12:00:00.000Z",
+        "author_user_id": "uuid",
+        "author_name": "River W.",
+        "author_avatar_url": "https://...",
+        "species_common_name": "River Birch",
+        "species_scientific_name": "Betula nigra",
+        "public_location_label": "Austin, TX",
+        "time_of_day": "day",
+        "current_month": 5,
+        "weather_condition": "clear",
+        "weather_temperature_f": 74.0,
+        "like_count": 8,
+        "comment_count": 1,
+        "viewer_has_liked": false,
+        "is_owned_by_viewer": false,
+        "ranking_value": null
+      }
+    ]
+  }
+}
+```
+
+Heatmap day `count = -1` marks future days in the fixed 52-week grid and renders as empty/clear in `ScansHeatmap`. The backend chooses the author's latest valid persisted `scans.device_time_zone` for day-boundary calculations and falls back to UTC when no timezone is available.
+
+### `/get-explore-author-posts`
+
+Returns a paginated grid library of an author's currently visible published Explore scans. The response shape is the same card projection used by `/get-explore-feed`, with `ranking_value = null`.
+
+First page request:
+
+```json
+{
+  "author_user_id": "uuid",
+  "limit": 30
+}
+```
+
+Follow-up page request:
+
+```json
+{
+  "author_user_id": "uuid",
+  "limit": 30,
+  "before_shared_at": "2026-05-03T12:00:00.000Z",
+  "before_post_id": "uuid"
+}
+```
+
+Validation and pagination rules:
+
+- `author_user_id` is required and must be a UUID.
+- `limit` is optional, defaults to `30`, and is capped at `100`.
+- `before_shared_at` and `before_post_id` must be omitted together or supplied together.
+- Pagination is stable on `(shared_at DESC, post_id DESC)`.
+- The endpoint filters unshared posts, tombstoned scans, scans with no image media, private-geoprivacy scans, scans without a species key, shadowbanned authors, and both directions of user blocking.
 
 ### `/get-explore-map-points`
 
@@ -868,6 +986,7 @@ A unified identification pipeline that merges the active capabilities of `/ident
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; live foreground audio uses size-preflighted inline `audioBase64s`. The edge rejects oversized media JSON `Content-Length` before body parsing, then validates clip count, byte budgets, IDOR ownership, and path traversal through `_shared/identify/media.ts` before decode/fetch.
 - The canonical request contract is camelCase telemetry (`gpsLatitude`, `semanticLocation`, `deviceTimeZone`, etc.) plus `observation_contexts: [{ freeText, addedAt? }]`, matching `MerianNetworkClient.buildMultiModalRequest(...)` and the iOS `ObservationContext` model. The same Swift inference payload builder also backs `/identify` so visual and multimodal requests share telemetry formatting, user context, and pre-serialization inline media budget validation.
+- `deviceTimeZone` is persisted to `public.scans.device_time_zone` when present so public profile streaks and heatmaps can use the author's local day boundary. Missing or invalid legacy rows fall back to UTC at profile-read time.
 - The server still accepts legacy snake_case telemetry aliases (`gps_latitude`, `semantic_location`, `time_of_day`, etc.) and legacy `free_text` context keys so offline queue replays and older internal tooling do not break mid-migration.
 - Candidate handling now matches `/identify`: the response strips `candidates` when `confidence_score >= diagnosticTrigger`, enriches forwarded candidates with cached English common names when available, and schedules background enrichment for cache misses.
 - The multimodal background ingestion path shares the same `_shared/identify` DB, media, schema, threshold, and moderation primitives as `/identify`.

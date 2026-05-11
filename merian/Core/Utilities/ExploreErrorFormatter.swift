@@ -9,7 +9,10 @@ enum ExploreErrorFormatter {
     static func message(for error: Error) -> String {
         if let merianError = error as? MerianError {
             switch merianError {
-            case .httpError(_, let rawMessage):
+            case .httpError(let statusCode, let rawMessage):
+                if statusCode >= 500 {
+                    return "Something went wrong. Please try again."
+                }
                 return parsedMessage(from: rawMessage) ?? fallbackMessage(from: rawMessage)
             default:
                 break

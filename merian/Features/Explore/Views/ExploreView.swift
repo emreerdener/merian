@@ -15,6 +15,7 @@ struct ExploreView: View {
     @State private var viewModel = ExploreFeedViewModel()
     @State private var mapViewModel = ExploreMapViewModel()
     @State private var selectedPostRoute: ExplorePostRoute?
+    @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
     @State private var selectedInsightRecord: LocalScanRecord?
     @State private var activeTab: ExploreTab = .feed
 
@@ -41,6 +42,7 @@ struct ExploreView: View {
                     ExploreFeedTabContent(
                         viewModel: viewModel,
                         onOpenPostDetail: { openPostDetail(for: $0) },
+                        onOpenAuthorProfile: { openAuthorProfile(for: $0) },
                         onOpenInsight: allowsInsightPresentation ? { openInsight(for: $0) } : nil
                     )
                     .id(ExploreTab.feed)
@@ -149,6 +151,9 @@ struct ExploreView: View {
                 allowsExplorePresentation: false
             )
         }
+        .sheet(item: $selectedAuthorProfileRoute) { route in
+            ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             Task { await viewModel.refreshUnreadNotificationCount() }
         }
@@ -201,6 +206,12 @@ struct ExploreView: View {
             shouldFocusCommentComposer: focusCommentComposer,
             shouldOpenInsight: allowsInsightPresentation && openInsight
         )
+    }
+
+    private func openAuthorProfile(for post: ExplorePost) {
+        HapticManager.shared.triggerSelectionPulse()
+        viewModel.upsertPost(post)
+        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
     }
 
     private func openInsight(for post: ExplorePost) {
@@ -287,6 +298,7 @@ private struct ExploreFeedTabContent: View {
     @State private var isLocationSettingsAlertPresented = false
     @State private var isResolvingNearbyLocation = false
     let onOpenPostDetail: (ExplorePost) -> Void
+    let onOpenAuthorProfile: (ExplorePost) -> Void
     let onOpenInsight: ((ExplorePost) -> Void)?
 
     var body: some View {
@@ -336,6 +348,7 @@ private struct ExploreFeedTabContent: View {
                             onComments: { Task { await viewModel.openCommentsSheet(for: post) } },
                             onShare: { viewModel.share(post) },
                             onOpenDetail: { onOpenPostDetail(post) },
+                            onOpenAuthorProfile: { onOpenAuthorProfile(post) },
                             onOpenInsight: onOpenInsight.map { callback in
                                 { callback(post) }
                             },

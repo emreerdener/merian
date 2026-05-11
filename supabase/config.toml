@@ -487,6 +487,12 @@ verify_jwt = false
 [functions.get-explore-post-detail]
 verify_jwt = false
 
+[functions.get-explore-author-profile]
+verify_jwt = false
+
+[functions.get-explore-author-posts]
+verify_jwt = false
+
 [functions.get-scan-explore-share-state]
 verify_jwt = false
 

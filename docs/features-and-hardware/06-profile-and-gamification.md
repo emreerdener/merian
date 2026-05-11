@@ -99,6 +99,38 @@ All species-based criteria de-duplicate by canonical species key (`confirmedSpec
 
 The first-scan achievement is resolved by finding the oldest timestamp in the projection, with scan ID as a deterministic tie-breaker. Each accumulator also tracks a `lastInteractionDate` as the most recent qualifying contribution. `currentCount` reflects the full de-duplicated qualifying count, even after an award is unlocked; `progressFraction` clamps the visual progress against `targetCount`, and the detail sheet can show every qualifying contribution. Note that `timestamp` strictly represents the system upload and processing time, completely decoupled from the original image's EXIF `captureDate`. This ensures that historical backfills from users' photo libraries do not retroactively trigger streaks or skew gamification timing mechanics.
 
+## Public Explore Profile Achievements
+
+Explore author profiles reuse the same `AchievementType`, `AchievementDefinition`, `AwardPayload`, and `AchievementCard` rendering system, but they do not reuse local qualifying-scan detail presentation.
+
+The backend endpoint `get-explore-author-profile` returns achievement progress as remote JSON:
+
+```json
+{
+  "type": "explorer",
+  "current_count": 5,
+  "last_interaction_at": "2026-05-03T12:00:00.000Z"
+}
+```
+
+The response intentionally omits scan IDs and contribution metadata. iOS converts each remote item to `AwardPayload` in `ExploreAuthorProfileAward.awardPayload`, then renders:
+
+```swift
+Achievements(
+    awards: profile.awardPayloads,
+    allowsDetailPresentation: false
+)
+```
+
+`allowsDetailPresentation: false` makes each `AchievementCard` non-interactive and replaces the accessibility hint with a public-profile privacy hint. The local Profile tab continues to use the default interactive mode, so local achievements still open `AchievementDetailSheet` and qualifying local scans.
+
+When adding a new achievement, update both:
+
+- the local Swift definition in `AchievementType.definition`
+- the SQL progress projection in `public.get_explore_author_profile(...)`
+
+The public SQL projection must return progress only. Do not add qualifying scan IDs, scan URLs, exact locations, or private notes to the public achievement payload.
+
 ---
 
 ## Adding a New Award

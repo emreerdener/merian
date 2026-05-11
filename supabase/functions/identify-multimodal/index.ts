@@ -642,6 +642,7 @@ serve((req: Request) =>
             weather_temperature_f: weatherTemperatureF ?? undefined,
             semantic_location: semanticLocation ?? undefined,
             device_locale: deviceLocale ?? undefined,
+            device_time_zone: deviceTimeZone ?? undefined,
             current_month: currentMonth ?? null,
             time_of_day: timeOfDay ?? undefined,
             depth_scale_text: depthScaleText ?? undefined,

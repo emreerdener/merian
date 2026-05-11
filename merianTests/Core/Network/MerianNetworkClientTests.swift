@@ -358,6 +358,139 @@ struct MerianNetworkClientTests {
         #expect(posts[0].rankingValue == nil)
     }
 
+    @Test func testGetExploreAuthorProfileParsesProfilePayload() async throws {
+        let testData = """
+        {
+            "data": {
+                "author_user_id": "author-profile-123",
+                "author_name": "River Walker",
+                "author_avatar_url": "https://example.com/avatar.jpg",
+                "species_count": 12,
+                "current_streak": 4,
+                "published_post_count": 9,
+                "heatmap": {
+                    "total_captures": 17,
+                    "current_month_captures": 3,
+                    "year_string": "2026",
+                    "weeks": [
+                        {
+                            "month_label": "May",
+                            "days": [
+                                { "count": 1, "date": "2026-05-03T00:00:00Z" },
+                                { "count": 0, "date": "2026-05-04T00:00:00Z" }
+                            ]
+                        }
+                    ]
+                },
+                "awards": [
+                    {
+                        "type": "explorer",
+                        "current_count": 5,
+                        "last_interaction_at": "2026-05-03T12:00:00.000Z"
+                    }
+                ],
+                "preview_posts": [
+                    {
+                        "post_id": "post-profile-123",
+                        "scan_id": "scan-profile-123",
+                        "hero_image_url": "https://example.com/profile.webp",
+                        "shared_at": "2026-05-03T12:00:00.000Z",
+                        "author_user_id": "author-profile-123",
+                        "author_name": "River Walker",
+                        "author_avatar_url": "https://example.com/avatar.jpg",
+                        "species_common_name": "River Birch",
+                        "species_scientific_name": "Betula nigra",
+                        "public_location_label": "Austin, TX",
+                        "time_of_day": "day",
+                        "current_month": 5,
+                        "weather_condition": "Clear",
+                        "weather_temperature_f": 74.0,
+                        "like_count": 8,
+                        "comment_count": 1,
+                        "viewer_has_liked": false,
+                        "is_owned_by_viewer": false,
+                        "ranking_value": null
+                    }
+                ]
+            }
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/get-explore-author-profile"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["author_user_id"] as? String == "author-profile-123")
+            #expect(payload["preview_limit"] as? Int == 9)
+            return (mockResponse, testData)
+        }
+
+        let profile = try await MerianNetworkClient.shared.getExploreAuthorProfile(
+            authorUserId: "author-profile-123"
+        )
+
+        #expect(profile.authorName == "River Walker")
+        #expect(profile.speciesCount == 12)
+        #expect(profile.currentStreak == 4)
+        #expect(profile.profileHeatmapData.totalCaptures == 17)
+        #expect(profile.profileHeatmapData.weeks.count == 1)
+        #expect(profile.awardPayloads.first?.type == .explorer)
+        #expect(profile.awardPayloads.first?.isCompleted == true)
+        #expect(profile.previewPosts.first?.id == "post-profile-123")
+    }
+
+    @Test func testGetExploreAuthorPostsConstructsCursorPayload() async throws {
+        let testData = """
+        {
+            "data": [
+                {
+                    "post_id": "post-author-page-123",
+                    "scan_id": "scan-author-page-123",
+                    "hero_image_url": "https://example.com/page.webp",
+                    "shared_at": "2026-05-04T12:00:00.000Z",
+                    "author_user_id": "author-page-123",
+                    "author_name": "Page Author",
+                    "author_avatar_url": null,
+                    "species_common_name": "Post Oak",
+                    "species_scientific_name": "Quercus stellata",
+                    "public_location_label": null,
+                    "time_of_day": null,
+                    "current_month": null,
+                    "weather_condition": null,
+                    "weather_temperature_f": null,
+                    "like_count": 0,
+                    "comment_count": 0,
+                    "viewer_has_liked": false,
+                    "is_owned_by_viewer": false,
+                    "ranking_value": null
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/get-explore-author-posts"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["author_user_id"] as? String == "author-page-123")
+            #expect(payload["limit"] as? Int == 30)
+            #expect(payload["before_shared_at"] as? String == "2026-05-04T12:00:00.000Z")
+            #expect(payload["before_post_id"] as? String == "post-cursor-123")
+            return (mockResponse, testData)
+        }
+
+        let posts = try await MerianNetworkClient.shared.getExploreAuthorPosts(
+            authorUserId: "author-page-123",
+            cursor: ExploreAuthorPostCursor(
+                beforeSharedAt: "2026-05-04T12:00:00.000Z",
+                beforePostId: "post-cursor-123"
+            )
+        )
+
+        #expect(posts.count == 1)
+        #expect(posts[0].id == "post-author-page-123")
+    }
+
     @Test func testGenerateUploadURLsUsesStructuredMediaManifest() async throws {
         let testData = """
         {

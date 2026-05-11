@@ -44,6 +44,7 @@ extension ExploreFeedViewModel {
         do {
             try await MerianNetworkClient.shared.unshareExplorePost(postId: post.id)
             ExploreShareStateStore.setSharedPostId(nil, for: post.scanId)
+            AppEventPublisher.shared.send(.exploreShareStateChanged(scanId: post.scanId, postId: nil))
             removePost(id: post.id)
             HapticManager.shared.triggerSuccessPulse()
             toastMessage = "Removed from Explore"

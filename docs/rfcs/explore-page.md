@@ -10,7 +10,8 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 - Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible likes/comments can also fan out to APNs pushes for users who opt into Explore activity notifications.
 - Explore feed posts open a dedicated public post detail page when the user taps the post body.
 - The feed comment icon still opens a bottom-sheet comments view for quick interaction from the main feed.
-- Explore does not include public user profile pages in V1.
+- Explore includes a privacy-scoped public author profile sheet reachable from feed/detail author headers.
+- The author profile sheet can transition sideways into the author's full published Explore scan library.
 - The feed now ships three user-facing filters: `Recent`, `Trending`, and `Nearby`.
 - Feed cards may show:
   - Hero image
@@ -46,8 +47,8 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 ## Non-Goals
 
 - Audio posts
-- Captions, hashtags, follows, DMs, or profile pages
-- Heavy personalization, editorial curation, or ranking beyond the shipped `Recent` / `Trending` / `Nearby` modes
+- Captions, hashtags, follows, DMs, or standalone social profile pages beyond the privacy-scoped author sheet
+- Heavy personalization, follows, editorial curation, or ranking beyond the shipped `Recent` / `Trending` / `Nearby` modes
 - Public species pages in this scope
 
 ## Shipped V1 Snapshot (2026-05-05)
@@ -64,6 +65,32 @@ The Explore feed and map shell are now live. The current shipped implementation 
 - `Trending` is freshness-biased rather than all-time top. It uses recent like activity from the trailing 30 days and paginates on `(ranking_value, shared_at, post_id)`.
 - `Nearby` requires viewer location, reuses the same privacy-safe public coordinate rules as the map, filters to a roughly 50-mile radius, and then sorts the surviving posts by recency rather than raw distance.
 - The Explore-tab unread badge and "last seen" bookkeeping remain tied to the `Recent` feed only so browsing alternate modes does not mutate recency tracking.
+
+## Public Author Profile Extension (2026-05-11)
+
+Explore now supports public author profile sheets without turning Explore into a private profile browser. The entry point is the author header on feed cards and post detail pages. The post media still opens `ExplorePostDetailView`.
+
+The sheet renders:
+
+- public author avatar and name
+- published Explore post count
+- species discovered
+- current streak
+- 52-week scan heatmap
+- up to 9 preview published scans in a 3-column grid
+- achievements as informational cards
+- a "View all published scans" control that side-transitions into a paginated 3-column library
+
+The profile and library have deliberately different privacy scopes:
+
+- Profile stats, streak, heatmap, and achievement progress are computed from all of the author's non-tombstoned scans.
+- Preview and full library grids include only currently visible Explore posts.
+- Achievement payloads contain progress only and never include qualifying scan IDs.
+- Public achievement cards do not open detail sheets or scans.
+
+The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer. This prevents the endpoint from exposing arbitrary user profiles by UUID. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, private scans in published grids, posts without image media, and posts without a species key are all filtered using the same visibility posture as the rest of Explore.
+
+The full library reuses the card-shaped Explore post projection and paginates on `(shared_at DESC, post_id DESC)` using `before_shared_at` and `before_post_id`.
 
 ## Recommended Product Model
 
@@ -837,7 +864,7 @@ Client behavior:
 ### Phase 7: Fast Follow Ups
 
 - Public species page route from Explore cards
-- Public user profile pages
+- Standalone public user pages, if Explore later grows beyond the current sheet model
 - Audio Explore posts
 - Ranking and recommendation logic
 

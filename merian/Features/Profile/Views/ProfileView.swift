@@ -26,7 +26,7 @@ struct ProfileView: View {
         NavigationStack {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
-                    ProfileTabView(supabase: supabase, showPaywall: $showPaywall)
+                    ProfileTabView(showPaywall: $showPaywall)
                         .id(ProfileTab.profile)
 
                     SettingsTabView(supabase: supabase, viewModel: viewModel)

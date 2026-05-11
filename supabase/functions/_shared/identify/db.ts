@@ -104,6 +104,7 @@ export interface ScanInsertRow {
   weather_temperature_f?: number;
   semantic_location?: string;
   device_locale?: string;
+  device_time_zone?: string;
   current_month?: number | null;
   time_of_day?: string;
   depth_scale_text?: string;
