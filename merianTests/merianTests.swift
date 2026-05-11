@@ -215,6 +215,50 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertEqual(viewModel.requestedCaptureMode, CaptureMode.describe)
     }
 
+    func testMediaModeToggleRemainsVisibleWhenRefinementStagingIsFull() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        let uiImage = makeUIImage()
+
+        viewModel.baseRefinementRecord = LocalScanRecord(
+            speciesId: "species-3",
+            scientificName: "Bubo virginianus",
+            commonName: "Great Horned Owl"
+        )
+        viewModel.stagedCapture.images = [
+            StagedImage(
+                compressedData: makePNGData(),
+                displayData: makePNGData(color: .systemBlue),
+                uiImage: uiImage,
+                original: IdentifiableImage(image: uiImage)
+            )
+        ]
+        viewModel.stagedCapture.observationContexts = [
+            StagedObservationContext(context: ObservationContext(freeText: "Perched in a bare tree"))
+        ]
+
+        XCTAssertFalse(viewModel.hasAvailableStagedCaptureSlot)
+        XCTAssertTrue(viewModel.shouldShowMediaModeToggle)
+    }
+
+    func testMediaModeToggleStillHidesAtCapacityOutsideRefinement() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+
+        viewModel.stagedCapture.observationContexts = [
+            StagedObservationContext(context: ObservationContext(freeText: "First note"))
+        ]
+
+        XCTAssertFalse(viewModel.hasAvailableStagedCaptureSlot)
+        XCTAssertFalse(viewModel.shouldShowMediaModeToggle)
+    }
+
     func testOfflineVisualSubmissionDoesNotActivateInferenceProcessing() async throws {
         enableUnlimitedFreeScansForTest()
         defer { restoreFreeScanLimitForTest() }

@@ -160,7 +160,7 @@ struct CaptureWorkspaceView: View {
                 .ignoresSafeArea()
 
                 // MARK: Fixed Overlay — Mode Toggle (top)
-                if viewModel.hasAvailableStagedCaptureSlot {
+                if viewModel.shouldShowMediaModeToggle {
                     VStack {
                         MediaModeToggle(
                             activeMode: $captureMode, 
@@ -173,7 +173,7 @@ struct CaptureWorkspaceView: View {
                         Spacer()
                     }
                     .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.hasAvailableStagedCaptureSlot)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.shouldShowMediaModeToggle)
                 }
 
                 // MARK: Fixed Overlay — Capture Controls (bottom, independent of toolbar)

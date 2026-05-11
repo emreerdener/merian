@@ -151,6 +151,10 @@ final class CaptureWorkspaceViewModel {
     var hasAvailableStagedCaptureSlot: Bool {
         !stagedCapture.isAtCapacity(limit: stagedCaptureLimit)
     }
+
+    var shouldShowMediaModeToggle: Bool {
+        hasAvailableStagedCaptureSlot || baseRefinementRecord != nil
+    }
     
     // MARK: - Lifecycle
     convenience init() {
