@@ -39,6 +39,20 @@ final class ViewfinderIntelligenceTests: XCTestCase {
         XCTAssertFalse(vui.isOptimal)
     }
 
+    func testLowAverageBrightnessWithUsableMidtonesIsOptimal() async throws {
+        vui.analyze(brightness: 0.18, distance: 1.0, lumaStdDev: 50.0, wellLitPixelRatio: 0.55)
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(vui.currentHint, .optimal)
+        XCTAssertTrue(vui.isOptimal)
+    }
+
+    func testLowAverageBrightnessMostlyUnderlitIsTooDark() async throws {
+        vui.analyze(brightness: 0.18, distance: 1.0, lumaStdDev: 50.0, wellLitPixelRatio: 0.25)
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(vui.currentHint, .tooDark)
+        XCTAssertFalse(vui.isOptimal)
+    }
+
     func testTooBrightHeuristic() async throws {
         vui.analyze(brightness: 0.95, distance: 1.0, lumaStdDev: 50.0)
         try await Task.sleep(nanoseconds: 200_000_000)

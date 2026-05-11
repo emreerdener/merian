@@ -594,6 +594,7 @@ import UIKit
         // Calculate luma brightness and std dev via Accelerate histogram — avoids manual byte-stride loops.
         var brightness: Float = 1.0
         var lumaStdDev: Float = 0.0
+        var wellLitPixelRatio: Float = 0.0
         if CVPixelBufferGetPlaneCount(pixelBuffer) > 0 {
             CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
             defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
@@ -618,19 +619,25 @@ import UIKit
                 }
 
                 if error == kvImageNoError {
+                    let wellLitLumaBin = Int(0.20 * 255.0)
                     var totalLuma: UInt64 = 0
                     var totalLumaSq: UInt64 = 0
                     var totalPixels: UInt64 = 0
+                    var wellLitPixels: UInt64 = 0
                     for i in 0..<256 {
                         let count = UInt64(histogram[i])
                         let luma = UInt64(i)
                         totalLuma += count * luma
                         totalLumaSq += count * luma * luma
                         totalPixels += count
+                        if i >= wellLitLumaBin {
+                            wellLitPixels += count
+                        }
                     }
                     if totalPixels > 0 {
                         let averageLuma = Float(totalLuma) / Float(totalPixels)
                         brightness = averageLuma / 255.0
+                        wellLitPixelRatio = Float(wellLitPixels) / Float(totalPixels)
                         // Variance = E[X²] - E[X]² — std dev on 0-255 scale, proxy for sharpness
                         let meanSq = Float(totalLumaSq) / Float(totalPixels)
                         let variance = max(0, meanSq - averageLuma * averageLuma)
@@ -644,7 +651,12 @@ import UIKit
 
         Task { @MainActor in
             guard !self.isLiveInferencePaused else { return }
-            ViewfinderIntelligence.shared.analyze(brightness: brightness, distance: self.subjectDistanceInMeters, lumaStdDev: lumaStdDev)
+            ViewfinderIntelligence.shared.analyze(
+                brightness: brightness,
+                distance: self.subjectDistanceInMeters,
+                lumaStdDev: lumaStdDev,
+                wellLitPixelRatio: wellLitPixelRatio
+            )
         }
     }
 

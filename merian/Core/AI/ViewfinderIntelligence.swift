@@ -38,7 +38,7 @@ enum VUIHint: String {
         updateHint(.optimal)
     }
     
-    func analyze(brightness: Float, distance: Float?, lumaStdDev: Float) {
+    func analyze(brightness: Float, distance: Float?, lumaStdDev: Float, wellLitPixelRatio: Float = 0.0) {
         guard Date() > pauseUntil else { return }
 
         // Drop frames instantly if we're currently processing one to maintain zero latency.
@@ -62,7 +62,11 @@ enum VUIHint: String {
         // 2. Exposure heuristics
         // (Brightness extracted synchronously in CameraManager to prevent async
         //  EXC_BAD_ACCESS from CVPixelBuffer memory recycling.)
-        if brightness < 0.20 {
+        // Natural scenes with dark backgrounds can have a low average while the
+        // subject still has enough midtones for identification.
+        let isSeverelyDark = brightness < 0.12
+        let isMostlyUnderlit = brightness < 0.20 && wellLitPixelRatio < 0.40
+        if isSeverelyDark || isMostlyUnderlit {
             updateHint(.tooDark); return
         }
         if brightness > 0.88 {
