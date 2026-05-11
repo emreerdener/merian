@@ -190,7 +190,7 @@ struct ExploreAuthorProfileSheet: View {
 
     private func authorHeader(_ profile: ExploreAuthorProfile) -> some View {
         VStack(spacing: 12) {
-            authorAvatar(url: profile.authorAvatarURL, size: 76)
+            authorAvatar(url: profile.authorAvatarURL, size: 96)
 
             VStack(spacing: 6) {
                 Text(profile.authorName)
@@ -201,11 +201,10 @@ struct ExploreAuthorProfileSheet: View {
                     .accessibilityAddTraits(.isHeader)
 
                 Text(UserPersona(speciesCount: profile.speciesCount).title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
-                    .font(.system(.title2))
             }
         }
         .frame(maxWidth: .infinity)
@@ -239,24 +238,25 @@ struct ExploreAuthorProfileSheet: View {
                     profileGrid(posts: Array(profile.previewPosts.prefix(previewLimit)))
                 }
 
-            Button(action: showLibrary) {
-                HStack(spacing: 8) {
-                    Text("View more scans")
-                        .font(.headline)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .bold))
+            if profile.publishedPostCount > previewLimit {
+                Button(action: showLibrary) {
+                    HStack(spacing: 8) {
+                        Text("View more scans")
+                            .font(.headline)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .bold))
+                    }
+                    .foregroundStyle(Color(uiColor: .systemBackground))
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 14)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary)
+                    )
                 }
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .padding(.horizontal, 24)
-                .padding(.vertical, 14)
-                .background(
-                    Capsule()
-                        .fill(Color.primary)
-                )
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.plain)
-            .disabled(profile.publishedPostCount == 0)
-            .frame(maxWidth: .infinity)
         }
     }
 

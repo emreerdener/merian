@@ -52,9 +52,6 @@ struct PlanCard: View {
                         .font(.system(size: 20, weight: .semibold))
                     Text(revenueCat.isProActive ? "Manage plan" : "Upgrade to Pro")
                         .fontWeight(.bold)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 16, weight: .bold))
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
