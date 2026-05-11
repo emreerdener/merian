@@ -52,6 +52,9 @@ struct AnalyzingContentView: View {
                 analyzingPhrase: inferenceEngine.scanningPhaseText
             )
 
+            DidYouKnowCard()
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+
             if viewModel.shouldShowFieldNotesCard {
                 FieldNotesCard(
                     previewText: viewModel.fieldNotesText,
@@ -67,9 +70,6 @@ struct AnalyzingContentView: View {
                 )
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
-
-            DidYouKnowCard()
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
 
             ScanInformationCard(
                 speciesData: nil,

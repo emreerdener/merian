@@ -11,9 +11,13 @@ struct CarouselPageBuilder {
         for item in activeMedia.items {
             switch item {
             case .liveImage(let data):
-                pages.append(CarouselPageItem(id: "liveImage-\(data.hashValue)", view: AnyView(LiveCapturePageView(data: data))))
+                pages.append(CarouselPageItem(
+                    id: "liveImage-\(data.hashValue)",
+                    mediaKind: .visual,
+                    view: AnyView(LiveCapturePageView(data: data))
+                ))
             case .image(let path):
-                pages.append(CarouselPageItem(id: "image-\(path)", view: AnyView(
+                pages.append(CarouselPageItem(id: "image-\(path)", mediaKind: .visual, view: AnyView(
                     AsyncLocalImageView(
                         path: path,
                         fallbackImageUrl: nil,
@@ -21,16 +25,24 @@ struct CarouselPageBuilder {
                     )
                 )))
             case .description(let context):
-                pages.append(CarouselPageItem(id: "description-\(context.serialized())", view: AnyView(DescriptionTextCarouselPage(text: context.serialized(), onTap: onDescriptionTap))))
+                pages.append(CarouselPageItem(
+                    id: "description-\(context.serialized())",
+                    mediaKind: .description,
+                    view: AnyView(DescriptionTextCarouselPage(text: context.serialized(), onTap: onDescriptionTap))
+                ))
             case .audio(let resolvedPath):
-                pages.append(CarouselPageItem(id: "audio-\(resolvedPath)", view: AnyView(AudioPlaybackCarouselPage(filePath: resolvedPath))))
+                pages.append(CarouselPageItem(
+                    id: "audio-\(resolvedPath)",
+                    mediaKind: .audio,
+                    view: AnyView(AudioPlaybackCarouselPage(filePath: resolvedPath))
+                ))
             }
         }
         
         switch activeMedia.referenceState {
         case .empty: break
         case .loading:
-            pages.append(CarouselPageItem(id: "reference-loading", view: AnyView(
+            pages.append(CarouselPageItem(id: "reference-loading", mediaKind: .visual, view: AnyView(
                 ZStack {
                     Color(uiColor: .systemGray6)
                     ProgressView()
@@ -40,7 +52,7 @@ struct CarouselPageBuilder {
             )))
         case .loaded(let urls):
             for urlString in urls {
-                pages.append(CarouselPageItem(id: "reference-\(urlString)", view: AnyView(
+                pages.append(CarouselPageItem(id: "reference-\(urlString)", mediaKind: .visual, view: AnyView(
                     AsyncLocalImageView(
                         path: nil,
                         fallbackImageUrl: urlString,
@@ -54,6 +66,12 @@ struct CarouselPageBuilder {
     }
 }
 
+enum CarouselMediaKind {
+    case visual
+    case audio
+    case description
+}
+
 // MARK: - Carousel Page Identity
 /// Provides an explicit, stable identity for each page in the carousel.
 /// This prevents positional diffing bugs where removing a page from the start/middle
@@ -61,6 +79,7 @@ struct CarouselPageBuilder {
 /// discarded and recreated, breaking their active state.
 struct CarouselPageItem: Identifiable, Equatable {
     let id: String
+    let mediaKind: CarouselMediaKind
     let view: AnyView
     
     static func == (lhs: CarouselPageItem, rhs: CarouselPageItem) -> Bool {
@@ -103,12 +122,19 @@ struct ImagesCarousel: View {
                         .frame(height: 120)
                         .allowsHitTesting(false)
                     }
+                    .overlay {
+                        if isProcessing {
+                            AnalyzingMediaOverlay(kind: selectedMediaKind)
+                                .transition(.opacity)
+                        }
+                    }
             } else {
                 Color.black
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea(.all, edges: .top)
             }
         }
+        .animation(.easeInOut(duration: 0.22), value: isProcessing)
     }
 
     // MARK: - Page Construction
@@ -120,10 +146,153 @@ struct ImagesCarousel: View {
         )
     }
 
+    private var selectedMediaKind: CarouselMediaKind {
+        carouselPages[safe: selectedIndex]?.mediaKind ?? .visual
+    }
+
     // MARK: - Action Handlers
     private func handleImageFailure(identifier: String) {
         if activeMedia.totalItems > 1 {
             onImageFailure(identifier)
+        }
+    }
+}
+
+// MARK: - Analyzing Overlay
+private struct AnalyzingMediaOverlay: View {
+    let kind: CarouselMediaKind
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var sweepProgress: CGFloat = 0
+    @State private var pulse = false
+
+    private let visualBandHeight: CGFloat = 109.6
+    private let descriptionBandHeight: CGFloat = 89.2
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                tintLayer
+
+                switch kind {
+                case .visual:
+                    visualScan(in: geometry.size)
+                case .audio:
+                    audioSweep(in: geometry.size)
+                case .description:
+                    descriptionReadSweep(in: geometry.size)
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .onAppear(perform: startAnimation)
+        }
+    }
+
+    @ViewBuilder
+    private var tintLayer: some View {
+        switch kind {
+        case .visual:
+            Color.black.opacity(0.14)
+        case .audio:
+            Color.cyan.opacity(pulse ? 0.11 : 0.05)
+                .blendMode(.screen)
+        case .description:
+            Color.green.opacity(pulse ? 0.08 : 0.04)
+        }
+    }
+
+    private func visualScan(in size: CGSize) -> some View {
+        horizontalScanBand(color: .cyan, coreHeight: 1.6, glowHeight: 54)
+            .offset(y: verticalOffset(in: size, bandHeight: visualBandHeight))
+            .blendMode(.plusLighter)
+    }
+
+    private func audioSweep(in size: CGSize) -> some View {
+        ZStack {
+            ForEach(0..<7, id: \.self) { index in
+                Capsule()
+                    .fill(Color.cyan.opacity(0.08 + Double(index) * 0.018))
+                    .frame(width: 1, height: size.height * (0.34 + CGFloat(index % 3) * 0.13))
+                    .offset(x: horizontalOffset(in: size) - 42 + CGFloat(index) * 14)
+                    .blendMode(.plusLighter)
+            }
+
+            LinearGradient(
+                colors: [
+                    .clear,
+                    .cyan.opacity(0.32),
+                    .white.opacity(0.72),
+                    .cyan.opacity(0.28),
+                    .clear
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: 96)
+            .offset(x: horizontalOffset(in: size))
+            .blur(radius: 0.5)
+            .blendMode(.plusLighter)
+        }
+    }
+
+    private func descriptionReadSweep(in size: CGSize) -> some View {
+        horizontalScanBand(color: .green, coreHeight: 1.2, glowHeight: 44)
+            .offset(y: verticalOffset(in: size, bandHeight: descriptionBandHeight))
+            .blendMode(.screen)
+            .opacity(0.85)
+    }
+
+    private func horizontalScanBand(color: Color, coreHeight: CGFloat, glowHeight: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [.clear, color.opacity(0.36)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: glowHeight)
+
+            Rectangle()
+                .fill(Color.white.opacity(0.95))
+                .frame(height: coreHeight)
+                .shadow(color: color.opacity(0.9), radius: 7)
+
+            LinearGradient(
+                colors: [color.opacity(0.36), .clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: glowHeight)
+        }
+    }
+
+    private func verticalOffset(in size: CGSize, bandHeight: CGFloat) -> CGFloat {
+        guard !reduceMotion else { return 0 }
+        let startCenterY = -bandHeight / 2
+        let endCenterY = size.height + bandHeight / 2
+        let currentCenterY = startCenterY + (endCenterY - startCenterY) * sweepProgress
+        return currentCenterY - size.height / 2
+    }
+
+    private func horizontalOffset(in size: CGSize) -> CGFloat {
+        guard !reduceMotion else { return 0 }
+        return (sweepProgress * (size.width + 128)) - (size.width / 2) - 64
+    }
+
+    private func startAnimation() {
+        guard !reduceMotion else {
+            pulse = true
+            return
+        }
+
+        sweepProgress = 0
+        withAnimation(.easeInOut(duration: 2.15).repeatForever(autoreverses: true)) {
+            sweepProgress = 1
+        }
+        withAnimation(.easeInOut(duration: 1.25).repeatForever(autoreverses: true)) {
+            pulse = true
         }
     }
 }
