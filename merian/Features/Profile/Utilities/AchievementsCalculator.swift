@@ -136,8 +136,11 @@ private struct AchievementAccumulator {
             return lhs.timestamp < rhs.timestamp
         }
         
-        // Show every qualifying unique contribution; progress rendering clamps against targetCount.
-        let displayContributions = oldestFirst.sorted { lhs, rhs in
+        let targetCount = type.definition.targetCount
+        let cappedContributions = Array(oldestFirst.prefix(targetCount))
+        
+        // Show every qualifying unique contribution up to targetCount
+        let displayContributions = cappedContributions.sorted { lhs, rhs in
             if lhs.timestamp == rhs.timestamp {
                 return lhs.scanID < rhs.scanID
             }
@@ -147,7 +150,7 @@ private struct AchievementAccumulator {
         return AchievementDetailPayload(
             award: AwardPayload(
                 type: type,
-                currentCount: contributionsBySpeciesKey.count,
+                currentCount: min(contributionsBySpeciesKey.count, targetCount),
                 lastInteractionDate: lastInteractionDate
             ),
             contributions: displayContributions
