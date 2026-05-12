@@ -37,6 +37,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/features-and-hardware/12-audio-listen-mode.md`](./features-and-hardware/12-audio-listen-mode.md)** — Audio Listen Mode: `SpectrogramActor` FFT/mel-scale DSP, `AudioCaptureManager` 15-second recording pipeline, live `SpectrogramView` Canvas UI, SNR gauge, and the shared non-visual durability path.
 - **[`/features-and-hardware/13-explore-home-screen-widget.md`](./features-and-hardware/13-explore-home-screen-widget.md)** — Explore Home Screen widget: image-only WidgetKit extension, App Group cache contract, timeline carousel behavior, and deep-link routing.
 - **[`/features-and-hardware/14-explore-author-profiles.md`](./features-and-hardware/14-explore-author-profiles.md)** — Public Explore author profile sheets, privacy-scoped profile stats, non-opening public achievements, and the paginated published-scan library.
+- **[`/features-and-hardware/15-explore-following.md`](./features-and-hardware/15-explore-following.md)** — Explore Follow relationships: Following feed filter, public profile counts, follow notifications, block cleanup, and ghost-merge repair.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map product/RPC architecture, including the shipped V1 map implementation and follow-up recommendations.
 - **[`/rfcs/geological-expansions.md`](./rfcs/geological-expansions.md)** — Roadmap for extending inference to rocks, minerals, and fossils.
 

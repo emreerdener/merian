@@ -22,6 +22,9 @@ type ExploreAuthorProfileRow = {
   };
   awards: Array<{ type: string; current_count: number }>;
   published_post_count: number;
+  follower_count: number;
+  following_count: number;
+  viewer_is_following: boolean;
   preview_posts: Array<{ post_id: string; scan_id: string }>;
 };
 
@@ -40,11 +43,23 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
       const publicScanId = crypto.randomUUID();
       const privateScanId = crypto.randomUUID();
       const publicPostId = crypto.randomUUID();
+      const otherFollowerId = crypto.randomUUID();
+      const authorFolloweeId = crypto.randomUUID();
 
       await insertUser(client, viewerId, "Profile Viewer");
       await insertUser(client, authorId, "Profile Author");
+      await insertUser(client, otherFollowerId, "Other Follower");
+      await insertUser(client, authorFolloweeId, "Author Followee");
       await insertSpecies(client, publicSpeciesId, "Rosa publica");
       await insertSpecies(client, privateSpeciesId, "Rosa privata");
+
+      await client.queryArray(
+        `
+        INSERT INTO public.user_follows (follower_user_id, followee_user_id)
+        VALUES ($1, $2), ($3, $2), ($2, $4)
+      `,
+        [viewerId, authorId, otherFollowerId, authorFolloweeId],
+      );
 
       await insertScan(client, {
         id: publicScanId,
@@ -101,6 +116,9 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
       assertEquals(row.current_streak, 2);
       assertEquals(row.heatmap.total_captures, 2);
       assertEquals(row.published_post_count, 1);
+      assertEquals(row.follower_count, 2);
+      assertEquals(row.following_count, 1);
+      assertEquals(row.viewer_is_following, true);
       assertEquals(row.preview_posts.map((post) => post.post_id), [
         publicPostId,
       ]);

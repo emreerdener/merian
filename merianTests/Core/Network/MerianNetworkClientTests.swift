@@ -358,6 +358,30 @@ struct MerianNetworkClientTests {
         #expect(posts[0].rankingValue == nil)
     }
 
+    @Test func testGetExploreFeedFollowingConstructsPayload() async throws {
+        let testData = """
+        {
+            "data": []
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/get-explore-feed"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["filter"] as? String == "following")
+            #expect(payload["limit"] as? Int == 20)
+            #expect(payload["before_ranking_value"] == nil)
+            #expect(payload["latitude"] == nil)
+            #expect(payload["longitude"] == nil)
+            return (mockResponse, testData)
+        }
+
+        let posts = try await MerianNetworkClient.shared.getExploreFeed(filter: .following)
+
+        #expect(posts.isEmpty)
+    }
+
     @Test func testGetExploreAuthorProfileParsesProfilePayload() async throws {
         let testData = """
         {
@@ -368,6 +392,9 @@ struct MerianNetworkClientTests {
                 "species_count": 12,
                 "current_streak": 4,
                 "published_post_count": 9,
+                "follower_count": 7,
+                "following_count": 3,
+                "viewer_is_following": true,
                 "heatmap": {
                     "total_captures": 17,
                     "current_month_captures": 3,
@@ -432,6 +459,9 @@ struct MerianNetworkClientTests {
         #expect(profile.authorName == "River Walker")
         #expect(profile.speciesCount == 12)
         #expect(profile.currentStreak == 4)
+        #expect(profile.followerCount == 7)
+        #expect(profile.followingCount == 3)
+        #expect(profile.viewerIsFollowing == true)
         #expect(profile.profileHeatmapData.totalCaptures == 17)
         #expect(profile.profileHeatmapData.weeks.count == 1)
         #expect(profile.awardPayloads.first?.type == .explorer)
@@ -489,6 +519,41 @@ struct MerianNetworkClientTests {
 
         #expect(posts.count == 1)
         #expect(posts[0].id == "post-author-page-123")
+    }
+
+    @Test func testSetUserFollowConstructsPayloadAndParsesState() async throws {
+        let testData = """
+        {
+            "success": true,
+            "author_user_id": "author-follow-123",
+            "follower_count": 12,
+            "following_count": 4,
+            "viewer_is_following": true
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/set-user-follow"] = { request in
+            #expect(request.url?.path.hasSuffix("/set-user-follow") == true)
+            #expect(request.httpMethod == "POST")
+
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["author_user_id"] as? String == "author-follow-123")
+            #expect(payload["is_following"] as? Bool == true)
+            return (mockResponse, testData)
+        }
+
+        let state = try await MerianNetworkClient.shared.setUserFollow(
+            authorUserId: "author-follow-123",
+            isFollowing: true
+        )
+
+        #expect(state.success == true)
+        #expect(state.authorUserId == "author-follow-123")
+        #expect(state.followerCount == 12)
+        #expect(state.followingCount == 4)
+        #expect(state.viewerIsFollowing == true)
     }
 
     @Test func testGenerateUploadURLsUsesStructuredMediaManifest() async throws {

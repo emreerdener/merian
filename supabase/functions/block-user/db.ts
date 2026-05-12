@@ -18,4 +18,17 @@ export async function insertUserBlock(
   if (error) {
     throw new Error(`Failed to block user: ${error.message}`);
   }
+
+  const { error: followDeleteError } = await supabaseAdmin
+    .from("user_follows")
+    .delete()
+    .or(
+      `and(follower_user_id.eq.${blockerId},followee_user_id.eq.${blockedId}),and(follower_user_id.eq.${blockedId},followee_user_id.eq.${blockerId})`,
+    );
+
+  if (followDeleteError) {
+    throw new Error(
+      `Failed to remove follow relationships for blocked user: ${followDeleteError.message}`,
+    );
+  }
 }

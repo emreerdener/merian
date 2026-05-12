@@ -7,7 +7,7 @@
 //   - ghost_id UUID format validation
 //   - Self-merge guard (ghost_id === user.id → early 200, no DB work)
 //   - verifyGhostUser IDOR guard (authenticated accounts rejected)
-//   - Transfer order correctness (scans → collections → purge)
+//   - Transfer order correctness (scans → collections → Explore posts → follows → purge)
 
 import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
@@ -111,27 +111,41 @@ Deno.test("transfer order — scans, collections, purge execute in correct seque
 
   async function stubTransferScans() { callOrder.push("transferScans"); }
   async function stubTransferCollections() { callOrder.push("transferCollections"); }
+  async function stubTransferExplorePosts() { callOrder.push("transferExplorePosts"); }
+  async function stubTransferUserFollows() { callOrder.push("transferUserFollows"); }
   async function stubPurgeGhostUser() { callOrder.push("purgeGhostUser"); }
 
   await stubTransferScans();
   await stubTransferCollections();
+  await stubTransferExplorePosts();
+  await stubTransferUserFollows();
   await stubPurgeGhostUser();
 
-  assertEquals(callOrder, ["transferScans", "transferCollections", "purgeGhostUser"]);
+  assertEquals(callOrder, [
+    "transferScans",
+    "transferCollections",
+    "transferExplorePosts",
+    "transferUserFollows",
+    "purgeGhostUser",
+  ]);
 });
 
-Deno.test("transfer order — purge must not run before collections transfer", async () => {
+Deno.test("transfer order — purge must not run before follow transfer", async () => {
   const callOrder: string[] = [];
 
   async function stubTransferScans() { callOrder.push("transferScans"); }
   async function stubTransferCollections() { callOrder.push("transferCollections"); }
+  async function stubTransferExplorePosts() { callOrder.push("transferExplorePosts"); }
+  async function stubTransferUserFollows() { callOrder.push("transferUserFollows"); }
   async function stubPurgeGhostUser() { callOrder.push("purgeGhostUser"); }
 
   await stubTransferScans();
   await stubTransferCollections();
+  await stubTransferExplorePosts();
+  await stubTransferUserFollows();
   await stubPurgeGhostUser();
 
   const purgeIndex = callOrder.indexOf("purgeGhostUser");
-  const collectionsIndex = callOrder.indexOf("transferCollections");
-  assert(collectionsIndex < purgeIndex, "transferCollections must run before purgeGhostUser");
+  const followsIndex = callOrder.indexOf("transferUserFollows");
+  assert(followsIndex < purgeIndex, "transferUserFollows must run before purgeGhostUser");
 });

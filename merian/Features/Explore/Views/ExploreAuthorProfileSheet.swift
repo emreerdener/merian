@@ -36,6 +36,7 @@ struct ExploreAuthorProfileSheet: View {
     @State private var isLoadingLibrary = false
     @State private var hasReachedEndOfLibrary = false
     @State private var selectedPostRoute: ExplorePostRoute?
+    @State private var isUpdatingFollow = false
 
     private let previewLimit = 9
     private let libraryPageSize = 30
@@ -206,9 +207,72 @@ struct ExploreAuthorProfileSheet: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
             }
+
+            followCountsRow(profile)
+
+            if !isCurrentUserProfile(profile) {
+                followButton(profile)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
+    }
+
+    private func followCountsRow(_ profile: ExploreAuthorProfile) -> some View {
+        HStack(spacing: 20) {
+            followCountView(count: profile.followerCount, label: "Followers")
+            followCountView(count: profile.followingCount, label: "Following")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 2)
+    }
+
+    private func followCountView(count: Int, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(count.formatted(.number.notation(.compactName)))
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.primary)
+
+            Text(label)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(minWidth: 84)
+    }
+
+    private func followButton(_ profile: ExploreAuthorProfile) -> some View {
+        Button {
+            Task { await toggleFollow(for: profile) }
+        } label: {
+            HStack(spacing: 8) {
+                if isUpdatingFollow {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: profile.viewerIsFollowing ? "checkmark" : "person.badge.plus")
+                        .font(.system(size: 14, weight: .bold))
+                }
+
+                Text(profile.viewerIsFollowing ? "Following" : "Follow")
+                    .font(.headline)
+            }
+            .foregroundStyle(profile.viewerIsFollowing ? .primary : Color(uiColor: .systemBackground))
+            .frame(minWidth: 132)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(
+                Capsule()
+                    .fill(profile.viewerIsFollowing ? Color(uiColor: .secondarySystemGroupedBackground) : Color.primary)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(profile.viewerIsFollowing ? Color.primary.opacity(0.12) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isUpdatingFollow)
+        .accessibilityLabel(profile.viewerIsFollowing ? "Following" : "Follow")
+        .padding(.top, 2)
     }
 
     private func publishedPreview(_ profile: ExploreAuthorProfile) -> some View {
@@ -381,6 +445,56 @@ struct ExploreAuthorProfileSheet: View {
                 mode = .profile
             }
         }
+    }
+
+    private func isCurrentUserProfile(_ profile: ExploreAuthorProfile) -> Bool {
+        SupabaseManager.shared.currentUser?.id.uuidString.lowercased() == profile.authorUserId.lowercased()
+    }
+
+    @MainActor
+    private func toggleFollow(for currentProfile: ExploreAuthorProfile) async {
+        guard !isUpdatingFollow, !isCurrentUserProfile(currentProfile) else { return }
+
+        let nextFollowingState = !currentProfile.viewerIsFollowing
+        var optimisticProfile = currentProfile
+        optimisticProfile.viewerIsFollowing = nextFollowingState
+        optimisticProfile.followerCount = max(
+            0,
+            currentProfile.followerCount + (nextFollowingState ? 1 : -1)
+        )
+
+        isUpdatingFollow = true
+        profile = optimisticProfile
+        defer { isUpdatingFollow = false }
+
+        do {
+            let followState = try await MerianNetworkClient.shared.setUserFollow(
+                authorUserId: currentProfile.authorUserId,
+                isFollowing: nextFollowingState
+            )
+            guard !Task.isCancelled else { return }
+
+            applyFollowState(followState)
+            HapticManager.shared.triggerSelectionPulse()
+        } catch {
+            guard !Task.isCancelled else { return }
+            profile = currentProfile
+            HapticManager.shared.triggerErrorThump()
+            viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+
+    @MainActor
+    private func applyFollowState(_ followState: ExploreFollowState) {
+        guard var currentProfile = profile,
+              currentProfile.authorUserId.lowercased() == followState.authorUserId.lowercased() else {
+            return
+        }
+
+        currentProfile.followerCount = followState.followerCount
+        currentProfile.followingCount = followState.followingCount
+        currentProfile.viewerIsFollowing = followState.viewerIsFollowing
+        profile = currentProfile
     }
 
     private func showLibrary() {

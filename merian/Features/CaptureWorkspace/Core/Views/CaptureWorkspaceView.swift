@@ -211,7 +211,10 @@ struct CaptureWorkspaceView: View {
                                 viewModel.stagedCapture.clearAll()
                                 viewModel.cancelRefinementStaging()
                             },
-                            onSubmit: { viewModel.submitStagedCapture(modelContext: modelContext) },
+                            onSubmit: { 
+                                viewModel.submitStagedCapture(modelContext: modelContext)
+                                cameraManager.resetZoom()
+                            },
                             onDescriptionTap: { index in stagedDescriptionEditIndex = index }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -322,6 +325,7 @@ struct CaptureWorkspaceView: View {
             guard count == 1 else { return }
 
             viewModel.submitStagedCapture(modelContext: modelContext)
+            cameraManager.resetZoom()
         }
         .onChange(of: scenePhase) { _, newPhase in
             viewModel.handleScenePhaseChange(

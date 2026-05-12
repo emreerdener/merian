@@ -142,7 +142,8 @@ async function fetchLikeNotification(
 
 type NotificationFeedRow = {
   notification_id: string;
-  type: "like_aggregated" | "comment" | "comment_reaction";
+  post_id: string | null;
+  type: "like_aggregated" | "comment" | "comment_reaction" | "follow";
   reaction_emoji: string | null;
   recent_actor_names: string[];
   action_count: number;
@@ -166,7 +167,7 @@ type PushPayloadRow = {
 type NotificationCursorRow = {
   notification_id: string;
   updated_at: string;
-  type: "like_aggregated" | "comment" | "comment_reaction";
+  type: "like_aggregated" | "comment" | "comment_reaction" | "follow";
 };
 
 type CommentReactionNotificationRow = {
@@ -335,6 +336,73 @@ Deno.test("Explore notifications DB - self-like does not create a notification",
       [ownerId],
     );
     assertEquals(unreadCountResult.rows[0]?.count, 0);
+  });
+});
+
+Deno.test("Explore notifications DB - follow notifications are in-app only and removed on unfollow", async () => {
+  await withDbTest(async (client) => {
+    const followerId = crypto.randomUUID();
+    const followeeId = crypto.randomUUID();
+
+    await insertUser(client, followerId, "New Follower");
+    await insertUser(client, followeeId, "Followee Author");
+
+    await client.queryArray(
+      `
+        INSERT INTO public.user_follows (follower_user_id, followee_user_id)
+        VALUES ($1, $2)
+      `,
+      [followerId, followeeId],
+    );
+
+    const feedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
+        WHERE type = 'follow'
+      `,
+      [followeeId],
+    );
+
+    assertEquals(feedResult.rows.length, 1);
+    assertEquals(feedResult.rows[0].post_id, null);
+    assertEquals(feedResult.rows[0].triggering_user_name, "New Follower");
+    assertEquals(feedResult.rows[0].recent_actor_names, []);
+    assertEquals(feedResult.rows[0].action_count, 1);
+
+    const unreadCountResult = await client.queryObject<{ count: number }>(
+      `SELECT public.get_unread_explore_notification_count($1) AS count`,
+      [followeeId],
+    );
+    assertEquals(unreadCountResult.rows[0]?.count, 1);
+
+    const pushPayloadResult = await client.queryObject<PushPayloadRow>(
+      `
+        SELECT *
+        FROM public.get_explore_push_notification_payload($1)
+      `,
+      [feedResult.rows[0].notification_id],
+    );
+    assertEquals(pushPayloadResult.rows.length, 0);
+
+    await client.queryArray(
+      `
+        DELETE FROM public.user_follows
+        WHERE follower_user_id = $1
+          AND followee_user_id = $2
+      `,
+      [followerId, followeeId],
+    );
+
+    const afterUnfollow = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
+        WHERE type = 'follow'
+      `,
+      [followeeId],
+    );
+    assertEquals(afterUnfollow.rows.length, 0);
   });
 });
 

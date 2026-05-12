@@ -158,10 +158,35 @@ Dead-letter table for background scan ingestion failures. Added in migration `20
 
 ### `user_blocks`
 
-Registers blocked users so they are excluded from Discovery feeds.
+Registers blocked users so they are excluded from Discovery and Explore surfaces.
 
 - `blocker_id` (UUID - Foreign Key): The user executing the block.
 - `blocked_id` (UUID - Foreign Key): The UUID of the blocked user.
+
+Blocking also removes Explore follow relationships in both directions. Migration `20260511161000_add_explore_following.sql` adds an `AFTER INSERT` trigger on `user_blocks` so stale `user_follows` rows and follow notifications are removed even when the block is inserted outside the `/block-user` Edge Function.
+
+### `user_follows`
+
+Asymmetric Follow relationships for public Explore author profiles. Added in migration `20260511161000_add_explore_following.sql`.
+
+- `follower_user_id` (UUID FK -> `users.id`, CASCADE DELETE): The viewer who followed an author.
+- `followee_user_id` (UUID FK -> `users.id`, CASCADE DELETE): The followed Explore author.
+- `created_at` (TIMESTAMPTZ): Relationship creation time.
+- Composite primary key: `(follower_user_id, followee_user_id)` for idempotent follow writes.
+- Check constraint: `follower_user_id <> followee_user_id` rejects self-follows.
+
+Indexes:
+
+- `idx_user_follows_follower_created_at` on `(follower_user_id, created_at DESC, followee_user_id)` supports the Following feed and viewer follow-state checks.
+- `idx_user_follows_followee_created_at` on `(followee_user_id, created_at DESC, follower_user_id)` supports follower-count lookups.
+
+RLS:
+
+- Users can insert their own follows.
+- Users can delete their own follows.
+- Users can select only their own following relationships.
+
+Follower/following counts are exposed only as aggregate fields on visible Explore author profiles. No v1 endpoint exposes browsable follower or following identities.
 
 ### `explore_posts`
 
@@ -235,14 +260,14 @@ Uniqueness is enforced on `(comment_id, reporter_user_id)` so repeat reports fro
 In-app Explore activity feed for Explore post owners and comment authors. Added in migration `20260427010000_add_explore_notifications.sql`.
 
 - `id` (UUID): Primary key.
-- `user_id` (UUID FK → `users.id`, CASCADE DELETE): Notification recipient. Post-like and post-comment rows target the Explore post owner; comment-reaction rows target the comment author.
-- `post_id` (UUID FK → `explore_posts.id`, CASCADE DELETE): The post the activity belongs to.
-- `type` (`public.explore_notification_type`): `'like_aggregated'` | `'comment'` | `'comment_reaction'`.
+- `user_id` (UUID FK → `users.id`, CASCADE DELETE): Notification recipient. Post-like and post-comment rows target the Explore post owner; comment-reaction rows target the comment author; follow rows target the followed user.
+- `post_id` (UUID FK → `explore_posts.id`, CASCADE DELETE, nullable): The post the activity belongs to. `NULL` for follow notifications because they are not post-backed.
+- `type` (`public.explore_notification_type`): `'like_aggregated'` | `'comment'` | `'comment_reaction'` | `'follow'`.
 - `comment_id` (UUID FK → `explore_post_comments.id`, nullable): Present for comment and comment-reaction notifications.
 - `reaction_emoji` (TEXT, nullable): Present only for `'comment_reaction'` rows so the client and push layer can render the reacted emoji.
-- `triggering_user_id` (UUID FK → `users.id`, nullable): The latest actor for aggregated likes and comment reactions, or the comment author for plain comment rows.
+- `triggering_user_id` (UUID FK → `users.id`, nullable): The latest actor for aggregated likes and comment reactions, the comment author for plain comment rows, or the follower for follow rows.
 - `recent_actor_ids` (UUID array): Latest actor IDs for aggregated-like and aggregated comment-reaction rows, capped at 3 entries.
-- `action_count` (INT): Aggregate like count for `'like_aggregated'`, aggregate reactor count for `'comment_reaction'`, and always `1` for plain comment notifications.
+- `action_count` (INT): Aggregate like count for `'like_aggregated'`, aggregate reactor count for `'comment_reaction'`, and always `1` for plain comment and follow notifications.
 - `is_read` (BOOLEAN): Client-controlled read state for the in-app bell badge and notifications sheet.
 - `created_at` / `updated_at` (TIMESTAMPTZ): Ordering keys for the notifications feed.
 
@@ -251,6 +276,7 @@ In-app Explore activity feed for Explore post owners and comment authors. Added 
 - Partial unique index on `(user_id, post_id, type)` where `type = 'like_aggregated'` guarantees a single aggregated like row per owner/post.
 - Partial unique index on `comment_id` where `type = 'comment'` guarantees one notification row per comment.
 - Partial unique index on `(user_id, comment_id, reaction_emoji)` where `type = 'comment_reaction'` guarantees one aggregated reaction row per recipient/comment/emoji.
+- Partial unique index on `(user_id, triggering_user_id, type)` where `type = 'follow'` guarantees one follow notification row per follower/followee pair.
 - Row Level Security allows users to `SELECT` and `UPDATE` only their own notification rows.
 
 **Lifecycle triggers**:
@@ -258,8 +284,10 @@ In-app Explore activity feed for Explore post owners and comment authors. Added 
 - `sync_like_notification_for_post(target_post_id)` recomputes aggregated like notifications from the authoritative `explore_post_likes` table after every insert/delete, excludes self-likes, refreshes `recent_actor_ids`, resets `is_read = false`, and deletes the row when the non-self like count reaches `0`.
 - Comment notification triggers suppress self-comments, create a notification row on insert, delete the row when the comment is soft-deleted, and recreate it if the comment is restored.
 - `sync_comment_reaction_notification_for_comment(target_comment_id, target_emoji)` recomputes aggregated comment-reaction notifications from `explore_comment_reactions`, excludes self-reactions by the comment author, tracks the latest reactor plus up to three recent actors, and deletes the row when no non-self reactions remain for that emoji.
+- Follow notification triggers create a postless `follow` row after a follow insert when the follower is not shadowbanned and the users do not block each other. The row is deleted when the follow is removed.
 - A post-level trigger deletes Explore notifications when `explore_posts.unshared_at` is set, keeping the activity feed aligned with the existing soft-unshare model.
-- A push-delivery trigger invokes the `send-push-notification` Edge Function for newly inserted visible rows and for like/comment-reaction aggregate updates where `action_count` increased.
+- A block trigger removes follow notification rows when either user blocks the other.
+- A push-delivery trigger invokes the `send-push-notification` Edge Function for newly inserted visible post-backed rows and for like/comment-reaction aggregate updates where `action_count` increased. It intentionally skips `type = 'follow'`.
 
 ### `user_push_devices`
 
@@ -283,18 +311,22 @@ Explore uses SQL RPCs to project a privacy-safe public read model out of `explor
 Migration `20260505120000_add_explore_feed_filters.sql` also added `public.haversine_distance_meters(...)`, which the nearby feed uses to radius-filter public coordinates without exposing raw scan coordinates to the client contract.
 
 - `public.get_explore_feed(self_id UUID, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`: The shipped `recent` feed projection. It returns reverse-chronological feed rows with public author identity, hero image URL, coarse location, optional public telemetry (`time_of_day`, `current_month`, `weather_condition`, `weather_temperature_f`), denormalized like/comment counts, viewer-specific flags (`viewer_has_liked`, `is_owned_by_viewer`), and a compatibility `ranking_value` column that is `NULL` for this mode. `author_avatar_url` is sourced from `public.users.public_avatar_url`, never directly from `auth.users`. Paging is stable on `(shared_at DESC, post_id DESC)` so new posts inserted above the viewer do not cause skips or duplicates while scrolling.
+- `public.get_explore_feed_following(self_id UUID, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`: The shipped `following` feed projection. It returns the same card-shaped rows as `get_explore_feed`, but joins `public.user_follows` so only followed authors' currently visible posts survive. It preserves all standard Explore filters for unshared, tombstoned, media-less, private-geoprivacy, shadowbanned, blocked, and non-species-backed content. Paging is stable on `(shared_at DESC, post_id DESC)`.
 - `public.get_explore_feed_trending(self_id UUID, max_limit INTEGER, before_ranking_value DOUBLE PRECISION, before_shared_at TIMESTAMPTZ, before_post_id UUID)`: The shipped `trending` feed projection. It ranks posts by trailing-30-day like activity, then breaks ties on `(shared_at DESC, post_id DESC)`. The response populates `ranking_value` with the recent-like count used for pagination, and the cursor is stable on `(ranking_value DESC, shared_at DESC, post_id DESC)`.
 - `public.get_explore_feed_nearby(self_id UUID, target_latitude DOUBLE PRECISION, target_longitude DOUBLE PRECISION, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`: The shipped `nearby` feed projection. It reuses `derive_public_scan_coordinate(...)` semantics rather than exact scan coordinates, filters posts to a roughly 50-mile radius around the viewer, then sorts the surviving rows by `(shared_at DESC, post_id DESC)`. This keeps the client feed feeling like Explore rather than a pure nearest-neighbor list while preserving privacy rules already used by the map.
 - `public.get_explore_post(self_id UUID, target_post_id UUID)`: Returns the same card projection as `get_explore_feed` for a single post. This is used by notification taps and future deep-link paths so routing does not depend on the post already being present in the loaded in-memory feed page.
 - `public.get_explore_post_detail(self_id UUID, target_post_id UUID)`: Returns a single public species-detail projection for the Explore detail page. Fields currently include `species_dictionary_id`, taxonomy ranks (`kingdom`, `phylum`, `class`, `order`, `family`, `genus`), `habitat_description`, `gbif_taxon_key`, `iucn_red_list_status`, and `wikipedia_overview`. It enforces the same unshared/media/geoprivacy/shadowban/block filters as the feed.
-- `public.get_explore_author_profile(self_id UUID, target_author_user_id UUID, preview_limit INTEGER)`: Returns a public author profile row only when the target author has at least one currently visible Explore post for the requester. It emits public author identity, species count, current streak, 52-week heatmap JSON, achievement-progress JSON, total visible published post count, and up to `preview_limit` preview posts. Aggregate stats are computed from all non-tombstoned scans; preview posts use the stricter Explore visibility filters and never include private, unshared, tombstoned, media-less, or non-species-backed scans. Achievement progress never returns qualifying scan IDs.
+- `public.can_view_explore_author_profile(self_id UUID, target_author_user_id UUID)`: Returns whether the target author has a visible Explore profile for the requester. `set-user-follow` uses this before inserting follows so following does not become a general user lookup surface.
+- `public.get_user_follow_state(self_id UUID, target_author_user_id UUID)`: Returns `author_user_id`, aggregate `follower_count`, aggregate `following_count`, and requester-specific `viewer_is_following`. Counts ignore shadowbanned counterpart users and do not expose identities.
+- `public.get_explore_author_profile(self_id UUID, target_author_user_id UUID, preview_limit INTEGER)`: Returns a public author profile row only when the target author has at least one currently visible Explore post for the requester. It emits public author identity, species count, current streak, 52-week heatmap JSON, achievement-progress JSON, total visible published post count, follower/following counts, requester follow state, and up to `preview_limit` preview posts. Aggregate scan stats are computed from all non-tombstoned scans; follow counts are computed from `user_follows`; preview posts use the stricter Explore visibility filters and never include private, unshared, tombstoned, media-less, or non-species-backed scans. Achievement progress never returns qualifying scan IDs.
 - `public.get_explore_author_posts(self_id UUID, target_author_user_id UUID, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`: Returns the author's currently visible published Explore posts for the full profile library. Rows share the same card projection as the feed, use the same visibility filters as `get_explore_author_profile.preview_posts`, and page stably on `(shared_at DESC, post_id DESC)`.
 - `public.get_explore_comments(self_id UUID, target_post_id UUID, max_limit INTEGER, after_created_at TIMESTAMPTZ, after_comment_id UUID)`: Returns visible public comments for one Explore post. Rows are ordered on `(created_at ASC, comment_id ASC)`, filter soft-deleted, moderated, hidden, or blocked authors, and expose viewer capability flags for delete/moderate/report actions. Paging is cursor-based so long threads do not skip or duplicate comments while loading more.
 - `public.get_explore_map_posts(self_id UUID, north_latitude DOUBLE PRECISION, south_latitude DOUBLE PRECISION, east_longitude DOUBLE PRECISION, west_longitude DOUBLE PRECISION, max_limit INTEGER)`: Returns privacy-safe map rows for the current visible bounds. The projection joins `explore_posts`, `scans`, `users`, and `species_dictionary`, emits `coordinate_visibility = exact|obscured`, filters the same unshared/media/private/shadowban/block exclusions as the feed, and reads current public coordinates from `scans.gps_lat_public` / `gps_long_public`. As a safety fallback, it still derives public coordinates from exact scan coordinates server-side if a row has not yet been normalized, preventing new exact-location shares from disappearing from the map.
-- `public.get_explore_notifications(self_id UUID, max_limit INTEGER, before_updated_at TIMESTAMPTZ, before_notification_id UUID)`: Returns the owner's in-app Explore activity feed. Like rows are aggregated, comment rows are filtered against comment soft deletes and both-direction user blocks, and `recent_actor_names` preserves the server-side actor order from `recent_actor_ids`. Paging is stable on `(updated_at DESC, notification_id DESC)` so new activity does not cause duplicates while the sheet paginates.
+- `public.get_explore_notifications(self_id UUID, max_limit INTEGER, before_updated_at TIMESTAMPTZ, before_notification_id UUID)`: Returns the owner's in-app Explore activity feed. Like rows are aggregated, comment rows are filtered against comment soft deletes and both-direction user blocks, follow rows are validated against the active `user_follows` relationship, and `recent_actor_names` preserves the server-side actor order from `recent_actor_ids`. Follow rows have `post_id = NULL` and are informational only. Paging is stable on `(updated_at DESC, notification_id DESC)` so new activity does not cause duplicates while the sheet paginates.
 - `public.get_unread_explore_notification_count(self_id UUID)`: Returns the unread bell badge count for visible Explore notifications only.
 - `public.mark_explore_notifications_read(self_id UUID)`: Marks all of the viewer's Explore notification rows as read. The iOS client calls this only after a successful notifications fetch.
-- `public.get_explore_push_notification_payload(target_notification_id UUID)`: Internal push-delivery projection used by `send-push-notification`. It filters hidden/unshared/blocked activity the same way the in-app feed does and returns APNs-safe actor names plus comment body text for one notification row.
+- `public.get_explore_push_notification_payload(target_notification_id UUID)`: Internal push-delivery projection used by `send-push-notification`. It filters hidden/unshared/blocked activity the same way the in-app feed does and returns APNs-safe actor names plus comment body text for one post-backed notification row. Follow notifications are skipped before push dispatch and have no post payload.
+- `public.reparent_user_follows(ghost_id UUID, target_user_id UUID)`: Ghost-merge helper that inserts target-user copies of ghost follower/followee rows, ignores conflicts, and deletes rows still referencing the ghost or any self-follow produced by the merge.
 
 These RPCs intentionally avoid raw auth metadata and private scan-only fields. Feed/detail/notification reads avoid coordinates entirely, while `public.get_explore_map_posts(...)` returns only privacy-safe public coordinates (`exact` or `obscured`) derived from the scan's Explore-eligible geoprivacy state. Together they allow Explore to reuse safe species visuals such as taxonomy and habitat/distribution cards without mounting the private Insight `InferenceEngine`.
 

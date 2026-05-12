@@ -82,6 +82,23 @@ export async function transferExplorePosts(
   }
 }
 
+/// Re-parents follow relationships created while the user was anonymous.
+/// The SQL RPC dedupes conflicts before the ghost public user is deleted.
+export async function transferUserFollows(
+  ghostId: string,
+  targetUserId: string,
+  supabaseAdmin: SupabaseClient,
+) {
+  const { error } = await supabaseAdmin.rpc("reparent_user_follows", {
+    ghost_id: ghostId,
+    target_user_id: targetUserId,
+  });
+
+  if (error) {
+    throw new Error(`Follow relationship migration failed: ${error.message}`);
+  }
+}
+
 export async function purgeGhostUser(
   ghostId: string,
   supabaseAdmin: SupabaseClient,

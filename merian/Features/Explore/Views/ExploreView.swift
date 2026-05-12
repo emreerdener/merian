@@ -275,8 +275,10 @@ struct ExploreView: View {
     }
 
     private func openNotification(_ notification: ExploreNotification) async {
+        guard let postId = notification.postId else { return }
+
         do {
-            let post = try await viewModel.preparePostForNavigation(postId: notification.postId)
+            let post = try await viewModel.preparePostForNavigation(postId: postId)
             viewModel.dismissNotifications()
             try? await Task.sleep(nanoseconds: 150_000_000)
             openPostDetail(for: post, focusCommentComposer: notification.type == .comment)
@@ -444,6 +446,8 @@ private struct ExploreFeedTabContent: View {
         switch viewModel.activeFilter {
         case .recent:
             return "Nothing shared yet"
+        case .following:
+            return "No followed discoveries yet"
         case .trending:
             return "Nothing trending yet"
         case .nearby:
@@ -455,6 +459,8 @@ private struct ExploreFeedTabContent: View {
         switch viewModel.activeFilter {
         case .recent:
             return "Shared discoveries will show up here once people publish scans to Explore."
+        case .following:
+            return "Follow authors from their public profiles to build this feed."
         case .trending:
             return "Freshly liked discoveries will appear here as the community reacts."
         case .nearby:

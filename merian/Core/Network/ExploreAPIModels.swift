@@ -17,6 +17,14 @@ struct ExploreAuthorPostsResponse: Decodable {
     let data: [ExplorePost]
 }
 
+struct ExploreFollowState: Decodable, Equatable {
+    let success: Bool
+    let authorUserId: String
+    let followerCount: Int
+    let followingCount: Int
+    let viewerIsFollowing: Bool
+}
+
 struct ExplorePost: Decodable, Identifiable, Equatable {
     let postId: String
     let scanId: String
@@ -48,6 +56,7 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
 
 enum ExploreFeedFilter: String, CaseIterable, Hashable, Identifiable {
     case recent
+    case following
     case trending
     case nearby
 
@@ -59,6 +68,8 @@ enum ExploreFeedFilter: String, CaseIterable, Hashable, Identifiable {
         switch self {
         case .recent:
             return "Recent"
+        case .following:
+            return "Following"
         case .trending:
             return "Trending"
         case .nearby:
@@ -110,6 +121,9 @@ struct ExploreAuthorProfile: Decodable, Equatable {
     let heatmap: ExploreAuthorProfileHeatmap
     let awards: [ExploreAuthorProfileAward]
     let publishedPostCount: Int
+    var followerCount: Int
+    var followingCount: Int
+    var viewerIsFollowing: Bool
     let previewPosts: [ExplorePost]
 
     var authorAvatarURL: URL? {

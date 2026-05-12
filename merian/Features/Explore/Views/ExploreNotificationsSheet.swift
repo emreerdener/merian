@@ -104,7 +104,7 @@ struct ExploreNotificationsSheet: View {
         EmptyStateView(
             iconName: "bell.slash",
             title: "Nothing new yet",
-            message: "Likes on your posts, comments on your posts, and reactions to your comments will show up here."
+            message: "Follows, likes on your posts, comments on your posts, and reactions to your comments will show up here."
         )
     }
 
@@ -133,6 +133,7 @@ struct ExploreNotificationsSheet: View {
     }
 
     private func openNotification(_ notification: ExploreNotification) async {
+        guard notification.postId != nil else { return }
         guard selectedNotificationId == nil else { return }
 
         selectedNotificationId = notification.id

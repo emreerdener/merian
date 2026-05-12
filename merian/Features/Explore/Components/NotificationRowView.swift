@@ -47,7 +47,7 @@ struct NotificationRowView: View {
                     ProgressView()
                         .progressViewStyle(.circular)
                         .padding(.top, 2)
-                } else {
+                } else if notification.postId != nil {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.tertiary)
@@ -90,6 +90,8 @@ struct NotificationRowView: View {
             return "bubble.left.fill"
         case .commentReaction:
             return "face.smiling.fill"
+        case .follow:
+            return "person.crop.circle.badge.plus"
         }
     }
 
@@ -101,6 +103,8 @@ struct NotificationRowView: View {
             return .blue
         case .commentReaction:
             return .orange
+        case .follow:
+            return .green
         }
     }
 
@@ -112,6 +116,8 @@ struct NotificationRowView: View {
             return Color.blue.opacity(0.12)
         case .commentReaction:
             return Color.orange.opacity(0.14)
+        case .follow:
+            return Color.green.opacity(0.12)
         }
     }
 
@@ -138,6 +144,9 @@ struct NotificationRowView: View {
             return likeSummaryText()
         case .commentReaction:
             return commentReactionSummaryText()
+        case .follow:
+            let actorName = trimmed(notification.triggeringUserName) ?? "Someone"
+            return "\(actorName) followed you."
         }
     }
 
@@ -149,6 +158,8 @@ struct NotificationRowView: View {
             return nil
         case .commentReaction:
             return trimmed(notification.commentBody)
+        case .follow:
+            return nil
         }
     }
 

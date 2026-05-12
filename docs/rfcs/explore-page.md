@@ -7,12 +7,12 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 - Sharing is manual per eligible scan. A scan does not become public just because its `geoprivacy` is `open`.
 - Explore is image-only in V1. Audio is out of scope.
 - Post descriptions/captions are out of scope in V1.
-- Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible likes/comments can also fan out to APNs pushes for users who opt into Explore activity notifications.
+- Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible post-backed activity can also fan out to APNs pushes for users who opt into Explore activity notifications. Follow notifications are in-app only.
 - Explore feed posts open a dedicated public post detail page when the user taps the post body.
 - The feed comment icon still opens a bottom-sheet comments view for quick interaction from the main feed.
 - Explore includes a privacy-scoped public author profile sheet reachable from feed/detail author headers.
 - The author profile sheet can transition sideways into the author's full published Explore scan library.
-- The feed now ships three user-facing filters: `Recent`, `Trending`, and `Nearby`.
+- The feed now ships four user-facing filters: `Recent`, `Following`, `Trending`, and `Nearby`.
 - Feed cards may show:
   - Hero image
   - Species common name and scientific name
@@ -47,8 +47,8 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 ## Non-Goals
 
 - Audio posts
-- Captions, hashtags, follows, DMs, or standalone social profile pages beyond the privacy-scoped author sheet
-- Heavy personalization, follows, editorial curation, or ranking beyond the shipped `Recent` / `Trending` / `Nearby` modes
+- Captions, hashtags, DMs, private sharing, mutual friend requests, or standalone social profile pages beyond the privacy-scoped author sheet
+- Heavy personalization, editorial curation, or ranking beyond the shipped `Recent` / `Following` / `Trending` / `Nearby` modes
 - Public species pages in this scope
 
 ## Shipped V1 Snapshot (2026-05-05)
@@ -60,8 +60,9 @@ The Explore feed and map shell are now live. The current shipped implementation 
 - Publication state still lives on `explore_posts`, but the shipped map does not store coordinates on `explore_posts`. Spatial reads currently project privacy-safe coordinates from `public.scans.gps_lat_public` / `gps_long_public` through `public.get_explore_map_posts(...)` and the `get-explore-map-points` edge function.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` and a server-side fallback so newly shared scans with exact coordinates are normalized/backfilled correctly and do not disappear from the map.
 - `ExplorePostStore` now owns shared Explore post state across feed, map, detail, comments, and notification-driven navigation, while `ExploreFeedViewModel` keeps feed-specific UI and pagination state.
-- The feed tab now ships a filter row with `Recent`, `Trending`, and `Nearby`.
+- The feed tab now ships a filter row with `Recent`, `Following`, `Trending`, and `Nearby`.
 - `Recent` remains the default mode and still uses the canonical `(shared_at, post_id)` cursor.
+- `Following` is an asymmetric-follow feed backed by followed authors' visible Explore posts. It uses the same `(shared_at, post_id)` cursor as `Recent` and does not change `Recent`, `Trending`, `Nearby`, or map results.
 - `Trending` is freshness-biased rather than all-time top. It uses recent like activity from the trailing 30 days and paginates on `(ranking_value, shared_at, post_id)`.
 - `Nearby` requires viewer location, reuses the same privacy-safe public coordinate rules as the map, filters to a roughly 50-mile radius, and then sorts the surviving posts by recency rather than raw distance.
 - The Explore-tab unread badge and "last seen" bookkeeping remain tied to the `Recent` feed only so browsing alternate modes does not mutate recency tracking.
@@ -73,6 +74,8 @@ Explore now supports public author profile sheets without turning Explore into a
 The sheet renders:
 
 - public author avatar and name
+- follower and following counts
+- a `Follow` / `Following` button for other users
 - published Explore post count
 - species discovered
 - current streak
@@ -87,10 +90,36 @@ The profile and library have deliberately different privacy scopes:
 - Preview and full library grids include only currently visible Explore posts.
 - Achievement payloads contain progress only and never include qualifying scan IDs.
 - Public achievement cards do not open detail sheets or scans.
+- Follow counts are public on visible profiles, but follower/following identities are not exposed and the counts do not open tappable lists.
+- The `Follow` button is hidden for the viewer's own public profile. It follows asymmetrically; there are no friend requests, mutual-only states, DMs, or access changes to private scans.
 
 The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer. This prevents the endpoint from exposing arbitrary user profiles by UUID. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, private scans in published grids, posts without image media, and posts without a species key are all filtered using the same visibility posture as the rest of Explore.
 
 The full library reuses the card-shaped Explore post projection and paginates on `(shared_at DESC, post_id DESC)` using `before_shared_at` and `before_post_id`.
+
+## Following Extension (2026-05-11)
+
+Explore now supports asymmetric follows for public author profiles. Following is intentionally a small discovery affordance, not a friend system.
+
+Following changes only these surfaces:
+
+- `get-explore-feed` accepts `filter: "following"` and returns visible posts from authors the viewer follows, ordered by `(shared_at DESC, post_id DESC)`.
+- `get-explore-author-profile` returns `follower_count`, `following_count`, and `viewer_is_following`.
+- `ExploreAuthorProfileSheet` shows follower/following counts and an optimistic `Follow` / `Following` button for non-self profiles.
+- `explore_post_notifications` supports a postless `follow` row for in-app notifications.
+
+Following intentionally does not:
+
+- affect `Recent`, `Trending`, `Nearby`, map, or widget ranking
+- create new-post alerts
+- create APNs pushes
+- expose follower or following lists
+- make hidden profiles discoverable by UUID
+- grant access to private scans
+
+The follow write path is `/set-user-follow`. Follow requests require a visible Explore profile, no self-follow, no mutual block, and a non-shadowbanned target. Unfollow deletes the relationship even if the target is no longer visible so stale relationships can always be removed.
+
+Blocking removes follow rows in both directions. Ghost-account merge reparents follow rows from the ghost public user to the authenticated public user and dedupes conflicts.
 
 ## Recommended Product Model
 
@@ -316,6 +345,25 @@ Suggested rules:
 - Soft delete is acceptable if we want moderation history
 - Comment text length should be capped server-side
 
+### `user_follows`
+
+Shipped fields:
+
+- `follower_user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE`
+- `followee_user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`
+
+Shipped constraints:
+
+- Primary key: `(follower_user_id, followee_user_id)`
+- Check: `follower_user_id <> followee_user_id`
+
+Shipped privacy rules:
+
+- RLS lets users insert/delete their own follow rows and read only their own following rows.
+- Public author profiles expose counts and viewer-specific follow state only.
+- No v1 endpoint exposes follower or following identities.
+
 ### Counter Strategy
 
 The feed should not compute like/comment aggregates expensively on every page load.
@@ -346,7 +394,7 @@ Recommended V1 endpoints:
 - `unshare-explore-post`
   - Removes the post from the feed
 - `get-explore-feed`
-  - Returns Explore cards for `Recent`, `Trending`, or `Nearby` depending on the requested filter
+  - Returns Explore cards for `Recent`, `Following`, `Trending`, or `Nearby` depending on the requested filter
 - `get-explore-post`
   - Returns a single Explore card projection for notification routing and deep links
 - `get-explore-post-detail`
@@ -363,6 +411,8 @@ Recommended V1 endpoints:
   - Marks the viewer's Explore notifications as read
 - `set-explore-post-like`
   - Idempotently sets liked state for the viewer
+- `set-user-follow`
+  - Idempotently follows or unfollows a visible Explore author profile
 - `create-explore-comment`
   - Creates a comment
 - `delete-explore-comment`
@@ -374,7 +424,7 @@ Existing endpoint reuse:
 
 - Reuse `/block-user` for author and commenter blocking.
 
-The in-app notifications feed is the Explore source of truth. Remote APNs fan-out layers on top of that same notification row model through push-device registration plus a server-side webhook trigger.
+The in-app notifications feed is the Explore source of truth. Remote APNs fan-out layers on top of that same notification row model for eligible post-backed activity through push-device registration plus a server-side webhook trigger. Follow notifications stay in-app only.
 
 ## Feed Query Rules
 
@@ -387,6 +437,7 @@ The in-app notifications feed is the Explore source of truth. Remote APNs fan-ou
 - Exclude posts whose scan no longer has active image media
 - Order by the selected feed mode:
   - `Recent`: `shared_at DESC`
+  - `Following`: followed authors only, then `shared_at DESC`
   - `Trending`: trailing-30-day recent-like count DESC, then `shared_at DESC`
   - `Nearby`: radius-filter first, then `shared_at DESC`
 - Return only the fields the Explore UI needs
@@ -394,7 +445,7 @@ The in-app notifications feed is the Explore source of truth. Remote APNs fan-ou
 Pagination:
 
 - `get-explore-feed` should use cursor pagination, not offset pagination
-- `Recent` and `Nearby` should use `(shared_at, post_id)` so feed paging remains stable while new posts are inserted above the viewer
+- `Recent`, `Following`, and `Nearby` should use `(shared_at, post_id)` so feed paging remains stable while new posts are inserted above the viewer
 - `Trending` should use `(ranking_value, shared_at, post_id)` so ranking ties do not skip or duplicate rows
 - Recommended request fields:
   - `filter`
@@ -438,7 +489,7 @@ Implementation note:
 - Media availability must be cheap to filter.
 - If the scan-media visibility check becomes a hot path, prefer a trigger-maintained post-level boolean such as `has_active_media` on `explore_posts`, or at minimum an expression/partial index that prevents repeated full-table scans over media arrays.
 
-`get-explore-feed` should remain card-oriented even as filters expand. `Nearby` should stay feed-like by using a radius filter plus recency sort, while the map remains a separate spatial endpoint rather than overloading feed pagination with nearest-neighbor map semantics.
+`get-explore-feed` should remain card-oriented even as filters expand. `Following` should stay a followee filter over the same visibility-safe post projection, not a separate user lookup surface. `Nearby` should stay feed-like by using a radius filter plus recency sort, while the map remains a separate spatial endpoint rather than overloading feed pagination with nearest-neighbor map semantics.
 
 ## Explore Map Addendum
 
@@ -491,6 +542,7 @@ Recommended V1 controls:
 Current shipped feed filters:
 
 - `Recent`
+- `Following`
 - `Trending`
 - `Nearby`
 
@@ -753,16 +805,18 @@ Notifications:
 - The in-app notifications feed is the source of truth for Explore activity.
 - Like notifications should aggregate to one row per owner/post, maintain the latest actor names, and reset `is_read` whenever a new like arrives.
 - Comment notifications should create one row per visible comment.
-- Self-likes and self-comments should never create notifications.
+- Follow notifications should create one postless informational row per follower/followee pair.
+- Self-likes, self-comments, and self-follows should never create notifications.
 - Opening the notifications sheet should mark the fetched rows as read only after the initial fetch succeeds.
 - Notifications pagination should be cursor-based on `(updated_at, notification_id)`, not offset-based.
 - Comments pagination should be cursor-based on `(created_at, comment_id)`, not offset-based.
 - Users can independently opt into remote Explore activity pushes without enabling discovery-result alerts.
+- Follow notifications are excluded from remote push delivery.
 
 Blocking:
 
 - If user A blocks user B, B's Explore posts and comments should disappear for A.
-- Interaction endpoints should reject likes/comments when either direction of blocking should disallow the relationship.
+- Interaction endpoints should reject likes, comments, reactions, and follows when either direction of blocking should disallow the relationship.
 
 Reporting:
 
@@ -802,7 +856,7 @@ Client behavior:
 
 - Explore is online-only in V1
 - Likes/comments/shares do not use the offline queue
-- `Recent` and `Nearby` pagination are cursor-based on `(shared_at, post_id)`
+- `Recent`, `Following`, and `Nearby` pagination are cursor-based on `(shared_at, post_id)`
 - `Trending` pagination is cursor-based on `(ranking_value, shared_at, post_id)`
 - Comments pagination is cursor-based on `(created_at, comment_id)`
 - Notifications pagination is cursor-based on `(updated_at, notification_id)`
@@ -816,6 +870,7 @@ Client behavior:
 - Explore feed share uses the system share sheet with species text plus the current hero image URL
 - The detail page uses a separate public species payload so it can render safe `Taxonomy` and `Habitat & distribution` cards without loading private scan state
 - The sheet toolbar bell shows an unread badge, opens the in-app notifications sheet, and uses `get-explore-post` so notification taps can route into posts that are not already present in the loaded feed page
+- Follow notification rows are informational and do not navigate because their `post_id` is `NULL`
 
 ## Implementation Phases
 
@@ -840,9 +895,9 @@ Client behavior:
 ### Phase 4: Interaction and Moderation Polish
 
 - Add comment sheet
-- Add optimistic likes and comments
+- Add optimistic likes, comments, and follows
 - Add block/report action flows
-- Add telemetry for share, like, comment, block, and report events
+- Add telemetry for share, like, comment, follow, block, and report events
 
 ### Phase 5: Public Post Detail
 
@@ -880,7 +935,7 @@ When the public species-page project exists:
 ## Acceptance Criteria For V1
 
 - A user can manually share an eligible image scan to Explore.
-- A shared post appears in the public feed, with `Recent` as the default reverse-chronological mode plus shipped `Trending` and `Nearby` filters.
+- A shared post appears in the public feed, with `Recent` as the default reverse-chronological mode plus shipped `Following`, `Trending`, and `Nearby` filters.
 - The feed shows privacy-safe author identity and general location.
 - Authenticated authors can show a public avatar when a provider avatar URL is available.
 - Ghost users can participate with stable aliases.
@@ -897,7 +952,7 @@ When the public species-page project exists:
 - Tapping a map point opens a compact preview card before opening full detail.
 - Tapping a map preview card opens the same public Explore detail page used by feed posts.
 - `obscured` posts render only with privacy-safe public coordinates derived server-side from scan geoprivacy rules.
-- The bell icon shows an unread count and opens an in-app notifications sheet for likes and comments on the viewer's posts.
+- The bell icon shows an unread count and opens an in-app notifications sheet for likes, comments, reactions, and follows.
 - The bell unread count is refreshed on foreground, on a lightweight fallback poll, and by a Supabase realtime subscription to the viewer's notification rows.
 - Users can opt into remote Explore activity pushes separately from discovery-result alerts.
 - Users can block and report from Explore surfaces.

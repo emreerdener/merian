@@ -248,7 +248,7 @@ Explore traffic is intentionally separate from the identify pipeline. The iOS cl
 
 ### `/get-explore-feed`
 
-Returns public Explore feed cards for the shipped `recent`, `trending`, and `nearby` modes. The backend routes to a dedicated SQL RPC per mode and already filters out:
+Returns public Explore feed cards for the shipped `recent`, `following`, `trending`, and `nearby` modes. The backend routes to a dedicated SQL RPC per mode and already filters out:
 
 - unshared posts
 - tombstoned scans
@@ -266,6 +266,17 @@ Recent feed, which is also the default when `filter` is omitted:
   "limit": 20,
   "filter": "recent",
   "before_shared_at": "2026-04-28T21:18:00.000Z",
+  "before_post_id": "uuid"
+}
+```
+
+Following feed:
+
+```json
+{
+  "limit": 20,
+  "filter": "following",
+  "before_shared_at": "2026-05-03T12:00:00.000Z",
   "before_post_id": "uuid"
 }
 ```
@@ -297,10 +308,11 @@ Nearby feed:
 
 Validation rules:
 
-- `recent` and `nearby` page on `(shared_at DESC, post_id DESC)`. Omit both cursor fields for the first page.
+- `recent`, `following`, and `nearby` page on `(shared_at DESC, post_id DESC)`. Omit both cursor fields for the first page.
+- `following` returns only posts by followed authors that remain visible to the requester.
 - `trending` pages on `(ranking_value DESC, shared_at DESC, post_id DESC)`. The cursor is only valid when `before_ranking_value`, `before_shared_at`, and `before_post_id` are all supplied together.
 - `nearby` requires both `latitude` and `longitude`.
-- `before_ranking_value` is rejected for `recent` and `nearby`.
+- `before_ranking_value` is rejected for `recent`, `following`, and `nearby`.
 - `trending` is freshness-biased rather than all-time top. The ranking value is the post's like activity from the trailing 30 days.
 - `nearby` reuses privacy-safe public coordinates and limits results to roughly 50 miles around the supplied viewer location before applying recency sort.
 
@@ -337,7 +349,7 @@ Current response shape:
 ```
 
 `author_avatar_url` is a copied public projection stored on `public.users.public_avatar_url`. It is never read directly from `auth.users` on the client.
-`ranking_value` is populated for `trending` rows and omitted or `null` for `recent` and `nearby`.
+`ranking_value` is populated for `trending` rows and omitted or `null` for `recent`, `following`, and `nearby`.
 
 ### `/get-explore-post`
 
@@ -461,6 +473,8 @@ Validation and availability rules:
 - Species count and achievement progress use biological species-backed scans via `COALESCE(confirmed_species_id, species_id)`.
 - Preview posts use the same Explore visibility rules as feed/library posts and never include private, unshared, tombstoned, media-less, or non-species-backed posts.
 - Achievement progress never includes qualifying scan IDs.
+- Follower/following counts are aggregate-only and do not expose browsable identities.
+- `viewer_is_following` is specific to the requesting viewer and drives the profile sheet follow button.
 
 Current response shape:
 
@@ -473,6 +487,9 @@ Current response shape:
     "species_count": 42,
     "current_streak": 5,
     "published_post_count": 19,
+    "follower_count": 124,
+    "following_count": 17,
+    "viewer_is_following": true,
     "heatmap": {
       "total_captures": 124,
       "current_month_captures": 8,
@@ -523,6 +540,8 @@ Current response shape:
 ```
 
 Heatmap day `count = -1` marks future days in the fixed 52-week grid and renders as empty/clear in `ScansHeatmap`. The backend chooses the author's latest valid persisted `scans.device_time_zone` for day-boundary calculations and falls back to UTC when no timezone is available.
+
+`follower_count` and `following_count` are public aggregate counts on visible profiles only. They do not imply browsable lists. `viewer_is_following` is specific to the requesting user and should replace any optimistic client follow state after a write.
 
 ### `/get-explore-author-posts`
 
@@ -723,6 +742,48 @@ Notification side effects:
 - The server aggregates likes into one row per recipient/post rather than inserting one notification row per like.
 - Self-likes do not create notifications.
 
+### `/set-user-follow`
+
+Idempotently follows or unfollows a visible Explore author profile.
+
+Request body:
+
+```json
+{
+  "author_user_id": "uuid",
+  "is_following": true
+}
+```
+
+Response body:
+
+```json
+{
+  "success": true,
+  "author_user_id": "uuid",
+  "follower_count": 12,
+  "following_count": 4,
+  "viewer_is_following": true
+}
+```
+
+Validation and behavior:
+
+- `author_user_id` is required and must be a UUID.
+- `is_following` is required and must be a boolean. `false` is a valid request value.
+- Self-follow is rejected with `400`.
+- Follow inserts require no mutual block, a non-shadowbanned target, and a currently visible Explore author profile for the requester.
+- Follow writes use the `(follower_user_id, followee_user_id)` primary key and are idempotent.
+- Unfollow deletes the relationship even if the target profile is no longer visible.
+- The returned state is authoritative and should replace optimistic client counts.
+
+Notification side effects:
+
+- Follow creates a postless in-app notification for the followed user.
+- Unfollow removes the corresponding follow notification.
+- Blocking either direction removes follow rows and follow notifications.
+- Follow notifications are not sent to APNs.
+
 ### `/create-explore-comment` and `/delete-explore-comment`
 
 - Create/delete plain-text comments on Explore posts.
@@ -780,6 +841,7 @@ Returns the viewer's in-app Explore activity feed. The request body is optional:
 
 - `limit` defaults to `50` and is capped server-side.
 - The read path mirrors Explore visibility rules: unshared posts, tombstoned scans, posts with no remaining media, private-geoprivacy scans, shadowbanned owners, blocked actors, and soft-deleted comments are filtered out.
+- Follow notifications are validated against an active follow relationship and blocked or shadowbanned actors are filtered out.
 - Pagination is cursor-based on `(updated_at DESC, notification_id DESC)`. Follow-up page requests send:
 
 ```json
@@ -839,10 +901,27 @@ Current response shape:
       "is_read": false,
       "created_at": "2026-05-05T10:00:00.000Z",
       "updated_at": "2026-05-05T10:05:00.000Z"
+    },
+    {
+      "notification_id": "uuid",
+      "post_id": null,
+      "type": "follow",
+      "comment_id": null,
+      "reaction_emoji": null,
+      "triggering_user_id": "uuid",
+      "triggering_user_name": "User F",
+      "comment_body": null,
+      "recent_actor_names": [],
+      "action_count": 1,
+      "is_read": false,
+      "created_at": "2026-05-11T16:10:00.000Z",
+      "updated_at": "2026-05-11T16:10:00.000Z"
     }
   ]
 }
 ```
+
+`post_id` is nullable because follow notifications are not post-backed. The iOS notifications UI treats follow rows as informational and does not attempt post navigation.
 
 ### `/get-explore-unread-notification-count`
 
@@ -899,6 +978,7 @@ The Explore client decodes these endpoints via:
 - `merian/Features/Explore/ViewModels/ExploreMapViewModel.swift`
 - `merian/Features/Explore/ViewModels/ExploreNotificationsViewModel.swift`
 - `merian/Features/Explore/Models/ExploreNotification.swift`
+- `merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
 - `merian/Features/Explore/Views/ExploreMapView.swift`
 
 The current feed UI uses only a subset of the payload for visible card rendering:
@@ -923,6 +1003,7 @@ The Explore detail page additionally uses:
 - cursor-based comment pagination on `(created_at, comment_id)` so long threads page safely in both the sheet and detail view
 - `/get-explore-unread-notification-count` for the bell badge and `/get-explore-notifications` plus `/mark-explore-notifications-read` for the in-app activity sheet
 - cursor-based activity pagination on `(updated_at, notification_id)` so the notifications sheet does not skip or duplicate rows during active usage
+- `/set-user-follow` to apply public author Follow/Following state from `ExploreAuthorProfileSheet`
 - `/register-push-device` to sync the APNs token plus the Explore-specific push preference
 
 The Explore map additionally uses:
@@ -935,7 +1016,7 @@ The Explore map additionally uses:
 
 Time and weather metadata remain in the contract for future Explore presentation experiments, but are not currently rendered on the primary feed card.
 
-Remote Explore APNs delivery is layered on top of this contract through the internal `send-push-notification` webhook path. That webhook is not called by the iOS client directly; it is triggered server-side from `public.explore_post_notifications`.
+Remote Explore APNs delivery is layered on top of this contract through the internal `send-push-notification` webhook path. That webhook is not called by the iOS client directly; it is triggered server-side from `public.explore_post_notifications`. Follow notifications are excluded from push dispatch and remain in-app only.
 
 Preferred species display names are not part of the Explore endpoint payload. The iOS client syncs `user_species_preferences` directly through PostgREST under Supabase RLS, hydrates `ExploreFeedViewModel.preferredSpeciesNamesByScientificName` from local SwiftData, and applies those names in feed cards, map previews, comments, detail titles, and share text.
 

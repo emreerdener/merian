@@ -1,7 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export type ExploreFeedFilter = "recent" | "trending" | "nearby";
+export type ExploreFeedFilter = "recent" | "following" | "trending" | "nearby";
 
 type NestedRelation<T> = T | T[] | null | undefined;
 
@@ -52,11 +52,11 @@ export function normalizeCursorTimestamp(rawValue: unknown, fieldName: string): 
 
 export function normalizeExploreFeedFilter(rawValue: unknown): ExploreFeedFilter {
   if (rawValue == null) return "recent";
-  if (rawValue === "recent" || rawValue === "trending" || rawValue === "nearby") {
+  if (rawValue === "recent" || rawValue === "following" || rawValue === "trending" || rawValue === "nearby") {
     return rawValue;
   }
 
-  throw makeHttpError(400, "filter must be one of: recent, trending, nearby.");
+  throw makeHttpError(400, "filter must be one of: recent, following, trending, nearby.");
 }
 
 export function normalizeNonNegativeInteger(rawValue: unknown, fieldName: string): number | null {

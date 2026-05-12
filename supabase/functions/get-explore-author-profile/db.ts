@@ -9,6 +9,9 @@ export interface ExploreAuthorProfileRow {
   heatmap: unknown;
   awards: unknown[];
   published_post_count: number;
+  follower_count: number;
+  following_count: number;
+  viewer_is_following: boolean;
   preview_posts: unknown[];
 }
 

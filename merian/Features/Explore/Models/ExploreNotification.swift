@@ -4,11 +4,12 @@ enum ExploreNotificationType: String, Decodable {
     case likeAggregated = "like_aggregated"
     case comment
     case commentReaction = "comment_reaction"
+    case follow
 }
 
 struct ExploreNotification: Decodable, Identifiable, Equatable {
     let notificationId: String
-    let postId: String
+    let postId: String?
     let type: ExploreNotificationType
     let commentId: String?
     let reactionEmoji: String?

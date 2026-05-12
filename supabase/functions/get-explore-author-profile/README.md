@@ -26,6 +26,9 @@ Returns a privacy-scoped public profile for an Explore author. This endpoint pow
     "species_count": 42,
     "current_streak": 5,
     "published_post_count": 19,
+    "follower_count": 124,
+    "following_count": 17,
+    "viewer_is_following": true,
     "heatmap": {
       "total_captures": 124,
       "current_month_captures": 8,
@@ -45,6 +48,8 @@ Returns a privacy-scoped public profile for an Explore author. This endpoint pow
 ```
 
 The backing RPC is `public.get_explore_author_profile(self_id, target_author_user_id, preview_limit)`.
+
+`follower_count` and `following_count` are public aggregate counts for visible profiles only. They are not list affordances. `viewer_is_following` is specific to the requesting viewer and drives the iOS `Follow` / `Following` button.
 
 ## Privacy Rules
 
@@ -66,6 +71,13 @@ Preview posts use stricter Explore visibility rules:
 - scans without a species key excluded
 - shadowbanned authors excluded
 - both directions of user blocking excluded
+
+Follow state:
+
+- Counts are computed from `public.user_follows`.
+- Shadowbanned counterpart users are ignored in counts.
+- No follower or following identities are returned.
+- The profile remains undiscoverable unless the author has at least one visible Explore post for the requester.
 
 Achievement progress returns only `type`, `current_count`, and `last_interaction_at`. It must never return qualifying scan IDs or contribution details.
 

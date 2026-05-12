@@ -6,6 +6,7 @@ import {
   transferCollections,
   transferExplorePosts,
   transferScans,
+  transferUserFollows,
   verifyGhostUser,
 } from "./db.ts";
 
@@ -49,6 +50,7 @@ serve((req: Request) =>
     await transferScans(ghost_id, user.id, supabaseAdmin);
     await transferCollections(ghost_id, user.id, supabaseAdmin);
     await transferExplorePosts(ghost_id, user.id, supabaseAdmin);
+    await transferUserFollows(ghost_id, user.id, supabaseAdmin);
 
     // 3. Purge Empty Ghost Profile
     await purgeGhostUser(ghost_id, supabaseAdmin);

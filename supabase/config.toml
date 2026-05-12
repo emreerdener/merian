@@ -505,6 +505,9 @@ verify_jwt = false
 [functions.set-explore-post-like]
 verify_jwt = false
 
+[functions.set-user-follow]
+verify_jwt = false
+
 [functions.create-explore-comment]
 verify_jwt = false
 

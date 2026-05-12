@@ -228,6 +228,99 @@ Deno.test("Explore feed DB - blocked, unshared, and media-cleared posts are excl
   });
 });
 
+Deno.test("Explore following feed DB - returns only followed authors' visible posts", async () => {
+  await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {
+    const viewerId = crypto.randomUUID();
+    const followedOwnerId = crypto.randomUUID();
+    const unfollowedOwnerId = crypto.randomUUID();
+    const blockedOwnerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+
+    await insertUser(client, viewerId, "Following Viewer");
+    await insertUser(client, followedOwnerId, "Followed Owner");
+    await insertUser(client, unfollowedOwnerId, "Unfollowed Owner");
+    await insertUser(client, blockedOwnerId, "Blocked Followed Owner");
+    await insertSpecies(client, speciesId, "Rosa sequitur");
+
+    const followedPostId = crypto.randomUUID();
+    const unfollowedPostId = crypto.randomUUID();
+    const blockedPostId = crypto.randomUUID();
+    const followedScanId = crypto.randomUUID();
+    const unfollowedScanId = crypto.randomUUID();
+    const blockedScanId = crypto.randomUUID();
+
+    await insertScan(client, {
+      id: followedScanId,
+      userId: followedOwnerId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "open",
+    });
+    await insertScan(client, {
+      id: unfollowedScanId,
+      userId: unfollowedOwnerId,
+      speciesId,
+      latitude: 30.2772,
+      longitude: -97.7531,
+      geoprivacy: "open",
+    });
+    await insertScan(client, {
+      id: blockedScanId,
+      userId: blockedOwnerId,
+      speciesId,
+      latitude: 30.2872,
+      longitude: -97.7631,
+      geoprivacy: "open",
+    });
+
+    await insertExplorePost(client, {
+      id: followedPostId,
+      userId: followedOwnerId,
+      scanId: followedScanId,
+      sharedAt: "2026-05-10T12:00:00.000Z",
+    });
+    await insertExplorePost(client, {
+      id: unfollowedPostId,
+      userId: unfollowedOwnerId,
+      scanId: unfollowedScanId,
+      sharedAt: "2026-05-10T12:05:00.000Z",
+    });
+    await insertExplorePost(client, {
+      id: blockedPostId,
+      userId: blockedOwnerId,
+      scanId: blockedScanId,
+      sharedAt: "2026-05-10T12:10:00.000Z",
+    });
+
+    await client.queryArray(
+      `
+        INSERT INTO public.user_follows (follower_user_id, followee_user_id)
+        VALUES ($1, $2), ($1, $3)
+      `,
+      [viewerId, followedOwnerId, blockedOwnerId],
+    );
+
+    await client.queryArray(
+      `
+        INSERT INTO public.user_blocks (blocker_id, blocked_id)
+        VALUES ($1, $2)
+      `,
+      [viewerId, blockedOwnerId],
+    );
+
+    const rows = await client.queryObject<ExploreFeedRow>(
+      `
+        SELECT post_id, shared_at::text AS shared_at
+        FROM public.get_explore_feed_following($1, 20, NULL, NULL)
+      `,
+      [viewerId],
+    );
+
+    assertEquals(rows.rows.map((row) => row.post_id), [followedPostId]);
+  });
+});
+
 Deno.test("Explore trending feed DB - ranking pagination preserves stable ordering across score ties", async () => {
   await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {
     const ownerId = crypto.randomUUID();

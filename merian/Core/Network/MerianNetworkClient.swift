@@ -1051,6 +1051,17 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreLikeResponse.self, from: data)
     }
 
+    func setUserFollow(authorUserId: String, isFollowing: Bool) async throws -> ExploreFollowState {
+        let functionUrl = try endpointURL("set-user-follow")
+        let payload: [String: Any] = [
+            "author_user_id": authorUserId,
+            "is_following": isFollowing
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreFollowState.self, from: data)
+    }
+
     func createExploreComment(postId: String, body: String) async throws -> ExploreCreateCommentResponse {
         let functionUrl = try endpointURL("create-explore-comment")
         let payload: [String: Any] = [

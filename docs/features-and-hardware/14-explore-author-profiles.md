@@ -11,6 +11,8 @@ Explore author profiles are public, privacy-preserving profile sheets opened fro
 - The profile sheet shows:
   - public avatar and centered serif author name
   - persona derived from species discovered
+  - follower and following counts
+  - a `Follow` / `Following` button for non-self profiles
   - species discovered
   - current streak
   - 52-week scan heatmap
@@ -19,6 +21,8 @@ Explore author profiles are public, privacy-preserving profile sheets opened fro
 - The "View all published scans" button side-transitions the sheet into the author's full published scan library. The leading toolbar button reverses the transition back to the profile content.
 - Library tiles open `ExplorePostDetailView` inside the sheet navigation stack. That nested detail disables insight presentation and author-profile presentation to avoid exposing private local state or recursively opening another profile sheet.
 - Preview grids render image-only thumbnails. Species names remain available in Explore detail, but they are not overlaid on profile preview thumbnails.
+- Follow counts are display-only in v1. They do not open follower/following lists.
+- The follow button is asymmetric and does not create friend requests, mutual-only states, DMs, or access to private scans.
 
 ## Privacy Model
 
@@ -51,6 +55,8 @@ Public achievement payloads contain only progress fields:
 
 They never include qualifying scan IDs. The iOS `Achievements` component uses `allowsDetailPresentation: false` for public profiles, so tapping an achievement does not open the achievement detail sheet or any qualifying scans.
 
+Follow relationship identities are also private in v1. `get_explore_author_profile` returns aggregate `follower_count`, `following_count`, and the viewer-specific `viewer_is_following` flag, but no endpoint returns browsable follower or following lists.
+
 ## Backend
 
 Migration: `supabase/migrations/20260511120000_add_explore_author_profiles.sql`
@@ -62,6 +68,14 @@ Added database state:
 - `idx_scans_user_tombstone_timestamp`
 - `idx_scans_user_biological_species`
 
+Follow extension migration: `supabase/migrations/20260511161000_add_explore_following.sql`
+
+Added follow state:
+
+- `public.user_follows(follower_user_id, followee_user_id, created_at)`
+- `public.get_user_follow_state(self_id, target_author_user_id)`
+- `public.can_view_explore_author_profile(self_id, target_author_user_id)`
+
 New RPCs:
 
 - `public.get_explore_author_profile(self_id, target_author_user_id, preview_limit)`
@@ -71,14 +85,18 @@ New Edge Functions:
 
 - `supabase/functions/get-explore-author-profile`
 - `supabase/functions/get-explore-author-posts`
+- `supabase/functions/set-user-follow`
 
 The author profile RPC computes species count from distinct biological species-backed scans using `COALESCE(confirmed_species_id, species_id)`. The heatmap and current streak are computed from all non-tombstoned scans and use the author's latest valid persisted `device_time_zone`, falling back to UTC. Current streak accepts today or yesterday as the anchor day, matching local profile grace behavior.
+
+The follow state RPC computes counts from `user_follows` while ignoring shadowbanned counterpart users. The viewer follow flag is computed for the requesting user only. The follow write endpoint requires the target profile to remain visible before inserting, but unfollow deletes the relationship even if visibility later changes.
 
 The author posts RPC returns the same card-shaped `ExplorePost` projection used by the feed, with stable cursor pagination on `(shared_at DESC, post_id DESC)`.
 
 Ghost-account merge repair:
 
 - `merge-ghost-profile` now re-parents `explore_posts.user_id` along with scans and collections.
+- `merge-ghost-profile` also calls `reparent_user_follows` before purging the ghost user so anonymous follows survive authentication and duplicate follow rows collapse cleanly.
 - `20260511143000_reparent_explore_posts_after_scan_owner_transfer.sql` repairs existing posts whose scan owner changed during an earlier ghost merge.
 - This keeps own-profile Explore previews, author sheets, and `is_owned_by_viewer` checks aligned with the current Supabase account.
 
@@ -98,6 +116,7 @@ Primary files:
 Important model types:
 
 - `ExploreAuthorProfile`
+- `ExploreFollowState`
 - `ExploreAuthorProfileAward`
 - `ExploreAuthorProfileHeatmap`
 - `ExploreAuthorProfileHeatmapWeek`
@@ -131,6 +150,7 @@ The iOS client methods are:
 ```swift
 MerianNetworkClient.shared.getExploreAuthorProfile(authorUserId:previewLimit:)
 MerianNetworkClient.shared.getExploreAuthorPosts(authorUserId:limit:cursor:)
+MerianNetworkClient.shared.setUserFollow(authorUserId:isFollowing:)
 ```
 
 ## Testing
@@ -145,6 +165,7 @@ iOS:
 
 - `merianTests/Core/Network/MerianNetworkClientTests.swift`
 - Covers profile decoding, award/heatmap conversion, and author-post cursor payload construction.
+- Covers follow-state decoding and `/set-user-follow` request payload construction.
 
 Recommended verification:
 
