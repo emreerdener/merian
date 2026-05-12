@@ -77,17 +77,21 @@ struct ExploreImageWidgetView: View {
 
     var body: some View {
         ZStack {
-            fallbackImage
-
             if let image = entry.item.flatMap(loadImage) {
                 fullBleedImage(image)
+            } else {
+                fallbackImage
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .unredacted()
         .containerBackground(for: .widget) {
-            fallbackImage
+            if let image = entry.item.flatMap(loadImage) {
+                fullBleedImage(image)
+            } else {
+                fallbackImage
+            }
         }
         .widgetURL(entry.item.flatMap { ExploreWidgetConstants.deepLinkURL(postId: $0.postId) })
     }
