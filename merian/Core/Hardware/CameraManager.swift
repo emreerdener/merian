@@ -63,6 +63,8 @@ import UIKit
     private(set) var zoomFactor: CGFloat = 1.0
     private(set) var maxZoomFactor: CGFloat = 1.0
     private(set) var nativeZoomFactor: CGFloat = 1.0
+    @ObservationIgnored private var hasResolvedNativeZoomFactor = false
+    @ObservationIgnored private var shouldResetZoomOnNextSessionStart = false
     /// Zoom factors at which the device physically switches lenses (e.g. [2.0, 6.0] on a triple-camera Pro).
     /// Populated after the session starts. Used by ZoomSliderView for tappable optical stop dots.
     private(set) var opticalZoomStops: [CGFloat] = []
@@ -213,7 +215,7 @@ import UIKit
     private struct ZoomConfig {
         let maxZoom: CGFloat
         let stops: [CGFloat]
-        let nativeZoom: CGFloat
+        let currentZoom: CGFloat
     }
 
     /// Reads zoom configuration from the active video device after `session.startRunning()`.
@@ -225,7 +227,7 @@ import UIKit
     /// physically changes lenses — these become the tappable dots on the slider.
     nonisolated private func readZoomConfig() -> ZoomConfig {
         #if targetEnvironment(simulator)
-        return ZoomConfig(maxZoom: 5.0, stops: [1.0, 2.0, 5.0], nativeZoom: 2.0)
+        return ZoomConfig(maxZoom: 5.0, stops: [1.0, 2.0, 5.0], currentZoom: 2.0)
         #else
         let activeVideoDevice = session.inputs
             .compactMap { $0 as? AVCaptureDeviceInput }
@@ -243,7 +245,7 @@ import UIKit
         // AVFoundation natively defaults the builtInTripleCamera to the standard Wide lens 
         // (usually 2.0x videoZoomFactor, where 1.0x is the Ultra-Wide).
         // By capturing it here, we sync the UI without forcing a hardware lens ramp.
-        return ZoomConfig(maxZoom: cap, stops: stops, nativeZoom: CGFloat(activeVideoDevice.videoZoomFactor))
+        return ZoomConfig(maxZoom: cap, stops: stops, currentZoom: CGFloat(activeVideoDevice.videoZoomFactor))
         #endif
     }
 
@@ -275,12 +277,21 @@ import UIKit
             let config = self.readZoomConfig()
 
             Task { @MainActor in
+                if !self.hasResolvedNativeZoomFactor {
+                    self.nativeZoomFactor = config.currentZoom
+                    self.hasResolvedNativeZoomFactor = true
+                }
+
                 self.isSessionRunning = true
                 self.maxZoomFactor = config.maxZoom
                 self.opticalZoomStops = config.stops
-                self.nativeZoomFactor = config.nativeZoom
-                self.zoomFactor = config.nativeZoom // Sync UI silently without ramping hardware away from its natural default
-                MerianLog.hardware.debug("Zoom: native=\(config.nativeZoom, privacy: .public), maxZoomFactor=\(config.maxZoom, privacy: .public), stops=\(config.stops, privacy: .public)")
+                if self.shouldResetZoomOnNextSessionStart {
+                    self.shouldResetZoomOnNextSessionStart = false
+                    self.applyZoom(factor: self.nativeZoomFactor, ramp: false)
+                } else {
+                    self.zoomFactor = config.currentZoom // Sync UI silently without ramping hardware away from its current lens.
+                }
+                MerianLog.hardware.debug("Zoom: native=\(self.nativeZoomFactor, privacy: .public), current=\(config.currentZoom, privacy: .public), maxZoomFactor=\(config.maxZoom, privacy: .public), stops=\(config.stops, privacy: .public)")
                 self.applyTargetFPS(HardwareOrchestrator.shared.targetFPS)
                 ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
             }
@@ -479,6 +490,11 @@ import UIKit
     }
 
     func setZoom(factor: CGFloat) {
+        shouldResetZoomOnNextSessionStart = false
+        applyZoom(factor: factor, ramp: true)
+    }
+
+    private func applyZoom(factor: CGFloat, ramp: Bool) {
         guard let deviceInput = session.inputs.first(where: {
             ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true
         }) as? AVCaptureDeviceInput else {
@@ -495,11 +511,16 @@ import UIKit
             do {
                 try device.lockForConfiguration()
                 defer { device.unlockForConfiguration() }
-                // ramp() lets the capture pipeline prepare for the upcoming lens switch,
-                // which eliminates the jump visible in the preview around optical stops like 2×.
-                // A rate of 300×/sec is imperceptible as lag but smooths the hardware transition.
                 device.cancelVideoZoomRamp()
-                device.ramp(toVideoZoomFactor: clamped, withRate: 300)
+                let hardwareClamped = min(max(clamped, device.minAvailableVideoZoomFactor), device.maxAvailableVideoZoomFactor)
+                if ramp {
+                    // ramp() lets the capture pipeline prepare for the upcoming lens switch,
+                    // which eliminates the jump visible in the preview around optical stops like 2×.
+                    // A rate of 300×/sec is imperceptible as lag but smooths the hardware transition.
+                    device.ramp(toVideoZoomFactor: hardwareClamped, withRate: 300)
+                } else {
+                    device.videoZoomFactor = hardwareClamped
+                }
             } catch {
                 MerianLog.hardware.debug("setZoom: lockForConfiguration failed: \(error, privacy: .private)")
             }
@@ -507,7 +528,8 @@ import UIKit
     }
 
     func resetZoom() {
-        setZoom(factor: nativeZoomFactor)
+        shouldResetZoomOnNextSessionStart = true
+        applyZoom(factor: nativeZoomFactor, ramp: false)
     }
 
     func setFocusPoint(_ devicePoint: CGPoint) {

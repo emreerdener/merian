@@ -50,9 +50,12 @@ extension CaptureWorkspaceViewModel {
         }
 
         // 2. Capture the context needed for inference before clearing the staging buffers.
-        let capturedImages          = stagedCapture.images
-        let capturedPreFetchTask    = preFetchTask
-        let targetEradicationRecord = baseRefinementRecord
+        let capturedImages             = stagedCapture.images
+        let capturedPreFetchTask       = preFetchTask
+        let targetEradicationRecord    = baseRefinementRecord
+        let capturedZoomFactor         = diContainer.cameraManager.zoomFactor
+        let defaultZoomFactor          = diContainer.cameraManager.nativeZoomFactor
+        let primaryImageIsGalleryPhoto = capturedImages.first?.original.isFromGallery == true
 
         // 3. Clear the staging buffers immediately so the UI resets behind the overlay.
         stagedCapture.clearAll()
@@ -79,7 +82,9 @@ extension CaptureWorkspaceViewModel {
             weatherTemperatureF: nil,
             timeOfDay: nil,
             timestamp: DateUtilities.iso8601Formatter.string(from: Date()),
-            zoomFactor: nil,
+            zoomFactor: primaryImageIsGalleryPhoto
+                ? nil
+                : CaptureTelemetry.nonDefaultZoomFactor(capturedZoomFactor, defaultZoomFactor: defaultZoomFactor),
             estimatedSizeCm: nil
         )
         diContainer.offlineQueueManager.enqueueCapture(
@@ -106,10 +111,11 @@ extension CaptureWorkspaceViewModel {
             let telemetry = await CaptureTelemetry.resolveForActiveScan(
                 resolvedContext: resolvedContext,
                 historicalContext: capturedImages.first?.original.environmentContext,
-                isGalleryPhoto: capturedImages.first?.original.isFromGallery == true,
+                isGalleryPhoto: primaryImageIsGalleryPhoto,
                 firstImageData: capturedImages.first?.compressedData,
                 distanceMeters: diContainer.cameraManager.subjectDistanceInMeters,
-                zoomFactor: diContainer.cameraManager.zoomFactor
+                zoomFactor: capturedZoomFactor,
+                defaultZoomFactor: defaultZoomFactor
             )
 
             await MainActor.run {
@@ -150,9 +156,10 @@ extension CaptureTelemetry {
         isGalleryPhoto: Bool,
         firstImageData: Data?,
         distanceMeters: Float?,
-        zoomFactor: CGFloat?
+        zoomFactor: CGFloat?,
+        defaultZoomFactor: CGFloat = 1.0
     ) async -> CaptureTelemetry {
-        let zoomToUse: CGFloat? = (zoomFactor ?? 0) > 1.0 ? zoomFactor : nil
+        let zoomToUse = nonDefaultZoomFactor(zoomFactor, defaultZoomFactor: defaultZoomFactor)
 
         if let context = resolvedContext {
             var estimatedSizeCm: Double?
@@ -179,5 +186,10 @@ extension CaptureTelemetry {
                 timestamp: DateUtilities.iso8601Formatter.string(from: Date()), zoomFactor: zoomToUse, estimatedSizeCm: estimatedSizeCm
             )
         }
+    }
+
+    static func nonDefaultZoomFactor(_ zoomFactor: CGFloat?, defaultZoomFactor: CGFloat) -> CGFloat? {
+        guard let zoomFactor else { return nil }
+        return abs(zoomFactor - defaultZoomFactor) > 0.01 ? zoomFactor : nil
     }
 }

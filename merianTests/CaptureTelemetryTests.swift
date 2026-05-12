@@ -99,4 +99,21 @@ final class CaptureTelemetryTests: XCTestCase {
         let expectedDateString = isoFormatter.string(from: historicDate)
         XCTAssertEqual(telemetry.timestamp, expectedDateString, "Timestamp MUST map directly to the historic EXIF capture date, not live time")
     }
+
+    func testNonDefaultZoomFactor_usesNativeCameraDefault() {
+        XCTAssertNil(
+            CaptureTelemetry.nonDefaultZoomFactor(2.0, defaultZoomFactor: 2.0),
+            "Native wide zoom should not be recorded as extra zoom just because it is above 1x."
+        )
+        XCTAssertEqual(
+            CaptureTelemetry.nonDefaultZoomFactor(1.0, defaultZoomFactor: 2.0),
+            1.0,
+            "Ultra-wide zoom below the native default should still be preserved."
+        )
+        XCTAssertEqual(
+            CaptureTelemetry.nonDefaultZoomFactor(3.0, defaultZoomFactor: 2.0),
+            3.0,
+            "Zoom above the native default should still be preserved."
+        )
+    }
 }
