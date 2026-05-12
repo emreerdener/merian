@@ -166,6 +166,10 @@ struct ExploreAuthorProfileSheet: View {
             VStack(spacing: 24) {
                 authorHeader(profile)
 
+                if !isCurrentUserProfile(profile) {
+                    followButton(profile)
+                }
+
                 UserStats(
                     speciesCount: profile.speciesCount,
                     streak: profile.currentStreak
@@ -209,10 +213,6 @@ struct ExploreAuthorProfileSheet: View {
             }
 
             followCountsRow(profile)
-
-            if !isCurrentUserProfile(profile) {
-                followButton(profile)
-            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
@@ -257,7 +257,7 @@ struct ExploreAuthorProfileSheet: View {
                     .font(.headline)
             }
             .foregroundStyle(profile.viewerIsFollowing ? .primary : Color(uiColor: .systemBackground))
-            .frame(minWidth: 132)
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
             .background(
@@ -304,19 +304,14 @@ struct ExploreAuthorProfileSheet: View {
 
             if profile.publishedPostCount > previewLimit {
                 Button(action: showLibrary) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 4) {
                         Text("View more scans")
-                            .font(.headline)
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 12, weight: .bold))
                     }
-                    .foregroundStyle(Color(uiColor: .systemBackground))
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 14)
-                    .background(
-                        Capsule()
-                            .fill(Color.primary)
-                    )
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .padding(.vertical, 12)
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity)
