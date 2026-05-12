@@ -190,7 +190,7 @@ submitNonVisualCapture(
 
 **Files**: `merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`, `OfflineQueueManager+URLSession.swift`
 
-Audio now uses the same canonical queue shape as every other mixed-media submission. The queue record stores a serialized ordered media timeline, and V41 also materializes that timeline into `capturedMediaEntries`.
+Audio now uses the same ordered queue shape as every other mixed-media submission. The queue record stores the serialized media timeline in `capturedMediaJSON`, and V41 also materializes that timeline into the `capturedMediaEntries` relationship mirror.
 
 ```
 move tmp/<uuid>.wav → Documents/<uuid>.wav

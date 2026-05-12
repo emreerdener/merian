@@ -104,7 +104,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 
 **Multi-File Structure**: The engine is split across three files:
 - `InferenceEngine.swift` — the main engine with its public API unchanged.
-- `InferenceProcessingActor.swift` — a dedicated actor for base64 encoding and response parsing/persistence. It receives all data as parameters and has no access to `InferenceEngine`'s private state. It exposes two methods: `encodeBase64(compressedDatas:)` and `parseAndSave(...)`. `parseAndSave` returns a `ParseAndSaveResult` struct with `mappedData: SpeciesData?`, `isNewDiscovery: Bool`, and `savedPaths: [String]`, but the longer-term media source of truth is the ordered timeline persisted into `capturedMediaEntries` and exposed through `CapturedMediaSnapshot`.
+- `InferenceProcessingActor.swift` — a dedicated actor for base64 encoding and response parsing/persistence. It receives all data as parameters and has no access to `InferenceEngine`'s private state. It exposes two methods: `encodeBase64(compressedDatas:)` and `parseAndSave(...)`. `parseAndSave` returns a `ParseAndSaveResult` struct with `mappedData: SpeciesData?`, `isNewDiscovery: Bool`, and `savedPaths: [String]`, but the longer-term media source of truth is the ordered timeline exposed through `CapturedMediaSnapshot`. Persistence writes both the scalar `capturedMediaJSON` and the V41 `capturedMediaEntries` relationship; snapshot reads prefer the JSON mirror first so insight-sheet layout does not fault relationship rows on the main actor.
 - `InferenceEdgeDTOs.swift` — contains `APIError`, `EdgeResponseWrapper`, `EdgeResponse`, and nested types (`Taxonomy`, `Insight`, `Diagnostic`). These were previously nested inside `InferenceEngine`.
 
 ### `OfflineQueueManager`

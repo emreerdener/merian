@@ -5,9 +5,9 @@ Merian's core differentiator is treating off-grid nature encounters as a first-c
 ## How the Queue Works
 
 ### 1. Realtime Inference Mapper (`saveLiveScanRecord`)
-When a user scans a subject with an active network connection, the Gemini response cascades back from the Edge node. To persist this inference against iOS RAM loss, `BackgroundDatabaseActor.saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:)` is invoked on its isolated `@ModelActor` thread. It accepts the current ordered mixed-media timeline plus the image/audio/context arrays derived from that same source, writes both the compatibility `capturedMediaJSON` mirror and the canonical `capturedMediaEntries` relationship, then inserts a `LocalScanRecord` and calls `modelContext.save()`.
+When a user scans a subject with an active network connection, the Gemini response cascades back from the Edge node. To persist this inference against iOS RAM loss, `BackgroundDatabaseActor.saveLiveScanRecord(mappedData:localImagePaths:observationContextsJSON:audioFilePaths:mediaTimeline:)` is invoked on its isolated `@ModelActor` thread. It accepts the current ordered mixed-media timeline plus the image/audio/context arrays derived from that same source, writes both the scalar `capturedMediaJSON` read mirror and the V41 `capturedMediaEntries` relationship mirror, then inserts a `LocalScanRecord` and calls `modelContext.save()`.
 
-The live mapper intentionally uses the actor's replacement helper rather than the offline idempotent-insert helper. If the background queue already inserted a minimal row for the same `scanId`, live persistence captures field notes and the existing species UUID, deletes the collision row inside the actor context, and inserts the richer live record with the current canonical media timeline.
+The live mapper intentionally uses the actor's replacement helper rather than the offline idempotent-insert helper. If the background queue already inserted a minimal row for the same `scanId`, live persistence captures field notes and the existing species UUID, deletes the collision row inside the actor context, and inserts the richer live record with the current ordered media timeline.
 
 ### 2. Scan Submission & Immediate Durability (`submitActiveScan` → `enqueueCapture`)
 

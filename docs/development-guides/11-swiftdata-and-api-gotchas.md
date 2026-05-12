@@ -207,6 +207,40 @@ The shared inference actor (`_inferenceDbActor`) is specifically reserved for st
 
 ---
 
+## 7. Relationship Mirrors Are Not Always Safe Hot Read Paths
+
+SwiftData relationship arrays are faulting boundaries. Even when the relationship is small, a SwiftUI body evaluation can trigger a child fault at a fragile time. On May 12, 2026, TestFlight build 390 crashed in `BiologicalView` while computing `LocalScanRecord.capturedMediaSnapshot`: `capturedMediaEntries` was sorted, `CapturedMediaEntry.serializedItem` read `kindRaw`, and SwiftData trapped in `_InvalidFutureBackingData.getValue`.
+
+### The Vulnerability
+
+The mixed-media model writes two equivalent representations:
+
+```swift
+record.capturedMediaJSON = MediaJSONParser.jsonString(from: items)
+record.capturedMediaEntries = CapturedMediaEntry.makeEntries(from: items)
+```
+
+Treating the relationship as the preferred read source makes every `capturedMediaSnapshot` access fault child rows during layout, export, toolbar, or historical-load work. That turns an otherwise safe scalar read into a SwiftData object-lifecycle dependency.
+
+### ✅ The Pattern: Prefer Scalar Mirrors, Lazily Fault Relationships
+
+`LocalScanRecord.serializedCapturedMediaItems` and `OfflineQueuedScan.serializedCapturedMediaItems` must read `capturedMediaJSON` first and only evaluate `capturedMediaEntries` as a fallback when the JSON is absent or invalid:
+
+```swift
+if let capturedMediaJSON,
+   let jsonItems = MediaJSONParser.serializedItems(jsonString: capturedMediaJSON) {
+    return jsonItems
+}
+
+if let capturedMediaEntries, !capturedMediaEntries.isEmpty {
+    return CapturedMediaEntry.serializedItems(from: capturedMediaEntries)
+}
+```
+
+Keep the relationship mirror populated for migration/debugging/fallback durability, but do not make SwiftUI hot paths depend on it while the scalar timeline is valid. Regression coverage lives in `SerializedMediaItemTests.swift`.
+
+---
+
 ## 8. Offline Queue Durability: Enqueue at Submission, Not at Rescue
 
 The previous architecture attempted to rescue in-flight live inference captures by calling `enqueueCapture()` from background-phase or sheet-dismiss handlers. This pattern is structurally broken for three compounding reasons:
@@ -228,6 +262,7 @@ diContainer.offlineQueueManager.enqueueCapture(
     blurScore: nil,
     scanId: scanId
 )
+```
 
 ## 9. `ScanCollection.scans` Is Not a Free Read Path
 
@@ -263,6 +298,14 @@ Offline queued-only visual and non-visual submissions must not call `InferenceEn
 2. Check `OfflineQueueManager.isOnline`.
 3. If offline, clear `pendingAnalyzeScanId`, show a toast, and return.
 4. If online, call `prepareForNewScan()`, open the insight sheet, and start live inference.
+
+```swift
+// In the Task — fire live inference concurrently:
+await MainActor.run {
+    guard self.diContainer.inferenceEngine.isProcessing else { return }
+    self.diContainer.inferenceEngine.analyze(scanId: scanId, ...)
+}
+```
 
 ## 11. Remote Media Validation Requires Exact Host Checks
 
@@ -301,13 +344,6 @@ Raw `Task.detached` calls scattered through feature code make it hard to audit w
 - If a true detached bridge is still required, route it through `DetachedWork` and keep inputs `Sendable`.
 - Add lint rules around feature-layer files so new raw `Task.detached` call sites do not creep back in unnoticed.
 
-// In the Task — fire live inference concurrently:
-await MainActor.run {
-    guard self.diContainer.inferenceEngine.isProcessing else { return }
-    self.diContainer.inferenceEngine.analyze(scanId: scanId, ...)
-}
-```
-
 **On live inference success**: `analyze()` calls `OfflineQueueManager.shared.deleteQueuedScan(scanId:)`, which cancels any in-flight URLSession tasks and removes the SwiftData record. If the upload already completed and `processUploadCompletion` claimed the scan first, `deleteQueuedScan` is a no-op (record not found). The idempotency guard in `processAndCleanupOfflineScan` prevents a duplicate `LocalScanRecord`.
 
 **On live inference cancellation or network failure**: the background upload path continues uninterrupted and delivers the result via push notification.
@@ -316,7 +352,7 @@ All rescue handlers (`dismissAnalysisToBackground`, `handleBackgroundPhase` infe
 
 ---
 
-## 7. Failed `modelContext.save()` Does NOT Roll Back Pending Changes
+## 14. Failed `modelContext.save()` Does NOT Roll Back Pending Changes
 
 In SwiftData (built on Core Data), a failed `save()` call leaves all pending changes — inserts, deletes, property mutations — **in the context's pending state**. They are not automatically rolled back. Subsequent operations on the same context accumulate on top of the corrupted pending state.
 
@@ -361,7 +397,7 @@ if !alreadyExists {
 
 ---
 
-## 9. Orphaned `.uploading` Scans When `generateUploadURLs` Fails Mid-Session
+## 15. Orphaned `.uploading` Scans When `generateUploadURLs` Fails Mid-Session
 
 `syncPendingScans` calls `markScansAsUploading` to transition selected scans from `.pending` to `.uploading` **before** dispatching the URLSession upload tasks (see §4 — state must be persisted before the task dispatch boundary). This is intentional and correct for the crash-recovery case. However it introduces a trap when the next step fails:
 
@@ -392,7 +428,7 @@ In the `generateUploadURLs` catch block, cross-reference live URLSession tasks a
 
 ---
 
-## 10. Cold-Start Timing Gap: Reconcile Completes After `syncPendingScans` Already Ran
+## 16. Cold-Start Timing Gap: Reconcile Completes After `syncPendingScans` Already Ran
 
 **Scenario**: The app is killed while a scan is in `.uploading` state — e.g. the user launches a scan and exits the app within ~1 second before `generateUploadURLs` returns and URLSession upload tasks are dispatched. On cold-start, the scan is `.uploading` with no active URLSession task.
 
@@ -430,7 +466,7 @@ Guarding on `hadOrphans` is essential. An unconditional `syncPendingScans()` cal
 
 ---
 
-## 16. `activeScanId` Stale Hydration Window
+## 17. `activeScanId` Stale Hydration Window
 
 `InferenceEngine.activeScanId` is set at the start of `analyze()` to the caller's scan ID. The background offline path (`OfflineQueueManager+URLSession`) uses this to detect when a background inference result for the same scan should hydrate the live engine instead of discarding:
 
@@ -458,7 +494,7 @@ For the success path this is a no-op: background correctly skips because `specie
 
 ---
 
-## 17. `@Observable` Struct Properties: Optional-Chain Mutations Do Not Reliably Fire Notifications
+## 18. `@Observable` Struct Properties: Optional-Chain Mutations Do Not Reliably Fire Notifications
 
 `InferenceEngine` holds `var speciesData: SpeciesData?` where `SpeciesData` is a **struct** on an `@Observable` class. SwiftUI's `@Observable` macro synthesizes `get`/`set` accessors (not `_modify`) for stored properties. Because a `_modify` accessor is absent, optional-chain mutations like `self.speciesData?.field = x` go through a copy-on-write cycle at the compiler level rather than through `withMutation(keyPath:)` — and empirically do **not** reliably fire observation notifications to subscribed views.
 
@@ -506,9 +542,9 @@ The insight sheet is open while background hydration tasks (`fetchWikipediaAndHy
 
 ---
 
-## 18. `@Model` Zombie Crash in `LazyVGrid` via Deferred Attribute Fault
+## 19. `@Model` Zombie Crash in `LazyVGrid` via Deferred Attribute Fault
 
-**Symptom**: Fatal error `"This backing data was detached from a context without resolving attribute faults"` on a property like `OfflineQueuedScan.capturedMediaEntries`, the compatibility `capturedMediaJSON` mirror, or any lazily faulted media/telemetry attribute, originating inside a `LazyVGrid` `ForEach` body — **after** the object has been deleted from the context.
+**Symptom**: Fatal error `"This backing data was detached from a context without resolving attribute faults"` on a property like `OfflineQueuedScan.capturedMediaEntries`, scalar `capturedMediaJSON`, or any lazily faulted media/telemetry attribute, originating inside a `LazyVGrid` `ForEach` body — **after** the object has been deleted from the context.
 
 **Why it happens**: SwiftUI's `LazyVGrid` evaluates view closures lazily — tile bodies are computed only when the row scrolls into the viewport. If a `@Model` attribute (for example the queued scan's media payload) was never accessed before deletion, it is still in a faulted state (unfulfilled). SwiftUI's `@Observable` machinery also registers observation dependencies on the `@Model` object when the grid first reads it. After `context.delete(scan)` fires, SwiftUI re-evaluates the view (responding to the deletion notification), triggering a fault on the already-deleted object — which crashes immediately.
 
@@ -579,7 +615,7 @@ if let scan = (try? modelContext.fetch(descriptor))?.first {
 
 ---
 
-## 19. Field Notes Need a Single Local/Private Boundary
+## 20. Field Notes Need a Single Local/Private Boundary
 
 Field notes exist in three local stores during migration and offline flows: `LocalScanRecord.fieldNotes`, `OfflineQueuedScan.fieldNotes`, and the legacy `FieldNotesStore` bridge in `UserDefaults`. Explore posts can also expose a public copy through `field_notes`, but that value is not the private source of truth.
 

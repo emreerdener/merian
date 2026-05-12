@@ -87,7 +87,7 @@ When a user stages an `ObservationContext` alongside a camera capture (or a gall
 
 3. **Edge function**: `/identify-multimodal` merges `observation_contexts` into the Gemini context preamble while forwarding the structured value to `insertScan(... user_observation_context: ...)`.
 
-4. **Persistence**: `InferenceProcessingActor.parseAndSave(...)` → `BackgroundDatabaseActor.saveLiveScanRecord(... mediaTimeline: ...)` → `LocalScanRecord.capturedMediaEntries` + compatibility `capturedMediaJSON`. The first structured observation context still persists to `public.scans.user_observation_context` on the cloud side.
+4. **Persistence**: `InferenceProcessingActor.parseAndSave(...)` → `BackgroundDatabaseActor.saveLiveScanRecord(... mediaTimeline: ...)` → scalar `LocalScanRecord.capturedMediaJSON` + V41 `capturedMediaEntries` mirror. The first structured observation context still persists to `public.scans.user_observation_context` on the cloud side.
 
 **Offline resilience**: the queue stores the same ordered media timeline at enqueue time. `buildExtractedScanData` snapshots `capturedMediaItems`, and every downstream derivation — prompt text, `observation_contexts`, local image paths, audio paths, cleanup paths, and result hydration — is rebuilt from that one source.
 
@@ -101,7 +101,7 @@ A text-only identification logs a past observation via `ObservationContext` alon
 
 3. **`ObservationContext.isEmpty` guard**: The iOS client checks `observationContext.isEmpty` before enabling the submit button. An empty context is rejected at the UI layer.
 
-4. **Persistence path**: `InferenceEngine.analyzeNonVisual` forwards the ordered `mediaTimeline`, then `InferenceProcessingActor.parseAndSave(...)` routes through `BackgroundDatabaseActor.saveNonVisualRecord(...)` and persists the same timeline into `LocalScanRecord.capturedMediaEntries` + `capturedMediaJSON`.
+4. **Persistence path**: `InferenceEngine.analyzeNonVisual` forwards the ordered `mediaTimeline`, then `InferenceProcessingActor.parseAndSave(...)` routes through `BackgroundDatabaseActor.saveNonVisualRecord(...)` and persists the same timeline into scalar `LocalScanRecord.capturedMediaJSON` plus the V41 `capturedMediaEntries` mirror.
 
 ---
 

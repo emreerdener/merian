@@ -453,17 +453,34 @@ private func replaceCapturedMediaEntries(
     queuedScan.capturedMediaEntries = newEntries
 }
 
+private func resolvedSerializedMediaItems(
+    capturedMediaJSON: String?,
+    capturedMediaEntries: @autoclosure () -> [CapturedMediaEntry]?
+) -> [SerializedMediaItem] {
+    // Prefer scalar JSON so SwiftUI read paths do not fault relationship rows during layout.
+    if let capturedMediaJSON,
+       let jsonItems = MediaJSONParser.serializedItems(jsonString: capturedMediaJSON) {
+        return jsonItems
+    }
+
+    let capturedMediaEntries = capturedMediaEntries()
+    if let capturedMediaEntries, !capturedMediaEntries.isEmpty {
+        return CapturedMediaEntry.serializedItems(from: capturedMediaEntries)
+    }
+
+    return []
+}
+
 extension LocalScanRecord {
     var capturedMediaSnapshot: CapturedMediaSnapshot {
         CapturedMediaSnapshot(items: serializedCapturedMediaItems)
     }
 
     var serializedCapturedMediaItems: [SerializedMediaItem] {
-        if let capturedMediaEntries, !capturedMediaEntries.isEmpty {
-            return CapturedMediaEntry.serializedItems(from: capturedMediaEntries)
-        }
-        guard let capturedMediaJSON else { return [] }
-        return MediaJSONParser.serializedItems(jsonString: capturedMediaJSON) ?? []
+        resolvedSerializedMediaItems(
+            capturedMediaJSON: capturedMediaJSON,
+            capturedMediaEntries: capturedMediaEntries
+        )
     }
 
     func replaceCapturedMedia(with items: [SerializedMediaItem]) {
@@ -479,11 +496,10 @@ extension OfflineQueuedScan {
     }
 
     var serializedCapturedMediaItems: [SerializedMediaItem] {
-        if let capturedMediaEntries, !capturedMediaEntries.isEmpty {
-            return CapturedMediaEntry.serializedItems(from: capturedMediaEntries)
-        }
-        guard let capturedMediaJSON else { return [] }
-        return MediaJSONParser.serializedItems(jsonString: capturedMediaJSON) ?? []
+        resolvedSerializedMediaItems(
+            capturedMediaJSON: capturedMediaJSON,
+            capturedMediaEntries: capturedMediaEntries
+        )
     }
 
     func replaceCapturedMedia(with items: [SerializedMediaItem]) {
