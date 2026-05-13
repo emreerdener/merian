@@ -113,6 +113,18 @@ enum AppTelemetry {
         send("ExploreNotificationOpenFailed", with: ["type": type])
     }
 
+    // MARK: - Species Dictionary Events
+
+    /// Records a successful species dictionary load without attaching species identity.
+    static func trackSpeciesDictionaryLoaded(contentQuality: String) {
+        send("SpeciesDictionaryLoaded", with: ["contentQuality": contentQuality])
+    }
+
+    /// Records a dictionary lookup that did not resolve to a public species row.
+    static func trackSpeciesDictionaryNotFound() {
+        send("SpeciesDictionaryNotFound")
+    }
+
     // MARK: - Hardware Events
 
     /// Records a thermal throttling event.

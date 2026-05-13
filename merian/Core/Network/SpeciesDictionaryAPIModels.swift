@@ -11,6 +11,7 @@ struct SpeciesDictionaryEntry: Decodable, Equatable, Identifiable {
     let id: String
     let scientificName: String
     let commonName: String
+    let contentQuality: SpeciesDictionaryContentQuality?
     let alternativeCommonNames: [String]
     let taxonomy: SpeciesDictionaryTaxonomy?
     let hazardType: String?
@@ -22,6 +23,21 @@ struct SpeciesDictionaryEntry: Decodable, Equatable, Identifiable {
     let groupTags: [String]
     let referenceImages: [SpeciesDictionaryReferenceImage]
     let similarSpecies: [SpeciesDictionarySimilarSpecies]
+
+    var effectiveContentQuality: SpeciesDictionaryContentQuality {
+        if let contentQuality { return contentQuality }
+
+        let signalCount = [
+            !referenceImages.isEmpty,
+            (wikipediaOverview?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) >= 60,
+            habitatDescription?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty != nil || gbifTaxonKey != nil,
+            taxonomy?.hasMeaningfulContent == true
+        ].filter { $0 }.count
+
+        if signalCount == 4 { return .complete }
+        if signalCount >= 2 { return .sparse }
+        return .needsEnrichment
+    }
 
     var taxonomyData: TaxonomyData? {
         guard let taxonomy else { return nil }
@@ -73,6 +89,14 @@ struct SpeciesDictionaryEntry: Decodable, Equatable, Identifiable {
     }
 }
 
+enum SpeciesDictionaryContentQuality: String, Decodable, Equatable {
+    case complete
+    case sparse
+    case needsEnrichment = "needs_enrichment"
+
+    var telemetryValue: String { rawValue }
+}
+
 struct SpeciesDictionaryTaxonomy: Decodable, Equatable {
     let kingdom: String?
     let phylum: String?
@@ -88,6 +112,19 @@ struct SpeciesDictionaryTaxonomy: Decodable, Equatable {
         case order
         case family
         case genus
+    }
+
+    var hasMeaningfulContent: Bool {
+        [
+            kingdom,
+            phylum,
+            className,
+            order,
+            family,
+            genus
+        ].compactMap { value in
+            value?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        }.count >= 2
     }
 }
 

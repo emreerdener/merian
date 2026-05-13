@@ -21,6 +21,7 @@ struct SpeciesDictionaryTests {
                 "id": "species-123",
                 "scientific_name": "Testus floridus",
                 "common_name": "Field Test",
+                "content_quality": "complete",
                 "alternative_common_names": ["Meadow Test"],
                 "taxonomy": {
                     "kingdom": "Plantae",
@@ -74,6 +75,8 @@ struct SpeciesDictionaryTests {
 
         #expect(response.effectiveSchemaVersion == 1)
         #expect(response.data.scientificName == "Testus floridus")
+        #expect(response.data.contentQuality == .complete)
+        #expect(response.data.effectiveContentQuality == .complete)
         #expect(response.data.referenceImages.map(\.source) == [.wikipedia, .gbif])
         #expect(response.data.referenceImages.first?.license == "CC BY-SA 4.0")
         #expect(response.data.referenceImages.first?.attribution == "Example Photographer")
@@ -116,6 +119,8 @@ struct SpeciesDictionaryTests {
         #expect(response.schemaVersion == nil)
         #expect(response.effectiveSchemaVersion == 0)
         #expect(response.data.scientificName == "Legacy testus")
+        #expect(response.data.contentQuality == nil)
+        #expect(response.data.effectiveContentQuality == .needsEnrichment)
     }
 
     @Test func testGetSpeciesDictionaryConstructsPayloadAndParsesResponse() async throws {

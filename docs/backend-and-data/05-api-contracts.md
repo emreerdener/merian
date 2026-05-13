@@ -282,6 +282,7 @@ Current response shape:
     "id": "uuid",
     "scientific_name": "Danaus plexippus",
     "common_name": "Monarch Butterfly",
+    "content_quality": "complete",
     "alternative_common_names": [],
     "taxonomy": {
       "kingdom": "Animalia",
@@ -337,6 +338,14 @@ Caching:
 - `400`, `404`, and `500` responses do not include public cache headers.
 - iOS adds a 10-minute, 64-key in-memory memo cache in `MerianNetworkClient`, keyed by normalized `species_id` and scientific name. The cache is route-local only and never persists species pages to disk.
 - Refreshed dictionary rows become visible after the iOS memo TTL and public HTTP freshness window expire. Future public web curation flows that require immediate visibility should add CDN/cache purge tooling to the write path.
+
+Content quality:
+
+- `content_quality` is additive and may be `complete`, `sparse`, or `needs_enrichment`.
+- The Edge projection classifies quality from four public content signals: at least one reference image, a usable Wikipedia overview, habitat/distribution data, and meaningful taxonomy.
+- `complete` means all four signals are present. `sparse` means two or three signals are present. `needs_enrichment` means fewer than two signals are available.
+- iOS treats the field as optional and estimates the same state for older payloads. Sparse and needs-enrichment pages render an intentional status card rather than leaving the missing sections unexplained.
+- iOS sends `SpeciesDictionaryLoaded` with `contentQuality` and `SpeciesDictionaryNotFound` through TelemetryDeck only; species names and IDs are not attached.
 
 Name and imagery mapping:
 

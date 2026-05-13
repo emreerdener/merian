@@ -1,5 +1,57 @@
 import SwiftUI
 
+struct SpeciesDictionaryContentQualityCard: View {
+    let quality: SpeciesDictionaryContentQuality
+
+    var body: some View {
+        if quality != .complete {
+            VStack(alignment: .leading, spacing: 12) {
+                InsightCardHeader(systemImage: iconName, title: title)
+
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .card()
+        }
+    }
+
+    private var iconName: String {
+        switch quality {
+        case .complete:
+            return "checkmark.circle"
+        case .sparse:
+            return "info.circle"
+        case .needsEnrichment:
+            return "hourglass"
+        }
+    }
+
+    private var title: String {
+        switch quality {
+        case .complete:
+            return "Complete entry"
+        case .sparse:
+            return "Limited details"
+        case .needsEnrichment:
+            return "Early dictionary entry"
+        }
+    }
+
+    private var message: String {
+        switch quality {
+        case .complete:
+            return ""
+        case .sparse:
+            return "Some public reference details are still limited for this species."
+        case .needsEnrichment:
+            return "Only basic identity is available right now."
+        }
+    }
+}
+
 struct SpeciesDictionaryStatusCard: View {
     let hazardType: String?
 

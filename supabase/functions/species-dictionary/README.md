@@ -32,6 +32,7 @@ Invalid bodies return `400`.
     "id": "uuid",
     "scientific_name": "Danaus plexippus",
     "common_name": "Monarch Butterfly",
+    "content_quality": "complete",
     "alternative_common_names": [],
     "taxonomy": {
       "kingdom": "Animalia",
@@ -94,6 +95,12 @@ Vary: Accept-Encoding
 `400`, `404`, and `500` responses do not include those cache headers. Missing
 rows and transient failures must be able to recover as soon as the backing
 dictionary data is created or repaired.
+
+`content_quality` is additive and can be `complete`, `sparse`, or
+`needs_enrichment`. It is derived from four public content signals: reference
+imagery, a usable Wikipedia overview, habitat/distribution data, and meaningful
+taxonomy. `complete` means all four are present, `sparse` means two or three are
+present, and `needs_enrichment` means fewer than two are present.
 
 If no `species_dictionary` row exists for the scientific name, the function
 returns:

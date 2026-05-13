@@ -89,11 +89,19 @@ Why it matters: species dictionary data is public and slow-changing, so it shoul
 
 ## Scope 8 — Content Quality States
 
-Status: planned.
+Status: implemented for the species dictionary API and iOS page.
 
-- [ ] Classify species rows as `complete`, `sparse`, or `needs_enrichment`.
-- [ ] Render sparse pages intentionally instead of making missing sections feel broken.
-- [ ] Track not-found and sparse-load rates.
+- [x] Classify species rows as `complete`, `sparse`, or `needs_enrichment`.
+- [x] Render sparse pages intentionally instead of making missing sections feel broken.
+- [x] Track not-found and sparse-load rates.
+
+Current rules:
+
+- `/species-dictionary` returns additive `content_quality`, derived from public reference images, a usable Wikipedia overview, habitat/distribution data, and meaningful taxonomy.
+- `complete` means all four public content signals are present; `sparse` means at least two are present; `needs_enrichment` means the row has fewer than two usable public content signals.
+- iOS treats `content_quality` as optional and estimates the same state for older payloads that do not include the field.
+- Sparse and needs-enrichment pages render a small status card instead of silently omitting most sections.
+- TelemetryDeck events `SpeciesDictionaryLoaded(contentQuality)` and `SpeciesDictionaryNotFound` track sparse-load and not-found rates without sending species identity.
 
 Why it matters: users will tap into incomplete species rows, especially early in the dictionary rollout.
 

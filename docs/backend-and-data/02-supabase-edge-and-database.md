@@ -62,6 +62,7 @@ Key rules:
 - The response includes canonical names, taxonomy, hazard/conservation fields, Wikipedia/habitat/GBIF fields, group tags, reference images, and read-only lookalikes.
 - The response wrapper includes `schema_version: 1`; new clients should use it as the public species contract marker, while older clients can keep decoding `data` only.
 - Successful `200 OK` responses send public cache headers (`Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800` and `Vary: Accept-Encoding`). Error responses intentionally do not opt into public caching.
+- The additive `content_quality` field classifies each row as `complete`, `sparse`, or `needs_enrichment` from public imagery, overview, habitat/distribution, and taxonomy signals.
 - The response must not include scan IDs, user IDs, Explore post IDs, field notes, comments, locations, local user media, per-scan AI reasoning, or preferred-name overrides.
 - Lookalikes are hydrated with the explicit `species_dictionary!lookalike_id` FK hint because `species_lookalikes` has two foreign keys to `species_dictionary`.
 - V1 does not expose provenance in the API response. Freshness/source data is stored separately in `species_content_provenance` for internal refresh workflows and future curation surfaces.

@@ -24,6 +24,8 @@ final class AppTelemetryTests: XCTestCase {
         AppTelemetry.trackAchievementDetailOpened(type: "fungi", state: "in_progress")
         AppTelemetry.trackAchievementContributionOpened(type: "fungi")
         AppTelemetry.trackExploreNotificationOpenFailed(type: "comment")
+        AppTelemetry.trackSpeciesDictionaryLoaded(contentQuality: "sparse")
+        AppTelemetry.trackSpeciesDictionaryNotFound()
     }
 
     func testIsInitializedAfterSetUp() {

@@ -113,6 +113,7 @@ Successful responses are wrapped in a `data` envelope:
     "id": "uuid",
     "scientific_name": "Danaus plexippus",
     "common_name": "Monarch Butterfly",
+    "content_quality": "complete",
     "alternative_common_names": [],
     "taxonomy": {
       "kingdom": "Animalia",
@@ -171,6 +172,18 @@ Only `200 OK` dictionary responses are cacheable. `400`, `404`, and `500` respon
 The iOS client also memoizes recently opened dictionary pages inside `MerianNetworkClient`. The cache is in memory only, capped at 64 keys, and expires entries after 10 minutes. Entries are stored under both canonical `species_id` keys and normalized scientific-name keys when available, so an Insight or Explore tap that carries a dictionary ID can warm a later scientific-name route for the same species. The cache is cleared in DEBUG whenever tests swap the injected `URLSession`.
 
 Invalidation is currently TTL-based: refreshed species rows become visible after the iOS memo TTL and the HTTP freshness window expire. Future scheduled refresh or curation tooling that needs immediate public web visibility should add a CDN/cache purge step alongside the dictionary write.
+
+## Content Quality States
+
+Every current `/species-dictionary` response includes additive `content_quality`:
+
+- `complete`: reference imagery, overview, habitat/distribution, and meaningful taxonomy are present.
+- `sparse`: at least two of those public content sections are present.
+- `needs_enrichment`: fewer than two public content sections are present.
+
+iOS treats the field as optional for backward compatibility and estimates the same state when older payloads omit it. `complete` pages render normally. `sparse` and `needs_enrichment` pages show a compact status card below the species header so missing sections read as limited dictionary coverage, not broken layout. The page still renders every available section and continues to fall back gracefully when images or text are missing.
+
+TelemetryDeck tracks `SpeciesDictionaryLoaded` with `contentQuality` and `SpeciesDictionaryNotFound` without attaching species names, IDs, user locations, scans, or Explore post identifiers.
 
 ## Data Mapping Rules
 

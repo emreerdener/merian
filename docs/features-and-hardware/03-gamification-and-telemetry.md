@@ -70,6 +70,8 @@ Thin enum wrapper around `TelemetryDeck`. All sends go through a private `send(_
 | `ThermalThrottled` | `trackThermalThrottling(fpsLimit:)` | `targetFPS: "15"` | Device thermal state reaches critical |
 | `OfflineQueuedScan` | `trackOfflineQueued()` | — | Scan successfully written to offline queue after `context.save()` |
 | `OnboardingCompleted` | `trackOnboardingCompleted()` | — | User taps Continue on the `.ready` onboarding step |
+| `SpeciesDictionaryLoaded` | `trackSpeciesDictionaryLoaded(contentQuality:)` | `contentQuality: "complete"/"sparse"/"needs_enrichment"` | Species dictionary page loads a public dictionary row |
+| `SpeciesDictionaryNotFound` | `trackSpeciesDictionaryNotFound()` | — | Species dictionary lookup returns no public row |
 | `APIDecodingFailure` | `trackError("APIDecodingFailure")` | `domain: "APIDecodingFailure"` | Gemini response fails schema decoding |
 | `InferenceNetworkFailure` | `trackError("InferenceNetworkFailure")` | `domain: "InferenceNetworkFailure"` | Network error on live inference (non-cancellation path) |
 | `SystemError` | `trackError(_:)` | `domain: <errorDomain>` | Available for future error domains |

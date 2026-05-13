@@ -1,4 +1,8 @@
 export type PublicReferenceImageSource = "wikipedia" | "gbif";
+export type PublicSpeciesContentQuality =
+  | "complete"
+  | "sparse"
+  | "needs_enrichment";
 
 export const PUBLIC_SPECIES_SCHEMA_VERSION = 1;
 
@@ -73,6 +77,7 @@ export interface PublicSpeciesDictionaryPayload {
   id: string;
   scientific_name: string;
   common_name: string;
+  content_quality: PublicSpeciesContentQuality;
   alternative_common_names: string[];
   taxonomy: PublicSpeciesTaxonomy;
   hazard_type: string | null;
@@ -362,6 +367,10 @@ export function buildPublicSpeciesDictionaryPayload(
     id: row.id,
     scientific_name: row.scientific_name,
     common_name: commonName,
+    content_quality: classifyPublicSpeciesContentQuality(
+      row,
+      referenceImages,
+    ),
     alternative_common_names: sanitizeAlternativeCommonNames(
       row.alternative_common_names,
       commonName,
@@ -388,6 +397,25 @@ export function buildPublicSpeciesDictionaryPayload(
       ),
     similar_species: similarSpecies,
   };
+}
+
+export function classifyPublicSpeciesContentQuality(
+  row: PublicSpeciesDictionaryRow,
+  referenceImages?: PublicSpeciesReferenceImage[],
+): PublicSpeciesContentQuality {
+  const images = referenceImages ??
+    referenceImagesFromLegacyCache(row.reference_image_url, row.wikipedia_url);
+  const contentSignals = [
+    images.length > 0,
+    hasPublicOverview(row),
+    hasPublicHabitatOrDistribution(row),
+    hasMeaningfulTaxonomy(row),
+  ];
+  const signalCount = contentSignals.filter(Boolean).length;
+
+  if (signalCount === contentSignals.length) return "complete";
+  if (signalCount >= 2) return "sparse";
+  return "needs_enrichment";
 }
 
 export function publicSpeciesProjectionForbiddenKeys(
@@ -439,6 +467,29 @@ function positiveInteger(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value > 0
     ? value
     : null;
+}
+
+function hasPublicOverview(row: PublicSpeciesDictionaryRow): boolean {
+  return (stringValue(row.wikipedia_overview)?.length ?? 0) >= 60;
+}
+
+function hasPublicHabitatOrDistribution(
+  row: PublicSpeciesDictionaryRow,
+): boolean {
+  return stringValue(row.habitat_description) !== null ||
+    positiveInteger(row.gbif_taxon_key) !== null;
+}
+
+function hasMeaningfulTaxonomy(row: PublicSpeciesDictionaryRow): boolean {
+  const values = [
+    row.kingdom,
+    row.phylum,
+    row.class,
+    row.order,
+    row.family,
+    row.genus,
+  ].filter((value) => stringValue(value) !== null);
+  return values.length >= 2;
 }
 
 function collectForbiddenKeys(

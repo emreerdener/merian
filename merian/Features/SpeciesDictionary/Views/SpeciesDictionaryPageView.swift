@@ -88,6 +88,8 @@ struct SpeciesDictionaryPageView: View {
                 header(for: species)
 
                 VStack(alignment: .leading, spacing: 24) {
+                    SpeciesDictionaryContentQualityCard(quality: species.effectiveContentQuality)
+
                     SpeciesDictionaryStatusCard(hazardType: species.hazardType)
 
                     ExploreOverviewCard(

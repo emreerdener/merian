@@ -4,6 +4,7 @@ import {
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import {
   buildPublicSpeciesDictionaryPayload,
+  classifyPublicSpeciesContentQuality,
   PUBLIC_SPECIES_SCHEMA_VERSION,
   publicSimilarSpeciesMetadata,
   publicSpeciesProjectionForbiddenKeys,
@@ -117,11 +118,61 @@ Deno.test("public species projection - dictionary payload is a whitelist and has
   );
 
   assertEquals(publicSpeciesProjectionForbiddenKeys(payload), []);
+  assertEquals(payload.content_quality, "sparse");
   assert(!("scan_id" in payload));
   assert(!("user_id" in payload));
   assert(!("field_notes" in payload));
   assert(!("ai_reasoning" in payload));
   assert(!("gps_lat_exact" in payload));
+});
+
+Deno.test("public species projection - content quality is classified from core public sections", () => {
+  const baseRow = {
+    id: "species-id",
+    scientific_name: "Danaus plexippus",
+    common_names: { en: "Monarch Butterfly" },
+    alternative_common_names: [],
+    kingdom: null,
+    phylum: null,
+    class: null,
+    order: null,
+    family: null,
+    genus: null,
+    wikipedia_url: null,
+    reference_image_url: null,
+    wikipedia_overview: null,
+    hazard_type: null,
+    iucn_red_list_status: null,
+    habitat_description: null,
+    gbif_taxon_key: null,
+    group_tags: [],
+  };
+
+  assertEquals(
+    classifyPublicSpeciesContentQuality(baseRow),
+    "needs_enrichment",
+  );
+  assertEquals(
+    classifyPublicSpeciesContentQuality({
+      ...baseRow,
+      kingdom: "Animalia",
+      order: "Lepidoptera",
+      reference_image_url: "https://upload.wikimedia.org/monarch.jpg",
+    }),
+    "sparse",
+  );
+  assertEquals(
+    classifyPublicSpeciesContentQuality({
+      ...baseRow,
+      kingdom: "Animalia",
+      order: "Lepidoptera",
+      reference_image_url: "https://upload.wikimedia.org/monarch.jpg",
+      wikipedia_overview:
+        "The monarch butterfly is a milkweed butterfly in the family Nymphalidae and a familiar migratory species.",
+      habitat_description: "Open fields, meadows, and roadsides.",
+    }),
+    "complete",
+  );
 });
 
 Deno.test("public species projection - similar species metadata is sanitized", () => {

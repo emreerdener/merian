@@ -157,6 +157,7 @@ Deno.test("species-dictionary helpers - build sparse payload with lookalikes", (
   );
 
   assertEquals(payload.common_name, "Monarch Butterfly");
+  assertEquals(payload.content_quality, "sparse");
   assertEquals(payload.alternative_common_names, ["Milkweed Butterfly"]);
   assertEquals(payload.taxonomy.order, "Lepidoptera");
   assertEquals(payload.group_tags, ["animal", "insect"]);

@@ -32,6 +32,7 @@ final class SpeciesDictionaryPageViewModel {
         let trimmedName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard speciesId != nil || !trimmedName.isEmpty else {
             state = .notFound
+            AppTelemetry.trackSpeciesDictionaryNotFound()
             return
         }
 
@@ -48,9 +49,11 @@ final class SpeciesDictionaryPageViewModel {
                 species = try await MerianNetworkClient.shared.getSpeciesDictionary(scientificName: trimmedName)
             }
             state = .loaded(species)
+            AppTelemetry.trackSpeciesDictionaryLoaded(contentQuality: species.effectiveContentQuality.telemetryValue)
         } catch let error as MerianError {
             if case .httpError(let statusCode, _) = error, statusCode == 404 {
                 state = .notFound
+                AppTelemetry.trackSpeciesDictionaryNotFound()
             } else {
                 state = .error(Self.displayMessage(for: error))
             }
