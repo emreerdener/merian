@@ -490,6 +490,9 @@ verify_jwt = false
 [functions.species-dictionary]
 verify_jwt = false
 
+[functions.refresh-species-content]
+verify_jwt = false
+
 [functions.get-explore-author-profile]
 verify_jwt = false
 

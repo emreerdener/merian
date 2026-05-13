@@ -171,9 +171,11 @@ ignore it. Public readers omit rows whose `review_status` is `rejected`.
 
 Provenance and refresh metadata are stored separately in
 `public.species_content_provenance`. The public response does not include those
-fields in V1; refresh workers should consume
-`public.get_species_content_refresh_queue(...)` when they need stale or
-low-confidence content.
+fields in V1. The scheduled `refresh-species-content` worker consumes
+`public.get_species_content_refresh_queue(...)` hourly and refreshes only
+GBIF/Wikipedia-backed fields in V1: alternate common names, taxonomy, Wikipedia
+URL/overview, GBIF taxon key, and reference images. Model-heavy or review-heavy
+keys remain skipped until curation/model refresh tooling exists.
 
 ## Privacy Contract
 

@@ -6,7 +6,9 @@
 function normalizeVernacularName(name: string): string {
   return name
     .split(" ")
-    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .map((word: string) =>
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    )
     .join(" ");
 }
 
@@ -14,7 +16,9 @@ function collectEnglishVernacularNames(results: unknown): string[] {
   const seen = new Set<string>();
   const names: string[] = [];
 
-  for (const entry of (results as Array<Record<string, unknown>> | undefined) ?? []) {
+  for (
+    const entry of (results as Array<Record<string, unknown>> | undefined) ?? []
+  ) {
     const language = entry.language;
     if (language !== "eng" && language !== "en") continue;
 
@@ -34,7 +38,28 @@ function collectEnglishVernacularNames(results: unknown): string[] {
   return names;
 }
 
-export async function fetchGBIFVernacularNames(gbifKey: number): Promise<string[]> {
+export interface ExternalEnrichmentTaxonomy {
+  kingdom?: string | null;
+  phylum?: string | null;
+  class?: string | null;
+  order?: string | null;
+  family?: string | null;
+  genus?: string | null;
+}
+
+export interface ExternalEnrichmentData {
+  wikipediaUrl: string | null;
+  wikiExtract: string | null;
+  gbifKey: number | null;
+  referenceImageUrl: string | null;
+  alternativeCommonNames: string[];
+  wikiTitle: string | null;
+  gbifTaxonomy: ExternalEnrichmentTaxonomy | null;
+}
+
+export async function fetchGBIFVernacularNames(
+  gbifKey: number,
+): Promise<string[]> {
   try {
     const res = await fetch(
       `https://api.gbif.org/v1/species/${gbifKey}/vernacularNames?limit=30`,
@@ -48,13 +73,16 @@ export async function fetchGBIFVernacularNames(gbifKey: number): Promise<string[
   }
 }
 
-export async function fetchExternalEnrichment(scientificName: string) {
+export async function fetchExternalEnrichment(
+  scientificName: string,
+): Promise<ExternalEnrichmentData> {
   let wikiUrl: string | null = null;
   let wikiExtract: string | null = null;
   let gbifKey: number | null = null;
   let combinedImageUrls: string | null = null;
   let wikiTitle: string | null = null;
   let alternativeCommonNames: string[] = [];
+  let gbifTaxonomy: ExternalEnrichmentTaxonomy | null = null;
 
   try {
     const fetchedUrls: string[] = [];
@@ -66,12 +94,15 @@ export async function fetchExternalEnrichment(scientificName: string) {
         let vernacularNames: string[] = [];
 
         const gbifRes = await fetch(
-          `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(scientificName)}`,
+          `https://api.gbif.org/v1/species/match?name=${
+            encodeURIComponent(scientificName)
+          }`,
           { signal: AbortSignal.timeout(2500) },
         );
         if (!gbifRes.ok) throw new Error("GBIF match lookup failed");
         const gbifJson = await gbifRes.json();
         key = gbifJson.usageKey || null;
+        const taxonomy = gbifTaxonomyFromMatch(gbifJson);
 
         if (key) {
           // Fetch occurrence images and vernacular names in parallel — both depend on key
@@ -105,25 +136,32 @@ export async function fetchExternalEnrichment(scientificName: string) {
             }
           }
 
-          if (vernacularOutcome.status === "fulfilled" && vernacularOutcome.value.ok) {
+          if (
+            vernacularOutcome.status === "fulfilled" &&
+            vernacularOutcome.value.ok
+          ) {
             const vernacularJson = await vernacularOutcome.value.json();
-            vernacularNames = collectEnglishVernacularNames(vernacularJson.results);
+            vernacularNames = collectEnglishVernacularNames(
+              vernacularJson.results,
+            );
           }
         }
-        return { key, urls, vernacularNames };
+        return { key, urls, vernacularNames, taxonomy };
       })(),
 
       (async () => {
         const wikiRes = await fetch(
-          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(scientificName.replace(/ /g, "_"))}`,
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${
+            encodeURIComponent(scientificName.replace(/ /g, "_"))
+          }`,
           { signal: AbortSignal.timeout(2500) },
         );
         if (!wikiRes.ok) throw new Error("Wikipedia lookup failed");
         const wikiJson = await wikiRes.json();
         const url = wikiJson.content_urls?.desktop?.page || null;
         const extract = wikiJson.extract || null;
-        const img =
-          wikiJson.originalimage?.source || wikiJson.thumbnail?.source || null;
+        const img = wikiJson.originalimage?.source ||
+          wikiJson.thumbnail?.source || null;
         const title = wikiJson.title || null;
         return { url, extract, img, title };
       })(),
@@ -133,6 +171,7 @@ export async function fetchExternalEnrichment(scientificName: string) {
       gbifKey = gbifOutcome.value.key;
       fetchedUrls.push(...gbifOutcome.value.urls);
       alternativeCommonNames = gbifOutcome.value.vernacularNames;
+      gbifTaxonomy = gbifOutcome.value.taxonomy;
     }
     if (wikiOutcome.status === "fulfilled") {
       wikiUrl = wikiOutcome.value.url;
@@ -147,7 +186,10 @@ export async function fetchExternalEnrichment(scientificName: string) {
       combinedImageUrls = Array.from(new Set(fetchedUrls)).join(",");
     }
   } catch (e) {
-    console.error("[external.ts] Unexpected enrichment error:", e instanceof Error ? e.message : String(e));
+    console.error(
+      "[external.ts] Unexpected enrichment error:",
+      e instanceof Error ? e.message : String(e),
+    );
   }
 
   return {
@@ -157,5 +199,29 @@ export async function fetchExternalEnrichment(scientificName: string) {
     referenceImageUrl: combinedImageUrls,
     alternativeCommonNames,
     wikiTitle,
+    gbifTaxonomy,
   };
+}
+
+function gbifTaxonomyFromMatch(
+  value: Record<string, unknown>,
+): ExternalEnrichmentTaxonomy | null {
+  const taxonomy: ExternalEnrichmentTaxonomy = {
+    kingdom: stringValue(value.kingdom),
+    phylum: stringValue(value.phylum),
+    class: stringValue(value.class),
+    order: stringValue(value.order),
+    family: stringValue(value.family),
+    genus: stringValue(value.genus),
+  };
+
+  return Object.values(taxonomy).some((entry) => entry != null)
+    ? taxonomy
+    : null;
+}
+
+function stringValue(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
