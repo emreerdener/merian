@@ -43,8 +43,12 @@ private extension QueuedScanContext {
 
 #Preview("Queued — online") {
     let manager = OfflineQueueManager.shared
+    let queuedContext = QueuedScanContext.preview
     return ScrollView {
-        QueuedContentView(queuedContext: .preview)
+        QueuedContentView(
+            viewModel: InsightSheetViewModel(queuedContext: queuedContext),
+            queuedContext: queuedContext
+        )
             .padding(.horizontal)
     }
     .environment(manager)
@@ -53,8 +57,12 @@ private extension QueuedScanContext {
 #Preview("Queued — offline") {
     let manager = OfflineQueueManager.shared
     manager.isOnline = false
+    let queuedContext = QueuedScanContext.preview
     return ScrollView {
-        QueuedContentView(queuedContext: .preview)
+        QueuedContentView(
+            viewModel: InsightSheetViewModel(queuedContext: queuedContext),
+            queuedContext: queuedContext
+        )
             .padding(.horizontal)
     }
     .environment(manager)
@@ -68,6 +76,7 @@ private extension QueuedScanContext {
 /// distinguishes a scan purposefully waiting in queue from one actively under edge resolution.
 struct QueuedContentView: View {
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
+    @Bindable var viewModel: InsightSheetViewModel
 
     let queuedContext: QueuedScanContext
 
@@ -111,6 +120,22 @@ struct QueuedContentView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 8)
+
+            if viewModel.shouldShowFieldNotesCard {
+                FieldNotesCard(
+                    previewText: viewModel.fieldNotesText,
+                    promptContext: viewModel.fieldNotesPromptContext,
+                    onDismiss: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            viewModel.dismissFieldNotesCard()
+                        }
+                    },
+                    action: {
+                        viewModel.state.isFieldNotesSheetPresented = true
+                    }
+                )
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
 
             // Scan telemetry from the queued context snapshot
             ScanInformationCard(

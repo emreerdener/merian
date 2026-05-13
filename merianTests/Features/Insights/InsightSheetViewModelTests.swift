@@ -279,6 +279,27 @@ struct InsightSheetViewModelTests {
         #expect(FieldNotesStore.fieldNotes(for: scanId) == "Bridge-only note")
     }
 
+    @Test func testQueuedScanFieldNotesPersistToOfflineRecord() async throws {
+        let ctx = try createIsolatedContext()
+        let queuedScan = OfflineQueuedScan(id: "queued_field_notes_scan")
+
+        ctx.insert(queuedScan)
+        try ctx.save()
+        FieldNotesStore.setFieldNotes(nil, for: queuedScan.id)
+        defer { FieldNotesStore.setFieldNotes(nil, for: queuedScan.id) }
+
+        let viewModel = InsightSheetViewModel(queuedContext: QueuedScanContext(from: queuedScan))
+        viewModel.syncFieldNotesFromCurrentScan(modelContext: ctx)
+        #expect(viewModel.currentFieldNotesScanId == queuedScan.id)
+        #expect(viewModel.shouldShowFieldNotesCard == true)
+
+        viewModel.updateFieldNotes("Queued field note", modelContext: ctx)
+
+        #expect(viewModel.fieldNotesText == "Queued field note")
+        #expect(queuedScan.fieldNotes == "Queued field note")
+        #expect(FieldNotesStore.fieldNotes(for: queuedScan.id) == "Queued field note")
+    }
+
     @Test func testTotalImagesWithReferenceImageLoading() async throws {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()

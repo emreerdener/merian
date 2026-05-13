@@ -16,7 +16,7 @@ struct InsightContentRouterView: View {
                     // sets `viewModel.queuedContext`. Show QueuedContentView immediately instead
                     // of the transient analyzing skeleton.
                     if let ctx = queuedScan {
-                        QueuedContentView(queuedContext: ctx)
+                        QueuedContentView(viewModel: viewModel, queuedContext: ctx)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             .background(Color(uiColor: .systemBackground))
                             .transition(.opacity)
@@ -28,7 +28,7 @@ struct InsightContentRouterView: View {
                     }
                 case .queued:
                     if let ctx = viewModel.queuedContext ?? queuedScan {
-                        QueuedContentView(queuedContext: ctx)
+                        QueuedContentView(viewModel: viewModel, queuedContext: ctx)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             .background(Color(uiColor: .systemBackground))
                             .transition(.opacity)
