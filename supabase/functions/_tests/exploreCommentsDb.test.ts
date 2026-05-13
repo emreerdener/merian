@@ -12,6 +12,7 @@ type ExploreCommentRow = {
   comment_id: string;
   created_at: string;
   author_user_id: string;
+  author_avatar_url?: string | null;
 };
 
 Deno.test("Explore comments DB - cursor pagination preserves stable ordering across created_at ties", async () => {
@@ -93,6 +94,58 @@ Deno.test("Explore comments DB - cursor pagination preserves stable ordering acr
   });
 });
 
+Deno.test("Explore comments DB - returns public author avatar projection", async () => {
+  await withExploreDbTest("exploreCommentsDb.test", async (client: Client) => {
+    const viewerId = crypto.randomUUID();
+    const ownerId = crypto.randomUUID();
+    const commenterId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    const scanId = crypto.randomUUID();
+    const postId = crypto.randomUUID();
+    const commentId = crypto.randomUUID();
+    const avatarUrl = "https://example.com/commenter-avatar.jpg";
+
+    await insertUser(client, viewerId, "Avatar Viewer");
+    await insertUser(client, ownerId, "Avatar Owner");
+    await insertUser(client, commenterId, "Avatar Commenter", avatarUrl);
+    await insertSpecies(client, speciesId, "Rosa avataria");
+
+    await insertScan(client, {
+      id: scanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "open",
+    });
+    await insertExplorePost(client, {
+      id: postId,
+      userId: ownerId,
+      scanId,
+    });
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, user_id, body, created_at)
+        VALUES ($1, $2, $3, 'Avatar should render', '2026-05-12T10:00:00Z')
+      `,
+      [commentId, postId, commenterId],
+    );
+
+    const rows = await client.queryObject<ExploreCommentRow>(
+      `
+        SELECT comment_id, created_at::text AS created_at, author_user_id, author_avatar_url
+        FROM public.get_explore_comments($1, $2, 50, NULL, NULL)
+      `,
+      [viewerId, postId],
+    );
+
+    assertEquals(rows.rows.length, 1);
+    assertEquals(rows.rows[0].comment_id, commentId);
+    assertEquals(rows.rows[0].author_avatar_url, avatarUrl);
+  });
+});
+
 Deno.test("Explore comments DB - blocked authors are filtered and hidden posts stop returning comments", async () => {
   await withExploreDbTest("exploreCommentsDb.test", async (client: Client) => {
     const viewerId = crypto.randomUUID();
@@ -130,7 +183,7 @@ Deno.test("Explore comments DB - blocked authors are filtered and hidden posts s
           ($1, $2, $3, 'Visible comment', '2026-04-28T11:00:00Z'),
           ($4, $2, $5, 'Blocked comment', '2026-04-28T11:05:00Z')
       `,
-      [crypto.randomUUID(), postId, visibleAuthorId, crypto.randomUUID(), postId, blockedAuthorId],
+      [crypto.randomUUID(), postId, visibleAuthorId, crypto.randomUUID(), blockedAuthorId],
     );
 
     await client.queryArray(

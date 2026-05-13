@@ -317,13 +317,15 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ### `AppEventPublisher`
 - Lives at `Core/Utilities/AppEventPublisher.swift`. `@MainActor final class` with a `PassthroughSubject<AppEvent, Never>` publisher and a `static let shared` singleton.
 - Replaces `NotificationCenter` broadcasts with strongly-typed `AppEvent` cases:
-  - `.triggerPaywall` — dispatched when the scan quota is exhausted; `CaptureWorkspaceView` listens and presents `PaywallView`.
+  - `.triggerPaywall` — dispatched when the scan quota is exhausted; `CaptureWorkspaceViewModel` listens and sets `activeSheet = .paywall`, which `CameraSheetRouter` presents as `PaywallView`.
   - `.appDidEnterActivePhaseWithScan(scanId:)` — dispatched from a push notification tap to deep-link to a specific scan's insight sheet.
-  - `.appDidEnterBackgroundPhase` — dispatched when the app enters the background phase; insight sheet dismissal and inference teardown listen here. Fires on background (not inactive) so system overlays (e.g. the photo library access prompt) do not inadvertently close the sheet.
+  - `.appDidEnterActivePhaseWithExplorePost(postId:)` — dispatched from Explore push taps and widget URLs to open `ExploreView` and route to a post detail.
+  - `.appDidResumeAfterTimeout` — dispatched when `AppLifecycleManager.handleActivePhase()` detects that the app was backgrounded for more than 5 minutes; `CaptureWorkspaceViewModel` clears stale modal state unless a fresh external route has just been opened.
   - `.requestIdentifyNatureIntent` — dispatched by Siri/OS App Intents to jump to the camera viewfinder.
   - `.requestRecallLastFindIntent` — dispatched by Siri/OS App Intents to open the last scan's insight sheet.
-  - `.triggerRefinement(record:)` — dispatched from `BiologicalView` when the user requests re-inference on an existing scan with supplementary images; `CaptureWorkspaceView` listens via `AppEventPublisher.shared.publisher.sink`.
-- Registered in `AppDIContainer` as `var appEventPublisher = AppEventPublisher()`. **Not environment-injected** — call sites access it via `AppDIContainer.shared.appEventPublisher` or `AppEventPublisher.shared` directly.
+  - `.triggerRefinement(record:)` — dispatched from insight views when the user requests re-inference on an existing scan with supplementary images; `CaptureWorkspaceViewModel` listens via `AppEventPublisher.shared.publisher.sink`.
+  - `.explorePostNeedsRefresh(postId:)` and `.exploreShareStateChanged(scanId:postId:)` — dispatched after local scan review or Explore publication state changes so Explore surfaces can refresh without global notification names.
+- Registered in `AppDIContainer` as `var appEventPublisher = AppEventPublisher.shared`. **Not environment-injected** — call sites access it via `AppDIContainer.shared.appEventPublisher` or `AppEventPublisher.shared` directly.
 
 ### `CircuitBreakerManager`
 - Lives at `Core/Security/CircuitBreakerManager.swift`. `@MainActor @Observable final class` with a `static let shared` singleton registered in `AppDIContainer`.

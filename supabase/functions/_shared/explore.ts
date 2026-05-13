@@ -116,6 +116,26 @@ export async function fetchPublicAuthorName(
   return data.public_author_name as string;
 }
 
+export async function fetchPublicAuthorIdentity(
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<{ authorName: string; authorAvatarUrl: string | null }> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("public_author_name,public_avatar_url")
+    .eq("id", userId)
+    .single();
+
+  if (error || !data?.public_author_name) {
+    throw new Error(`Failed to fetch public author identity: ${error?.message ?? "No identity found"}`);
+  }
+
+  return {
+    authorName: data.public_author_name as string,
+    authorAvatarUrl: (data.public_avatar_url as string | null | undefined) ?? null,
+  };
+}
+
 export async function hasMutualBlock(
   userId: string,
   otherUserId: string,

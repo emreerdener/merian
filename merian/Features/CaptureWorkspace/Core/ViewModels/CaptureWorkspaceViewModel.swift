@@ -95,6 +95,7 @@ final class CaptureWorkspaceViewModel {
     @ObservationIgnored let diContainer: AppDIContainer
     @ObservationIgnored private let preparedImageLoader: PreparedStagedImageLoader
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var externalRouteSessionResetSuppressionDeadline: Date?
     
     // MARK: - UI & Navigation State
     var activeSheet: ActiveSheet?
@@ -191,7 +192,7 @@ final class CaptureWorkspaceViewModel {
                     var transaction = Transaction()
                     transaction.disablesAnimations = true
                     withTransaction(transaction) {
-                        self?.resetModalsForSessionTimeout()
+                        self?.handleSessionTimeoutReset()
                     }
                 case .triggerPaywall:
                     self?.activeSheet = .paywall
@@ -257,9 +258,26 @@ final class CaptureWorkspaceViewModel {
         !stagedCapture.isEmpty
     }
 
+    private func protectExternalRouteFromImmediateSessionTimeoutReset() {
+        externalRouteSessionResetSuppressionDeadline = Date().addingTimeInterval(5)
+    }
+
+    private func handleSessionTimeoutReset(now: Date = Date()) {
+        if let deadline = externalRouteSessionResetSuppressionDeadline,
+           now <= deadline {
+            externalRouteSessionResetSuppressionDeadline = nil
+            MerianLog.general.debug("Skipped session timeout reset because an external route was just opened.")
+            return
+        }
+
+        externalRouteSessionResetSuppressionDeadline = nil
+        resetModalsForSessionTimeout()
+    }
+
     private func resetModalsForSessionTimeout() {
         // Clear all sheets and UI modals instantly when the session times out
         activeSheet = nil
+        pendingExplorePostId = nil
         imageToCrop = nil
         editingCropIndex = nil
 
@@ -281,6 +299,7 @@ final class CaptureWorkspaceViewModel {
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
             if let record = (try context.fetch(descriptor)).first {
                 diContainer.inferenceEngine.load(from: record)
+                protectExternalRouteFromImmediateSessionTimeoutReset()
                 self.activeSheet = .insight
             }
         } catch {
@@ -289,6 +308,7 @@ final class CaptureWorkspaceViewModel {
     }
 
     private func handleExploreDeepLinkRoute(postId: String) {
+        protectExternalRouteFromImmediateSessionTimeoutReset()
         pendingExplorePostId = postId
         explorePresentationIdentity = UUID()
         activeSheet = .explore

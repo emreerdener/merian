@@ -4,7 +4,7 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import {
   assertCanInteractWithExplorePost,
-  fetchPublicAuthorName,
+  fetchPublicAuthorIdentity,
   requireUuid,
   syncPublicAuthorIdentity,
 } from "../_shared/explore.ts";
@@ -32,7 +32,7 @@ serve((req: Request) =>
 
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
     const inserted = await insertExploreComment(postId, user.id, rawBody, supabaseAdmin);
-    const authorName = await fetchPublicAuthorName(user.id, supabaseAdmin);
+    const authorIdentity = await fetchPublicAuthorIdentity(user.id, supabaseAdmin);
     const commentCount = await fetchExplorePostCommentCount(postId, supabaseAdmin);
 
     return jsonResponse({
@@ -41,7 +41,8 @@ serve((req: Request) =>
         comment_id: inserted.id,
         post_id: inserted.post_id,
         author_user_id: user.id,
-        author_name: authorName,
+        author_name: authorIdentity.authorName,
+        author_avatar_url: authorIdentity.authorAvatarUrl,
         body: rawBody,
         created_at: inserted.created_at,
         viewer_can_delete: true,

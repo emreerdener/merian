@@ -52,7 +52,19 @@ The app declares the `merian` URL scheme in `merian/Configuration/Info.plist`. `
 merian://explore/post/{postId}
 ```
 
-Accepted URLs publish `AppEvent.appDidEnterActivePhaseWithExplorePost(postId:)`. `CaptureWorkspaceViewModel` already handles that event by presenting the Explore sheet and seeding its initial route.
+Accepted URLs publish `AppEvent.appDidEnterActivePhaseWithExplorePost(postId:)`. `CaptureWorkspaceViewModel` handles that event by:
+
+1. Storing the tapped post id in `pendingExplorePostId`.
+2. Refreshing `explorePresentationIdentity` so SwiftUI builds a fresh `ExploreView`.
+3. Setting `activeSheet = .explore`, which presents the sheet through `CameraSheetRouter`.
+
+`ExploreView(initialPostId:)` then seeds `selectedPostRoute`, pushing `ExplorePostDetailView` inside the sheet.
+
+### Session Timeout Race Guard
+
+Widget taps often happen after Merian has been backgrounded for more than the 5-minute session timeout. On foreground, iOS can deliver the widget URL and Merian's `.appDidResumeAfterTimeout` reset in either order. If the URL route wins first, the timeout reset would otherwise clear `activeSheet` immediately and return the user to the camera.
+
+To prevent that, `CaptureWorkspaceViewModel` calls `protectExternalRouteFromImmediateSessionTimeoutReset()` for Explore and scan deep links. This creates a short one-shot suppression window for the next session-timeout reset only. Ordinary stale sheets still clear on timeout, and `resetModalsForSessionTimeout()` also clears `pendingExplorePostId` so old widget routes cannot leak into later Explore launches.
 
 ## XcodeGen And Entitlements
 
@@ -76,5 +88,6 @@ The app target embeds `MerianExploreWidget`; the widget target also directly com
 - The widget is populated opportunistically by the app. If the user never opens Explore, the widget remains in the empty state.
 - Avoid network work in the widget extension unless there is a strong product reason. Widget refresh budgets are limited, and authenticated Supabase work belongs in the app.
 - Keep the widget view text-free. Widget gallery display name and description are allowed because they are system configuration metadata, not in-widget UI.
+- When touching widget tap routing, keep `CaptureWorkspaceViewModel`'s external-route timeout suppression covered by tests. The expected behavior is: a fresh widget route survives an immediate `.appDidResumeAfterTimeout`, while an ordinary stale Explore sheet still clears on timeout.
 - If the visual design changes, preserve `.contentMarginsDisabled()`, `.scaledToFill()`, and the iOS 18+ `.widgetAccentedRenderingMode(.fullColor)` image modifier so the image remains full-bleed and full-color.
 - If cache shape changes, keep decoding backward-compatible or tolerate a missing/old snapshot by showing the empty state.

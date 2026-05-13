@@ -259,6 +259,42 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertFalse(viewModel.shouldShowMediaModeToggle)
     }
 
+    func testExploreDeepLinkSurvivesImmediateSessionTimeoutReset() async throws {
+        let postId = "widget-post-123"
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+
+        AppEventPublisher.shared.send(.appDidEnterActivePhaseWithExplorePost(postId: postId))
+        try await waitUntil {
+            viewModel.activeSheet == .explore && viewModel.pendingExplorePostId == postId
+        }
+
+        AppEventPublisher.shared.send(.appDidResumeAfterTimeout)
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(viewModel.activeSheet, .explore)
+        XCTAssertEqual(viewModel.pendingExplorePostId, postId)
+    }
+
+    func testSessionTimeoutResetClearsStaleExploreRoute() async throws {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        viewModel.pendingExplorePostId = "stale-post"
+        viewModel.activeSheet = .explore
+
+        AppEventPublisher.shared.send(.appDidResumeAfterTimeout)
+
+        try await waitUntil {
+            viewModel.activeSheet == nil && viewModel.pendingExplorePostId == nil
+        }
+    }
+
     func testOfflineVisualSubmissionDoesNotActivateInferenceProcessing() async throws {
         enableUnlimitedFreeScansForTest()
         defer { restoreFreeScanLimitForTest() }

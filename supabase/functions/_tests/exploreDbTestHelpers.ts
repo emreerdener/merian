@@ -37,6 +37,7 @@ export async function insertUser(
   client: Client,
   id: string,
   publicName: string,
+  publicAvatarUrl: string | null = null,
 ): Promise<void> {
   await client.queryArray(
     `
@@ -44,11 +45,12 @@ export async function insertUser(
         id,
         email,
         public_author_name,
-        public_identity_source
+        public_identity_source,
+        public_avatar_url
       )
-      VALUES ($1, $2, $3, 'alias')
+      VALUES ($1, $2, $3, 'alias', $4)
     `,
-    [id, `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`, publicName],
+    [id, `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`, publicName, publicAvatarUrl],
   );
 }
 

@@ -556,6 +556,95 @@ struct MerianNetworkClientTests {
         #expect(state.viewerIsFollowing == true)
     }
 
+    @Test func testGetExploreCommentsParsesAuthorAvatar() async throws {
+        let testData = """
+        {
+            "data": [
+                {
+                    "comment_id": "comment-avatar-123",
+                    "post_id": "post-avatar-123",
+                    "author_user_id": "author-avatar-123",
+                    "author_name": "Comment Author",
+                    "author_avatar_url": "https://example.com/comment-author.jpg",
+                    "body": "Avatar should render here.",
+                    "created_at": "2026-05-12T20:43:00.000Z",
+                    "viewer_can_delete": false,
+                    "viewer_can_moderate": false,
+                    "viewer_can_report": true,
+                    "reactions": [
+                        {
+                            "emoji": "👍",
+                            "count": 2,
+                            "viewer_has_reacted": false
+                        }
+                    ]
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/get-explore-comments"] = { request in
+            #expect(request.url?.path.hasSuffix("/get-explore-comments") == true)
+            #expect(request.httpMethod == "POST")
+
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["post_id"] as? String == "post-avatar-123")
+            #expect(payload["limit"] as? Int == 100)
+            return (mockResponse, testData)
+        }
+
+        let comments = try await MerianNetworkClient.shared.getExploreComments(postId: "post-avatar-123")
+
+        #expect(comments.count == 1)
+        #expect(comments[0].id == "comment-avatar-123")
+        #expect(comments[0].authorAvatarUrl == "https://example.com/comment-author.jpg")
+        #expect(comments[0].reactions?.first?.emoji == "👍")
+    }
+
+    @Test func testCreateExploreCommentParsesAuthorAvatar() async throws {
+        let testData = """
+        {
+            "success": true,
+            "comment": {
+                "comment_id": "comment-created-123",
+                "post_id": "post-created-123",
+                "author_user_id": "author-created-123",
+                "author_name": "Created Author",
+                "author_avatar_url": "https://example.com/created-author.jpg",
+                "body": "Fresh comment",
+                "created_at": "2026-05-12T20:44:00.000Z",
+                "viewer_can_delete": true,
+                "viewer_can_moderate": false,
+                "viewer_can_report": false
+            },
+            "comment_count": 3
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/create-explore-comment"] = { request in
+            #expect(request.url?.path.hasSuffix("/create-explore-comment") == true)
+            #expect(request.httpMethod == "POST")
+
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["post_id"] as? String == "post-created-123")
+            #expect(payload["body"] as? String == "Fresh comment")
+            return (mockResponse, testData)
+        }
+
+        let response = try await MerianNetworkClient.shared.createExploreComment(
+            postId: "post-created-123",
+            body: "Fresh comment"
+        )
+
+        #expect(response.success == true)
+        #expect(response.comment.authorAvatarUrl == "https://example.com/created-author.jpg")
+        #expect(response.commentCount == 3)
+    }
+
     @Test func testGenerateUploadURLsUsesStructuredMediaManifest() async throws {
         let testData = """
         {

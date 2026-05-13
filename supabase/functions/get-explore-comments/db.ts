@@ -5,6 +5,7 @@ export interface ExploreCommentRow {
   post_id: string;
   author_user_id: string;
   author_name: string;
+  author_avatar_url?: string | null;
   body: string;
   created_at: string;
   viewer_can_delete: boolean;

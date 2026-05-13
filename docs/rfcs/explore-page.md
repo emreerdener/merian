@@ -152,7 +152,7 @@ Rules:
 - If auth metadata includes a provider avatar (`avatar_url` or `picture`), Merian may copy it into `public_avatar_url` for Explore rendering.
 - Ghost users should leave `public_avatar_url` null.
 - If Merian later adds editable public names, that should update `public_author_name` and switch the source to `display_name`.
-- Feed and comments should only ever render `public_author_name`, and the feed may optionally render `public_avatar_url`.
+- Feed and comments should only ever render `public_author_name`, and feed, map, profile, and comment surfaces may optionally render `public_avatar_url`.
 - Email and raw auth metadata must never be exposed directly in Explore payloads. Public avatar access should happen only through the copied `public.users.public_avatar_url` field.
 
 This gives us the "show a user if logged in, otherwise show an alias" behavior without coupling Explore to private identity fields.
@@ -400,7 +400,7 @@ Recommended V1 endpoints:
 - `get-explore-post-detail`
   - Returns public species-detail data for a single Explore post, including conditional per-scan `ai_reasoning` when the underlying identification has not been flagged or overridden
 - `get-explore-comments`
-  - Returns paginated comments for a post
+  - Returns paginated comments for a post, including the comment author's optional public avatar projection
 - `get-explore-map-points`
   - Returns privacy-safe map clusters or individual map points for the current visible area
 - `get-explore-notifications`

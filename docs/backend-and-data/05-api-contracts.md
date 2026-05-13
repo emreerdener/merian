@@ -660,13 +660,43 @@ Privacy and filtering rules:
 
 ### `/get-explore-comments`
 
-Returns comment rows for a single Explore post. The read path enforces the same private-geoprivacy and mutual-block filters as the feed. Comment rows include the public author label plus three viewer capability flags:
+Returns comment rows for a single Explore post. The read path enforces the same private-geoprivacy and mutual-block filters as the feed. Comment rows include the public author label, the optional public author avatar projection, and three viewer capability flags:
 
 - `viewer_can_delete`: The viewer authored this comment and may delete it.
 - `viewer_can_moderate`: The viewer owns the Explore post and may remove someone else's comment from that post.
 - `viewer_can_report`: The viewer may report this comment for abuse review.
 
 This endpoint powers both the feed's bottom-sheet comments view and the inline comment thread on the Explore detail page.
+
+Current response shape:
+
+```json
+{
+  "data": [
+    {
+      "comment_id": "uuid",
+      "post_id": "uuid",
+      "author_user_id": "uuid",
+      "author_name": "Nick H.",
+      "author_avatar_url": "https://lh3.googleusercontent.com/...",
+      "body": "Oooh mucho gusto",
+      "created_at": "2026-05-12T20:43:00.000Z",
+      "viewer_can_delete": false,
+      "viewer_can_moderate": false,
+      "viewer_can_report": true,
+      "reactions": [
+        {
+          "emoji": "👍",
+          "count": 1,
+          "viewer_has_reacted": false
+        }
+      ]
+    }
+  ]
+}
+```
+
+`author_avatar_url` is sourced from `public.users.public_avatar_url`, the same copied public projection used by feed cards, map previews, and author profiles. The client must treat it as optional and fall back to iconography when it is `null`.
 
 The request body supports cursor pagination on `(created_at ASC, comment_id ASC)`:
 
@@ -789,6 +819,7 @@ Notification side effects:
 - Create/delete plain-text comments on Explore posts.
 - Server-side body cap: 500 characters.
 - The response returns the updated `comment_count` so the feed can stay optimistic without a full reload.
+- The created comment response includes `author_avatar_url` from `public.users.public_avatar_url` so the newly-appended row matches the subsequent `/get-explore-comments` read payload.
 - Comment notifications are created and removed server-side through triggers on `explore_post_comments`.
 - Self-comments do not create notifications.
 
@@ -1000,6 +1031,7 @@ The Explore detail page additionally uses:
 - `time_of_day` + `current_month` to derive broad public observation context such as `Morning • April`
 - `weather_condition` + `weather_temperature_f` for optional public weather telemetry
 - `/get-explore-comments` for the inline thread and composer state
+- `author_avatar_url` from comment rows for both `ExploreCommentsSheet` and `ExplorePostDetailView`
 - cursor-based comment pagination on `(created_at, comment_id)` so long threads page safely in both the sheet and detail view
 - `/get-explore-unread-notification-count` for the bell badge and `/get-explore-notifications` plus `/mark-explore-notifications-read` for the in-app activity sheet
 - cursor-based activity pagination on `(updated_at, notification_id)` so the notifications sheet does not skip or duplicate rows during active usage
