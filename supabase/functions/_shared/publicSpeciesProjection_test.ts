@@ -4,12 +4,17 @@ import {
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import {
   buildPublicSpeciesDictionaryPayload,
+  PUBLIC_SPECIES_SCHEMA_VERSION,
   publicSimilarSpeciesMetadata,
   publicSpeciesProjectionForbiddenKeys,
   referenceImagesFromRows,
   resolveOptionalPublicCommonName,
   resolvePublicCommonName,
 } from "./publicSpeciesProjection.ts";
+
+Deno.test("public species projection - schema version is pinned", () => {
+  assertEquals(PUBLIC_SPECIES_SCHEMA_VERSION, 1);
+});
 
 Deno.test("public species projection - common name fallback is shared", () => {
   assertEquals(

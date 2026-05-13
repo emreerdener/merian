@@ -255,6 +255,7 @@ struct MerianNetworkClientTests {
     @Test func testExplorePostDetailDecodesSimilarSpecies() throws {
         let data = """
         {
+            "schema_version": 1,
             "data": {
                 "post_id": "post-detail-123",
                 "field_notes": null,
@@ -297,6 +298,7 @@ struct MerianNetworkClientTests {
         let response = try decoder.decode(ExplorePostDetailResponse.self, from: data)
         let similar = try #require(response.data.similarSpeciesData)
 
+        #expect(response.effectiveSchemaVersion == 1)
         #expect(similar.entries.count == 1)
         #expect(similar.entries[0].speciesId == "species-rosa-minor")
         #expect(similar.entries[0].scientificName == "Rosa minor")
@@ -305,6 +307,39 @@ struct MerianNetworkClientTests {
         #expect(similar.entries[0].similarityReason == "Similar flower shape and thorn spacing.")
         #expect(similar.entries[0].visualTraits == ["pink flowers", "compound leaves"])
         #expect(similar.entries[0].similarityConfidence == 0.82)
+    }
+
+    @Test func testExplorePostDetailDecodesLegacyPayloadWithoutSchemaVersion() throws {
+        let data = """
+        {
+            "data": {
+                "post_id": "post-detail-legacy-schema",
+                "field_notes": null,
+                "species_dictionary_id": null,
+                "taxonomy_kingdom": null,
+                "taxonomy_phylum": null,
+                "taxonomy_class": null,
+                "taxonomy_order": null,
+                "taxonomy_family": null,
+                "taxonomy_genus": null,
+                "ai_reasoning": null,
+                "habitat_description": null,
+                "gbif_taxon_key": null,
+                "iucn_red_list_status": null,
+                "wikipedia_url": null,
+                "reference_image_url": null,
+                "wikipedia_overview": null
+            }
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(ExplorePostDetailResponse.self, from: data)
+
+        #expect(response.schemaVersion == nil)
+        #expect(response.effectiveSchemaVersion == 0)
+        #expect(response.data.postId == "post-detail-legacy-schema")
     }
 
     @Test func testExplorePostDetailDecodesWhenSimilarSpeciesIsMissing() throws {

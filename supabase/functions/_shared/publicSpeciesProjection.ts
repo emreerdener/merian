@@ -1,5 +1,7 @@
 export type PublicReferenceImageSource = "wikipedia" | "gbif";
 
+export const PUBLIC_SPECIES_SCHEMA_VERSION = 1;
+
 export interface PublicSpeciesTaxonomy {
   kingdom: string | null;
   phylum: string | null;

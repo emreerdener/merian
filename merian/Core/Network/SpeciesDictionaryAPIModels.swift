@@ -1,7 +1,10 @@
 import Foundation
 
 struct SpeciesDictionaryResponse: Decodable {
+    let schemaVersion: Int?
     let data: SpeciesDictionaryEntry
+
+    var effectiveSchemaVersion: Int { schemaVersion ?? 0 }
 }
 
 struct SpeciesDictionaryEntry: Decodable, Equatable, Identifiable {

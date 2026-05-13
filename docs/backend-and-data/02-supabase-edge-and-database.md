@@ -60,6 +60,7 @@ Key rules:
 - The function intentionally does not call `withEdgeHandler` / `requireAuth`; user identity must not affect the response.
 - The service role key is used only for tightly scoped reads from `species_dictionary`, `species_reference_images`, and `species_lookalikes`.
 - The response includes canonical names, taxonomy, hazard/conservation fields, Wikipedia/habitat/GBIF fields, group tags, reference images, and read-only lookalikes.
+- The response wrapper includes `schema_version: 1`; new clients should use it as the public species contract marker, while older clients can keep decoding `data` only.
 - The response must not include scan IDs, user IDs, Explore post IDs, field notes, comments, locations, local user media, per-scan AI reasoning, or preferred-name overrides.
 - Lookalikes are hydrated with the explicit `species_dictionary!lookalike_id` FK hint because `species_lookalikes` has two foreign keys to `species_dictionary`.
 - V1 does not expose provenance in the API response. Freshness/source data is stored separately in `species_content_provenance` for internal refresh workflows and future curation surfaces.

@@ -15,6 +15,7 @@ struct SpeciesDictionaryTests {
     @Test func testSpeciesDictionaryResponseDecodesReferenceImagesAndLookalikes() throws {
         let data = """
         {
+            "schema_version": 1,
             "data": {
                 "id": "species-123",
                 "scientific_name": "Testus floridus",
@@ -70,6 +71,7 @@ struct SpeciesDictionaryTests {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let response = try decoder.decode(SpeciesDictionaryResponse.self, from: data)
 
+        #expect(response.effectiveSchemaVersion == 1)
         #expect(response.data.scientificName == "Testus floridus")
         #expect(response.data.referenceImages.map(\.source) == [.wikipedia, .gbif])
         #expect(response.data.referenceImages.first?.license == "CC BY-SA 4.0")
@@ -82,6 +84,37 @@ struct SpeciesDictionaryTests {
         #expect(response.data.similarSpeciesData?.entries.first?.similarityReason == "Similar five-petaled flowers.")
         #expect(response.data.similarSpeciesData?.entries.first?.visualTraits == ["five petals", "serrated leaves"])
         #expect(response.data.similarSpeciesData?.entries.first?.similarityConfidence == 0.78)
+    }
+
+    @Test func testSpeciesDictionaryResponseDecodesLegacyPayloadWithoutSchemaVersion() throws {
+        let data = """
+        {
+            "data": {
+                "id": "species-legacy",
+                "scientific_name": "Legacy testus",
+                "common_name": "Legacy Test",
+                "alternative_common_names": [],
+                "taxonomy": null,
+                "hazard_type": null,
+                "iucn_red_list_status": null,
+                "wikipedia_url": null,
+                "wikipedia_overview": null,
+                "habitat_description": null,
+                "gbif_taxon_key": null,
+                "group_tags": [],
+                "reference_images": [],
+                "similar_species": []
+            }
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(SpeciesDictionaryResponse.self, from: data)
+
+        #expect(response.schemaVersion == nil)
+        #expect(response.effectiveSchemaVersion == 0)
+        #expect(response.data.scientificName == "Legacy testus")
     }
 
     @Test func testGetSpeciesDictionaryConstructsPayloadAndParsesResponse() async throws {

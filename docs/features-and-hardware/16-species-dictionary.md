@@ -108,6 +108,7 @@ Successful responses are wrapped in a `data` envelope:
 
 ```json
 {
+  "schema_version": 1,
   "data": {
     "id": "uuid",
     "scientific_name": "Danaus plexippus",
@@ -153,6 +154,8 @@ Successful responses are wrapped in a `data` envelope:
 ```
 
 The endpoint is public by design and has `verify_jwt = false`. It may receive normal app auth headers from `MerianNetworkClient`, but the function does not require or read identity. The response must remain species-level public dictionary data only.
+
+`schema_version = 1` is the shared public species contract used by the dictionary page and Explore detail similar-species projection. iOS treats the key as optional for backward compatibility with older mocks or deployed functions, and future web clients should use it before depending on new fields.
 
 ## Data Mapping Rules
 

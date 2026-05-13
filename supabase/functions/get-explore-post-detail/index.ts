@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
 import { requireUuid } from "../_shared/explore.ts";
+import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjection.ts";
 import { fetchExplorePostDetail } from "./db.ts";
 
 serve((req: Request) =>
@@ -24,6 +25,9 @@ serve((req: Request) =>
       return jsonResponse({ error: "Explore post not found" }, 404);
     }
 
-    return jsonResponse({ data }, 200);
-  }),
+    return jsonResponse({
+      schema_version: PUBLIC_SPECIES_SCHEMA_VERSION,
+      data,
+    }, 200);
+  })
 );

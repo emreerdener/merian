@@ -277,6 +277,7 @@ Current response shape:
 
 ```json
 {
+  "schema_version": 1,
   "data": {
     "id": "uuid",
     "scientific_name": "Danaus plexippus",
@@ -327,6 +328,8 @@ Current response shape:
   }
 }
 ```
+
+`schema_version = 1` marks the current public species contract shared by `/species-dictionary`, Explore detail similar species, and the future web species surface. Within this version, new response keys must be additive, existing nullable fields may remain `null`, and clients should ignore unknown keys. A versioned endpoint path should be introduced only for a breaking change such as removing/renaming fields or changing a field's type.
 
 Name and imagery mapping:
 
@@ -490,6 +493,7 @@ Current response shape:
 
 ```json
 {
+  "schema_version": 1,
   "data": {
     "post_id": "uuid",
     "scan_id": "uuid",
@@ -569,6 +573,8 @@ Current response shape:
 ```
 
 This endpoint exists so Explore can render public species cards on the detail page without loading private scan state or the Insight `InferenceEngine`.
+
+`schema_version = 1` uses the same public species contract marker as `/species-dictionary`. Older clients can continue decoding the `data` field and ignore the wrapper key; newer clients may use it to gate future additive UI behavior.
 
 For posts owned by the current viewer, iOS also uses `field_notes` as a repair source for the local insight sheet. `FieldNotesRepository` checks `LocalScanRecord.fieldNotes`, `OfflineQueuedScan.fieldNotes`, and then the legacy `FieldNotesStore` bridge before accepting the Explore value. If all local/private stores are empty but the public Explore post still has notes, the repository promotes the public value back into SwiftData and mirrors the bridge. Existing local/private notes are preserved and are not overwritten by the Explore copy.
 

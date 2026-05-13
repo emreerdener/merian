@@ -25,6 +25,7 @@ Invalid bodies return `400`.
 
 ```json
 {
+  "schema_version": 1,
   "data": {
     "id": "uuid",
     "scientific_name": "Danaus plexippus",
@@ -75,6 +76,8 @@ Invalid bodies return `400`.
   }
 }
 ```
+
+`schema_version = 1` is the current public species contract. New keys may be added inside this version, nullable fields may remain `null`, and clients must ignore unknown keys. Breaking changes require a new versioned contract rather than silently changing this shape.
 
 If no `species_dictionary` row exists for the scientific name, the function returns:
 

@@ -295,7 +295,10 @@ struct ExploreScanShareStateResponse: Decodable {
 }
 
 struct ExplorePostDetailResponse: Decodable {
+    let schemaVersion: Int?
     let data: ExplorePostDetail
+
+    var effectiveSchemaVersion: Int { schemaVersion ?? 0 }
 }
 
 struct ExploreNotificationsResponse: Decodable {

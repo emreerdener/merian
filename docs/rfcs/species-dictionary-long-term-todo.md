@@ -63,10 +63,11 @@ Why it matters: a dictionary page should eventually explain the confusion, not o
 
 ## Scope 6 — Public API Versioning
 
-Status: planned.
+Status: implemented for current public species surfaces.
 
-- [ ] Add a response `schema_version` or versioned endpoint before the web frontend depends on the contract.
-- [ ] Document compatibility expectations for nullable fields and additive response keys.
+- [x] Add response `schema_version` to `/species-dictionary` and Explore post detail's public species payload wrapper before the web frontend depends on the contract.
+- [x] Document compatibility expectations for nullable fields and additive response keys.
+- [ ] Introduce a versioned endpoint path only if a future breaking response change cannot be handled additively.
 
 Why it matters: iOS and web clients will update on different schedules.
 
