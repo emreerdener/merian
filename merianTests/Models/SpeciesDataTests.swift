@@ -317,6 +317,54 @@ struct SpeciesDataTests {
         #expect(decoded[0].iucnRedListStatus == nil)
     }
 
+    @Test func testSimilarSpeciesEntryRoundTripWithRelationMetadata() throws {
+        let entry = SimilarSpeciesEntry(
+            scientificName: "Limenitis archippus",
+            commonName: "Viceroy",
+            referenceImageUrl: "https://example.com/viceroy.jpg",
+            iucnRedListStatus: "least_concern",
+            speciesId: "species-viceroy",
+            similarityReason: "Similar orange-and-black wing pattern.",
+            visualTraits: ["orange wings", "dark venation"],
+            similarityConfidence: 0.86,
+            relationshipSource: "model_enrichment",
+            reviewStatus: "unreviewed",
+            isBidirectional: false,
+            sortOrder: 1
+        )
+
+        let data = try JSONEncoder().encode([entry])
+        let decoded = try JSONDecoder().decode([SimilarSpeciesEntry].self, from: data)
+
+        #expect(decoded[0].similarityReason == "Similar orange-and-black wing pattern.")
+        #expect(decoded[0].visualTraits == ["orange wings", "dark venation"])
+        #expect(decoded[0].similarityConfidence == 0.86)
+        #expect(decoded[0].relationshipSource == "model_enrichment")
+        #expect(decoded[0].reviewStatus == "unreviewed")
+        #expect(decoded[0].isBidirectional == false)
+        #expect(decoded[0].sortOrder == 1)
+        #expect(decoded[0].relationshipCaption == "Similar orange-and-black wing pattern.")
+    }
+
+    @Test func testSimilarSpeciesEntryDecodesLegacyBlobWithoutRelationMetadata() throws {
+        let data = """
+        [
+            {
+                "scientificName": "Bassariscus astutus",
+                "commonName": null,
+                "referenceImageUrl": null,
+                "iucnRedListStatus": null
+            }
+        ]
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode([SimilarSpeciesEntry].self, from: data)
+
+        #expect(decoded[0].visualTraits.isEmpty)
+        #expect(decoded[0].similarityReason == nil)
+        #expect(decoded[0].similarityConfidence == nil)
+    }
+
     @Test func testAllNullCommonNamesDetection() throws {
         // Directly validates the allSatisfy check used in load(from:)'s needsEnrichment gate.
         let staleEntries = [

@@ -55,7 +55,14 @@ struct SpeciesDictionaryEntry: Decodable, Equatable, Identifiable {
                 commonName: item.commonName,
                 referenceImageUrl: item.referenceImageUrl,
                 iucnRedListStatus: item.iucnRedListStatus,
-                speciesId: item.speciesId
+                speciesId: item.speciesId,
+                similarityReason: item.reason,
+                visualTraits: item.visualTraits,
+                similarityConfidence: item.confidence,
+                relationshipSource: item.source,
+                reviewStatus: item.reviewStatus,
+                isBidirectional: item.isBidirectional,
+                sortOrder: item.sortOrder
             )
         }
 
@@ -112,8 +119,46 @@ struct SpeciesDictionarySimilarSpecies: Decodable, Equatable, Identifiable {
     let commonName: String?
     let referenceImageUrl: String?
     let iucnRedListStatus: String?
+    let reason: String?
+    let visualTraits: [String]
+    let confidence: Double?
+    let source: String?
+    let reviewStatus: String?
+    let isBidirectional: Bool?
+    let sortOrder: Int?
 
     var id: String { speciesId ?? scientificName }
+
+    private enum CodingKeys: String, CodingKey {
+        case speciesId
+        case scientificName
+        case commonName
+        case referenceImageUrl
+        case iucnRedListStatus
+        case reason
+        case visualTraits
+        case confidence
+        case source
+        case reviewStatus
+        case isBidirectional
+        case sortOrder
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        speciesId = try container.decodeIfPresent(String.self, forKey: .speciesId)
+        scientificName = try container.decode(String.self, forKey: .scientificName)
+        commonName = try container.decodeIfPresent(String.self, forKey: .commonName)
+        referenceImageUrl = try container.decodeIfPresent(String.self, forKey: .referenceImageUrl)
+        iucnRedListStatus = try container.decodeIfPresent(String.self, forKey: .iucnRedListStatus)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
+        visualTraits = try container.decodeIfPresent([String].self, forKey: .visualTraits) ?? []
+        confidence = try container.decodeIfPresent(Double.self, forKey: .confidence)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        reviewStatus = try container.decodeIfPresent(String.self, forKey: .reviewStatus)
+        isBidirectional = try container.decodeIfPresent(Bool.self, forKey: .isBidirectional)
+        sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder)
+    }
 }
 
 struct SpeciesDictionaryRoute: Identifiable, Equatable {

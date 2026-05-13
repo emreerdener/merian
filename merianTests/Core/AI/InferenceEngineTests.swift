@@ -469,7 +469,14 @@ struct InferenceEngineTests {
                         "scientific_name": "Procyon cancrivorus",
                         "common_name": "Crab-eating Raccoon",
                         "reference_image_url": "https://example.com/cancrivorus.jpg",
-                        "iucn_red_list_status": "LC"
+                        "iucn_red_list_status": "LC",
+                        "reason": "Similar facial mask and ringed tail.",
+                        "visual_traits": ["facial mask", "ringed tail"],
+                        "confidence": 0.84,
+                        "source": "model_enrichment",
+                        "review_status": "unreviewed",
+                        "is_bidirectional": false,
+                        "sort_order": 0
                     },
                     {
                         "scientific_name": "Bassariscus astutus",
@@ -490,6 +497,9 @@ struct InferenceEngineTests {
         #expect(entries[0].common_name == "Crab-eating Raccoon")
         #expect(entries[0].reference_image_url == "https://example.com/cancrivorus.jpg")
         #expect(entries[0].iucn_red_list_status == "LC")
+        #expect(entries[0].reason == "Similar facial mask and ringed tail.")
+        #expect(entries[0].visual_traits == ["facial mask", "ringed tail"])
+        #expect(entries[0].confidence == 0.84)
         #expect(entries[1].scientific_name == "Bassariscus astutus")
         #expect(entries[1].reference_image_url == nil, "Null reference_image_url must decode as nil, not crash")
     }

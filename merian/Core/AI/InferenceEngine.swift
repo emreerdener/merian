@@ -1284,7 +1284,14 @@ private struct GBIFMedia: Decodable {
                                     commonName: splitCommonName,
                                     referenceImageUrl: $0.reference_image_url,
                                     iucnRedListStatus: $0.iucn_red_list_status,
-                                    speciesId: $0.species_id
+                                    speciesId: $0.species_id,
+                                    similarityReason: $0.reason,
+                                    visualTraits: $0.visual_traits ?? [],
+                                    similarityConfidence: $0.confidence,
+                                    relationshipSource: $0.source,
+                                    reviewStatus: $0.review_status,
+                                    isBidirectional: $0.is_bidirectional,
+                                    sortOrder: $0.sort_order
                                 )
                             }
                             // Single full-value replacement — see enrichment scope comment above.

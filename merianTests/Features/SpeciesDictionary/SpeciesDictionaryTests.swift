@@ -52,7 +52,14 @@ struct SpeciesDictionaryTests {
                         "scientific_name": "Testus minor",
                         "common_name": "Small Test",
                         "reference_image_url": "https://example.com/minor.jpg",
-                        "iucn_red_list_status": "least concern"
+                        "iucn_red_list_status": "least concern",
+                        "reason": "Similar five-petaled flowers.",
+                        "visual_traits": ["five petals", "serrated leaves"],
+                        "confidence": 0.78,
+                        "source": "model_enrichment",
+                        "review_status": "unreviewed",
+                        "is_bidirectional": false,
+                        "sort_order": 0
                     }
                 ]
             }
@@ -72,6 +79,9 @@ struct SpeciesDictionaryTests {
         #expect(response.data.taxonomyData?.genus == "Testus")
         #expect(response.data.similarSpeciesData?.entries.first?.speciesId == "species-minor")
         #expect(response.data.similarSpeciesData?.entries.first?.scientificName == "Testus minor")
+        #expect(response.data.similarSpeciesData?.entries.first?.similarityReason == "Similar five-petaled flowers.")
+        #expect(response.data.similarSpeciesData?.entries.first?.visualTraits == ["five petals", "serrated leaves"])
+        #expect(response.data.similarSpeciesData?.entries.first?.similarityConfidence == 0.78)
     }
 
     @Test func testGetSpeciesDictionaryConstructsPayloadAndParsesResponse() async throws {

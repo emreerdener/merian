@@ -62,7 +62,14 @@ Invalid bodies return `400`.
         "scientific_name": "Limenitis archippus",
         "common_name": "Viceroy",
         "reference_image_url": "https://...",
-        "iucn_red_list_status": "least concern"
+        "iucn_red_list_status": "least concern",
+        "reason": "Similar orange-and-black wing pattern.",
+        "visual_traits": ["orange wings", "dark venation"],
+        "confidence": 0.86,
+        "source": "model_enrichment",
+        "review_status": "unreviewed",
+        "is_bidirectional": false,
+        "sort_order": 0
       }
     ]
   }
@@ -118,6 +125,9 @@ Reference images:
 
 Alternative common names and group tags are trimmed and deduped before returning.
 Hydrated lookalikes include `species_id` for canonical dictionary routing.
+Lookalike relation metadata is additive and optional; older clients can ignore it. Public readers omit rows whose `review_status` is `rejected`.
+
+Provenance and refresh metadata are stored separately in `public.species_content_provenance`. The public response does not include those fields in V1; refresh workers should consume `public.get_species_content_refresh_queue(...)` when they need stale or low-confidence content.
 
 ## Privacy Contract
 
@@ -147,6 +157,6 @@ The function does not call `withEdgeHandler` or `requireAuth` because the endpoi
 ## Local Verification
 
 ```sh
-deno check supabase/functions/_shared/publicSpeciesProjection.ts supabase/functions/_shared/identify/db.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
-deno test supabase/functions/_shared/publicSpeciesProjection_test.ts supabase/functions/_shared/identify/db_test.ts supabase/functions/species-dictionary/db.test.ts
+deno check supabase/functions/_shared/publicSpeciesProjection.ts supabase/functions/_shared/speciesContentProvenance.ts supabase/functions/_shared/identify/db.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
+deno test supabase/functions/_shared/publicSpeciesProjection_test.ts supabase/functions/_shared/speciesContentProvenance_test.ts supabase/functions/_shared/identify/db_test.ts supabase/functions/species-dictionary/db.test.ts
 ```

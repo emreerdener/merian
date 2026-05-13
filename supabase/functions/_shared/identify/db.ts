@@ -4,6 +4,11 @@ import {
   type PublicReferenceImageSource,
   referenceImageSource,
 } from "../publicSpeciesProjection.ts";
+import {
+  buildGroupTagsProvenanceRows,
+  buildSpeciesDictionaryProvenanceRows,
+  recordSpeciesContentProvenance,
+} from "../speciesContentProvenance.ts";
 import { hasTierCached, setTierCache } from "../tierCache.ts";
 import { CachedSpeciesRow, IdentificationCandidate } from "./types.ts";
 
@@ -86,6 +91,11 @@ export async function upsertSpeciesDictionary(
       data.wikipedia_url,
       supabaseAdmin,
     );
+    await recordSpeciesContentProvenance(
+      supabaseAdmin,
+      buildSpeciesDictionaryProvenanceRows(speciesId, data),
+      "upsertSpeciesDictionary",
+    );
   }
 
   return speciesId;
@@ -152,11 +162,22 @@ export async function updateGroupTags(
   groupTags: string[],
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
-  const { error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("species_dictionary")
     .update({ group_tags: groupTags })
-    .eq("scientific_name", scientificName);
+    .eq("scientific_name", scientificName)
+    .select("id")
+    .maybeSingle();
   if (error) throw new Error(`updateGroupTags: ${error.message}`);
+
+  const speciesId = typeof data?.id === "string" ? data.id : null;
+  if (speciesId) {
+    await recordSpeciesContentProvenance(
+      supabaseAdmin,
+      buildGroupTagsProvenanceRows(speciesId, groupTags),
+      "updateGroupTags",
+    );
+  }
 }
 
 export interface ScanInsertRow {

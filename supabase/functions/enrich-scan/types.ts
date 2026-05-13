@@ -4,6 +4,13 @@ export interface LookalikeSummary {
   common_name: string | null;
   reference_image_url: string | null;
   iucn_red_list_status: string | null;
+  reason?: string | null;
+  visual_traits?: string[];
+  confidence?: number | null;
+  source?: string | null;
+  review_status?: string | null;
+  is_bidirectional?: boolean;
+  sort_order?: number | null;
 }
 
 export interface CachedSpeciesData {

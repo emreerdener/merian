@@ -127,5 +127,12 @@ struct EnrichScanResponse: Codable {
         let common_name: String?
         let reference_image_url: String?
         let iucn_red_list_status: String?
+        let reason: String?
+        let visual_traits: [String]?
+        let confidence: Double?
+        let source: String?
+        let review_status: String?
+        let is_bidirectional: Bool?
+        let sort_order: Int?
     }
 }

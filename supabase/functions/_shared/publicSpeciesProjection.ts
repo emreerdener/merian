@@ -58,6 +58,13 @@ export interface PublicSimilarSpecies {
   common_name: string | null;
   reference_image_url: string | null;
   iucn_red_list_status: string | null;
+  reason?: string | null;
+  visual_traits?: string[];
+  confidence?: number | null;
+  source?: string | null;
+  review_status?: string | null;
+  is_bidirectional?: boolean;
+  sort_order?: number | null;
 }
 
 export interface PublicSpeciesDictionaryPayload {
@@ -186,6 +193,68 @@ export function sanitizePublicStringArray(
   }
 
   return result;
+}
+
+export function sanitizeLookalikeVisualTraits(
+  values: unknown,
+  maxCount = 5,
+): string[] {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    const trimmed = stringValue(value);
+    if (!trimmed) continue;
+
+    const normalized = trimmed.toLowerCase();
+    if (seen.has(normalized)) continue;
+
+    seen.add(normalized);
+    result.push(trimmed.slice(0, 80));
+    if (result.length >= maxCount) break;
+  }
+
+  return result;
+}
+
+export function normalizePublicConfidence(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(1, value));
+}
+
+export function publicSimilarSpeciesMetadata(
+  relation: {
+    reason?: unknown;
+    visual_traits?: unknown;
+    confidence?: unknown;
+    source?: unknown;
+    review_status?: unknown;
+    is_bidirectional?: unknown;
+    sort_order?: unknown;
+  },
+): Pick<
+  PublicSimilarSpecies,
+  | "reason"
+  | "visual_traits"
+  | "confidence"
+  | "source"
+  | "review_status"
+  | "is_bidirectional"
+  | "sort_order"
+> {
+  return {
+    reason: stringValue(relation.reason),
+    visual_traits: sanitizeLookalikeVisualTraits(relation.visual_traits),
+    confidence: normalizePublicConfidence(relation.confidence),
+    source: stringValue(relation.source),
+    review_status: stringValue(relation.review_status),
+    is_bidirectional: relation.is_bidirectional === true,
+    sort_order: typeof relation.sort_order === "number" &&
+        Number.isInteger(relation.sort_order) && relation.sort_order >= 0
+      ? relation.sort_order
+      : null,
+  };
 }
 
 export function legacyReferenceImageUrls(

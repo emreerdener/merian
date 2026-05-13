@@ -4,6 +4,7 @@ import {
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import {
   buildPublicSpeciesDictionaryPayload,
+  publicSimilarSpeciesMetadata,
   publicSpeciesProjectionForbiddenKeys,
   referenceImagesFromRows,
   resolveOptionalPublicCommonName,
@@ -116,6 +117,34 @@ Deno.test("public species projection - dictionary payload is a whitelist and has
   assert(!("field_notes" in payload));
   assert(!("ai_reasoning" in payload));
   assert(!("gps_lat_exact" in payload));
+});
+
+Deno.test("public species projection - similar species metadata is sanitized", () => {
+  assertEquals(
+    publicSimilarSpeciesMetadata({
+      reason: "  Similar wing pattern.  ",
+      visual_traits: [
+        "orange wings",
+        "orange wings",
+        "",
+        "black venation",
+      ],
+      confidence: 1.5,
+      source: "model_enrichment",
+      review_status: "unreviewed",
+      is_bidirectional: true,
+      sort_order: 2,
+    }),
+    {
+      reason: "Similar wing pattern.",
+      visual_traits: ["orange wings", "black venation"],
+      confidence: 1,
+      source: "model_enrichment",
+      review_status: "unreviewed",
+      is_bidirectional: true,
+      sort_order: 2,
+    },
+  );
 });
 
 Deno.test("public species projection - contract test catches private-field leaks", () => {

@@ -29,6 +29,13 @@ type ExplorePostDetailSimilarSpecies = {
   common_name: string | null;
   reference_image_url: string | null;
   iucn_red_list_status: string | null;
+  reason: string | null;
+  visual_traits: string[];
+  confidence: number | null;
+  source: string | null;
+  review_status: string | null;
+  is_bidirectional: boolean;
+  sort_order: number | null;
 };
 
 Deno.test("Explore post detail DB - returns cached reference imagery with the public detail payload", async () => {
@@ -116,8 +123,24 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
 
       await client.queryArray(
         `
-        INSERT INTO public.species_lookalikes (species_id, lookalike_id)
-        VALUES ($1, $2)
+        INSERT INTO public.species_lookalikes (
+          species_id,
+          lookalike_id,
+          reason,
+          visual_traits,
+          confidence,
+          source,
+          sort_order
+        )
+        VALUES (
+          $1,
+          $2,
+          'Similar flower shape and thorn spacing.',
+          ARRAY['pink flowers', 'compound leaves'],
+          0.8200,
+          'model_enrichment',
+          0
+        )
         ON CONFLICT DO NOTHING
       `,
         [speciesId, lookalikeId],
@@ -189,6 +212,13 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
         common_name: "Small Rose",
         reference_image_url: normalizedLookalikeImageUrl,
         iucn_red_list_status: "least_concern",
+        reason: "Similar flower shape and thorn spacing.",
+        visual_traits: ["pink flowers", "compound leaves"],
+        confidence: 0.82,
+        source: "model_enrichment",
+        review_status: "unreviewed",
+        is_bidirectional: false,
+        sort_order: 0,
       });
       assertEquals(
         publicSpeciesProjectionForbiddenKeys(row.similar_species),

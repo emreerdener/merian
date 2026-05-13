@@ -145,6 +145,13 @@ Deno.test("species-dictionary helpers - build sparse payload with lookalikes", (
         common_name: "Queen Butterfly",
         reference_image_url: null,
         iucn_red_list_status: null,
+        reason: "Similar orange-and-black wing pattern.",
+        visual_traits: ["orange wings", "dark veins"],
+        confidence: 0.82,
+        source: "model_enrichment",
+        review_status: "unreviewed",
+        is_bidirectional: false,
+        sort_order: 0,
       },
     ],
   );
@@ -156,6 +163,15 @@ Deno.test("species-dictionary helpers - build sparse payload with lookalikes", (
   assertEquals(payload.reference_images.length, 1);
   assertEquals(payload.similar_species[0].species_id, "lookalike-id");
   assertEquals(payload.similar_species[0].scientific_name, "Danaus gilippus");
+  assertEquals(
+    payload.similar_species[0].reason,
+    "Similar orange-and-black wing pattern.",
+  );
+  assertEquals(payload.similar_species[0].visual_traits, [
+    "orange wings",
+    "dark veins",
+  ]);
+  assertEquals(payload.similar_species[0].confidence, 0.82);
 });
 
 Deno.test("species-dictionary helpers - validates request body", () => {

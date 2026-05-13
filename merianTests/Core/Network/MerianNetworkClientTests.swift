@@ -278,7 +278,14 @@ struct MerianNetworkClientTests {
                         "scientific_name": "Rosa minor",
                         "common_name": "Small Rose",
                         "reference_image_url": "https://example.com/rosa-minor.jpg",
-                        "iucn_red_list_status": "least_concern"
+                        "iucn_red_list_status": "least_concern",
+                        "reason": "Similar flower shape and thorn spacing.",
+                        "visual_traits": ["pink flowers", "compound leaves"],
+                        "confidence": 0.82,
+                        "source": "model_enrichment",
+                        "review_status": "unreviewed",
+                        "is_bidirectional": false,
+                        "sort_order": 0
                     }
                 ]
             }
@@ -295,6 +302,9 @@ struct MerianNetworkClientTests {
         #expect(similar.entries[0].scientificName == "Rosa minor")
         #expect(similar.entries[0].commonName == "Small Rose")
         #expect(similar.entries[0].referenceImageUrl == "https://example.com/rosa-minor.jpg")
+        #expect(similar.entries[0].similarityReason == "Similar flower shape and thorn spacing.")
+        #expect(similar.entries[0].visualTraits == ["pink flowers", "compound leaves"])
+        #expect(similar.entries[0].similarityConfidence == 0.82)
     }
 
     @Test func testExplorePostDetailDecodesWhenSimilarSpeciesIsMissing() throws {

@@ -55,6 +55,10 @@ struct SimilarSpeciesCard: View {
         entry.displayCommonName(comparedTo: currentCommonName)
     }
 
+    private var relationshipCaption: String? {
+        entry.relationshipCaption
+    }
+
     private var accessibilityTraits: AccessibilityTraits {
         onSpeciesSelected == nil ? [] : .isButton
     }
@@ -106,6 +110,14 @@ struct SimilarSpeciesCard: View {
                     .lineLimit(1)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let relationshipCaption {
+                    Text(relationshipCaption)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)

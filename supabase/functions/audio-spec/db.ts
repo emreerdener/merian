@@ -1,4 +1,9 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  buildGroupTagsProvenanceRows,
+  buildSpeciesDictionaryProvenanceRows,
+  recordSpeciesContentProvenance,
+} from "../_shared/speciesContentProvenance.ts";
 import { hasTierCached, setTierCache } from "../_shared/tierCache.ts";
 import { AudioCandidate } from "./types.ts";
 
@@ -96,7 +101,17 @@ export async function upsertSpeciesDictionary(
     .select("id")
     .maybeSingle();
   if (error) throw new Error(`upsertSpeciesDictionary: ${error.message}`);
-  return row?.id ?? null;
+
+  const speciesId = typeof row?.id === "string" ? row.id : null;
+  if (speciesId) {
+    await recordSpeciesContentProvenance(
+      supabaseAdmin,
+      buildSpeciesDictionaryProvenanceRows(speciesId, data),
+      "audio-spec/upsertSpeciesDictionary",
+    );
+  }
+
+  return speciesId;
 }
 
 export async function updateGroupTags(
@@ -104,11 +119,22 @@ export async function updateGroupTags(
   groupTags: string[],
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
-  const { error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("species_dictionary")
     .update({ group_tags: groupTags })
-    .eq("scientific_name", scientificName);
+    .eq("scientific_name", scientificName)
+    .select("id")
+    .maybeSingle();
   if (error) throw new Error(`updateGroupTags: ${error.message}`);
+
+  const speciesId = typeof data?.id === "string" ? data.id : null;
+  if (speciesId) {
+    await recordSpeciesContentProvenance(
+      supabaseAdmin,
+      buildGroupTagsProvenanceRows(speciesId, groupTags),
+      "audio-spec/updateGroupTags",
+    );
+  }
 }
 
 // MARK: - Scans

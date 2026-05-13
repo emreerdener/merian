@@ -1,7 +1,4 @@
-import {
-  Schema,
-  Type,
-} from "https://esm.sh/@google/genai@1.0.0";
+import { Schema, Type } from "https://esm.sh/@google/genai@1.0.0";
 import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createFlashModel, extractJson } from "./gemini.ts";
 import { trackPostHogEvent } from "./posthog.ts";
@@ -134,7 +131,9 @@ Given a species scientific name, provide the following data fields: taxonomy, ha
         llm_prompt_tokens: usage.promptTokenCount,
         llm_candidate_tokens: usage.candidatesTokenCount,
         llm_total_tokens: usage.totalTokenCount,
-      }).catch((e) => console.error("PostHog EncyclopedicLLMCompleted failed:", e));
+      }).catch((e) =>
+        console.error("PostHog EncyclopedicLLMCompleted failed:", e)
+      );
     }
 
     const extracted = extractJson<EncyclopedicData>(result.text ?? "");
@@ -166,6 +165,9 @@ Given a species scientific name, provide the following data fields: taxonomy, ha
 export interface SimilarSpeciesEntry {
   scientific_name: string;
   common_name: string | null;
+  reason?: string | null;
+  visual_traits?: string[];
+  confidence?: number | null;
 }
 
 export interface SpeciesTaxonomy {
@@ -179,7 +181,9 @@ export async function fetchSimilarSpecies(
   user: User,
   scientificName: string,
   taxonomy?: SpeciesTaxonomy | null,
-): Promise<{ similar_species: SimilarSpeciesEntry[]; usage?: UsageMetadata } | null> {
+): Promise<
+  { similar_species: SimilarSpeciesEntry[]; usage?: UsageMetadata } | null
+> {
   const normalizedKingdom = normalizeTaxonomyValue(taxonomy?.kingdom);
   const normalizedClass = normalizeTaxonomyValue(taxonomy?.class);
   const normalizedOrder = normalizeTaxonomyValue(taxonomy?.order);
@@ -207,14 +211,16 @@ You are a world-class field biologist specializing in species misidentification 
 # Task
 Given a species scientific name, identify up to 3 species that a non-expert field observer could plausibly misidentify it as based purely on visual appearance in the field.${taxonomyLine}
 
-For each lookalike, provide the exact formally recognized scientific name and the widely recognised English common name.
+For each lookalike, provide the exact formally recognized scientific name, the widely recognised English common name, a concise explanation of the visual confusion, the concrete visible traits shared by both species, and a calibrated relation confidence.
 
 # Rules
 1. **Taxonomic Constraint:** Every lookalike MUST be from the same taxonomic order or family as the primary species — never suggest species from a different order.
 2. **Visual Similarity:** Lookalikes must be genuinely visually similar in the field (similar flower shape, leaf morphology, growth habit, plumage, etc.) — not merely distantly related.
 3. **Name Accuracy:** Never hallucinate scientific names. Every entry must be a verified, extant species recognized by GBIF or Catalogue of Life.
 4. **No Padding:** If fewer than 3 genuine same-order lookalikes exist, return only the valid ones — do not pad with unrelated species.
-5. **No Self-Reference:** Do not return the primary species itself as a lookalike.`,
+5. **No Self-Reference:** Do not return the primary species itself as a lookalike.
+6. **Explainability:** Reasons must be species-level visual explanations, not user-specific observations. Do not mention scans, photos, people, locations, dates, or field notes.
+7. **Confidence:** Confidence is relation quality from 0.0 to 1.0, where 1.0 means a very strong field-confusion relationship and 0.5 means weak but plausible.`,
     300,
   );
 
@@ -228,11 +234,35 @@ For each lookalike, provide the exact formally recognized scientific name and th
           properties: {
             scientific_name: { type: SchemaType.STRING },
             common_name: { type: SchemaType.STRING },
+            reason: {
+              type: SchemaType.STRING,
+              description:
+                "One concise sentence explaining why field observers may confuse the two species visually.",
+            },
+            visual_traits: {
+              type: SchemaType.ARRAY,
+              items: { type: SchemaType.STRING },
+              description:
+                "Two to four concrete shared visual traits, such as wing pattern, flower shape, bark texture, silhouette, or growth habit.",
+            },
+            confidence: {
+              type: SchemaType.NUMBER,
+              description:
+                "0.0 to 1.0 confidence that this is a strong visual lookalike relation.",
+            },
           },
-          required: ["scientific_name", "common_name"],
+          required: [
+            "scientific_name",
+            "common_name",
+            "reason",
+            "visual_traits",
+            "confidence",
+          ],
         },
         description:
-          `Up to 3 closely related but genuinely visually similar lookalike species from the same kingdom${normalizedClass ? ` and class (${normalizedClass})` : ""}, each with a real, formally recognized scientific name and English common name.`,
+          `Up to 3 closely related but genuinely visually similar lookalike species from the same kingdom${
+            normalizedClass ? ` and class (${normalizedClass})` : ""
+          }, each with a real, formally recognized scientific name, English common name, visual reason, shared traits, and relation confidence.`,
       },
     },
     required: ["similar_species"],
@@ -266,15 +296,29 @@ For each lookalike, provide the exact formally recognized scientific name and th
         llm_prompt_tokens: usage.promptTokenCount,
         llm_candidate_tokens: usage.candidatesTokenCount,
         llm_total_tokens: usage.totalTokenCount,
-      }).catch((e) => console.error("PostHog SimilarSpeciesLLMCompleted failed:", e));
+      }).catch((e) =>
+        console.error("PostHog SimilarSpeciesLLMCompleted failed:", e)
+      );
     }
     const raw = extractJson<{
-      similar_species: Array<{ scientific_name: string; common_name?: string }>;
+      similar_species: Array<{
+        scientific_name: string;
+        common_name?: string;
+        reason?: string;
+        visual_traits?: unknown[];
+        confidence?: number;
+      }>;
     }>(result.text ?? "");
-    const normalized: { similar_species: SimilarSpeciesEntry[]; usage?: UsageMetadata } = {
+    const normalized: {
+      similar_species: SimilarSpeciesEntry[];
+      usage?: UsageMetadata;
+    } = {
       similar_species: (raw.similar_species ?? []).map((e) => ({
         scientific_name: e.scientific_name,
         common_name: e.common_name || null,
+        reason: sanitizeLookalikeReason(e.reason),
+        visual_traits: sanitizeLookalikeTraits(e.visual_traits),
+        confidence: normalizeLookalikeConfidence(e.confidence),
       })),
     };
     if (usage) normalized.usage = usage;
@@ -283,6 +327,36 @@ For each lookalike, provide the exact formally recognized scientific name and th
     console.error("fetchSimilarSpecies failed:", e);
     return null;
   }
+}
+
+function sanitizeLookalikeReason(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  return trimmed.length > 0 ? trimmed.slice(0, 240) : null;
+}
+
+function sanitizeLookalikeTraits(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const traits: string[] = [];
+
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    const trimmed = entry.trim().replace(/\s+/g, " ");
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    traits.push(trimmed.slice(0, 80));
+    if (traits.length >= 5) break;
+  }
+
+  return traits;
+}
+
+function normalizeLookalikeConfidence(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(1, value));
 }
 
 // --- GROUP TAGS LOGIC --- //
@@ -333,7 +407,9 @@ export async function fetchGroupTags(
         llm_prompt_tokens: usage.promptTokenCount,
         llm_candidate_tokens: usage.candidatesTokenCount,
         llm_total_tokens: usage.totalTokenCount,
-      }).catch((e) => console.error("PostHog GroupTagsLLMCompleted failed:", e));
+      }).catch((e) =>
+        console.error("PostHog GroupTagsLLMCompleted failed:", e)
+      );
     }
 
     const parsed = extractJson<{ group_tags: string[] }>(

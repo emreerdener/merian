@@ -40,21 +40,24 @@ Why it matters: the same species data should not be reshaped in three subtly dif
 
 ## Scope 4 — Provenance And Refresh Metadata
 
-Status: planned.
+Status: storage/helper layer implemented; scheduled refresh executor still planned.
 
-- [ ] Track source and freshness for overview, habitat, taxonomy, GBIF key, images, common names, and lookalikes.
-- [ ] Store whether a value came from GBIF, Wikipedia, user review, a model-generated enrichment pass, or manual curation.
-- [ ] Add refresh workflows for stale or low-confidence species rows.
+- [x] Track source and freshness for overview, habitat, taxonomy, GBIF key, images, common names, group tags, conservation/hazard fields, and lookalikes.
+- [x] Store whether a value came from GBIF, Wikipedia, user review, a model-generated enrichment pass, manual curation, taxonomy trigger, mixed sources, or a legacy backfill.
+- [x] Add a service-role refresh queue query for stale or low-confidence species content rows.
+- [ ] Build the scheduled refresh worker that consumes `get_species_content_refresh_queue(...)` and selectively refreshes stale content.
+- [ ] Add curation tools that can write `manual_curation` provenance with no automatic refresh deadline.
 
 Why it matters: cached species content will age. Provenance lets Merian refresh data deliberately instead of overwriting fields blindly.
 
 ## Scope 5 — Stronger Lookalike Modeling
 
-Status: planned.
+Status: SQL/Edge/iOS additive metadata implemented; curation workflow still planned.
 
-- [ ] Extend `species_lookalikes` with relation metadata such as `reason`, `visual_traits`, `confidence`, `source`, `review_status`, `is_bidirectional`, and `sort_order`.
-- [ ] Support explaining why two species are visually similar.
-- [ ] Keep relation direction explicit; do not assume every lookalike relationship is symmetric.
+- [x] Extend `species_lookalikes` with relation metadata: `reason`, `visual_traits`, `confidence`, `source`, `review_status`, `is_bidirectional`, and `sort_order`.
+- [x] Support explaining why two species are visually similar through optional public `reason` and `visual_traits` fields.
+- [x] Keep relation direction explicit; do not assume every lookalike relationship is symmetric.
+- [ ] Build review/curation tooling for approving, rejecting, reordering, and manually editing lookalike relationships.
 
 Why it matters: a dictionary page should eventually explain the confusion, not only list names and photos.
 

@@ -176,8 +176,15 @@ Lookalikes:
 
 - Source table: `species_lookalikes`.
 - Hydration uses the explicit PostgREST FK hint `species_dictionary!lookalike_id` because the join table has two foreign keys to `species_dictionary`.
-- Returned fields are limited to `species_id`, `scientific_name`, `common_names`, `reference_image_url`, and `iucn_red_list_status`; thumbnail URLs prefer `species_reference_images` and fall back to the legacy dictionary cache.
+- Returned fields include `species_id`, `scientific_name`, `common_names`, `reference_image_url`, `iucn_red_list_status`, and optional relation metadata (`reason`, `visual_traits`, `confidence`, `source`, `review_status`, `is_bidirectional`, `sort_order`); thumbnail URLs prefer `species_reference_images` and fall back to the legacy dictionary cache.
+- Cards show the relation `reason` when present, otherwise they can fall back to the first shared visual traits.
 - The page renders the section read-only in V1.
+
+Provenance:
+
+- The iOS page does not display provenance or freshness metadata in V1.
+- Backend writers record source/freshness rows in `species_content_provenance` for dictionary fields and durable lookalikes.
+- Future refresh workers should consume `public.get_species_content_refresh_queue(...)` so stale GBIF/Wikipedia/model-enriched fields can be refreshed selectively without overwriting curated content blindly.
 
 ## Privacy Rules
 
@@ -201,8 +208,8 @@ If a future web frontend consumes this endpoint, it should be able to use the sa
 Backend:
 
 ```sh
-deno check supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
-deno test supabase/functions/species-dictionary/db.test.ts
+deno check supabase/functions/_shared/publicSpeciesProjection.ts supabase/functions/_shared/speciesContentProvenance.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
+deno test supabase/functions/_shared/publicSpeciesProjection_test.ts supabase/functions/_shared/speciesContentProvenance_test.ts supabase/functions/species-dictionary/db.test.ts
 ```
 
 iOS:

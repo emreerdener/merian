@@ -4,9 +4,19 @@ import { EncyclopedicData, SimilarSpeciesEntry } from "../_shared/biology.ts";
 import {
   firstReferenceImageUrl,
   firstReferenceImageUrlsBySpeciesId,
+  normalizePublicConfidence,
+  publicSimilarSpeciesMetadata,
   type PublicSpeciesReferenceImageRow,
   resolveOptionalPublicCommonName,
+  sanitizeLookalikeVisualTraits,
+  stringValue,
 } from "../_shared/publicSpeciesProjection.ts";
+import {
+  buildLookalikesProvenanceRows,
+  recordSpeciesContentProvenance,
+  type SpeciesContentProvenanceRow,
+  speciesContentProvenanceRow,
+} from "../_shared/speciesContentProvenance.ts";
 import { normalizeTaxonomyValue } from "../_shared/taxonomy.ts";
 
 export async function getCachedSpecies(
@@ -49,9 +59,12 @@ export async function fetchLookalikesFromJoinTable(
   const { data, error } = await supabaseAdmin
     .from("species_lookalikes")
     .select(
-      "lookalike:species_dictionary!lookalike_id(id, scientific_name, common_names, reference_image_url, iucn_red_list_status, order, family)",
+      "reason, visual_traits, confidence, source, review_status, is_bidirectional, sort_order, lookalike:species_dictionary!lookalike_id(id, scientific_name, common_names, reference_image_url, iucn_red_list_status, order, family)",
     )
     .eq("species_id", speciesId)
+    .neq("review_status", "rejected")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
     .limit(10);
 
   if (error) throw error;
@@ -60,6 +73,13 @@ export async function fetchLookalikesFromJoinTable(
   // Cast through unknown: the Supabase client infers the embedded join field as an array
   // internally, but PostgREST's !lookalike_id hint guarantees a single object (or null).
   const rows = (data as unknown as {
+    reason: string | null;
+    visual_traits: string[] | null;
+    confidence: number | null;
+    source: string | null;
+    review_status: string | null;
+    is_bidirectional: boolean | null;
+    sort_order: number | null;
     lookalike: {
       id: string;
       scientific_name: string;
@@ -85,6 +105,7 @@ export async function fetchLookalikesFromJoinTable(
       reference_image_url: firstImageBySpeciesId.get(row.lookalike!.id) ??
         firstReferenceImageUrl(row.lookalike!.reference_image_url),
       iucn_red_list_status: row.lookalike!.iucn_red_list_status,
+      ...publicSimilarSpeciesMetadata(row),
       _order: row.lookalike!.order,
       _family: row.lookalike!.family,
     }));
@@ -222,10 +243,20 @@ export async function resolveLookalikesToJoinTable(
   // The reverse relationship (m → speciesId) is not guaranteed to hold — a pine cone is
   // not a lookalike for a rose just because Flash once suggested the reverse. Bidirectional
   // writes caused cross-family contamination that bypassed the kingdom-only validation guard.
-  const inserts = validated.map((m) => ({
-    species_id: speciesId,
-    lookalike_id: m.id,
-  }));
+  const inserts = validated.map((m, index) => {
+    const entry = entryByName.get(m.scientific_name);
+    return {
+      species_id: speciesId,
+      lookalike_id: m.id,
+      reason: sanitizeLookalikeReason(entry?.reason),
+      visual_traits: sanitizeLookalikeVisualTraits(entry?.visual_traits),
+      confidence: normalizePublicConfidence(entry?.confidence) ?? 0.8,
+      source: "model_enrichment",
+      review_status: "unreviewed",
+      is_bidirectional: false,
+      sort_order: index,
+    };
+  });
 
   const { error: upsertError } = await supabaseAdmin
     .from("species_lookalikes")
@@ -272,6 +303,12 @@ export async function resolveLookalikesToJoinTable(
     supabaseAdmin,
   );
 
+  await recordSpeciesContentProvenance(
+    supabaseAdmin,
+    buildLookalikesProvenanceRows(speciesId, validated.length),
+    "resolveLookalikesToJoinTable",
+  );
+
   return {
     lookalikes: validated.map((m) => ({
       scientific_name: m.scientific_name,
@@ -282,9 +319,27 @@ export async function resolveLookalikesToJoinTable(
       reference_image_url: firstImageBySpeciesId.get(m.id) ??
         firstReferenceImageUrl(m.reference_image_url),
       iucn_red_list_status: m.iucn_red_list_status,
+      reason: sanitizeLookalikeReason(
+        entryByName.get(m.scientific_name)?.reason,
+      ),
+      visual_traits: sanitizeLookalikeVisualTraits(
+        entryByName.get(m.scientific_name)?.visual_traits,
+      ),
+      confidence: normalizePublicConfidence(
+        entryByName.get(m.scientific_name)?.confidence,
+      ) ?? 0.8,
+      source: "model_enrichment",
+      review_status: "unreviewed",
+      is_bidirectional: false,
+      sort_order: validated.findIndex((entry) => entry.id === m.id),
     })),
     persisted: true,
   };
+}
+
+function sanitizeLookalikeReason(value: unknown): string | null {
+  const reason = stringValue(value);
+  return reason ? reason.slice(0, 240) : null;
 }
 
 async function fetchFirstReferenceImagesForSpecies(
@@ -368,5 +423,98 @@ export async function updateSpeciesEnrichment(
         );
       }
     }
+
+    await recordSpeciesEnrichmentProvenance(
+      scientificName,
+      enrichmentResult,
+      similarResult,
+      alternativeCommonNames,
+      supabaseAdmin,
+    );
   }
+}
+
+async function recordSpeciesEnrichmentProvenance(
+  scientificName: string,
+  enrichmentResult: EncyclopedicData | null,
+  similarResult: { similar_species: SimilarSpeciesEntry[] } | null,
+  alternativeCommonNames: string[] | null | undefined,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("species_dictionary")
+    .select("id")
+    .eq("scientific_name", scientificName)
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      "[recordSpeciesEnrichmentProvenance] Failed to fetch species id:",
+      error.message,
+    );
+    return;
+  }
+
+  const speciesId = typeof data?.id === "string" ? data.id : null;
+  if (!speciesId) return;
+
+  const rows: SpeciesContentProvenanceRow[] = [];
+  const refreshedAt = new Date();
+
+  if (enrichmentResult) {
+    rows.push(
+      speciesContentProvenanceRow(speciesId, "taxonomy", "model_enrichment", {
+        refreshedAt,
+        sourceDetail: "static encyclopedic taxonomy enrichment",
+        metadata: {
+          populated_ranks: Object.entries(enrichmentResult.taxonomy)
+            .filter(([, value]) =>
+              typeof value === "string" && value.trim().length > 0
+            )
+            .map(([key]) => key),
+        },
+      }),
+      speciesContentProvenanceRow(
+        speciesId,
+        "habitat_description",
+        "model_enrichment",
+        {
+          refreshedAt,
+          sourceDetail: "static encyclopedic habitat enrichment",
+        },
+      ),
+    );
+  }
+
+  if (alternativeCommonNames !== undefined) {
+    rows.push(
+      speciesContentProvenanceRow(
+        speciesId,
+        "alternative_common_names",
+        "gbif",
+        {
+          refreshedAt,
+          sourceDetail: "GBIF vernacular names",
+          metadata: { count: alternativeCommonNames?.length ?? 0 },
+        },
+      ),
+    );
+  }
+
+  if (similarResult) {
+    rows.push(
+      ...buildLookalikesProvenanceRows(
+        speciesId,
+        similarResult.similar_species.length,
+        "model_enrichment",
+        refreshedAt,
+      ),
+    );
+  }
+
+  await recordSpeciesContentProvenance(
+    supabaseAdmin,
+    rows,
+    "updateSpeciesEnrichment",
+  );
 }

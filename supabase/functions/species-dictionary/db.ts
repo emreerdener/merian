@@ -5,6 +5,7 @@ import {
   firstReferenceImageUrlsBySpeciesId,
   type PublicReferenceImageSource,
   type PublicSimilarSpecies,
+  publicSimilarSpeciesMetadata,
   type PublicSpeciesDictionaryPayload,
   type PublicSpeciesDictionaryRow,
   publicSpeciesProjectionForbiddenKeys,
@@ -40,6 +41,13 @@ export const buildSpeciesDictionaryPayload =
   buildPublicSpeciesDictionaryPayload;
 
 interface LookalikeRelationRow {
+  reason?: string | null;
+  visual_traits?: string[] | null;
+  confidence?: number | null;
+  source?: string | null;
+  review_status?: string | null;
+  is_bidirectional?: boolean | null;
+  sort_order?: number | null;
   lookalike?: LookalikeSpeciesRow | LookalikeSpeciesRow[] | null;
 }
 
@@ -181,9 +189,12 @@ async function fetchSimilarSpecies(
   const { data, error } = await supabaseAdmin
     .from("species_lookalikes")
     .select(
-      "lookalike:species_dictionary!lookalike_id(id, scientific_name, common_names, reference_image_url, iucn_red_list_status)",
+      "reason, visual_traits, confidence, source, review_status, is_bidirectional, sort_order, lookalike:species_dictionary!lookalike_id(id, scientific_name, common_names, reference_image_url, iucn_red_list_status)",
     )
-    .eq("species_id", speciesId);
+    .eq("species_id", speciesId)
+    .neq("review_status", "rejected")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
 
   if (error) {
     throw new Error(`Failed to fetch species lookalikes: ${error.message}`);
@@ -196,6 +207,7 @@ async function fetchSimilarSpecies(
     common_name: string | null;
     legacy_reference_image_url: string | null;
     iucn_red_list_status: string | null;
+    relation: LookalikeRelationRow;
   }> = [];
 
   for (const row of (data ?? []) as LookalikeRelationRow[]) {
@@ -214,6 +226,7 @@ async function fetchSimilarSpecies(
       common_name: resolveOptionalPublicCommonName(lookalike?.common_names),
       legacy_reference_image_url: stringValue(lookalike?.reference_image_url),
       iucn_red_list_status: stringValue(lookalike?.iucn_red_list_status),
+      relation: row,
     });
   }
 
@@ -229,6 +242,7 @@ async function fetchSimilarSpecies(
     reference_image_url: firstImageBySpeciesId.get(row.species_id) ??
       firstReferenceImageUrl(row.legacy_reference_image_url),
     iucn_red_list_status: row.iucn_red_list_status,
+    ...publicSimilarSpeciesMetadata(row.relation),
   }));
 }
 
