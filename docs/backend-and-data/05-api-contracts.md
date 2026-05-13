@@ -1998,11 +1998,11 @@ and persists it as `LocalScanRecord.lookalikesData` (added in `MerianSchemaV27`)
 — the primary SwiftData storage for rich lookalike data. The legacy
 `LocalScanRecord.similarSpecies: [String]?` field is retained as a
 backwards-compatible fallback for pre-V27 records where `lookalikesData` is nil.
-`InferenceEngine.load(from:)` now also supports a one-time local cache reset
-version so previously poisoned `lookalikesData` blobs are ignored and refreshed
-after the backend validation hardening ships. `SimilarSpeciesGallery` always
-labels validated entries as "Similar species"; identification uncertainty is
-handled by the separate candidates/review surface.
+`InferenceEngine.load(from:)` also supports a one-time local cache reset version
+so previously poisoned `lookalikesData` blobs are ignored and refreshed through
+the hardened backend validation path. `SimilarSpeciesGallery` always labels
+validated entries as "Similar species"; identification uncertainty is handled by
+the separate candidates/review surface.
 
 **Per-user daily rate limit**: Free-tier users are throttled after 50
 `enrich-scan` requests per day (proxy for LLM budget). The tier is resolved via

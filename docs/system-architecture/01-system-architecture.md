@@ -65,6 +65,9 @@ The backend logic is strictly decoupled into modular, single-responsibility func
   - `/sync-collections`: Reconciles offline iOS SwiftData modifications with the Postgres single source of truth.
   - `/delete-scan` & `/safe-delete`: Atomic operations cascading Postgres deletions out to Cloudflare R2 blobs to prevent orphaned objects.
   - `/auto-purge-domesticated` & `/auto-purge-nonbio`: Automated webhook/cron jobs actively trimming non-wildlife data to maintain taxonomic dataset integrity.
+- **Public Species Content**
+  - `/species-dictionary`: Public species-level dictionary projection for the in-app species page and future web frontend.
+  - `/refresh-species-content`: Internal service-role cron worker that consumes `species_content_provenance`, refreshes GBIF/Wikipedia-backed fields, and synchronizes normalized reference imagery.
 - **Moderation & Social**
   - `/get-filtered-discovery-feed`: Paginates heavy spatial queries (abstracting global `geoprivacy = 'open'` filtering away from the mobile client), handles blocking mechanisms, and destructively rounds coordinates natively via the IUCN Red List index to protect vulnerable species from poachers.
   - `/block-user` & `/flag-issue`: Trust and Safety endpoint managers mitigating bad actors on the global feed.

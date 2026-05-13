@@ -615,7 +615,7 @@ that operate on anonymous IDFV boundaries:
   anonymous-compatible routes: omitting an entry causes Supabase's Kong gateway
   to default to `verify_jwt = true`, which validates the JWT at the gateway
   layer before the function code runs and rejects valid ES256 anonymous sessions
-  with `401 Invalid JWT`. There are three intentional deviations:
+  with `401 Invalid JWT`. There are four intentional deviations:
   - **`merge-ghost-profile`**: Keeps `verify_jwt = true` because merging a ghost
     into an unauthenticated session is semantically invalid and a security risk.
     The gateway enforces a fully authenticated session before the function runs.
@@ -624,14 +624,19 @@ that operate on anonymous IDFV boundaries:
     have no stable identity to bind an export to.
   - **`species-dictionary`**: Keeps `verify_jwt = false` but intentionally skips
     `requireAuth` because it returns only public species-level dictionary data.
+  - **`refresh-species-content`**: Keeps `verify_jwt = false` so `pg_net` can
+    invoke the worker, then enforces the service-role bearer header inside Deno
+    with `timingSafeCompare`.
 - **Rule for new Edge Functions**: Every new function directory under
   `supabase/functions/` MUST have a corresponding `[functions.<name>]` entry in
   `config.toml` before deployment. Use `verify_jwt = false` for
-  anonymous-compatible app routes and deliberately public routes; use
+  anonymous-compatible app routes, deliberately public routes, and `pg_net`
+  workers that perform their own service-role secret check; use
   `verify_jwt = true` only for explicitly authenticated-only routes with no
   anonymous user path. Public unauthenticated routes must document their
   data-exposure boundary in both the function README and
-  `docs/backend-and-data/05-api-contracts.md`.
+  `docs/backend-and-data/05-api-contracts.md`; internal cron workers must
+  document their service-role authorization boundary.
 
 ## Database Indexing & Performance
 

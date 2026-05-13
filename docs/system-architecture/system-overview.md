@@ -13,6 +13,8 @@ When the user captures an image, the architecture triggers a coordinated sequenc
 3. **Biological Inference (`InferenceEngine.swift`)**: Fires the R2 key and `CaptureTelemetry` to the Supabase `/identify` Edge Node, keeping the `GEMINI_API_KEY` off the client.
 4. **Offline Resilience**: If a user is off-grid, the payload is written to `.documentDirectory` and a `SwiftData` row is inserted with `scanStateRaw = 0` (`.pending`). Apple's background `URLSession` triggers upload when connectivity returns. Offline queuing is gated by the daily scan quota (`UsageManager.canPerformScan`) — free users who have exhausted their 2-scan-per-day limit hit the paywall at capture time rather than at sync time. Every scan that enters the queue is already paid for and uploads unconditionally.
 
+The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh without using local scan media, field notes, comments, or user locations.
+
 ## Core Decoupling (AppDIContainer)
 
 Merian does not use `@EnvironmentObject` for its core architectural engines. All complex business logic is bound using `@Observable` macros and `@Environment()` injection to keep the `View` lifecycle free from recursive updates or `EXC_BAD_ACCESS` warnings.

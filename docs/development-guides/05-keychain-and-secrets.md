@@ -37,7 +37,7 @@ Merian uses two different categories of keys/configuration:
 **Absolute rule: no true backend secret may appear in any `.swift` file, `Info.plist`, or iOS `.xcconfig` file.**
 
 - `GEMINI_API_KEY` — lives exclusively in Supabase Edge secrets. The iOS binary has no knowledge of this key. All Gemini calls go through the `/identify` Edge function.
-- `SUPABASE_SERVICE_ROLE_KEY` — lives exclusively in Supabase Edge secrets. Never in the iOS app.
+- `SUPABASE_SERVICE_ROLE_KEY` — lives exclusively in Supabase Edge secrets. Never in the iOS app. Internal cron/webhook workers such as `refresh-species-content`, `auto-purge-nonbio`, and `auto-purge-domesticated` may receive it only as a server-to-server `Authorization: Bearer ...` header from `pg_net`/Vault.
 - `SUPABASE_ANON_KEY` — this is public client config, not a secret. It is injected via `Config.xcconfig` into `MerianEnvironment.swift`.
 - `SUPABASE_URL`, `REVENUECAT_API_KEY`, `POSTHOG_API_KEY`, `TELEMETRY_APP_ID`, `GIDClientID`, and `REVERSED_CLIENT_ID` are also public client config values used by the app at runtime.
 

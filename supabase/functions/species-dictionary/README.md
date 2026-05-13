@@ -207,6 +207,6 @@ to read the safe projected fields listed above.
 ## Local Verification
 
 ```sh
-deno check supabase/functions/_shared/http.ts supabase/functions/_shared/publicSpeciesProjection.ts supabase/functions/_shared/speciesContentProvenance.ts supabase/functions/_shared/identify/db.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
-deno test supabase/functions/_shared/http_test.ts supabase/functions/_shared/publicSpeciesProjection_test.ts supabase/functions/_shared/speciesContentProvenance_test.ts supabase/functions/_shared/identify/db_test.ts supabase/functions/species-dictionary/db.test.ts
+deno check supabase/functions/_shared/http.ts supabase/functions/_shared/publicSpeciesProjection.ts supabase/functions/_shared/speciesContentProvenance.ts supabase/functions/_shared/identify/db.ts supabase/functions/refresh-species-content/index.ts supabase/functions/refresh-species-content/db.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
+deno test supabase/functions/_shared/http_test.ts supabase/functions/_shared/publicSpeciesProjection_test.ts supabase/functions/_shared/speciesContentProvenance_test.ts supabase/functions/_shared/identify/db_test.ts supabase/functions/refresh-species-content/db.test.ts supabase/functions/species-dictionary/db.test.ts
 ```

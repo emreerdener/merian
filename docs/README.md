@@ -16,10 +16,10 @@ This directory is the technical master reference for the native iOS application,
 ### Backend & Data
 
 - **[`/backend-and-data/01-offline-sync-pipeline.md`](./backend-and-data/01-offline-sync-pipeline.md)** — Zero-data-loss architecture, SwiftData queues, and AppDelegate background URLSession mappings.
-- **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)** — Supabase Postgres schemas, Edge Function runtime rules, and RLS.
+- **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)** — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species dictionary workers, and cron/webhook boundaries.
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)** — SwiftData actor model: `BackgroundDatabaseActor`, `HistoricalDatabaseActor`, and `FileIOActor`.
 - **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)** — Physical table maps for PostgreSQL and the SwiftData persistent schemas, including the V41 `CapturedMediaEntry` mixed-media model.
-- **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including the shipped `/identify-multimodal` request shapes.
+- **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, `/species-dictionary`, Explore detail similar species, and internal cron workers.
 
 ### Features & Hardware
 
@@ -38,9 +38,9 @@ This directory is the technical master reference for the native iOS application,
 - **[`/features-and-hardware/13-explore-home-screen-widget.md`](./features-and-hardware/13-explore-home-screen-widget.md)** — Explore Home Screen widget: image-only WidgetKit extension, App Group cache contract, timeline carousel behavior, and deep-link routing.
 - **[`/features-and-hardware/14-explore-author-profiles.md`](./features-and-hardware/14-explore-author-profiles.md)** — Public Explore author profile sheets, privacy-scoped profile stats, non-opening public achievements, and the paginated published-scan library.
 - **[`/features-and-hardware/15-explore-following.md`](./features-and-hardware/15-explore-following.md)** — Explore Follow relationships: Following feed filter, public profile counts, follow notifications, block cleanup, and ghost-merge repair.
-- **[`/features-and-hardware/16-species-dictionary.md`](./features-and-hardware/16-species-dictionary.md)** — Standalone public species dictionary page, `species-dictionary` Edge Function contract, and similar-species entry points from Insight and Explore detail.
+- **[`/features-and-hardware/16-species-dictionary.md`](./features-and-hardware/16-species-dictionary.md)** — Standalone public species dictionary page, `species-dictionary` Edge Function contract, similar-species entry points from Insight and Explore detail, public cache rules, content quality, media attribution, and refresh provenance.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map product/RPC architecture, including the shipped V1 map implementation and follow-up recommendations.
-- **[`/rfcs/species-dictionary-long-term-todo.md`](./rfcs/species-dictionary-long-term-todo.md)** — Long-term species dictionary TODO covering canonical identity, reference media normalization, public projections, provenance, caching, licensing, and analytics.
+- **[`/rfcs/species-dictionary-long-term-todo.md`](./rfcs/species-dictionary-long-term-todo.md)** — Long-term species dictionary TODO covering canonical identity, reference media normalization, public projections, provenance and refresh, caching, licensing, and analytics.
 - **[`/rfcs/geological-expansions.md`](./rfcs/geological-expansions.md)** — Roadmap for extending inference to rocks, minerals, and fossils.
 
 ### Development Guides

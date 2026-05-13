@@ -85,3 +85,14 @@ The worker does not refresh model-heavy or review-heavy fields in V1:
 `common_names`, `habitat_description`, `lookalikes`, `group_tags`,
 `iucn_red_list_status`, and `hazard_type` are skipped until curation/model
 refresh tooling can update them safely.
+
+## Local Verification
+
+```sh
+deno check supabase/functions/_shared/external.ts supabase/functions/refresh-species-content/index.ts supabase/functions/refresh-species-content/db.ts supabase/functions/refresh-species-content/db.test.ts
+deno test supabase/functions/refresh-species-content/db.test.ts
+```
+
+`supabase db lint --local --fail-on error` should also be run when a local
+Supabase database is available so the migration helper and cron schedule are
+validated against PostgreSQL.
