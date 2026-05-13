@@ -3,14 +3,24 @@ import SwiftUI
 struct SpeciesDictionaryPageView: View {
     let scientificName: String
     let speciesId: String?
+    let entryPoint: SpeciesDictionaryEntryPoint
 
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: SpeciesDictionaryPageViewModel
 
-    init(scientificName: String, speciesId: String? = nil) {
+    init(
+        scientificName: String,
+        speciesId: String? = nil,
+        entryPoint: SpeciesDictionaryEntryPoint = .unknown
+    ) {
         self.scientificName = scientificName
         self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).trimmedNonEmpty
-        _viewModel = State(initialValue: SpeciesDictionaryPageViewModel(scientificName: scientificName, speciesId: speciesId))
+        self.entryPoint = entryPoint
+        _viewModel = State(initialValue: SpeciesDictionaryPageViewModel(
+            scientificName: scientificName,
+            speciesId: speciesId,
+            entryPoint: entryPoint
+        ))
     }
 
     var body: some View {
@@ -82,7 +92,13 @@ struct SpeciesDictionaryPageView: View {
             VStack(alignment: .leading, spacing: 24) {
                 SpeciesDictionaryReferenceGallery(
                     scientificName: species.scientificName,
-                    images: species.referenceImages
+                    images: species.referenceImages,
+                    onImageLoadFailed: { image in
+                        AppTelemetry.trackSpeciesDictionaryImageFallback(
+                            entryPoint: viewModel.entryPoint.rawValue,
+                            source: image.source.rawValue
+                        )
+                    }
                 )
 
                 header(for: species)

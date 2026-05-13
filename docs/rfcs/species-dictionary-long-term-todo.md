@@ -101,7 +101,7 @@ Current rules:
 - `complete` means all four public content signals are present; `sparse` means at least two are present; `needs_enrichment` means the row has fewer than two usable public content signals.
 - iOS treats `content_quality` as optional and estimates the same state for older payloads that do not include the field.
 - Sparse and needs-enrichment pages render a small status card instead of silently omitting most sections.
-- TelemetryDeck events `SpeciesDictionaryLoaded(contentQuality)` and `SpeciesDictionaryNotFound` track sparse-load and not-found rates without sending species identity.
+- TelemetryDeck events from Scope 10 track sparse-load and not-found rates with zero-PII entry-point metadata.
 
 Why it matters: users will tap into incomplete species rows, especially early in the dictionary rollout.
 
@@ -124,10 +124,21 @@ Why it matters: Wikimedia and GBIF-backed imagery can have attribution obligatio
 
 ## Scope 10 — Analytics
 
-Status: planned.
+Status: implemented for current iOS entry points; future search, web, and deep links have reserved entry-point values.
 
-- [ ] Track dictionary opens by entry point: Insight, Explore detail, future search, web, and deep links.
-- [ ] Track not-found, sparse-content, image-fallback, and retry rates.
-- [ ] Use those metrics to prioritize enrichment backfills and reference-image cleanup.
+- [x] Track dictionary opens by entry point: Insight, Explore detail, future search, web, and deep links.
+- [x] Track not-found, sparse-content, image-fallback, and retry rates.
+- [x] Use those metrics to prioritize enrichment backfills and reference-image cleanup.
+
+Current rules:
+
+- `SpeciesDictionaryRoute` carries a zero-PII `entryPoint` enum. Current iOS values are `insight_similar_species` and `explore_detail_similar_species`; reserved values are `search`, `deep_link`, `web`, and `unknown`.
+- `SpeciesDictionaryOpened` tracks sheet opens once per route/view-model lifecycle.
+- `SpeciesDictionaryLoaded` tracks successful loads with `entryPoint` and `contentQuality`, which covers sparse-load rates.
+- `SpeciesDictionaryNotFound` tracks missing public rows with `entryPoint`.
+- `SpeciesDictionaryRetry` tracks explicit retry taps from error/not-found states.
+- `SpeciesDictionaryImageFallback` tracks dictionary reference-image load failures with `entryPoint` and image `source`.
+- No event attaches species name, species ID, scan ID, Explore post ID, user location, field notes, comments, image URL, or user review state.
+- Prioritization query pattern: group `SpeciesDictionaryLoaded` by `contentQuality` and `entryPoint` to find sparse surfaces, group `SpeciesDictionaryImageFallback` by `source` to clean reference imagery, and group `SpeciesDictionaryNotFound`/`Retry` by `entryPoint` to find missing dictionary coverage in launch flows.
 
 Why it matters: the dictionary should improve where users actually encounter gaps.

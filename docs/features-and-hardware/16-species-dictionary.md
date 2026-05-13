@@ -76,7 +76,8 @@ SimilarSpeciesGallery(
     onSpeciesSelected: { entry in
         speciesDictionaryRoute = SpeciesDictionaryRoute(
             scientificName: entry.scientificName,
-            speciesId: entry.speciesId
+            speciesId: entry.speciesId,
+            entryPoint: .insightSimilarSpecies
         )
     }
 )
@@ -183,7 +184,14 @@ Every current `/species-dictionary` response includes additive `content_quality`
 
 iOS treats the field as optional for backward compatibility and estimates the same state when older payloads omit it. `complete` pages render normally. `sparse` and `needs_enrichment` pages show a compact status card below the species header so missing sections read as limited dictionary coverage, not broken layout. The page still renders every available section and continues to fall back gracefully when images or text are missing.
 
-TelemetryDeck tracks `SpeciesDictionaryLoaded` with `contentQuality` and `SpeciesDictionaryNotFound` without attaching species names, IDs, user locations, scans, or Explore post identifiers.
+TelemetryDeck tracks `SpeciesDictionaryOpened`, `SpeciesDictionaryLoaded`, `SpeciesDictionaryNotFound`, `SpeciesDictionaryRetry`, and `SpeciesDictionaryImageFallback`. Events include only `entryPoint`, `contentQuality`, and image `source` where relevant. They never attach species names, species IDs, user locations, scans, Explore post identifiers, field notes, comments, image URLs, or review state.
+
+Current iOS entry points are:
+
+- `insight_similar_species`
+- `explore_detail_similar_species`
+
+Reserved future entry points are `search`, `deep_link`, `web`, and `unknown`.
 
 ## Data Mapping Rules
 

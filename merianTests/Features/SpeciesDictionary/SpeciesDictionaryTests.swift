@@ -168,6 +168,19 @@ struct SpeciesDictionaryTests {
         #expect(species.commonName == "Field Test")
     }
 
+    @Test func testSpeciesDictionaryRouteCarriesAnalyticsEntryPoint() {
+        let route = SpeciesDictionaryRoute(
+            scientificName: "Testus floridus",
+            speciesId: " species-123 ",
+            entryPoint: .exploreDetailSimilarSpecies
+        )
+        let defaultRoute = SpeciesDictionaryRoute(scientificName: "Testus floridus")
+
+        #expect(route.speciesId == "species-123")
+        #expect(route.entryPoint == .exploreDetailSimilarSpecies)
+        #expect(defaultRoute.entryPoint == .unknown)
+    }
+
     @Test func testGetSpeciesDictionaryCanPreferSpeciesIdPayload() async throws {
         let testData = """
         {

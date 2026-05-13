@@ -14,11 +14,18 @@ enum SpeciesDictionaryPageState: Equatable {
 final class SpeciesDictionaryPageViewModel {
     let scientificName: String
     let speciesId: String?
+    let entryPoint: SpeciesDictionaryEntryPoint
     var state: SpeciesDictionaryPageState = .idle
+    private var hasTrackedOpen = false
 
-    init(scientificName: String, speciesId: String? = nil) {
+    init(
+        scientificName: String,
+        speciesId: String? = nil,
+        entryPoint: SpeciesDictionaryEntryPoint = .unknown
+    ) {
         self.scientificName = scientificName
         self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.entryPoint = entryPoint
     }
 
     var loadedSpecies: SpeciesDictionaryEntry? {
@@ -29,10 +36,12 @@ final class SpeciesDictionaryPageViewModel {
     }
 
     func load() async {
+        trackOpenIfNeeded()
+
         let trimmedName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard speciesId != nil || !trimmedName.isEmpty else {
             state = .notFound
-            AppTelemetry.trackSpeciesDictionaryNotFound()
+            AppTelemetry.trackSpeciesDictionaryNotFound(entryPoint: entryPoint.rawValue)
             return
         }
 
@@ -49,11 +58,14 @@ final class SpeciesDictionaryPageViewModel {
                 species = try await MerianNetworkClient.shared.getSpeciesDictionary(scientificName: trimmedName)
             }
             state = .loaded(species)
-            AppTelemetry.trackSpeciesDictionaryLoaded(contentQuality: species.effectiveContentQuality.telemetryValue)
+            AppTelemetry.trackSpeciesDictionaryLoaded(
+                entryPoint: entryPoint.rawValue,
+                contentQuality: species.effectiveContentQuality.telemetryValue
+            )
         } catch let error as MerianError {
             if case .httpError(let statusCode, _) = error, statusCode == 404 {
                 state = .notFound
-                AppTelemetry.trackSpeciesDictionaryNotFound()
+                AppTelemetry.trackSpeciesDictionaryNotFound(entryPoint: entryPoint.rawValue)
             } else {
                 state = .error(Self.displayMessage(for: error))
             }
@@ -63,7 +75,14 @@ final class SpeciesDictionaryPageViewModel {
     }
 
     func retry() async {
+        AppTelemetry.trackSpeciesDictionaryRetry(entryPoint: entryPoint.rawValue)
         await load()
+    }
+
+    private func trackOpenIfNeeded() {
+        guard !hasTrackedOpen else { return }
+        hasTrackedOpen = true
+        AppTelemetry.trackSpeciesDictionaryOpened(entryPoint: entryPoint.rawValue)
     }
 
     private static func displayMessage(for error: Error) -> String {

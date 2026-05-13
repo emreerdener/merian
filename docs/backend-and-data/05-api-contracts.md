@@ -345,7 +345,7 @@ Content quality:
 - The Edge projection classifies quality from four public content signals: at least one reference image, a usable Wikipedia overview, habitat/distribution data, and meaningful taxonomy.
 - `complete` means all four signals are present. `sparse` means two or three signals are present. `needs_enrichment` means fewer than two signals are available.
 - iOS treats the field as optional and estimates the same state for older payloads. Sparse and needs-enrichment pages render an intentional status card rather than leaving the missing sections unexplained.
-- iOS sends `SpeciesDictionaryLoaded` with `contentQuality` and `SpeciesDictionaryNotFound` through TelemetryDeck only; species names and IDs are not attached.
+- iOS sends species dictionary analytics through TelemetryDeck only. Events include `entryPoint`, `contentQuality`, and image `source` where relevant; species names, species IDs, scan IDs, Explore post IDs, user locations, field notes, comments, image URLs, and review state are not attached.
 
 Name and imagery mapping:
 

@@ -115,14 +115,35 @@ enum AppTelemetry {
 
     // MARK: - Species Dictionary Events
 
+    /// Records opening the species dictionary sheet without attaching species identity.
+    static func trackSpeciesDictionaryOpened(entryPoint: String) {
+        send("SpeciesDictionaryOpened", with: ["entryPoint": entryPoint])
+    }
+
     /// Records a successful species dictionary load without attaching species identity.
-    static func trackSpeciesDictionaryLoaded(contentQuality: String) {
-        send("SpeciesDictionaryLoaded", with: ["contentQuality": contentQuality])
+    static func trackSpeciesDictionaryLoaded(entryPoint: String, contentQuality: String) {
+        send("SpeciesDictionaryLoaded", with: [
+            "entryPoint": entryPoint,
+            "contentQuality": contentQuality
+        ])
     }
 
     /// Records a dictionary lookup that did not resolve to a public species row.
-    static func trackSpeciesDictionaryNotFound() {
-        send("SpeciesDictionaryNotFound")
+    static func trackSpeciesDictionaryNotFound(entryPoint: String) {
+        send("SpeciesDictionaryNotFound", with: ["entryPoint": entryPoint])
+    }
+
+    /// Records an explicit retry from the dictionary error or not-found state.
+    static func trackSpeciesDictionaryRetry(entryPoint: String) {
+        send("SpeciesDictionaryRetry", with: ["entryPoint": entryPoint])
+    }
+
+    /// Records a public reference image load failure that falls back to placeholder UI.
+    static func trackSpeciesDictionaryImageFallback(entryPoint: String, source: String) {
+        send("SpeciesDictionaryImageFallback", with: [
+            "entryPoint": entryPoint,
+            "source": source
+        ])
     }
 
     // MARK: - Hardware Events

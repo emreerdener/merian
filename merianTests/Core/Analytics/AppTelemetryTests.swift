@@ -24,8 +24,11 @@ final class AppTelemetryTests: XCTestCase {
         AppTelemetry.trackAchievementDetailOpened(type: "fungi", state: "in_progress")
         AppTelemetry.trackAchievementContributionOpened(type: "fungi")
         AppTelemetry.trackExploreNotificationOpenFailed(type: "comment")
-        AppTelemetry.trackSpeciesDictionaryLoaded(contentQuality: "sparse")
-        AppTelemetry.trackSpeciesDictionaryNotFound()
+        AppTelemetry.trackSpeciesDictionaryOpened(entryPoint: "insight_similar_species")
+        AppTelemetry.trackSpeciesDictionaryLoaded(entryPoint: "insight_similar_species", contentQuality: "sparse")
+        AppTelemetry.trackSpeciesDictionaryNotFound(entryPoint: "explore_detail_similar_species")
+        AppTelemetry.trackSpeciesDictionaryRetry(entryPoint: "explore_detail_similar_species")
+        AppTelemetry.trackSpeciesDictionaryImageFallback(entryPoint: "insight_similar_species", source: "gbif")
     }
 
     func testIsInitializedAfterSetUp() {

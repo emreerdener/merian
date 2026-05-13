@@ -186,7 +186,11 @@ struct ExplorePostDetailView: View {
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
         }
         .sheet(item: $speciesDictionaryRoute) { route in
-            SpeciesDictionaryPageView(scientificName: route.scientificName, speciesId: route.speciesId)
+            SpeciesDictionaryPageView(
+                scientificName: route.scientificName,
+                speciesId: route.speciesId,
+                entryPoint: route.entryPoint
+            )
         }
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
             Task {
@@ -477,7 +481,8 @@ struct ExplorePostDetailView: View {
                             onSpeciesSelected: { entry in
                                 speciesDictionaryRoute = SpeciesDictionaryRoute(
                                     scientificName: entry.scientificName,
-                                    speciesId: entry.speciesId
+                                    speciesId: entry.speciesId,
+                                    entryPoint: .exploreDetailSimilarSpecies
                                 )
                             }
                         )

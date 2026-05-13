@@ -70,11 +70,16 @@ Thin enum wrapper around `TelemetryDeck`. All sends go through a private `send(_
 | `ThermalThrottled` | `trackThermalThrottling(fpsLimit:)` | `targetFPS: "15"` | Device thermal state reaches critical |
 | `OfflineQueuedScan` | `trackOfflineQueued()` | — | Scan successfully written to offline queue after `context.save()` |
 | `OnboardingCompleted` | `trackOnboardingCompleted()` | — | User taps Continue on the `.ready` onboarding step |
-| `SpeciesDictionaryLoaded` | `trackSpeciesDictionaryLoaded(contentQuality:)` | `contentQuality: "complete"/"sparse"/"needs_enrichment"` | Species dictionary page loads a public dictionary row |
-| `SpeciesDictionaryNotFound` | `trackSpeciesDictionaryNotFound()` | — | Species dictionary lookup returns no public row |
+| `SpeciesDictionaryOpened` | `trackSpeciesDictionaryOpened(entryPoint:)` | `entryPoint` | Species dictionary sheet opens |
+| `SpeciesDictionaryLoaded` | `trackSpeciesDictionaryLoaded(entryPoint:contentQuality:)` | `entryPoint`, `contentQuality: "complete"/"sparse"/"needs_enrichment"` | Species dictionary page loads a public dictionary row |
+| `SpeciesDictionaryNotFound` | `trackSpeciesDictionaryNotFound(entryPoint:)` | `entryPoint` | Species dictionary lookup returns no public row |
+| `SpeciesDictionaryRetry` | `trackSpeciesDictionaryRetry(entryPoint:)` | `entryPoint` | User taps retry from a dictionary error/not-found state |
+| `SpeciesDictionaryImageFallback` | `trackSpeciesDictionaryImageFallback(entryPoint:source:)` | `entryPoint`, `source: "wikipedia"/"gbif"` | Species dictionary reference image fails to load and falls back to placeholder UI |
 | `APIDecodingFailure` | `trackError("APIDecodingFailure")` | `domain: "APIDecodingFailure"` | Gemini response fails schema decoding |
 | `InferenceNetworkFailure` | `trackError("InferenceNetworkFailure")` | `domain: "InferenceNetworkFailure"` | Network error on live inference (non-cancellation path) |
 | `SystemError` | `trackError(_:)` | `domain: <errorDomain>` | Available for future error domains |
+
+Species dictionary telemetry must remain zero-PII. `entryPoint` may be `insight_similar_species`, `explore_detail_similar_species`, `search`, `deep_link`, `web`, or `unknown`; events must not attach species names, species IDs, scan IDs, Explore post IDs, user locations, field notes, comments, image URLs, or user review state.
 
 ### `PostHogManager` & Edge Telemetry
 

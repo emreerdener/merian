@@ -158,7 +158,8 @@ struct BiologicalView: View {
                                 onSpeciesSelected: { entry in
                                     speciesDictionaryRoute = SpeciesDictionaryRoute(
                                         scientificName: entry.scientificName,
-                                        speciesId: entry.speciesId
+                                        speciesId: entry.speciesId,
+                                        entryPoint: .insightSimilarSpecies
                                     )
                                 }
                             )
@@ -189,7 +190,11 @@ struct BiologicalView: View {
         }
         .padding(.horizontal)
         .sheet(item: $speciesDictionaryRoute) { route in
-            SpeciesDictionaryPageView(scientificName: route.scientificName, speciesId: route.speciesId)
+            SpeciesDictionaryPageView(
+                scientificName: route.scientificName,
+                speciesId: route.speciesId,
+                entryPoint: route.entryPoint
+            )
         }
     }
 }

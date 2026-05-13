@@ -3,8 +3,20 @@ import SwiftUI
 struct SpeciesDictionaryReferenceGallery: View {
     let scientificName: String
     let images: [SpeciesDictionaryReferenceImage]
+    let onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)?
 
     @State private var selectedImageId: String?
+    @State private var failedImageIds = Set<String>()
+
+    init(
+        scientificName: String,
+        images: [SpeciesDictionaryReferenceImage],
+        onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)? = nil
+    ) {
+        self.scientificName = scientificName
+        self.images = images
+        self.onImageLoadFailed = onImageLoadFailed
+    }
 
     private var carouselHeight: CGFloat {
         min(UIScreen.main.bounds.width * 0.92, 400)
@@ -82,7 +94,10 @@ struct SpeciesDictionaryReferenceGallery: View {
                 AsyncLocalImageView(
                     path: nil,
                     fallbackImageUrl: image.url,
-                    fillHeight: true
+                    fillHeight: true,
+                    onImageLoadFailed: {
+                        trackLoadFailure(for: image)
+                    }
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .background(Color(uiColor: .secondarySystemBackground))
@@ -119,5 +134,11 @@ struct SpeciesDictionaryReferenceGallery: View {
             return "\(image.source.label) reference image for \(scientificName), \(attributionCaption)"
         }
         return "\(image.source.label) reference image for \(scientificName)"
+    }
+
+    private func trackLoadFailure(for image: SpeciesDictionaryReferenceImage) {
+        guard !failedImageIds.contains(image.id) else { return }
+        failedImageIds.insert(image.id)
+        onImageLoadFailed?(image)
     }
 }

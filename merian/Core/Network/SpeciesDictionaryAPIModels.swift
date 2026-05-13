@@ -214,13 +214,28 @@ struct SpeciesDictionarySimilarSpecies: Decodable, Equatable, Identifiable {
 struct SpeciesDictionaryRoute: Identifiable, Equatable {
     let speciesId: String?
     let scientificName: String
+    let entryPoint: SpeciesDictionaryEntryPoint
 
-    init(scientificName: String, speciesId: String? = nil) {
+    init(
+        scientificName: String,
+        speciesId: String? = nil,
+        entryPoint: SpeciesDictionaryEntryPoint = .unknown
+    ) {
         self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         self.scientificName = scientificName
+        self.entryPoint = entryPoint
     }
 
     var id: String { speciesId ?? scientificName }
+}
+
+enum SpeciesDictionaryEntryPoint: String, Equatable {
+    case insightSimilarSpecies = "insight_similar_species"
+    case exploreDetailSimilarSpecies = "explore_detail_similar_species"
+    case search
+    case deepLink = "deep_link"
+    case web
+    case unknown
 }
 
 private extension String {
