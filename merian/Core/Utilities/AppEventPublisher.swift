@@ -24,6 +24,9 @@ enum AppEvent {
     /// carrying the `LocalScanRecord` context forward into a supplementary multi-image generation sequence.
     case triggerRefinement(record: LocalScanRecord, initialDescription: String? = nil)
 
+    /// Dispatched to open the scans sheet and push the non-biological collection.
+    case requestOpenNonBiologicalScansIntent
+
     /// Dispatched after a scan review changes data that Explore renders through the scan join.
     case explorePostNeedsRefresh(postId: String)
     /// Dispatched after a local scan's Explore publication state changes.

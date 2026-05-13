@@ -389,6 +389,14 @@ final class InsightSheetViewModel {
                         }
                     }
                 }
+            } else if !data.isBiological {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    self.state.toastMessage = "Scan succeeded. Added to non-biological collection."
+                    self.toastActionTitle = "View"
+                    self.toastAction = {
+                        AppEventPublisher.shared.send(.requestOpenNonBiologicalScansIntent)
+                    }
+                }
             }
         }
     }

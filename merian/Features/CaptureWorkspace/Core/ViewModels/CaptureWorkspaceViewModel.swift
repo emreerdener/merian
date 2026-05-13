@@ -202,6 +202,8 @@ final class CaptureWorkspaceViewModel {
                     self?.handleExploreDeepLinkRoute(postId: postId)
                 case .triggerRefinement(let record, let initialDescription):
                     self?.startRefinementScan(from: record, initialDescription: initialDescription)
+                case .requestOpenNonBiologicalScansIntent:
+                    self?.activeSheet = .scans
                 default:
                     break
                 }

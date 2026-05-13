@@ -56,6 +56,7 @@ struct ScansSheetView: View {
     @State private var showBatchDeleteConfirmation = false
     @State private var showSelectionLimitAlert = false
     @State private var isSearchFocused = false
+    @State private var isNonBiologicalScansPresented = false
     
     // MARK: - Static Bounds
     private let filterCategories = ["All", "Plants", "Fungi", "Insects", "Birds", "Mammals", "Reptiles", "Other"]
@@ -115,6 +116,18 @@ struct ScansSheetView: View {
                 )
             }
             .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .bottomBar)
+            .navigationDestination(isPresented: $isNonBiologicalScansPresented) {
+                NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
+            }
+        }
+        .onReceive(AppEventPublisher.shared.publisher) { event in
+            if case .requestOpenNonBiologicalScansIntent = event {
+                activeTab = .collections
+                // Dispatch async to allow the tab change to render before pushing the navigation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isNonBiologicalScansPresented = true
+                }
+            }
         }
         .onAppear {
             searchManager.bindSettings(appSettings)
