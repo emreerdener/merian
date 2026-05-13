@@ -355,7 +355,36 @@ Key rules:
   curation/model refresh workflows.
 - Reference image refreshes update the legacy comma-separated cache and the
   normalized `species_reference_images` table. Existing license/attribution
-  metadata is preserved when a refreshed URL matches an existing row.
+  metadata is preserved when a refreshed URL matches an existing row. Merian
+  community rows are preserved and ordered separately by the Merian reference
+  image worker.
+
+## The Scheduled Merian Reference Image Node (`refresh-merian-reference-images`)
+
+The `/refresh-merian-reference-images` Edge Function is an internal service-role
+worker invoked by `pg_cron`/`pg_net`. It promotes high-quality, currently
+published Explore media into public species dictionary galleries with
+`source = "merian"`.
+
+Key rules:
+
+- `verify_jwt = false` is configured for `pg_net` compatibility, but every
+  request must include `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and
+  is checked with `timingSafeCompare`.
+- The scheduled job `refresh_merian_reference_images_hourly` runs at minute 37
+  every hour with `{ "quality_threshold": 90, "per_species_limit": 8 }`.
+- Selection happens transactionally in
+  `public.refresh_merian_reference_images(...)`: visible Explore posts only,
+  all non-empty image URLs from qualifying scans, `image_quality_score >= 90`,
+  species resolution through `COALESCE(confirmed_species_id, species_id)`, and
+  up to 8 promoted images per species.
+- Public rows store only `url`, `source = "merian"`,
+  `license = "Used with permission via Merian"`, and the public author label in
+  `attribution`. Source scan/post/user IDs remain in the private
+  `species_reference_image_merian_sources` table.
+- If an Explore post is unshared, media is cleared, geoprivacy becomes private,
+  the scan is tombstoned, or the author is shadowbanned, the next refresh removes
+  the corresponding Merian public reference image.
 
 ## The Unified Multi-Modal Inference Node (`identify-multimodal`)
 

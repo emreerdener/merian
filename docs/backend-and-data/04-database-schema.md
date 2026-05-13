@@ -141,7 +141,7 @@ species-level columns from this table: identifiers, canonical names, taxonomy,
 hazard/conservation status, Wikipedia/habitat/GBIF fields, group tags, alternate
 common names, and normalized public reference imagery from
 `species_reference_images`. It must not project scan-specific or user-specific
-data.
+data other than public media attribution labels stored on reference-image rows.
 
 ### `species_reference_images`
 
@@ -152,8 +152,10 @@ migration `20260513030000_add_species_reference_images.sql`.
 - `species_id` (UUID FK → `species_dictionary.id`, CASCADE DELETE): Owning
   species.
 - `url` (TEXT): Public image URL. `(species_id, url)` is unique.
-- `source` (TEXT): `wikipedia` or `gbif`; GBIF includes verified occurrence
-  imagery such as iNaturalist-hosted records returned by GBIF.
+- `source` (TEXT): `merian`, `wikipedia`, or `gbif`. Merian rows come from
+  published Explore post media that met the quality threshold; GBIF includes
+  verified occurrence imagery such as iNaturalist-hosted records returned by
+  GBIF.
 - `license` / `attribution` (TEXT, nullable): Media rights metadata for iOS
   attribution display and future web-safe public species pages. Web renderers
   must treat missing values as an attribution audit failure unless they can
@@ -164,12 +166,32 @@ migration `20260513030000_add_species_reference_images.sql`.
   timestamps.
 - RLS: anyone can read; non-service writes are not exposed by policy.
 
+Ordering uses `public.public_species_reference_image_source_rank(...)`:
+Merian images first, then Wikipedia, then GBIF, with `sort_order`,
+`created_at`, and `id` as tie-breakers.
+
 **Backfill and compatibility**: the migration splits, trims, and dedupes
 `species_dictionary.reference_image_url` into this table, preserving order.
 `upsertSpeciesDictionary` dual-writes verified cache URLs into this table for
 new or refreshed species. Public readers now prefer normalized rows, while
 `reference_image_url` remains a compatibility cache for older direct readers and
 historical scan backfills.
+
+### `species_reference_image_merian_sources`
+
+Private provenance/candidate table for Merian-sourced reference imagery. Added
+in migration `20260513080000_add_merian_reference_image_refresh.sql`.
+
+- Stores source `species_id`, `explore_post_id`, `scan_id`, `user_id`, image URL
+  and index, scan-level `image_quality_score`, author attribution snapshot, and
+  qualification/promotion timestamps.
+- `reference_image_id` links to the public `species_reference_images` row when
+  a candidate is currently promoted.
+- `(species_id, image_url)` is unique so duplicate Explore media for the same
+  species collapse to the best candidate.
+- RLS is enabled with no anon/authenticated read policy; only `service_role`
+  receives table grants. Public APIs expose only the safe
+  `species_reference_images` row fields.
 
 ### `user_species_preferences`
 
@@ -858,8 +880,15 @@ client contract.
   Internal service-role helper used by `refresh-species-content` after
   GBIF/Wikipedia image refreshes. It upserts refreshed image rows, removes stale
   unlicensed rows, preserves existing license/attribution/size metadata for
-  matching URLs, and demotes curated licensed extras behind freshly verified
-  rows.
+  matching URLs, demotes curated licensed extras behind freshly verified rows,
+  and never deletes, recategorizes, or demotes `source = 'merian'` rows.
+- `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 90, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE)`:
+  Internal service-role helper used by `/refresh-merian-reference-images`.
+  It selects currently visible Explore posts, unnests all non-empty
+  `scans.image_storage_urls`, requires `image_quality_score >= 90` by default,
+  resolves species via `COALESCE(confirmed_species_id, species_id)`, dedupes by
+  `(species_id, image_url)`, promotes up to 8 Merian images per species, and
+  removes Merian public rows whose source content is no longer visible.
 - `public.can_view_explore_author_profile(self_id UUID, target_author_user_id UUID)`:
   Returns whether the target author has a visible Explore profile for the
   requester. `set-user-follow` uses this before inserting follows so following
@@ -951,6 +980,15 @@ Adds `public.replace_species_reference_images(...)` and schedules the
 `get_species_content_refresh_queue(...)`, refreshes externally authoritative
 species fields, and leaves model/curation-backed fields untouched until
 dedicated tooling exists.
+
+### `20260513080000_add_merian_reference_image_refresh.sql`
+
+Adds `merian` as a reference-image source, the private
+`species_reference_image_merian_sources` provenance table,
+`public.refresh_merian_reference_images(...)`, Merian-first public ordering, and
+the `refresh_merian_reference_images_hourly` cron job. The job posts to
+`/functions/v1/refresh-merian-reference-images` at minute 37 every hour with
+`{ "quality_threshold": 90, "per_species_limit": 8 }`.
 
 ## SwiftData Schema (Local Offline Queue)
 

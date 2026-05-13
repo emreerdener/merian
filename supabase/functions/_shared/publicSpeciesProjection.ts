@@ -1,4 +1,4 @@
-export type PublicReferenceImageSource = "wikipedia" | "gbif";
+export type PublicReferenceImageSource = "wikipedia" | "gbif" | "merian";
 export type PublicSpeciesContentQuality =
   | "complete"
   | "sparse"
@@ -35,6 +35,19 @@ export interface PublicSpeciesReferenceImageRow {
   height?: number | null;
   sort_order?: number | null;
   created_at?: string | null;
+}
+
+interface PublicSpeciesReferenceImageCandidate {
+  id: string | null;
+  url: string;
+  source: PublicReferenceImageSource;
+  license?: string;
+  attribution?: string;
+  width?: number;
+  height?: number;
+  sortOrder: number;
+  createdAt: string | null;
+  originalIndex: number;
 }
 
 export interface PublicReferenceImageAttributionIssue {
@@ -304,33 +317,55 @@ export function referenceImagesFromRows(
 ): PublicSpeciesReferenceImage[] {
   const seen = new Set<string>();
   const images: PublicSpeciesReferenceImage[] = [];
+  const candidates: PublicSpeciesReferenceImageCandidate[] = [];
 
-  for (const row of rows ?? []) {
+  for (const [index, row] of (rows ?? []).entries()) {
     const url = stringValue(row.url);
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
+    if (!url) continue;
 
-    const image: PublicSpeciesReferenceImage = {
+    const source = normalizedReferenceImageSource(
+      row.source,
       url,
-      source: normalizedReferenceImageSource(
-        row.source,
-        url,
-        wikipediaUrl,
-        images.length,
-      ),
+      wikipediaUrl,
+      index,
+    );
+    const candidate: PublicSpeciesReferenceImageCandidate = {
+      id: stringValue(row.id),
+      url,
+      source,
+      sortOrder: positiveIntegerOrZero(row.sort_order) ?? index,
+      createdAt: stringValue(row.created_at),
+      originalIndex: index,
     };
 
     const license = stringValue(row.license);
-    if (license) image.license = license;
+    if (license) candidate.license = license;
 
     const attribution = stringValue(row.attribution);
-    if (attribution) image.attribution = attribution;
+    if (attribution) candidate.attribution = attribution;
 
     const width = positiveInteger(row.width);
-    if (width !== null) image.width = width;
+    if (width !== null) candidate.width = width;
 
     const height = positiveInteger(row.height);
-    if (height !== null) image.height = height;
+    if (height !== null) candidate.height = height;
+
+    candidates.push(candidate);
+  }
+
+  for (const candidate of candidates.sort(compareReferenceImageCandidates)) {
+    if (seen.has(candidate.url)) continue;
+    seen.add(candidate.url);
+
+    const image: PublicSpeciesReferenceImage = {
+      url: candidate.url,
+      source: candidate.source,
+    };
+
+    if (candidate.license) image.license = candidate.license;
+    if (candidate.attribution) image.attribution = candidate.attribution;
+    if (candidate.width !== undefined) image.width = candidate.width;
+    if (candidate.height !== undefined) image.height = candidate.height;
 
     images.push(image);
   }
@@ -363,7 +398,9 @@ export function firstReferenceImageUrlsBySpeciesId(
   rows: PublicSpeciesReferenceImageRow[] | null | undefined,
 ): Map<string, string> {
   const firstImageBySpeciesId = new Map<string, string>();
-  for (const row of rows ?? []) {
+  const sortedRows = [...(rows ?? [])].sort(compareReferenceImageRows);
+
+  for (const row of sortedRows) {
     const speciesId = stringValue(row.species_id);
     const url = stringValue(row.url);
     if (!speciesId || !url || firstImageBySpeciesId.has(speciesId)) continue;
@@ -459,6 +496,10 @@ export function referenceImageSource(
 ): PublicReferenceImageSource {
   try {
     const host = new URL(urlString).host.toLowerCase();
+    if (host === "media.merian.app" || host.endsWith(".merian.app")) {
+      return "merian";
+    }
+
     if (host.includes("wikipedia") || host.includes("wikimedia")) {
       return "wikipedia";
     }
@@ -479,12 +520,85 @@ function normalizedReferenceImageSource(
   wikipediaUrl: string | null | undefined,
   index: number,
 ): PublicReferenceImageSource {
-  if (source === "wikipedia" || source === "gbif") return source;
+  if (source === "wikipedia" || source === "gbif" || source === "merian") {
+    return source;
+  }
   return referenceImageSource(urlString, wikipediaUrl, index);
+}
+
+export function publicReferenceImageSourceRank(
+  source: PublicReferenceImageSource,
+): number {
+  switch (source) {
+    case "merian":
+      return 0;
+    case "wikipedia":
+      return 1;
+    case "gbif":
+      return 2;
+  }
+}
+
+function compareReferenceImageCandidates(
+  lhs: PublicSpeciesReferenceImageCandidate,
+  rhs: PublicSpeciesReferenceImageCandidate,
+): number {
+  return publicReferenceImageSourceRank(lhs.source) -
+      publicReferenceImageSourceRank(rhs.source) ||
+    lhs.sortOrder - rhs.sortOrder ||
+    compareNullableString(lhs.createdAt, rhs.createdAt) ||
+    compareNullableString(lhs.id, rhs.id) ||
+    lhs.originalIndex - rhs.originalIndex;
+}
+
+function compareReferenceImageRows(
+  lhs: PublicSpeciesReferenceImageRow,
+  rhs: PublicSpeciesReferenceImageRow,
+): number {
+  const lhsSource = normalizedReferenceImageSource(
+    lhs.source,
+    lhs.url ?? "",
+    null,
+    0,
+  );
+  const rhsSource = normalizedReferenceImageSource(
+    rhs.source,
+    rhs.url ?? "",
+    null,
+    0,
+  );
+  const lhsSortOrder = positiveIntegerOrZero(lhs.sort_order) ?? 0;
+  const rhsSortOrder = positiveIntegerOrZero(rhs.sort_order) ?? 0;
+
+  return compareNullableString(
+    lhs.species_id ?? null,
+    rhs.species_id ?? null,
+  ) ||
+    publicReferenceImageSourceRank(lhsSource) -
+      publicReferenceImageSourceRank(rhsSource) ||
+    lhsSortOrder - rhsSortOrder ||
+    compareNullableString(lhs.created_at ?? null, rhs.created_at ?? null) ||
+    compareNullableString(lhs.id ?? null, rhs.id ?? null);
+}
+
+function compareNullableString(
+  lhs: string | null,
+  rhs: string | null,
+): number {
+  if (lhs === rhs) return 0;
+  if (lhs === null) return 1;
+  if (rhs === null) return -1;
+  return lhs.localeCompare(rhs);
 }
 
 function positiveInteger(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : null;
+}
+
+function positiveIntegerOrZero(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
     ? value
     : null;
 }

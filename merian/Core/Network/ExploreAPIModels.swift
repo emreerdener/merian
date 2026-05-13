@@ -421,6 +421,10 @@ struct ExplorePostDetail: Decodable {
 
     private func referenceImageSource(for urlString: String, index: Int) -> ExploreReferenceGalleryImage.Source {
         let host = URL(string: urlString)?.host?.lowercased() ?? ""
+        if host == "media.merian.app" || host.hasSuffix(".merian.app") {
+            return .merian
+        }
+
         if host.contains("wikipedia") || host.contains("wikimedia") {
             return .wikipedia
         }
@@ -439,6 +443,7 @@ struct ExploreReferenceGalleryImage: Identifiable, Equatable {
     enum Source: Equatable {
         case wikipedia
         case gbif
+        case merian
 
         var label: String {
             switch self {
@@ -446,6 +451,8 @@ struct ExploreReferenceGalleryImage: Identifiable, Equatable {
                 return "Wikipedia"
             case .gbif:
                 return "GBIF"
+            case .merian:
+                return "Merian"
             }
         }
 
@@ -455,6 +462,8 @@ struct ExploreReferenceGalleryImage: Identifiable, Equatable {
                 return "book.closed"
             case .gbif:
                 return "globe.americas"
+            case .merian:
+                return "camera"
             }
         }
 
@@ -464,6 +473,8 @@ struct ExploreReferenceGalleryImage: Identifiable, Equatable {
                 return "Reference image"
             case .gbif:
                 return "Field observation"
+            case .merian:
+                return "Merian observation"
             }
         }
     }

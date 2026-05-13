@@ -259,11 +259,17 @@ Common name fallback order:
 Reference image mapping:
 
 - The Edge Function prefers ordered rows from `species_reference_images`.
-- Each normalized row becomes `{ "url": "...", "source": "wikipedia" | "gbif" }`
-  with optional `license`, `attribution`, `width`, and `height`.
+- Each normalized row becomes
+  `{ "url": "...", "source": "merian" | "wikipedia" | "gbif" }` with optional
+  `license`, `attribution`, `width`, and `height`.
+- Normalized rows are ordered Merian first, then Wikipedia, then GBIF.
 - If no normalized rows exist, the function falls back to the legacy
   comma-separated `species_dictionary.reference_image_url`, then splits, trims,
   and dedupes URLs.
+- Merian rows come from currently published Explore media whose scan-level
+  `image_quality_score` meets the scheduled worker threshold. V1 uses all
+  non-empty image URLs from the qualifying scan and caps promotion at 8 images
+  per species.
 - Wikimedia/Wikipedia hosts are marked `wikipedia`.
 - When a Wikipedia URL exists and the first image has no clear host signal, the
   first image is treated as `wikipedia`; all other unresolved URLs default to
@@ -273,6 +279,8 @@ Reference image attribution:
 
 - `license` and `attribution` come from normalized `species_reference_images`
   rows.
+- Merian-sourced rows use `license = "Used with permission via Merian"` and the
+  source author's public Explore label as attribution.
 - `SpeciesDictionaryReferenceGallery` shows the current image's
   attribution/license below the carousel when either value exists.
 - The footer follows carousel paging, so multi-image galleries show attribution
@@ -311,7 +319,22 @@ Provenance:
 - Reference image refreshes update both the legacy comma-separated cache and
   normalized `species_reference_images` rows through
   `public.replace_species_reference_images(...)`, preserving existing
-  license/attribution metadata for matching URLs.
+  license/attribution metadata for matching URLs and preserving Merian rows.
+- `refresh-merian-reference-images` runs hourly as a separate service-role cron
+  worker. It promotes published Explore media with `image_quality_score >= 90`,
+  stores private source provenance in `species_reference_image_merian_sources`,
+  and removes public Merian rows when the source Explore post/media stops being
+  visible.
+
+Manual acceptance for Merian reference images:
+
+1. Publish an Explore post backed by a scan with `image_quality_score >= 90`.
+2. Run or wait for `refresh-merian-reference-images`.
+3. Open the species dictionary page and verify Merian images appear first with
+   author attribution.
+4. Unshare the Explore post and run or wait for the worker again.
+5. Reopen the species dictionary page and verify the Merian images are removed
+   while external Wikipedia/GBIF imagery remains.
 
 ## Privacy Rules
 

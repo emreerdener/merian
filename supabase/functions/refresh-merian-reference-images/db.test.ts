@@ -1,0 +1,99 @@
+import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  parseMerianReferenceImageRefreshRequest,
+  runMerianReferenceImageRefresh,
+} from "./db.ts";
+
+Deno.test("refresh merian reference images - parses defaults and custom request", () => {
+  const defaults = parseMerianReferenceImageRefreshRequest({});
+  assertEquals(defaults.request, {
+    qualityThreshold: 90,
+    perSpeciesLimit: 8,
+    dryRun: false,
+  });
+
+  const custom = parseMerianReferenceImageRefreshRequest({
+    quality_threshold: 95,
+    per_species_limit: 4,
+    dry_run: true,
+  });
+  assertEquals(custom.request, {
+    qualityThreshold: 95,
+    perSpeciesLimit: 4,
+    dryRun: true,
+  });
+
+  const camelCase = parseMerianReferenceImageRefreshRequest({
+    qualityThreshold: 91,
+    perSpeciesLimit: 12,
+    dryRun: true,
+  });
+  assertEquals(camelCase.request, {
+    qualityThreshold: 91,
+    perSpeciesLimit: 12,
+    dryRun: true,
+  });
+});
+
+Deno.test("refresh merian reference images - validates request bounds", () => {
+  assertEquals(
+    parseMerianReferenceImageRefreshRequest({ quality_threshold: 101 }),
+    {
+      error: "quality_threshold must be an integer from 0 to 100.",
+      status: 400,
+    },
+  );
+  assertEquals(
+    parseMerianReferenceImageRefreshRequest({ per_species_limit: 0 }),
+    {
+      error: "per_species_limit must be an integer from 1 to 50.",
+      status: 400,
+    },
+  );
+  assertEquals(parseMerianReferenceImageRefreshRequest({ dry_run: "true" }), {
+    error: "dry_run must be a boolean.",
+    status: 400,
+  });
+});
+
+Deno.test("refresh merian reference images - calls transactional RPC", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const supabase = {
+    rpc(name: string, params: Record<string, unknown>) {
+      calls.push({ name, params });
+      return Promise.resolve({
+        data: [{
+          candidate_count: 10,
+          promoted_count: 8,
+          removed_count: 2,
+          species_count: 3,
+          dry_run: false,
+        }],
+        error: null,
+      });
+    },
+  } as unknown as SupabaseClient;
+
+  const result = await runMerianReferenceImageRefresh({
+    qualityThreshold: 90,
+    perSpeciesLimit: 8,
+    dryRun: false,
+  }, supabase);
+
+  assertEquals(calls, [{
+    name: "refresh_merian_reference_images",
+    params: {
+      p_quality_threshold: 90,
+      p_per_species_limit: 8,
+      p_dry_run: false,
+    },
+  }]);
+  assertEquals(result, {
+    candidate_count: 10,
+    promoted_count: 8,
+    removed_count: 2,
+    species_count: 3,
+    dry_run: false,
+  });
+});

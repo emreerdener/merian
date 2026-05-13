@@ -19,7 +19,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)** — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species dictionary workers, and cron/webhook boundaries.
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)** — SwiftData actor model: `BackgroundDatabaseActor`, `HistoricalDatabaseActor`, and `FileIOActor`.
 - **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)** — Physical table maps for PostgreSQL and the SwiftData persistent schemas, including the V41 `CapturedMediaEntry` mixed-media model.
-- **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, `/species-dictionary`, Explore detail similar species, and internal cron workers.
+- **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, `/species-dictionary`, Explore detail similar species, and internal cron workers such as Merian reference-image refresh.
 
 ### Features & Hardware
 

@@ -40,6 +40,12 @@ struct SpeciesDictionaryTests {
                 "group_tags": ["plant", "flower"],
                 "reference_images": [
                     {
+                        "url": "https://media.merian.app/public_uploads/pro/test.webp",
+                        "source": "merian",
+                        "license": "Used with permission via Merian",
+                        "attribution": "Explorer ABC123"
+                    },
+                    {
                         "url": "https://upload.wikimedia.org/test.jpg",
                         "source": "wikipedia",
                         "license": "CC BY-SA 4.0",
@@ -77,12 +83,14 @@ struct SpeciesDictionaryTests {
         #expect(response.data.scientificName == "Testus floridus")
         #expect(response.data.contentQuality == .complete)
         #expect(response.data.effectiveContentQuality == .complete)
-        #expect(response.data.referenceImages.map(\.source) == [.wikipedia, .gbif])
-        #expect(response.data.referenceImages.first?.license == "CC BY-SA 4.0")
-        #expect(response.data.referenceImages.first?.attribution == "Example Photographer")
-        #expect(response.data.referenceImages.first?.attributionCaption == "Example Photographer - CC BY-SA 4.0")
-        #expect(response.data.referenceImages.first?.width == 1200)
-        #expect(response.data.referenceImages.first?.height == 800)
+        #expect(response.data.referenceImages.map(\.source) == [.merian, .wikipedia, .gbif])
+        #expect(response.data.referenceImages[0].source.label == "Merian")
+        #expect(response.data.referenceImages[0].attributionCaption == "Explorer ABC123 - Used with permission via Merian")
+        #expect(response.data.referenceImages[1].license == "CC BY-SA 4.0")
+        #expect(response.data.referenceImages[1].attribution == "Example Photographer")
+        #expect(response.data.referenceImages[1].attributionCaption == "Example Photographer - CC BY-SA 4.0")
+        #expect(response.data.referenceImages[1].width == 1200)
+        #expect(response.data.referenceImages[1].height == 800)
         #expect(response.data.taxonomyData?.genus == "Testus")
         #expect(response.data.similarSpeciesData?.entries.first?.speciesId == "species-minor")
         #expect(response.data.similarSpeciesData?.entries.first?.scientificName == "Testus minor")
@@ -122,6 +130,38 @@ struct SpeciesDictionaryTests {
         #expect(response.data.scientificName == "Legacy testus")
         #expect(response.data.contentQuality == nil)
         #expect(response.data.effectiveContentQuality == .needsEnrichment)
+    }
+
+    @Test func testSpeciesDictionaryReferenceImageSourceFallbackIsResilient() throws {
+        let data = """
+        {
+            "data": {
+                "id": "species-source",
+                "scientific_name": "Source testus",
+                "common_name": "Source Test",
+                "alternative_common_names": [],
+                "taxonomy": null,
+                "hazard_type": null,
+                "iucn_red_list_status": null,
+                "wikipedia_url": null,
+                "wikipedia_overview": null,
+                "habitat_description": null,
+                "gbif_taxon_key": null,
+                "group_tags": [],
+                "reference_images": [
+                    { "url": "https://example.com/future.jpg", "source": "future_source" }
+                ],
+                "similar_species": []
+            }
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(SpeciesDictionaryResponse.self, from: data)
+
+        #expect(response.data.referenceImages.first?.source == .unknown("future_source"))
+        #expect(response.data.referenceImages.first?.source.label == "Reference")
     }
 
     @Test func testGetSpeciesDictionaryConstructsPayloadAndParsesResponse() async throws {

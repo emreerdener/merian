@@ -155,11 +155,15 @@ Reference images:
 
 - Prefer ordered rows from `species_reference_images`.
 - Include optional `license`, `attribution`, `width`, and `height` when present.
+- Normalized rows are ordered `merian`, then `wikipedia`, then `gbif`.
+- Merian rows come from high-quality published Explore media promoted by
+  `/refresh-merian-reference-images`.
 - If no normalized rows exist, split comma-separated
   `species_dictionary.reference_image_url`.
 - Trim and dedupe URLs.
 - Map each URL to `{ url, source }` plus any available provenance metadata.
 - Wikimedia/Wikipedia hosts map to `wikipedia`.
+- Merian media hosts map to `merian`.
 - If `wikipedia_url` exists, the first unresolved image is treated as
   `wikipedia`.
 - Remaining unresolved images map to `gbif`.
@@ -176,6 +180,9 @@ fields in V1. The scheduled `refresh-species-content` worker consumes
 GBIF/Wikipedia-backed fields in V1: alternate common names, taxonomy, Wikipedia
 URL/overview, GBIF taxon key, and reference images. Model-heavy or review-heavy
 keys remain skipped until curation/model refresh tooling exists.
+Merian source scan/post/user provenance is stored privately in
+`public.species_reference_image_merian_sources`; the public dictionary response
+exposes only URL, source, license, attribution, and optional image dimensions.
 
 ## Privacy Contract
 

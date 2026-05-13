@@ -585,9 +585,11 @@ Name and imagery mapping:
 - If no normalized image rows exist, `reference_images` falls back to the
   comma-separated `species_dictionary.reference_image_url` field by splitting,
   trimming, and deduping URLs.
-- `source` is `wikipedia` for Wikimedia/Wikipedia hosts. If `wikipedia_url`
-  exists, the first unresolved image also maps to `wikipedia`; otherwise
-  unresolved images map to `gbif`.
+- `source` is `merian` for Merian-published app media, `wikipedia` for
+  Wikimedia/Wikipedia hosts, and `gbif` for external occurrence imagery. If
+  `wikipedia_url` exists, the first unresolved legacy image also maps to
+  `wikipedia`; otherwise unresolved legacy images map to `gbif`.
+- Normalized rows are ordered Merian first, then Wikipedia, then GBIF.
 - `similar_species` is hydrated from `species_lookalikes` using the explicit
   PostgREST hint `species_dictionary!lookalike_id` and includes `species_id` for
   canonical tap-through routing. Similar-species thumbnails prefer the first
@@ -2476,7 +2478,8 @@ Manual service-role calls may also include:
 4. Updates `species_dictionary` only for fields where fresh external data
    exists.
 5. Synchronizes normalized images through
-   `public.replace_species_reference_images(...)`.
+   `public.replace_species_reference_images(...)`, which preserves
+   `source = "merian"` rows managed by the Merian reference-image worker.
 6. Records new `species_content_provenance` rows for refreshed keys.
 
 Per-species refreshes run with a concurrency cap of 4.
@@ -2484,6 +2487,70 @@ Per-species refreshes run with a concurrency cap of 4.
 Unsupported queued keys (`common_names`, `habitat_description`, `lookalikes`,
 `group_tags`, `iucn_red_list_status`, and `hazard_type`) are skipped until
 curation/model refresh tooling exists.
+
+---
+
+## Deno `/refresh-merian-reference-images` Edge Node (Cron Worker)
+
+Internal service-role worker for promoting high-quality published Explore media
+into public species dictionary galleries. It is invoked hourly by
+`pg_cron`/`pg_net`, not by iOS clients.
+
+### Request Payload
+
+Scheduled call:
+
+```json
+{ "quality_threshold": 90, "per_species_limit": 8 }
+```
+
+Manual service-role calls may also include:
+
+```json
+{
+  "quality_threshold": 95,
+  "per_species_limit": 4,
+  "dry_run": true
+}
+```
+
+### Authentication Enforcement
+
+- `verify_jwt = false` is configured for `pg_net` compatibility.
+- The function still requires
+  `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and validates it with
+  `timingSafeCompare`.
+- Non-POST requests return `405`.
+
+### Refresh Behavior
+
+1. Calls `public.refresh_merian_reference_images(...)` with the service role.
+2. The SQL helper selects visible Explore posts only: shared, not unshared,
+   non-tombstoned, media present, non-private geoprivacy, non-shadowbanned
+   author, and resolved species present.
+3. It unnests all non-empty `scans.image_storage_urls`, requires
+   `image_quality_score >= 90` by default, dedupes by `(species_id, image_url)`,
+   and promotes up to 8 images per species.
+4. Public rows use `source = "merian"`,
+   `license = "Used with permission via Merian"`, and
+   `attribution = users.public_author_name`.
+5. Provenance remains private in `species_reference_image_merian_sources`; no
+   public species API exposes source scan, post, or user IDs.
+6. Rows are removed on the next refresh when the source Explore post/media is no
+   longer publicly visible.
+
+Response:
+
+```json
+{
+  "success": true,
+  "candidate_count": 12,
+  "promoted_count": 8,
+  "removed_count": 1,
+  "species_count": 2,
+  "dry_run": false
+}
+```
 
 ---
 

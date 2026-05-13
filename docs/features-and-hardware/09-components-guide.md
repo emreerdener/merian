@@ -129,7 +129,9 @@ A horizontally scrolling carousel of ecologically similar lookalike species, ren
 
 Displays public species reference images from `/species-dictionary`.
 
-- **Source label**: Each image keeps the existing source pill (`Wikipedia` or `GBIF`) over the image.
+- **Source label**: Each image keeps the existing source pill (`Merian`,
+  `Wikipedia`, or `GBIF`) over the image. Unknown future source values decode as
+  `Reference` so additive backend sources do not break the page.
 - **Attribution footer**: When the active `SpeciesDictionaryReferenceImage` has `attribution` or `license`, the gallery renders a compact caption below the carousel. Multi-image galleries update the caption as paging changes.
 - **Fallback behavior**: Images without attribution metadata still render in iOS with source labeling. Future web renderers must run the shared public projection attribution audit before publishing reference media.
 

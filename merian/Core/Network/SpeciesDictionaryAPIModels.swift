@@ -129,9 +129,27 @@ struct SpeciesDictionaryTaxonomy: Decodable, Equatable {
 }
 
 struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable {
-    enum Source: String, Decodable, Equatable {
+    enum Source: Decodable, Equatable {
         case wikipedia
         case gbif
+        case merian
+        case unknown(String)
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            let rawValue = try container.decode(String.self)
+
+            switch rawValue {
+            case "wikipedia":
+                self = .wikipedia
+            case "gbif":
+                self = .gbif
+            case "merian":
+                self = .merian
+            default:
+                self = .unknown(rawValue)
+            }
+        }
 
         var label: String {
             switch self {
@@ -139,6 +157,23 @@ struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable {
                 return "Wikipedia"
             case .gbif:
                 return "GBIF"
+            case .merian:
+                return "Merian"
+            case .unknown:
+                return "Reference"
+            }
+        }
+
+        var rawValue: String {
+            switch self {
+            case .wikipedia:
+                return "wikipedia"
+            case .gbif:
+                return "gbif"
+            case .merian:
+                return "merian"
+            case .unknown(let value):
+                return value
             }
         }
     }

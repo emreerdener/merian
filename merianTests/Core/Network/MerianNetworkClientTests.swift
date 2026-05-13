@@ -272,7 +272,7 @@ struct MerianNetworkClientTests {
                 "gbif_taxon_key": 42,
                 "iucn_red_list_status": "least_concern",
                 "wikipedia_url": "https://en.wikipedia.org/wiki/Rosa_galeria",
-                "reference_image_url": "https://upload.wikimedia.org/rosa.jpg",
+                "reference_image_url": "https://media.merian.app/public_uploads/pro/rosa.webp,https://upload.wikimedia.org/rosa.jpg",
                 "wikipedia_overview": "Rosa galeria is a test species with enough overview copy for Explore.",
                 "similar_species": [
                     {
@@ -300,6 +300,8 @@ struct MerianNetworkClientTests {
         let similar = try #require(response.data.similarSpeciesData)
 
         #expect(response.effectiveSchemaVersion == 1)
+        #expect(response.data.referenceGalleryImages.map(\.source) == [.merian, .wikipedia])
+        #expect(response.data.referenceGalleryImages.first?.source.label == "Merian")
         #expect(similar.entries.count == 1)
         #expect(similar.entries[0].speciesId == "species-rosa-minor")
         #expect(similar.entries[0].scientificName == "Rosa minor")

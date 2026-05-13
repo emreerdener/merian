@@ -244,3 +244,37 @@ Current rules:
 
 Why it matters: the dictionary should improve where users actually encounter
 gaps.
+
+## Scope 11 — Merian-Sourced Reference Images
+
+Status: implemented for published Explore media; future moderation/review tools
+can refine promotion policy.
+
+- [x] Add `merian` as a normalized `species_reference_images.source`.
+- [x] Promote currently visible Explore post media with
+      `image_quality_score >= 90`.
+- [x] Use all non-empty image URLs from qualifying scans, cap at 8 promoted
+      Merian images per species, and order Merian images before Wikipedia/GBIF.
+- [x] Store private source scan/post/user provenance in
+      `species_reference_image_merian_sources` without exposing it through
+      public species APIs.
+- [x] Mirror source visibility: unshared posts, private geoprivacy, cleared
+      media, tombstoned scans, and shadowbanned authors remove public Merian
+      rows on the next refresh.
+- [ ] Add manual review/curation tooling for exceptional promotion, demotion,
+      and representative-photo diversity after automated V1 has production data.
+
+Current rules:
+
+- `/refresh-merian-reference-images` runs hourly through `pg_cron`/`pg_net`,
+  authenticating with `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`.
+- The scheduled run uses `{ "quality_threshold": 90, "per_species_limit": 8 }`.
+- Public rows use `source = "merian"`,
+  `license = "Used with permission via Merian"`, and the author's public Explore
+  label as `attribution`.
+- External `/refresh-species-content` image refreshes preserve Merian rows and
+  cannot delete or demote them.
+
+Why it matters: Merian's own high-quality published observations should become
+the strongest visual layer in the dictionary while preserving contributor
+visibility controls.

@@ -60,11 +60,24 @@ Deno.test("public species projection - reference image rows normalize and preser
         url: "https://static.inaturalist.org/photo.jpg",
         source: null,
       },
+      {
+        url: "https://media.merian.app/public_uploads/pro/photo.webp",
+        source: "merian",
+        license: "Used with permission via Merian",
+        attribution: "Explorer ABC123",
+        sort_order: 0,
+      },
     ],
     "https://en.wikipedia.org/wiki/Test_species",
   );
 
   assertEquals(images, [
+    {
+      url: "https://media.merian.app/public_uploads/pro/photo.webp",
+      source: "merian",
+      license: "Used with permission via Merian",
+      attribution: "Explorer ABC123",
+    },
     {
       url: "https://example.org/reference.jpg",
       source: "wikipedia",
@@ -78,6 +91,44 @@ Deno.test("public species projection - reference image rows normalize and preser
       source: "gbif",
     },
   ]);
+});
+
+Deno.test("public species projection - merian hosts and row sources sort first", () => {
+  const images = referenceImagesFromRows(
+    [
+      {
+        id: "gbif-row",
+        url: "https://static.inaturalist.org/photo.jpg",
+        source: "gbif",
+        sort_order: 0,
+      },
+      {
+        id: "wiki-row",
+        url: "https://upload.wikimedia.org/photo.jpg",
+        source: "wikipedia",
+        sort_order: 0,
+      },
+      {
+        id: "merian-row",
+        url: "https://media.merian.app/public_uploads/pro/photo.webp",
+        source: null,
+        sort_order: 7,
+      },
+    ],
+    "https://en.wikipedia.org/wiki/Test_species",
+  );
+
+  assertEquals(
+    images.map((image) => [image.source, image.url]),
+    [
+      [
+        "merian",
+        "https://media.merian.app/public_uploads/pro/photo.webp",
+      ],
+      ["wikipedia", "https://upload.wikimedia.org/photo.jpg"],
+      ["gbif", "https://static.inaturalist.org/photo.jpg"],
+    ],
+  );
 });
 
 Deno.test("public species projection - web attribution audit flags incomplete reference media", () => {
@@ -97,6 +148,12 @@ Deno.test("public species projection - web attribution audit flags incomplete re
       {
         url: "https://static.inaturalist.org/missing-both.jpg",
         source: "gbif",
+      },
+      {
+        url: "https://media.merian.app/reference.jpg",
+        source: "merian",
+        license: "Used with permission via Merian",
+        attribution: "Explorer ABC123",
       },
     ]),
     [

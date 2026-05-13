@@ -75,7 +75,8 @@ Migration `20260513070000_add_species_content_refresh_worker_schedule.sql` adds:
 - `public.replace_species_reference_images(UUID, JSONB)`, executable only by
   `service_role`. It upserts refreshed images, removes stale unlicensed rows,
   preserves existing license/attribution metadata, and demotes curated licensed
-  extras behind freshly verified rows.
+  extras behind freshly verified rows. `source = "merian"` rows are preserved
+  because they are owned by `/refresh-merian-reference-images`.
 - `refresh_species_content_hourly`, a `pg_cron` schedule that invokes
   `/functions/v1/refresh-species-content` through `pg_net`.
 

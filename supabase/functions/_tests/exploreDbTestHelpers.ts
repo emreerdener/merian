@@ -1,6 +1,7 @@
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
 
-const DEFAULT_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+const DEFAULT_DB_URL =
+  "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 const DB_URL = Deno.env.get("SUPABASE_DB_TEST_URL") ?? DEFAULT_DB_URL;
 
 export async function withExploreDbTest(
@@ -50,7 +51,12 @@ export async function insertUser(
       )
       VALUES ($1, $2, $3, 'alias', $4)
     `,
-    [id, `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`, publicName, publicAvatarUrl],
+    [
+      id,
+      `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`,
+      publicName,
+      publicAvatarUrl,
+    ],
   );
 }
 
@@ -104,7 +110,11 @@ type InsertScanOptions = {
   gpsLatPublic?: number | null;
   gpsLongPublic?: number | null;
   imageUrl?: string;
+  imageUrls?: string[];
   aiConfidenceScore?: number;
+  imageQualityScore?: number | null;
+  confirmedSpeciesId?: string | null;
+  isTombstoned?: boolean;
   semanticLocation?: string | null;
 };
 
@@ -118,40 +128,50 @@ export async function insertScan(
         id,
         user_id,
         species_id,
+        confirmed_species_id,
         image_storage_urls,
         ai_confidence_score,
+        image_quality_score,
         gps_lat_exact,
         gps_long_exact,
         gps_lat_public,
         gps_long_public,
         geoprivacy,
+        is_tombstoned,
         semantic_location
       )
       VALUES (
         $1,
         $2,
         $3,
-        ARRAY[$4],
+        $4::text[],
         $5,
         $6,
         $7,
         $8,
         $9,
         $10,
-        $11
+        $11,
+        $12,
+        $13,
+        $14
       )
     `,
     [
       options.id,
       options.userId,
       options.speciesId,
-      options.imageUrl ?? "https://media.merian.app/test-image.webp",
+      options.confirmedSpeciesId ?? null,
+      options.imageUrls ??
+        [options.imageUrl ?? "https://media.merian.app/test-image.webp"],
       options.aiConfidenceScore ?? 0.9,
+      options.imageQualityScore ?? null,
       options.latitude,
       options.longitude,
       options.gpsLatPublic ?? null,
       options.gpsLongPublic ?? null,
       options.geoprivacy,
+      options.isTombstoned ?? false,
       options.semanticLocation ?? null,
     ],
   );
@@ -180,6 +200,12 @@ export async function insertExplorePost(
       )
       VALUES ($1, $2, $3, COALESCE($4::timestamptz, now()), $5)
     `,
-    [options.id, options.userId, options.scanId, options.sharedAt ?? null, options.fieldNotes ?? null],
+    [
+      options.id,
+      options.userId,
+      options.scanId,
+      options.sharedAt ?? null,
+      options.fieldNotes ?? null,
+    ],
   );
 }

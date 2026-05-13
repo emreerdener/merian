@@ -68,6 +68,7 @@ The backend logic is strictly decoupled into modular, single-responsibility func
 - **Public Species Content**
   - `/species-dictionary`: Public species-level dictionary projection for the in-app species page and future web frontend.
   - `/refresh-species-content`: Internal service-role cron worker that consumes `species_content_provenance`, refreshes GBIF/Wikipedia-backed fields, and synchronizes normalized reference imagery.
+  - `/refresh-merian-reference-images`: Internal service-role cron worker that promotes high-quality published Explore media into Merian-sourced species reference images and mirrors source visibility.
 - **Moderation & Social**
   - `/get-filtered-discovery-feed`: Paginates heavy spatial queries (abstracting global `geoprivacy = 'open'` filtering away from the mobile client), handles blocking mechanisms, and destructively rounds coordinates natively via the IUCN Red List index to protect vulnerable species from poachers.
   - `/block-user` & `/flag-issue`: Trust and Safety endpoint managers mitigating bad actors on the global feed.
