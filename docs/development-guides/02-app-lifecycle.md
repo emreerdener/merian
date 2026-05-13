@@ -25,6 +25,9 @@ Camera session startup is owned by `CaptureWorkspaceView` / `CaptureWorkspaceVie
 **Deep links and intents:**
 `MerianApp.handleMerianDeepLink(_:)`, `PushNotificationManager.handleNotificationAction(...)`, and App Intents publish typed `AppEventPublisher` events. `CaptureWorkspaceViewModel` consumes scan and Explore events to present the appropriate sheet. `CaptureWorkspaceView` consumes identify/recall intent events that need to modify the pager or reuse current insight state.
 
+**Internal Cross-Sheet Routing:**
+`AppEventPublisher` is also utilized for decoupled internal routing. For example, toast actions originating from the `InsightSheetViewModel` can dispatch specific intents (e.g., `.requestOpenNonBiologicalScansIntent`) that are captured by the `CaptureWorkspaceViewModel` and `ScansSheetView` to mutate root presentation states and push nested navigation views, completely avoiding tight coupling between sibling modal sheets.
+
 **Async `Task {}` (off Main thread):**
 1. `SupabaseManager.initializeGhostSession()` — ensures a valid anonymous or authenticated session exists before any network calls.
 2. `PushNotificationManager.syncRemotePushRegistrationIfPossible(reason: "app_active")` — reconciles the current APNs token with the server when possible.
