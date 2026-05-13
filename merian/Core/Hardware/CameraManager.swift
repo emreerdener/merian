@@ -7,6 +7,13 @@ import Foundation
 import os
 import UIKit
 
+private final class CameraCaptureStack: @unchecked Sendable {
+    lazy var session = AVCaptureSession()
+    lazy var videoOutput = AVCaptureVideoDataOutput()
+    lazy var depthOutput = AVCaptureDepthDataOutput()
+    lazy var photoOutput = AVCapturePhotoOutput()
+}
+
 // MARK: - Camera Manager
 
 /// Manages the AVFoundation capture session, LiDAR depth mapping, photo capture,
@@ -18,10 +25,11 @@ import UIKit
     static let shared = CameraManager()
 
     // MARK: - AVFoundation Stack
-    @ObservationIgnored nonisolated let session = AVCaptureSession()
-    @ObservationIgnored nonisolated private let videoOutput = AVCaptureVideoDataOutput()
-    @ObservationIgnored nonisolated private let depthOutput = AVCaptureDepthDataOutput()
-    @ObservationIgnored nonisolated private let photoOutput = AVCapturePhotoOutput()
+    @ObservationIgnored nonisolated private let captureStack = CameraCaptureStack()
+    @ObservationIgnored nonisolated var session: AVCaptureSession { captureStack.session }
+    @ObservationIgnored nonisolated private var videoOutput: AVCaptureVideoDataOutput { captureStack.videoOutput }
+    @ObservationIgnored nonisolated private var depthOutput: AVCaptureDepthDataOutput { captureStack.depthOutput }
+    @ObservationIgnored nonisolated private var photoOutput: AVCapturePhotoOutput { captureStack.photoOutput }
 
     // MARK: - Threading
     @ObservationIgnored private let queue = DispatchQueue(label: "com.merian.camera")
@@ -258,6 +266,18 @@ import UIKit
     /// from the Main Thread while it spins up/down on a background thread risks deadlocking
     /// the session pipeline.
     func startSession() {
+        #if targetEnvironment(simulator)
+        guard !isSessionRunning else { return }
+        isSessionRunning = true
+        nativeZoomFactor = 1.0
+        hasResolvedNativeZoomFactor = true
+        maxZoomFactor = 1.0
+        opticalZoomStops = []
+        zoomFactor = 1.0
+        ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
+        MerianLog.hardware.debug("Camera session using simulator no-preview mode.")
+        return
+        #else
         queue.async {
             guard !self.session.isRunning else { return }
             let needsConfig = self.stateLock.withLock { () -> Bool in
@@ -296,11 +316,17 @@ import UIKit
                 ViewfinderIntelligence.shared.pauseAnalysis(for: 2.5)
             }
         }
+        #endif
     }
 
     /// Stops the capture session securely.
     /// Safely queued to avoid main-thread blocking if `stopRunning` is blocked.
     func stopSession() {
+        #if targetEnvironment(simulator)
+        isSessionRunning = false
+        isFlashEnabled = false
+        return
+        #else
         queue.async {
             guard self.session.isRunning else { return }
             self.session.stopRunning()
@@ -309,6 +335,7 @@ import UIKit
                 self.isFlashEnabled = false
             }
         }
+        #endif
     }
 
     // MARK: - Frame Rate Control
@@ -685,6 +712,13 @@ import UIKit
     // MARK: - Photo Capture
 
     func captureImage() async throws -> Data {
+        #if targetEnvironment(simulator)
+        throw NSError(
+            domain: "CameraManager",
+            code: -5,
+            userInfo: [NSLocalizedDescriptionKey: "Camera capture is unavailable in the iOS Simulator."]
+        )
+        #else
         let flashStatus = self.isFlashEnabled
         let settings = AVCapturePhotoSettings()
         let requestId = settings.uniqueID
@@ -773,6 +807,7 @@ import UIKit
                 }
             }
         }
+        #endif
     }
 
     // MARK: - AVCapturePhotoCaptureDelegate

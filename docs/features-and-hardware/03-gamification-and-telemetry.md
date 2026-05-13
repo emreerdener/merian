@@ -54,7 +54,7 @@ Merian uses two analytics systems with a strict privacy boundary:
 
 `AppTelemetry.initialize()` is called synchronously in `MerianApp.init()` — `TelemetryDeck.initialize(config:)` is pure config storage with no I/O, safe on the main thread.
 
-`PostHogManager.configure()` is dispatched via `Task.detached(priority: .background)`. `PostHogManager` is not `@MainActor`, so the work actually runs on the background thread pool rather than hopping back to the main actor. This keeps the primary UI render pass uncontested on launch.
+`PostHogManager.configure()` is called by `SupabaseManager` before the Supabase auth listener is started. The wrapper is not `@MainActor` and its configuration path is idempotent, so restored-session identity can be linked without the cold-start race where auth emits before PostHog exists. `AppTelemetry.initialize()` remains in `MerianApp.init()` because TelemetryDeck is anonymous and does not participate in auth identity.
 
 ### `AppTelemetry` (TelemetryDeck SDK)
 
@@ -87,7 +87,7 @@ Tracks session lifecycle, feature interactions, and backend AI token usage, link
 
 **iOS Client (`PostHogManager`)**:
 - Not `@MainActor` — thread-safe wrapper around `PostHogSDK.shared`.
-- Tracks an `isConfigured` flag set after `setup()` completes. `identifyUser()` guards on this flag and logs a warning if called before `configure()` finishes (race condition on fast auth restore at launch).
+- Tracks an `isConfigured` flag set after `setup()` completes. `identifyUser()` guards on this flag and buffers the latest user ID if a future call races configuration.
 - `captureApplicationLifecycleEvents = true` for automatic foreground/background tracking. `captureScreenViews` and `captureElementInteractions` are disabled — the former causes iOS 18 layout constraint warnings by inserting `UIKitToolbar` into SwiftUI `UIHostingController` hierarchies.
 - Uses `identify(userId:)` to link the Supabase Anonymous UUID alongside RevenueCat identifiers.
 - Employs `#if targetEnvironment(simulator)` to alias all development sessions as a static `"simulator"` identifier, aggressively decoupling test telemetry from live production metrics.

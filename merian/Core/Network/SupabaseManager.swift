@@ -72,6 +72,10 @@ import Supabase
             MerianLog.auth.fault("Environment configuration degraded: \(issues, privacy: .public)")
         }
 
+        if !TestExecutionCoordinator.isRunningTests {
+            PostHogManager.shared.configure()
+        }
+
         let url = URL(string: MerianEnvironment.supabaseUrl) ?? URL(string: MerianEnvironment.fallbackSupabaseURL)!
         self.client = SupabaseClient(
             supabaseURL: url,

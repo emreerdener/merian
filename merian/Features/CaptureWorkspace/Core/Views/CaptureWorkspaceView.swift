@@ -151,9 +151,7 @@ struct CaptureWorkspaceView: View {
                             // (bottom overlay, 140pt padding + 80pt button height).
                             // proxy uses the full-screen frame (.ignoresSafeArea on the GeometryReader)
                             // so safe-area insets must be accounted for explicitly.
-                            let toggleBottom     = proxy.safeAreaInsets.top + 16 + 48
-                            let captureButtonTop = proxy.size.height - proxy.safeAreaInsets.bottom - 140 - 80
-                            viewModel.composingZoneVerticalCenter = ((toggleBottom + captureButtonTop) / 2) / proxy.size.height
+                            updateComposingZoneVerticalCenter(from: proxy)
                         }
                     }
                 }
@@ -235,9 +233,7 @@ struct CaptureWorkspaceView: View {
         .environment(\.controlBarHeight, controlBarHeight)
         .environment(\.composingCenter, viewModel.composingZoneVerticalCenter)
         .onPreferenceChange(CaptureBarHeightPreferenceKey.self) { newHeight in
-            if newHeight > 0 { // Avoid zeroing out if the bar temporarily mounts/unmounts
-                controlBarHeight = newHeight
-            }
+            updateControlBarHeight(newHeight)
         }
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
         .sheet(
@@ -408,6 +404,35 @@ struct CaptureWorkspaceView: View {
                        !viewModel.isStagingRefinement
         ) {
             viewModel.executeCapture()
+        }
+    }
+
+    private func updateControlBarHeight(_ newHeight: CGFloat) {
+        guard newHeight.isFinite, newHeight > 0 else { return }
+        guard abs(controlBarHeight - newHeight) > 0.5 else { return }
+
+        DispatchQueue.main.async {
+            guard abs(controlBarHeight - newHeight) > 0.5 else { return }
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                controlBarHeight = newHeight
+            }
+        }
+    }
+
+    private func updateComposingZoneVerticalCenter(from proxy: GeometryProxy) {
+        guard proxy.size.height.isFinite, proxy.size.height > 0 else { return }
+
+        let toggleBottom = proxy.safeAreaInsets.top + 16 + 48
+        let captureButtonTop = proxy.size.height - proxy.safeAreaInsets.bottom - 140 - 80
+        let verticalCenter = ((toggleBottom + captureButtonTop) / 2) / proxy.size.height
+        guard verticalCenter.isFinite else { return }
+        guard abs(viewModel.composingZoneVerticalCenter - verticalCenter) > 0.001 else { return }
+
+        DispatchQueue.main.async {
+            guard abs(viewModel.composingZoneVerticalCenter - verticalCenter) > 0.001 else { return }
+            viewModel.composingZoneVerticalCenter = verticalCenter
         }
     }
 }

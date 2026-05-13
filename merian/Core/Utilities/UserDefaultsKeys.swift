@@ -449,10 +449,17 @@ private struct SpeciesPreferenceCloudUpsert: Encodable {
 
 @MainActor
 enum SpeciesPreferredNameRepository {
+    private struct PendingCloudSyncRequest {
+        let modelContext: ModelContext
+        let legacyDefaults: UserDefaults
+        let force: Bool
+    }
+
     private static let maxPreferredNameBatchSize = 1_000
     private static let cloudSyncPageSize = 500
+    private static let cleanCloudSyncFreshnessInterval: TimeInterval = 60
     private static var activeCloudSyncTask: Task<Bool, Never>?
-    private static var pendingCloudSyncRequest: (modelContext: ModelContext, legacyDefaults: UserDefaults)?
+    private static var pendingCloudSyncRequest: PendingCloudSyncRequest?
 
     static func preferredName(
         for scientificName: String,
@@ -541,12 +548,21 @@ enum SpeciesPreferredNameRepository {
     @discardableResult
     static func syncCloudPreferences(
         modelContext: ModelContext,
-        legacyDefaults: UserDefaults = .standard
+        legacyDefaults: UserDefaults = .standard,
+        force: Bool = false
     ) async -> Bool {
         guard !TestExecutionCoordinator.isRunningTests else { return false }
         if let activeCloudSyncTask {
-            pendingCloudSyncRequest = (modelContext, legacyDefaults)
+            let shouldForce = force || pendingCloudSyncRequest?.force == true
+            pendingCloudSyncRequest = PendingCloudSyncRequest(
+                modelContext: modelContext,
+                legacyDefaults: legacyDefaults,
+                force: shouldForce
+            )
             return await activeCloudSyncTask.value
+        }
+        guard force || !hasFreshCleanCloudSync(legacyDefaults: legacyDefaults) else {
+            return true
         }
 
         let syncTask = Task { @MainActor in
@@ -575,6 +591,16 @@ enum SpeciesPreferredNameRepository {
         }
         activeCloudSyncTask = syncTask
         return await syncTask.value
+    }
+
+    private static func hasFreshCleanCloudSync(legacyDefaults: UserDefaults) -> Bool {
+        guard SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: legacyDefaults).isEmpty else {
+            return false
+        }
+        guard let lastSuccessAt = SpeciesPreferredNameStore.syncDiagnostics(userDefaults: legacyDefaults).lastSuccessAt else {
+            return false
+        }
+        return Date().timeIntervalSince(lastSuccessAt) < cleanCloudSyncFreshnessInterval
     }
 
     private static func performCloudPreferenceSync(
@@ -1029,7 +1055,7 @@ enum SpeciesPreferredNameRepository {
     ) {
         guard !TestExecutionCoordinator.isRunningTests else { return }
         Task { @MainActor in
-            await syncCloudPreferences(modelContext: modelContext, legacyDefaults: legacyDefaults)
+            await syncCloudPreferences(modelContext: modelContext, legacyDefaults: legacyDefaults, force: true)
         }
     }
 

@@ -10,6 +10,7 @@ final class PostHogManager {
     private init() {}
 
     private var _isConfigured = false
+    private var _isConfiguring = false
     private var pendingUserId: String?
     private let lock = NSLock()
 
@@ -21,7 +22,16 @@ final class PostHogManager {
 
     /// Configures the PostHog SDK.
     func configure() {
+        var shouldConfigure = false
+        lock.withLock {
+            guard !_isConfigured, !_isConfiguring else { return }
+            _isConfiguring = true
+            shouldConfigure = true
+        }
+        guard shouldConfigure else { return }
+
         guard !MerianEnvironment.postHogApiKey.isEmpty else {
+            lock.withLock { _isConfiguring = false }
             MerianLog.general.error("PostHog configuration skipped because POSTHOG_API_KEY is missing.")
             return
         }
@@ -44,6 +54,7 @@ final class PostHogManager {
         var pendingId: String?
         lock.withLock {
             _isConfigured = true
+            _isConfiguring = false
             pendingId = pendingUserId
             pendingUserId = nil
         }
@@ -61,7 +72,7 @@ final class PostHogManager {
     func identifyUser(userId: String) {
         lock.lock()
         guard _isConfigured else {
-            MerianLog.general.warning("PostHogManager.identifyUser() called before configure() — identity buffered.")
+            MerianLog.general.debug("PostHog identity buffered until SDK configuration completes.")
             pendingUserId = userId
             lock.unlock()
             return

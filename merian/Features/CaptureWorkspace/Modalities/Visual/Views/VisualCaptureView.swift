@@ -14,6 +14,23 @@ struct VisualCaptureView: View {
     var body: some View {
         ZStack {
             // 1. Optical Bridge
+            #if targetEnvironment(simulator)
+            SimulatorCameraSurfaceView(
+                onTap: { layerPoint, devicePoint in
+                    viewModel.handleFocusTap(devicePoint: devicePoint)
+                    focusLocation = layerPoint
+                    showFocusIndicator = true
+                    focusHideTask?.cancel()
+                    focusHideTask = Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.easeOut) { showFocusIndicator = false }
+                    }
+                },
+                onVerticalDragActiveChanged: { isVerticalZooming = $0 }
+            )
+            .overlay { FocusIndicator(showFocusIndicator: showFocusIndicator, focusLocation: focusLocation) }
+            #else
             CameraPreviewView(
                 session: cameraManager.session,
                 onTap: { layerPoint, devicePoint in
@@ -36,6 +53,7 @@ struct VisualCaptureView: View {
             .ignoresSafeArea()
             .background(Color.black.ignoresSafeArea())
             .overlay { FocusIndicator(showFocusIndicator: showFocusIndicator, focusLocation: focusLocation) }
+            #endif
 
             // 2. Hardware Effects (Flash Snap)
             Color.black
@@ -64,3 +82,52 @@ private struct CameraControlsLayer: View {
         MainOverlayView(activeScanImages: activeScanImages, isRefining: isRefining)
     }
 }
+
+#if targetEnvironment(simulator)
+private struct SimulatorCameraSurfaceView: View {
+    let onTap: (CGPoint, CGPoint) -> Void
+    let onVerticalDragActiveChanged: ((Bool) -> Void)?
+
+    @State private var verticalDragActive = false
+
+    var body: some View {
+        GeometryReader { proxy in
+            Color.black
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .contentShape(Rectangle())
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                        .onChanged { value in
+                            let isTapCandidate = abs(value.translation.width) < 8 && abs(value.translation.height) < 8
+                            guard !isTapCandidate else { return }
+
+                            let isVertical = abs(value.translation.height) > abs(value.translation.width)
+                            guard isVertical, !verticalDragActive else { return }
+                            verticalDragActive = true
+                            onVerticalDragActiveChanged?(true)
+                        }
+                        .onEnded { value in
+                            defer {
+                                if verticalDragActive {
+                                    verticalDragActive = false
+                                    onVerticalDragActiveChanged?(false)
+                                }
+                            }
+
+                            let isTap = abs(value.translation.width) < 8 && abs(value.translation.height) < 8
+                            guard isTap else { return }
+
+                            let location = value.startLocation
+                            let devicePoint = CGPoint(
+                                x: min(max(location.x / max(proxy.size.width, 1), 0), 1),
+                                y: min(max(location.y / max(proxy.size.height, 1), 0), 1)
+                            )
+                            onTap(location, devicePoint)
+                        }
+                )
+        }
+        .ignoresSafeArea()
+        .background(Color.black.ignoresSafeArea())
+    }
+}
+#endif

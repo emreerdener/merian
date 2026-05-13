@@ -404,16 +404,10 @@ struct MerianApp: App {
         // Keep app-hosted test sessions hermetic: no analytics startup, no disk-backed
         // production store, and no background sync noise racing the test containers.
         if !TestExecutionCoordinator.isRunningTests {
-            // Initialize telemetry synchronously — just stores config, safe on main thread.
-            // PostHog is deferred through the sanctioned detached-work bridge to avoid blocking
-            // init() while keeping this bootstrap hop explicit.
+            // Initialize TelemetryDeck synchronously — this just stores config and is safe
+            // on the main thread. PostHog is configured by SupabaseManager before auth
+            // events can identify the restored session.
             AppTelemetry.initialize()
-            DetachedWork.fireAndForget(
-                priority: .background,
-                category: .thirdPartyBootstrap
-            ) {
-                PostHogManager.shared.configure()
-            }
         }
     }
 

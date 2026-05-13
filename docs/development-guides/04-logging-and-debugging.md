@@ -87,6 +87,18 @@ MerianLog.general.debug("Species: \(name, privacy: .auto)")
 ### Xcode Debug Console
 During a debug build, all `.debug` messages appear in the Xcode console. To filter in the console output stream, use `subsystem` as a filter prefix.
 
+### Runtime Log Triage
+
+Some noisy lines come from Apple frameworks or third-party development configuration rather than Merian application faults:
+
+| Log pattern | Meaning | Action |
+|---|---|---|
+| `FigCaptureSourceSimulator`, `FigCaptureSessionSimulator`, `FormatDescription` | AVFoundation simulator capture stack probing unavailable or synthetic camera formats. | Merian simulator builds use a no-preview camera path; investigate if these appear in a fresh build or if the preview is blank on physical devices. |
+| `IOSurfaceClientSetSurfaceNotify failed` | Simulator/CoreAnimation surface notification failure. | Treat as simulator noise unless paired with a reproducible rendering failure. |
+| `nw_connection_copy_connected_local_endpoint... no local endpoint` | Network framework inspected a socket before connection establishment completed. | Usually harmless; investigate only with request failures in `MerianLog.network`. |
+| `PostHog identity buffered until SDK configuration completes` | Expected defensive path if identity arrives before setup in a future startup order. | Should be rare because Supabase configures PostHog before auth listening. |
+| `AttributeGraph: cycle detected` | SwiftUI detected a state/layout feedback loop. | Investigate immediately. Layout measurements must be guarded by equality tolerances and deferred out of the active layout pass before writing `@State` or observable view-model state. |
+
 ---
 
 ## Performance Logging Pattern
