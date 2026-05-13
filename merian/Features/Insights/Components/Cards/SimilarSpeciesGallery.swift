@@ -4,6 +4,7 @@ struct SimilarSpeciesGallery: View {
     let similarData: SimilarSpecies
     let currentScientificName: String?
     let currentCommonName: String?
+    var onSpeciesSelected: ((SimilarSpeciesEntry) -> Void)?
 
     private var validEntries: [SimilarSpeciesEntry] {
         similarData.filteredEntries(
@@ -23,7 +24,8 @@ struct SimilarSpeciesGallery: View {
                         ForEach(validEntries, id: \.scientificName) { entry in
                             SimilarSpeciesCard(
                                 entry: entry,
-                                currentCommonName: currentCommonName
+                                currentCommonName: currentCommonName,
+                                onSpeciesSelected: onSpeciesSelected
                             )
                         }
                     }
@@ -43,6 +45,7 @@ struct SimilarSpeciesGallery: View {
 struct SimilarSpeciesCard: View {
     let entry: SimilarSpeciesEntry
     let currentCommonName: String?
+    var onSpeciesSelected: ((SimilarSpeciesEntry) -> Void)?
 
     // Fallback fetcher used only when the join table has no reference image URL.
     @State private var imageFetcher = SimilarSpeciesImageFetcher()
@@ -50,6 +53,10 @@ struct SimilarSpeciesCard: View {
 
     private var displayCommonName: String? {
         entry.displayCommonName(comparedTo: currentCommonName)
+    }
+
+    private var accessibilityTraits: AccessibilityTraits {
+        onSpeciesSelected == nil ? [] : .isButton
     }
 
     var body: some View {
@@ -131,6 +138,13 @@ struct SimilarSpeciesCard: View {
                 _ = await imageFetcher.fetchImage(for: entry.scientificName)
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard let onSpeciesSelected else { return }
+            HapticManager.shared.triggerSelectionPulse()
+            onSpeciesSelected(entry)
+        }
+        .accessibilityAddTraits(accessibilityTraits)
     }
 }
 

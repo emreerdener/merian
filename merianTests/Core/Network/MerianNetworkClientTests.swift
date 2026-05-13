@@ -250,6 +250,82 @@ struct MerianNetworkClientTests {
         #expect(response.sharedAt == "2026-04-29T22:18:03.000Z")
     }
 
+    @Test func testExplorePostDetailDecodesSimilarSpecies() throws {
+        let data = """
+        {
+            "data": {
+                "post_id": "post-detail-123",
+                "field_notes": null,
+                "species_dictionary_id": "species-123",
+                "taxonomy_kingdom": "Plantae",
+                "taxonomy_phylum": "Tracheophyta",
+                "taxonomy_class": "Magnoliopsida",
+                "taxonomy_order": "Rosales",
+                "taxonomy_family": "Rosaceae",
+                "taxonomy_genus": "Rosa",
+                "ai_reasoning": "Petal shape and thorn spacing match the subject.",
+                "habitat_description": "Open meadows and garden edges.",
+                "gbif_taxon_key": 42,
+                "iucn_red_list_status": "least_concern",
+                "wikipedia_url": "https://en.wikipedia.org/wiki/Rosa_galeria",
+                "reference_image_url": "https://upload.wikimedia.org/rosa.jpg",
+                "wikipedia_overview": "Rosa galeria is a test species with enough overview copy for Explore.",
+                "similar_species": [
+                    {
+                        "scientific_name": "Rosa minor",
+                        "common_name": "Small Rose",
+                        "reference_image_url": "https://example.com/rosa-minor.jpg",
+                        "iucn_red_list_status": "least_concern"
+                    }
+                ]
+            }
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(ExplorePostDetailResponse.self, from: data)
+        let similar = try #require(response.data.similarSpeciesData)
+
+        #expect(similar.entries.count == 1)
+        #expect(similar.entries[0].scientificName == "Rosa minor")
+        #expect(similar.entries[0].commonName == "Small Rose")
+        #expect(similar.entries[0].referenceImageUrl == "https://example.com/rosa-minor.jpg")
+    }
+
+    @Test func testExplorePostDetailDecodesWhenSimilarSpeciesIsMissing() throws {
+        let data = """
+        {
+            "data": {
+                "post_id": "post-detail-legacy",
+                "field_notes": null,
+                "species_dictionary_id": "species-legacy",
+                "taxonomy_kingdom": null,
+                "taxonomy_phylum": null,
+                "taxonomy_class": null,
+                "taxonomy_order": null,
+                "taxonomy_family": null,
+                "taxonomy_genus": null,
+                "ai_reasoning": null,
+                "habitat_description": null,
+                "gbif_taxon_key": null,
+                "iucn_red_list_status": null,
+                "wikipedia_url": null,
+                "reference_image_url": null,
+                "wikipedia_overview": null
+            }
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(ExplorePostDetailResponse.self, from: data)
+
+        #expect(response.data.postId == "post-detail-legacy")
+        #expect(response.data.similarSpecies == nil)
+        #expect(response.data.similarSpeciesData == nil)
+    }
+
     @Test func testGetExploreFeedTrendingConstructsPayloadAndParsesResponse() async throws {
         let testData = """
         {

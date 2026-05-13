@@ -17,6 +17,14 @@ export interface ExplorePostDetailRow {
   wikipedia_url?: string | null;
   reference_image_url?: string | null;
   wikipedia_overview?: string | null;
+  similar_species?: ExplorePostDetailSimilarSpecies[] | null;
+}
+
+export interface ExplorePostDetailSimilarSpecies {
+  scientific_name: string;
+  common_name: string | null;
+  reference_image_url: string | null;
+  iucn_red_list_status: string | null;
 }
 
 export async function fetchExplorePostDetail(

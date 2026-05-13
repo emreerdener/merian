@@ -409,6 +409,12 @@
 		FE5B77B1B10A82B8A11E5002 /* LocalImageLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AEC36D3B333E91D1346DF70 /* LocalImageLoaderTests.swift */; };
 		FE67B4E42AD628627F0CEA55 /* SchemaV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAEBE5EC58E9A28DD0B82F3C /* SchemaV2.swift */; };
 		FF308F8F2EE780DE375380D3 /* SchemaV36.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06C724912C4AA0B2AF07055D /* SchemaV36.swift */; };
+		94A7C51E2F3B4D6890A1B2C3 /* SpeciesDictionaryAPIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1B2C3D4E5F60718293A4B5 /* SpeciesDictionaryAPIModels.swift */; };
+		B8E3F1052A6C4D7E8190ABCD /* SpeciesDictionaryPageViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2C3D4E5F60718293A4B5C6 /* SpeciesDictionaryPageViewModel.swift */; };
+		C19D2E3F405A6B7C8D90E1F2 /* SpeciesDictionaryReferenceGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C3D4E5F60718293A4B5C6D /* SpeciesDictionaryReferenceGallery.swift */; };
+		D28E3F405A6B7C8D90E1F203 /* SpeciesDictionaryCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D4E5F60718293A4B5C6D7E /* SpeciesDictionaryCards.swift */; };
+		E37F405A6B7C8D90E1F20314 /* SpeciesDictionaryPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5F60718293A4B5C6D7E8F /* SpeciesDictionaryPageView.swift */; };
+		F48516A7B8C9D0E1F2031425 /* SpeciesDictionaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F60718293A4B5C6D7E8F90A /* SpeciesDictionaryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -872,6 +878,12 @@
 		FEEC1868E1269C2CAB8DE263 /* SchemaV33.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV33.swift; sourceTree = "<group>"; };
 		FF40B3720194B7404A558D0F /* CardEntranceModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardEntranceModifier.swift; sourceTree = "<group>"; };
 		FF6E60873669C4E07405DDF6 /* build.log */ = {isa = PBXFileReference; lastKnownFileType = text; path = build.log; sourceTree = "<group>"; };
+		0A1B2C3D4E5F60718293A4B5 /* SpeciesDictionaryAPIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryAPIModels.swift; sourceTree = "<group>"; };
+		1B2C3D4E5F60718293A4B5C6 /* SpeciesDictionaryPageViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryPageViewModel.swift; sourceTree = "<group>"; };
+		2C3D4E5F60718293A4B5C6D /* SpeciesDictionaryReferenceGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryReferenceGallery.swift; sourceTree = "<group>"; };
+		3D4E5F60718293A4B5C6D7E /* SpeciesDictionaryCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryCards.swift; sourceTree = "<group>"; };
+		4E5F60718293A4B5C6D7E8F /* SpeciesDictionaryPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryPageView.swift; sourceTree = "<group>"; };
+		5F60718293A4B5C6D7E8F90A /* SpeciesDictionaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1209,6 +1221,7 @@
 				48D19335021E2973FE9EA955 /* Onboarding */,
 				338B30B71BDF28EA1B21D49F /* Profile */,
 				31080DBE627014B394125112 /* Scans */,
+				60718293A4B5C6D7E8F90A1B /* SpeciesDictionary */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -1521,6 +1534,7 @@
 				7F9B826B9069F5772001FF29 /* Onboarding */,
 				5D91E77396CAC0871A3EFE65 /* Profile */,
 				5BB7368A7503FEFF35A87313 /* Scans */,
+				A4B5C6D7E8F90A1B2C3D4E5 /* SpeciesDictionary */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -1614,6 +1628,7 @@
 				A06F6692FC830D3933378795 /* ExploreAPIModels.swift */,
 				858DB8CD19117FFA622CEBF1 /* KeychainManager.swift */,
 				F9912D302C1DF5D61D12C243 /* MerianNetworkClient.swift */,
+				0A1B2C3D4E5F60718293A4B5 /* SpeciesDictionaryAPIModels.swift */,
 				8B81A8912421BEAA5E628430 /* SupabaseManager.swift */,
 			);
 			path = Network;
@@ -2262,6 +2277,49 @@
 			path = BottomToolbar;
 			sourceTree = "<group>";
 		};
+		60718293A4B5C6D7E8F90A1B /* SpeciesDictionary */ = {
+			isa = PBXGroup;
+			children = (
+				718293A4B5C6D7E8F90A1B2C /* Components */,
+				8293A4B5C6D7E8F90A1B2C3D /* ViewModels */,
+				93A4B5C6D7E8F90A1B2C3D4E /* Views */,
+			);
+			path = SpeciesDictionary;
+			sourceTree = "<group>";
+		};
+		718293A4B5C6D7E8F90A1B2C /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				3D4E5F60718293A4B5C6D7E /* SpeciesDictionaryCards.swift */,
+				2C3D4E5F60718293A4B5C6D /* SpeciesDictionaryReferenceGallery.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		8293A4B5C6D7E8F90A1B2C3D /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				1B2C3D4E5F60718293A4B5C6 /* SpeciesDictionaryPageViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		93A4B5C6D7E8F90A1B2C3D4E /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				4E5F60718293A4B5C6D7E8F /* SpeciesDictionaryPageView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A4B5C6D7E8F90A1B2C3D4E5 /* SpeciesDictionary */ = {
+			isa = PBXGroup;
+			children = (
+				5F60718293A4B5C6D7E8F90A /* SpeciesDictionaryTests.swift */,
+			);
+			path = SpeciesDictionary;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -2556,6 +2614,7 @@
 				E1B5600AC4AEEE36F9C8BDE2 /* SightingAnalysisTests.swift in Sources */,
 				3DA4BFC2BDBB16B9AAD0B74A /* SizeEstimatorTests.swift in Sources */,
 				A4CBAC7802F4D1F84D2C8245 /* SocialGuardManagerTests.swift in Sources */,
+				F48516A7B8C9D0E1F2031425 /* SpeciesDictionaryTests.swift in Sources */,
 				71973E388CE20D34E61A57EF /* SpeciesDataTests.swift in Sources */,
 				98336DC73E54859D5E84A94D /* StagedCaptureTests.swift in Sources */,
 				35C19CF7E78AB40508707771 /* SupabaseManagerTests.swift in Sources */,
@@ -2663,6 +2722,7 @@
 				36B9C1AF7406EF057BF0848F /* EnvironmentContext.swift in Sources */,
 				EC4E2C4FE0362157A80CB1DF /* EnvironmentContextManager.swift in Sources */,
 				C416C8B34424AE6E55EBD6B4 /* ExploreAPIModels.swift in Sources */,
+				94A7C51E2F3B4D6890A1B2C3 /* SpeciesDictionaryAPIModels.swift in Sources */,
 				AD6FD16AADBFC4BBF8DE663D /* ExploreAuthorProfileSheet.swift in Sources */,
 				97C949D2CAE27B76081DAC55 /* ExploreCommentsSheet.swift in Sources */,
 				13CF91C87592ED726615491B /* ExploreDetailActionButton.swift in Sources */,
@@ -2867,6 +2927,10 @@
 				727F6F96C261F622537E1922 /* SizeEstimator.swift in Sources */,
 				83318D4149C5BC0DD78D2B85 /* SlideToConfirm.swift in Sources */,
 				76EB35B2E95E722CEEAE9F57 /* SocialGuardManager.swift in Sources */,
+				D28E3F405A6B7C8D90E1F203 /* SpeciesDictionaryCards.swift in Sources */,
+				B8E3F1052A6C4D7E8190ABCD /* SpeciesDictionaryPageViewModel.swift in Sources */,
+				E37F405A6B7C8D90E1F20314 /* SpeciesDictionaryPageView.swift in Sources */,
+				C19D2E3F405A6B7C8D90E1F2 /* SpeciesDictionaryReferenceGallery.swift in Sources */,
 				9FAB71809C3FA9A7ED1A9191 /* SpeciesData.swift in Sources */,
 				37C449AB0BD1435CA174A542 /* SpectrogramActor.swift in Sources */,
 				B7BC0C3F620C2DA0B92944EE /* SpectrogramView.swift in Sources */,

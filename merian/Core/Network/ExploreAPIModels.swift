@@ -328,6 +328,7 @@ struct ExplorePostDetail: Decodable {
     let wikipediaUrl: String?
     let referenceImageUrl: String?
     let wikipediaOverview: String?
+    let similarSpecies: [SimilarSpeciesEntry]?
 
     var taxonomyData: TaxonomyData? {
         let taxonomy = TaxonomyData(
@@ -393,6 +394,14 @@ struct ExplorePostDetail: Decodable {
                 source: referenceImageSource(for: rawUrl, index: index)
             )
         }
+    }
+
+    var similarSpeciesData: SimilarSpecies? {
+        let entries = (similarSpecies ?? []).filter { entry in
+            !entry.scientificName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        return entries.isEmpty ? nil : SimilarSpecies(entries: entries)
     }
 
     var trimmedAiReasoning: String? {

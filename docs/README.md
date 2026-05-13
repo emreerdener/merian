@@ -38,6 +38,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/features-and-hardware/13-explore-home-screen-widget.md`](./features-and-hardware/13-explore-home-screen-widget.md)** — Explore Home Screen widget: image-only WidgetKit extension, App Group cache contract, timeline carousel behavior, and deep-link routing.
 - **[`/features-and-hardware/14-explore-author-profiles.md`](./features-and-hardware/14-explore-author-profiles.md)** — Public Explore author profile sheets, privacy-scoped profile stats, non-opening public achievements, and the paginated published-scan library.
 - **[`/features-and-hardware/15-explore-following.md`](./features-and-hardware/15-explore-following.md)** — Explore Follow relationships: Following feed filter, public profile counts, follow notifications, block cleanup, and ghost-merge repair.
+- **[`/features-and-hardware/16-species-dictionary.md`](./features-and-hardware/16-species-dictionary.md)** — Standalone public species dictionary page, `species-dictionary` Edge Function contract, and similar-species entry points from Insight and Explore detail.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map product/RPC architecture, including the shipped V1 map implementation and follow-up recommendations.
 - **[`/rfcs/geological-expansions.md`](./rfcs/geological-expansions.md)** — Roadmap for extending inference to rocks, minerals, and fossils.
 

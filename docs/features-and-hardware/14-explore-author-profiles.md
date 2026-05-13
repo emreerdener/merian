@@ -19,7 +19,7 @@ Explore author profiles are public, privacy-preserving profile sheets opened fro
   - a 3-column preview of up to 9 published Explore scans
   - achievements rendered as informational cards only
 - The "View all published scans" button side-transitions the sheet into the author's full published scan library. The leading toolbar button reverses the transition back to the profile content.
-- Library tiles open `ExplorePostDetailView` inside the sheet navigation stack. That nested detail disables insight presentation and author-profile presentation to avoid exposing private local state or recursively opening another profile sheet.
+- Library tiles open `ExplorePostDetailView` inside the sheet navigation stack. That nested detail disables insight presentation and author-profile presentation to avoid exposing private local state or recursively opening another profile sheet, but public similar-species cards can still open the species dictionary page.
 - Preview grids render image-only thumbnails. Species names remain available in Explore detail, but they are not overlaid on profile preview thumbnails.
 - Follow counts are display-only in v1. They do not open follower/following lists.
 - The follow button is asymmetric and does not create friend requests, mutual-only states, DMs, or access to private scans.

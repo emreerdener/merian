@@ -398,7 +398,7 @@ Recommended V1 endpoints:
 - `get-explore-post`
   - Returns a single Explore card projection for notification routing and deep links
 - `get-explore-post-detail`
-  - Returns public species-detail data for a single Explore post, including conditional per-scan `ai_reasoning` when the underlying identification has not been flagged or overridden
+  - Returns public species-detail data for a single Explore post, including conditional per-scan `ai_reasoning` when the underlying identification has not been flagged or overridden, plus public `similar_species` hydrated from the species dictionary lookalike join table
 - `get-explore-comments`
   - Returns paginated comments for a post, including the comment author's optional public avatar projection
 - `get-explore-map-points`
@@ -704,7 +704,7 @@ The preview card needs:
 - Like/comment counts
 - Coordinate visibility
 
-The full detail page can still use the existing `get-explore-post` and `get-explore-post-detail` path after the user commits to the post.
+The full detail page can still use the existing `get-explore-post` and `get-explore-post-detail` path after the user commits to the post. Similar-species content stays on the full detail payload rather than the map preview payload, keeping map cards light while still allowing detail pages to open the public species dictionary.
 
 ### iOS Client Architecture For Map
 

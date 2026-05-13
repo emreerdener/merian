@@ -11,6 +11,7 @@ struct BiologicalView: View {
 
     // MARK: - Context State
     var timestamp: Date?
+    @State private var speciesDictionaryRoute: SpeciesDictionaryRoute?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -153,7 +154,10 @@ struct BiologicalView: View {
                             SimilarSpeciesGallery(
                                 similarData: similarData,
                                 currentScientificName: inferenceEngine.speciesData?.scientificName,
-                                currentCommonName: inferenceEngine.speciesData?.commonName
+                                currentCommonName: inferenceEngine.speciesData?.commonName,
+                                onSpeciesSelected: { entry in
+                                    speciesDictionaryRoute = SpeciesDictionaryRoute(scientificName: entry.scientificName)
+                                }
                             )
                             .transition(.opacity)
                         } else if inferenceEngine.isLookalikesLoading {
@@ -181,5 +185,8 @@ struct BiologicalView: View {
             }
         }
         .padding(.horizontal)
+        .sheet(item: $speciesDictionaryRoute) { route in
+            SpeciesDictionaryPageView(scientificName: route.scientificName)
+        }
     }
 }

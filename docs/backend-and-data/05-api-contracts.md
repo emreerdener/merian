@@ -242,6 +242,100 @@ struct IdentifyResponse: Codable {
 
 ---
 
+## Public Species Dictionary Edge Node
+
+The `/species-dictionary` Edge Function returns public species-level dictionary data for the standalone Species Dictionary Page. It is deliberately separate from both the Insight scan and Explore post-detail contracts:
+
+- Insight scan data can include local media, user review state, field notes, and per-scan AI reasoning.
+- Explore detail data can include a public shared scan projection.
+- Species dictionary data includes only canonical dictionary fields and reference imagery.
+
+The function has `verify_jwt = false` in `supabase/config.toml` and does not call `requireAuth`. It may receive normal app auth headers from `MerianNetworkClient`, but identity is not read and must not affect the response.
+
+### `/species-dictionary`
+
+Request body:
+
+```json
+{
+  "scientific_name": "Danaus plexippus"
+}
+```
+
+Validation rules:
+
+- `scientific_name` is required.
+- It must be a string and non-empty after trimming.
+- Internal whitespace is collapsed before lookup.
+- Names longer than 160 characters return `400`.
+
+Current response shape:
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "scientific_name": "Danaus plexippus",
+    "common_name": "Monarch Butterfly",
+    "alternative_common_names": [],
+    "taxonomy": {
+      "kingdom": "Animalia",
+      "phylum": "Arthropoda",
+      "class": "Insecta",
+      "order": "Lepidoptera",
+      "family": "Nymphalidae",
+      "genus": "Danaus"
+    },
+    "hazard_type": "none",
+    "iucn_red_list_status": "least concern",
+    "wikipedia_url": "https://en.wikipedia.org/wiki/Monarch_butterfly",
+    "wikipedia_overview": "The monarch butterfly is a milkweed butterfly...",
+    "habitat_description": "Often found in open meadows and milkweed patches.",
+    "gbif_taxon_key": 5139790,
+    "group_tags": ["animal", "insect"],
+    "reference_images": [
+      { "url": "https://upload.wikimedia.org/...", "source": "wikipedia" },
+      { "url": "https://static.inaturalist.org/...", "source": "gbif" }
+    ],
+    "similar_species": [
+      {
+        "scientific_name": "Limenitis archippus",
+        "common_name": "Viceroy",
+        "reference_image_url": "https://...",
+        "iucn_red_list_status": "least concern"
+      }
+    ]
+  }
+}
+```
+
+Name and imagery mapping:
+
+- `common_name` resolves from `common_names.en`, then the first non-empty `common_names` value, then `scientific_name`.
+- `alternative_common_names` is trimmed, deduped, and excludes the resolved primary common name.
+- `reference_images` is derived from the comma-separated `species_dictionary.reference_image_url` field by splitting, trimming, and deduping URLs.
+- `source` is `wikipedia` for Wikimedia/Wikipedia hosts. If `wikipedia_url` exists, the first unresolved image also maps to `wikipedia`; otherwise unresolved images map to `gbif`.
+- `similar_species` is hydrated from `species_lookalikes` using the explicit PostgREST hint `species_dictionary!lookalike_id`.
+
+Error responses:
+
+| Status | Body | Meaning |
+|---|---|---|
+| `400` | `{ "error": "Missing required parameter: scientific_name" }` | Missing, non-string, or blank scientific name |
+| `400` | `{ "error": "scientific_name is too long." }` | Scientific name exceeds the request bound |
+| `404` | `{ "error": "Species not found" }` | No `species_dictionary` row exists for the normalized name |
+| `500` | `{ "error": "Internal Server Error" }` | Database or unexpected function failure |
+
+Swift mapping:
+
+```swift
+MerianNetworkClient.shared.getSpeciesDictionary(scientificName:)
+```
+
+decodes into `SpeciesDictionaryResponse` / `SpeciesDictionaryEntry` in `SpeciesDictionaryAPIModels.swift`. `SpeciesDictionaryEntry.taxonomyData` adapts the response into the shared `TaxonomyCard`, and `similarSpeciesData` adapts hydrated lookalikes into the shared `SimilarSpeciesGallery`.
+
+---
+
 ## Explore Edge Nodes
 
 Explore traffic is intentionally separate from the identify pipeline. The iOS client uses dedicated Edge Functions for feed reads and social interactions, all authenticated through the same Supabase session headers used elsewhere in the app.
@@ -431,6 +525,14 @@ Current response shape:
     "wikipedia_url": "https://en.wikipedia.org/wiki/Monarch_butterfly",
     "reference_image_url": "https://upload.wikimedia.org/.../Monarch.jpg,https://inaturalist-open-data.s3.amazonaws.com/photos/123/original.jpg",
     "wikipedia_overview": "The monarch butterfly is a milkweed butterfly in the family Nymphalidae...",
+    "similar_species": [
+      {
+        "scientific_name": "Limenitis archippus",
+        "common_name": "Viceroy",
+        "reference_image_url": "https://upload.wikimedia.org/.../Viceroy.jpg",
+        "iucn_red_list_status": "least_concern"
+      }
+    ],
     "field_notes": "Found at the shaded meadow edge after rain."
   }
 }
@@ -441,6 +543,8 @@ This endpoint exists so Explore can render public species cards on the detail pa
 For posts owned by the current viewer, iOS also uses `field_notes` as a repair source for the local insight sheet. `FieldNotesRepository` checks `LocalScanRecord.fieldNotes`, `OfflineQueuedScan.fieldNotes`, and then the legacy `FieldNotesStore` bridge before accepting the Explore value. If all local/private stores are empty but the public Explore post still has notes, the repository promotes the public value back into SwiftData and mirrors the bridge. Existing local/private notes are preserved and are not overwritten by the Explore copy.
 
 `reference_image_url` is the same comma-separated reference-media field used elsewhere in the app: the first URL is typically the cached Wikipedia image when available, followed by cached GBIF-backed field observations. Explore detail uses it to render the public reference gallery below the post's AI reasoning without making an extra authenticated scan fetch.
+
+`similar_species` is hydrated from `species_lookalikes` for the post's resolved dictionary species. Each entry contains public species-level data only and is shaped like the existing lookalike DTO: `scientific_name`, `common_name`, `reference_image_url`, and `iucn_red_list_status`. Empty lookalike sets return an empty array, and iOS omits the section.
 
 `ai_reasoning` is returned conditionally from the backing `scans` row, not copied into `explore_posts`. It is only exposed when the scan still reflects the original AI identification:
 
@@ -1183,7 +1287,7 @@ Only `scientific_name` is strictly required by the Edge function. `scan_id`, `co
 
 **No Tier Gate**: Available to all authenticated users. Enrichment data is generated by Flash and cached in `species_dictionary` at the species level — subsequent calls for the same species are served from cache with no AI call.
 
-**Frontend-Driven Thresholds**: The Edge function does not evaluate `confidence_score`. Instead, the iOS client (`InferenceEngine.fetchAndApplyEnrichment` and `BiologicalView`) dynamically compares the score against the user's tier-specific threshold (`0.88` for Flash, `0.80` for Pro) to decide whether to highlight the data as a "POTENTIAL LOOKALIKES" diagnostic warning or merely informational "SIMILAR SPECIES". Similar-species generation itself is now gated by taxonomy quality, not confidence.
+**No Confidence Gate**: The Edge function accepts `confidence_score` for telemetry compatibility but does not use it to decide whether similar species should be generated or returned. Similar-species generation is gated by taxonomy quality and cache state, not confidence, and the iOS gallery renders validated entries with the stable "Similar species" label.
 
 **Full Cache Hit**: If `species_dictionary` already has `habitat_description`, usable taxonomy (`kingdom` plus `order` or `family`), and validated `species_lookalikes` rows for this species, the function returns all data immediately with no Gemini calls — typically sub-50ms.
 
@@ -1247,7 +1351,7 @@ The next `enrich-scan` call will re-run Flash only after the species has usable 
 
 `alternative_common_names` is `string[] | null` — `null` when GBIF has no English vernacular entries for the species. The enrichment scope serves this field from `species_dictionary.alternative_common_names` on a cache hit. When that column is `null` (covering both pre-V34 cached species and the timing race where a first scan's background ingestion has not yet written to the dictionary), the Edge function calls `fetchGBIFVernacularNames` live to retrieve English vernacular names from the GBIF API and populates the field from the result. Taxonomy fields in the response likewise use `null` for unknown ranks; the backend no longer emits placeholder strings like `"Unknown"`.
 
-**iOS mapping**: The array is decoded as `[EnrichScanResponse.SimilarSpeciesEntry]` (snake_case Codable DTO in `InferenceEdgeDTOs.swift`) and mapped to the domain `SimilarSpecies` struct (camelCase, in `SpeciesData.swift`). `InferenceEngine.fetchAndApplyEnrichment` then JSON-encodes `[SimilarSpeciesEntry]` via `JSONEncoder` into a `Data` blob and persists it as `LocalScanRecord.lookalikesData` (added in `MerianSchemaV27`) — the primary SwiftData storage for rich lookalike data. The legacy `LocalScanRecord.similarSpecies: [String]?` field is retained as a backwards-compatible fallback for pre-V27 records where `lookalikesData` is nil. `InferenceEngine.load(from:)` now also supports a one-time local cache reset version so previously poisoned `lookalikesData` blobs are ignored and refreshed after the backend validation hardening ships. `SimilarSpeciesGallery` applies the tier-specific confidence threshold only to decide whether to label the section "POTENTIAL LOOKALIKES" vs "SIMILAR SPECIES" — enrichment data is always persisted regardless of confidence once it has passed backend validation.
+**iOS mapping**: The array is decoded as `[EnrichScanResponse.SimilarSpeciesEntry]` (snake_case Codable DTO in `InferenceEdgeDTOs.swift`) and mapped to the domain `SimilarSpecies` struct (camelCase, in `SpeciesData.swift`). `InferenceEngine.fetchAndApplyEnrichment` then JSON-encodes `[SimilarSpeciesEntry]` via `JSONEncoder` into a `Data` blob and persists it as `LocalScanRecord.lookalikesData` (added in `MerianSchemaV27`) — the primary SwiftData storage for rich lookalike data. The legacy `LocalScanRecord.similarSpecies: [String]?` field is retained as a backwards-compatible fallback for pre-V27 records where `lookalikesData` is nil. `InferenceEngine.load(from:)` now also supports a one-time local cache reset version so previously poisoned `lookalikesData` blobs are ignored and refreshed after the backend validation hardening ships. `SimilarSpeciesGallery` always labels validated entries as "Similar species"; identification uncertainty is handled by the separate candidates/review surface.
 
 **Per-user daily rate limit**: Free-tier users are throttled after 50 `enrich-scan` requests per day (proxy for LLM budget). The tier is resolved via `getTierForUser` from `_shared/tierCache.ts`. When the limit is exceeded the function returns `429 Too Many Requests` before any Gemini call is made. Pro users are exempt.
 

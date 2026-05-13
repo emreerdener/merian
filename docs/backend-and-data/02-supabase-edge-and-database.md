@@ -49,6 +49,21 @@ The `/identify` Edge Function acts as the inference proxy:
 11. **Scan Insert**: Calls `supabaseAdmin.from('scans').insert()` using the service role key, binding the scan to the authenticated `user.id`. All environmental telemetry (time of day, month, locale, semantic location, LiDAR depth scale), Google Cloud LLM token metrics (`llm_prompt_tokens`, `llm_candidate_tokens`, `llm_thinking_tokens`, `llm_cached_tokens`, `llm_total_tokens` from Gemini's `usageMetadata`), the selected `inference_tier`, `extracted_visual_traits` (3 bullet-point arrays representing exactly what physical features led to the ID), `ai_reasoning` (Gemini's visual identification justification), and `colors` (1–3 dominant biological colors) are all written in the same insert. `llm_thinking_tokens` captures Gemini's internal reasoning token consumption (thinkingBudget: 2048 for Flash, 5000 for Pro) and is billed at the output token rate — it is the dominant cost driver for Pro scans. `llm_cached_tokens` is non-zero when Gemini's implicit context caching served the system instruction prefix from cache (Flash only; requires the prefix to exceed 1,024 tokens); cached tokens are billed at 75% off the standard input rate. `colors` feeds into `semanticTags` on the Swift side for full-text search. `ai_reasoning` is fetched back during historical cloud sync and stored as `LocalScanRecord.aiReasoning`. Note: `group_tags` are stored on `species_dictionary`, not `scans`. **LLM field sanitization bounds** (applied in `index.ts` after scientific name sanitization, before the DB insert): `colors`, `extracted_visual_traits`, and `ecological_interactions` are each capped at 10 items; `ai_reasoning` is truncated to 2000 characters; `individual_count` is validated as a positive integer ≤ 99999; `estimated_size_cm` (client-supplied) is validated as a positive finite number ≤ 50000. **GPS coordinate range validation**: `gpsLatitude` and `gpsLongitude` from the client payload are validated against physical bounds (`−90 ≤ lat ≤ 90`, `−180 ≤ lon ≤ 180`). Out-of-range values are sanitised to `null` (stored as `safeGpsLat`/`safeGpsLon`) rather than rejecting the request — location is supplementary metadata and a bad coordinate must not abort identification. **`candidates` cap**: the `candidates` array received from Gemini is capped at 5 items before `payloadReadyForClient` is built, bounding the JSONB column and client decode size. These guards protect the V8 heap and SQLite columns from unbounded LLM output.
 12. **Response format**: Returns `{ success: true, data: { ... } }` to the iOS client via `jsonResponse()`.
 
+## The Public Species Dictionary Node (`species-dictionary`)
+
+The `/species-dictionary` Edge Function is a public read-only projection over species-level dictionary data. It powers the standalone `SpeciesDictionaryPageView` opened from Insight similar-species cards and Explore post detail similar-species cards, and is safe for a future web frontend.
+
+Key rules:
+
+- `verify_jwt = false` is configured in `supabase/config.toml`.
+- The function intentionally does not call `withEdgeHandler` / `requireAuth`; user identity must not affect the response.
+- The service role key is used only for tightly scoped reads from `species_dictionary` and `species_lookalikes`.
+- The response includes canonical names, taxonomy, hazard/conservation fields, Wikipedia/habitat/GBIF fields, group tags, reference images, and read-only lookalikes.
+- The response must not include scan IDs, user IDs, Explore post IDs, field notes, comments, locations, local user media, per-scan AI reasoning, or preferred-name overrides.
+- Lookalikes are hydrated with the explicit `species_dictionary!lookalike_id` FK hint because `species_lookalikes` has two foreign keys to `species_dictionary`.
+
+See `docs/backend-and-data/05-api-contracts.md` and `docs/features-and-hardware/16-species-dictionary.md` for the request/response contract and iOS surface.
+
 ## The Unified Multi-Modal Inference Node (`identify-multimodal`)
 
 The `/identify-multimodal` Edge Function is the primary client-facing inference path today. It unifies the image, audio, and text-only request shapes into one pipeline while the legacy endpoints remain deployed for compatibility.
@@ -128,10 +143,11 @@ User blocking routes through a dedicated Edge Function to bypass RLS policies th
 ## Security & Environment Validation
 
 - The `GEMINI_API_KEY` is absent from the iOS client bundle (`Info.plist` and `.xcconfig`). All LLM calls go through Supabase Edge Functions (`identify`, `identify-multimodal`, `enrich-scan`, etc.), which hold the key server-side.
-- All Edge Functions set `verify_jwt = false` in `config.toml` and perform manual JWT verification via `requireAuth` inside `withEdgeHandler`. This is mandatory: omitting an entry causes Supabase's Kong gateway to default to `verify_jwt = true`, which validates the JWT at the gateway layer before the function code runs and rejects valid ES256 anonymous sessions with `401 Invalid JWT`. There are two intentional exceptions:
+- App-facing anonymous-compatible Edge Functions set `verify_jwt = false` in `config.toml`. Authenticated endpoints then perform manual JWT verification via `requireAuth` inside `withEdgeHandler`. This is mandatory for anonymous-compatible routes: omitting an entry causes Supabase's Kong gateway to default to `verify_jwt = true`, which validates the JWT at the gateway layer before the function code runs and rejects valid ES256 anonymous sessions with `401 Invalid JWT`. There are three intentional deviations:
   - **`merge-ghost-profile`**: Keeps `verify_jwt = true` because merging a ghost into an unauthenticated session is semantically invalid and a security risk. The gateway enforces a fully authenticated session before the function runs.
   - **`request-export-dwca`**: Keeps `verify_jwt = true` because personal data exports require a verified authenticated user identity — anonymous users have no stable identity to bind an export to.
-- **Rule for new Edge Functions**: Every new function directory under `supabase/functions/` MUST have a corresponding `[functions.<name>]` entry with `verify_jwt = false` in `config.toml` before deployment. Only functions that are explicitly authenticated-only (no anonymous user path) may use `verify_jwt = true`.
+  - **`species-dictionary`**: Keeps `verify_jwt = false` but intentionally skips `requireAuth` because it returns only public species-level dictionary data.
+- **Rule for new Edge Functions**: Every new function directory under `supabase/functions/` MUST have a corresponding `[functions.<name>]` entry in `config.toml` before deployment. Use `verify_jwt = false` for anonymous-compatible app routes and deliberately public routes; use `verify_jwt = true` only for explicitly authenticated-only routes with no anonymous user path. Public unauthenticated routes must document their data-exposure boundary in both the function README and `docs/backend-and-data/05-api-contracts.md`.
 
 ## Database Indexing & Performance
 

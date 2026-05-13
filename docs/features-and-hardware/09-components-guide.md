@@ -112,12 +112,13 @@ A diagnostic card surfacing up to 2 alternative species the AI genuinely conside
 A horizontally scrolling carousel of ecologically similar lookalike species, rendered in `BiologicalView` at card entrance index 4. Sourced from `speciesData.similarSpecies` (a `SimilarSpecies` struct with an `entries: [SimilarSpeciesEntry]` array), which is populated asynchronously by `fetchAndApplyEnrichment` and persisted to `LocalScanRecord.lookalikesData: Data?`.
 
 - **Visibility gate**: Shown when `inferenceEngine.speciesData?.similarSpecies` is non-nil. While enrichment is in-flight (`inferenceEngine.isEnrichmentLoading == true`) and `similarSpecies` is still nil, `SimilarSpeciesGallery.Skeleton` renders in its place at the same index. The transition is animated via `.animation(.easeInOut, value: inferenceEngine.isEnrichmentLoading)`.
-- **Entry filtering**: `validEntries` filters out only `SimilarSpeciesEntry` values whose `scientificName` trims to an empty string (truly invalid server data). Image load failure never removes a card.
+- **Entry filtering**: `validEntries` delegates to `SimilarSpecies.filteredEntries(...)`, removing blank scientific names, the active species, duplicate scientific names, and duplicate active common-name labels. Image load failure never removes a card.
+- **Tap behavior**: The gallery accepts an optional `onSpeciesSelected` callback. The Insight sheet and Explore post detail page pass this callback to open `SpeciesDictionaryPageView` for the tapped lookalike; species dictionary usages omit the callback so their similar-species section stays read-only in V1.
 - **Image loading**: Each `SimilarSpeciesCard` uses a two-tier strategy:
   1. **Rich path** (`referenceImageUrl != nil`): `AsyncLocalImageView` loads the pre-resolved join-table URL. If the URL fails (network error, simulator, expired CDN link), local `@State var remoteImageFailed` flips to `true` and the card falls through to the leaf-icon placeholder. The card stays visible.
   2. **Fallback path** (`referenceImageUrl == nil`): A `.task` spawns `SimilarSpeciesImageFetcher`, which runs a Wikipedia → GBIF image waterfall lookup. If both fail, the card shows the leaf-icon placeholder.
-- **Fixed geometry**: Cards are locked to `width: 180, height: 240`. The image area is clamped to `height: 160`; the text compartment is `height: 60`. This prevents extreme image aspect ratios from breaking the horizontal row layout.
-- **Label**: Always "SIMILAR SPECIES" — no confidence-gated label switching.
+- **Fixed geometry**: Cards are locked to `width: 200, height: 260`. This prevents extreme image aspect ratios from breaking the horizontal row layout.
+- **Label**: Always "Similar species" — no confidence-gated label switching.
 - **Header chrome**: The live gallery and skeleton both use `InsightCardHeader`, matching the same title/icon treatment as Overview, Taxonomy, Scan, Tags, Field Notes, Did You Know, and Explore detail cards.
 - **Skeleton**: `SimilarSpeciesGallery.Skeleton` renders three placeholder cards with a pulsing opacity loop (`easeInOut(duration: 1.0).repeatForever`).
 

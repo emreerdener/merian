@@ -902,6 +902,13 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExplorePostDetailResponse.self, from: data).data
     }
 
+    func getSpeciesDictionary(scientificName: String) async throws -> SpeciesDictionaryEntry {
+        let functionUrl = try endpointURL("species-dictionary")
+        let bodyData = try JSONSerialization.data(withJSONObject: ["scientific_name": scientificName])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(SpeciesDictionaryResponse.self, from: data).data
+    }
+
     func getExploreAuthorProfile(authorUserId: String, previewLimit: Int = 9) async throws -> ExploreAuthorProfile {
         let functionUrl = try endpointURL("get-explore-author-profile")
         let bodyData = try JSONSerialization.data(withJSONObject: [

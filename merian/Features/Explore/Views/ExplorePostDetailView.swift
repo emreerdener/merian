@@ -23,6 +23,7 @@ struct ExplorePostDetailView: View {
     @State private var localFieldNotes: String?
     @State private var selectedInsightRecord: LocalScanRecord?
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
+    @State private var speciesDictionaryRoute: SpeciesDictionaryRoute?
     @State private var isRefreshingAfterInsightDismiss = false
     @State private var didAutoOpenInsight = false
 
@@ -183,6 +184,9 @@ struct ExplorePostDetailView: View {
         }
         .sheet(item: $selectedAuthorProfileRoute) { route in
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
+        }
+        .sheet(item: $speciesDictionaryRoute) { route in
+            SpeciesDictionaryPageView(scientificName: route.scientificName)
         }
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
             Task {
@@ -462,6 +466,17 @@ struct ExplorePostDetailView: View {
                             scientificName: post.speciesScientificName,
                             habitatDescription: detail.habitatDescription,
                             gbifTaxonKey: detail.gbifTaxonKey
+                        )
+                    }
+
+                    if let similarData = detail?.similarSpeciesData {
+                        SimilarSpeciesGallery(
+                            similarData: similarData,
+                            currentScientificName: post.speciesScientificName,
+                            currentCommonName: viewModel.resolvedSpeciesCommonName(for: post),
+                            onSpeciesSelected: { entry in
+                                speciesDictionaryRoute = SpeciesDictionaryRoute(scientificName: entry.scientificName)
+                            }
                         )
                     }
                 }
