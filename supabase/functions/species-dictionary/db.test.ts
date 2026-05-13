@@ -83,6 +83,7 @@ Deno.test("species-dictionary helpers - build sparse payload with lookalikes", (
     },
     [
       {
+        species_id: "lookalike-id",
         scientific_name: "Danaus gilippus",
         common_name: "Queen Butterfly",
         reference_image_url: null,
@@ -96,19 +97,37 @@ Deno.test("species-dictionary helpers - build sparse payload with lookalikes", (
   assertEquals(payload.taxonomy.order, "Lepidoptera");
   assertEquals(payload.group_tags, ["animal", "insect"]);
   assertEquals(payload.reference_images.length, 1);
+  assertEquals(payload.similar_species[0].species_id, "lookalike-id");
   assertEquals(payload.similar_species[0].scientific_name, "Danaus gilippus");
 });
 
 Deno.test("species-dictionary helpers - validates request body", () => {
+  assertEquals(parseSpeciesDictionaryRequest({ species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01" }), {
+    speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+  });
+  assertEquals(
+    parseSpeciesDictionaryRequest({
+      species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      scientific_name: "  Danaus   plexippus  ",
+    }),
+    {
+      speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      scientificName: "Danaus plexippus",
+    },
+  );
   assertEquals(parseSpeciesDictionaryRequest({ scientific_name: "  Danaus   plexippus  " }), {
     scientificName: "Danaus plexippus",
   });
+  assertEquals(parseSpeciesDictionaryRequest({ species_id: "not-a-uuid" }), {
+    error: "species_id must be a valid UUID.",
+    status: 400,
+  });
   assertEquals(parseSpeciesDictionaryRequest({}), {
-    error: "Missing required parameter: scientific_name",
+    error: "Missing required parameter: species_id or scientific_name",
     status: 400,
   });
   assertEquals(parseSpeciesDictionaryRequest({ scientific_name: "" }), {
-    error: "Missing required parameter: scientific_name",
+    error: "Missing required parameter: species_id or scientific_name",
     status: 400,
   });
 });

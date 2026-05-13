@@ -21,6 +21,7 @@ export interface ExplorePostDetailRow {
 }
 
 export interface ExplorePostDetailSimilarSpecies {
+  species_id?: string | null;
   scientific_name: string;
   common_name: string | null;
   reference_image_url: string | null;

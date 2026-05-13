@@ -122,6 +122,7 @@ struct EnrichScanResponse: Codable {
 
     /// A single lookalike species record resolved from the species_lookalikes join table.
     struct SimilarSpeciesEntry: Codable {
+        let species_id: String?
         let scientific_name: String
         let common_name: String?
         let reference_image_url: String?

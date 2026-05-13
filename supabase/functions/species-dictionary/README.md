@@ -6,14 +6,16 @@ Returns public species-level dictionary data for the standalone species dictiona
 
 ```json
 {
+  "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
   "scientific_name": "Danaus plexippus"
 }
 ```
 
 Validation:
 
-- `scientific_name` is required.
-- It must be a non-empty string after trimming.
+- Either `species_id` or `scientific_name` is required.
+- `species_id`, when present, must be a valid UUID and is preferred for lookup.
+- `scientific_name`, when present, must be a non-empty string after trimming.
 - Internal whitespace is collapsed.
 - Names over 160 characters are rejected.
 
@@ -49,6 +51,7 @@ Invalid bodies return `400`.
     ],
     "similar_species": [
       {
+        "species_id": "uuid",
         "scientific_name": "Limenitis archippus",
         "common_name": "Viceroy",
         "reference_image_url": "https://...",
@@ -98,6 +101,7 @@ Reference images:
 - Remaining unresolved images map to `gbif`.
 
 Alternative common names and group tags are trimmed and deduped before returning.
+Hydrated lookalikes include `species_id` for canonical dictionary routing.
 
 ## Privacy Contract
 

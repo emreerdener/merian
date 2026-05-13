@@ -2,13 +2,15 @@ import SwiftUI
 
 struct SpeciesDictionaryPageView: View {
     let scientificName: String
+    let speciesId: String?
 
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: SpeciesDictionaryPageViewModel
 
-    init(scientificName: String) {
+    init(scientificName: String, speciesId: String? = nil) {
         self.scientificName = scientificName
-        _viewModel = State(initialValue: SpeciesDictionaryPageViewModel(scientificName: scientificName))
+        self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).trimmedNonEmpty
+        _viewModel = State(initialValue: SpeciesDictionaryPageViewModel(scientificName: scientificName, speciesId: speciesId))
     }
 
     var body: some View {
@@ -30,7 +32,7 @@ struct SpeciesDictionaryPageView: View {
                     }
                 }
         }
-        .task(id: scientificName) {
+        .task(id: speciesId ?? scientificName) {
             await viewModel.load()
         }
         .presentationDetents([.large])

@@ -43,7 +43,7 @@ export async function fetchLookalikesFromJoinTable(
   const { data, error } = await supabaseAdmin
     .from("species_lookalikes")
     .select(
-      "lookalike:species_dictionary!lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status, order, family)",
+      "lookalike:species_dictionary!lookalike_id(id, scientific_name, common_names, reference_image_url, iucn_red_list_status, order, family)",
     )
     .eq("species_id", speciesId)
     .limit(10);
@@ -56,6 +56,7 @@ export async function fetchLookalikesFromJoinTable(
   return (
     data as unknown as {
       lookalike: {
+        id: string;
         scientific_name: string;
         common_names: Record<string, string> | null;
         reference_image_url: string | null;
@@ -67,6 +68,7 @@ export async function fetchLookalikesFromJoinTable(
   )
     .filter((row) => row.lookalike != null)
     .map((row) => ({
+      species_id: row.lookalike!.id,
       scientific_name: row.lookalike!.scientific_name,
       common_name: row.lookalike!.common_names?.en ?? null,
       reference_image_url: row.lookalike!.reference_image_url,
@@ -236,6 +238,7 @@ export async function resolveLookalikesToJoinTable(
   return {
     lookalikes: validated.map((m) => ({
       scientific_name: m.scientific_name,
+      species_id: m.id,
       // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
       common_name: m.common_names?.en ?? entryByName.get(m.scientific_name)?.common_name ?? null,
       reference_image_url: m.reference_image_url,

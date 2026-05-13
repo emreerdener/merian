@@ -23,6 +23,7 @@ type ExplorePostDetailRow = {
 };
 
 type ExplorePostDetailSimilarSpecies = {
+  species_id: string;
   scientific_name: string;
   common_name: string | null;
   reference_image_url: string | null;
@@ -149,6 +150,7 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
     );
     assertEquals(row.similar_species?.length, 1);
     assertEquals(row.similar_species?.[0], {
+      species_id: lookalikeId,
       scientific_name: "Rosa minor",
       common_name: "Small Rose",
       reference_image_url: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/Rosa_minor.jpg/640px-Rosa_minor.jpg",

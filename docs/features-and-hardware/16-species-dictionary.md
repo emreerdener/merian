@@ -61,7 +61,7 @@ Primary files:
 - `notFound`
 - `error(String)`
 
-The model trims the incoming scientific name before fetching. A `404` from the backend maps to `notFound`; other failures map to `error`.
+The model trims the incoming scientific name before fetching and prefers a `speciesId` lookup when the route provides one. A `404` from the backend maps to `notFound`; other failures map to `error`.
 
 ## Entry Point
 
@@ -73,12 +73,15 @@ SimilarSpeciesGallery(
     currentScientificName: inferenceEngine.speciesData?.scientificName,
     currentCommonName: inferenceEngine.speciesData?.commonName,
     onSpeciesSelected: { entry in
-        speciesDictionaryRoute = SpeciesDictionaryRoute(scientificName: entry.scientificName)
+        speciesDictionaryRoute = SpeciesDictionaryRoute(
+            scientificName: entry.scientificName,
+            speciesId: entry.speciesId
+        )
     }
 )
 ```
 
-The route is held as `SpeciesDictionaryRoute?` and presented via `.sheet(item:)`.
+The route is held as `SpeciesDictionaryRoute?` and presented via `.sheet(item:)`. `speciesId` is preferred for lookup when present; `scientificName` remains the display and backward-compatible lookup fallback.
 
 Explore post detail uses the same route from its public `/get-explore-post-detail` similar-species payload. The Explore entry point is detail-only; feed cards, map previews, author profile previews, scan library, search, and external deep links do not open the species dictionary in V1.
 
@@ -88,12 +91,14 @@ The iOS client calls:
 
 ```swift
 MerianNetworkClient.shared.getSpeciesDictionary(scientificName:)
+MerianNetworkClient.shared.getSpeciesDictionary(speciesId:scientificName:)
 ```
 
 That method POSTs to the public `species-dictionary` Edge Function:
 
 ```json
 {
+  "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
   "scientific_name": "Danaus plexippus"
 }
 ```
@@ -128,6 +133,7 @@ Successful responses are wrapped in a `data` envelope:
     ],
     "similar_species": [
       {
+        "species_id": "uuid",
         "scientific_name": "Limenitis archippus",
         "common_name": "Viceroy",
         "reference_image_url": "https://...",
@@ -160,7 +166,7 @@ Lookalikes:
 
 - Source table: `species_lookalikes`.
 - Hydration uses the explicit PostgREST FK hint `species_dictionary!lookalike_id` because the join table has two foreign keys to `species_dictionary`.
-- Returned fields are limited to `scientific_name`, `common_names`, `reference_image_url`, and `iucn_red_list_status`.
+- Returned fields are limited to `species_id`, `scientific_name`, `common_names`, `reference_image_url`, and `iucn_red_list_status`.
 - The page renders the section read-only in V1.
 
 ## Privacy Rules

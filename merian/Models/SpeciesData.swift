@@ -391,10 +391,25 @@ struct InsightData {
 }
 
 struct SimilarSpeciesEntry: Codable {
+    let speciesId: String?
     let scientificName: String
     let commonName: String?
     let referenceImageUrl: String?
     let iucnRedListStatus: String?
+
+    init(
+        scientificName: String,
+        commonName: String?,
+        referenceImageUrl: String?,
+        iucnRedListStatus: String?,
+        speciesId: String? = nil
+    ) {
+        self.speciesId = speciesId
+        self.scientificName = scientificName
+        self.commonName = commonName
+        self.referenceImageUrl = referenceImageUrl
+        self.iucnRedListStatus = iucnRedListStatus
+    }
 
     static func normalizeScientificName(_ value: String?) -> String {
         value?

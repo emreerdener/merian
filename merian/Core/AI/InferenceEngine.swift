@@ -1283,7 +1283,8 @@ private struct GBIFMedia: Decodable {
                                     scientificName: $0.scientific_name,
                                     commonName: splitCommonName,
                                     referenceImageUrl: $0.reference_image_url,
-                                    iucnRedListStatus: $0.iucn_red_list_status
+                                    iucnRedListStatus: $0.iucn_red_list_status,
+                                    speciesId: $0.species_id
                                 )
                             }
                             // Single full-value replacement — see enrichment scope comment above.

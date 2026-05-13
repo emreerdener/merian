@@ -903,8 +903,23 @@ final class MerianNetworkClient {
     }
 
     func getSpeciesDictionary(scientificName: String) async throws -> SpeciesDictionaryEntry {
+        try await performSpeciesDictionaryRequest(speciesId: nil, scientificName: scientificName)
+    }
+
+    func getSpeciesDictionary(speciesId: String, scientificName: String? = nil) async throws -> SpeciesDictionaryEntry {
+        try await performSpeciesDictionaryRequest(speciesId: speciesId, scientificName: scientificName)
+    }
+
+    private func performSpeciesDictionaryRequest(speciesId: String?, scientificName: String?) async throws -> SpeciesDictionaryEntry {
         let functionUrl = try endpointURL("species-dictionary")
-        let bodyData = try JSONSerialization.data(withJSONObject: ["scientific_name": scientificName])
+        var payload: [String: Any] = [:]
+        if let speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines), !speciesId.isEmpty {
+            payload["species_id"] = speciesId
+        }
+        if let scientificName = scientificName?.trimmingCharacters(in: .whitespacesAndNewlines), !scientificName.isEmpty {
+            payload["scientific_name"] = scientificName
+        }
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(SpeciesDictionaryResponse.self, from: data).data
     }

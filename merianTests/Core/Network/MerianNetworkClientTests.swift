@@ -185,6 +185,7 @@ struct MerianNetworkClientTests {
                 "habitat_description": "Deciduous forests and urban areas.",
                 "similar_species": [
                     {
+                        "species_id": "species-cancrivorus",
                         "scientific_name": "Procyon cancrivorus",
                         "common_name": "Crab-eating Raccoon",
                         "reference_image_url": "https://example.com/cancrivorus.jpg",
@@ -218,6 +219,7 @@ struct MerianNetworkClientTests {
         #expect(enrichmentData.habitat_description == "Deciduous forests and urban areas.")
         let similar = try #require(enrichmentData.similar_species)
         #expect(similar.count == 1)
+        #expect(similar[0].species_id == "species-cancrivorus")
         #expect(similar[0].scientific_name == "Procyon cancrivorus")
     }
 
@@ -272,6 +274,7 @@ struct MerianNetworkClientTests {
                 "wikipedia_overview": "Rosa galeria is a test species with enough overview copy for Explore.",
                 "similar_species": [
                     {
+                        "species_id": "species-rosa-minor",
                         "scientific_name": "Rosa minor",
                         "common_name": "Small Rose",
                         "reference_image_url": "https://example.com/rosa-minor.jpg",
@@ -288,6 +291,7 @@ struct MerianNetworkClientTests {
         let similar = try #require(response.data.similarSpeciesData)
 
         #expect(similar.entries.count == 1)
+        #expect(similar.entries[0].speciesId == "species-rosa-minor")
         #expect(similar.entries[0].scientificName == "Rosa minor")
         #expect(similar.entries[0].commonName == "Small Rose")
         #expect(similar.entries[0].referenceImageUrl == "https://example.com/rosa-minor.jpg")

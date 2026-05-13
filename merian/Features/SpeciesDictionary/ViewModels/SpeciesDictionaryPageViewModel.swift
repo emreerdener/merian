@@ -13,10 +13,12 @@ enum SpeciesDictionaryPageState: Equatable {
 @Observable
 final class SpeciesDictionaryPageViewModel {
     let scientificName: String
+    let speciesId: String?
     var state: SpeciesDictionaryPageState = .idle
 
-    init(scientificName: String) {
+    init(scientificName: String, speciesId: String? = nil) {
         self.scientificName = scientificName
+        self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
     }
 
     var loadedSpecies: SpeciesDictionaryEntry? {
@@ -28,7 +30,7 @@ final class SpeciesDictionaryPageViewModel {
 
     func load() async {
         let trimmedName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else {
+        guard speciesId != nil || !trimmedName.isEmpty else {
             state = .notFound
             return
         }
@@ -36,7 +38,15 @@ final class SpeciesDictionaryPageViewModel {
         state = .loading
 
         do {
-            let species = try await MerianNetworkClient.shared.getSpeciesDictionary(scientificName: trimmedName)
+            let species: SpeciesDictionaryEntry
+            if let speciesId {
+                species = try await MerianNetworkClient.shared.getSpeciesDictionary(
+                    speciesId: speciesId,
+                    scientificName: trimmedName.nilIfEmpty
+                )
+            } else {
+                species = try await MerianNetworkClient.shared.getSpeciesDictionary(scientificName: trimmedName)
+            }
             state = .loaded(species)
         } catch let error as MerianError {
             if case .httpError(let statusCode, _) = error, statusCode == 404 {

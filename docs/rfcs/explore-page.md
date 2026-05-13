@@ -398,7 +398,7 @@ Recommended V1 endpoints:
 - `get-explore-post`
   - Returns a single Explore card projection for notification routing and deep links
 - `get-explore-post-detail`
-  - Returns public species-detail data for a single Explore post, including conditional per-scan `ai_reasoning` when the underlying identification has not been flagged or overridden, plus public `similar_species` hydrated from the species dictionary lookalike join table
+  - Returns public species-detail data for a single Explore post, including conditional per-scan `ai_reasoning` when the underlying identification has not been flagged or overridden, plus public `similar_species` hydrated from the species dictionary lookalike join table with `species_id` for canonical dictionary routing
 - `get-explore-comments`
   - Returns paginated comments for a post, including the comment author's optional public avatar projection
 - `get-explore-map-points`

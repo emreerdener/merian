@@ -18,7 +18,7 @@ serve(async (req: Request) => {
     if (parsedBody instanceof Response) return parsedBody;
 
     const parsedRequest = parseSpeciesDictionaryRequest(parsedBody);
-    if (!parsedRequest.scientificName) {
+    if (!parsedRequest.speciesId && !parsedRequest.scientificName) {
       return jsonResponse({ error: parsedRequest.error }, parsedRequest.status ?? 400);
     }
 
@@ -27,7 +27,7 @@ serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    const data = await fetchSpeciesDictionary(parsedRequest.scientificName, supabaseAdmin);
+    const data = await fetchSpeciesDictionary(parsedRequest, supabaseAdmin);
     if (!data) {
       return jsonResponse({ error: "Species not found" }, 404);
     }

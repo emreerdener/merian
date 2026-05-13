@@ -17,6 +17,7 @@ export interface SpeciesDictionaryReferenceImage {
 }
 
 export interface SpeciesDictionarySimilarSpecies {
+  species_id: string;
   scientific_name: string;
   common_name: string | null;
   reference_image_url: string | null;
@@ -66,6 +67,7 @@ interface LookalikeRelationRow {
 }
 
 interface LookalikeSpeciesRow {
+  id?: string | null;
   scientific_name?: string | null;
   common_names?: Record<string, unknown> | null;
   reference_image_url?: string | null;
@@ -73,20 +75,41 @@ interface LookalikeSpeciesRow {
 }
 
 export interface SpeciesDictionaryRequestResult {
+  speciesId?: string;
   scientificName?: string;
   error?: string;
   status?: number;
 }
 
 export function parseSpeciesDictionaryRequest(body: Record<string, unknown>): SpeciesDictionaryRequestResult {
+  const rawSpeciesId = body.species_id;
+  if (rawSpeciesId !== undefined && rawSpeciesId !== null) {
+    if (typeof rawSpeciesId !== "string") {
+      return { error: "species_id must be a valid UUID.", status: 400 };
+    }
+
+    const speciesId = rawSpeciesId.trim();
+    if (speciesId && !isUuid(speciesId)) {
+      return { error: "species_id must be a valid UUID.", status: 400 };
+    }
+
+    if (speciesId) {
+      const scientificName = normalizeOptionalScientificName(body.scientific_name);
+      if (scientificName?.error) return scientificName;
+      return scientificName?.scientificName
+        ? { speciesId, scientificName: scientificName.scientificName }
+        : { speciesId };
+    }
+  }
+
   const rawName = body.scientific_name;
   if (typeof rawName !== "string") {
-    return { error: "Missing required parameter: scientific_name", status: 400 };
+    return { error: "Missing required parameter: species_id or scientific_name", status: 400 };
   }
 
   const scientificName = rawName.trim().replace(/\s+/g, " ");
   if (!scientificName) {
-    return { error: "Missing required parameter: scientific_name", status: 400 };
+    return { error: "Missing required parameter: species_id or scientific_name", status: 400 };
   }
 
   if (scientificName.length > 160) {
@@ -188,16 +211,20 @@ export function buildSpeciesDictionaryPayload(
 }
 
 export async function fetchSpeciesDictionary(
-  scientificName: string,
+  lookup: string | { speciesId?: string; scientificName?: string },
   supabaseAdmin: SupabaseClient,
 ): Promise<SpeciesDictionaryPayload | null> {
-  const { data: speciesRows, error: speciesError } = await supabaseAdmin
+  const normalizedLookup = typeof lookup === "string" ? { scientificName: lookup } : lookup;
+  const query = supabaseAdmin
     .from("species_dictionary")
     .select(
       "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags",
     )
-    .eq("scientific_name", scientificName)
     .limit(1);
+
+  const { data: speciesRows, error: speciesError } = normalizedLookup.speciesId
+    ? await query.eq("id", normalizedLookup.speciesId)
+    : await query.eq("scientific_name", normalizedLookup.scientificName ?? "");
 
   if (speciesError) {
     throw new Error(`Failed to fetch species dictionary row: ${speciesError.message}`);
@@ -217,7 +244,7 @@ async function fetchSimilarSpecies(
   const { data, error } = await supabaseAdmin
     .from("species_lookalikes")
     .select(
-      "lookalike:species_dictionary!lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status)",
+      "lookalike:species_dictionary!lookalike_id(id, scientific_name, common_names, reference_image_url, iucn_red_list_status)",
     )
     .eq("species_id", speciesId);
 
@@ -230,14 +257,16 @@ async function fetchSimilarSpecies(
 
   for (const row of (data ?? []) as LookalikeRelationRow[]) {
     const lookalike = relationValue(row.lookalike);
+    const lookalikeId = stringValue(lookalike?.id);
     const scientificName = stringValue(lookalike?.scientific_name);
-    if (!scientificName) continue;
+    if (!lookalikeId || !scientificName) continue;
 
-    const key = scientificName.toLowerCase();
+    const key = lookalikeId.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
 
     entries.push({
+      species_id: lookalikeId,
       scientific_name: scientificName,
       common_name: resolveOptionalCommonName(lookalike?.common_names),
       reference_image_url: stringValue(lookalike?.reference_image_url),
@@ -308,4 +337,23 @@ function stringValue(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeOptionalScientificName(value: unknown): SpeciesDictionaryRequestResult | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") {
+    return { error: "scientific_name must be a string when provided.", status: 400 };
+  }
+
+  const scientificName = value.trim().replace(/\s+/g, " ");
+  if (!scientificName) return undefined;
+  if (scientificName.length > 160) {
+    return { error: "scientific_name is too long.", status: 400 };
+  }
+
+  return { scientificName };
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }

@@ -54,7 +54,8 @@ struct SpeciesDictionaryEntry: Decodable, Equatable, Identifiable {
                 scientificName: scientificName,
                 commonName: item.commonName,
                 referenceImageUrl: item.referenceImageUrl,
-                iucnRedListStatus: item.iucnRedListStatus
+                iucnRedListStatus: item.iucnRedListStatus,
+                speciesId: item.speciesId
             )
         }
 
@@ -102,16 +103,29 @@ struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable {
 }
 
 struct SpeciesDictionarySimilarSpecies: Decodable, Equatable, Identifiable {
+    let speciesId: String?
     let scientificName: String
     let commonName: String?
     let referenceImageUrl: String?
     let iucnRedListStatus: String?
 
-    var id: String { scientificName }
+    var id: String { speciesId ?? scientificName }
 }
 
 struct SpeciesDictionaryRoute: Identifiable, Equatable {
+    let speciesId: String?
     let scientificName: String
 
-    var id: String { scientificName }
+    init(scientificName: String, speciesId: String? = nil) {
+        self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.scientificName = scientificName
+    }
+
+    var id: String { speciesId ?? scientificName }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
 }

@@ -40,6 +40,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/features-and-hardware/15-explore-following.md`](./features-and-hardware/15-explore-following.md)** — Explore Follow relationships: Following feed filter, public profile counts, follow notifications, block cleanup, and ghost-merge repair.
 - **[`/features-and-hardware/16-species-dictionary.md`](./features-and-hardware/16-species-dictionary.md)** — Standalone public species dictionary page, `species-dictionary` Edge Function contract, and similar-species entry points from Insight and Explore detail.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map product/RPC architecture, including the shipped V1 map implementation and follow-up recommendations.
+- **[`/rfcs/species-dictionary-long-term-todo.md`](./rfcs/species-dictionary-long-term-todo.md)** — Long-term species dictionary TODO covering canonical identity, reference media normalization, public projections, provenance, caching, licensing, and analytics.
 - **[`/rfcs/geological-expansions.md`](./rfcs/geological-expansions.md)** — Roadmap for extending inference to rocks, minerals, and fossils.
 
 ### Development Guides

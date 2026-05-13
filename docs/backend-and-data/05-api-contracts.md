@@ -173,7 +173,7 @@ If an AI Agent mutates any key mapping below, it MUST modify both the `index.ts`
 }
 ```
 
-> **Vision schema lean principle**: The vision model response (`identify`) is optimised strictly for identification and ecosystem measurement. Data-as-a-Service fields (`estimated_size_cm`, `life_stage`, `reproductive_condition`, `individual_count`, `ecological_interactions`) are fully generated on the primary pass avoiding any secondary inference loops. `extracted_visual_traits` executes a Micro-CoT pass before taxonomic grouping to anchor the model to reality and avoid visual pareidolia. `insight_data.ai_reasoning` is always present for biological subjects — it is the Gemini vision model's per-scan reasoning about the specific photo submitted and is unique per scan. **LLM field caps** (enforced in `index.ts` after scientific name sanitization): `colors`, `extracted_visual_traits`, and `ecological_interactions` are each truncated to a maximum of 10 items; `ai_reasoning` is truncated to 2000 characters; `individual_count` is validated as a positive integer ≤ 99999; the client-supplied `estimated_size_cm` is validated as a positive finite number ≤ 50000; the `candidates` array is capped at 5 items before `payloadReadyForClient` is built. **GPS range validation**: `gpsLatitude` and `gpsLongitude` from the request payload are validated against physical bounds (`−90 ≤ lat ≤ 90`, `−180 ≤ lon ≤ 180`). Out-of-range values are sanitised to `null` (carried as `safeGpsLat`/`safeGpsLon` throughout `index.ts`) rather than failing the request — location is supplementary and a bad coordinate must not abort identification. These bounds protect the V8 heap and downstream SQLite columns from unbounded LLM output. To guarantee this Micro-CoT happens linearly, both `extracted_visual_traits` and `ai_reasoning` are anchored at the top of the `getSchemaProperties` object, forcing Gemini to output them *before* classification. Ghost fields (`colors`, `regional_status_rationale`, `blur_score`) are stripped out entirely from both schema descriptors and prompts to decrease inference loops and token footprint. `blur_score` is computed mathematically from the required `sharpness` attribute down-stream. Schema objects are aggressively memoized locally (`schemaCache`) per-tier to bypass redundant V8 isolations. `taxonomy` and `iucn_red_list_status` are only present on Cache Hit (read from `species_dictionary`). `gbif_taxon_key` is present on Cache Hit for **all tiers** — it is GBIF's deterministic species usage key (sourced from a REST call to `api.gbif.org`, not AI-generated) and powers the occurrence density heatmap in `BiologicalView` for free and Pro users alike. `species_insights` is present on Cache Hit for all tiers when `habitat_description` is already stored in `species_dictionary`. `alternative_common_names` is a `string[] | null` field present on Cache Hit. It contains all known English vernacular synonyms for the species beyond the primary `common_name`, sourced from the GBIF vernacular names endpoint (`GET /v1/species/{key}/vernacularNames?language=eng&limit=30`) during the background enrichment pass that fires on the first Cache Miss for a species. The primary `common_name` value is excluded from this array (case-insensitive deduplication applied server-side). `null` on Cache Miss or when GBIF returned no additional names. On the iOS side, these alternatives are stored in `LocalScanRecord.alternativeCommonNames` (SwiftData V34) and presented in `InsightHeader` as a tappable "Also known as" line. `similar_species` is never included in the `identify` response — it is generated asynchronously by the `enrich-scan` function unconditionally (Edge applies no confidence gate; the iOS client dynamically applies the tier-specific threshold in `BiologicalView` to decide display treatment). `hazard_type` inside `insight_data` comes from `species_dictionary` on Cache Hit (authoritative); on Cache Miss the live response currently defaults to `"none"` until later enrichment fills the richer species-level hazard metadata. The `hazard_type` column exists only on `species_dictionary`, not on `scans`. `candidates` is a **required field** in `merianResponseSchema` — Gemini always generates exactly 2 alternative species. `index.ts` calls `diagnosticTriggerForTier(tier)` from `_shared/identify/thresholds.ts` and sets `candidates = null` before sending the response and before the `scans` DB insert when `confidence_score >= diagnosticTrigger` (`0.99` for both Flash and Pro). This threshold is intentionally above the `strong` band on each tier (`0.95` Flash / `0.85` Pro), so Strong match scans (0.95–0.99) still reach the client with a full candidate list as an escape hatch for overconfident wrong IDs. Only scans at or above 0.99 have candidates stripped — every Possible, Weak, and Strong match scan carries alternatives for the verification UX. The server gate is the sole enforcement mechanism; the model is not asked to conditionally self-suppress. **Null confidence_score safety**: if Gemini unexpectedly returns a null `confidence_score` (malformed response), the gate falls back to `0.0` (not `1.0`) so that candidates are *preserved* — a scan with an unparseable confidence is exactly the scan where alternatives are most needed. Candidates are scan-specific (not species-level) and are persisted to `public.scans.candidates` (JSONB) and `LocalScanRecord.candidatesData` (Data blob, `MerianSchemaV28`).
+> **Vision schema lean principle**: The vision model response (`identify`) is optimised strictly for identification and ecosystem measurement. Data-as-a-Service fields (`estimated_size_cm`, `life_stage`, `reproductive_condition`, `individual_count`, `ecological_interactions`) are fully generated on the primary pass avoiding secondary inference loops. `extracted_visual_traits` executes a Micro-CoT pass before taxonomic grouping to anchor the model to reality and avoid visual pareidolia. `insight_data.ai_reasoning` is always present for biological subjects because it is the Gemini vision model's per-scan reasoning about the specific photo submitted. LLM field caps are enforced in `index.ts` after scientific name sanitization: `colors`, `extracted_visual_traits`, and `ecological_interactions` are each capped at 10 items; `ai_reasoning` is truncated to 2000 characters; `individual_count` is validated as a positive integer <= 99999; client-supplied `estimated_size_cm` is validated as a positive finite number <= 50000; and `candidates` is capped at 5 items before `payloadReadyForClient` is built. GPS coordinates are range-checked and out-of-range values are sanitized to `null` rather than aborting identification. `taxonomy`, `iucn_red_list_status`, `gbif_taxon_key`, `species_insights`, and `alternative_common_names` are species-dictionary cache fields, not scan-specific model output. `similar_species` is never included in the `identify` response; it is generated asynchronously by `/enrich-scan`, and iOS renders validated entries with the stable "Similar species" label. `hazard_type` inside `insight_data` comes from `species_dictionary` on Cache Hit; on Cache Miss the live response defaults to `"none"` until later enrichment fills species-level hazard metadata. `candidates` is required in `merianResponseSchema`; `identify` strips it to `null` only when `confidence_score >= diagnosticTrigger` (`0.99` for both Flash and Pro), preserving candidates for Possible, Weak, and Strong scans below that near-certain threshold. Candidates are scan-specific and persist to `public.scans.candidates` plus `LocalScanRecord.candidatesData`.
 
 ### Background Ingestion & Media Moderation
 
@@ -258,14 +258,16 @@ Request body:
 
 ```json
 {
+  "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
   "scientific_name": "Danaus plexippus"
 }
 ```
 
 Validation rules:
 
-- `scientific_name` is required.
-- It must be a string and non-empty after trimming.
+- Either `species_id` or `scientific_name` is required.
+- `species_id`, when present, must be a valid UUID and is preferred for lookup.
+- `scientific_name`, when present, must be a string and non-empty after trimming.
 - Internal whitespace is collapsed before lookup.
 - Names longer than 160 characters return `400`.
 
@@ -299,6 +301,7 @@ Current response shape:
     ],
     "similar_species": [
       {
+        "species_id": "uuid",
         "scientific_name": "Limenitis archippus",
         "common_name": "Viceroy",
         "reference_image_url": "https://...",
@@ -315,24 +318,27 @@ Name and imagery mapping:
 - `alternative_common_names` is trimmed, deduped, and excludes the resolved primary common name.
 - `reference_images` is derived from the comma-separated `species_dictionary.reference_image_url` field by splitting, trimming, and deduping URLs.
 - `source` is `wikipedia` for Wikimedia/Wikipedia hosts. If `wikipedia_url` exists, the first unresolved image also maps to `wikipedia`; otherwise unresolved images map to `gbif`.
-- `similar_species` is hydrated from `species_lookalikes` using the explicit PostgREST hint `species_dictionary!lookalike_id`.
+- `similar_species` is hydrated from `species_lookalikes` using the explicit PostgREST hint `species_dictionary!lookalike_id` and includes `species_id` for canonical tap-through routing.
 
 Error responses:
 
 | Status | Body | Meaning |
 |---|---|---|
-| `400` | `{ "error": "Missing required parameter: scientific_name" }` | Missing, non-string, or blank scientific name |
+| `400` | `{ "error": "Missing required parameter: species_id or scientific_name" }` | Missing, non-string, or blank lookup |
+| `400` | `{ "error": "species_id must be a valid UUID." }` | Invalid species ID |
+| `400` | `{ "error": "scientific_name must be a string when provided." }` | Non-string scientific name was supplied alongside a valid species ID |
 | `400` | `{ "error": "scientific_name is too long." }` | Scientific name exceeds the request bound |
-| `404` | `{ "error": "Species not found" }` | No `species_dictionary` row exists for the normalized name |
+| `404` | `{ "error": "Species not found" }` | No `species_dictionary` row exists for the requested ID or normalized name |
 | `500` | `{ "error": "Internal Server Error" }` | Database or unexpected function failure |
 
 Swift mapping:
 
 ```swift
 MerianNetworkClient.shared.getSpeciesDictionary(scientificName:)
+MerianNetworkClient.shared.getSpeciesDictionary(speciesId:scientificName:)
 ```
 
-decodes into `SpeciesDictionaryResponse` / `SpeciesDictionaryEntry` in `SpeciesDictionaryAPIModels.swift`. `SpeciesDictionaryEntry.taxonomyData` adapts the response into the shared `TaxonomyCard`, and `similarSpeciesData` adapts hydrated lookalikes into the shared `SimilarSpeciesGallery`.
+decodes into `SpeciesDictionaryResponse` / `SpeciesDictionaryEntry` in `SpeciesDictionaryAPIModels.swift`. `SpeciesDictionaryEntry.taxonomyData` adapts the response into the shared `TaxonomyCard`, and `similarSpeciesData` adapts hydrated lookalikes into the shared `SimilarSpeciesGallery`. `SpeciesDictionaryRoute` prefers `speciesId` when present and keeps `scientificName` as a display/fallback key.
 
 ---
 
@@ -527,6 +533,7 @@ Current response shape:
     "wikipedia_overview": "The monarch butterfly is a milkweed butterfly in the family Nymphalidae...",
     "similar_species": [
       {
+        "species_id": "uuid",
         "scientific_name": "Limenitis archippus",
         "common_name": "Viceroy",
         "reference_image_url": "https://upload.wikimedia.org/.../Viceroy.jpg",
@@ -544,7 +551,7 @@ For posts owned by the current viewer, iOS also uses `field_notes` as a repair s
 
 `reference_image_url` is the same comma-separated reference-media field used elsewhere in the app: the first URL is typically the cached Wikipedia image when available, followed by cached GBIF-backed field observations. Explore detail uses it to render the public reference gallery below the post's AI reasoning without making an extra authenticated scan fetch.
 
-`similar_species` is hydrated from `species_lookalikes` for the post's resolved dictionary species. Each entry contains public species-level data only and is shaped like the existing lookalike DTO: `scientific_name`, `common_name`, `reference_image_url`, and `iucn_red_list_status`. Empty lookalike sets return an empty array, and iOS omits the section.
+`similar_species` is hydrated from `species_lookalikes` for the post's resolved dictionary species. Each entry contains public species-level data only and is shaped like the existing lookalike DTO: `species_id`, `scientific_name`, `common_name`, `reference_image_url`, and `iucn_red_list_status`. Empty lookalike sets return an empty array, and iOS omits the section. Older clients can continue to route by `scientific_name`; new clients prefer `species_id` for dictionary sheet lookup.
 
 `ai_reasoning` is returned conditionally from the backing `scans` row, not copied into `explore_posts`. It is only exposed when the scan still reflects the original AI identification:
 
@@ -1323,12 +1330,14 @@ The next `enrich-scan` call will re-run Flash only after the species has usable 
     "alternative_common_names": ["Monarch", "Common Tiger"],
     "similar_species": [
       {
+        "species_id": "uuid",
         "scientific_name": "Limenitis archippus",
         "common_name": "Viceroy",
         "reference_image_url": "https://inaturalist-open-data.s3.amazonaws.com/...",
         "iucn_red_list_status": "LC"
       },
       {
+        "species_id": "uuid",
         "scientific_name": "Danaus gilippus",
         "common_name": "Queen",
         "reference_image_url": "https://inaturalist-open-data.s3.amazonaws.com/...",
@@ -1347,7 +1356,7 @@ The next `enrich-scan` call will re-run Flash only after the species has usable 
 }
 ```
 
-`gbif_taxon_key` is `null` when the species has not yet been matched by GBIF. `similar_species` is `null` when no validated lookalike data is available, including the intentional case where the species still lacks usable taxonomy. Each entry in the `similar_species` array is sourced from the `species_lookalikes` join table joined to `species_dictionary` — providing `common_name` (English), `reference_image_url`, and `iucn_red_list_status` in a single query. Raw Gemini names with no dictionary/taxonomy validation are no longer returned or persisted.
+`gbif_taxon_key` is `null` when the species has not yet been matched by GBIF. `similar_species` is `null` when no validated lookalike data is available, including the intentional case where the species still lacks usable taxonomy. Each entry in the `similar_species` array is sourced from the `species_lookalikes` join table joined to `species_dictionary` — providing `species_id`, `common_name` (English), `reference_image_url`, and `iucn_red_list_status` in a single query. Raw Gemini names with no dictionary/taxonomy validation are no longer returned or persisted; legacy `similar_species TEXT[]` fallbacks may omit `species_id` until they are resolved into the join table.
 
 `alternative_common_names` is `string[] | null` — `null` when GBIF has no English vernacular entries for the species. The enrichment scope serves this field from `species_dictionary.alternative_common_names` on a cache hit. When that column is `null` (covering both pre-V34 cached species and the timing race where a first scan's background ingestion has not yet written to the dictionary), the Edge function calls `fetchGBIFVernacularNames` live to retrieve English vernacular names from the GBIF API and populates the field from the result. Taxonomy fields in the response likewise use `null` for unknown ranks; the backend no longer emits placeholder strings like `"Unknown"`.
 

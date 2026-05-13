@@ -41,6 +41,7 @@ struct SpeciesDictionaryTests {
                 ],
                 "similar_species": [
                     {
+                        "species_id": "species-minor",
                         "scientific_name": "Testus minor",
                         "common_name": "Small Test",
                         "reference_image_url": "https://example.com/minor.jpg",
@@ -58,6 +59,7 @@ struct SpeciesDictionaryTests {
         #expect(response.data.scientificName == "Testus floridus")
         #expect(response.data.referenceImages.map(\.source) == [.wikipedia, .gbif])
         #expect(response.data.taxonomyData?.genus == "Testus")
+        #expect(response.data.similarSpeciesData?.entries.first?.speciesId == "species-minor")
         #expect(response.data.similarSpeciesData?.entries.first?.scientificName == "Testus minor")
     }
 
@@ -103,6 +105,50 @@ struct SpeciesDictionaryTests {
 
         #expect(species.id == "species-123")
         #expect(species.commonName == "Field Test")
+    }
+
+    @Test func testGetSpeciesDictionaryCanPreferSpeciesIdPayload() async throws {
+        let testData = """
+        {
+            "data": {
+                "id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                "scientific_name": "Testus floridus",
+                "common_name": "Field Test",
+                "alternative_common_names": [],
+                "taxonomy": null,
+                "hazard_type": "none",
+                "iucn_red_list_status": null,
+                "wikipedia_url": null,
+                "wikipedia_overview": null,
+                "habitat_description": null,
+                "gbif_taxon_key": null,
+                "group_tags": [],
+                "reference_images": [],
+                "similar_species": []
+            }
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["species_id"] as? String == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
+            #expect(payload["scientific_name"] as? String == "Testus floridus")
+            return (mockResponse, testData)
+        }
+
+        let species = try await MerianNetworkClient.shared.getSpeciesDictionary(
+            speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+            scientificName: "Testus floridus"
+        )
+
+        #expect(species.id == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
     }
 
     @Test func testSpeciesDictionaryViewModelLoadsSpecies() async throws {

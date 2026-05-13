@@ -156,7 +156,10 @@ struct BiologicalView: View {
                                 currentScientificName: inferenceEngine.speciesData?.scientificName,
                                 currentCommonName: inferenceEngine.speciesData?.commonName,
                                 onSpeciesSelected: { entry in
-                                    speciesDictionaryRoute = SpeciesDictionaryRoute(scientificName: entry.scientificName)
+                                    speciesDictionaryRoute = SpeciesDictionaryRoute(
+                                        scientificName: entry.scientificName,
+                                        speciesId: entry.speciesId
+                                    )
                                 }
                             )
                             .transition(.opacity)
@@ -186,7 +189,7 @@ struct BiologicalView: View {
         }
         .padding(.horizontal)
         .sheet(item: $speciesDictionaryRoute) { route in
-            SpeciesDictionaryPageView(scientificName: route.scientificName)
+            SpeciesDictionaryPageView(scientificName: route.scientificName, speciesId: route.speciesId)
         }
     }
 }
