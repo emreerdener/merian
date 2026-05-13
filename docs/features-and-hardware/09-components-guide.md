@@ -123,6 +123,16 @@ A horizontally scrolling carousel of ecologically similar lookalike species, ren
 - **Header chrome**: The live gallery and skeleton both use `InsightCardHeader`, matching the same title/icon treatment as Overview, Taxonomy, Scan, Tags, Field Notes, Did You Know, and Explore detail cards.
 - **Skeleton**: `SimilarSpeciesGallery.Skeleton` renders three placeholder cards with a pulsing opacity loop (`easeInOut(duration: 1.0).repeatForever`).
 
+## Species Dictionary Reference Gallery
+
+**Location**: `Features/SpeciesDictionary/Components/SpeciesDictionaryReferenceGallery.swift`
+
+Displays public species reference images from `/species-dictionary`.
+
+- **Source label**: Each image keeps the existing source pill (`Wikipedia` or `GBIF`) over the image.
+- **Attribution footer**: When the active `SpeciesDictionaryReferenceImage` has `attribution` or `license`, the gallery renders a compact caption below the carousel. Multi-image galleries update the caption as paging changes.
+- **Fallback behavior**: Images without attribution metadata still render in iOS with source labeling. Future web renderers must run the shared public projection attribution audit before publishing reference media.
+
 ## 14. Candidate Swipe Experience: `CandidateSwipeModal`
 **Location**: `Features/Insights/Components/Cards/CandidateSwipe/` (Directory)
 

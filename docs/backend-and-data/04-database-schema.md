@@ -54,7 +54,7 @@ Normalized public reference images for each species dictionary row. Added in mig
 - `species_id` (UUID FK → `species_dictionary.id`, CASCADE DELETE): Owning species.
 - `url` (TEXT): Public image URL. `(species_id, url)` is unique.
 - `source` (TEXT): `wikipedia` or `gbif`; GBIF includes verified occurrence imagery such as iNaturalist-hosted records returned by GBIF.
-- `license` / `attribution` (TEXT, nullable): Optional media provenance fields for future web-safe attribution.
+- `license` / `attribution` (TEXT, nullable): Media rights metadata for iOS attribution display and future web-safe public species pages. Web renderers must treat missing values as an attribution audit failure unless they can provide an equivalent source-specific attribution.
 - `width` / `height` (INTEGER, nullable): Optional pixel dimensions.
 - `sort_order` (INTEGER): Display order for galleries and thumbnails.
 - `created_at` / `last_verified_at` (TIMESTAMPTZ): Creation and health-check timestamps.

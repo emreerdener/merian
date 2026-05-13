@@ -107,11 +107,18 @@ Why it matters: users will tap into incomplete species rows, especially early in
 
 ## Scope 9 — Web-Safe Licensing
 
-Status: planned.
+Status: implemented for normalized media metadata, iOS display, and future web audit hooks.
 
-- [ ] Store image licenses and attribution beside each reference image.
-- [ ] Render attribution in iOS where appropriate and require it on web.
-- [ ] Add tests or audits that prevent unattributed public web media.
+- [x] Store image licenses and attribution beside each reference image.
+- [x] Render attribution in iOS where appropriate and require it on web.
+- [x] Add tests or audits that prevent unattributed public web media.
+
+Current rules:
+
+- `species_reference_images.license` and `species_reference_images.attribution` are the canonical public media rights fields.
+- `/species-dictionary` includes `license` and `attribution` on each normalized `reference_images` item when stored metadata exists.
+- iOS shows the active reference image's attribution/license below the gallery when either field is present.
+- Future web species pages must run `publicWebReferenceImageAttributionIssues(...)` from `_shared/publicSpeciesProjection.ts` before rendering public reference media, and must not publish an image unless license and attribution are present or a source-specific renderer supplies an equivalent attribution.
 
 Why it matters: Wikimedia and GBIF-backed imagery can have attribution obligations that become more important on a public website.
 

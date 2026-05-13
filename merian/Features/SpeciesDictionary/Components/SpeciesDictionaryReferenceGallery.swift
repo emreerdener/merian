@@ -14,6 +14,10 @@ struct SpeciesDictionaryReferenceGallery: View {
         selectedImageId ?? images.first?.id
     }
 
+    private var currentImage: SpeciesDictionaryReferenceImage? {
+        images.first { $0.id == currentImageId } ?? images.first
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             if images.isEmpty {
@@ -57,6 +61,17 @@ struct SpeciesDictionaryReferenceGallery: View {
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 16)
             }
+
+            if let attributionCaption = currentImage?.attributionCaption {
+                Text(attributionCaption)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 16)
+                    .accessibilityLabel("Reference image attribution: \(attributionCaption)")
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -86,7 +101,7 @@ struct SpeciesDictionaryReferenceGallery: View {
         .frame(height: carouselHeight)
         .clipped()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(image.source.label) reference image for \(scientificName)")
+        .accessibilityLabel(accessibilityLabel(for: image))
     }
 
     private var placeholder: some View {
@@ -97,5 +112,12 @@ struct SpeciesDictionaryReferenceGallery: View {
                 .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func accessibilityLabel(for image: SpeciesDictionaryReferenceImage) -> String {
+        if let attributionCaption = image.attributionCaption {
+            return "\(image.source.label) reference image for \(scientificName), \(attributionCaption)"
+        }
+        return "\(image.source.label) reference image for \(scientificName)"
     }
 }

@@ -37,6 +37,12 @@ export interface PublicSpeciesReferenceImageRow {
   created_at?: string | null;
 }
 
+export interface PublicReferenceImageAttributionIssue {
+  url: string;
+  source: PublicReferenceImageSource;
+  missing: Array<"license" | "attribution">;
+}
+
 export interface PublicSpeciesDictionaryRow {
   id: string;
   scientific_name: string;
@@ -330,6 +336,20 @@ export function referenceImagesFromRows(
   }
 
   return images;
+}
+
+export function publicWebReferenceImageAttributionIssues(
+  images: PublicSpeciesReferenceImage[],
+): PublicReferenceImageAttributionIssue[] {
+  return images.flatMap((image) => {
+    const missing: Array<"license" | "attribution"> = [];
+    if (!stringValue(image.license)) missing.push("license");
+    if (!stringValue(image.attribution)) missing.push("attribution");
+
+    return missing.length > 0
+      ? [{ url: image.url, source: image.source, missing }]
+      : [];
+  });
 }
 
 export function firstReferenceImageUrl(

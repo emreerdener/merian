@@ -8,6 +8,7 @@ import {
   PUBLIC_SPECIES_SCHEMA_VERSION,
   publicSimilarSpeciesMetadata,
   publicSpeciesProjectionForbiddenKeys,
+  publicWebReferenceImageAttributionIssues,
   referenceImagesFromRows,
   resolveOptionalPublicCommonName,
   resolvePublicCommonName,
@@ -77,6 +78,40 @@ Deno.test("public species projection - reference image rows normalize and preser
       source: "gbif",
     },
   ]);
+});
+
+Deno.test("public species projection - web attribution audit flags incomplete reference media", () => {
+  assertEquals(
+    publicWebReferenceImageAttributionIssues([
+      {
+        url: "https://upload.wikimedia.org/complete.jpg",
+        source: "wikipedia",
+        license: "CC BY-SA 4.0",
+        attribution: "Example Photographer",
+      },
+      {
+        url: "https://static.inaturalist.org/missing-license.jpg",
+        source: "gbif",
+        attribution: "Observer Name",
+      },
+      {
+        url: "https://static.inaturalist.org/missing-both.jpg",
+        source: "gbif",
+      },
+    ]),
+    [
+      {
+        url: "https://static.inaturalist.org/missing-license.jpg",
+        source: "gbif",
+        missing: ["license"],
+      },
+      {
+        url: "https://static.inaturalist.org/missing-both.jpg",
+        source: "gbif",
+        missing: ["license", "attribution"],
+      },
+    ],
+  );
 });
 
 Deno.test("public species projection - dictionary payload is a whitelist and has no scan fields", () => {

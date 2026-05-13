@@ -102,6 +102,13 @@ imagery, a usable Wikipedia overview, habitat/distribution data, and meaningful
 taxonomy. `complete` means all four are present, `sparse` means two or three are
 present, and `needs_enrichment` means fewer than two are present.
 
+`license` and `attribution` are preserved on normalized `reference_images` when
+stored in `species_reference_images`. Future web species pages must run
+`publicWebReferenceImageAttributionIssues(...)` from
+`_shared/publicSpeciesProjection.ts` before rendering public reference media and
+must not publish images with missing rights metadata unless they provide an
+equivalent source-specific attribution path.
+
 If no `species_dictionary` row exists for the scientific name, the function
 returns:
 

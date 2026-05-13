@@ -151,6 +151,16 @@ struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable {
     let height: Int?
 
     var id: String { url }
+
+    var attributionCaption: String? {
+        [
+            attribution?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+            license?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        ]
+        .compactMap { $0 }
+        .joined(separator: " - ")
+        .nilIfEmpty
+    }
 }
 
 struct SpeciesDictionarySimilarSpecies: Decodable, Equatable, Identifiable {

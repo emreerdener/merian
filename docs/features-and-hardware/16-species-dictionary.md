@@ -203,6 +203,13 @@ Reference image mapping:
 - Wikimedia/Wikipedia hosts are marked `wikipedia`.
 - When a Wikipedia URL exists and the first image has no clear host signal, the first image is treated as `wikipedia`; all other unresolved URLs default to `gbif`.
 
+Reference image attribution:
+
+- `license` and `attribution` come from normalized `species_reference_images` rows.
+- `SpeciesDictionaryReferenceGallery` shows the current image's attribution/license below the carousel when either value exists.
+- The footer follows carousel paging, so multi-image galleries show attribution for the active image only.
+- Legacy fallback images may not have attribution metadata. iOS can still render those images with source labeling, but the future public web frontend must use the shared attribution audit before publishing them.
+
 Lookalikes:
 
 - Source table: `species_lookalikes`.

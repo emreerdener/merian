@@ -356,6 +356,13 @@ Name and imagery mapping:
 - `source` is `wikipedia` for Wikimedia/Wikipedia hosts. If `wikipedia_url` exists, the first unresolved image also maps to `wikipedia`; otherwise unresolved images map to `gbif`.
 - `similar_species` is hydrated from `species_lookalikes` using the explicit PostgREST hint `species_dictionary!lookalike_id` and includes `species_id` for canonical tap-through routing. Similar-species thumbnails prefer the first normalized `species_reference_images` row and fall back to the legacy dictionary cache. Additive relation metadata includes `reason`, `visual_traits`, `confidence`, `source`, `review_status`, `is_bidirectional`, and `sort_order`; rejected rows are omitted from public projections.
 
+Image licensing and attribution:
+
+- `species_reference_images.license` and `species_reference_images.attribution` are the canonical public media rights fields.
+- `/species-dictionary` preserves `license` and `attribution` on each normalized `reference_images` item when the metadata exists. Legacy comma-separated fallback images usually have only `url` and `source`.
+- iOS displays the active image's attribution/license below the species dictionary gallery when either field is present.
+- Future web species pages must call `publicWebReferenceImageAttributionIssues(...)` from `_shared/publicSpeciesProjection.ts` before rendering reference media. Web must not publish an image with missing license or attribution unless the web renderer supplies an equivalent source-specific attribution path.
+
 Provenance and refresh metadata:
 
 - The response shape does not yet expose provenance fields.

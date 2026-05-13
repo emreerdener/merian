@@ -80,6 +80,7 @@ struct SpeciesDictionaryTests {
         #expect(response.data.referenceImages.map(\.source) == [.wikipedia, .gbif])
         #expect(response.data.referenceImages.first?.license == "CC BY-SA 4.0")
         #expect(response.data.referenceImages.first?.attribution == "Example Photographer")
+        #expect(response.data.referenceImages.first?.attributionCaption == "Example Photographer - CC BY-SA 4.0")
         #expect(response.data.referenceImages.first?.width == 1200)
         #expect(response.data.referenceImages.first?.height == 800)
         #expect(response.data.taxonomyData?.genus == "Testus")
