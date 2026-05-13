@@ -98,6 +98,10 @@ struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable {
 
     let url: String
     let source: Source
+    let license: String?
+    let attribution: String?
+    let width: Int?
+    let height: Int?
 
     var id: String { url }
 }

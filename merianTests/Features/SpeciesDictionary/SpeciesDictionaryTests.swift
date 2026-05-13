@@ -36,7 +36,14 @@ struct SpeciesDictionaryTests {
                 "gbif_taxon_key": 42,
                 "group_tags": ["plant", "flower"],
                 "reference_images": [
-                    { "url": "https://upload.wikimedia.org/test.jpg", "source": "wikipedia" },
+                    {
+                        "url": "https://upload.wikimedia.org/test.jpg",
+                        "source": "wikipedia",
+                        "license": "CC BY-SA 4.0",
+                        "attribution": "Example Photographer",
+                        "width": 1200,
+                        "height": 800
+                    },
                     { "url": "https://static.inaturalist.org/photo.jpg", "source": "gbif" }
                 ],
                 "similar_species": [
@@ -58,6 +65,10 @@ struct SpeciesDictionaryTests {
 
         #expect(response.data.scientificName == "Testus floridus")
         #expect(response.data.referenceImages.map(\.source) == [.wikipedia, .gbif])
+        #expect(response.data.referenceImages.first?.license == "CC BY-SA 4.0")
+        #expect(response.data.referenceImages.first?.attribution == "Example Photographer")
+        #expect(response.data.referenceImages.first?.width == 1200)
+        #expect(response.data.referenceImages.first?.height == 800)
         #expect(response.data.taxonomyData?.genus == "Testus")
         #expect(response.data.similarSpeciesData?.entries.first?.speciesId == "species-minor")
         #expect(response.data.similarSpeciesData?.entries.first?.scientificName == "Testus minor")

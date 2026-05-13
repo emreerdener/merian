@@ -1,17 +1,20 @@
-import {
-  assertEquals,
-} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import {
   buildSpeciesDictionaryPayload,
+  firstReferenceImageUrl,
   parseSpeciesDictionaryRequest,
   referenceImagesFrom,
+  referenceImagesFromRows,
   resolveCommonName,
   sanitizeAlternativeCommonNames,
 } from "./db.ts";
 
 Deno.test("species-dictionary helpers - resolve common name fallback order", () => {
   assertEquals(
-    resolveCommonName({ en: "Monarch Butterfly", es: "Mariposa Monarca" }, "Danaus plexippus"),
+    resolveCommonName(
+      { en: "Monarch Butterfly", es: "Mariposa Monarca" },
+      "Danaus plexippus",
+    ),
     "Monarch Butterfly",
   );
   assertEquals(
@@ -49,10 +52,64 @@ Deno.test("species-dictionary helpers - positional Wikipedia source fallback", (
   assertEquals(images[1].source, "gbif");
 });
 
+Deno.test("species-dictionary helpers - map normalized reference image rows with metadata", () => {
+  const images = referenceImagesFromRows(
+    [
+      {
+        url: "https://example.org/reference.jpg",
+        source: "wikipedia",
+        license: "CC BY-SA 4.0",
+        attribution: "Example Photographer",
+        width: 1200,
+        height: 800,
+      },
+      {
+        url: "https://example.org/reference.jpg",
+        source: "gbif",
+      },
+      {
+        url: "https://static.inaturalist.org/photo.jpg",
+        source: null,
+      },
+    ],
+    "https://en.wikipedia.org/wiki/Test_species",
+  );
+
+  assertEquals(images, [
+    {
+      url: "https://example.org/reference.jpg",
+      source: "wikipedia",
+      license: "CC BY-SA 4.0",
+      attribution: "Example Photographer",
+      width: 1200,
+      height: 800,
+    },
+    {
+      url: "https://static.inaturalist.org/photo.jpg",
+      source: "gbif",
+    },
+  ]);
+});
+
+Deno.test("species-dictionary helpers - first reference image reads legacy cache", () => {
+  assertEquals(
+    firstReferenceImageUrl(
+      "  , https://upload.wikimedia.org/monarch.jpg, https://example.com/second.jpg",
+    ),
+    "https://upload.wikimedia.org/monarch.jpg",
+  );
+  assertEquals(firstReferenceImageUrl(null), null);
+});
+
 Deno.test("species-dictionary helpers - sanitize alternative names", () => {
   assertEquals(
     sanitizeAlternativeCommonNames(
-      ["Monarch Butterfly", "Milkweed Butterfly", "milkweed butterfly", " Wanderer "],
+      [
+        "Monarch Butterfly",
+        "Milkweed Butterfly",
+        "milkweed butterfly",
+        " Wanderer ",
+      ],
       "Monarch Butterfly",
     ),
     ["Milkweed Butterfly", "Wanderer"],
@@ -102,9 +159,14 @@ Deno.test("species-dictionary helpers - build sparse payload with lookalikes", (
 });
 
 Deno.test("species-dictionary helpers - validates request body", () => {
-  assertEquals(parseSpeciesDictionaryRequest({ species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01" }), {
-    speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
-  });
+  assertEquals(
+    parseSpeciesDictionaryRequest({
+      species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+    }),
+    {
+      speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+    },
+  );
   assertEquals(
     parseSpeciesDictionaryRequest({
       species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
@@ -115,9 +177,14 @@ Deno.test("species-dictionary helpers - validates request body", () => {
       scientificName: "Danaus plexippus",
     },
   );
-  assertEquals(parseSpeciesDictionaryRequest({ scientific_name: "  Danaus   plexippus  " }), {
-    scientificName: "Danaus plexippus",
-  });
+  assertEquals(
+    parseSpeciesDictionaryRequest({
+      scientific_name: "  Danaus   plexippus  ",
+    }),
+    {
+      scientificName: "Danaus plexippus",
+    },
+  );
   assertEquals(parseSpeciesDictionaryRequest({ species_id: "not-a-uuid" }), {
     error: "species_id must be a valid UUID.",
     status: 400,

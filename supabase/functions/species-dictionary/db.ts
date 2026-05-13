@@ -14,6 +14,10 @@ export interface SpeciesDictionaryTaxonomy {
 export interface SpeciesDictionaryReferenceImage {
   url: string;
   source: ReferenceImageSource;
+  license?: string;
+  attribution?: string;
+  width?: number;
+  height?: number;
 }
 
 export interface SpeciesDictionarySimilarSpecies {
@@ -74,6 +78,19 @@ interface LookalikeSpeciesRow {
   iucn_red_list_status?: string | null;
 }
 
+export interface SpeciesReferenceImageRow {
+  id?: string | null;
+  species_id?: string | null;
+  url?: string | null;
+  source?: string | null;
+  license?: string | null;
+  attribution?: string | null;
+  width?: number | null;
+  height?: number | null;
+  sort_order?: number | null;
+  created_at?: string | null;
+}
+
 export interface SpeciesDictionaryRequestResult {
   speciesId?: string;
   scientificName?: string;
@@ -81,7 +98,9 @@ export interface SpeciesDictionaryRequestResult {
   status?: number;
 }
 
-export function parseSpeciesDictionaryRequest(body: Record<string, unknown>): SpeciesDictionaryRequestResult {
+export function parseSpeciesDictionaryRequest(
+  body: Record<string, unknown>,
+): SpeciesDictionaryRequestResult {
   const rawSpeciesId = body.species_id;
   if (rawSpeciesId !== undefined && rawSpeciesId !== null) {
     if (typeof rawSpeciesId !== "string") {
@@ -94,7 +113,9 @@ export function parseSpeciesDictionaryRequest(body: Record<string, unknown>): Sp
     }
 
     if (speciesId) {
-      const scientificName = normalizeOptionalScientificName(body.scientific_name);
+      const scientificName = normalizeOptionalScientificName(
+        body.scientific_name,
+      );
       if (scientificName?.error) return scientificName;
       return scientificName?.scientificName
         ? { speciesId, scientificName: scientificName.scientificName }
@@ -104,12 +125,18 @@ export function parseSpeciesDictionaryRequest(body: Record<string, unknown>): Sp
 
   const rawName = body.scientific_name;
   if (typeof rawName !== "string") {
-    return { error: "Missing required parameter: species_id or scientific_name", status: 400 };
+    return {
+      error: "Missing required parameter: species_id or scientific_name",
+      status: 400,
+    };
   }
 
   const scientificName = rawName.trim().replace(/\s+/g, " ");
   if (!scientificName) {
-    return { error: "Missing required parameter: species_id or scientific_name", status: 400 };
+    return {
+      error: "Missing required parameter: species_id or scientific_name",
+      status: 400,
+    };
   }
 
   if (scientificName.length > 160) {
@@ -179,9 +206,56 @@ export function referenceImagesFrom(
   return images;
 }
 
+export function referenceImagesFromRows(
+  rows: SpeciesReferenceImageRow[] | null | undefined,
+  wikipediaUrl: string | null | undefined,
+): SpeciesDictionaryReferenceImage[] {
+  const seen = new Set<string>();
+  const images: SpeciesDictionaryReferenceImage[] = [];
+
+  for (const row of rows ?? []) {
+    const url = stringValue(row.url);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+
+    const image: SpeciesDictionaryReferenceImage = {
+      url,
+      source: normalizedReferenceImageSource(
+        row.source,
+        url,
+        wikipediaUrl,
+        images.length,
+      ),
+    };
+
+    const license = stringValue(row.license);
+    if (license) image.license = license;
+
+    const attribution = stringValue(row.attribution);
+    if (attribution) image.attribution = attribution;
+
+    const width = positiveInteger(row.width);
+    if (width !== null) image.width = width;
+
+    const height = positiveInteger(row.height);
+    if (height !== null) image.height = height;
+
+    images.push(image);
+  }
+
+  return images;
+}
+
+export function firstReferenceImageUrl(
+  referenceImageUrl: string | null | undefined,
+): string | null {
+  return referenceImagesFrom(referenceImageUrl, null)[0]?.url ?? null;
+}
+
 export function buildSpeciesDictionaryPayload(
   row: SpeciesDictionaryRow,
   similarSpecies: SpeciesDictionarySimilarSpecies[],
+  referenceImages?: SpeciesDictionaryReferenceImage[],
 ): SpeciesDictionaryPayload {
   const commonName = resolveCommonName(row.common_names, row.scientific_name);
 
@@ -189,7 +263,10 @@ export function buildSpeciesDictionaryPayload(
     id: row.id,
     scientific_name: row.scientific_name,
     common_name: commonName,
-    alternative_common_names: sanitizeAlternativeCommonNames(row.alternative_common_names, commonName),
+    alternative_common_names: sanitizeAlternativeCommonNames(
+      row.alternative_common_names,
+      commonName,
+    ),
     taxonomy: {
       kingdom: row.kingdom,
       phylum: row.phylum,
@@ -205,7 +282,8 @@ export function buildSpeciesDictionaryPayload(
     habitat_description: row.habitat_description,
     gbif_taxon_key: row.gbif_taxon_key,
     group_tags: sanitizedStringArray(row.group_tags),
-    reference_images: referenceImagesFrom(row.reference_image_url, row.wikipedia_url),
+    reference_images: referenceImages ??
+      referenceImagesFrom(row.reference_image_url, row.wikipedia_url),
     similar_species: similarSpecies,
   };
 }
@@ -214,7 +292,9 @@ export async function fetchSpeciesDictionary(
   lookup: string | { speciesId?: string; scientificName?: string },
   supabaseAdmin: SupabaseClient,
 ): Promise<SpeciesDictionaryPayload | null> {
-  const normalizedLookup = typeof lookup === "string" ? { scientificName: lookup } : lookup;
+  const normalizedLookup = typeof lookup === "string"
+    ? { scientificName: lookup }
+    : lookup;
   const query = supabaseAdmin
     .from("species_dictionary")
     .select(
@@ -227,14 +307,53 @@ export async function fetchSpeciesDictionary(
     : await query.eq("scientific_name", normalizedLookup.scientificName ?? "");
 
   if (speciesError) {
-    throw new Error(`Failed to fetch species dictionary row: ${speciesError.message}`);
+    throw new Error(
+      `Failed to fetch species dictionary row: ${speciesError.message}`,
+    );
   }
 
   const row = ((speciesRows ?? []) as SpeciesDictionaryRow[])[0];
   if (!row) return null;
 
   const similarSpecies = await fetchSimilarSpecies(row.id, supabaseAdmin);
-  return buildSpeciesDictionaryPayload(row, similarSpecies);
+  const referenceImages = await fetchReferenceImages(
+    row.id,
+    row.reference_image_url,
+    row.wikipedia_url,
+    supabaseAdmin,
+  );
+  return buildSpeciesDictionaryPayload(row, similarSpecies, referenceImages);
+}
+
+async function fetchReferenceImages(
+  speciesId: string,
+  legacyReferenceImageUrl: string | null | undefined,
+  wikipediaUrl: string | null | undefined,
+  supabaseAdmin: SupabaseClient,
+): Promise<SpeciesDictionaryReferenceImage[]> {
+  const { data, error } = await supabaseAdmin
+    .from("species_reference_images")
+    .select(
+      "id, url, source, license, attribution, width, height, sort_order, created_at",
+    )
+    .eq("species_id", speciesId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch species reference images: ${error.message}`,
+    );
+  }
+
+  const normalizedImages = referenceImagesFromRows(
+    data as SpeciesReferenceImageRow[] | null,
+    wikipediaUrl,
+  );
+  return normalizedImages.length > 0
+    ? normalizedImages
+    : referenceImagesFrom(legacyReferenceImageUrl, wikipediaUrl);
 }
 
 async function fetchSimilarSpecies(
@@ -253,7 +372,13 @@ async function fetchSimilarSpecies(
   }
 
   const seen = new Set<string>();
-  const entries: SpeciesDictionarySimilarSpecies[] = [];
+  const rows: Array<{
+    species_id: string;
+    scientific_name: string;
+    common_name: string | null;
+    legacy_reference_image_url: string | null;
+    iucn_red_list_status: string | null;
+  }> = [];
 
   for (const row of (data ?? []) as LookalikeRelationRow[]) {
     const lookalike = relationValue(row.lookalike);
@@ -265,16 +390,63 @@ async function fetchSimilarSpecies(
     if (seen.has(key)) continue;
     seen.add(key);
 
-    entries.push({
+    rows.push({
       species_id: lookalikeId,
       scientific_name: scientificName,
       common_name: resolveOptionalCommonName(lookalike?.common_names),
-      reference_image_url: stringValue(lookalike?.reference_image_url),
+      legacy_reference_image_url: stringValue(lookalike?.reference_image_url),
       iucn_red_list_status: stringValue(lookalike?.iucn_red_list_status),
     });
   }
 
-  return entries;
+  const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
+    rows.map((row) => row.species_id),
+    supabaseAdmin,
+  );
+
+  return rows.map((row) => ({
+    species_id: row.species_id,
+    scientific_name: row.scientific_name,
+    common_name: row.common_name,
+    reference_image_url: firstImageBySpeciesId.get(row.species_id) ??
+      firstReferenceImageUrl(row.legacy_reference_image_url),
+    iucn_red_list_status: row.iucn_red_list_status,
+  }));
+}
+
+async function fetchFirstReferenceImagesForSpecies(
+  speciesIds: string[],
+  supabaseAdmin: SupabaseClient,
+): Promise<Map<string, string>> {
+  const uniqueSpeciesIds = Array.from(
+    new Set(speciesIds.filter((id) => id.length > 0)),
+  );
+  if (uniqueSpeciesIds.length === 0) return new Map();
+
+  const { data, error } = await supabaseAdmin
+    .from("species_reference_images")
+    .select("id, species_id, url, sort_order, created_at")
+    .in("species_id", uniqueSpeciesIds)
+    .order("species_id", { ascending: true })
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch lookalike reference images: ${error.message}`,
+    );
+  }
+
+  const firstImageBySpeciesId = new Map<string, string>();
+  for (const row of (data ?? []) as SpeciesReferenceImageRow[]) {
+    const speciesId = stringValue(row.species_id);
+    const url = stringValue(row.url);
+    if (!speciesId || !url || firstImageBySpeciesId.has(speciesId)) continue;
+    firstImageBySpeciesId.set(speciesId, url);
+  }
+
+  return firstImageBySpeciesId;
 }
 
 function relationValue<T>(value: T | T[] | null | undefined): T | undefined {
@@ -303,7 +475,19 @@ function referenceImageSource(
   return "gbif";
 }
 
-function resolveOptionalCommonName(commonNames: Record<string, unknown> | null | undefined): string | null {
+function normalizedReferenceImageSource(
+  source: string | null | undefined,
+  urlString: string,
+  wikipediaUrl: string | null | undefined,
+  index: number,
+): ReferenceImageSource {
+  if (source === "wikipedia" || source === "gbif") return source;
+  return referenceImageSource(urlString, wikipediaUrl, index);
+}
+
+function resolveOptionalCommonName(
+  commonNames: Record<string, unknown> | null | undefined,
+): string | null {
   const englishName = stringValue(commonNames?.en);
   if (englishName) return englishName;
 
@@ -339,10 +523,21 @@ function stringValue(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function normalizeOptionalScientificName(value: unknown): SpeciesDictionaryRequestResult | undefined {
+function positiveInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : null;
+}
+
+function normalizeOptionalScientificName(
+  value: unknown,
+): SpeciesDictionaryRequestResult | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "string") {
-    return { error: "scientific_name must be a string when provided.", status: 400 };
+    return {
+      error: "scientific_name must be a string when provided.",
+      status: 400,
+    };
   }
 
   const scientificName = value.trim().replace(/\s+/g, " ");
@@ -355,5 +550,7 @@ function normalizeOptionalScientificName(value: unknown): SpeciesDictionaryReque
 }
 
 function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }

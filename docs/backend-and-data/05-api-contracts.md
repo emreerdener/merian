@@ -296,7 +296,14 @@ Current response shape:
     "gbif_taxon_key": 5139790,
     "group_tags": ["animal", "insect"],
     "reference_images": [
-      { "url": "https://upload.wikimedia.org/...", "source": "wikipedia" },
+      {
+        "url": "https://upload.wikimedia.org/...",
+        "source": "wikipedia",
+        "license": "CC BY-SA 4.0",
+        "attribution": "Example Photographer",
+        "width": 1200,
+        "height": 800
+      },
       { "url": "https://static.inaturalist.org/...", "source": "gbif" }
     ],
     "similar_species": [
@@ -316,9 +323,10 @@ Name and imagery mapping:
 
 - `common_name` resolves from `common_names.en`, then the first non-empty `common_names` value, then `scientific_name`.
 - `alternative_common_names` is trimmed, deduped, and excludes the resolved primary common name.
-- `reference_images` is derived from the comma-separated `species_dictionary.reference_image_url` field by splitting, trimming, and deduping URLs.
+- `reference_images` prefers ordered rows from `species_reference_images`. Each item includes `url` and `source`, plus optional `license`, `attribution`, `width`, and `height` when present.
+- If no normalized image rows exist, `reference_images` falls back to the comma-separated `species_dictionary.reference_image_url` field by splitting, trimming, and deduping URLs.
 - `source` is `wikipedia` for Wikimedia/Wikipedia hosts. If `wikipedia_url` exists, the first unresolved image also maps to `wikipedia`; otherwise unresolved images map to `gbif`.
-- `similar_species` is hydrated from `species_lookalikes` using the explicit PostgREST hint `species_dictionary!lookalike_id` and includes `species_id` for canonical tap-through routing.
+- `similar_species` is hydrated from `species_lookalikes` using the explicit PostgREST hint `species_dictionary!lookalike_id` and includes `species_id` for canonical tap-through routing. Similar-species thumbnails prefer the first normalized `species_reference_images` row and fall back to the legacy dictionary cache.
 
 Error responses:
 
@@ -549,9 +557,9 @@ This endpoint exists so Explore can render public species cards on the detail pa
 
 For posts owned by the current viewer, iOS also uses `field_notes` as a repair source for the local insight sheet. `FieldNotesRepository` checks `LocalScanRecord.fieldNotes`, `OfflineQueuedScan.fieldNotes`, and then the legacy `FieldNotesStore` bridge before accepting the Explore value. If all local/private stores are empty but the public Explore post still has notes, the repository promotes the public value back into SwiftData and mirrors the bridge. Existing local/private notes are preserved and are not overwritten by the Explore copy.
 
-`reference_image_url` is the same comma-separated reference-media field used elsewhere in the app: the first URL is typically the cached Wikipedia image when available, followed by cached GBIF-backed field observations. Explore detail uses it to render the public reference gallery below the post's AI reasoning without making an extra authenticated scan fetch.
+`reference_image_url` remains a comma-separated compatibility field for Explore detail clients, but the RPC now composes it from ordered `species_reference_images` rows first and falls back to `species_dictionary.reference_image_url` for older species rows. Explore detail uses it to render the public reference gallery below the post's AI reasoning without making an extra authenticated scan fetch.
 
-`similar_species` is hydrated from `species_lookalikes` for the post's resolved dictionary species. Each entry contains public species-level data only and is shaped like the existing lookalike DTO: `species_id`, `scientific_name`, `common_name`, `reference_image_url`, and `iucn_red_list_status`. Empty lookalike sets return an empty array, and iOS omits the section. Older clients can continue to route by `scientific_name`; new clients prefer `species_id` for dictionary sheet lookup.
+`similar_species` is hydrated from `species_lookalikes` for the post's resolved dictionary species. Each entry contains public species-level data only and is shaped like the existing lookalike DTO: `species_id`, `scientific_name`, `common_name`, `reference_image_url`, and `iucn_red_list_status`. The lookalike image URL prefers the first normalized `species_reference_images` row and falls back to the legacy dictionary cache. Empty lookalike sets return an empty array, and iOS omits the section. Older clients can continue to route by `scientific_name`; new clients prefer `species_id` for dictionary sheet lookup.
 
 `ai_reasoning` is returned conditionally from the backing `scans` row, not copied into `explore_posts`. It is only exposed when the scan still reflects the original AI identification:
 
@@ -1356,7 +1364,7 @@ The next `enrich-scan` call will re-run Flash only after the species has usable 
 }
 ```
 
-`gbif_taxon_key` is `null` when the species has not yet been matched by GBIF. `similar_species` is `null` when no validated lookalike data is available, including the intentional case where the species still lacks usable taxonomy. Each entry in the `similar_species` array is sourced from the `species_lookalikes` join table joined to `species_dictionary` — providing `species_id`, `common_name` (English), `reference_image_url`, and `iucn_red_list_status` in a single query. Raw Gemini names with no dictionary/taxonomy validation are no longer returned or persisted; legacy `similar_species TEXT[]` fallbacks may omit `species_id` until they are resolved into the join table.
+`gbif_taxon_key` is `null` when the species has not yet been matched by GBIF. `similar_species` is `null` when no validated lookalike data is available, including the intentional case where the species still lacks usable taxonomy. Each entry in the `similar_species` array is sourced from the `species_lookalikes` join table joined to `species_dictionary` — providing `species_id`, `common_name` (English), `reference_image_url`, and `iucn_red_list_status`. The image URL prefers the first `species_reference_images` row and falls back to the legacy dictionary cache. Raw Gemini names with no dictionary/taxonomy validation are no longer returned or persisted; legacy `similar_species TEXT[]` fallbacks may omit `species_id` until they are resolved into the join table.
 
 `alternative_common_names` is `string[] | null` — `null` when GBIF has no English vernacular entries for the species. The enrichment scope serves this field from `species_dictionary.alternative_common_names` on a cache hit. When that column is `null` (covering both pre-V34 cached species and the timing race where a first scan's background ingestion has not yet written to the dictionary), the Edge function calls `fetchGBIFVernacularNames` live to retrieve English vernacular names from the GBIF API and populates the field from the result. Taxonomy fields in the response likewise use `null` for unknown ranks; the backend no longer emits placeholder strings like `"Unknown"`.
 

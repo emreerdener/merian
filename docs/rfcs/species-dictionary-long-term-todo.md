@@ -16,12 +16,14 @@ Why it matters: scientific names can change, collide across stale caches, or be 
 
 ## Scope 2 — Normalize Reference Images
 
-Status: planned.
+Status: iOS/Edge/SQL readers implemented; identify upserts dual-write verified URLs while preserving the legacy cache.
 
-- [ ] Add a `species_reference_images` table with `species_id`, `url`, `source`, `license`, `attribution`, `width`, `height`, `sort_order`, `created_at`, and `last_verified_at`.
-- [ ] Backfill rows from comma-separated `species_dictionary.reference_image_url`.
-- [ ] Update `/species-dictionary`, Explore detail, and scan enrichment to read from the normalized table.
-- [ ] Keep the legacy comma-separated field as a compatibility cache until all readers are migrated.
+- [x] Add a `species_reference_images` table with `species_id`, `url`, `source`, `license`, `attribution`, `width`, `height`, `sort_order`, `created_at`, and `last_verified_at`.
+- [x] Backfill rows from comma-separated `species_dictionary.reference_image_url`.
+- [x] Update `/species-dictionary`, Explore detail, and scan enrichment to read from the normalized table.
+- [x] Keep the legacy comma-separated field as a compatibility cache until all readers are migrated.
+- [x] Dual-write identify/external enrichment image URLs into normalized rows for new or refreshed species.
+- [ ] Add richer license/attribution ingestion once provenance refresh is designed.
 
 Why it matters: reference media needs attribution, ordering, health checks, and licensing before the same data is exposed on the public web.
 

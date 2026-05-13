@@ -53,25 +53,31 @@ export async function fetchLookalikesFromJoinTable(
 
   // Cast through unknown: the Supabase client infers the embedded join field as an array
   // internally, but PostgREST's !lookalike_id hint guarantees a single object (or null).
-  return (
-    data as unknown as {
-      lookalike: {
-        id: string;
-        scientific_name: string;
-        common_names: Record<string, string> | null;
-        reference_image_url: string | null;
-        iucn_red_list_status: string | null;
-        order: string | null;
-        family: string | null;
-      } | null;
-    }[]
-  )
-    .filter((row) => row.lookalike != null)
+  const rows = (data as unknown as {
+    lookalike: {
+      id: string;
+      scientific_name: string;
+      common_names: Record<string, string> | null;
+      reference_image_url: string | null;
+      iucn_red_list_status: string | null;
+      order: string | null;
+      family: string | null;
+    } | null;
+  }[])
+    .filter((row) => row.lookalike != null);
+
+  const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
+    rows.map((row) => row.lookalike!.id),
+    supabaseAdmin,
+  );
+
+  return rows
     .map((row) => ({
       species_id: row.lookalike!.id,
       scientific_name: row.lookalike!.scientific_name,
       common_name: row.lookalike!.common_names?.en ?? null,
-      reference_image_url: row.lookalike!.reference_image_url,
+      reference_image_url: firstImageBySpeciesId.get(row.lookalike!.id) ??
+        firstReferenceImageUrl(row.lookalike!.reference_image_url),
       iucn_red_list_status: row.lookalike!.iucn_red_list_status,
       _order: row.lookalike!.order,
       _family: row.lookalike!.family,
@@ -132,7 +138,10 @@ export async function resolveLookalikesToJoinTable(
   // Durable lookalike cache is only safe when the primary species has real taxonomy.
   // Placeholder "Unknown" values previously bypassed this guard and allowed unrelated taxa
   // to validate against each other; normalizeTaxonomyValue collapses those sentinels to null.
-  if (!normalizedPrimaryKingdom || (!normalizedPrimaryOrder && !normalizedPrimaryFamily)) {
+  if (
+    !normalizedPrimaryKingdom ||
+    (!normalizedPrimaryOrder && !normalizedPrimaryFamily)
+  ) {
     return { lookalikes: [], persisted: false };
   }
 
@@ -141,7 +150,9 @@ export async function resolveLookalikesToJoinTable(
 
   const { data: matches, error } = await supabaseAdmin
     .from("species_dictionary")
-    .select("id, scientific_name, common_names, reference_image_url, iucn_red_list_status, kingdom, order, family")
+    .select(
+      "id, scientific_name, common_names, reference_image_url, iucn_red_list_status, kingdom, order, family",
+    )
     .in("scientific_name", names)
     .limit(10);
 
@@ -167,20 +178,26 @@ export async function resolveLookalikesToJoinTable(
   // not safe to persist or surface to the client.
   const validated = typed.filter((m) => {
     const normalizedCandidateKingdom = normalizeTaxonomyValue(m.kingdom);
-    if (!normalizedCandidateKingdom || normalizedCandidateKingdom.toLowerCase() !== normalizedPrimaryKingdom.toLowerCase()) {
+    if (
+      !normalizedCandidateKingdom ||
+      normalizedCandidateKingdom.toLowerCase() !==
+        normalizedPrimaryKingdom.toLowerCase()
+    ) {
       return false;
     }
 
     if (normalizedPrimaryOrder) {
       const normalizedCandidateOrder = normalizeTaxonomyValue(m.order);
       return normalizedCandidateOrder !== null &&
-        normalizedCandidateOrder.toLowerCase() === normalizedPrimaryOrder.toLowerCase();
+        normalizedCandidateOrder.toLowerCase() ===
+          normalizedPrimaryOrder.toLowerCase();
     }
 
     if (normalizedPrimaryFamily) {
       const normalizedCandidateFamily = normalizeTaxonomyValue(m.family);
       return normalizedCandidateFamily !== null &&
-        normalizedCandidateFamily.toLowerCase() === normalizedPrimaryFamily.toLowerCase();
+        normalizedCandidateFamily.toLowerCase() ===
+          normalizedPrimaryFamily.toLowerCase();
     }
 
     return true;
@@ -188,7 +205,9 @@ export async function resolveLookalikesToJoinTable(
 
   if (validated.length === 0) {
     console.warn(
-      `[resolveLookalikesToJoinTable] All ${typed.length} resolved lookalikes failed taxonomy validation (kingdom: ${normalizedPrimaryKingdom}, order: ${normalizedPrimaryOrder ?? "any"}, family: ${normalizedPrimaryFamily ?? "any"}). Returning empty.`,
+      `[resolveLookalikesToJoinTable] All ${typed.length} resolved lookalikes failed taxonomy validation (kingdom: ${normalizedPrimaryKingdom}, order: ${
+        normalizedPrimaryOrder ?? "any"
+      }, family: ${normalizedPrimaryFamily ?? "any"}). Returning empty.`,
     );
     return { lookalikes: [], persisted: false };
   }
@@ -220,32 +239,98 @@ export async function resolveLookalikesToJoinTable(
   const backfills = validated.filter((m) => {
     const flashName = entryByName.get(m.scientific_name)?.common_name ?? null;
     if (!flashName) return false;
-    const hasEn = m.common_names != null && (m.common_names as Record<string, string>)["en"] != null;
+    const hasEn = m.common_names != null &&
+      (m.common_names as Record<string, string>)["en"] != null;
     return !hasEn;
   });
   if (backfills.length > 0) {
-    const { error: backfillError } = await supabaseAdmin.rpc("merge_common_name_en_batch", {
-      p_updates: backfills.map((m) => ({
-        id: m.id,
-        en_name: entryByName.get(m.scientific_name)!.common_name,
-      })),
-    });
+    const { error: backfillError } = await supabaseAdmin.rpc(
+      "merge_common_name_en_batch",
+      {
+        p_updates: backfills.map((m) => ({
+          id: m.id,
+          en_name: entryByName.get(m.scientific_name)!.common_name,
+        })),
+      },
+    );
     if (backfillError) {
-      console.error("[resolveLookalikesToJoinTable] merge_common_name_en_batch failed:", backfillError.message);
+      console.error(
+        "[resolveLookalikesToJoinTable] merge_common_name_en_batch failed:",
+        backfillError.message,
+      );
     }
   }
+
+  const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
+    validated.map((m) => m.id),
+    supabaseAdmin,
+  );
 
   return {
     lookalikes: validated.map((m) => ({
       scientific_name: m.scientific_name,
       species_id: m.id,
       // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
-      common_name: m.common_names?.en ?? entryByName.get(m.scientific_name)?.common_name ?? null,
-      reference_image_url: m.reference_image_url,
+      common_name: m.common_names?.en ??
+        entryByName.get(m.scientific_name)?.common_name ?? null,
+      reference_image_url: firstImageBySpeciesId.get(m.id) ??
+        firstReferenceImageUrl(m.reference_image_url),
       iucn_red_list_status: m.iucn_red_list_status,
     })),
     persisted: true,
   };
+}
+
+async function fetchFirstReferenceImagesForSpecies(
+  speciesIds: string[],
+  supabaseAdmin: SupabaseClient,
+): Promise<Map<string, string>> {
+  const uniqueSpeciesIds = Array.from(
+    new Set(speciesIds.filter((id) => id.length > 0)),
+  );
+  if (uniqueSpeciesIds.length === 0) return new Map();
+
+  const { data, error } = await supabaseAdmin
+    .from("species_reference_images")
+    .select("id, species_id, url, sort_order, created_at")
+    .in("species_id", uniqueSpeciesIds)
+    .order("species_id", { ascending: true })
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (error) throw error;
+
+  const firstImageBySpeciesId = new Map<string, string>();
+  for (
+    const row of (data ?? []) as Array<
+      { species_id?: string | null; url?: string | null }
+    >
+  ) {
+    const speciesId = stringValue(row.species_id);
+    const url = stringValue(row.url);
+    if (!speciesId || !url || firstImageBySpeciesId.has(speciesId)) continue;
+    firstImageBySpeciesId.set(speciesId, url);
+  }
+
+  return firstImageBySpeciesId;
+}
+
+function firstReferenceImageUrl(
+  referenceImageUrl: string | null | undefined,
+): string | null {
+  const first = (referenceImageUrl ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .find((value) => value.length > 0);
+
+  return first ?? null;
+}
+
+function stringValue(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export async function updateSpeciesEnrichment(
@@ -286,7 +371,9 @@ export async function updateSpeciesEnrichment(
       supabaseAdmin
         .from("species_dictionary")
         .update({
-          similar_species: similarResult.similar_species.map((e) => e.scientific_name),
+          similar_species: similarResult.similar_species.map((e) =>
+            e.scientific_name
+          ),
         })
         .eq("scientific_name", scientificName),
     );
@@ -296,7 +383,10 @@ export async function updateSpeciesEnrichment(
     const results = await Promise.allSettled(persistOps);
     for (const result of results) {
       if (result.status === "rejected") {
-        console.error("[updateSpeciesEnrichment] Persist operation failed:", result.reason);
+        console.error(
+          "[updateSpeciesEnrichment] Persist operation failed:",
+          result.reason,
+        );
       }
     }
   }

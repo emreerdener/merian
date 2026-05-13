@@ -88,10 +88,10 @@ trackPostHogEvent(user, "EventName", { ...props }).catch((e) =>
 
 // ✓ GOOD — single embedded join, only decoded fields, unambiguous FK hint
 .from("species_lookalikes")
-.select("lookalike:species_dictionary!lookalike_id(scientific_name, common_names, reference_image_url, iucn_red_list_status)")
+.select("lookalike:species_dictionary!lookalike_id(id, scientific_name, common_names, reference_image_url, iucn_red_list_status)")
 .eq("species_id", speciesId)
 ```
-The embedded join syntax resolves two sequential PostgREST round-trips (the old N+1 `SELECT id → SELECT IN (ids)` pattern) into a single SQL JOIN, cutting connection-pool acquisitions and Deno isolate latency in half.
+The embedded join syntax resolves two sequential PostgREST round-trips (the old N+1 `SELECT id → SELECT IN (ids)` pattern) into a single SQL JOIN, cutting connection-pool acquisitions and Deno isolate latency in half. Public thumbnail URLs now prefer a second batched lookup against `species_reference_images` keyed by the hydrated IDs, with `species_dictionary.reference_image_url` kept as the fallback cache.
 
 **PostgREST FK Disambiguation Rule — Always Use `table!column` Hint on Multi-FK Tables:** When a join table has two foreign keys that both reference the same target table, PostgREST cannot determine which FK to follow and returns an ambiguous-relationship error at runtime. The alias-only shorthand `"alias:column(fields)"` is insufficient in this case. Always use the full `"alias:table!column(fields)"` hint to specify both the target table and the FK column:
 ```typescript
@@ -134,7 +134,7 @@ const resolvedLookalikes: LookalikeSummary[] =
 ```
 This guarantees that clients always receive at least the scientific names rather than `similar_species: null`. Note that `resolveLookalikesToJoinTable` itself now handles the "no dictionary matches" case by returning Flash-generated stubs directly (with `common_name` populated from the Flash response), so this fallback is a last-resort safety net rather than the primary path for unmatched species.
 
-**Resolve-and-Return Pattern:** Functions that write to a join table and then need the hydrated rows must return the result directly from the write query — never call a separate fetch function after the write. This eliminates a redundant third round-trip on migration or LLM-completion paths. See `resolveLookalikesToJoinTable` in `enrich-scan/db.ts` for the reference implementation: the `species_dictionary` query that resolves names to IDs is expanded to also fetch the hydration columns, and the mapped `LookalikeSummary[]` is returned directly to the caller.
+**Resolve-and-Return Pattern:** Functions that write to a join table and then need the hydrated rows should return the resolved species rows directly instead of re-fetching the join table after the write. This eliminates a redundant third round-trip on migration or LLM-completion paths. See `resolveLookalikesToJoinTable` in `enrich-scan/db.ts` for the reference implementation: the `species_dictionary` query that resolves names to IDs is expanded to also fetch the hydration columns, and the mapped `LookalikeSummary[]` is returned directly to the caller. A supplementary batched `species_reference_images` lookup is allowed for normalized media because image rows live in a separate table and are keyed by the already-resolved IDs.
 
 **`fetchSimilarSpecies` Returns `SimilarSpeciesEntry[]` — Taxonomy-Grounded Name Pairs:** `fetchSimilarSpecies` in `_shared/biology.ts` accepts an optional `SpeciesTaxonomy` parameter (`{ kingdom, class, order, family }`). When provided (always from the `enrich-scan` path, sourced from `cachedSpecies`), the taxonomy is injected into both the system instruction and user message. The instruction explicitly forbids cross-kingdom results ("never suggest plants as lookalikes for animals"). The Flash model generates `{ scientific_name, common_name }` pairs in one call at negligible extra token cost. The common name flows through `resolveLookalikesToJoinTable` in three ways:
 1. **Dictionary match — runtime**: `LookalikeSummary.common_name` is populated as `dictionary_value ?? flash_value ?? null` — so even species that exist in `species_dictionary` without a `common_names.en` entry return a name immediately.

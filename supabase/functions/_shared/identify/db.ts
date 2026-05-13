@@ -72,7 +72,103 @@ export async function upsertSpeciesDictionary(
     .select("id")
     .maybeSingle();
   if (error) throw new Error(`upsertSpeciesDictionary: ${error.message}`);
-  return row?.id ?? null;
+
+  const speciesId = row?.id ?? null;
+  if (speciesId) {
+    await upsertSpeciesReferenceImages(
+      speciesId,
+      data.reference_image_url,
+      data.wikipedia_url,
+      supabaseAdmin,
+    );
+  }
+
+  return speciesId;
+}
+
+export interface SpeciesReferenceImageUpsertRow {
+  species_id: string;
+  url: string;
+  source: "wikipedia" | "gbif";
+  sort_order: number;
+  last_verified_at: string;
+}
+
+export function speciesReferenceImageRowsFromCache(
+  speciesId: string,
+  referenceImageUrl: string | null | undefined,
+  wikipediaUrl: string | null | undefined,
+): SpeciesReferenceImageUpsertRow[] {
+  const seen = new Set<string>();
+  const urls = (referenceImageUrl ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+
+  const rows: SpeciesReferenceImageUpsertRow[] = [];
+  const verifiedAt = new Date().toISOString();
+  for (const [index, url] of urls.entries()) {
+    if (seen.has(url)) continue;
+    seen.add(url);
+    rows.push({
+      species_id: speciesId,
+      url,
+      source: referenceImageSource(url, wikipediaUrl, index),
+      sort_order: rows.length,
+      last_verified_at: verifiedAt,
+    });
+  }
+
+  return rows;
+}
+
+async function upsertSpeciesReferenceImages(
+  speciesId: string,
+  referenceImageUrl: string | null | undefined,
+  wikipediaUrl: string | null | undefined,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const rows = speciesReferenceImageRowsFromCache(
+    speciesId,
+    referenceImageUrl,
+    wikipediaUrl,
+  );
+  if (rows.length === 0) return;
+
+  const { error } = await supabaseAdmin
+    .from("species_reference_images")
+    .upsert(rows, { onConflict: "species_id,url", ignoreDuplicates: false });
+
+  if (error) {
+    console.error(
+      "[upsertSpeciesReferenceImages] Failed to normalize reference images:",
+      error.message,
+    );
+  }
+}
+
+function referenceImageSource(
+  urlString: string,
+  wikipediaUrl: string | null | undefined,
+  index: number,
+): "wikipedia" | "gbif" {
+  try {
+    const host = new URL(urlString).host.toLowerCase();
+    if (host.includes("wikipedia") || host.includes("wikimedia")) {
+      return "wikipedia";
+    }
+  } catch {
+    // Fall through to the positional Wikipedia fallback.
+  }
+
+  if (
+    index === 0 && typeof wikipediaUrl === "string" &&
+    wikipediaUrl.trim().length > 0
+  ) {
+    return "wikipedia";
+  }
+
+  return "gbif";
 }
 
 export async function updateGroupTags(

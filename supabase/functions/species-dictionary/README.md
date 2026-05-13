@@ -46,7 +46,14 @@ Invalid bodies return `400`.
     "gbif_taxon_key": 5139790,
     "group_tags": ["animal", "insect"],
     "reference_images": [
-      { "url": "https://upload.wikimedia.org/...", "source": "wikipedia" },
+      {
+        "url": "https://upload.wikimedia.org/...",
+        "source": "wikipedia",
+        "license": "CC BY-SA 4.0",
+        "attribution": "Example Photographer",
+        "width": 1200,
+        "height": 800
+      },
       { "url": "https://static.inaturalist.org/...", "source": "gbif" }
     ],
     "similar_species": [
@@ -76,6 +83,11 @@ Primary row:
 
 - `public.species_dictionary`
 
+Reference images:
+
+- `public.species_reference_images`
+- fallback to legacy `species_dictionary.reference_image_url`
+
 Lookalike rows:
 
 - `public.species_lookalikes`
@@ -93,9 +105,11 @@ Common name fallback:
 
 Reference images:
 
-- Split comma-separated `reference_image_url`.
+- Prefer ordered rows from `species_reference_images`.
+- Include optional `license`, `attribution`, `width`, and `height` when present.
+- If no normalized rows exist, split comma-separated `species_dictionary.reference_image_url`.
 - Trim and dedupe URLs.
-- Map each URL to `{ url, source }`.
+- Map each URL to `{ url, source }` plus any available provenance metadata.
 - Wikimedia/Wikipedia hosts map to `wikipedia`.
 - If `wikipedia_url` exists, the first unresolved image is treated as `wikipedia`.
 - Remaining unresolved images map to `gbif`.
@@ -131,6 +145,6 @@ The function does not call `withEdgeHandler` or `requireAuth` because the endpoi
 ## Local Verification
 
 ```sh
-deno check supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
-deno test supabase/functions/species-dictionary/db.test.ts
+deno check supabase/functions/_shared/identify/db.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
+deno test supabase/functions/_shared/identify/db_test.ts supabase/functions/species-dictionary/db.test.ts
 ```

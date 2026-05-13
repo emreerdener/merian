@@ -18,7 +18,7 @@ Included in V1:
 
 - canonical scientific and common names
 - alternate common names
-- reference image gallery from dictionary `reference_image_url`
+- reference image gallery from normalized public reference imagery
 - Wikipedia overview
 - habitat description and GBIF heatmap when `gbif_taxon_key` is available
 - taxonomy
@@ -128,7 +128,14 @@ Successful responses are wrapped in a `data` envelope:
     "gbif_taxon_key": 5139790,
     "group_tags": ["animal", "insect"],
     "reference_images": [
-      { "url": "https://upload.wikimedia.org/...", "source": "wikipedia" },
+      {
+        "url": "https://upload.wikimedia.org/...",
+        "source": "wikipedia",
+        "license": "CC BY-SA 4.0",
+        "attribution": "Example Photographer",
+        "width": 1200,
+        "height": 800
+      },
       { "url": "https://static.inaturalist.org/...", "source": "gbif" }
     ],
     "similar_species": [
@@ -156,9 +163,9 @@ Common name fallback order:
 
 Reference image mapping:
 
-- `species_dictionary.reference_image_url` is a comma-separated string.
-- The Edge Function splits, trims, and dedupes URLs.
-- Each URL becomes `{ "url": "...", "source": "wikipedia" | "gbif" }`.
+- The Edge Function prefers ordered rows from `species_reference_images`.
+- Each normalized row becomes `{ "url": "...", "source": "wikipedia" | "gbif" }` with optional `license`, `attribution`, `width`, and `height`.
+- If no normalized rows exist, the function falls back to the legacy comma-separated `species_dictionary.reference_image_url`, then splits, trims, and dedupes URLs.
 - Wikimedia/Wikipedia hosts are marked `wikipedia`.
 - When a Wikipedia URL exists and the first image has no clear host signal, the first image is treated as `wikipedia`; all other unresolved URLs default to `gbif`.
 
@@ -166,7 +173,7 @@ Lookalikes:
 
 - Source table: `species_lookalikes`.
 - Hydration uses the explicit PostgREST FK hint `species_dictionary!lookalike_id` because the join table has two foreign keys to `species_dictionary`.
-- Returned fields are limited to `species_id`, `scientific_name`, `common_names`, `reference_image_url`, and `iucn_red_list_status`.
+- Returned fields are limited to `species_id`, `scientific_name`, `common_names`, `reference_image_url`, and `iucn_red_list_status`; thumbnail URLs prefer `species_reference_images` and fall back to the legacy dictionary cache.
 - The page renders the section read-only in V1.
 
 ## Privacy Rules
