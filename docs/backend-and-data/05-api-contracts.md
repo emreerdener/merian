@@ -252,6 +252,8 @@ The `/species-dictionary` Edge Function returns public species-level dictionary 
 
 The function has `verify_jwt = false` in `supabase/config.toml` and does not call `requireAuth`. It may receive normal app auth headers from `MerianNetworkClient`, but identity is not read and must not affect the response.
 
+The response is built through the shared public species projection in `supabase/functions/_shared/publicSpeciesProjection.ts`. That module owns common-name fallback, alternate-name dedupe, normalized/legacy reference-image mapping, nullable taxonomy shape, and contract tests for private-field leaks. SQL-only Explore detail lookalikes use matching database helpers so the same species DTO rules apply outside Deno.
+
 ### `/species-dictionary`
 
 Request body:
@@ -559,7 +561,7 @@ For posts owned by the current viewer, iOS also uses `field_notes` as a repair s
 
 `reference_image_url` remains a comma-separated compatibility field for Explore detail clients, but the RPC now composes it from ordered `species_reference_images` rows first and falls back to `species_dictionary.reference_image_url` for older species rows. Explore detail uses it to render the public reference gallery below the post's AI reasoning without making an extra authenticated scan fetch.
 
-`similar_species` is hydrated from `species_lookalikes` for the post's resolved dictionary species. Each entry contains public species-level data only and is shaped like the existing lookalike DTO: `species_id`, `scientific_name`, `common_name`, `reference_image_url`, and `iucn_red_list_status`. The lookalike image URL prefers the first normalized `species_reference_images` row and falls back to the legacy dictionary cache. Empty lookalike sets return an empty array, and iOS omits the section. Older clients can continue to route by `scientific_name`; new clients prefer `species_id` for dictionary sheet lookup.
+`similar_species` is hydrated from `species_lookalikes` for the post's resolved dictionary species through `public.public_species_similar_species(...)`. Each entry contains public species-level data only and is shaped like the existing lookalike DTO: `species_id`, `scientific_name`, `common_name`, `reference_image_url`, and `iucn_red_list_status`. The lookalike image URL prefers the first normalized `species_reference_images` row and falls back to the legacy dictionary cache. Empty lookalike sets return an empty array, and iOS omits the section. Older clients can continue to route by `scientific_name`; new clients prefer `species_id` for dictionary sheet lookup.
 
 `ai_reasoning` is returned conditionally from the backing `scans` row, not copied into `explore_posts`. It is only exposed when the scan still reflects the original AI identification:
 

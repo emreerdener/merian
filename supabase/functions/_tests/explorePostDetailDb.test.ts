@@ -10,6 +10,7 @@ import {
   insertUser,
   withExploreDbTest,
 } from "./exploreDbTestHelpers.ts";
+import { publicSpeciesProjectionForbiddenKeys } from "../_shared/publicSpeciesProjection.ts";
 
 type ExplorePostDetailRow = {
   post_id: string;
@@ -189,6 +190,10 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
         reference_image_url: normalizedLookalikeImageUrl,
         iucn_red_list_status: "least_concern",
       });
+      assertEquals(
+        publicSpeciesProjectionForbiddenKeys(row.similar_species),
+        [],
+      );
     },
   );
 });

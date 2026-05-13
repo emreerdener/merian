@@ -1,6 +1,12 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { CachedSpeciesData, LookalikeSummary } from "./types.ts";
 import { EncyclopedicData, SimilarSpeciesEntry } from "../_shared/biology.ts";
+import {
+  firstReferenceImageUrl,
+  firstReferenceImageUrlsBySpeciesId,
+  type PublicSpeciesReferenceImageRow,
+  resolveOptionalPublicCommonName,
+} from "../_shared/publicSpeciesProjection.ts";
 import { normalizeTaxonomyValue } from "../_shared/taxonomy.ts";
 
 export async function getCachedSpecies(
@@ -75,7 +81,7 @@ export async function fetchLookalikesFromJoinTable(
     .map((row) => ({
       species_id: row.lookalike!.id,
       scientific_name: row.lookalike!.scientific_name,
-      common_name: row.lookalike!.common_names?.en ?? null,
+      common_name: resolveOptionalPublicCommonName(row.lookalike!.common_names),
       reference_image_url: firstImageBySpeciesId.get(row.lookalike!.id) ??
         firstReferenceImageUrl(row.lookalike!.reference_image_url),
       iucn_red_list_status: row.lookalike!.iucn_red_list_status,
@@ -301,36 +307,9 @@ async function fetchFirstReferenceImagesForSpecies(
 
   if (error) throw error;
 
-  const firstImageBySpeciesId = new Map<string, string>();
-  for (
-    const row of (data ?? []) as Array<
-      { species_id?: string | null; url?: string | null }
-    >
-  ) {
-    const speciesId = stringValue(row.species_id);
-    const url = stringValue(row.url);
-    if (!speciesId || !url || firstImageBySpeciesId.has(speciesId)) continue;
-    firstImageBySpeciesId.set(speciesId, url);
-  }
-
-  return firstImageBySpeciesId;
-}
-
-function firstReferenceImageUrl(
-  referenceImageUrl: string | null | undefined,
-): string | null {
-  const first = (referenceImageUrl ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .find((value) => value.length > 0);
-
-  return first ?? null;
-}
-
-function stringValue(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  return firstReferenceImageUrlsBySpeciesId(
+    data as PublicSpeciesReferenceImageRow[] | null,
+  );
 }
 
 export async function updateSpeciesEnrichment(

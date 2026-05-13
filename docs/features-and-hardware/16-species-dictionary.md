@@ -42,6 +42,7 @@ Excluded in V1:
 
 Primary files:
 
+- `supabase/functions/_shared/publicSpeciesProjection.ts`
 - `merian/Core/Network/SpeciesDictionaryAPIModels.swift`
 - `merian/Core/Network/MerianNetworkClient.swift`
 - `merian/Features/SpeciesDictionary/ViewModels/SpeciesDictionaryPageViewModel.swift`
@@ -154,6 +155,8 @@ Successful responses are wrapped in a `data` envelope:
 The endpoint is public by design and has `verify_jwt = false`. It may receive normal app auth headers from `MerianNetworkClient`, but the function does not require or read identity. The response must remain species-level public dictionary data only.
 
 ## Data Mapping Rules
+
+All backend mapping rules below live in the shared public species projection module. `/species-dictionary` uses the Deno helper directly; Explore detail similar species use matching SQL helpers (`public.public_species_common_name`, `public.public_species_first_reference_image_url`, and `public.public_species_similar_species`) so SQL output stays aligned with the Edge DTO.
 
 Common name fallback order:
 

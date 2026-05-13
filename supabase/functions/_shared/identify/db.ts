@@ -1,4 +1,9 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  legacyReferenceImageUrls,
+  type PublicReferenceImageSource,
+  referenceImageSource,
+} from "../publicSpeciesProjection.ts";
 import { hasTierCached, setTierCache } from "../tierCache.ts";
 import { CachedSpeciesRow, IdentificationCandidate } from "./types.ts";
 
@@ -89,7 +94,7 @@ export async function upsertSpeciesDictionary(
 export interface SpeciesReferenceImageUpsertRow {
   species_id: string;
   url: string;
-  source: "wikipedia" | "gbif";
+  source: PublicReferenceImageSource;
   sort_order: number;
   last_verified_at: string;
 }
@@ -100,20 +105,15 @@ export function speciesReferenceImageRowsFromCache(
   wikipediaUrl: string | null | undefined,
 ): SpeciesReferenceImageUpsertRow[] {
   const seen = new Set<string>();
-  const urls = (referenceImageUrl ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
-
   const rows: SpeciesReferenceImageUpsertRow[] = [];
   const verifiedAt = new Date().toISOString();
-  for (const [index, url] of urls.entries()) {
+  for (const url of legacyReferenceImageUrls(referenceImageUrl)) {
     if (seen.has(url)) continue;
     seen.add(url);
     rows.push({
       species_id: speciesId,
       url,
-      source: referenceImageSource(url, wikipediaUrl, index),
+      source: referenceImageSource(url, wikipediaUrl, rows.length),
       sort_order: rows.length,
       last_verified_at: verifiedAt,
     });
@@ -145,30 +145,6 @@ async function upsertSpeciesReferenceImages(
       error.message,
     );
   }
-}
-
-function referenceImageSource(
-  urlString: string,
-  wikipediaUrl: string | null | undefined,
-  index: number,
-): "wikipedia" | "gbif" {
-  try {
-    const host = new URL(urlString).host.toLowerCase();
-    if (host.includes("wikipedia") || host.includes("wikimedia")) {
-      return "wikipedia";
-    }
-  } catch {
-    // Fall through to the positional Wikipedia fallback.
-  }
-
-  if (
-    index === 0 && typeof wikipediaUrl === "string" &&
-    wikipediaUrl.trim().length > 0
-  ) {
-    return "wikipedia";
-  }
-
-  return "gbif";
 }
 
 export async function updateGroupTags(

@@ -97,6 +97,8 @@ The FK hint is required because `species_lookalikes` has both `species_id` and `
 
 ## Mapping Rules
 
+The Deno mapping lives in `supabase/functions/_shared/publicSpeciesProjection.ts`. Explore detail similar species use matching SQL helpers so common-name fallback, reference-image fallback, and private-field exclusions stay aligned across public species surfaces.
+
 Common name fallback:
 
 1. `common_names.en`
@@ -145,6 +147,6 @@ The function does not call `withEdgeHandler` or `requireAuth` because the endpoi
 ## Local Verification
 
 ```sh
-deno check supabase/functions/_shared/identify/db.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
-deno test supabase/functions/_shared/identify/db_test.ts supabase/functions/species-dictionary/db.test.ts
+deno check supabase/functions/_shared/publicSpeciesProjection.ts supabase/functions/_shared/identify/db.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
+deno test supabase/functions/_shared/publicSpeciesProjection_test.ts supabase/functions/_shared/identify/db_test.ts supabase/functions/species-dictionary/db.test.ts
 ```

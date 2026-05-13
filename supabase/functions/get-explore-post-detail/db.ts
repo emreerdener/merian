@@ -1,4 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import type { PublicSimilarSpecies } from "../_shared/publicSpeciesProjection.ts";
 
 export interface ExplorePostDetailRow {
   post_id: string;
@@ -20,13 +21,7 @@ export interface ExplorePostDetailRow {
   similar_species?: ExplorePostDetailSimilarSpecies[] | null;
 }
 
-export interface ExplorePostDetailSimilarSpecies {
-  species_id?: string | null;
-  scientific_name: string;
-  common_name: string | null;
-  reference_image_url: string | null;
-  iucn_red_list_status: string | null;
-}
+export type ExplorePostDetailSimilarSpecies = PublicSimilarSpecies;
 
 export async function fetchExplorePostDetail(
   userId: string,

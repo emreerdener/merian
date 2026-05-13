@@ -29,11 +29,12 @@ Why it matters: reference media needs attribution, ordering, health checks, and 
 
 ## Scope 3 — Shared Public Species Projection
 
-Status: planned.
+Status: Edge shared module and SQL helper projection implemented; future web should consume the same contract.
 
-- [ ] Define one public species projection used by `/species-dictionary`, Explore detail similar species, and the future web frontend.
-- [ ] Centralize common-name fallback, image source mapping, nullable taxonomy handling, and privacy filtering.
-- [ ] Add contract tests proving scan-specific fields never leak into the public projection.
+- [x] Define one public species projection used by `/species-dictionary`, Explore detail similar species, and the future web frontend.
+- [x] Centralize common-name fallback, image source mapping, nullable taxonomy handling, and privacy filtering.
+- [x] Add contract tests proving scan-specific fields never leak into the public projection.
+- [ ] Reuse the shared projection directly from the first web species endpoint when web routing lands.
 
 Why it matters: the same species data should not be reshaped in three subtly different ways across Edge Functions and SQL RPCs.
 

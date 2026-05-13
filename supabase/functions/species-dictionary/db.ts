@@ -1,70 +1,43 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  buildPublicSpeciesDictionaryPayload,
+  firstReferenceImageUrl,
+  firstReferenceImageUrlsBySpeciesId,
+  type PublicReferenceImageSource,
+  type PublicSimilarSpecies,
+  type PublicSpeciesDictionaryPayload,
+  type PublicSpeciesDictionaryRow,
+  publicSpeciesProjectionForbiddenKeys,
+  type PublicSpeciesReferenceImage,
+  type PublicSpeciesReferenceImageRow,
+  type PublicSpeciesTaxonomy,
+  referenceImagesFromLegacyCache as referenceImagesFrom,
+  referenceImagesFromRows,
+  resolveOptionalPublicCommonName,
+  resolvePublicCommonName as resolveCommonName,
+  sanitizeAlternativeCommonNames,
+  stringValue,
+} from "../_shared/publicSpeciesProjection.ts";
 
-export type ReferenceImageSource = "wikipedia" | "gbif";
+export {
+  firstReferenceImageUrl,
+  publicSpeciesProjectionForbiddenKeys,
+  referenceImagesFrom,
+  referenceImagesFromRows,
+  resolveCommonName,
+  sanitizeAlternativeCommonNames,
+};
 
-export interface SpeciesDictionaryTaxonomy {
-  kingdom: string | null;
-  phylum: string | null;
-  class: string | null;
-  order: string | null;
-  family: string | null;
-  genus: string | null;
-}
+export type ReferenceImageSource = PublicReferenceImageSource;
+export type SpeciesDictionaryTaxonomy = PublicSpeciesTaxonomy;
+export type SpeciesDictionaryReferenceImage = PublicSpeciesReferenceImage;
+export type SpeciesDictionarySimilarSpecies = PublicSimilarSpecies;
+export type SpeciesDictionaryPayload = PublicSpeciesDictionaryPayload;
+export type SpeciesDictionaryRow = PublicSpeciesDictionaryRow;
+export type SpeciesReferenceImageRow = PublicSpeciesReferenceImageRow;
 
-export interface SpeciesDictionaryReferenceImage {
-  url: string;
-  source: ReferenceImageSource;
-  license?: string;
-  attribution?: string;
-  width?: number;
-  height?: number;
-}
-
-export interface SpeciesDictionarySimilarSpecies {
-  species_id: string;
-  scientific_name: string;
-  common_name: string | null;
-  reference_image_url: string | null;
-  iucn_red_list_status: string | null;
-}
-
-export interface SpeciesDictionaryPayload {
-  id: string;
-  scientific_name: string;
-  common_name: string;
-  alternative_common_names: string[];
-  taxonomy: SpeciesDictionaryTaxonomy;
-  hazard_type: string | null;
-  iucn_red_list_status: string | null;
-  wikipedia_url: string | null;
-  wikipedia_overview: string | null;
-  habitat_description: string | null;
-  gbif_taxon_key: number | null;
-  group_tags: string[];
-  reference_images: SpeciesDictionaryReferenceImage[];
-  similar_species: SpeciesDictionarySimilarSpecies[];
-}
-
-interface SpeciesDictionaryRow {
-  id: string;
-  scientific_name: string;
-  common_names: Record<string, unknown> | null;
-  alternative_common_names: string[] | null;
-  kingdom: string | null;
-  phylum: string | null;
-  class: string | null;
-  order: string | null;
-  family: string | null;
-  genus: string | null;
-  wikipedia_url: string | null;
-  reference_image_url: string | null;
-  wikipedia_overview: string | null;
-  hazard_type: string | null;
-  iucn_red_list_status: string | null;
-  habitat_description: string | null;
-  gbif_taxon_key: number | null;
-  group_tags: string[] | null;
-}
+export const buildSpeciesDictionaryPayload =
+  buildPublicSpeciesDictionaryPayload;
 
 interface LookalikeRelationRow {
   lookalike?: LookalikeSpeciesRow | LookalikeSpeciesRow[] | null;
@@ -76,19 +49,6 @@ interface LookalikeSpeciesRow {
   common_names?: Record<string, unknown> | null;
   reference_image_url?: string | null;
   iucn_red_list_status?: string | null;
-}
-
-export interface SpeciesReferenceImageRow {
-  id?: string | null;
-  species_id?: string | null;
-  url?: string | null;
-  source?: string | null;
-  license?: string | null;
-  attribution?: string | null;
-  width?: number | null;
-  height?: number | null;
-  sort_order?: number | null;
-  created_at?: string | null;
 }
 
 export interface SpeciesDictionaryRequestResult {
@@ -144,148 +104,6 @@ export function parseSpeciesDictionaryRequest(
   }
 
   return { scientificName };
-}
-
-export function resolveCommonName(
-  commonNames: Record<string, unknown> | null | undefined,
-  scientificName: string,
-): string {
-  const englishName = stringValue(commonNames?.en);
-  if (englishName) return englishName;
-
-  for (const value of Object.values(commonNames ?? {})) {
-    const fallback = stringValue(value);
-    if (fallback) return fallback;
-  }
-
-  return scientificName;
-}
-
-export function sanitizeAlternativeCommonNames(
-  names: string[] | null | undefined,
-  primaryCommonName: string,
-): string[] {
-  const seen = new Set<string>();
-  const primaryKey = primaryCommonName.trim().toLowerCase();
-  const sanitized: string[] = [];
-
-  for (const name of names ?? []) {
-    const trimmed = name.trim();
-    if (!trimmed) continue;
-
-    const key = trimmed.toLowerCase();
-    if (key === primaryKey || seen.has(key)) continue;
-
-    seen.add(key);
-    sanitized.push(trimmed);
-  }
-
-  return sanitized;
-}
-
-export function referenceImagesFrom(
-  referenceImageUrl: string | null | undefined,
-  wikipediaUrl: string | null | undefined,
-): SpeciesDictionaryReferenceImage[] {
-  const seen = new Set<string>();
-  const urls = (referenceImageUrl ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
-
-  const images: SpeciesDictionaryReferenceImage[] = [];
-  for (const [index, url] of urls.entries()) {
-    if (seen.has(url)) continue;
-    seen.add(url);
-    images.push({
-      url,
-      source: referenceImageSource(url, wikipediaUrl, index),
-    });
-  }
-
-  return images;
-}
-
-export function referenceImagesFromRows(
-  rows: SpeciesReferenceImageRow[] | null | undefined,
-  wikipediaUrl: string | null | undefined,
-): SpeciesDictionaryReferenceImage[] {
-  const seen = new Set<string>();
-  const images: SpeciesDictionaryReferenceImage[] = [];
-
-  for (const row of rows ?? []) {
-    const url = stringValue(row.url);
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-
-    const image: SpeciesDictionaryReferenceImage = {
-      url,
-      source: normalizedReferenceImageSource(
-        row.source,
-        url,
-        wikipediaUrl,
-        images.length,
-      ),
-    };
-
-    const license = stringValue(row.license);
-    if (license) image.license = license;
-
-    const attribution = stringValue(row.attribution);
-    if (attribution) image.attribution = attribution;
-
-    const width = positiveInteger(row.width);
-    if (width !== null) image.width = width;
-
-    const height = positiveInteger(row.height);
-    if (height !== null) image.height = height;
-
-    images.push(image);
-  }
-
-  return images;
-}
-
-export function firstReferenceImageUrl(
-  referenceImageUrl: string | null | undefined,
-): string | null {
-  return referenceImagesFrom(referenceImageUrl, null)[0]?.url ?? null;
-}
-
-export function buildSpeciesDictionaryPayload(
-  row: SpeciesDictionaryRow,
-  similarSpecies: SpeciesDictionarySimilarSpecies[],
-  referenceImages?: SpeciesDictionaryReferenceImage[],
-): SpeciesDictionaryPayload {
-  const commonName = resolveCommonName(row.common_names, row.scientific_name);
-
-  return {
-    id: row.id,
-    scientific_name: row.scientific_name,
-    common_name: commonName,
-    alternative_common_names: sanitizeAlternativeCommonNames(
-      row.alternative_common_names,
-      commonName,
-    ),
-    taxonomy: {
-      kingdom: row.kingdom,
-      phylum: row.phylum,
-      class: row.class,
-      order: row.order,
-      family: row.family,
-      genus: row.genus,
-    },
-    hazard_type: row.hazard_type,
-    iucn_red_list_status: row.iucn_red_list_status,
-    wikipedia_url: row.wikipedia_url,
-    wikipedia_overview: row.wikipedia_overview,
-    habitat_description: row.habitat_description,
-    gbif_taxon_key: row.gbif_taxon_key,
-    group_tags: sanitizedStringArray(row.group_tags),
-    reference_images: referenceImages ??
-      referenceImagesFrom(row.reference_image_url, row.wikipedia_url),
-    similar_species: similarSpecies,
-  };
 }
 
 export async function fetchSpeciesDictionary(
@@ -393,7 +211,7 @@ async function fetchSimilarSpecies(
     rows.push({
       species_id: lookalikeId,
       scientific_name: scientificName,
-      common_name: resolveOptionalCommonName(lookalike?.common_names),
+      common_name: resolveOptionalPublicCommonName(lookalike?.common_names),
       legacy_reference_image_url: stringValue(lookalike?.reference_image_url),
       iucn_red_list_status: stringValue(lookalike?.iucn_red_list_status),
     });
@@ -438,95 +256,14 @@ async function fetchFirstReferenceImagesForSpecies(
     );
   }
 
-  const firstImageBySpeciesId = new Map<string, string>();
-  for (const row of (data ?? []) as SpeciesReferenceImageRow[]) {
-    const speciesId = stringValue(row.species_id);
-    const url = stringValue(row.url);
-    if (!speciesId || !url || firstImageBySpeciesId.has(speciesId)) continue;
-    firstImageBySpeciesId.set(speciesId, url);
-  }
-
-  return firstImageBySpeciesId;
+  return firstReferenceImageUrlsBySpeciesId(
+    data as SpeciesReferenceImageRow[] | null,
+  );
 }
 
 function relationValue<T>(value: T | T[] | null | undefined): T | undefined {
   if (Array.isArray(value)) return value[0];
   return value ?? undefined;
-}
-
-function referenceImageSource(
-  urlString: string,
-  wikipediaUrl: string | null | undefined,
-  index: number,
-): ReferenceImageSource {
-  try {
-    const host = new URL(urlString).host.toLowerCase();
-    if (host.includes("wikipedia") || host.includes("wikimedia")) {
-      return "wikipedia";
-    }
-  } catch {
-    // Fall through to the positional Wikipedia fallback.
-  }
-
-  if (index === 0 && stringValue(wikipediaUrl)) {
-    return "wikipedia";
-  }
-
-  return "gbif";
-}
-
-function normalizedReferenceImageSource(
-  source: string | null | undefined,
-  urlString: string,
-  wikipediaUrl: string | null | undefined,
-  index: number,
-): ReferenceImageSource {
-  if (source === "wikipedia" || source === "gbif") return source;
-  return referenceImageSource(urlString, wikipediaUrl, index);
-}
-
-function resolveOptionalCommonName(
-  commonNames: Record<string, unknown> | null | undefined,
-): string | null {
-  const englishName = stringValue(commonNames?.en);
-  if (englishName) return englishName;
-
-  for (const value of Object.values(commonNames ?? {})) {
-    const fallback = stringValue(value);
-    if (fallback) return fallback;
-  }
-
-  return null;
-}
-
-function sanitizedStringArray(values: string[] | null | undefined): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-
-  for (const value of values ?? []) {
-    const trimmed = value.trim();
-    if (!trimmed) continue;
-
-    const key = trimmed.toLowerCase();
-    if (seen.has(key)) continue;
-
-    seen.add(key);
-    result.push(trimmed);
-  }
-
-  return result;
-}
-
-function stringValue(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function positiveInteger(value: unknown): number | null {
-  return typeof value === "number" && Number.isInteger(value) && value > 0
-    ? value
-    : null;
 }
 
 function normalizeOptionalScientificName(
