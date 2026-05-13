@@ -10,6 +10,7 @@ struct SpeciesDictionaryTests {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
+        MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
     }
 
     @Test func testSpeciesDictionaryResponseDecodesReferenceImagesAndLookalikes() throws {
@@ -203,6 +204,52 @@ struct SpeciesDictionaryTests {
         )
 
         #expect(species.id == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
+    }
+
+    @Test func testGetSpeciesDictionaryMemoizesRecentResponseByScientificName() async throws {
+        let testData = """
+        {
+            "schema_version": 1,
+            "data": {
+                "id": "species-cache",
+                "scientific_name": "Cache testus",
+                "common_name": "Cache Test",
+                "alternative_common_names": [],
+                "taxonomy": null,
+                "hazard_type": "none",
+                "iucn_red_list_status": null,
+                "wikipedia_url": null,
+                "wikipedia_overview": null,
+                "habitat_description": null,
+                "gbif_taxon_key": null,
+                "group_tags": [],
+                "reference_images": [],
+                "similar_species": []
+            }
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        var requestCount = 0
+
+        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+            requestCount += 1
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["scientific_name"] as? String == "Cache testus")
+            return (mockResponse, testData)
+        }
+
+        let first = try await MerianNetworkClient.shared.getSpeciesDictionary(scientificName: "Cache testus")
+        let second = try await MerianNetworkClient.shared.getSpeciesDictionary(scientificName: "  Cache   testus  ")
+
+        #expect(first.id == "species-cache")
+        #expect(second.id == "species-cache")
+        #expect(requestCount == 1)
     }
 
     @Test func testSpeciesDictionaryViewModelLoadsSpecies() async throws {

@@ -73,11 +73,17 @@ Why it matters: iOS and web clients will update on different schedules.
 
 ## Scope 7 — Caching Strategy
 
-Status: planned.
+Status: implemented for the public Edge response and the iOS in-memory route cache.
 
-- [ ] Add safe HTTP cache headers for public dictionary responses.
-- [ ] Add iOS client memoization for recently opened species pages.
-- [ ] Track cache invalidation rules for refreshed species rows.
+- [x] Add safe HTTP cache headers for public dictionary responses.
+- [x] Add iOS client memoization for recently opened species pages.
+- [x] Track cache invalidation rules for refreshed species rows.
+
+Current rules:
+
+- `/species-dictionary` `200 OK` responses send `Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800` and `Vary: Accept-Encoding`; error responses remain uncached.
+- iOS keeps a 10-minute, 64-key in-memory memo cache in `MerianNetworkClient`, keyed by canonical dictionary ID when available and normalized scientific name as a fallback.
+- Refreshed species rows become visible after the shorter of the iOS memo TTL and any downstream HTTP/browser cache freshness window. Manual curation or scheduled refreshes that need immediate global visibility should pair the data write with CDN/cache purge tooling once the public web frontend exists.
 
 Why it matters: species dictionary data is public and slow-changing, so it should be cheap to reopen and cheap to serve.
 

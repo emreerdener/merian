@@ -11,9 +11,17 @@ export const corsHeaders = {
 /**
  * Standardized JSON response helper.
  */
-export function jsonResponse(payload: unknown, status = 200): Response {
+export function jsonResponse(
+  payload: unknown,
+  status = 200,
+  extraHeaders: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(payload), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+      ...extraHeaders,
+    },
     status,
   });
 }
@@ -62,9 +70,9 @@ export function requireParams(
   if (missing.length === 0) return null;
   return jsonResponse(
     {
-      error: `Missing required parameter${
-        missing.length > 1 ? "s" : ""
-      }: ${missing.join(", ")}`,
+      error: `Missing required parameter${missing.length > 1 ? "s" : ""}: ${
+        missing.join(", ")
+      }`,
     },
     400,
   );

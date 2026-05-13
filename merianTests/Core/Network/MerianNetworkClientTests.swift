@@ -78,6 +78,7 @@ struct MerianNetworkClientTests {
         
         // Inject so MerianNetworkClient hooks this instead of hitting live internet
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
+        MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
     }
 
     @Test func testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON() async throws {

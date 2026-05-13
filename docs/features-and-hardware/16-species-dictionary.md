@@ -157,6 +157,21 @@ The endpoint is public by design and has `verify_jwt = false`. It may receive no
 
 `schema_version = 1` is the shared public species contract used by the dictionary page and Explore detail similar-species projection. iOS treats the key as optional for backward compatibility with older mocks or deployed functions, and future web clients should use it before depending on new fields.
 
+## Caching
+
+Successful `/species-dictionary` responses are public and slow-changing, so the Edge Function sends:
+
+```http
+Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800
+Vary: Accept-Encoding
+```
+
+Only `200 OK` dictionary responses are cacheable. `400`, `404`, and `500` responses do not opt into public caching, so missing rows and transient errors can recover immediately after data is added or fixed.
+
+The iOS client also memoizes recently opened dictionary pages inside `MerianNetworkClient`. The cache is in memory only, capped at 64 keys, and expires entries after 10 minutes. Entries are stored under both canonical `species_id` keys and normalized scientific-name keys when available, so an Insight or Explore tap that carries a dictionary ID can warm a later scientific-name route for the same species. The cache is cleared in DEBUG whenever tests swap the injected `URLSession`.
+
+Invalidation is currently TTL-based: refreshed species rows become visible after the iOS memo TTL and the HTTP freshness window expire. Future scheduled refresh or curation tooling that needs immediate public web visibility should add a CDN/cache purge step alongside the dictionary write.
+
 ## Data Mapping Rules
 
 All backend mapping rules below live in the shared public species projection module. `/species-dictionary` uses the Deno helper directly; Explore detail similar species use matching SQL helpers (`public.public_species_common_name`, `public.public_species_first_reference_image_url`, and `public.public_species_similar_species`) so SQL output stays aligned with the Edge DTO.
@@ -211,8 +226,8 @@ If a future web frontend consumes this endpoint, it should be able to use the sa
 Backend:
 
 ```sh
-deno check supabase/functions/_shared/publicSpeciesProjection.ts supabase/functions/_shared/speciesContentProvenance.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
-deno test supabase/functions/_shared/publicSpeciesProjection_test.ts supabase/functions/_shared/speciesContentProvenance_test.ts supabase/functions/species-dictionary/db.test.ts
+deno check supabase/functions/_shared/http.ts supabase/functions/_shared/publicSpeciesProjection.ts supabase/functions/_shared/speciesContentProvenance.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
+deno test supabase/functions/_shared/http_test.ts supabase/functions/_shared/publicSpeciesProjection_test.ts supabase/functions/_shared/speciesContentProvenance_test.ts supabase/functions/species-dictionary/db.test.ts
 ```
 
 iOS:

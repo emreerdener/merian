@@ -6,6 +6,12 @@ import { logStructuredError } from "../_shared/edgeHandler.ts";
 import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjection.ts";
 import { fetchSpeciesDictionary, parseSpeciesDictionaryRequest } from "./db.ts";
 
+const publicDictionaryCacheHeaders = {
+  "Cache-Control":
+    "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800",
+  "Vary": "Accept-Encoding",
+};
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -33,10 +39,14 @@ serve(async (req: Request) => {
       return jsonResponse({ error: "Species not found" }, 404);
     }
 
-    return jsonResponse({
-      schema_version: PUBLIC_SPECIES_SCHEMA_VERSION,
-      data,
-    }, 200);
+    return jsonResponse(
+      {
+        schema_version: PUBLIC_SPECIES_SCHEMA_VERSION,
+        data,
+      },
+      200,
+      publicDictionaryCacheHeaders,
+    );
   } catch (error) {
     logStructuredError("species_dictionary_fetch_failed", {
       error: error instanceof Error ? error.message : String(error),

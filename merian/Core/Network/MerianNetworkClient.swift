@@ -26,6 +26,12 @@ private struct UploadURLRequestBody: Encodable {
     }
 }
 
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
+}
+
 private struct InferenceRequestContext: Sendable {
     let userId: String
     let deviceLocale: String
@@ -274,12 +280,23 @@ final class MerianNetworkClient {
 
     private let supabaseUrl = MerianEnvironment.supabaseUrl
     private let supabaseAnonKey = MerianEnvironment.supabaseAnonKey
+    private let speciesDictionaryCacheTTL: TimeInterval = 10 * 60
+    private let speciesDictionaryCacheLimit = 64
+    private let speciesDictionaryCacheLock = NSLock()
+    private var speciesDictionaryCache: [String: SpeciesDictionaryCacheEntry] = [:]
+
+    private struct SpeciesDictionaryCacheEntry {
+        let value: SpeciesDictionaryEntry
+        let storedAt: Date
+    }
 
     // MARK: - URLSession
 
     #if DEBUG
     /// Allows test suites to inject ephemeral configurations (like MockURLProtocol).
-    var overridingSession: URLSession?
+    var overridingSession: URLSession? {
+        didSet { resetSpeciesDictionaryCacheForTesting() }
+    }
     #endif
 
     private var activeSession: URLSession {
@@ -297,7 +314,7 @@ final class MerianNetworkClient {
         config.timeoutIntervalForResource = 90      // Hard cap; Gemini can be slow on bad connections
         config.httpMaximumConnectionsPerHost = 6
         config.httpShouldSetCookies = false         // Auth uses headers, not cookies
-        config.urlCache = nil                       // Edge responses are never cacheable
+        config.urlCache = nil                       // Keep URLCache off; public dictionary pages use scoped memoization.
         return URLSession(configuration: config, delegate: MerianTLSDelegate(), delegateQueue: nil)
     }()
 
@@ -321,6 +338,14 @@ final class MerianNetworkClient {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return decoder
     }
+
+    #if DEBUG
+    func resetSpeciesDictionaryCacheForTesting() {
+        speciesDictionaryCacheLock.lock()
+        speciesDictionaryCache.removeAll()
+        speciesDictionaryCacheLock.unlock()
+    }
+    #endif
 
     private func makeInferenceRequestContext(telemetry: CaptureTelemetry) async -> InferenceRequestContext {
         let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
@@ -913,15 +938,149 @@ final class MerianNetworkClient {
     private func performSpeciesDictionaryRequest(speciesId: String?, scientificName: String?) async throws -> SpeciesDictionaryEntry {
         let functionUrl = try endpointURL("species-dictionary")
         var payload: [String: Any] = [:]
-        if let speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines), !speciesId.isEmpty {
+        let requestedSpeciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        let requestedScientificName = scientificName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+
+        if let cached = cachedSpeciesDictionaryEntry(
+            speciesId: requestedSpeciesId,
+            scientificName: requestedScientificName
+        ) {
+            return cached
+        }
+
+        if let speciesId = requestedSpeciesId {
             payload["species_id"] = speciesId
         }
-        if let scientificName = scientificName?.trimmingCharacters(in: .whitespacesAndNewlines), !scientificName.isEmpty {
+        if let scientificName = requestedScientificName {
             payload["scientific_name"] = scientificName
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        return try makeExploreDecoder().decode(SpeciesDictionaryResponse.self, from: data).data
+        let entry = try makeExploreDecoder().decode(SpeciesDictionaryResponse.self, from: data).data
+        cacheSpeciesDictionaryEntry(
+            entry,
+            requestedSpeciesId: requestedSpeciesId,
+            requestedScientificName: requestedScientificName
+        )
+        return entry
+    }
+
+    private func cachedSpeciesDictionaryEntry(
+        speciesId: String?,
+        scientificName: String?
+    ) -> SpeciesDictionaryEntry? {
+        guard let key = speciesDictionaryCacheKey(
+            speciesId: speciesId,
+            scientificName: scientificName
+        ) else {
+            return nil
+        }
+
+        speciesDictionaryCacheLock.lock()
+        defer { speciesDictionaryCacheLock.unlock() }
+
+        guard let cached = speciesDictionaryCache[key] else { return nil }
+        guard Date().timeIntervalSince(cached.storedAt) < speciesDictionaryCacheTTL else {
+            speciesDictionaryCache.removeValue(forKey: key)
+            return nil
+        }
+
+        return cached.value
+    }
+
+    private func cacheSpeciesDictionaryEntry(
+        _ entry: SpeciesDictionaryEntry,
+        requestedSpeciesId: String?,
+        requestedScientificName: String?
+    ) {
+        let keys = speciesDictionaryCacheKeys(
+            for: entry,
+            requestedSpeciesId: requestedSpeciesId,
+            requestedScientificName: requestedScientificName
+        )
+        guard !keys.isEmpty else { return }
+
+        let now = Date()
+        speciesDictionaryCacheLock.lock()
+        defer { speciesDictionaryCacheLock.unlock() }
+
+        for key in keys {
+            speciesDictionaryCache[key] = SpeciesDictionaryCacheEntry(
+                value: entry,
+                storedAt: now
+            )
+        }
+
+        if speciesDictionaryCache.count > speciesDictionaryCacheLimit {
+            let expiredKeys = speciesDictionaryCache
+                .filter { now.timeIntervalSince($0.value.storedAt) >= speciesDictionaryCacheTTL }
+                .map(\.key)
+            for key in expiredKeys {
+                speciesDictionaryCache.removeValue(forKey: key)
+            }
+
+            if speciesDictionaryCache.count > speciesDictionaryCacheLimit {
+                let currentOverflowCount = speciesDictionaryCache.count - speciesDictionaryCacheLimit
+                let keysToRemove = speciesDictionaryCache
+                    .sorted { $0.value.storedAt < $1.value.storedAt }
+                    .prefix(currentOverflowCount)
+                    .map(\.key)
+                for key in keysToRemove {
+                    speciesDictionaryCache.removeValue(forKey: key)
+                }
+            }
+        }
+    }
+
+    private func speciesDictionaryCacheKey(
+        speciesId: String?,
+        scientificName: String?
+    ) -> String? {
+        if let speciesId = normalizedSpeciesDictionaryId(speciesId) {
+            return "id:\(speciesId)"
+        }
+        if let scientificName = normalizedSpeciesDictionaryName(scientificName) {
+            return "name:\(scientificName)"
+        }
+        return nil
+    }
+
+    private func speciesDictionaryCacheKeys(
+        for entry: SpeciesDictionaryEntry,
+        requestedSpeciesId: String?,
+        requestedScientificName: String?
+    ) -> Set<String> {
+        var keys = Set<String>()
+        if let requestedSpeciesId = normalizedSpeciesDictionaryId(requestedSpeciesId) {
+            keys.insert("id:\(requestedSpeciesId)")
+        }
+        if let entrySpeciesId = normalizedSpeciesDictionaryId(entry.id) {
+            keys.insert("id:\(entrySpeciesId)")
+        }
+        if let requestedScientificName = normalizedSpeciesDictionaryName(requestedScientificName) {
+            keys.insert("name:\(requestedScientificName)")
+        }
+        if let entryScientificName = normalizedSpeciesDictionaryName(entry.scientificName) {
+            keys.insert("name:\(entryScientificName)")
+        }
+        return keys
+    }
+
+    private func normalizedSpeciesDictionaryId(_ value: String?) -> String? {
+        value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .nilIfEmpty
+    }
+
+    private func normalizedSpeciesDictionaryName(_ value: String?) -> String? {
+        value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .lowercased()
+            .nilIfEmpty
     }
 
     func getExploreAuthorProfile(authorUserId: String, previewLimit: Int = 9) async throws -> ExploreAuthorProfile {

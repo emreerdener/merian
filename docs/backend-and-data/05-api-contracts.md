@@ -331,6 +331,13 @@ Current response shape:
 
 `schema_version = 1` marks the current public species contract shared by `/species-dictionary`, Explore detail similar species, and the future web species surface. Within this version, new response keys must be additive, existing nullable fields may remain `null`, and clients should ignore unknown keys. A versioned endpoint path should be introduced only for a breaking change such as removing/renaming fields or changing a field's type.
 
+Caching:
+
+- `200 OK` responses include `Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800` and `Vary: Accept-Encoding`.
+- `400`, `404`, and `500` responses do not include public cache headers.
+- iOS adds a 10-minute, 64-key in-memory memo cache in `MerianNetworkClient`, keyed by normalized `species_id` and scientific name. The cache is route-local only and never persists species pages to disk.
+- Refreshed dictionary rows become visible after the iOS memo TTL and public HTTP freshness window expire. Future public web curation flows that require immediate visibility should add CDN/cache purge tooling to the write path.
+
 Name and imagery mapping:
 
 - `common_name` resolves from `common_names.en`, then the first non-empty `common_names` value, then `scientific_name`.

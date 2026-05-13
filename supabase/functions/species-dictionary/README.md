@@ -1,6 +1,8 @@
 # Species Dictionary
 
-Returns public species-level dictionary data for the standalone species dictionary page. The endpoint is intentionally shared-safe for a future web frontend and must not expose user-specific scan data.
+Returns public species-level dictionary data for the standalone species
+dictionary page. The endpoint is intentionally shared-safe for a future web
+frontend and must not expose user-specific scan data.
 
 ## Request
 
@@ -77,9 +79,24 @@ Invalid bodies return `400`.
 }
 ```
 
-`schema_version = 1` is the current public species contract. New keys may be added inside this version, nullable fields may remain `null`, and clients must ignore unknown keys. Breaking changes require a new versioned contract rather than silently changing this shape.
+`schema_version = 1` is the current public species contract. New keys may be
+added inside this version, nullable fields may remain `null`, and clients must
+ignore unknown keys. Breaking changes require a new versioned contract rather
+than silently changing this shape.
 
-If no `species_dictionary` row exists for the scientific name, the function returns:
+Successful `200 OK` responses include public cache headers:
+
+```http
+Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800
+Vary: Accept-Encoding
+```
+
+`400`, `404`, and `500` responses do not include those cache headers. Missing
+rows and transient failures must be able to recover as soon as the backing
+dictionary data is created or repaired.
+
+If no `species_dictionary` row exists for the scientific name, the function
+returns:
 
 ```json
 { "error": "Species not found" }
@@ -103,11 +120,16 @@ Lookalike rows:
 - `public.species_lookalikes`
 - hydrated through `species_dictionary!lookalike_id`
 
-The FK hint is required because `species_lookalikes` has both `species_id` and `lookalike_id` foreign keys pointing at `species_dictionary`.
+The FK hint is required because `species_lookalikes` has both `species_id` and
+`lookalike_id` foreign keys pointing at `species_dictionary`.
 
 ## Mapping Rules
 
-The Deno mapping lives in `supabase/functions/_shared/publicSpeciesProjection.ts`. Explore detail similar species use matching SQL helpers so common-name fallback, reference-image fallback, and private-field exclusions stay aligned across public species surfaces.
+The Deno mapping lives in
+`supabase/functions/_shared/publicSpeciesProjection.ts`. Explore detail similar
+species use matching SQL helpers so common-name fallback, reference-image
+fallback, and private-field exclusions stay aligned across public species
+surfaces.
 
 Common name fallback:
 
@@ -119,18 +141,25 @@ Reference images:
 
 - Prefer ordered rows from `species_reference_images`.
 - Include optional `license`, `attribution`, `width`, and `height` when present.
-- If no normalized rows exist, split comma-separated `species_dictionary.reference_image_url`.
+- If no normalized rows exist, split comma-separated
+  `species_dictionary.reference_image_url`.
 - Trim and dedupe URLs.
 - Map each URL to `{ url, source }` plus any available provenance metadata.
 - Wikimedia/Wikipedia hosts map to `wikipedia`.
-- If `wikipedia_url` exists, the first unresolved image is treated as `wikipedia`.
+- If `wikipedia_url` exists, the first unresolved image is treated as
+  `wikipedia`.
 - Remaining unresolved images map to `gbif`.
 
-Alternative common names and group tags are trimmed and deduped before returning.
-Hydrated lookalikes include `species_id` for canonical dictionary routing.
-Lookalike relation metadata is additive and optional; older clients can ignore it. Public readers omit rows whose `review_status` is `rejected`.
+Alternative common names and group tags are trimmed and deduped before
+returning. Hydrated lookalikes include `species_id` for canonical dictionary
+routing. Lookalike relation metadata is additive and optional; older clients can
+ignore it. Public readers omit rows whose `review_status` is `rejected`.
 
-Provenance and refresh metadata are stored separately in `public.species_content_provenance`. The public response does not include those fields in V1; refresh workers should consume `public.get_species_content_refresh_queue(...)` when they need stale or low-confidence content.
+Provenance and refresh metadata are stored separately in
+`public.species_content_provenance`. The public response does not include those
+fields in V1; refresh workers should consume
+`public.get_species_content_refresh_queue(...)` when they need stale or
+low-confidence content.
 
 ## Privacy Contract
 
@@ -155,11 +184,13 @@ The response is public species dictionary data only. Do not add:
 verify_jwt = false
 ```
 
-The function does not call `withEdgeHandler` or `requireAuth` because the endpoint is intentionally public. It uses the service role key internally only to read the safe projected fields listed above.
+The function does not call `withEdgeHandler` or `requireAuth` because the
+endpoint is intentionally public. It uses the service role key internally only
+to read the safe projected fields listed above.
 
 ## Local Verification
 
 ```sh
-deno check supabase/functions/_shared/publicSpeciesProjection.ts supabase/functions/_shared/speciesContentProvenance.ts supabase/functions/_shared/identify/db.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
-deno test supabase/functions/_shared/publicSpeciesProjection_test.ts supabase/functions/_shared/speciesContentProvenance_test.ts supabase/functions/_shared/identify/db_test.ts supabase/functions/species-dictionary/db.test.ts
+deno check supabase/functions/_shared/http.ts supabase/functions/_shared/publicSpeciesProjection.ts supabase/functions/_shared/speciesContentProvenance.ts supabase/functions/_shared/identify/db.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
+deno test supabase/functions/_shared/http_test.ts supabase/functions/_shared/publicSpeciesProjection_test.ts supabase/functions/_shared/speciesContentProvenance_test.ts supabase/functions/_shared/identify/db_test.ts supabase/functions/species-dictionary/db.test.ts
 ```
