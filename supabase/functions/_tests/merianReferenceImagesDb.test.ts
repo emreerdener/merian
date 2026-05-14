@@ -128,7 +128,7 @@ Deno.test("Merian reference images DB - promotes qualifying published media with
       });
 
       const summaryResult = await client.queryObject<RefreshSummary>(
-        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE)",
+        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE, 0.95)",
       );
       const summary = summaryResult.rows[0];
       assertExists(summary);
@@ -180,12 +180,14 @@ Deno.test("Merian reference images DB - promotes qualifying published media with
         total: number;
         promoted: number;
         active: number;
+        confirmed_sources: number;
       }>(
         `
           SELECT
             COUNT(*)::INTEGER AS total,
             COUNT(*) FILTER (WHERE is_promoted)::INTEGER AS promoted,
-            COUNT(*) FILTER (WHERE disqualified_at IS NULL)::INTEGER AS active
+            COUNT(*) FILTER (WHERE disqualified_at IS NULL)::INTEGER AS active,
+            COUNT(*) FILTER (WHERE species_confidence_source = 'confirmed_species')::INTEGER AS confirmed_sources
           FROM public.species_reference_image_merian_sources
           WHERE species_id = $1
         `,
@@ -195,7 +197,177 @@ Deno.test("Merian reference images DB - promotes qualifying published media with
         total: 9,
         promoted: 8,
         active: 9,
+        confirmed_sources: 9,
       });
+    },
+  );
+});
+
+Deno.test("Merian reference images DB - requires high species confidence and image quality", async () => {
+  await withExploreDbTest(
+    "merianReferenceImagesDb.confidenceGate.test",
+    async (client: Client) => {
+      const ownerId = crypto.randomUUID();
+      const aiSpeciesId = crypto.randomUUID();
+      const confirmedSpeciesId = crypto.randomUUID();
+      const highConfidenceScanId = crypto.randomUUID();
+      const lowConfidenceScanId = crypto.randomUUID();
+      const lowQualityScanId = crypto.randomUUID();
+      const confirmedScanId = crypto.randomUUID();
+
+      await insertUser(client, ownerId, "Confidence Owner");
+      await insertSpecies(client, aiSpeciesId, "Rosa confidenta");
+      await insertSpecies(client, confirmedSpeciesId, "Rosa verifieda");
+
+      await insertScan(client, {
+        id: highConfidenceScanId,
+        userId: ownerId,
+        speciesId: aiSpeciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "open",
+        imageUrl: "https://media.merian.app/public_uploads/pro/high-both.webp",
+        aiConfidenceScore: 0.96,
+        imageQualityScore: 92,
+      });
+      await insertExplorePost(client, {
+        id: crypto.randomUUID(),
+        userId: ownerId,
+        scanId: highConfidenceScanId,
+      });
+
+      await insertScan(client, {
+        id: lowConfidenceScanId,
+        userId: ownerId,
+        speciesId: aiSpeciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "open",
+        imageUrl:
+          "https://media.merian.app/public_uploads/pro/low-confidence.webp",
+        aiConfidenceScore: 0.94,
+        imageQualityScore: 99,
+      });
+      await insertExplorePost(client, {
+        id: crypto.randomUUID(),
+        userId: ownerId,
+        scanId: lowConfidenceScanId,
+      });
+
+      await insertScan(client, {
+        id: lowQualityScanId,
+        userId: ownerId,
+        speciesId: aiSpeciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "open",
+        imageUrl:
+          "https://media.merian.app/public_uploads/pro/low-quality.webp",
+        aiConfidenceScore: 0.99,
+        imageQualityScore: 89,
+      });
+      await insertExplorePost(client, {
+        id: crypto.randomUUID(),
+        userId: ownerId,
+        scanId: lowQualityScanId,
+      });
+
+      await insertScan(client, {
+        id: confirmedScanId,
+        userId: ownerId,
+        speciesId: aiSpeciesId,
+        confirmedSpeciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "open",
+        imageUrl:
+          "https://media.merian.app/public_uploads/pro/confirmed-low-ai.webp",
+        aiConfidenceScore: 0.42,
+        imageQualityScore: 93,
+      });
+      await insertExplorePost(client, {
+        id: crypto.randomUUID(),
+        userId: ownerId,
+        scanId: confirmedScanId,
+      });
+
+      const dryRun = await client.queryObject<RefreshSummary>(
+        "SELECT * FROM public.refresh_merian_reference_images(90, 8, TRUE, 0.95)",
+      );
+      assertEquals(dryRun.rows[0].candidate_count, 2);
+      assertEquals(dryRun.rows[0].promoted_count, 2);
+      assertEquals(dryRun.rows[0].species_count, 2);
+      assertEquals(dryRun.rows[0].dry_run, true);
+
+      const summary = await client.queryObject<RefreshSummary>(
+        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE, 0.95)",
+      );
+      assertEquals(summary.rows[0].candidate_count, 2);
+      assertEquals(summary.rows[0].promoted_count, 2);
+
+      const publicRows = await client.queryObject<ReferenceImageRow>(
+        `
+          SELECT species_id, url, source, license, attribution, sort_order
+          FROM public.species_reference_images
+          WHERE species_id IN ($1, $2)
+          ORDER BY species_id, sort_order
+        `,
+        [aiSpeciesId, confirmedSpeciesId],
+      );
+      assertEquals(
+        publicRows.rows.map((row) => row.url).sort(),
+        [
+          "https://media.merian.app/public_uploads/pro/confirmed-low-ai.webp",
+          "https://media.merian.app/public_uploads/pro/high-both.webp",
+        ],
+      );
+
+      const provenance = await client.queryObject<{
+        image_url: string;
+        species_confidence_score: number;
+        species_confidence_source: string;
+      }>(
+        `
+          SELECT image_url, species_confidence_score, species_confidence_source
+          FROM public.species_reference_image_merian_sources
+          ORDER BY image_url
+        `,
+      );
+      assertEquals(provenance.rows, [
+        {
+          image_url:
+            "https://media.merian.app/public_uploads/pro/confirmed-low-ai.webp",
+          species_confidence_score: 0.42,
+          species_confidence_source: "confirmed_species",
+        },
+        {
+          image_url:
+            "https://media.merian.app/public_uploads/pro/high-both.webp",
+          species_confidence_score: 0.96,
+          species_confidence_source: "ai",
+        },
+      ]);
+
+      await client.queryArray(
+        "UPDATE public.scans SET ai_confidence_score = 0.9 WHERE id = $1",
+        [highConfidenceScanId],
+      );
+
+      const removal = await client.queryObject<RefreshSummary>(
+        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE, 0.95)",
+      );
+      assertEquals(removal.rows[0].removed_count, 1);
+
+      const afterConfidenceDrop = await client.queryObject<{ count: number }>(
+        `
+          SELECT COUNT(*)::INTEGER AS count
+          FROM public.species_reference_images
+          WHERE species_id = $1
+            AND source = 'merian'
+        `,
+        [aiSpeciesId],
+      );
+      assertEquals(afterConfidenceDrop.rows[0].count, 0);
     },
   );
 });
@@ -223,6 +395,7 @@ Deno.test("Merian reference images DB - mirrors unshare and external refresh pre
         longitude: -97.7431,
         geoprivacy: "open",
         imageUrls: merianUrls,
+        aiConfidenceScore: 0.97,
         imageQualityScore: 94,
       });
       await insertExplorePost(client, {
@@ -248,7 +421,7 @@ Deno.test("Merian reference images DB - mirrors unshare and external refresh pre
       );
 
       await client.queryObject<RefreshSummary>(
-        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE)",
+        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE, 0.95)",
       );
 
       const orderedBeforeExternalRefresh = await client.queryObject<
@@ -309,7 +482,7 @@ Deno.test("Merian reference images DB - mirrors unshare and external refresh pre
       );
 
       const removal = await client.queryObject<RefreshSummary>(
-        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE)",
+        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE, 0.95)",
       );
       assertEquals(removal.rows[0].removed_count, 2);
 

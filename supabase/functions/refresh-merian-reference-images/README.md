@@ -14,12 +14,14 @@ All fields are optional:
 ```json
 {
   "quality_threshold": 90,
+  "species_confidence_threshold": 0.95,
   "per_species_limit": 8,
   "dry_run": false
 }
 ```
 
 - `quality_threshold`: integer `0...100`, default `90`.
+- `species_confidence_threshold`: number `0...1`, default `0.95`.
 - `per_species_limit`: integer `1...50`, default `8`.
 - `dry_run`: boolean, default `false`.
 
@@ -30,8 +32,10 @@ All fields are optional:
   species present.
 - Uses `COALESCE(scans.confirmed_species_id, scans.species_id)`.
 - Unnests all non-empty `scans.image_storage_urls`.
-- Dedupes by `(species_id, image_url)`, preferring higher quality score and then
-  newer `shared_at`.
+- Requires `image_quality_score >= 90` and either
+  `ai_confidence_score >= 0.95` or a non-null `confirmed_species_id` by default.
+- Dedupes by `(species_id, image_url)`, preferring confirmed-species provenance,
+  higher confidence, higher quality score, and then newer `shared_at`.
 - Promotes up to 8 Merian images per species by default.
 - Writes public rows with:
   - `source = "merian"`
@@ -40,7 +44,9 @@ All fields are optional:
 - Removes Merian public rows when their source post/media is no longer eligible.
 - Keeps source scan/post/user provenance in
   `species_reference_image_merian_sources`, which has no anon/authenticated RLS
-  read policy.
+  read policy. The provenance also stores the raw AI confidence score and
+  whether the candidate qualified through AI confidence or confirmed-species
+  resolution.
 
 ## Response
 
@@ -59,5 +65,5 @@ All fields are optional:
 
 ```bash
 deno check supabase/functions/refresh-merian-reference-images/index.ts supabase/functions/refresh-merian-reference-images/db.ts
-deno test supabase/functions/refresh-merian-reference-images/db.test.ts supabase/functions/_tests/merianReferenceImagesDb.test.ts
+deno test --allow-env --allow-net supabase/functions/refresh-merian-reference-images/db.test.ts supabase/functions/_tests/merianReferenceImagesDb.test.ts
 ```

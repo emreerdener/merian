@@ -475,9 +475,10 @@ guaranteed by AST regression guards.
 - **Scheduled Merian reference-image worker**:
   `refresh-merian-reference-images/db.test.ts` verifies request validation and
   RPC invocation; `_tests/merianReferenceImagesDb.test.ts` verifies threshold
-  filtering, all-photo candidate expansion, per-species caps, confirmed-species
-  resolution, Merian-first ordering, source visibility removal, and preservation
-  across external GBIF/Wikipedia refreshes.
+  filtering for both image quality and species confidence, all-photo candidate
+  expansion, per-species caps, confirmed-species resolution, Merian-first
+  ordering, source visibility removal, and preservation across external
+  GBIF/Wikipedia refreshes.
 - **Public dictionary cache headers**: `_shared/http_test.ts` verifies
   `jsonResponse(...)` can merge endpoint-specific cache headers without dropping
   standard JSON/CORS headers. `/species-dictionary` uses this path for cacheable

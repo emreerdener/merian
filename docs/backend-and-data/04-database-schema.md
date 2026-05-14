@@ -180,11 +180,14 @@ historical scan backfills.
 ### `species_reference_image_merian_sources`
 
 Private provenance/candidate table for Merian-sourced reference imagery. Added
-in migration `20260513080000_add_merian_reference_image_refresh.sql`.
+in migration `20260513080000_add_merian_reference_image_refresh.sql`; confidence
+provenance fields were added in
+`20260514110000_add_species_confidence_gate_to_merian_reference_images.sql`.
 
 - Stores source `species_id`, `explore_post_id`, `scan_id`, `user_id`, image URL
-  and index, scan-level `image_quality_score`, author attribution snapshot, and
-  qualification/promotion timestamps.
+  and index, scan-level `image_quality_score`, raw `ai_confidence_score`
+  snapshot, confidence qualification source (`ai` or `confirmed_species`),
+  author attribution snapshot, and qualification/promotion timestamps.
 - `reference_image_id` links to the public `species_reference_images` row when
   a candidate is currently promoted.
 - `(species_id, image_url)` is unique so duplicate Explore media for the same
@@ -883,13 +886,15 @@ client contract.
   unlicensed rows, preserves existing license/attribution/size metadata for
   matching URLs, demotes curated licensed extras behind freshly verified rows,
   and never deletes, recategorizes, or demotes `source = 'merian'` rows.
-- `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 90, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE)`:
+- `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 90, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE, p_species_confidence_threshold DOUBLE PRECISION DEFAULT 0.95)`:
   Internal service-role helper used by `/refresh-merian-reference-images`.
   It selects currently visible Explore posts, unnests all non-empty
   `scans.image_storage_urls`, requires `image_quality_score >= 90` by default,
-  resolves species via `COALESCE(confirmed_species_id, species_id)`, dedupes by
-  `(species_id, image_url)`, promotes up to 8 Merian images per species, and
-  removes Merian public rows whose source content is no longer visible.
+  requires `ai_confidence_score >= 0.95` unless `confirmed_species_id` is
+  present, resolves species via `COALESCE(confirmed_species_id, species_id)`,
+  dedupes by `(species_id, image_url)`, promotes up to 8 Merian images per
+  species, and removes Merian public rows whose source content is no longer
+  visible.
 - `public.can_view_explore_author_profile(self_id UUID, target_author_user_id UUID)`:
   Returns whether the target author has a visible Explore profile for the
   requester. `set-user-follow` uses this before inserting follows so following
@@ -990,6 +995,17 @@ Adds `merian` as a reference-image source, the private
 the `refresh_merian_reference_images_hourly` cron job. The job posts to
 `/functions/v1/refresh-merian-reference-images` at minute 37 every hour with
 `{ "quality_threshold": 90, "per_species_limit": 8 }`.
+
+### `20260514110000_add_species_confidence_gate_to_merian_reference_images.sql`
+
+Adds private species-confidence provenance fields to
+`species_reference_image_merian_sources`, replaces
+`public.refresh_merian_reference_images(...)` with a confidence-aware helper,
+and reschedules the hourly cron payload with
+`{ "quality_threshold": 90, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
+AI-resolved scans must meet both the image-quality and species-confidence gates;
+confirmed-species scans may qualify through `confirmed_species_id` while still
+recording their raw AI confidence privately.
 
 ## SwiftData Schema (Local Offline Queue)
 

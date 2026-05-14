@@ -342,14 +342,16 @@ Provenance:
   `public.replace_species_reference_images(...)`, preserving existing
   license/attribution metadata for matching URLs and preserving Merian rows.
 - `refresh-merian-reference-images` runs hourly as a separate service-role cron
-  worker. It promotes published Explore media with `image_quality_score >= 90`,
-  stores private source provenance in `species_reference_image_merian_sources`,
-  and removes public Merian rows when the source Explore post/media stops being
-  visible.
+  worker. It promotes published Explore media with `image_quality_score >= 90`
+  and either `ai_confidence_score >= 0.95` or a resolved
+  `confirmed_species_id`, stores private source/confidence provenance in
+  `species_reference_image_merian_sources`, and removes public Merian rows when
+  the source Explore post/media stops being visible.
 
 Manual acceptance for Merian reference images:
 
-1. Publish an Explore post backed by a scan with `image_quality_score >= 90`.
+1. Publish an Explore post backed by a scan with `image_quality_score >= 90` and
+   either `ai_confidence_score >= 0.95` or a confirmed species.
 2. Run or wait for `refresh-merian-reference-images`.
 3. Open the species dictionary page and verify Merian images appear first with
    author attribution.

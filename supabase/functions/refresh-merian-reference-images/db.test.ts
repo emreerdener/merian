@@ -9,28 +9,33 @@ Deno.test("refresh merian reference images - parses defaults and custom request"
   const defaults = parseMerianReferenceImageRefreshRequest({});
   assertEquals(defaults.request, {
     qualityThreshold: 90,
+    speciesConfidenceThreshold: 0.95,
     perSpeciesLimit: 8,
     dryRun: false,
   });
 
   const custom = parseMerianReferenceImageRefreshRequest({
     quality_threshold: 95,
+    species_confidence_threshold: 0.98,
     per_species_limit: 4,
     dry_run: true,
   });
   assertEquals(custom.request, {
     qualityThreshold: 95,
+    speciesConfidenceThreshold: 0.98,
     perSpeciesLimit: 4,
     dryRun: true,
   });
 
   const camelCase = parseMerianReferenceImageRefreshRequest({
     qualityThreshold: 91,
+    speciesConfidenceThreshold: 0.97,
     perSpeciesLimit: 12,
     dryRun: true,
   });
   assertEquals(camelCase.request, {
     qualityThreshold: 91,
+    speciesConfidenceThreshold: 0.97,
     perSpeciesLimit: 12,
     dryRun: true,
   });
@@ -41,6 +46,15 @@ Deno.test("refresh merian reference images - validates request bounds", () => {
     parseMerianReferenceImageRefreshRequest({ quality_threshold: 101 }),
     {
       error: "quality_threshold must be an integer from 0 to 100.",
+      status: 400,
+    },
+  );
+  assertEquals(
+    parseMerianReferenceImageRefreshRequest({
+      species_confidence_threshold: 1.1,
+    }),
+    {
+      error: "species_confidence_threshold must be a number from 0 to 1.",
       status: 400,
     },
   );
@@ -77,6 +91,7 @@ Deno.test("refresh merian reference images - calls transactional RPC", async () 
 
   const result = await runMerianReferenceImageRefresh({
     qualityThreshold: 90,
+    speciesConfidenceThreshold: 0.95,
     perSpeciesLimit: 8,
     dryRun: false,
   }, supabase);
@@ -87,6 +102,7 @@ Deno.test("refresh merian reference images - calls transactional RPC", async () 
       p_quality_threshold: 90,
       p_per_species_limit: 8,
       p_dry_run: false,
+      p_species_confidence_threshold: 0.95,
     },
   }]);
   assertEquals(result, {

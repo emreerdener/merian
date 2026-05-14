@@ -372,16 +372,19 @@ Key rules:
   request must include `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and
   is checked with `timingSafeCompare`.
 - The scheduled job `refresh_merian_reference_images_hourly` runs at minute 37
-  every hour with `{ "quality_threshold": 90, "per_species_limit": 8 }`.
+  every hour with
+  `{ "quality_threshold": 90, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
 - Selection happens transactionally in
   `public.refresh_merian_reference_images(...)`: visible Explore posts only,
   all non-empty image URLs from qualifying scans, `image_quality_score >= 90`,
+  `ai_confidence_score >= 0.95` unless `confirmed_species_id` is present,
   species resolution through `COALESCE(confirmed_species_id, species_id)`, and
   up to 8 promoted images per species.
 - Public rows store only `url`, `source = "merian"`,
   `license = "Used with permission via Merian"`, and the public author label in
   `attribution`. Source scan/post/user IDs remain in the private
-  `species_reference_image_merian_sources` table.
+  `species_reference_image_merian_sources` table along with the private
+  confidence/provenance snapshot used for promotion.
 - If an Explore post is unshared, media is cleared, geoprivacy becomes private,
   the scan is tombstoned, or the author is shadowbanned, the next refresh removes
   the corresponding Merian public reference image.

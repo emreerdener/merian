@@ -183,6 +183,9 @@ keys remain skipped until curation/model refresh tooling exists.
 Merian source scan/post/user provenance is stored privately in
 `public.species_reference_image_merian_sources`; the public dictionary response
 exposes only URL, source, license, attribution, and optional image dimensions.
+Merian images qualify only when the source scan is publicly visible, has a high
+image-quality score, and either carries high AI species confidence or a resolved
+confirmed species.
 
 ## Privacy Contract
 

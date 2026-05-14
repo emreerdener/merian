@@ -2506,7 +2506,11 @@ into public species dictionary galleries. It is invoked hourly by
 Scheduled call:
 
 ```json
-{ "quality_threshold": 90, "per_species_limit": 8 }
+{
+  "quality_threshold": 90,
+  "species_confidence_threshold": 0.95,
+  "per_species_limit": 8
+}
 ```
 
 Manual service-role calls may also include:
@@ -2514,6 +2518,7 @@ Manual service-role calls may also include:
 ```json
 {
   "quality_threshold": 95,
+  "species_confidence_threshold": 0.98,
   "per_species_limit": 4,
   "dry_run": true
 }
@@ -2534,13 +2539,15 @@ Manual service-role calls may also include:
    non-tombstoned, media present, non-private geoprivacy, non-shadowbanned
    author, and resolved species present.
 3. It unnests all non-empty `scans.image_storage_urls`, requires
-   `image_quality_score >= 90` by default, dedupes by `(species_id, image_url)`,
-   and promotes up to 8 images per species.
+   `image_quality_score >= 90` and `ai_confidence_score >= 0.95` by default
+   unless `confirmed_species_id` is present, dedupes by
+   `(species_id, image_url)`, and promotes up to 8 images per species.
 4. Public rows use `source = "merian"`,
    `license = "Used with permission via Merian"`, and
    `attribution = users.public_author_name`.
 5. Provenance remains private in `species_reference_image_merian_sources`; no
-   public species API exposes source scan, post, or user IDs.
+   public species API exposes source scan, post, user IDs, confidence score, or
+   confidence qualification source.
 6. Rows are removed on the next refresh when the source Explore post/media is no
    longer publicly visible.
 

@@ -60,6 +60,9 @@ serve(async (req: Request) => {
       removed_count: result.removed_count,
       species_count: result.species_count,
       dry_run: result.dry_run,
+      quality_threshold: parsedRequest.request.qualityThreshold,
+      species_confidence_threshold:
+        parsedRequest.request.speciesConfidenceThreshold,
     }));
 
     return jsonResponse({ success: true, ...result });

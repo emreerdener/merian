@@ -1,11 +1,13 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 export const DEFAULT_QUALITY_THRESHOLD = 90;
+export const DEFAULT_SPECIES_CONFIDENCE_THRESHOLD = 0.95;
 export const DEFAULT_PER_SPECIES_LIMIT = 8;
 export const MAX_PER_SPECIES_LIMIT = 50;
 
 export interface MerianReferenceImageRefreshRequest {
   qualityThreshold: number;
+  speciesConfidenceThreshold: number;
   perSpeciesLimit: number;
   dryRun: boolean;
 }
@@ -32,6 +34,11 @@ export function parseMerianReferenceImageRefreshRequest(
   );
   if (qualityResult.error) return qualityResult;
 
+  const speciesConfidenceResult = parseSpeciesConfidenceThreshold(
+    body.species_confidence_threshold ?? body.speciesConfidenceThreshold,
+  );
+  if (speciesConfidenceResult.error) return speciesConfidenceResult;
+
   const perSpeciesResult = parsePerSpeciesLimit(
     body.per_species_limit ?? body.perSpeciesLimit,
   );
@@ -44,6 +51,9 @@ export function parseMerianReferenceImageRefreshRequest(
     request: {
       qualityThreshold: qualityResult.qualityThreshold ??
         DEFAULT_QUALITY_THRESHOLD,
+      speciesConfidenceThreshold:
+        speciesConfidenceResult.speciesConfidenceThreshold ??
+          DEFAULT_SPECIES_CONFIDENCE_THRESHOLD,
       perSpeciesLimit: perSpeciesResult.perSpeciesLimit ??
         DEFAULT_PER_SPECIES_LIMIT,
       dryRun: dryRunResult.dryRun ?? false,
@@ -61,6 +71,7 @@ export async function runMerianReferenceImageRefresh(
       p_quality_threshold: request.qualityThreshold,
       p_per_species_limit: request.perSpeciesLimit,
       p_dry_run: request.dryRun,
+      p_species_confidence_threshold: request.speciesConfidenceThreshold,
     },
   );
   if (error) {
@@ -115,6 +126,28 @@ function parseQualityThreshold(
     };
   }
   return { qualityThreshold: value };
+}
+
+function parseSpeciesConfidenceThreshold(
+  value: unknown,
+): MerianReferenceImageRefreshRequestResult & {
+  speciesConfidenceThreshold?: number;
+} {
+  if (value === undefined || value === null) {
+    return {
+      speciesConfidenceThreshold: DEFAULT_SPECIES_CONFIDENCE_THRESHOLD,
+    };
+  }
+  if (
+    typeof value !== "number" || !Number.isFinite(value) || value < 0 ||
+    value > 1
+  ) {
+    return {
+      error: "species_confidence_threshold must be a number from 0 to 1.",
+      status: 400,
+    };
+  }
+  return { speciesConfidenceThreshold: value };
 }
 
 function parsePerSpeciesLimit(
