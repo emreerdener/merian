@@ -392,6 +392,7 @@ struct InsightSheetViewModelTests {
 
         let analyzingPageIDs = CarouselPageBuilder.buildPages(
             for: viewModel.activeMedia,
+            referenceWikipediaUrl: nil,
             onImageFailure: { _ in },
             onDescriptionTap: nil
         ).map(\.id)
@@ -414,11 +415,29 @@ struct InsightSheetViewModelTests {
 
         let completedPageIDs = CarouselPageBuilder.buildPages(
             for: viewModel.activeMedia,
+            referenceWikipediaUrl: nil,
             onImageFailure: { _ in },
             onDescriptionTap: nil
         ).map(\.id)
 
         #expect(viewModel.persistentScanId == scanId, "The carousel key should remain stable across the analysis-to-result handoff")
         #expect(completedPageIDs == analyzingPageIDs, "Audio and mixed-media page identity must remain unchanged after inference finishes")
+    }
+
+    @Test func testReferenceCarouselPagesCarryAttributionLabels() {
+        let media = ActiveScanMedia(referenceState: .loaded([
+            "https://media.merian.app/reference.webp",
+            "https://upload.wikimedia.org/species.jpg",
+            "https://static.inaturalist.org/photos/1/original.jpg"
+        ]))
+
+        let pages = CarouselPageBuilder.buildPages(
+            for: media,
+            referenceWikipediaUrl: "https://en.wikipedia.org/wiki/Test_species",
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+
+        #expect(pages.map(\.referenceAttributionLabel) == ["Merian", "Wikipedia", "GBIF"])
     }
 }

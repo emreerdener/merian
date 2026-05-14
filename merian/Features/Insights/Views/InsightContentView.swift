@@ -38,6 +38,7 @@ struct InsightContentView: View {
                     ImagesCarousel(
                         scanId: activeQueuedContext?.id ?? viewModel.persistentScanId,
                         activeMedia: activeMedia,
+                        referenceWikipediaUrl: inferenceEngine.speciesData?.wikipediaUrl,
                         isProcessing: activeIsProcessing,
                         onImageFailure: { path in
                             guard activeQueuedContext == nil else { return }

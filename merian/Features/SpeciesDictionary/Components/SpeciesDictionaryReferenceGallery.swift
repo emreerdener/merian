@@ -39,24 +39,13 @@ struct SpeciesDictionaryReferenceGallery: View {
                         width: imageSize,
                         height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer
                     )
+                    .overlay(alignment: .bottom) { paginationDots }
                     .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
                     .ignoresSafeArea(.all, edges: .top)
             }
             .frame(height: imageSize)
             .ignoresSafeArea(.all, edges: .top)
             .zIndex(0)
-
-            if images.count > 1 {
-                HStack(spacing: 8) {
-                    ForEach(images) { image in
-                        Circle()
-                            .fill(image.id == currentImageId ? Color.primary : Color.primary.opacity(0.18))
-                            .frame(width: 7, height: 7)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 16)
-            }
 
             if let attributionCaption = currentImage?.attributionCaption {
                 Text(attributionCaption)
@@ -70,6 +59,31 @@ struct SpeciesDictionaryReferenceGallery: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var paginationDots: some View {
+        if images.count > 1 {
+            HStack(spacing: 8) {
+                ForEach(images) { image in
+                    Circle()
+                        .fill(image.id == currentImageId ? Color.white : Color.white.opacity(0.4))
+                        .frame(width: 6, height: 6)
+                        .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.black.opacity(0.2))
+            .background(.ultraThinMaterial, in: Capsule())
+            .padding(.bottom, 14)
+            .allowsHitTesting(false)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedImageId)
+            .transition(.asymmetric(
+                insertion: .opacity.combined(with: .move(edge: .bottom)),
+                removal: .opacity
+            ))
+        }
     }
 
     @ViewBuilder

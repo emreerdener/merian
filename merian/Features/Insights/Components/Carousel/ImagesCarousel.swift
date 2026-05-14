@@ -3,6 +3,7 @@ import SwiftUI
 struct CarouselPageBuilder {
     static func buildPages(
         for activeMedia: ActiveScanMedia,
+        referenceWikipediaUrl: String?,
         onImageFailure: @escaping (String) -> Void,
         onDescriptionTap: (() -> Void)?
     ) -> [CarouselPageItem] {
@@ -51,14 +52,19 @@ struct CarouselPageBuilder {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             )))
         case .loaded(let urls):
-            for urlString in urls {
+            for (index, urlString) in urls.enumerated() {
+                let source = CarouselReferenceImageSource.source(
+                    for: urlString,
+                    wikipediaUrl: referenceWikipediaUrl,
+                    index: index
+                )
                 pages.append(CarouselPageItem(id: "reference-\(urlString)", mediaKind: .visual, view: AnyView(
                     AsyncLocalImageView(
                         path: nil,
                         fallbackImageUrl: urlString,
                         onImageLoadFailed: { onImageFailure(urlString) }
                     )
-                )))
+                ), referenceAttributionLabel: source.label))
             }
         }
         
@@ -81,9 +87,58 @@ struct CarouselPageItem: Identifiable, Equatable {
     let id: String
     let mediaKind: CarouselMediaKind
     let view: AnyView
-    
+    let referenceAttributionLabel: String?
+
+    init(
+        id: String,
+        mediaKind: CarouselMediaKind,
+        view: AnyView,
+        referenceAttributionLabel: String? = nil
+    ) {
+        self.id = id
+        self.mediaKind = mediaKind
+        self.view = view
+        self.referenceAttributionLabel = referenceAttributionLabel
+    }
+
     static func == (lhs: CarouselPageItem, rhs: CarouselPageItem) -> Bool {
         lhs.id == rhs.id
+    }
+}
+
+private enum CarouselReferenceImageSource {
+    case wikipedia
+    case gbif
+    case merian
+
+    var label: String {
+        switch self {
+        case .wikipedia:
+            return "Wikipedia"
+        case .gbif:
+            return "GBIF"
+        case .merian:
+            return "Merian"
+        }
+    }
+
+    static func source(for urlString: String, wikipediaUrl: String?, index: Int) -> Self {
+        if let host = URL(string: urlString)?.host?.lowercased() {
+            if host == "media.merian.app" || host.hasSuffix(".merian.app") {
+                return .merian
+            }
+
+            if host.contains("wikipedia") || host.contains("wikimedia") {
+                return .wikipedia
+            }
+        }
+
+        let hasWikipediaUrl = !(wikipediaUrl?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        if index == 0 && hasWikipediaUrl {
+            return .wikipedia
+        }
+
+        return .gbif
     }
 }
 
@@ -91,6 +146,7 @@ struct ImagesCarousel: View {
     // MARK: - Properties
     let scanId: String?
     let activeMedia: ActiveScanMedia
+    let referenceWikipediaUrl: String?
     /// Whether inference is currently in progress. Controls the dimming overlay.
     let isProcessing: Bool
     /// Called when a carousel image fails to load. The caller decides whether to
@@ -113,6 +169,7 @@ struct ImagesCarousel: View {
                     .id(scanId ?? "null")
                     .ignoresSafeArea(.all, edges: .top)
                     .overlay(alignment: .bottom) { paginationDots }
+                    .overlay(alignment: .bottomLeading) { referenceAttributionTag }
                     .overlay(alignment: .top) {
                         LinearGradient(
                             colors: [.black.opacity(0.4), .clear],
@@ -141,6 +198,7 @@ struct ImagesCarousel: View {
     private var carouselPages: [CarouselPageItem] {
         CarouselPageBuilder.buildPages(
             for: activeMedia,
+            referenceWikipediaUrl: referenceWikipediaUrl,
             onImageFailure: { handleImageFailure(identifier: $0) },
             onDescriptionTap: onDescriptionTap
         )
@@ -148,6 +206,10 @@ struct ImagesCarousel: View {
 
     private var selectedMediaKind: CarouselMediaKind {
         carouselPages[safe: selectedIndex]?.mediaKind ?? .visual
+    }
+
+    private var selectedReferenceAttributionLabel: String? {
+        carouselPages[safe: selectedIndex]?.referenceAttributionLabel
     }
 
     // MARK: - Action Handlers
@@ -299,6 +361,32 @@ private struct AnalyzingMediaOverlay: View {
 
 // MARK: - Layout Subcomponents
 private extension ImagesCarousel {
+
+    @ViewBuilder
+    var referenceAttributionTag: some View {
+        if let label = selectedReferenceAttributionLabel {
+            Text(label)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background {
+                    Capsule(style: .continuous)
+                        .fill(.black.opacity(0.28))
+                }
+                .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+                .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                .padding(.leading, 14)
+                .padding(.bottom, 40)
+                .allowsHitTesting(false)
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedReferenceAttributionLabel)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .leading)),
+                    removal: .opacity
+                ))
+        }
+    }
 
     @ViewBuilder
     var paginationDots: some View {
