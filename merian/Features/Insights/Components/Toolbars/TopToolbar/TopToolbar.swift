@@ -21,9 +21,10 @@ struct TopToolbar: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
             Button(action: { dismiss() }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .bold))
+                toolbarIcon("xmark")
+                    .imageOverlayToolbarIconChrome(isFallbackActive: shouldUseContainedToolbarChrome)
             }
+            .imageOverlayToolbarButtonChrome(isFallbackActive: shouldUseContainedToolbarChrome)
         }
         
         ToolbarItem(placement: .principal) {
@@ -36,48 +37,63 @@ struct TopToolbar: ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             if !isAnalyzing {
                 Menu {
-                    if hasUserPhotos {
-                        Button(action: { onSavePhotos() }) {
-                            Label("Download scan", systemImage: "arrow.down.circle")
-                        }
-                    }
-
-                    Button(action: onFieldNotes) {
-                        Label(hasFieldNotes ? "Update field notes" : "Add field notes", systemImage: "square.and.pencil")
-                    }
-                    
-                    Section("Identification") {
-                        if let onConfirmIdentification = onConfirmIdentification {
-                            Button(action: onConfirmIdentification) {
-                                Label("Confirm species", systemImage: "checkmark.circle")
-                            }
-                        }
-                        if let onReviewAlternatives = onReviewAlternatives {
-                            Button(action: onReviewAlternatives) {
-                                Label("Review alternatives", systemImage: "list.bullet")
-                            }
-                        }
-                        if let onReanalyze = onReanalyze {
-                            Button(action: onReanalyze) {
-                                Label("Reanalyze species", systemImage: "arrow.2.circlepath")
-                            }
-                        }
-                        if !isAlreadyFlagged {
-                            Button(action: { isIdentificationFlagPresented = true }) {
-                                Label("Flag for review", systemImage: "flag")
-                            }
-                        }
-                    }
-                    
-                    Section {
-                        Button(role: .destructive, action: { showDeleteConfirmation = true }) {
-                            Label("Delete scan", systemImage: "trash")
-                        }
-                    }
+                    actionMenuContent
                 } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .bold))
+                    toolbarIcon("ellipsis")
+                        .imageOverlayToolbarIconChrome(isFallbackActive: shouldUseContainedToolbarChrome)
                 }
+                .imageOverlayToolbarButtonChrome(isFallbackActive: shouldUseContainedToolbarChrome)
+            }
+        }
+    }
+
+    private var shouldUseContainedToolbarChrome: Bool {
+        ImageOverlayToolbarChrome.shouldUseContainedBackground
+    }
+
+    private func toolbarIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 16, weight: .bold))
+    }
+
+    @ViewBuilder
+    private var actionMenuContent: some View {
+        if hasUserPhotos {
+            Button(action: { onSavePhotos() }) {
+                Label("Download scan", systemImage: "arrow.down.circle")
+            }
+        }
+
+        Button(action: onFieldNotes) {
+            Label(hasFieldNotes ? "Update field notes" : "Add field notes", systemImage: "square.and.pencil")
+        }
+        
+        Section("Identification") {
+            if let onConfirmIdentification = onConfirmIdentification {
+                Button(action: onConfirmIdentification) {
+                    Label("Confirm species", systemImage: "checkmark.circle")
+                }
+            }
+            if let onReviewAlternatives = onReviewAlternatives {
+                Button(action: onReviewAlternatives) {
+                    Label("Review alternatives", systemImage: "list.bullet")
+                }
+            }
+            if let onReanalyze = onReanalyze {
+                Button(action: onReanalyze) {
+                    Label("Reanalyze species", systemImage: "arrow.2.circlepath")
+                }
+            }
+            if !isAlreadyFlagged {
+                Button(action: { isIdentificationFlagPresented = true }) {
+                    Label("Flag for review", systemImage: "flag")
+                }
+            }
+        }
+        
+        Section {
+            Button(role: .destructive, action: { showDeleteConfirmation = true }) {
+                Label("Delete scan", systemImage: "trash")
             }
         }
     }

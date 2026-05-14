@@ -83,8 +83,10 @@ struct SpeciesDictionaryPageContentView: View {
                             Image(systemName: "xmark")
                                 .font(.system(size: 14, weight: .bold))
                                 .frame(width: 32, height: 32)
+                                .imageOverlayToolbarIconChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
                         }
                         .buttonStyle(.plain)
+                        .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
                         .accessibilityLabel("Close species page")
                     }
                 }

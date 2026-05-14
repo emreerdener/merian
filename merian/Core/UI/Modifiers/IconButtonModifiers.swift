@@ -49,4 +49,46 @@ extension View {
             borderWidth: borderWidth
         ))
     }
+
+    @ViewBuilder
+    func imageOverlayToolbarIconChrome(
+        isFallbackActive: Bool,
+        foregroundColor: Color = .white
+    ) -> some View {
+        if isFallbackActive {
+            self
+                .foregroundStyle(foregroundColor)
+                .shadow(color: .black.opacity(0.3), radius: 1, y: 1)
+                .circularMaterialControl(
+                    size: 44,
+                    material: .ultraThinMaterial,
+                    colorScheme: .dark,
+                    borderColor: .white.opacity(0.18),
+                    borderWidth: 0.75
+                )
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func imageOverlayToolbarButtonChrome(isFallbackActive: Bool) -> some View {
+        if isFallbackActive {
+            self
+                .buttonStyle(.plain)
+                .contentShape(Circle())
+        } else {
+            self
+        }
+    }
+}
+
+enum ImageOverlayToolbarChrome {
+    static var shouldUseContainedBackground: Bool {
+        if #available(iOS 26.0, *) {
+            return false
+        } else {
+            return true
+        }
+    }
 }

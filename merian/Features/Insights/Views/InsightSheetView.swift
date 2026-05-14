@@ -230,8 +230,13 @@ private extension InsightSheetView {
                 } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 16, weight: .bold))
+                        .imageOverlayToolbarIconChrome(
+                            isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground,
+                            foregroundColor: .red
+                        )
                 }
                 .tint(.red)
+                .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
             }
         }
 
