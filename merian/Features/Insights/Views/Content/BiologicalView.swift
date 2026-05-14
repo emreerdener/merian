@@ -11,7 +11,6 @@ struct BiologicalView: View {
 
     // MARK: - Context State
     var timestamp: Date?
-    @State private var speciesDictionaryRoute: SpeciesDictionaryRoute?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -147,7 +146,7 @@ struct BiologicalView: View {
                     .cardEntrance(index: 6)
                 }
     
-                 // MARK: - Similar Species Gallery
+                // MARK: - Similar Species Gallery
                 if !isUnknownSubject {
                     Group {
                         if let similarData = inferenceEngine.speciesData?.similarSpecies {
@@ -155,13 +154,7 @@ struct BiologicalView: View {
                                 similarData: similarData,
                                 currentScientificName: inferenceEngine.speciesData?.scientificName,
                                 currentCommonName: inferenceEngine.speciesData?.commonName,
-                                onSpeciesSelected: { entry in
-                                    speciesDictionaryRoute = SpeciesDictionaryRoute(
-                                        scientificName: entry.scientificName,
-                                        speciesId: entry.speciesId,
-                                        entryPoint: .insightSimilarSpecies
-                                    )
-                                }
+                                routeForSpecies: insightSimilarSpeciesRoute
                             )
                             .transition(.opacity)
                         } else if inferenceEngine.isLookalikesLoading {
@@ -180,7 +173,7 @@ struct BiologicalView: View {
                     imageCount: max(1, viewModel.activeLocalRecord?.capturedMediaSnapshot.imagePaths.count ?? 0)
                 )
                 .cardEntrance(index: 8)
-    
+
                 // MARK: - Custom Tags
                 if let scanId = inferenceEngine.speciesData?.scanId {
                     UserTagsCard(scanId: scanId)
@@ -189,12 +182,13 @@ struct BiologicalView: View {
             }
         }
         .padding(.horizontal)
-        .sheet(item: $speciesDictionaryRoute) { route in
-            SpeciesDictionaryPageView(
-                scientificName: route.scientificName,
-                speciesId: route.speciesId,
-                entryPoint: route.entryPoint
-            )
-        }
+    }
+
+    private func insightSimilarSpeciesRoute(for entry: SimilarSpeciesEntry) -> SpeciesDictionaryRoute {
+        SpeciesDictionaryRoute(
+            scientificName: entry.scientificName,
+            speciesId: entry.speciesId,
+            entryPoint: .insightSimilarSpecies
+        )
     }
 }

@@ -856,9 +856,10 @@ client contract.
   post already being present in the loaded in-memory feed page.
 - `public.get_explore_post_detail(self_id UUID, target_post_id UUID)`: Returns a
   single public species-detail projection for the Explore detail page. Fields
-  currently include `field_notes`, `species_dictionary_id`, taxonomy ranks
-  (`kingdom`, `phylum`, `class`, `order`, `family`, `genus`), conditional public
-  `ai_reasoning`, `habitat_description`, `gbif_taxon_key`,
+  currently include `field_notes`, `species_dictionary_id`,
+  `alternative_common_names`, taxonomy ranks (`kingdom`, `phylum`, `class`,
+  `order`, `family`, `genus`), conditional public `ai_reasoning`,
+  `habitat_description`, `gbif_taxon_key`,
   `iucn_red_list_status`, `wikipedia_url`, `reference_image_url`,
   `wikipedia_overview`, and `similar_species` JSONB hydrated from
   `species_lookalikes`. `reference_image_url` is still a comma-separated

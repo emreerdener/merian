@@ -16,21 +16,23 @@ This creates three separate species surfaces in the iOS app:
 ## Product Scope
 
 V1 entry is intentionally narrow: a user taps a similar-species card in either
-the Insight sheet or an Explore post detail page, and Merian opens a
-large-detent species dictionary sheet for that species.
+the Insight sheet or an Explore post detail page, and Merian pushes the public
+species dictionary page inside that sheet's existing navigation stack. The
+standalone dictionary presenter still uses a large-detent sheet when opened
+directly.
 
 Included in V1:
 
 - canonical scientific and common names
-- alternate common names
+- alternate common names, rendered as a compact line under the primary common
+  name
 - reference image gallery from normalized public reference imagery
 - Wikipedia overview
 - habitat description and GBIF heatmap when `gbif_taxon_key` is available
 - taxonomy
 - IUCN Red List status
 - hazard status
-- group tags
-- read-only similar species
+- similar species that route to another dictionary page in the same stack
 
 Excluded in V1:
 
@@ -58,9 +60,15 @@ Primary files:
 - `merian/Features/Insights/Views/Content/BiologicalView.swift`
 - `merian/Features/Explore/Views/ExplorePostDetailView.swift`
 
-`SpeciesDictionaryPageView` owns its own `NavigationStack` and is presented as a
-`.large` detent sheet. It does not mount `InferenceEngine`, does not read
-SwiftData scan records, and does not reuse `InsightSheetViewModel`.
+`SpeciesDictionaryPageView` is the standalone sheet shell. It owns a
+`NavigationStack`, presents at `.large`, hides the sheet grabber, and renders
+the root `SpeciesDictionaryPageContentView` with an `xmark` close button.
+Pushed dictionary pages render the same content view with native back
+navigation instead of a close button. When dictionary content is pushed from
+Insight or Explore, those sheet roots own the navigation stack and register
+`SpeciesDictionaryRoute`; the dictionary content does not create a nested sheet.
+It does not mount `InferenceEngine`, does not read SwiftData scan records, and
+does not reuse `InsightSheetViewModel`.
 
 `SpeciesDictionaryPageViewModel` is an `@Observable @MainActor` model with four
 user-visible states:
@@ -76,33 +84,45 @@ The model trims the incoming scientific name before fetching and prefers a
 
 ## Entry Point
 
-`SimilarSpeciesGallery` and `SimilarSpeciesCard` accept an optional
-`onSpeciesSelected` callback. Existing read-only usages can omit the callback.
-The Insight sheet biological result passes a callback from `BiologicalView`:
+`SimilarSpeciesGallery` can either emit `NavigationLink(value:)` routes through
+`routeForSpecies` or call an optional legacy `onSpeciesSelected` callback. The
+Insight sheet biological result passes a route builder from `BiologicalView`:
 
 ```swift
 SimilarSpeciesGallery(
     similarData: similarData,
     currentScientificName: inferenceEngine.speciesData?.scientificName,
     currentCommonName: inferenceEngine.speciesData?.commonName,
-    onSpeciesSelected: { entry in
-        speciesDictionaryRoute = SpeciesDictionaryRoute(
-            scientificName: entry.scientificName,
-            speciesId: entry.speciesId,
-            entryPoint: .insightSimilarSpecies
-        )
-    }
+    routeForSpecies: insightSimilarSpeciesRoute
 )
 ```
 
-The route is held as `SpeciesDictionaryRoute?` and presented via
-`.sheet(item:)`. `speciesId` is preferred for lookup when present;
-`scientificName` remains the display and backward-compatible lookup fallback.
+The sheet root owns the route destination, so the user sees a single navigation
+stack: Insight or Explore detail -> Species Dictionary -> another dictionary
+page if they tap a similar species again. `speciesId` is preferred for lookup
+when present; `scientificName` remains the display and backward-compatible
+lookup fallback.
 
 Explore post detail uses the same route from its public
 `/get-explore-post-detail` similar-species payload. The Explore entry point is
 detail-only; feed cards, map previews, author profile previews, scan library,
 search, and external deep links do not open the species dictionary in V1.
+
+## Title And Alternate Names
+
+The header renders the scientific name, then the primary common name, then
+`AlternativeCommonNamesLine` when alternate names are available. The line uses
+the compact copy `Also known as: Name, Name` and wraps naturally for long lists.
+It trims names, splits comma-delimited source values, deduplicates
+case-insensitively, treats whitespace/underscore/dash variants as the same
+name, and excludes the primary common name. For example, `Desert Rose` and
+`Desert-rose` share the same display key, so the alternate line is suppressed
+instead of repeating the title with punctuation changed.
+
+Alternate names are intentionally not repeated in a lower card. The old
+dictionary-only "Also known as" grid was removed so the information lives in the
+same place on both Species Dictionary and Explore detail pages. The toolbar
+badge uses only the primary common name.
 
 ## Backend Contract
 
@@ -300,9 +320,10 @@ Lookalikes:
   (`reason`, `visual_traits`, `confidence`, `source`, `review_status`,
   `is_bidirectional`, `sort_order`); thumbnail URLs prefer
   `species_reference_images` and fall back to the legacy dictionary cache.
-- Cards show the relation `reason` when present, otherwise they can fall back to
-  the first shared visual traits.
-- The page renders the section read-only in V1.
+- Cards show only the common/scientific names over the image. Relation
+  rationale and visual-trait explanation copy are intentionally hidden in the
+  UI even though the payload remains additive for future curation views.
+- The page renders the section as same-stack navigation in V1.
 
 Provenance:
 

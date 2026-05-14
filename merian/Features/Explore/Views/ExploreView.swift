@@ -14,7 +14,7 @@ struct ExploreView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = ExploreFeedViewModel()
     @State private var mapViewModel = ExploreMapViewModel()
-    @State private var selectedPostRoute: ExplorePostRoute?
+    @State private var navigationPath = NavigationPath()
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
     @State private var selectedInsightRecord: LocalScanRecord?
     @State private var activeTab: ExploreTab = .feed
@@ -31,12 +31,14 @@ struct ExploreView: View {
     init(initialPostId: String? = nil, allowsInsightPresentation: Bool = true) {
         self.allowsInsightPresentation = allowsInsightPresentation
         if let postId = initialPostId {
-            _selectedPostRoute = State(initialValue: ExplorePostRoute(postId: postId, shouldFocusCommentComposer: false, shouldOpenInsight: false))
+            var initialPath = NavigationPath()
+            initialPath.append(ExplorePostRoute(postId: postId, shouldFocusCommentComposer: false, shouldOpenInsight: false))
+            _navigationPath = State(initialValue: initialPath)
         }
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 0) {
                     ExploreFeedTabContent(
@@ -64,21 +66,22 @@ struct ExploreView: View {
             .scrollDisabled(activeTab == .map)
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(
-                isPresented: Binding(
-                    get: { selectedPostRoute != nil },
-                    set: { if !$0 { selectedPostRoute = nil } }
+            .navigationDestination(for: ExplorePostRoute.self) { route in
+                ExplorePostDetailView(
+                    viewModel: viewModel,
+                    postId: route.postId,
+                    shouldFocusCommentComposer: route.shouldFocusCommentComposer,
+                    shouldOpenInsight: route.shouldOpenInsight,
+                    allowsInsightPresentation: allowsInsightPresentation
                 )
-            ) {
-                if let selectedPostRoute {
-                    ExplorePostDetailView(
-                        viewModel: viewModel,
-                        postId: selectedPostRoute.postId,
-                        shouldFocusCommentComposer: selectedPostRoute.shouldFocusCommentComposer,
-                        shouldOpenInsight: selectedPostRoute.shouldOpenInsight,
-                        allowsInsightPresentation: allowsInsightPresentation
-                    )
-                }
+            }
+            .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
+                SpeciesDictionaryPageContentView(
+                    scientificName: route.scientificName,
+                    speciesId: route.speciesId,
+                    entryPoint: route.entryPoint,
+                    showsCloseButton: false
+                )
             }
             .toolbar { exploreToolbar }
         }
@@ -201,11 +204,11 @@ struct ExploreView: View {
     private func openPostDetail(for post: ExplorePost, focusCommentComposer: Bool = false, openInsight: Bool = false) {
         viewModel.upsertPost(post)
         viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
-        selectedPostRoute = ExplorePostRoute(
+        navigationPath.append(ExplorePostRoute(
             postId: post.id,
             shouldFocusCommentComposer: focusCommentComposer,
             shouldOpenInsight: allowsInsightPresentation && openInsight
-        )
+        ))
     }
 
     private func openAuthorProfile(for post: ExplorePost) {
@@ -545,7 +548,7 @@ private struct ExploreFeedTabContent: View {
     }
 }
 
-struct ExplorePostRoute: Equatable {
+struct ExplorePostRoute: Hashable {
     let postId: String
     let shouldFocusCommentComposer: Bool
     let shouldOpenInsight: Bool

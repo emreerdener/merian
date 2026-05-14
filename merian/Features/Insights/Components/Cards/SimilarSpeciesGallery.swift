@@ -4,6 +4,7 @@ struct SimilarSpeciesGallery: View {
     let similarData: SimilarSpecies
     let currentScientificName: String?
     let currentCommonName: String?
+    var routeForSpecies: ((SimilarSpeciesEntry) -> SpeciesDictionaryRoute)?
     var onSpeciesSelected: ((SimilarSpeciesEntry) -> Void)?
 
     private var validEntries: [SimilarSpeciesEntry] {
@@ -22,11 +23,26 @@ struct SimilarSpeciesGallery: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 16) {
                         ForEach(validEntries, id: \.scientificName) { entry in
-                            SimilarSpeciesCard(
-                                entry: entry,
-                                currentCommonName: currentCommonName,
-                                onSpeciesSelected: onSpeciesSelected
-                            )
+                            if let route = routeForSpecies?(entry) {
+                                NavigationLink(value: route) {
+                                    SimilarSpeciesCard(
+                                        entry: entry,
+                                        currentCommonName: currentCommonName
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .simultaneousGesture(
+                                    TapGesture().onEnded {
+                                        HapticManager.shared.triggerSelectionPulse()
+                                    }
+                                )
+                            } else {
+                                SimilarSpeciesCard(
+                                    entry: entry,
+                                    currentCommonName: currentCommonName,
+                                    onSpeciesSelected: onSpeciesSelected
+                                )
+                            }
                         }
                     }
                     .padding(.bottom, 8) // Shadow clearance
@@ -55,15 +71,21 @@ struct SimilarSpeciesCard: View {
         entry.displayCommonName(comparedTo: currentCommonName)
     }
 
-    private var relationshipCaption: String? {
-        entry.relationshipCaption
-    }
-
-    private var accessibilityTraits: AccessibilityTraits {
-        onSpeciesSelected == nil ? [] : .isButton
-    }
-
+    @ViewBuilder
     var body: some View {
+        if let onSpeciesSelected {
+            cardContent
+                .onTapGesture {
+                    HapticManager.shared.triggerSelectionPulse()
+                    onSpeciesSelected(entry)
+                }
+                .accessibilityAddTraits(.isButton)
+        } else {
+            cardContent
+        }
+    }
+
+    private var cardContent: some View {
         ZStack(alignment: .bottom) {
             // Background Image
             ZStack {
@@ -111,13 +133,6 @@ struct SimilarSpeciesCard: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                if let relationshipCaption {
-                    Text(relationshipCaption)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -151,12 +166,6 @@ struct SimilarSpeciesCard: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            guard let onSpeciesSelected else { return }
-            HapticManager.shared.triggerSelectionPulse()
-            onSpeciesSelected(entry)
-        }
-        .accessibilityAddTraits(accessibilityTraits)
     }
 }
 

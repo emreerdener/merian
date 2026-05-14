@@ -99,6 +99,35 @@ struct SpeciesDictionaryTests {
         #expect(response.data.similarSpeciesData?.entries.first?.similarityConfidence == 0.78)
     }
 
+    @Test func testAlternativeCommonNamesLineSanitizesNames() {
+        let displayNames = AlternativeCommonNamesLine.displayNames(
+            from: [
+                "Field Test",
+                " Meadow Test, Prairie Test ",
+                "meadow test",
+                "",
+                "Garden Test"
+            ],
+            excluding: "Field Test"
+        )
+
+        #expect(displayNames == ["Meadow Test", "Prairie Test", "Garden Test"])
+    }
+
+    @Test func testAlternativeCommonNamesLineTreatsDashVariantsAsDuplicates() {
+        let displayNames = AlternativeCommonNamesLine.displayNames(
+            from: [
+                "Desert-rose",
+                "Desert–Rose",
+                "Sabi Star",
+                "Sabi-star"
+            ],
+            excluding: "Desert Rose"
+        )
+
+        #expect(displayNames == ["Sabi Star"])
+    }
+
     @Test func testSpeciesDictionaryResponseDecodesLegacyPayloadWithoutSchemaVersion() throws {
         let data = """
         {

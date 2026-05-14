@@ -261,6 +261,7 @@ struct MerianNetworkClientTests {
                 "post_id": "post-detail-123",
                 "field_notes": null,
                 "species_dictionary_id": "species-123",
+                "alternative_common_names": ["Garden Rose", "Meadow Rose"],
                 "taxonomy_kingdom": "Plantae",
                 "taxonomy_phylum": "Tracheophyta",
                 "taxonomy_class": "Magnoliopsida",
@@ -300,6 +301,7 @@ struct MerianNetworkClientTests {
         let similar = try #require(response.data.similarSpeciesData)
 
         #expect(response.effectiveSchemaVersion == 1)
+        #expect(response.data.alternativeCommonNames == ["Garden Rose", "Meadow Rose"])
         #expect(response.data.referenceGalleryImages.map(\.source) == [.merian, .wikipedia])
         #expect(response.data.referenceGalleryImages.first?.source.label == "Merian")
         #expect(similar.entries.count == 1)

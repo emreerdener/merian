@@ -27,19 +27,19 @@ private struct AchievementIconView: View {
     
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(award.isCompleted ? award.tintInfo.color.opacity(0.12) : Color(uiColor: .systemGray6))
-                .frame(width: 80, height: 80)
+                .frame(width: 96, height: 96)
             
             Image(award.tintInfo.imageName)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 56, height: 56)
+                .frame(width: 68, height: 68)
                 .grayscale(award.isCompleted ? 0 : 1.0)
                 .opacity(award.isCompleted ? 1.0 : 0.4)
         }
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .strokeBorder(award.isCompleted ? award.tintInfo.color.opacity(0.25) : Color.primary.opacity(0.08), lineWidth: 1.5)
         )
         .overlay(
@@ -62,7 +62,7 @@ private struct AchievementIconView: View {
                             .offset(x: shimmerPhase * max(geo.size.width, 1) * 2)
                             .blendMode(.screen)
                             .mask(
-                                RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(lineWidth: 1.5)
+                                RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(lineWidth: 1.5)
                             )
                     }
                 }

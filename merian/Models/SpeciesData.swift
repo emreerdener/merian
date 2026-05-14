@@ -500,18 +500,6 @@ struct SimilarSpeciesEntry: Codable {
         return commonName
     }
 
-    var relationshipCaption: String? {
-        if let reason = similarityReason?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !reason.isEmpty {
-            return reason
-        }
-
-        let traits = visualTraits
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        guard !traits.isEmpty else { return nil }
-        return traits.prefix(2).joined(separator: ", ")
-    }
 }
 
 struct SimilarSpecies {

@@ -35,14 +35,14 @@ struct ExploreAuthorProfileSheet: View {
     @State private var libraryCursor = ExploreAuthorPostCursor.empty
     @State private var isLoadingLibrary = false
     @State private var hasReachedEndOfLibrary = false
-    @State private var selectedPostRoute: ExplorePostRoute?
+    @State private var navigationPath = NavigationPath()
     @State private var isUpdatingFollow = false
 
     private let previewLimit = 9
     private let libraryPageSize = 30
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ZStack {
                 switch profileState {
                 case .loading:
@@ -74,22 +74,23 @@ struct ExploreAuthorProfileSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationTitle(navigationTitle)
             .toolbar { toolbarContent }
-            .navigationDestination(
-                isPresented: Binding(
-                    get: { selectedPostRoute != nil },
-                    set: { if !$0 { selectedPostRoute = nil } }
+            .navigationDestination(for: ExplorePostRoute.self) { route in
+                ExplorePostDetailView(
+                    viewModel: viewModel,
+                    postId: route.postId,
+                    shouldFocusCommentComposer: route.shouldFocusCommentComposer,
+                    shouldOpenInsight: route.shouldOpenInsight,
+                    allowsInsightPresentation: false,
+                    allowsAuthorProfilePresentation: false
                 )
-            ) {
-                if let selectedPostRoute {
-                    ExplorePostDetailView(
-                        viewModel: viewModel,
-                        postId: selectedPostRoute.postId,
-                        shouldFocusCommentComposer: selectedPostRoute.shouldFocusCommentComposer,
-                        shouldOpenInsight: selectedPostRoute.shouldOpenInsight,
-                        allowsInsightPresentation: false,
-                        allowsAuthorProfilePresentation: false
-                    )
-                }
+            }
+            .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
+                SpeciesDictionaryPageContentView(
+                    scientificName: route.scientificName,
+                    speciesId: route.speciesId,
+                    entryPoint: route.entryPoint,
+                    showsCloseButton: false
+                )
             }
         }
         .task(id: route.authorUserId) {
@@ -621,10 +622,10 @@ struct ExploreAuthorProfileSheet: View {
     private func openPost(_ post: ExplorePost) {
         viewModel.upsertPost(post)
         viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
-        selectedPostRoute = ExplorePostRoute(
+        navigationPath.append(ExplorePostRoute(
             postId: post.id,
             shouldFocusCommentComposer: false,
             shouldOpenInsight: false
-        )
+        ))
     }
 }

@@ -6,7 +6,6 @@ struct SpeciesDictionaryPageView: View {
     let entryPoint: SpeciesDictionaryEntryPoint
 
     @Environment(\.dismiss) private var dismiss
-    @State private var viewModel: SpeciesDictionaryPageViewModel
 
     init(
         scientificName: String,
@@ -16,6 +15,53 @@ struct SpeciesDictionaryPageView: View {
         self.scientificName = scientificName
         self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).trimmedNonEmpty
         self.entryPoint = entryPoint
+    }
+
+    var body: some View {
+        NavigationStack {
+            SpeciesDictionaryPageContentView(
+                scientificName: scientificName,
+                speciesId: speciesId,
+                entryPoint: entryPoint,
+                showsCloseButton: true,
+                onClose: { dismiss() }
+            )
+            .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
+                SpeciesDictionaryPageContentView(
+                    scientificName: route.scientificName,
+                    speciesId: route.speciesId,
+                    entryPoint: route.entryPoint,
+                    showsCloseButton: false
+                )
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+    }
+}
+
+struct SpeciesDictionaryPageContentView: View {
+    let scientificName: String
+    let speciesId: String?
+    let entryPoint: SpeciesDictionaryEntryPoint
+    let showsCloseButton: Bool
+    let onClose: () -> Void
+
+    @State private var viewModel: SpeciesDictionaryPageViewModel
+    @State private var isCommonNameScrolledPast = false
+
+    init(
+        scientificName: String,
+        speciesId: String? = nil,
+        entryPoint: SpeciesDictionaryEntryPoint,
+        showsCloseButton: Bool,
+        onClose: @escaping () -> Void = {}
+    ) {
+        self.scientificName = scientificName
+        self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).trimmedNonEmpty
+        self.entryPoint = entryPoint
+        self.showsCloseButton = showsCloseButton
+        self.onClose = onClose
         _viewModel = State(initialValue: SpeciesDictionaryPageViewModel(
             scientificName: scientificName,
             speciesId: speciesId,
@@ -24,14 +70,15 @@ struct SpeciesDictionaryPageView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle(navigationTitle)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
+        content
+            .navigationTitle(navigationTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
+                if showsCloseButton {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
-                            dismiss()
+                            onClose()
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 14, weight: .bold))
@@ -41,12 +88,19 @@ struct SpeciesDictionaryPageView: View {
                         .accessibilityLabel("Close species page")
                     }
                 }
-        }
-        .task(id: speciesId ?? scientificName) {
-            await viewModel.load()
-        }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
+
+                ToolbarItem(placement: .principal) {
+                    ScrollAwareToolbarTitleBadge(
+                        title: toolbarBadgeTitle,
+                        isVisible: isCommonNameScrolledPast
+                    )
+                }
+            }
+            .task(id: speciesId ?? scientificName) {
+                isCommonNameScrolledPast = false
+                await viewModel.load()
+            }
+            .toolbar(.hidden, for: .bottomBar)
     }
 
     @ViewBuilder
@@ -103,7 +157,7 @@ struct SpeciesDictionaryPageView: View {
 
                 header(for: species)
 
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 32) {
                     SpeciesDictionaryContentQualityCard(quality: species.effectiveContentQuality)
 
                     SpeciesDictionaryStatusCard(hazardType: species.hazardType)
@@ -113,8 +167,6 @@ struct SpeciesDictionaryPageView: View {
                         iucnRedListStatus: species.iucnRedListStatus,
                         wikipediaOverview: species.wikipediaOverview
                     )
-
-                    SpeciesDictionaryNamesCard(names: species.alternativeCommonNames)
 
                     if let taxonomyData = species.taxonomyData {
                         TaxonomyCard(
@@ -131,13 +183,12 @@ struct SpeciesDictionaryPageView: View {
                         )
                     }
 
-                    SpeciesDictionaryTagsCard(tags: species.groupTags)
-
                     if let similarData = species.similarSpeciesData {
                         SimilarSpeciesGallery(
                             similarData: similarData,
                             currentScientificName: species.scientificName,
-                            currentCommonName: species.commonName
+                            currentCommonName: species.commonName,
+                            routeForSpecies: speciesDictionaryRoute
                         )
                     }
                 }
@@ -146,6 +197,12 @@ struct SpeciesDictionaryPageView: View {
             }
         }
         .background(Color(uiColor: .systemBackground))
+        .coordinateSpace(name: "SpeciesDictionaryScrollSpace")
+        .ignoresSafeArea(.container, edges: .top)
+        .contentMargins(.top, 0, for: .scrollContent)
+        .onChange(of: species.id, initial: true) { _, _ in
+            isCommonNameScrolledPast = false
+        }
     }
 
     private func header(for species: SpeciesDictionaryEntry) -> some View {
@@ -163,9 +220,37 @@ struct SpeciesDictionaryPageView: View {
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .onChange(
+                                of: geo.frame(in: .named("SpeciesDictionaryScrollSpace")).maxY,
+                                initial: true
+                            ) { _, newMaxY in
+                                evaluateCommonNameScrollOffset(maxY: newMaxY)
+                            }
+                    }
+                )
+
+            AlternativeCommonNamesLine(
+                names: species.alternativeCommonNames,
+                primaryCommonName: species.commonName
+            )
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+    }
+
+    private func evaluateCommonNameScrollOffset(maxY: CGFloat) {
+        guard maxY != .infinity else { return }
+
+        let isPast = maxY < 44
+        guard isCommonNameScrolledPast != isPast else { return }
+
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            isCommonNameScrolledPast = isPast
+        }
     }
 
     private var retryButton: some View {
@@ -184,6 +269,18 @@ struct SpeciesDictionaryPageView: View {
 
     private var navigationTitle: String {
         viewModel.loadedSpecies?.commonName ?? "Species"
+    }
+
+    private var toolbarBadgeTitle: String {
+        viewModel.loadedSpecies?.commonName ?? ""
+    }
+
+    private func speciesDictionaryRoute(for entry: SimilarSpeciesEntry) -> SpeciesDictionaryRoute {
+        SpeciesDictionaryRoute(
+            scientificName: entry.scientificName,
+            speciesId: entry.speciesId,
+            entryPoint: .speciesDictionarySimilarSpecies
+        )
     }
 }
 

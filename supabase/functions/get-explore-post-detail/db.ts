@@ -5,6 +5,7 @@ export interface ExplorePostDetailRow {
   post_id: string;
   field_notes?: string | null;
   species_dictionary_id?: string | null;
+  alternative_common_names?: string[] | null;
   taxonomy_kingdom?: string | null;
   taxonomy_phylum?: string | null;
   taxonomy_class?: string | null;

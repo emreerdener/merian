@@ -398,7 +398,7 @@ Recommended V1 endpoints:
 - `get-explore-post`
   - Returns a single Explore card projection for notification routing and deep links
 - `get-explore-post-detail`
-  - Returns public species-detail data for a single Explore post, including conditional per-scan `ai_reasoning` when the underlying identification has not been flagged or overridden, normalized-reference-image-backed `reference_image_url` compatibility output, plus public `similar_species` hydrated from the species dictionary lookalike join table with `species_id` for canonical dictionary routing
+  - Returns public species-detail data for a single Explore post, including `alternative_common_names` for the detail header, conditional per-scan `ai_reasoning` when the underlying identification has not been flagged or overridden, normalized-reference-image-backed `reference_image_url` compatibility output, plus public `similar_species` hydrated from the species dictionary lookalike join table with `species_id` for canonical dictionary routing
 - `get-explore-comments`
   - Returns paginated comments for a post, including the comment author's optional public avatar projection
 - `get-explore-map-points`
@@ -704,7 +704,7 @@ The preview card needs:
 - Like/comment counts
 - Coordinate visibility
 
-The full detail page can still use the existing `get-explore-post` and `get-explore-post-detail` path after the user commits to the post. Similar-species content stays on the full detail payload rather than the map preview payload, keeping map cards light while still allowing detail pages to open the public species dictionary.
+The full detail page can still use the existing `get-explore-post` and `get-explore-post-detail` path after the user commits to the post. Alternate common names and similar-species content stay on the full detail payload rather than the map preview payload, keeping map cards light while still allowing detail pages to show species synonyms and open the public species dictionary.
 
 ### iOS Client Architecture For Map
 

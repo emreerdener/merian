@@ -318,6 +318,7 @@ struct ExplorePostDetail: Decodable {
     let postId: String
     var fieldNotes: String?
     let speciesDictionaryId: String?
+    let alternativeCommonNames: [String]?
     let taxonomyKingdom: String?
     let taxonomyPhylum: String?
     let taxonomyClass: String?

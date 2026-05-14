@@ -343,7 +343,6 @@ struct SpeciesDataTests {
         #expect(decoded[0].reviewStatus == "unreviewed")
         #expect(decoded[0].isBidirectional == false)
         #expect(decoded[0].sortOrder == 1)
-        #expect(decoded[0].relationshipCaption == "Similar orange-and-black wing pattern.")
     }
 
     @Test func testSimilarSpeciesEntryDecodesLegacyBlobWithoutRelationMetadata() throws {

@@ -23,9 +23,9 @@ struct ExplorePostDetailView: View {
     @State private var localFieldNotes: String?
     @State private var selectedInsightRecord: LocalScanRecord?
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
-    @State private var speciesDictionaryRoute: SpeciesDictionaryRoute?
     @State private var isRefreshingAfterInsightDismiss = false
     @State private var didAutoOpenInsight = false
+    @State private var isCommonNameScrolledPast = false
 
     private let commentsSectionId = "explore-comments-section"
     private let commentsComposerId = "explore-comments-composer"
@@ -92,6 +92,7 @@ struct ExplorePostDetailView: View {
                                 .id(commentsSectionId)
                         }
                     }
+                    .coordinateSpace(name: "ExplorePostDetailScrollSpace")
                     .scrollDismissesKeyboard(.interactively)
                     .background(
                         ScrollViewKeyboardDismissTapRecognizer(
@@ -103,6 +104,13 @@ struct ExplorePostDetailView: View {
                     .navigationTitle(viewModel.resolvedSpeciesCommonName(for: post))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            ScrollAwareToolbarTitleBadge(
+                                title: viewModel.resolvedSpeciesCommonName(for: post),
+                                isVisible: isCommonNameScrolledPast
+                            )
+                        }
+
                         ToolbarItem(placement: .topBarTrailing) {
                             detailMenuButton(for: post)
                         }
@@ -130,6 +138,9 @@ struct ExplorePostDetailView: View {
                         if newValue == nil {
                             dismiss()
                         }
+                    }
+                    .onChange(of: post.id, initial: true) { _, _ in
+                        isCommonNameScrolledPast = false
                     }
                 }
             } else {
@@ -184,13 +195,6 @@ struct ExplorePostDetailView: View {
         }
         .sheet(item: $selectedAuthorProfileRoute) { route in
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
-        }
-        .sheet(item: $speciesDictionaryRoute) { route in
-            SpeciesDictionaryPageView(
-                scientificName: route.scientificName,
-                speciesId: route.speciesId,
-                entryPoint: route.entryPoint
-            )
         }
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
             Task {
@@ -385,6 +389,7 @@ struct ExplorePostDetailView: View {
 
     private func speciesSection(for post: ExplorePost) -> some View {
         let aiReasoning = detail?.trimmedAiReasoning
+        let commonName = viewModel.resolvedSpeciesCommonName(for: post)
 
         return VStack(alignment: .center, spacing: 8) {
             // Scientific name
@@ -399,10 +404,26 @@ struct ExplorePostDetailView: View {
             }
 
             // Species Common Name with Emoji
-            Text(viewModel.resolvedSpeciesCommonName(for: post))
+            Text(commonName)
                 .font(.system(.largeTitle, design: .serif).weight(.bold))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .onChange(
+                                of: geo.frame(in: .named("ExplorePostDetailScrollSpace")).maxY,
+                                initial: true
+                            ) { _, newMaxY in
+                                evaluateCommonNameScrollOffset(maxY: newMaxY)
+                            }
+                    }
+                )
+
+            AlternativeCommonNamesLine(
+                names: detail?.alternativeCommonNames ?? [],
+                primaryCommonName: commonName
+            )
 
             // AI Reasoning
             if let aiReasoning {
@@ -415,6 +436,25 @@ struct ExplorePostDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func exploreSimilarSpeciesRoute(for entry: SimilarSpeciesEntry) -> SpeciesDictionaryRoute {
+        SpeciesDictionaryRoute(
+            scientificName: entry.scientificName,
+            speciesId: entry.speciesId,
+            entryPoint: .exploreDetailSimilarSpecies
+        )
+    }
+
+    private func evaluateCommonNameScrollOffset(maxY: CGFloat) {
+        guard maxY != .infinity else { return }
+
+        let isPast = maxY < 44
+        guard isCommonNameScrolledPast != isPast else { return }
+
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            isCommonNameScrolledPast = isPast
+        }
     }
 
     @ViewBuilder
@@ -478,13 +518,7 @@ struct ExplorePostDetailView: View {
                             similarData: similarData,
                             currentScientificName: post.speciesScientificName,
                             currentCommonName: viewModel.resolvedSpeciesCommonName(for: post),
-                            onSpeciesSelected: { entry in
-                                speciesDictionaryRoute = SpeciesDictionaryRoute(
-                                    scientificName: entry.scientificName,
-                                    speciesId: entry.speciesId,
-                                    entryPoint: .exploreDetailSimilarSpecies
-                                )
-                            }
+                            routeForSpecies: exploreSimilarSpeciesRoute
                         )
                     }
                 }

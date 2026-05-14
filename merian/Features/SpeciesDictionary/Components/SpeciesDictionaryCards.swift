@@ -84,54 +84,55 @@ struct SpeciesDictionaryStatusCard: View {
     }
 }
 
-struct SpeciesDictionaryNamesCard: View {
+struct AlternativeCommonNamesLine: View {
     let names: [String]
+    let primaryCommonName: String
+
+    private var displayNames: [String] {
+        Self.displayNames(from: names, excluding: primaryCommonName)
+    }
 
     var body: some View {
-        if !names.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
-                InsightCardHeader(systemImage: "textformat", title: "Also known as")
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], alignment: .leading, spacing: 8) {
-                    ForEach(names, id: \.self) { name in
-                        Text(name)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .lineLimit(2)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.primary.opacity(0.07), in: Capsule(style: .continuous))
-                    }
-                }
-            }
-            .card()
+        if !displayNames.isEmpty {
+            Text("Also known as: \(displayNames.joined(separator: ", "))")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    static func displayNames(from names: [String], excluding primaryCommonName: String) -> [String] {
+        var seenKeys = Set<String>()
+        let primaryKey = primaryCommonName.alternativeCommonNameKey
+        if !primaryKey.isEmpty {
+            seenKeys.insert(primaryKey)
+        }
+
+        return names
+            .flatMap { $0.components(separatedBy: ",") }
+            .compactMap { rawName in
+                let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return nil }
+                guard seenKeys.insert(name.alternativeCommonNameKey).inserted else { return nil }
+                return name
+            }
     }
 }
 
-struct SpeciesDictionaryTagsCard: View {
-    let tags: [String]
+private extension String {
+    var alternativeCommonNameKey: String {
+        let separatorCharacters = CharacterSet.whitespacesAndNewlines
+            .union(CharacterSet(charactersIn: "-‐‑‒–—―−_"))
+        let folded = folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        let normalizedSeparators = folded.unicodeScalars.map { scalar in
+            separatorCharacters.contains(scalar) ? " " : String(scalar)
+        }.joined()
 
-    var body: some View {
-        if !tags.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
-                InsightCardHeader(systemImage: "tag", title: "Groups")
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], alignment: .leading, spacing: 8) {
-                    ForEach(tags, id: \.self) { tag in
-                        Text(tag.capitalized)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .lineLimit(1)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.green.opacity(0.12), in: Capsule(style: .continuous))
-                    }
-                }
-            }
-            .card()
-        }
+        return normalizedSeparators
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 }

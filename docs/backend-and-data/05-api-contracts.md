@@ -852,6 +852,7 @@ Current response shape:
   "data": {
     "post_id": "uuid",
     "species_dictionary_id": "uuid",
+    "alternative_common_names": ["Milkweed Butterfly", "Common Tiger"],
     "taxonomy_kingdom": "Animalia",
     "taxonomy_phylum": "Arthropoda",
     "taxonomy_class": "Insecta",
@@ -886,6 +887,10 @@ page without loading private scan state or the Insight `InferenceEngine`.
 `/species-dictionary`. Older clients can continue decoding the `data` field and
 ignore the wrapper key; newer clients may use it to gate future additive UI
 behavior.
+
+`alternative_common_names` is sourced from
+`species_dictionary.alternative_common_names` and returned as an empty array
+when no alternate names are available.
 
 For posts owned by the current viewer, iOS also uses `field_notes` as a repair
 source for the local insight sheet. `FieldNotesRepository` checks

@@ -15,6 +15,7 @@ import { publicSpeciesProjectionForbiddenKeys } from "../_shared/publicSpeciesPr
 type ExplorePostDetailRow = {
   post_id: string;
   field_notes: string | null;
+  alternative_common_names: string[];
   ai_reasoning: string | null;
   gbif_taxon_key: number | null;
   wikipedia_url: string | null;
@@ -73,7 +74,8 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
           wikipedia_url = $2,
           reference_image_url = $3,
           wikipedia_overview = $4,
-          gbif_taxon_key = $5
+          gbif_taxon_key = $5,
+          alternative_common_names = $6
         WHERE id = $1
       `,
         [
@@ -82,6 +84,7 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
           referenceImageUrl,
           "Rosa galeria is a test species used to validate Explore detail payload enrichment.",
           424242,
+          ["Garden Rose", "Meadow Rose"],
         ],
       );
 
@@ -176,6 +179,7 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
         SELECT
           post_id,
           field_notes,
+          alternative_common_names,
           ai_reasoning,
           gbif_taxon_key,
           wikipedia_url,
@@ -198,6 +202,7 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
         row.ai_reasoning,
         "Petal shape and thorn spacing match Rosa galeria.",
       );
+      assertEquals(row.alternative_common_names, ["Garden Rose", "Meadow Rose"]);
       assertEquals(row.gbif_taxon_key, 424242);
       assertEquals(row.wikipedia_url, wikipediaUrl);
       assertEquals(row.reference_image_url, normalizedReferenceImageUrl);
@@ -264,7 +269,7 @@ Deno.test("Explore post detail DB - returns an empty similar_species array when 
 
       const result = await client.queryObject<ExplorePostDetailRow>(
         `
-        SELECT post_id, similar_species
+        SELECT post_id, alternative_common_names, similar_species
         FROM public.get_explore_post_detail($1, $2)
       `,
         [viewerId, postId],
@@ -273,6 +278,7 @@ Deno.test("Explore post detail DB - returns an empty similar_species array when 
       const row = result.rows[0];
       assertExists(row);
       assertEquals(row.post_id, postId);
+      assertEquals(row.alternative_common_names, []);
       assertEquals(row.similar_species, []);
     },
   );

@@ -53,6 +53,14 @@ struct InsightSheetView: View {
                 .toolbar { sheetToolbar }
                 .toolbarBackground(.visible, for: .bottomBar)
                 .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
+                .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
+                    SpeciesDictionaryPageContentView(
+                        scientificName: route.scientificName,
+                        speciesId: route.speciesId,
+                        entryPoint: route.entryPoint,
+                        showsCloseButton: false
+                    )
+                }
                 
                 // MARK: Lifecycle Bindings
                 .onAppear {

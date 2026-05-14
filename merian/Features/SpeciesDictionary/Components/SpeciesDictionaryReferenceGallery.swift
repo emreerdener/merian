@@ -18,9 +18,8 @@ struct SpeciesDictionaryReferenceGallery: View {
         self.onImageLoadFailed = onImageLoadFailed
     }
 
-    private var carouselHeight: CGFloat {
-        min(UIScreen.main.bounds.width * 0.92, 400)
-    }
+    private let imageSize: CGFloat = UIScreen.main.bounds.width
+    private let bleedBuffer: CGFloat = 50
 
     private var currentImageId: String? {
         selectedImageId ?? images.first?.id
@@ -32,35 +31,20 @@ struct SpeciesDictionaryReferenceGallery: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            if images.isEmpty {
-                placeholder
-                    .frame(height: carouselHeight)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 0) {
-                        ForEach(images) { image in
-                            page(for: image)
-                                .frame(height: carouselHeight)
-                                .containerRelativeFrame(.horizontal)
-                                .id(image.id)
-                        }
-                    }
-                    .scrollTargetLayout()
-                }
-                .scrollTargetBehavior(.paging)
-                .scrollPosition(id: Binding(
-                    get: { currentImageId },
-                    set: { selectedImageId = $0 }
-                ))
-                .frame(height: carouselHeight)
-                .background(Color(uiColor: .secondarySystemBackground))
-                .clipped()
-                .onAppear {
-                    if selectedImageId == nil {
-                        selectedImageId = images.first?.id
-                    }
-                }
+            GeometryReader { proxy in
+                let scrollY = proxy.frame(in: .named("SpeciesDictionaryScrollSpace")).minY
+
+                carousel
+                    .frame(
+                        width: imageSize,
+                        height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer
+                    )
+                    .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
+                    .ignoresSafeArea(.all, edges: .top)
             }
+            .frame(height: imageSize)
+            .ignoresSafeArea(.all, edges: .top)
+            .zIndex(0)
 
             if images.count > 1 {
                 HStack(spacing: 8) {
@@ -88,6 +72,38 @@ struct SpeciesDictionaryReferenceGallery: View {
         .frame(maxWidth: .infinity)
     }
 
+    @ViewBuilder
+    private var carousel: some View {
+        if images.isEmpty {
+            placeholder
+        } else {
+            GeometryReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 0) {
+                        ForEach(images) { image in
+                            page(for: image)
+                                .frame(width: proxy.size.width, height: proxy.size.height)
+                                .id(image.id)
+                        }
+                    }
+                    .scrollTargetLayout()
+                }
+                .scrollTargetBehavior(.paging)
+                .scrollPosition(id: Binding(
+                    get: { currentImageId },
+                    set: { selectedImageId = $0 }
+                ))
+                .background(Color(uiColor: .secondarySystemBackground))
+                .clipped()
+                .onAppear {
+                    if selectedImageId == nil {
+                        selectedImageId = images.first?.id
+                    }
+                }
+            }
+        }
+    }
+
     private func page(for image: SpeciesDictionaryReferenceImage) -> some View {
         ZStack(alignment: .bottomLeading) {
             GeometryReader { proxy in
@@ -113,7 +129,7 @@ struct SpeciesDictionaryReferenceGallery: View {
                 .padding(14)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: carouselHeight)
+        .frame(maxHeight: .infinity)
         .clipped()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel(for: image))
@@ -127,6 +143,7 @@ struct SpeciesDictionaryReferenceGallery: View {
                 .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity)
+        .frame(maxHeight: .infinity)
     }
 
     private func accessibilityLabel(for image: SpeciesDictionaryReferenceImage) -> String {

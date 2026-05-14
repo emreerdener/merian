@@ -246,7 +246,7 @@ struct SpeciesDictionarySimilarSpecies: Decodable, Equatable, Identifiable {
     }
 }
 
-struct SpeciesDictionaryRoute: Identifiable, Equatable {
+struct SpeciesDictionaryRoute: Identifiable, Equatable, Hashable {
     let speciesId: String?
     let scientificName: String
     let entryPoint: SpeciesDictionaryEntryPoint
@@ -264,9 +264,10 @@ struct SpeciesDictionaryRoute: Identifiable, Equatable {
     var id: String { speciesId ?? scientificName }
 }
 
-enum SpeciesDictionaryEntryPoint: String, Equatable {
+enum SpeciesDictionaryEntryPoint: String, Equatable, Hashable {
     case insightSimilarSpecies = "insight_similar_species"
     case exploreDetailSimilarSpecies = "explore_detail_similar_species"
+    case speciesDictionarySimilarSpecies = "species_dictionary_similar_species"
     case search
     case deepLink = "deep_link"
     case web
