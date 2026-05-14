@@ -42,29 +42,6 @@ struct PaywallView: View {
                         .padding(.horizontal, 32)
                 }
 
-                // Features
-                VStack(alignment: .leading, spacing: 28) {
-                    ForEach(proFeatures, id: \.title) { feature in
-                        HStack(spacing: 16) {
-                            Image(feature.icon)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 112, height: 112)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(feature.title)
-                                    .font(.headline)
-                                Text(feature.description)
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 32)
-                .padding(.top, 16)
-
                 // Subscriptions
                 if revenueCatManager.isFetchingOfferings {
                     ProgressView("Loading packs...")
@@ -83,6 +60,29 @@ struct PaywallView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 24)
                 }
+
+                // Features
+                VStack(alignment: .leading, spacing: 28) {
+                    ForEach(proFeatures, id: \.title) { feature in
+                        HStack(spacing: 16) {
+                            Image(feature.icon)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 128, height: 128)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(feature.title)
+                                    .font(.headline)
+                                Text(feature.description)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.top, 16)
 
                 Spacer(minLength: 24)
 
