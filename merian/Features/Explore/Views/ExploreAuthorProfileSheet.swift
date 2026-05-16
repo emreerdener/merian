@@ -200,7 +200,7 @@ struct ExploreAuthorProfileSheet: View {
 
     private func authorHeader(_ profile: ExploreAuthorProfile) -> some View {
         VStack(spacing: 12) {
-            authorAvatar(url: profile.authorAvatarURL, size: 128)
+            authorAvatar(url: profile.authorAvatarURL, size: 112)
 
             VStack(spacing: 6) {
                 Text(profile.authorFirstName)
