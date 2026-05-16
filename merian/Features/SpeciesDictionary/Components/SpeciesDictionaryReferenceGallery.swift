@@ -119,7 +119,7 @@ struct SpeciesDictionaryReferenceGallery: View {
     }
 
     private func page(for image: SpeciesDictionaryReferenceImage) -> some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .bottomTrailing) {
             GeometryReader { proxy in
                 AsyncLocalImageView(
                     path: nil,

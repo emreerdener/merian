@@ -17,6 +17,7 @@ Powers the interactive `.riv` Rive model rendered by `Terrarium`.
 ## Track B: Achievements
 
 To diversify gamification beyond pure numerical counts, the Achievements track unlocks progression milestones based on scientific taxonomy, environmental conditions, and citizen science impact:
+
 - **The Observer**: Complete your first nature scan (1 Scan).
 - **The Naturalist**: Scan 5 different unique species.
 - **The Botanist**: Scan 10 different plant species.
@@ -62,22 +63,22 @@ Thin enum wrapper around `TelemetryDeck`. All sends go through a private `send(_
 
 **Signal inventory:**
 
-| Signal | Method | Payload | Trigger |
-|---|---|---|---|
-| `ScanCompleted` | `trackScan(isPro:)` | `tier: "Pro"/"Free"` | Successful inference result |
-| `NewSpeciesDiscovered` | `trackNewDiscovery(isPro:)` | `tier: "Pro"/"Free"` | `NewDiscoveryCelebrationView.onAppear` (guarded by `hasFiredDiscoveryEvent` to prevent re-fires) |
-| `PaywallViewed` | `trackPaywallImpression()` | — | Camera shutter or gallery picker hits free scan cap |
-| `ThermalThrottled` | `trackThermalThrottling(fpsLimit:)` | `targetFPS: "15"` | Device thermal state reaches critical |
-| `OfflineQueuedScan` | `trackOfflineQueued()` | — | Scan successfully written to offline queue after `context.save()` |
-| `OnboardingCompleted` | `trackOnboardingCompleted()` | — | User taps Continue on the `.ready` onboarding step |
-| `SpeciesDictionaryOpened` | `trackSpeciesDictionaryOpened(entryPoint:)` | `entryPoint` | Species dictionary sheet opens |
-| `SpeciesDictionaryLoaded` | `trackSpeciesDictionaryLoaded(entryPoint:contentQuality:)` | `entryPoint`, `contentQuality: "complete"/"sparse"/"needs_enrichment"` | Species dictionary page loads a public dictionary row |
-| `SpeciesDictionaryNotFound` | `trackSpeciesDictionaryNotFound(entryPoint:)` | `entryPoint` | Species dictionary lookup returns no public row |
-| `SpeciesDictionaryRetry` | `trackSpeciesDictionaryRetry(entryPoint:)` | `entryPoint` | User taps retry from a dictionary error/not-found state |
-| `SpeciesDictionaryImageFallback` | `trackSpeciesDictionaryImageFallback(entryPoint:source:)` | `entryPoint`, `source: "wikipedia"/"gbif"` | Species dictionary reference image fails to load and falls back to placeholder UI |
-| `APIDecodingFailure` | `trackError("APIDecodingFailure")` | `domain: "APIDecodingFailure"` | Gemini response fails schema decoding |
-| `InferenceNetworkFailure` | `trackError("InferenceNetworkFailure")` | `domain: "InferenceNetworkFailure"` | Network error on live inference (non-cancellation path) |
-| `SystemError` | `trackError(_:)` | `domain: <errorDomain>` | Available for future error domains |
+| Signal                           | Method                                                     | Payload                                                                | Trigger                                                                                          |
+| -------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `ScanCompleted`                  | `trackScan(isPro:)`                                        | `tier: "Pro"/"Free"`                                                   | Successful inference result                                                                      |
+| `NewSpeciesDiscovered`           | `trackNewDiscovery(isPro:)`                                | `tier: "Pro"/"Free"`                                                   | `NewDiscoveryCelebrationView.onAppear` (guarded by `hasFiredDiscoveryEvent` to prevent re-fires) |
+| `PaywallViewed`                  | `trackPaywallImpression()`                                 | —                                                                      | Camera shutter or gallery picker hits free scan cap                                              |
+| `ThermalThrottled`               | `trackThermalThrottling(fpsLimit:)`                        | `targetFPS: "15"`                                                      | Device thermal state reaches critical                                                            |
+| `OfflineQueuedScan`              | `trackOfflineQueued()`                                     | —                                                                      | Scan successfully written to offline queue after `context.save()`                                |
+| `OnboardingCompleted`            | `trackOnboardingCompleted()`                               | —                                                                      | User taps Continue on the `.ready` onboarding step                                               |
+| `SpeciesDictionaryOpened`        | `trackSpeciesDictionaryOpened(entryPoint:)`                | `entryPoint`                                                           | Species dictionary sheet opens                                                                   |
+| `SpeciesDictionaryLoaded`        | `trackSpeciesDictionaryLoaded(entryPoint:contentQuality:)` | `entryPoint`, `contentQuality: "complete"/"sparse"/"needs_enrichment"` | Species dictionary page loads a public dictionary row                                            |
+| `SpeciesDictionaryNotFound`      | `trackSpeciesDictionaryNotFound(entryPoint:)`              | `entryPoint`                                                           | Species dictionary lookup returns no public row                                                  |
+| `SpeciesDictionaryRetry`         | `trackSpeciesDictionaryRetry(entryPoint:)`                 | `entryPoint`                                                           | User taps retry from a dictionary error/not-found state                                          |
+| `SpeciesDictionaryImageFallback` | `trackSpeciesDictionaryImageFallback(entryPoint:source:)`  | `entryPoint`, `source: "wikipedia"/"gbif"`                             | Species dictionary reference image fails to load and falls back to placeholder UI                |
+| `APIDecodingFailure`             | `trackError("APIDecodingFailure")`                         | `domain: "APIDecodingFailure"`                                         | Gemini response fails schema decoding                                                            |
+| `InferenceNetworkFailure`        | `trackError("InferenceNetworkFailure")`                    | `domain: "InferenceNetworkFailure"`                                    | Network error on live inference (non-cancellation path)                                          |
+| `SystemError`                    | `trackError(_:)`                                           | `domain: <errorDomain>`                                                | Available for future error domains                                                               |
 
 Species dictionary telemetry must remain zero-PII. `entryPoint` may be `insight_similar_species`, `explore_detail_similar_species`, `search`, `deep_link`, `web`, or `unknown`; events must not attach species names, species IDs, scan IDs, Explore post IDs, user locations, field notes, comments, image URLs, or user review state.
 
@@ -86,6 +87,7 @@ Species dictionary telemetry must remain zero-PII. `entryPoint` may be `insight_
 Tracks session lifecycle, feature interactions, and backend AI token usage, linked anonymously.
 
 **iOS Client (`PostHogManager`)**:
+
 - Not `@MainActor` — thread-safe wrapper around `PostHogSDK.shared`.
 - Tracks an `isConfigured` flag set after `setup()` completes. `identifyUser()` guards on this flag and buffers the latest user ID if a future call races configuration.
 - `captureApplicationLifecycleEvents = true` for automatic foreground/background tracking. `captureScreenViews` and `captureElementInteractions` are disabled — the former causes iOS 18 layout constraint warnings by inserting `UIKitToolbar` into SwiftUI `UIHostingController` hierarchies.
@@ -94,6 +96,7 @@ Tracks session lifecycle, feature interactions, and backend AI token usage, link
 - Calls `reset()` when `SupabaseManager.shared.signOut()` clears session state.
 
 **Edge Functions (`_shared/posthog.ts`)**:
+
 - Uses the standard PostHog HTTP `/capture/` API to dispatch `ScanCompleted`, `EnrichmentCompleted`, `EncyclopedicLLMCompleted`, `DiagnosticLLMCompleted`, and `GroupTagsLLMCompleted` events directly from the Supabase backend.
 - Attaches AI metrics including `llm_model`, `llm_prompt_tokens`, `llm_candidate_tokens`, and `llm_total_tokens` to `user.id` to provide 100% visibility into Flash vs Pro tier token usage across both primary vision routing and background classification tasks.
 - Safely runs inside Deno's async background tasks (using `.waitUntil` / promises) to never block the inference response to the client.

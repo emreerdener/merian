@@ -6,6 +6,7 @@ struct Preferences: View {
     @Environment(HardwareOrchestrator.self) private var hardwareOrchestrator
     @Environment(SupabaseManager.self) private var supabase
     @Environment(AppSettings.self) private var appSettings
+    @Environment(RevenueCatManager.self) private var revenueCatManager
 
     @Binding var defaultGeoprivacy: String
     @Binding var managePlanActive: Bool
@@ -13,13 +14,32 @@ struct Preferences: View {
     @Binding var cameraSettingsActive: Bool
     @Binding var audioRecordingSettingsActive: Bool
     @Binding var captureModeOrderSettingsActive: Bool
+    @Binding var showPaywall: Bool
     @Binding var showTestExploreOnboarding: Bool
 
     var body: some View {
         @Bindable var hwOrchestrator = hardwareOrchestrator
         @Bindable var appSettings = appSettings
-        
-                Section {
+
+        // MARK: - PRO SUBSCRIPTION BANNER
+        Section {
+            Button {
+                if revenueCatManager.isProActive {
+                    managePlanActive = true
+                } else {
+                    showPaywall = true
+                }
+            } label: {
+                ProSettingsBanner(isProActive: revenueCatManager.isProActive)
+            }
+            .buttonStyle(.plain)
+            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+
+        // MARK: - Account & App
+        Section {
             // MARK: - Theme
             VStack(alignment: .leading, spacing: 8) {                   
                 Picker("Theme", selection: $appSettings.themeMode) {
@@ -31,15 +51,6 @@ struct Preferences: View {
                 .pickerStyle(.segmented)
             }
             .padding(.vertical, 4)
-            // MARK: - Upgrades
-            Button { managePlanActive = true } label: {
-                SettingsNavigationRow(
-                    title: "Upgrade",
-                    description: "Upgrade or manage your active subscription tier.",
-                    icon: "bag.fill",
-                    iconColor: .orange
-                )
-            }
 
             // MARK: - Push Notifications
             Button { notificationSettingsActive = true } label: {
@@ -83,15 +94,38 @@ struct Preferences: View {
                 }
                 .padding(.vertical, 4)
             }
-        } header: {
-            Text("Account & app")
         }
+
+        // MARK: - PRO FEATURES
         Section {
-            // MARK: - Sections
+            ProFeatureToggleRow(
+                title: "Multi-capture mode",
+                description: "Attach up to 2 items (photos, audio clips, or descriptions) before submitting.",
+                isOn: $appSettings.isMultiCaptureEnabled,
+                icon: "square.stack.fill",
+                iconColor: ProSettingsStyle.accent,
+                isProActive: revenueCatManager.isProActive,
+                onUpgrade: { showPaywall = true }
+            )
+        } header: {
+            ProSectionHeader()
+        }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(ProSettingsStyle.accent.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(ProSettingsStyle.accent.opacity(0.3), lineWidth: 1)
+                )
+        )
+
+        // MARK: - Capture setup
+        Section {
+            // MARK: - Capture Modes
             Button { captureModeOrderSettingsActive = true } label: {
                 SettingsNavigationRow(
-                    title: "Sections",
-                    description: "Reorder capture sections and choose your default launch mode.",
+                    title: "Capture modes",
+                    description: "Choose your default mode and reorder Scan, Record, and Describe.",
                     icon: "rectangle.split.3x1.fill",
                     iconColor: .yellow
                 )
@@ -116,20 +150,6 @@ struct Preferences: View {
                     iconColor: .purple
                 )
             }
-        } header: {
-            Text("Capture setup")
-        }
-        
-        Section {
-            // MARK: - Multi-Capture Scans
-            SettingsToggleRow(
-                title: "Multi-capture mode",
-                description: "Attach up to 2 items (photos, audio clips, or descriptions) before submitting. By default, a single capture is sent to AI immediately.",
-                isOn: $appSettings.isMultiCaptureEnabled,
-                icon: "square.stack.fill",
-                iconColor: .blue
-            )
-            
             // MARK: - Confirm Submissions
             SettingsToggleRow(
                 title: "Confirm scan submission",
@@ -156,7 +176,7 @@ struct Preferences: View {
             )
 
         } header: {
-            Text("Capture behavior")
+            Text("Capture")
         }
 
         #if DEBUG
@@ -195,6 +215,127 @@ extension Notification.Name {
     static let devPreviewAnalyzing = Notification.Name("dev.merian.previewAnalyzing")
 }
 #endif
+
+// MARK: - Pro Settings
+
+private enum ProSettingsStyle {
+    static let accent = Color(red: 0.12, green: 0.65, blue: 0.45)
+}
+
+private struct ProSettingsBanner: View {
+    let isProActive: Bool
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Image("pw_bird")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 112, height: 112)
+                .offset(x: -14)
+                .padding(.vertical, -18)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Text("Merian")
+                        .font(.system(.title2).weight(.bold))
+                        .foregroundStyle(.white)
+                    Text("PRO")
+                        .font(.system(.title3).weight(.black))
+                        .foregroundStyle(ProSettingsStyle.accent)
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+                Text(isProActive ? "Your advanced field kit is active." : "Unlock richer captures and advanced AI analysis.")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+        .padding(.trailing, 16)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.03, green: 0.11, blue: 0.08),
+                    Color(red: 0.04, green: 0.31, blue: 0.20),
+                    Color(red: 0.05, green: 0.20, blue: 0.16)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(isProActive ? "Merian Pro active" : "Merian Pro")
+    }
+}
+
+private struct ProSectionHeader: View {
+    var body: some View {
+            Text("PRO")
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .foregroundStyle(ProSettingsStyle.accent)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(ProSettingsStyle.accent.opacity(0.18))
+                .clipShape(Capsule())
+        }
+}
+
+private struct ProFeatureToggleRow: View {
+    let title: String
+    let description: String
+    @Binding var isOn: Bool
+    let icon: String
+    let iconColor: Color
+    let isProActive: Bool
+    let onUpgrade: () -> Void
+
+    var body: some View {
+        if isProActive {
+            SettingsToggleRow(
+                title: title,
+                description: description,
+                isOn: $isOn,
+                icon: icon,
+                iconColor: iconColor
+            )
+        } else {
+            Button(action: onUpgrade) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 12) {
+                        Image(systemName: icon)
+                            .foregroundStyle(iconColor)
+                            .font(.system(size: 17, weight: .medium))
+                            .frame(width: 24)
+
+                        Text(title)
+                            .foregroundColor(.primary)
+
+                        Spacer()
+
+                        Text("Upgrade")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(ProSettingsStyle.accent)
+
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+
+                    Text(description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 36)
+                }
+                .padding(.vertical, 4)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
 
 // MARK: - Reusable Row Primitives
 
@@ -324,7 +465,7 @@ struct CameraSettingsView: View {
                 )
                 SettingsToggleRow(
                     title: "Right-side zoom slider",
-                    description: "Move the zoom meter to the right edge of the viewfinder.",
+                    description: "Move the zoom meter to the right edge of the viewfinder. Default is on the left edge.",
                     isOn: Binding(get: { !appSettings.zoomSideLeft }, set: { appSettings.zoomSideLeft = !$0 }),
                     icon: "arrow.left.and.right",
                     iconColor: .blue
@@ -498,13 +639,13 @@ struct CaptureModeSettingsView: View {
                     appSettings.applyCaptureModeOrder(modes)
                 }
             } header: {
-                Text("Default sections")
+                Text("Default order")
             } footer: {
-                Text("Drag to rearrange the capture sections. The first item in the list will be your default view on launch.")
+                Text("Drag to reorder. The first mode opens by default.")
             }
         }
         .environment(\.editMode, .constant(.active))
-        .navigationTitle("Sections")
+        .navigationTitle("Capture Modes")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

@@ -6,21 +6,21 @@ This document covers the Profile tab architecture, how scan statistics are compu
 
 ## Architecture
 
-| File | Role |
-|---|---|
-| `ProfileTabView` | Root profile tab view |
-| `SettingsTabView` | Settings sub-tab |
-| `ProfileViewModel` | `@Observable @MainActor` — cloud preferences (geoprivacy), auth state, sign-in/out |
-| `ProfileDatabaseActor` | `@ModelActor` — builds compact SwiftData projections, computes profile stats, heatmap, and awards off-main |
-| `AchievementsCalculator` | Pure `struct` with `static func calculate(from:) -> [AwardPayload]` |
-| `GamificationManager` | `@MainActor @Observable` singleton — in-memory award cache, notification triggers |
-| `GamificationModels` | `AwardPayload`, `AwardState`, and `UserPersona` enumerations |
-| `Achievements` component | SwiftUI view rendering the award grid with sort options |
-| `UserStats` component | Renders species count and current streak from `LocalScanRecord` |
-| `Persona` component | Renders the user's active `UserPersona` tier badge and title |
-| `Terrarium` component | Biological 3D hex-grid mapping representation based on the user's active progression tier |
-| `PlanCard` component | Dynamic subscription banner reading `isProActive` to serve custom `.xcassets` graphics (`sparkles` vs `compass`) |
-| `ScansHeatmap` | Calendar heatmap of scan activity (52-week rolling window) anchored to analysis upload date, bypassing EXIF `captureDate` |
+| File                     | Role                                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `ProfileTabView`         | Root profile tab view                                                                                                     |
+| `SettingsTabView`        | Settings sub-tab                                                                                                          |
+| `ProfileViewModel`       | `@Observable @MainActor` — cloud preferences (geoprivacy), auth state, sign-in/out                                        |
+| `ProfileDatabaseActor`   | `@ModelActor` — builds compact SwiftData projections, computes profile stats, heatmap, and awards off-main                |
+| `AchievementsCalculator` | Pure `struct` with `static func calculate(from:) -> [AwardPayload]`                                                       |
+| `GamificationManager`    | `@MainActor @Observable` singleton — in-memory award cache, notification triggers                                         |
+| `GamificationModels`     | `AwardPayload`, `AwardState`, and `UserPersona` enumerations                                                              |
+| `Achievements` component | SwiftUI view rendering the award grid with sort options                                                                   |
+| `UserStats` component    | Renders species count and current streak from `LocalScanRecord`                                                           |
+| `Persona` component      | Renders the user's active `UserPersona` tier badge and title                                                              |
+| `Terrarium` component    | Biological 3D hex-grid mapping representation based on the user's active progression tier                                 |
+| `PlanCard` component     | Dynamic subscription banner reading `isProActive` to serve custom `.xcassets` graphics (`sparkles` vs `compass`)          |
+| `ScansHeatmap`           | Calendar heatmap of scan activity (52-week rolling window) anchored to analysis upload date, bypassing EXIF `captureDate` |
 
 ---
 
@@ -28,15 +28,15 @@ This document covers the Profile tab architecture, how scan statistics are compu
 
 The `UserPersona` enumeration (defined in `GamificationModels.swift`) replaces legacy arbitrary ranking scales with a strict, 5-tier biological taxonomy path derived mathematically from the user's `uniqueSpeciesCount` (NOT total scans):
 
-| Tier Level | Persona Title | Unique Species Threshold | Asset Identifier |
-|---|---|---|---|
-| Tier 1 | Observer | 0 | `persona_observer` |
-| Tier 2 | Casual Explorer | 10 | `persona_explorer` |
-| Tier 3 | Dedicated Naturalist | 50 | `persona_naturalist` |
-| Tier 4 | Verified Scholar | 250 | `persona_scholar` |
-| Tier 5 | Apex Observer | 1000 | `persona_apex` |
+| Tier Level | Persona Title        | Unique Species Threshold | Asset Identifier     |
+| ---------- | -------------------- | ------------------------ | -------------------- |
+| Tier 1     | Observer             | 0                        | `persona_observer`   |
+| Tier 2     | Casual Explorer      | 10                       | `persona_explorer`   |
+| Tier 3     | Dedicated Naturalist | 50                       | `persona_naturalist` |
+| Tier 4     | Verified Scholar     | 250                      | `persona_scholar`    |
+| Tier 5     | Apex Observer        | 1000                     | `persona_apex`       |
 
-The `Persona` UI component cross-references this enum against the user's live profile statistics to render the appropriate `.imageset` container from the `Profile/Personas/` catalog. It sits adjacent to the `Terrarium` component on the Profile Tab, which loads compounding biological elements based on the same 5-tier logic. 
+The `Persona` UI component cross-references this enum against the user's live profile statistics to render the appropriate `.imageset` container from the `Profile/Personas/` catalog. It sits adjacent to the `Terrarium` component on the Profile Tab, which loads compounding biological elements based on the same 5-tier logic.
 
 **Plan Card Integration**: The `PlanCard` dynamic banner also eschews standard SF Symbols in favor of custom vectors. Depending on `RevenueCatManager.shared.isProActive`, it targets `merian/Assets.xcassets/Profile/Plan/sparkles.imageset` for Premium users, falling back to `compass.imageset` for Free-tier users.
 
@@ -45,6 +45,7 @@ The `Persona` UI component cross-references this enum against the user's live pr
 ## ProfileViewModel Responsibility Boundary
 
 `ProfileViewModel` handles **only** cloud-network operations:
+
 - `fetchGeoprivacy()` — reads `default_geoprivacy` from the Supabase `users` table
 - `signInWithApple()`, `signInWithGoogle()`, `signOut()` — delegates to `SupabaseManager`
 - Auth state computed properties (`isGuestUser`, `userName`, `userEmail`, `userAvatarURL`)
@@ -79,21 +80,21 @@ All `ProfileDatabaseActor` fetches use `propertiesToFetch` projections to minimi
 
 `AchievementsCalculator.calculate(from:) -> [AwardPayload]` is a pure, synchronous function with no side effects. It accepts any `AchievementRecordRepresentable`, so profile rendering can pass lightweight projection structs instead of full SwiftData models. It iterates all records once, maintaining running canonical-species accumulators per award criterion:
 
-| Award title | Type key | Criterion | Target |
-|---|---|---|---|
-| The Observer | `first_scan` | Any scan exists | 1 |
-| The Naturalist | `explorer` | Unique species count | 5 |
-| The Botanist | `plantae` | Unique Plantae kingdom species | 10 |
-| The Zoologist | `insecta` | Unique Insecta or Arachnida class species | 10 |
-| The Mycologist | `fungi` | Unique Fungi kingdom species | 10 |
-| The Urban Ecologist | `urban` | Unique urban/domesticated ecology scans | 10 |
-| The Frost Walker | `frost_walker` | Unique scans at temp < 32°F | 5 |
-| The Alpine Naturalist | `alpine` | Unique scans at elevation > 2500m | 5 |
-| The Nocturnal Observer | `nocturnal` | Unique scans between hour 22–05 (inclusive) | 10 |
-| The Guardian | `guardian` | Unique invasive species scans | 5 |
-| The Conservationist | `conservationist` | Any IUCN status that is not LC, NE, or DD | 1 |
-| The Toxicologist | `toxicologist` | Unique poisonous species scans | 5 |
-| The Perfect Lens | `perfect_lens` | Unique scans with confidence ≥ 0.98 | 25 |
+| Award title            | Type key          | Criterion                                   | Target |
+| ---------------------- | ----------------- | ------------------------------------------- | ------ |
+| New Observer           | `first_scan`      | Any scan exists                             | 1      |
+| The Naturalist         | `explorer`        | Unique species count                        | 5      |
+| The Botanist           | `plantae`         | Unique Plantae kingdom species              | 10     |
+| The Zoologist          | `insecta`         | Unique Insecta or Arachnida class species   | 10     |
+| The Mycologist         | `fungi`           | Unique Fungi kingdom species                | 10     |
+| The Urban Ecologist    | `urban`           | Unique urban/domesticated ecology scans     | 10     |
+| The Frost Walker       | `frost_walker`    | Unique scans at temp < 32°F                 | 5      |
+| The Alpine Naturalist  | `alpine`          | Unique scans at elevation > 2500m           | 5      |
+| The Nocturnal Observer | `nocturnal`       | Unique scans between hour 22–05 (inclusive) | 10     |
+| The Guardian           | `guardian`        | Unique invasive species scans               | 5      |
+| The Conservationist    | `conservationist` | Any IUCN status that is not LC, NE, or DD   | 1      |
+| The Toxicologist       | `toxicologist`    | Unique poisonous species scans              | 5      |
+| The Perfect Lens       | `perfect_lens`    | Unique scans with confidence ≥ 0.98         | 25     |
 
 All species-based criteria de-duplicate by canonical species key (`confirmedSpeciesId`, then `speciesId`, then display scientific name) — scanning the same species 10 times counts as 1 toward a species-based award.
 
@@ -175,6 +176,7 @@ public struct AwardPayload: Sendable, Identifiable {
 ```
 
 Extension properties:
+
 - `isCompleted: Bool` — `currentCount >= targetCount`
 - `progressFraction: Double` — clamped `currentCount / targetCount`; `currentCount` itself is never truncated to the target
 - `difficultyLevel: Int` — 0 (Easy), 1 (Medium), 2 (Hard), derived from the `type` key

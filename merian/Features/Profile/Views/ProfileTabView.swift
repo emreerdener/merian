@@ -12,6 +12,7 @@ struct ProfileTabView: View {
     // Natively isolated State variables dynamically mapped back from the background Actor mathematically.
     @State private var uniqueSpeciesCount: Int = 0
     @State private var currentStreak: Int = 0
+    @State private var totalCaptures: Int = 0
     @State private var heatmapData: ProfileHeatmapData?
     @State private var awards: [AwardPayload] = []
     @State private var exploreViewModel = ExploreFeedViewModel()
@@ -23,12 +24,12 @@ struct ProfileTabView: View {
             VStack(spacing: 24) {
                 // MARK: - Terrarium & Persona
                 VStack(spacing: 16) {
-                    Terrarium()
+                    Terrarium(uniqueSpeciesCount: uniqueSpeciesCount)
                     Persona(uniqueSpeciesCount: uniqueSpeciesCount)
                 }
 
                 // MARK: - User Profile
-                UserProfile()
+                UserProfile(totalScans: totalCaptures)
                 
                 // MARK: - Stats
                 UserStats(speciesCount: uniqueSpeciesCount, streak: currentStreak)
@@ -83,6 +84,7 @@ struct ProfileTabView: View {
                 await MainActor.run {
                     self.uniqueSpeciesCount = stats.speciesCount
                     self.currentStreak = stats.streak
+                    self.totalCaptures = stats.heatmap.totalCaptures
                     self.heatmapData = stats.heatmap
                     self.awards = stats.awards
                 }

@@ -224,9 +224,9 @@ struct ExplorePostCard: View {
                 }
 
                 Button(role: .destructive, action: onUnshare) {
-                    Label("Remove post", systemImage: "trash")
+                    Label("Unpublish post", systemImage: "minus.circle")
                 }
-                .tint(.red)
+                .tint(.orange)
             } else {
                 Button(role: .destructive, action: onBlock) {
                     Label("Block user", systemImage: "person.crop.circle.badge.xmark")

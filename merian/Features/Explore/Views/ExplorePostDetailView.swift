@@ -765,7 +765,7 @@ struct ExplorePostDetailView: View {
                 Button(role: .destructive) {
                     Task { await viewModel.unshare(post) }
                 } label: {
-                    Label("Remove post", systemImage: "trash")
+                    Label("Unpublish post", systemImage: "minus.circle")
                 }
                 .tint(.red)
             } else {
@@ -1500,15 +1500,26 @@ private struct ExploreReferenceGalleryPage: View {
     var onLoadFailed: (() -> Void)?
 
     var body: some View {
-        GeometryReader { proxy in
-            AsyncLocalImageView(
-                path: nil,
-                fallbackImageUrl: image.url,
-                fillHeight: true,
-                onImageLoadFailed: onLoadFailed
-            )
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .background(Color(uiColor: .secondarySystemBackground))
+        ZStack(alignment: .bottomTrailing) {
+            GeometryReader { proxy in
+                AsyncLocalImageView(
+                    path: nil,
+                    fallbackImageUrl: image.url,
+                    fillHeight: true,
+                    onImageLoadFailed: onLoadFailed
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .background(Color(uiColor: .secondarySystemBackground))
+            }
+
+            Text(image.source.label)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(.regularMaterial, in: Capsule(style: .continuous))
+                .padding(14)
         }
         .frame(maxWidth: .infinity)
         .frame(height: height)

@@ -478,7 +478,7 @@ public enum UserPersona: CaseIterable, Equatable {
     
     public var title: String {
         switch self {
-        case .observer: return "The Observer"
+        case .observer: return "New Observer"
         case .explorer: return "Casual Explorer"
         case .naturalist: return "Dedicated Naturalist"
         case .scholar: return "Verified Scholar"

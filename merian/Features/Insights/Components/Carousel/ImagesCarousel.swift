@@ -169,7 +169,7 @@ struct ImagesCarousel: View {
                     .id(scanId ?? "null")
                     .ignoresSafeArea(.all, edges: .top)
                     .overlay(alignment: .bottom) { paginationDots }
-                    .overlay(alignment: .bottomLeading) { referenceAttributionTag }
+                    .overlay(alignment: .bottomTrailing) { referenceAttributionTag }
                     .overlay(alignment: .top) {
                         LinearGradient(
                             colors: [.black.opacity(0.4), .clear],
@@ -377,12 +377,12 @@ private extension ImagesCarousel {
                 }
                 .background(.ultraThinMaterial, in: Capsule(style: .continuous))
                 .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
-                .padding(.leading, 14)
+                .padding(.trailing, 14)
                 .padding(.bottom, 40)
                 .allowsHitTesting(false)
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedReferenceAttributionLabel)
                 .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .leading)),
+                    insertion: .opacity.combined(with: .move(edge: .trailing)),
                     removal: .opacity
                 ))
         }

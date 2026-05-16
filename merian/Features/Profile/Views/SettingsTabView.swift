@@ -19,6 +19,7 @@ struct SettingsTabView: View {
     @State private var audioRecordingSettingsActive = false
     @State private var captureModeOrderSettingsActive = false
     @State private var showTestExploreOnboarding = false
+    @State private var showPaywall = false
     @State private var toastMessage: String?
 
     var body: some View {
@@ -31,6 +32,7 @@ struct SettingsTabView: View {
                     cameraSettingsActive: $cameraSettingsActive,
                     audioRecordingSettingsActive: $audioRecordingSettingsActive,
                     captureModeOrderSettingsActive: $captureModeOrderSettingsActive,
+                    showPaywall: $showPaywall,
                     showTestExploreOnboarding: $showTestExploreOnboarding
                 )
 
@@ -93,6 +95,10 @@ struct SettingsTabView: View {
             }
             .sheet(isPresented: $showDeleteConfirmation) {
                 DeleteAccountSheet(supabase: supabase)
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
+                    .environment(RevenueCatManager.shared)
             }
             .sheet(isPresented: $showTestExploreOnboarding) {
                 ExploreOnboardingPrompt(

@@ -811,7 +811,7 @@ private struct ExploreMapPreviewCard: View {
                 Menu {
                     if post.isOwnedByViewer {
                         Button(role: .destructive, action: onUnshare) {
-                            Label("Remove post", systemImage: "trash")
+                            Label("Unpublish post", systemImage: "minus.circle")
                         }
                         .tint(.red)
                     } else {

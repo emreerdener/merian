@@ -16,104 +16,144 @@ struct CandidateAlternativesView: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            VStack(spacing: candidates.count > 1 ? 48 : 24) {
-                // Visual Graphic stack
-                ZStack {
-                    let displayCandidates = Array(candidates.prefix(2))
-                    let isPair = displayCandidates.count == 2
-                    
-                    ForEach(Array(displayCandidates.enumerated().reversed()), id: \.offset) { index, candidate in
-                        let rotation: Double = isPair ? (index == 0 ? -5 : 5) : .zero
-                        let offsetX: CGFloat = isPair ? (index == 0 ? -16 : 16) : .zero
-                        let offsetY: CGFloat = isPair ? (index == 0 ? 0 : 12) : .zero
-
-                        FlayedCandidateThumbnail(candidate: candidate)
-                            .rotationEffect(.degrees(rotation))
-                            .offset(x: offsetX, y: offsetY)
-                            .zIndex(-Double(index))
-                            .visualEffect { content, proxy in
-                                let scrollOffset = proxy.frame(in: .global).minY
-                                let wave = sin(scrollOffset / 200.0)
-                                
-                                // Subtle fan out effect from the bottom center
-                                let rotationWiggle = Double(wave) * (index == 0 ? -3.0 : 3.0)
-                                
-                                return content
-                                    .rotationEffect(.degrees(rotationWiggle), anchor: .bottom)
-                            }
-                    }
-                }
-                .padding(.top, 8)
-                .onTapGesture(perform: onReviewAlternatives)
-
-                VStack(spacing: 24) {
-                    // Content Heading
-                    VStack(spacing: 8) {
-                        Text("\(candidates.count) \(isWeakMatch ? "possible" : "close") \(candidates.count == 1 ? "match" : "matches") found")
-                            .font(.system(.title2).weight(.bold))
-                            .foregroundColor(.primary)
-                        Text("Other species the model also considered")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .multilineTextAlignment(.center)
-
-                    // Action Buttons
-                    VStack(spacing: 16) {
-                        Button {
-                            HapticManager.shared.triggerSelectionPulse()
-                            onReviewAlternatives()
-                        } label: {
-                            Text("Review alternatives")
-                                .font(.headline.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(
-                                    ZStack {
-                                        Capsule()
-                                            .fill(.ultraThinMaterial)
-                                        Capsule()
-                                            .fill(Color.green.opacity(0.75))
-                                    }
-                                )
-                                .foregroundColor(.white)
-                                .overlay(
-                                    Capsule()
-                                        .strokeBorder(Color.white.opacity(0.4), lineWidth: 0.5)
-                                        .blendMode(.overlay)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        
-                        SlideToConfirm(label: confirmButtonTitle, onConfirm: onConfirm)
-                    }
-                }
-            }
+            content
 
             if showDismissButton {
-                Button {
-                    HapticManager.shared.triggerLightImpact()
-                    onDismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .circularMaterialControl(size: 32)
-                }
-                .buttonStyle(.plain)
-                .offset(x: 4, y: -4)
+                dismissButton
             }
         }
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(colorScheme == .dark ? Color.black.opacity(0.5) : Color(uiColor: .systemBackground))
-                .shadow(color: .black.opacity(0.15), radius: 30, x: 0, y: 15)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .stroke(Color(UIColor.separator), lineWidth: 0.5)
-        )
+        .background(cardBackground)
+        .overlay(cardBorder)
+    }
+
+    private var displayCandidates: [IdentificationCandidate] {
+        Array(candidates.prefix(2))
+    }
+
+    private var isPairDisplay: Bool {
+        displayCandidates.count == 2
+    }
+
+    private var content: some View {
+        VStack(spacing: candidates.count > 1 ? 48 : 24) {
+            candidateGraphicStack
+
+            VStack(spacing: 24) {
+                heading
+                actionButtons
+            }
+        }
+    }
+
+    private var candidateGraphicStack: some View {
+        ZStack {
+            ForEach(Array(displayCandidates.enumerated().reversed()), id: \.offset) { index, candidate in
+                thumbnail(candidate, at: index)
+            }
+        }
+        .padding(.top, 8)
+        .onTapGesture(perform: onReviewAlternatives)
+    }
+
+    private func thumbnail(_ candidate: IdentificationCandidate, at index: Int) -> some View {
+        let rotation: Double = isPairDisplay ? (index == 0 ? -5 : 5) : 0
+        let offsetX: CGFloat = isPairDisplay ? (index == 0 ? -16 : 16) : 0
+        let offsetY: CGFloat = isPairDisplay ? (index == 0 ? 0 : 12) : 0
+
+        return FlayedCandidateThumbnail(candidate: candidate)
+            .rotationEffect(.degrees(rotation))
+            .offset(x: offsetX, y: offsetY)
+            .zIndex(-Double(index))
+            .visualEffect { content, proxy in
+                let scrollOffset = proxy.frame(in: .global).minY
+                let wave = sin(scrollOffset / 200.0)
+                let rotationWiggle = Double(wave) * (index == 0 ? -3.0 : 3.0)
+
+                return content
+                    .rotationEffect(.degrees(rotationWiggle), anchor: .bottom)
+            }
+    }
+
+    private var heading: some View {
+        VStack(spacing: 8) {
+            Text(headingTitle)
+                .font(.system(.title2).weight(.bold))
+                .foregroundColor(.primary)
+            Text("Other species the model also considered")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .multilineTextAlignment(.center)
+    }
+
+    private var headingTitle: String {
+        let strength = isWeakMatch ? "possible" : "close"
+        let noun = candidates.count == 1 ? "match" : "matches"
+        return "\(candidates.count) \(strength) \(noun) found"
+    }
+
+    private var actionButtons: some View {
+        VStack(spacing: 16) {
+            reviewAlternativesButton
+            SlideToConfirm(label: confirmButtonTitle, onConfirm: onConfirm)
+        }
+    }
+
+    private var reviewAlternativesButton: some View {
+        Button {
+            HapticManager.shared.triggerSelectionPulse()
+            onReviewAlternatives()
+        } label: {
+            Text("Review alternatives")
+                .font(.headline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(reviewButtonBackground)
+                .foregroundColor(.black)
+                .overlay(reviewButtonBorder)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var reviewButtonBackground: some View {
+        ZStack {
+            Capsule()
+                .fill(.ultraThinMaterial)
+            Capsule()
+                .fill(Color.yellow.opacity(0.75))
+        }
+    }
+
+    private var reviewButtonBorder: some View {
+        Capsule()
+            .strokeBorder(Color.white.opacity(0.4), lineWidth: 0.5)
+            .blendMode(.overlay)
+    }
+
+    private var dismissButton: some View {
+        Button {
+            HapticManager.shared.triggerLightImpact()
+            onDismiss()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.secondary)
+                .circularMaterialControl(size: 32)
+        }
+        .buttonStyle(.plain)
+        .offset(x: 4, y: -4)
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 32, style: .continuous)
+            .fill(colorScheme == .dark ? Color.black.opacity(0.5) : Color(uiColor: .systemBackground))
+            .shadow(color: .black.opacity(0.15), radius: 30, x: 0, y: 15)
+    }
+
+    private var cardBorder: some View {
+        RoundedRectangle(cornerRadius: 32, style: .continuous)
+            .stroke(Color(UIColor.separator), lineWidth: 0.5)
     }
 }
 

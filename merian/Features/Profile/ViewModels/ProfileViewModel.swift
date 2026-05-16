@@ -1,6 +1,12 @@
 import Observation
 import SwiftUI
 
+struct ProfileSocialStats: Equatable {
+    let followerCount: Int
+    let followingCount: Int
+    let publishedPostCount: Int
+}
+
 /// An isolated ViewModel dedicated exclusively to managing asynchronous Cloud/Network boundaries (Supabase REST API).
 /// Note: Massive Offline hardware calculations (SwiftData/SQLite arrays) are deliberately FIREWALLED completely out of this class
 /// and routed into `@ModelActor` structs natively instead to avoid locking up `@MainActor` thread resources linearly!
@@ -10,12 +16,18 @@ final class ProfileViewModel {
     // A state that instantly triggers SwiftUI View layout `.sheet` redraws dynamically 
     // the very millisecond the PostgreSQL network call physically returns data!
     var defaultGeoprivacy = "open"
+    var socialStats: ProfileSocialStats?
+    var isLoadingSocialStats = false
     
     let supabase = SupabaseManager.shared
     
     // MARK: - Auth & Profile State Map
     var isGuestUser: Bool {
         supabase.isGuestUser
+    }
+
+    var currentUserId: String? {
+        supabase.currentUser?.id.uuidString
     }
     
     var userName: String? {
@@ -67,6 +79,34 @@ final class ProfileViewModel {
                     MerianLog.network.error("Failed to fetch geoprivacy preference: \(error, privacy: .private)")
                 }
             }
+        }
+    }
+
+    func fetchSocialStats() async {
+        guard !isGuestUser, let userId = currentUserId else {
+            socialStats = nil
+            isLoadingSocialStats = false
+            return
+        }
+
+        socialStats = nil
+        isLoadingSocialStats = true
+        defer { isLoadingSocialStats = false }
+
+        do {
+            let profile = try await MerianNetworkClient.shared.getExploreAuthorProfile(
+                authorUserId: userId,
+                previewLimit: 0
+            )
+            guard !Task.isCancelled, currentUserId == userId else { return }
+            socialStats = ProfileSocialStats(
+                followerCount: profile.followerCount,
+                followingCount: profile.followingCount,
+                publishedPostCount: profile.publishedPostCount
+            )
+        } catch {
+            guard !Task.isCancelled else { return }
+            MerianLog.network.error("Failed to fetch profile social stats: \(error, privacy: .private)")
         }
     }
 }

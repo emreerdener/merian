@@ -3,7 +3,7 @@ import SwiftUI
 
 // 1. Digital Terrarium Integration mapping directly to users' physical taxonomical growth
 struct Terrarium: View {
-    @Environment(GamificationManager.self) var gamificationManager
+    let uniqueSpeciesCount: Int
     
     // Safety check to prevent crashing if the .riv file hasn't been bundled by the designer yet
     private var isRiveFileBundled: Bool {
@@ -11,28 +11,27 @@ struct Terrarium: View {
     }
     
     private var persona: UserPersona {
-        UserPersona(speciesCount: gamificationManager.unlockedSpeciesCount)
+        UserPersona(speciesCount: uniqueSpeciesCount)
     }
     
     var body: some View {
         ZStack {
             if isRiveFileBundled {
-                ActiveTerrariumRenderer()
+                ActiveTerrariumRenderer(uniqueSpeciesCount: uniqueSpeciesCount)
             } else {
                 // Conditional persona image placeholder
                 Image(persona.imageName)
                     .resizable()
                     .scaledToFit()
-                    .padding(24)
             }
         }
-        .frame(width: 300, height: 300)
-        .clipShape(Circle())
+        .frame(width: 300, height: 260)
     }
 }
 
 /// Subview explicitly separating the Rive initialization so it isn't eagerly evaluated by the SwiftUI engine
 private struct ActiveTerrariumRenderer: View {
+    let uniqueSpeciesCount: Int
     @Environment(GamificationManager.self) var gamificationManager
     
     @StateObject private var terrariumVM = RiveViewModel(
@@ -42,12 +41,11 @@ private struct ActiveTerrariumRenderer: View {
     
     var body: some View {
         terrariumVM.view()
-            .clipShape(Circle())
             .onTapGesture {
                 terrariumVM.triggerInput("UserTapped")
                 HapticManager.shared.triggerSelectionPulse()
             }
-            .onChange(of: gamificationManager.unlockedSpeciesCount) { _, newValue in
+            .onChange(of: uniqueSpeciesCount, initial: true) { _, newValue in
                 terrariumVM.setInput("TotalSpeciesCount", value: Double(newValue))
             }
             .onChange(of: gamificationManager.hasFireflyBadge) { _, newValue in
