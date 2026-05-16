@@ -771,6 +771,8 @@ private struct ExploreMapPreviewCard: View {
     let onBlock: () -> Void
     let onReport: () -> Void
 
+    @State private var showUnpublishConfirmation = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 0) {
@@ -810,7 +812,7 @@ private struct ExploreMapPreviewCard: View {
 
                 Menu {
                     if post.isOwnedByViewer {
-                        Button(role: .destructive, action: onUnshare) {
+                        Button(role: .destructive, action: { showUnpublishConfirmation = true }) {
                             Label("Unpublish post", systemImage: "minus.circle")
                         }
                         .tint(.red)
@@ -878,6 +880,12 @@ private struct ExploreMapPreviewCard: View {
             .buttonStyle(.plain)
         }
         .card()
+        .alert("Unpublish Post?", isPresented: $showUnpublishConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Unpublish", role: .destructive, action: onUnshare)
+        } message: {
+            Text("This will remove the post from Explore. Your original scan will remain safely in your library.")
+        }
     }
 
     private var subtitle: String? {

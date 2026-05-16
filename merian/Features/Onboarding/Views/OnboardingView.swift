@@ -12,7 +12,7 @@ struct OnboardingView: View {
     var body: some View {
         ZStack {
             // 1. Background Layer
-            Color.black.ignoresSafeArea()
+            Color(uiColor: .systemBackground).ignoresSafeArea()
             
             // 2. Programmatic Step Control (Disables arbitrary swiping)
             Group {

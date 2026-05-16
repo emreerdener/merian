@@ -58,7 +58,7 @@ struct Preferences: View {
                     title: "Notifications",
                     description: "Configure alerts for new discoveries and achievement milestones.",
                     icon: "bell.fill",
-                    iconColor: .red
+                    iconColor: .orange
                 )
             }
 
@@ -68,7 +68,7 @@ struct Preferences: View {
                 description: "Tactile feedback on zoom ticks, captures, and key interactions.",
                 isOn: $appSettings.isHapticsEnabled,
                 icon: "waveform",
-                iconColor: .pink
+                iconColor: .purple
             )
 
             // MARK: - Geoprivacy
@@ -147,7 +147,7 @@ struct Preferences: View {
                     title: "Audio recording",
                     description: "Microphone hints and tuning preferences.",
                     icon: "mic.fill",
-                    iconColor: .purple
+                    iconColor: .red
                 )
             }
             // MARK: - Confirm Submissions
@@ -156,7 +156,7 @@ struct Preferences: View {
                 description: "Present the 'Identify' button after capturing to physically confirm the scan. When disabled, single captures are sent to AI immediately.",
                 isOn: $appSettings.requiresScanConfirmation,
                 icon: "hand.tap.fill",
-                iconColor: .purple
+                iconColor: .blue
             )
 
             // MARK: - Expedition Mode
@@ -227,10 +227,11 @@ private struct ProSettingsBanner: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Image("pw_bird")
+            Image("bird_tree")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 112, height: 112)
+                .frame(width: 120, height: 120)
+                .scaleEffect(x: -1, y: 1)
                 .offset(x: -14)
                 .padding(.vertical, -18)
 
@@ -265,8 +266,8 @@ private struct ProSettingsBanner: View {
                 startPoint: .leading,
                 endPoint: .trailing
             )
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         )
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(isProActive ? "Merian Pro active" : "Merian Pro")
     }

@@ -26,6 +26,7 @@ struct ExplorePostDetailView: View {
     @State private var isRefreshingAfterInsightDismiss = false
     @State private var didAutoOpenInsight = false
     @State private var isCommonNameScrolledPast = false
+    @State private var postToUnpublish: ExplorePost?
 
     private let commentsSectionId = "explore-comments-section"
     private let commentsComposerId = "explore-comments-composer"
@@ -212,6 +213,22 @@ struct ExplorePostDetailView: View {
                 ),
                 promptContext: .resolved(subjectId: nil)
             )
+        }
+        .alert(
+            "Unpublish Post?",
+            isPresented: Binding(
+                get: { postToUnpublish != nil },
+                set: { if !$0 { postToUnpublish = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) { }
+            Button("Unpublish", role: .destructive) {
+                if let post = postToUnpublish {
+                    Task { await viewModel.unshare(post) }
+                }
+            }
+        } message: {
+            Text("This will remove the post from Explore. Your original scan will remain safely in your library.")
         }
     }
 
@@ -763,7 +780,7 @@ struct ExplorePostDetailView: View {
                 }
 
                 Button(role: .destructive) {
-                    Task { await viewModel.unshare(post) }
+                    postToUnpublish = post
                 } label: {
                     Label("Unpublish post", systemImage: "minus.circle")
                 }

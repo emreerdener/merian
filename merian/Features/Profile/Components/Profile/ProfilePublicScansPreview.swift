@@ -8,6 +8,7 @@ struct ProfilePublicScansPreview: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(SupabaseManager.self) private var supabase
+    @Environment(ProfileViewModel.self) private var profileViewModel
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var localScans: [LocalScanRecord]
 
     @State private var remotePosts: [ExplorePost] = []
@@ -15,6 +16,7 @@ struct ProfilePublicScansPreview: View {
     @State private var hasLoaded = false
     @State private var didFail = false
     @State private var shareStateRevision: UInt64 = 0
+    @State private var isLibraryPresented = false
 
     private let previewLimit = 9
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
@@ -30,6 +32,14 @@ struct ProfilePublicScansPreview: View {
             .onReceive(AppEventPublisher.shared.publisher) { event in
                 handleAppEvent(event)
             }
+            .navigationDestination(isPresented: $isLibraryPresented) {
+                if let currentUserId {
+                    ProfilePublishedScansLibraryView(
+                        viewModel: viewModel,
+                        authorUserId: currentUserId
+                    )
+                }
+            }
     }
 
     @ViewBuilder
@@ -38,9 +48,7 @@ struct ProfilePublicScansPreview: View {
 
         if currentUserId != nil, isLoading || !items.isEmpty || hasLoaded || didFail {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Explore scans")
-                    .font(.title3.weight(.bold))
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                sectionHeader
 
                 if isLoading && items.isEmpty {
                     loadingGrid
@@ -51,12 +59,49 @@ struct ProfilePublicScansPreview: View {
                 } else {
                     scanGrid(items: items)
                 }
+
+                if shouldShowViewMoreButton {
+                    viewMoreButton
+                }
             }
         }
     }
 
     private var currentUserId: String? {
         supabase.currentUser?.id.uuidString
+    }
+
+    private var publishedPostCount: Int? {
+        profileViewModel.socialStats?.publishedPostCount
+    }
+
+    private var shouldShowViewMoreButton: Bool {
+        if let publishedPostCount {
+            return publishedPostCount > previewLimit
+        }
+
+        return hasLoaded && remotePosts.count == previewLimit
+    }
+
+    private var sectionHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Published scans")
+                .font(.title3.weight(.bold))
+
+            Spacer()
+
+            if let publishedPostCount {
+                Text(publishedPostCount.formatted(.number.notation(.compactName)))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            } else if profileViewModel.isLoadingSocialStats {
+                Text("000")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .redacted(reason: .placeholder)
+                    .accessibilityLabel("Loading published scans count")
+            }
+        }
     }
 
     private var previewItems: [ProfilePublicScanPreviewItem] {
@@ -120,7 +165,7 @@ struct ProfilePublicScansPreview: View {
                     .clipped()
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Explore scan")
+                .accessibilityLabel("Published scan")
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -139,13 +184,38 @@ struct ProfilePublicScansPreview: View {
     }
 
     private var emptyState: some View {
-        Text("No public Explore scans yet.")
+        Text("No published scans yet.")
             .profileExploreStateStyle()
     }
 
     private var unavailableState: some View {
-        Text("Explore scans unavailable right now.")
+        Text("Published scans unavailable right now.")
             .profileExploreStateStyle()
+    }
+
+    private var viewMoreButton: some View {
+        Button {
+            isLibraryPresented = true
+        } label: {
+            HStack(spacing: 4) {
+                Text("View more scans")
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background {
+                Capsule()
+                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            }
+            .overlay {
+                Capsule()
+                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     @MainActor
@@ -229,7 +299,10 @@ struct ProfilePublicScansPreview: View {
             if postId == nil {
                 remotePosts.removeAll { $0.scanId == scanId }
             }
-            Task { await loadPreviewPosts(for: currentUserId) }
+            Task {
+                await loadPreviewPosts(for: currentUserId)
+                await profileViewModel.fetchSocialStats()
+            }
         case .explorePostNeedsRefresh(let postId):
             guard remotePosts.contains(where: { $0.id == postId }) else { return }
             Task {
@@ -246,6 +319,262 @@ struct ProfilePublicScansPreview: View {
     private func localImagePath(for scan: LocalScanRecord) -> String? {
         scan.coverImagePath?.trimmedProfilePreviewValue
             ?? scan.capturedMediaSnapshot.primaryImagePath?.trimmedProfilePreviewValue
+    }
+}
+
+private struct ProfilePublishedScansLibraryView: View {
+    @Bindable var viewModel: ExploreFeedViewModel
+    let authorUserId: String
+
+    @Environment(\.modelContext) private var modelContext
+    @Environment(ProfileViewModel.self) private var profileViewModel
+
+    @State private var posts: [ExplorePost] = []
+    @State private var cursor = ExploreAuthorPostCursor.empty
+    @State private var isLoading = false
+    @State private var didFail = false
+    @State private var hasReachedEnd = false
+    @State private var selectedPostRoute: ExplorePostRoute?
+
+    private let pageSize = 30
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+
+                if posts.isEmpty && isLoading {
+                    loadingGrid(count: 12)
+                } else if didFail && posts.isEmpty {
+                    Text("Published scans unavailable right now.")
+                        .profileExploreStateStyle()
+                } else if posts.isEmpty {
+                    Text("No published scans yet.")
+                        .profileExploreStateStyle()
+                } else {
+                    libraryGrid
+                }
+
+                if isLoading && !posts.isEmpty {
+                    loadingGrid(count: 6)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 32)
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .navigationTitle("Published scans")
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: authorUserId) {
+            await reloadPosts()
+        }
+        .refreshable {
+            await reloadPosts()
+        }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedPostRoute != nil },
+                set: { if !$0 { selectedPostRoute = nil } }
+            )
+        ) {
+            if let selectedPostRoute {
+                ExplorePostDetailView(
+                    viewModel: viewModel,
+                    postId: selectedPostRoute.postId,
+                    shouldFocusCommentComposer: selectedPostRoute.shouldFocusCommentComposer,
+                    shouldOpenInsight: selectedPostRoute.shouldOpenInsight,
+                    allowsInsightPresentation: false
+                )
+            }
+        }
+    }
+
+    private var publishedPostCount: Int? {
+        profileViewModel.socialStats?.publishedPostCount
+    }
+
+    private var publishedCountSummary: String? {
+        guard let publishedPostCount else { return nil }
+        let noun = publishedPostCount == 1 ? "scan" : "scans"
+        return "\(publishedPostCount.formatted(.number)) published \(noun)"
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            authorAvatar(url: profileViewModel.userAvatarURL, size: 44)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(profileViewModel.userName ?? "Explorer")
+                    .font(.headline)
+                    .lineLimit(1)
+
+                if let publishedCountSummary {
+                    Text(publishedCountSummary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private func authorAvatar(url: URL?, size: CGFloat) -> some View {
+        if let url {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    fallbackAvatar(size: size)
+                case .empty:
+                    Color(uiColor: .tertiarySystemFill)
+                @unknown default:
+                    fallbackAvatar(size: size)
+                }
+            }
+            .frame(width: size, height: size)
+            .clipShape(Circle())
+        } else {
+            fallbackAvatar(size: size)
+        }
+    }
+
+    private func fallbackAvatar(size: CGFloat) -> some View {
+        Image(systemName: "person.crop.circle.fill")
+            .font(.system(size: size, weight: .regular))
+            .foregroundStyle(.secondary)
+            .frame(width: size, height: size)
+    }
+
+    private var libraryGrid: some View {
+        LazyVGrid(columns: columns, spacing: 2) {
+            ForEach(posts) { post in
+                Button {
+                    openPost(post)
+                } label: {
+                    ProfilePublicScanImageView(
+                        imagePath: nil,
+                        fallbackUrl: post.heroImageUrl,
+                        reloadGeneration: viewModel.mediaReloadGeneration
+                    )
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(1, contentMode: .fit)
+                    .clipped()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(viewModel.resolvedSpeciesCommonName(for: post)), published scan")
+                .onAppear {
+                    guard post.id == posts.last?.id else { return }
+                    Task { await loadMorePostsIfNeeded() }
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func loadingGrid(count: Int) -> some View {
+        LazyVGrid(columns: columns, spacing: 2) {
+            ForEach(0..<count, id: \.self) { _ in
+                GlowPulsingSkeletonView(cornerRadius: 3, style: .raisedGrid)
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(1, contentMode: .fit)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityHidden(true)
+    }
+
+    @MainActor
+    private func reloadPosts() async {
+        posts = []
+        cursor = .empty
+        hasReachedEnd = false
+        didFail = false
+        await loadMorePostsIfNeeded()
+    }
+
+    @MainActor
+    private func loadMorePostsIfNeeded() async {
+        guard !isLoading, !hasReachedEnd else { return }
+
+        isLoading = true
+        defer {
+            isLoading = false
+        }
+
+        do {
+            let page = try await MerianNetworkClient.shared.getExploreAuthorPosts(
+                authorUserId: authorUserId,
+                limit: pageSize,
+                cursor: cursor.isEmpty ? nil : cursor
+            )
+            guard !Task.isCancelled else { return }
+
+            mergePosts(page)
+            registerPosts(page)
+            updateCursor()
+            hasReachedEnd = page.count < pageSize || hasLoadedPublishedPostCount
+            didFail = false
+        } catch {
+            guard !Task.isCancelled else { return }
+            didFail = true
+        }
+    }
+
+    private var hasLoadedPublishedPostCount: Bool {
+        if let publishedPostCount {
+            return posts.count >= publishedPostCount
+        }
+
+        return false
+    }
+
+    @MainActor
+    private func mergePosts(_ nextPage: [ExplorePost]) {
+        var seenIds = Set(posts.map(\.id))
+        posts.append(contentsOf: nextPage.filter { seenIds.insert($0.id).inserted })
+    }
+
+    @MainActor
+    private func updateCursor() {
+        guard let lastPost = posts.last else {
+            cursor = .empty
+            return
+        }
+
+        cursor = ExploreAuthorPostCursor(
+            beforeSharedAt: lastPost.sharedAt,
+            beforePostId: lastPost.id
+        )
+    }
+
+    @MainActor
+    private func registerPosts(_ posts: [ExplorePost]) {
+        for post in posts {
+            viewModel.upsertPost(post)
+        }
+        viewModel.refreshPreferredSpeciesNames(
+            for: posts.map(\.speciesScientificName),
+            modelContext: modelContext
+        )
+    }
+
+    @MainActor
+    private func openPost(_ post: ExplorePost) {
+        viewModel.upsertPost(post)
+        viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
+        selectedPostRoute = ExplorePostRoute(
+            postId: post.id,
+            shouldFocusCommentComposer: false,
+            shouldOpenInsight: false
+        )
     }
 }
 

@@ -12,7 +12,7 @@ struct AudioRecordingView: View {
 
     // MARK: - Carousel State
     @State private var idleImageIndex: Int = 0
-    private let idleImages = ["bird_tree", "frog", "owl", "cicadia", "cricket", "falcon", "rattlesnake", "whale"]
+    private let idleImages = ["pw_bird", "frog", "owl", "cicadia", "cricket", "falcon", "rattlesnake", "whale"]
 
     var body: some View {
         GeometryReader { proxy in
@@ -84,6 +84,12 @@ struct AudioRecordingView: View {
                 .padding(.horizontal, 24)
                 .id(idleImageIndex)
                 .transition(.opacity)
+                .onTapGesture {
+                    HapticManager.shared.triggerSelectionPulse()
+                    withAnimation(.easeInOut(duration: 0.8)) {
+                        idleImageIndex = (idleImageIndex + 1) % idleImages.count
+                    }
+                }
         }
         .onReceive(Timer.publish(every: 6.0, on: .main, in: .common).autoconnect()) { _ in
             withAnimation(.easeInOut(duration: 0.8)) {

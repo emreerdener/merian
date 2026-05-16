@@ -47,7 +47,6 @@ struct OnboardingStepWrapper: View {
                 Image(imageName)
                     .resizable()
                     .scaledToFit()
-                    .frame(height: 340)
                     .padding(.horizontal, 32)
             } else if let iconColor = iconColor, let iconCornerRadius = iconCornerRadius, let iconText = iconText {
                 Rectangle()
@@ -60,19 +59,18 @@ struct OnboardingStepWrapper: View {
             // 2. Messaging Display
             VStack(spacing: 16) {
                 Text(title)
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.white)
+                    .font(.system(.largeTitle, design: .serif).weight(.bold))
+                    .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 
                 Text(subtitle)
                     .font(.body)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 32)
             }
-            Spacer()
             
             // 3. Action Buttons
             if let secondaryTitle = secondaryButtonTitle, let secondaryAction = secondaryAction {
@@ -81,7 +79,7 @@ struct OnboardingStepWrapper: View {
                     Button(action: secondaryAction) {
                         Text(secondaryTitle)
                             .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(.secondary)
                     }
                 }
                 .padding(.horizontal, 32)

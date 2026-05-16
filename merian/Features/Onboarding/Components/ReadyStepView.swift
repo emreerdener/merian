@@ -11,8 +11,8 @@ struct ReadyStepView: View {
             title: "Citizen science",
             subtitle: "Every capture contributes to a global database tracking wildlife and biodiversity.",
             primaryButtonTitle: "Start scanning",
-            primaryButtonTextColor: Color.black,
-            primaryButtonColor: Color.white,
+            primaryButtonTextColor: Color(uiColor: .systemBackground),
+            primaryButtonColor: Color.primary,
             primaryAction: onFinish
         )
     }

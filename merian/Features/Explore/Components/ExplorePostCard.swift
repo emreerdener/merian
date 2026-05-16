@@ -19,6 +19,7 @@ struct ExplorePostCard: View {
     @State private var doubleTapHeartScale: CGFloat = 0.7
     @State private var doubleTapHeartOpacity = 0.0
     @State private var doubleTapHeartTask: Task<Void, Never>?
+    @State private var showUnpublishConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -39,6 +40,12 @@ struct ExplorePostCard: View {
         .onDisappear {
             doubleTapHeartTask?.cancel()
             doubleTapHeartTask = nil
+        }
+        .alert("Unpublish Post?", isPresented: $showUnpublishConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Unpublish", role: .destructive, action: onUnshare)
+        } message: {
+            Text("This will remove the post from Explore. Your original scan will remain safely in your library.")
         }
     }
 
@@ -223,10 +230,10 @@ struct ExplorePostCard: View {
                     }
                 }
 
-                Button(role: .destructive, action: onUnshare) {
+                Button(role: .destructive, action: { showUnpublishConfirmation = true }) {
                     Label("Unpublish post", systemImage: "minus.circle")
                 }
-                .tint(.orange)
+                .tint(.red)
             } else {
                 Button(role: .destructive, action: onBlock) {
                     Label("Block user", systemImage: "person.crop.circle.badge.xmark")
