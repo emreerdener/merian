@@ -73,8 +73,10 @@ struct Achievements: View {
         }
     }
 
+    // MARK: - Achievements View
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // Achievements Header
             HStack(alignment: .center) {
                 Text("Achievements")
                     .font(.title3)
@@ -84,31 +86,52 @@ struct Achievements: View {
                 Spacer()
 
                 Menu {
-                    ForEach(AwardSortOption.allCases) { option in
-                        Button {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                sortOption = option
+                    Picker(
+                        "Sort achievements",
+                        selection: Binding(
+                            get: { sortOption },
+                            set: { option in
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                    sortOption = option
+                                }
                             }
-                        } label: {
+                        )
+                    ) {
+                        ForEach(AwardSortOption.allCases) { option in
                             Label(option.rawValue, systemImage: option.iconName)
+                                .tag(option)
                         }
                     }
+                    .pickerStyle(.inline)
                 } label: {
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary.opacity(0.75))
-                        .frame(width: 34, height: 34)
-                        .background {
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                        }
-                        .overlay {
-                            Circle()
-                                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
-                        }
-                }
-            }
+                    HStack(spacing: 8) {
+                        Image(systemName: "line.3.horizontal.decrease")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.primary.opacity(0.75))
 
+                        Text(sortOption.rawValue)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background {
+                        Capsule()
+                            .fill(.ultraThinMaterial)
+                    }
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+                    }
+                }
+                .animation(.none, value: sortOption)
+                .accessibilityLabel("Sorted by \(sortOption.rawValue)")
+            }
+            .padding(.top, 16)
+
+            // Achievements List
             VStack(spacing: 12) {
                 ForEach(sortedAwards) { award in
                     if allowsDetailPresentation {

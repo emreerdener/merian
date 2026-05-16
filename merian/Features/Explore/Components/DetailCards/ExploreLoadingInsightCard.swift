@@ -2,15 +2,19 @@ import SwiftUI
 
 struct ExploreLoadingInsightCard: View {
     var body: some View {
-        HStack(spacing: 12) {
-            ProgressView()
-                .progressViewStyle(.circular)
+        VStack(alignment: .leading, spacing: 10) {
+            GlowPulsingSkeletonView(cornerRadius: 8)
+                .frame(width: 180, height: 16)
 
-            Text("Loading species details...")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            GlowPulsingSkeletonView(cornerRadius: 6)
+                .frame(height: 10)
+
+            GlowPulsingSkeletonView(cornerRadius: 6)
+                .frame(maxWidth: 240)
+                .frame(height: 10)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+        .accessibilityLabel("Loading species details")
     }
 }

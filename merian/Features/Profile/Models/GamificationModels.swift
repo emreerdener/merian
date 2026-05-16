@@ -438,7 +438,7 @@ extension AwardPayload {
 }
 
 // MARK: - Sorting UI State
-enum AwardSortOption: String, CaseIterable, Identifiable {
+enum AwardSortOption: String, CaseIterable, Hashable, Identifiable {
     case smartSort = "Smart sort"
     case completedFirst = "Completed first"
     case uncompletedFirst = "Incomplete first"
@@ -503,6 +503,26 @@ public enum UserPersona: CaseIterable, Equatable {
         case .naturalist: return "persona_naturalist"
         case .scholar: return "persona_scholar"
         case .apexObserver: return "persona_apex_observer"
+        }
+    }
+    
+    public var nextLevelThreshold: Int? {
+        switch self {
+        case .observer: return 1
+        case .explorer: return 10
+        case .naturalist: return 50
+        case .scholar: return 100
+        case .apexObserver: return nil
+        }
+    }
+    
+    public var nextLevelTitle: String? {
+        switch self {
+        case .observer: return UserPersona.explorer.title
+        case .explorer: return UserPersona.naturalist.title
+        case .naturalist: return UserPersona.scholar.title
+        case .scholar: return UserPersona.apexObserver.title
+        case .apexObserver: return nil
         }
     }
 }

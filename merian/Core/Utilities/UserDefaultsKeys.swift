@@ -1173,7 +1173,7 @@ final class AppSettings {
             UserDefaultsKeys.hasUnseenScan: false,
             UserDefaultsKeys.isPushNotificationsEnabled: false,
             UserDefaultsKeys.hasPromptedForNotificationsPostIdent: false,
-            UserDefaultsKeys.isAchievementNotificationsEnabled: false,
+            UserDefaultsKeys.isAchievementNotificationsEnabled: true,
             UserDefaultsKeys.isExploreNotificationsEnabled: false,
             UserDefaultsKeys.hasSeenExploreOnboarding: false,
             UserDefaultsKeys.hasSeenExploreNewChip: false,

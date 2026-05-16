@@ -8,6 +8,10 @@ struct ExploreAuthorProfileRoute: Identifiable, Equatable {
 
     var id: String { authorUserId }
 
+    var authorFirstName: String {
+        authorName.components(separatedBy: " ").first ?? authorName
+    }
+
     init(post: ExplorePost) {
         self.authorUserId = post.authorUserId
         self.authorName = post.authorName
@@ -119,7 +123,7 @@ struct ExploreAuthorProfileSheet: View {
     private var navigationTitle: String {
         switch mode {
         case .profile:
-            return route.authorName
+            return route.authorFirstName
         case .library:
             return "Published scans"
         }
@@ -196,10 +200,10 @@ struct ExploreAuthorProfileSheet: View {
 
     private func authorHeader(_ profile: ExploreAuthorProfile) -> some View {
         VStack(spacing: 12) {
-            authorAvatar(url: profile.authorAvatarURL, size: 96)
+            authorAvatar(url: profile.authorAvatarURL, size: 128)
 
             VStack(spacing: 6) {
-                Text(profile.authorName)
+                Text(profile.authorFirstName)
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
@@ -213,32 +217,44 @@ struct ExploreAuthorProfileSheet: View {
                     .frame(maxWidth: .infinity)
             }
 
-            followCountsRow(profile)
+            profileSummaryCountsRow(profile)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
     }
 
-    private func followCountsRow(_ profile: ExploreAuthorProfile) -> some View {
-        HStack(spacing: 20) {
-            followCountView(count: profile.followerCount, label: "Followers")
-            followCountView(count: profile.followingCount, label: "Following")
+    private func profileSummaryCountsRow(_ profile: ExploreAuthorProfile) -> some View {
+        HStack(spacing: 0) {
+            profileSummaryCountView(count: profile.heatmap.totalCaptures, label: "Scans")
+                .frame(maxWidth: .infinity)
+
+            profileSummaryCountView(count: profile.completedAchievementCount, label: "Achievements")
+                .frame(maxWidth: .infinity)
+
+            profileSummaryCountView(count: profile.followerCount, label: "Followers")
+                .frame(maxWidth: .infinity)
+
+            profileSummaryCountView(count: profile.followingCount, label: "Following")
+                .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 2)
     }
 
-    private func followCountView(count: Int, label: String) -> some View {
+    private func profileSummaryCountView(count: Int, label: String) -> some View {
         VStack(spacing: 2) {
             Text(count.formatted(.number.notation(.compactName)))
                 .font(.headline.weight(.bold))
                 .foregroundStyle(.primary)
+                .contentTransition(.numericText())
 
             Text(label)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+                .allowsTightening(true)
         }
-        .frame(minWidth: 84)
     }
 
     private func followButton(_ profile: ExploreAuthorProfile) -> some View {
@@ -312,10 +328,18 @@ struct ExploreAuthorProfileSheet: View {
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
+                    .background {
+                        Capsule()
+                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    }
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+                    }
                 }
                 .buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
             }
         }
     }
@@ -327,7 +351,7 @@ struct ExploreAuthorProfileSheet: View {
                     authorAvatar(url: profile.authorAvatarURL, size: 44)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(profile.authorName)
+                        Text(profile.authorFirstName)
                             .font(.headline)
                             .lineLimit(1)
 
@@ -627,5 +651,15 @@ struct ExploreAuthorProfileSheet: View {
             shouldFocusCommentComposer: false,
             shouldOpenInsight: false
         ))
+    }
+}
+
+private extension ExploreAuthorProfile {
+    var completedAchievementCount: Int {
+        awardPayloads.filter(\.isCompleted).count
+    }
+
+    var authorFirstName: String {
+        authorName.components(separatedBy: " ").first ?? authorName
     }
 }

@@ -454,12 +454,9 @@ struct ExploreHeroImageView: View {
     }
 
     private var loadingPlaceholder: some View {
-        ZStack {
-            Color(uiColor: .tertiarySystemFill)
-            ProgressView()
-                .progressViewStyle(.circular)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        GlowPulsingSkeletonView(cornerRadius: 12)
+            .accessibilityHidden(true)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var failurePlaceholder: some View {

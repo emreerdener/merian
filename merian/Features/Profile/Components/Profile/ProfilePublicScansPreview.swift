@@ -128,15 +128,13 @@ struct ProfilePublicScansPreview: View {
 
     private var loadingGrid: some View {
         LazyVGrid(columns: columns, spacing: 2) {
-            ForEach(0..<6, id: \.self) { _ in
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(Color(uiColor: .tertiarySystemFill))
+            ForEach(0..<previewLimit, id: \.self) { _ in
+                GlowPulsingSkeletonView(cornerRadius: 3, style: .raisedGrid)
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .redacted(reason: .placeholder)
         .accessibilityHidden(true)
     }
 
@@ -305,12 +303,9 @@ private struct ProfilePublicScanImageView: View {
     }
 
     private var loadingPlaceholder: some View {
-        ZStack {
-            Color(uiColor: .tertiarySystemFill)
-            ProgressView()
-                .progressViewStyle(.circular)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        GlowPulsingSkeletonView(cornerRadius: 3, style: .raisedGrid)
+            .accessibilityHidden(true)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var failurePlaceholder: some View {

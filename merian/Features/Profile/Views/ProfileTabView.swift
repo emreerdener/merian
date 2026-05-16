@@ -7,6 +7,7 @@ import SwiftUI
 /// hardware calculations completely away from the orchestrator logic natively.
 struct ProfileTabView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(RevenueCatManager.self) private var revenueCatManager
     @Binding var showPaywall: Bool
     
     // Natively isolated State variables dynamically mapped back from the background Actor mathematically.
@@ -25,17 +26,34 @@ struct ProfileTabView: View {
                 // MARK: - Terrarium & Persona
                 VStack(spacing: 16) {
                     Terrarium(uniqueSpeciesCount: uniqueSpeciesCount)
+#if DEBUG
+                        .onTapGesture {
+                            let currentPersona = UserPersona(speciesCount: uniqueSpeciesCount)
+                            if let nextThreshold = currentPersona.nextLevelThreshold {
+                                uniqueSpeciesCount = nextThreshold
+                            } else {
+                                uniqueSpeciesCount = 0
+                            }
+                            HapticManager.shared.triggerSelectionPulse()
+                        }
+#endif
                     Persona(uniqueSpeciesCount: uniqueSpeciesCount)
                 }
+                .padding(.bottom, 16)
 
                 // MARK: - User Profile
-                UserProfile(totalScans: totalCaptures)
+                UserProfile(
+                    totalScans: totalCaptures,
+                    completedAchievements: awards.completedCount
+                )
                 
                 // MARK: - Stats
                 UserStats(speciesCount: uniqueSpeciesCount, streak: currentStreak)
                 
                 // MARK: - Paywall & Subscriptions
-                PlanCard(showPaywall: $showPaywall)
+                if !revenueCatManager.isProActive {
+                    PlanCard(showPaywall: $showPaywall)
+                }
                 
                 // MARK: - Heatmap
                 ScansHeatmap(heatmapData: heatmapData)
@@ -108,5 +126,11 @@ struct ProfileTabView: View {
             shouldFocusCommentComposer: false,
             shouldOpenInsight: false
         )
+    }
+}
+
+private extension [AwardPayload] {
+    var completedCount: Int {
+        filter(\.isCompleted).count
     }
 }

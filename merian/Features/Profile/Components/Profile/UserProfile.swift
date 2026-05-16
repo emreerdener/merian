@@ -5,6 +5,7 @@ import SwiftUI
 struct UserProfile: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
     var totalScans: Int = 0
+    var completedAchievements: Int = 0
     
     var body: some View {
         VStack {
@@ -131,23 +132,20 @@ struct UserProfile: View {
             summaryCountView(value: compactValue(totalScans), label: "Scans")
                 .frame(maxWidth: .infinity)
 
+            summaryCountView(value: compactValue(completedAchievements), label: "Achievements")
+                .frame(maxWidth: .infinity)
+
             if let socialStats = profileViewModel.socialStats {
-                summaryCountView(value: compactValue(socialStats.publishedPostCount), label: "Posts")
-                    .frame(maxWidth: .infinity)
                 summaryCountView(value: compactValue(socialStats.followerCount), label: "Followers")
                     .frame(maxWidth: .infinity)
                 summaryCountView(value: compactValue(socialStats.followingCount), label: "Following")
                     .frame(maxWidth: .infinity)
             } else if profileViewModel.isLoadingSocialStats {
-                summaryCountPlaceholder(label: "Posts")
-                    .frame(maxWidth: .infinity)
                 summaryCountPlaceholder(label: "Followers")
                     .frame(maxWidth: .infinity)
                 summaryCountPlaceholder(label: "Following")
                     .frame(maxWidth: .infinity)
             } else {
-                summaryCountView(value: "--", label: "Posts")
-                    .frame(maxWidth: .infinity)
                 summaryCountView(value: "--", label: "Followers")
                     .frame(maxWidth: .infinity)
                 summaryCountView(value: "--", label: "Following")
@@ -169,7 +167,8 @@ struct UserProfile: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .minimumScaleFactor(0.65)
+                .allowsTightening(true)
         }
     }
 
@@ -185,7 +184,8 @@ struct UserProfile: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .minimumScaleFactor(0.65)
+                .allowsTightening(true)
         }
     }
 
