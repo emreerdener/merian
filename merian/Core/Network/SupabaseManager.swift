@@ -230,6 +230,57 @@ import Supabase
         return session.accessToken
     }
 
+    /// Attempts to refresh the locally stored Supabase session after an Edge
+    /// function reports that the backing Auth session is missing.
+    @discardableResult
+    func refreshActiveSessionForRetry() async -> Bool {
+        do {
+            let session = try await client.auth.refreshSession()
+            currentUser = session.user
+            isAuthenticated = true
+            _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
+            MerianLog.auth.debug("Supabase session refreshed after auth failure.")
+            return true
+        } catch {
+            MerianLog.auth.debug("Supabase session refresh after auth failure failed: \(error.localizedDescription, privacy: .private)")
+            return false
+        }
+    }
+
+    /// Clears a broken anonymous session and creates a fresh ghost identity.
+    @discardableResult
+    func resetGhostSessionForRetry() async -> Bool {
+        await signOut()
+        await initializeGhostSession()
+
+        do {
+            let session = try await client.auth.session
+            currentUser = session.user
+            isAuthenticated = true
+            MerianLog.auth.debug("Ghost session regenerated after auth failure.")
+            return true
+        } catch {
+            MerianLog.auth.debug("Ghost session regeneration after auth failure failed: \(error.localizedDescription, privacy: .private)")
+            return false
+        }
+    }
+
+    func clearLocalSessionAfterAuthFailure() async {
+        do {
+            try await client.auth.signOut(scope: .local)
+        } catch {
+            MerianLog.auth.debug("Local Supabase sign-out after auth failure failed: \(error.localizedDescription, privacy: .private)")
+        }
+
+        currentUser = nil
+        isAuthenticated = false
+        lastLinkedUserId = nil
+        KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
+        PostHogManager.shared.reset()
+        await RevenueCatManager.shared.handleSupabaseSignOut()
+        MerianLog.auth.debug("Cleared local Supabase session after auth failure.")
+    }
+
     /// Builds authenticated REST headers, initializing a ghost session if no token exists.
     func getValidAuthHeaders() async throws -> [String: String] {
         if TestExecutionCoordinator.isRunningTests {

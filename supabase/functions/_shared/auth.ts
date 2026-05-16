@@ -12,6 +12,15 @@ export function bearerTokenFromAuthorizationHeader(
   return match?.[1]?.trim() || null;
 }
 
+export function authFailureCode(message: string | undefined): string {
+  const normalizedMessage = message?.toLowerCase() ?? "";
+  if (normalizedMessage.includes("auth session missing")) {
+    return "auth_session_missing";
+  }
+
+  return "invalid_session_token";
+}
+
 export async function requireAuth(
   req: Request,
   _supabaseAdmin: SupabaseClient,
@@ -48,14 +57,14 @@ export async function requireAuth(
     .getUser(bearerToken);
 
   if (authError || !user) {
+    const message = authError?.message || "Invalid or expired session token.";
     console.error("requireAuth: Supabase getUser() failed.", authError);
     return {
       user: null,
       response: new Response(
         JSON.stringify({
-          error: `Unauthorized: ${
-            authError?.message || "Invalid or expired session token."
-          }`,
+          code: authFailureCode(message),
+          error: `Unauthorized: ${message}`,
         }),
         {
           status: 401,

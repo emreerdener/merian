@@ -1,5 +1,8 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { bearerTokenFromAuthorizationHeader } from "../_shared/auth.ts";
+import {
+  authFailureCode,
+  bearerTokenFromAuthorizationHeader,
+} from "../_shared/auth.ts";
 
 Deno.test("bearerTokenFromAuthorizationHeader extracts bearer token", () => {
   assertEquals(
@@ -22,4 +25,16 @@ Deno.test("bearerTokenFromAuthorizationHeader rejects missing or malformed heade
   assertEquals(bearerTokenFromAuthorizationHeader(""), null);
   assertEquals(bearerTokenFromAuthorizationHeader("apikey token-123"), null);
   assertEquals(bearerTokenFromAuthorizationHeader("Bearer   "), null);
+});
+
+Deno.test("authFailureCode maps missing sessions to a stable code", () => {
+  assertEquals(
+    authFailureCode("error getting user: Auth session missing!"),
+    "auth_session_missing",
+  );
+});
+
+Deno.test("authFailureCode maps other failures to invalid session token", () => {
+  assertEquals(authFailureCode("JWT expired"), "invalid_session_token");
+  assertEquals(authFailureCode(undefined), "invalid_session_token");
 });

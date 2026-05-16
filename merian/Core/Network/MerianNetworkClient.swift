@@ -32,6 +32,11 @@ private extension String {
     }
 }
 
+private struct EdgeErrorPayload: Decodable {
+    let code: String?
+    let error: String?
+}
+
 private struct InferenceRequestContext: Sendable {
     let userId: String
     let deviceLocale: String
@@ -339,6 +344,20 @@ final class MerianNetworkClient {
         return decoder
     }
 
+    private static func isMissingAuthSessionError(responseData: Data, fallbackMessage: String) -> Bool {
+        if let payload = try? JSONDecoder().decode(EdgeErrorPayload.self, from: responseData) {
+            if payload.code == "auth_session_missing" {
+                return true
+            }
+
+            if payload.error?.localizedCaseInsensitiveContains("Auth session missing") == true {
+                return true
+            }
+        }
+
+        return fallbackMessage.localizedCaseInsensitiveContains("Auth session missing")
+    }
+
     #if DEBUG
     func resetSpeciesDictionaryCacheForTesting() {
         speciesDictionaryCacheLock.lock()
@@ -430,8 +449,25 @@ final class MerianNetworkClient {
             let errString = String(data: data, encoding: .utf8) ?? "Unknown"
             MerianLog.network.debug("Edge function failed [\(httpResponse.statusCode, privacy: .public)]: \(errString, privacy: .public)")
 
-            // A 401 on a guest session indicates a zombie token — purge and retry once.
             if httpResponse.statusCode == 401 && !isRetry {
+                if Self.isMissingAuthSessionError(responseData: data, fallbackMessage: errString) {
+                    if await SupabaseManager.shared.refreshActiveSessionForRetry() {
+                        return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
+                    }
+
+                    let isGuest = await SupabaseManager.shared.isGuestUser
+                    if isGuest {
+                        MerianLog.network.debug("Missing anonymous auth session detected — regenerating ghost session.")
+                        if await SupabaseManager.shared.resetGhostSessionForRetry() {
+                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
+                        }
+                    }
+
+                    await SupabaseManager.shared.clearLocalSessionAfterAuthFailure()
+                    throw MerianError.invalidResponse
+                }
+
                 let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
                 if hasAuthenticatedOAuth {
                     // OAuth user whose token expired — surface the 401 so the UI can prompt re-auth.

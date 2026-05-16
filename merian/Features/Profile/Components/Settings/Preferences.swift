@@ -226,6 +226,7 @@ private struct ProSettingsBanner: View {
                 .frame(width: 120, height: 120)
                 .scaleEffect(x: -1, y: 1)
                 .offset(x: -14)
+                .padding(.leading, 14)
                 .padding(.vertical, -18)
 
             VStack(alignment: .leading, spacing: 8) {
