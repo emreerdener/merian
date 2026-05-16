@@ -1,20 +1,37 @@
-import { SupabaseClient, User, createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  createClient,
+  SupabaseClient,
+  User,
+} from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders } from "./http.ts";
+
+export function bearerTokenFromAuthorizationHeader(
+  authorizationHeader: string | null,
+): string | null {
+  const match = authorizationHeader?.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
+}
 
 export async function requireAuth(
   req: Request,
-  _supabaseAdmin: SupabaseClient
+  _supabaseAdmin: SupabaseClient,
 ): Promise<{ user: User | null; response: Response | null }> {
   const rawAuthHeader = req.headers.get("Authorization");
+  const bearerToken = bearerTokenFromAuthorizationHeader(rawAuthHeader);
 
-  if (!rawAuthHeader) {
+  if (!bearerToken) {
     console.error("requireAuth: Missing Authorization header in request.");
     return {
       user: null,
-      response: new Response(JSON.stringify({ error: "Unauthorized: Missing Authorization header." }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      })
+      response: new Response(
+        JSON.stringify({
+          error: "Unauthorized: Missing Authorization header.",
+        }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      ),
     };
   }
 
@@ -22,20 +39,29 @@ export async function requireAuth(
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-    { global: { headers: { Authorization: rawAuthHeader } } }
+    { global: { headers: { Authorization: `Bearer ${bearerToken}` } } },
   );
 
-  const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+  // Edge Functions are stateless; pass the JWT explicitly instead of relying
+  // on a persisted SDK session.
+  const { data: { user }, error: authError } = await supabaseClient.auth
+    .getUser(bearerToken);
 
   if (authError || !user) {
     console.error("requireAuth: Supabase getUser() failed.", authError);
     return {
       user: null,
       response: new Response(
-        JSON.stringify({ error: `Unauthorized: ${authError?.message || "Invalid or expired session token."}` }), {
+        JSON.stringify({
+          error: `Unauthorized: ${
+            authError?.message || "Invalid or expired session token."
+          }`,
+        }),
+        {
           status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        })
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      ),
     };
   }
 

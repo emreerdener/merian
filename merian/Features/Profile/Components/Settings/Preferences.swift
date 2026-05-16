@@ -110,14 +110,7 @@ struct Preferences: View {
         } header: {
             ProSectionHeader()
         }
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(ProSettingsStyle.accent.opacity(0.08))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(ProSettingsStyle.accent.opacity(0.3), lineWidth: 1)
-                )
-        )
+        .listRowBackground(ProSettingsStyle.accent.opacity(0.08))
 
         // MARK: - Capture setup
         Section {
