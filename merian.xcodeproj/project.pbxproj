@@ -19,6 +19,7 @@
 		08AF7D781FC1FEC3302B1725 /* UsageManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 161EAAB217364EB7BA813812 /* UsageManagerTests.swift */; };
 		098B0A9B6E21C508380BBA95 /* TipRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE3E25984CC1FA2E1AFD07B4 /* TipRow.swift */; };
 		0A63B4C4CBF6AECE32D89FFD /* ExplorePostCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B73321B8E3469B6880D5D8 /* ExplorePostCard.swift */; };
+		7B9F37FB28D94AC5B86FD1E2 /* ExplorePostDetailInsightSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9F37FA28D94AC5B86FD1E2 /* ExplorePostDetailInsightSection.swift */; };
 		7B9F37F928D94AC5B86FD1E2 /* ExplorePostDetailActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9F37F828D94AC5B86FD1E2 /* ExplorePostDetailActions.swift */; };
 		7B9F37F728D94AC5B86FD1E2 /* ExplorePostDetailCommentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9F37F628D94AC5B86FD1E2 /* ExplorePostDetailCommentsSection.swift */; };
 		7B9F37F528D94AC5B86FD1E2 /* ExplorePostDetailTopSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9F37F428D94AC5B86FD1E2 /* ExplorePostDetailTopSection.swift */; };
@@ -682,6 +683,7 @@
 		782E250EA01D009A5E1D55FF /* IconButtonModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconButtonModifiers.swift; sourceTree = "<group>"; };
 		78FFA92527CDEC38A16C12CB /* ExploreHabitatDistributionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreHabitatDistributionCard.swift; sourceTree = "<group>"; };
 		79877AD867FE814CEC12DBCB /* ExploreOverviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreOverviewCard.swift; sourceTree = "<group>"; };
+		7B9F37FA28D94AC5B86FD1E2 /* ExplorePostDetailInsightSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorePostDetailInsightSection.swift; sourceTree = "<group>"; };
 		79F3B44FD7DA14D4A22FFE5A /* HardwareOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareOrchestrator.swift; sourceTree = "<group>"; };
 		7B393F25E867CCB0621E8A96 /* DescriptionTextCarouselPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescriptionTextCarouselPage.swift; sourceTree = "<group>"; };
 		7C355005DA062F992218B40D /* ToastBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastBanner.swift; sourceTree = "<group>"; };
@@ -1440,6 +1442,7 @@
 				08120C59A6F795CD5597F0B8 /* ExploreLoadingInsightCard.swift */,
 				69EC1D781D164996EC859BC4 /* ExploreObservationContextCard.swift */,
 				79877AD867FE814CEC12DBCB /* ExploreOverviewCard.swift */,
+				7B9F37FA28D94AC5B86FD1E2 /* ExplorePostDetailInsightSection.swift */,
 			);
 			path = DetailCards;
 			sourceTree = "<group>";
@@ -2757,6 +2760,7 @@
 				07372DAEA01B523A0F5674E5 /* ExploreObservationContextCard.swift in Sources */,
 				38FF6EF3DAF1406A4E57B11E /* ExploreOnboardingPrompt.swift in Sources */,
 				A30DC01A36EF91D926356B37 /* ExploreOverviewCard.swift in Sources */,
+				7B9F37FB28D94AC5B86FD1E2 /* ExplorePostDetailInsightSection.swift in Sources */,
 					A6C7D0DF32092E641FC4449F /* ExplorePost+Formatting.swift in Sources */,
 					0A63B4C4CBF6AECE32D89FFD /* ExplorePostCard.swift in Sources */,
 					7B9F37F928D94AC5B86FD1E2 /* ExplorePostDetailActions.swift in Sources */,

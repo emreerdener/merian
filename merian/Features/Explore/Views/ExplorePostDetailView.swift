@@ -117,7 +117,13 @@ struct ExplorePostDetailView: View {
 
                                 fieldNotesSection(for: post)
 
-                                insightCardsSection(for: post)
+                                ExplorePostDetailInsightSection(
+                                    scientificName: post.speciesScientificName,
+                                    currentCommonName: viewModel.resolvedSpeciesCommonName(for: post),
+                                    detail: detail,
+                                    isLoading: isLoadingDetail,
+                                    errorMessage: detailErrorMessage
+                                )
 
                                 ExploreObservationContextCard(post: post)
                             }
@@ -301,14 +307,6 @@ struct ExplorePostDetailView: View {
         }
     }
 
-    private func exploreSimilarSpeciesRoute(for entry: SimilarSpeciesEntry) -> SpeciesDictionaryRoute {
-        SpeciesDictionaryRoute(
-            scientificName: entry.scientificName,
-            speciesId: entry.speciesId,
-            entryPoint: .exploreDetailSimilarSpecies
-        )
-    }
-
     private func evaluateCommonNameScrollOffset(maxY: CGFloat) {
         guard maxY != .infinity else { return }
 
@@ -332,67 +330,6 @@ struct ExplorePostDetailView: View {
                 onEdit: { openFieldNotesEditor(for: post) },
                 onToggleVisibility: showFieldNotesVisibilityConfirmation
             )
-        }
-    }
-
-    @ViewBuilder
-    private func insightCardsSection(for post: ExplorePost) -> some View {
-        let shouldShowSection = isLoadingDetail
-            || detail != nil
-            || detailErrorMessage != nil
-
-        if shouldShowSection {
-            VStack(alignment: .leading, spacing: 24) {
-                if isLoadingDetail && detail == nil {
-                    ExploreLoadingInsightCard()
-                } else {
-                    if let detail, detail.hasOverviewContent {
-                        ExploreOverviewCard(
-                            scientificName: post.speciesScientificName,
-                            iucnRedListStatus: detail.iucnRedListStatus,
-                            wikipediaOverview: detail.wikipediaOverview
-                        )
-                    }
-
-                    if let referenceGalleryImages = detail?.referenceGalleryImages, !referenceGalleryImages.isEmpty {
-                        ExploreReferenceGallery(
-                            scientificName: post.speciesScientificName,
-                            images: referenceGalleryImages
-                        )
-                    }
-
-                    if let taxonomyData = detail?.taxonomyData {
-                        TaxonomyCard(
-                            taxonomyData: taxonomyData,
-                            scientificName: post.speciesScientificName
-                        )
-                    }
-
-                    if let detail, detail.hasHabitatDistributionContent {
-                        ExploreHabitatDistributionCard(
-                            scientificName: post.speciesScientificName,
-                            habitatDescription: detail.habitatDescription,
-                            gbifTaxonKey: detail.gbifTaxonKey
-                        )
-                    }
-
-                    if let similarData = detail?.similarSpeciesData {
-                        SimilarSpeciesGallery(
-                            similarData: similarData,
-                            currentScientificName: post.speciesScientificName,
-                            currentCommonName: viewModel.resolvedSpeciesCommonName(for: post),
-                            routeForSpecies: exploreSimilarSpeciesRoute
-                        )
-                    }
-                }
-
-                if let detailErrorMessage, detail == nil {
-                    Text(detailErrorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 4)
-                }
-            }
         }
     }
 
