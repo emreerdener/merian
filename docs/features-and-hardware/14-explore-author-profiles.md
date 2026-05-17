@@ -59,7 +59,7 @@ Follow relationship identities are also private in v1. `get_explore_author_profi
 
 ## Backend
 
-Migration: `supabase/migrations/20260511120000_add_explore_author_profiles.sql`
+Migration: `services/supabase/migrations/20260511120000_add_explore_author_profiles.sql`
 
 Added database state:
 
@@ -68,7 +68,7 @@ Added database state:
 - `idx_scans_user_tombstone_timestamp`
 - `idx_scans_user_biological_species`
 
-Follow extension migration: `supabase/migrations/20260511161000_add_explore_following.sql`
+Follow extension migration: `services/supabase/migrations/20260511161000_add_explore_following.sql`
 
 Added follow state:
 
@@ -83,9 +83,9 @@ New RPCs:
 
 New Edge Functions:
 
-- `supabase/functions/get-explore-author-profile`
-- `supabase/functions/get-explore-author-posts`
-- `supabase/functions/set-user-follow`
+- `services/supabase/functions/get-explore-author-profile`
+- `services/supabase/functions/get-explore-author-posts`
+- `services/supabase/functions/set-user-follow`
 
 The author profile RPC computes species count from distinct biological species-backed scans using `COALESCE(confirmed_species_id, species_id)`. The heatmap and current streak are computed from all non-tombstoned scans and use the author's latest valid persisted `device_time_zone`, falling back to UTC. Current streak accepts today or yesterday as the anchor day, matching local profile grace behavior.
 
@@ -104,14 +104,14 @@ Ghost-account merge repair:
 
 Primary files:
 
-- `merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
-- `merian/Features/Explore/Views/ExploreView.swift`
-- `merian/Features/Explore/Views/ExplorePostDetailView.swift`
-- `merian/Features/Explore/Components/ExplorePostCard.swift`
-- `merian/Features/Profile/Components/Profile/ProfilePublicScansPreview.swift`
-- `merian/Core/Network/ExploreAPIModels.swift`
-- `merian/Core/Network/MerianNetworkClient.swift`
-- `merian/Features/Profile/Components/Profile/Achievements.swift`
+- `apps/ios/Merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
+- `apps/ios/Merian/Features/Explore/Views/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Views/ExplorePostDetailView.swift`
+- `apps/ios/Merian/Features/Explore/Components/ExplorePostCard.swift`
+- `apps/ios/Merian/Features/Profile/Components/Profile/ProfilePublicScansPreview.swift`
+- `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
+- `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Features/Profile/Components/Profile/Achievements.swift`
 
 Important model types:
 
@@ -157,23 +157,23 @@ MerianNetworkClient.shared.setUserFollow(authorUserId:isFollowing:)
 
 Backend:
 
-- `supabase/functions/_tests/exploreAuthorProfileDb.test.ts`
+- `services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts`
 - Covers aggregate privacy boundaries and cursor pagination.
 - Tests skip live assertions when the local Supabase DB is not running at `127.0.0.1:54322`.
 
 iOS:
 
-- `merianTests/Core/Network/MerianNetworkClientTests.swift`
+- `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
 - Covers profile decoding, award/heatmap conversion, and author-post cursor payload construction.
 - Covers follow-state decoding and `/set-user-follow` request payload construction.
 
 Recommended verification:
 
 ```sh
-deno fmt --check supabase/functions/get-explore-author-profile supabase/functions/get-explore-author-posts supabase/functions/_tests/exploreAuthorProfileDb.test.ts
-deno lint supabase/functions/get-explore-author-profile supabase/functions/get-explore-author-posts supabase/functions/_tests/exploreAuthorProfileDb.test.ts
-deno check supabase/functions/get-explore-author-profile/index.ts supabase/functions/get-explore-author-posts/index.ts
-deno test --allow-env --allow-net supabase/functions/_tests/exploreAuthorProfileDb.test.ts
+deno fmt --check services/supabase/functions/get-explore-author-profile services/supabase/functions/get-explore-author-posts services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
+deno lint services/supabase/functions/get-explore-author-profile services/supabase/functions/get-explore-author-posts services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
+deno check services/supabase/functions/get-explore-author-profile/index.ts services/supabase/functions/get-explore-author-posts/index.ts
+deno test --allow-env --allow-net services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
 ```

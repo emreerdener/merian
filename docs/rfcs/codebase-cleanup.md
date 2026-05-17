@@ -11,9 +11,9 @@ architecture rewrite.
 - Keep behavior-preserving file splits separate from behavior changes.
 - Prefer small, reviewable slices with one domain owner per slice.
 - Move code toward the narrowest honest owner: feature code under
-  `merian/Features/<Feature>/`, shared app code under `merian/Core/`, persistent
-  models under `merian/Models/`, public web code under `web/`, and backend code
-  under `supabase/`.
+  `apps/ios/Merian/Features/<Feature>/`, shared app code under `apps/ios/Merian/Core/`, persistent
+  models under `apps/ios/Merian/Models/`, public web code under `apps/web/`, and backend code
+  under `services/supabase/`.
 - Keep tests and docs aligned in the same change when public contracts, file
   ownership, or route shapes move.
 
@@ -26,7 +26,7 @@ pages reviewable without unrelated file movement.
 Expected verification:
 
 ```bash
-cd web && npm run typecheck && npm run build
+cd apps/web && npm run typecheck && npm run build
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 git diff --check
 ```
@@ -38,9 +38,9 @@ git diff --check
    - Next.js `.next/`, cache, coverage, and hosting metadata
    - `node_modules/` and TypeScript incremental state
 2. Document root ownership:
-   - `merian/`: native iOS source
-   - `web/`: public Next.js frontend
-   - `supabase/`: migrations, Edge Functions, and backend tests
+   - `apps/ios/Merian/`: native iOS source
+   - `apps/web/`: public Next.js frontend
+   - `services/supabase/`: migrations, Edge Functions, and backend tests
    - `docs/`: source-of-truth architecture and contract docs
 3. Keep `docs/codebase-map.md` and this RFC updated when moving folders or
    changing ownership rules.
@@ -55,10 +55,10 @@ Suggested first targets:
 
 | File | Cleanup Direction |
 |---|---|
-| `merian/Core/AI/InferenceEngine.swift` | Split hydration, reference image loading, local classification, persistence, and result mapping into focused extensions. |
-| `merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core. |
-| `merian/Features/Explore/Views/ExplorePostDetailView.swift` | Keep the root route/container in place and extract detail sections, comments, toolbar, media, and UIKit gesture adapters. |
-| `merian/Core/Utilities/UserDefaultsKeys.swift` | Separate keys, typed settings store, migration helpers, and cloud sync preference code. |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift` | Split hydration, reference image loading, local classification, persistence, and result mapping into focused extensions. |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core. |
+| `apps/ios/Merian/Features/Explore/Views/ExplorePostDetailView.swift` | Keep the root route/container in place and extract detail sections, comments, toolbar, media, and UIKit gesture adapters. |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift` | Separate keys, typed settings store, migration helpers, and cloud sync preference code. |
 
 Rules for this phase:
 
@@ -73,11 +73,11 @@ Rules for this phase:
 After the large files are split, move code to clearer long-term homes:
 
 - Explore-specific network DTOs and endpoint wrappers should live under
-  `merian/Features/Explore/Network/` unless reused by another feature.
+  `apps/ios/Merian/Features/Explore/Network/` unless reused by another feature.
 - Insight-specific export, carousel, and result-rendering helpers should stay
-  under `merian/Features/Insights/`.
+  under `apps/ios/Merian/Features/Insights/`.
 - Capture modality code should stay under
-  `merian/Features/CaptureWorkspace/Modalities/<Mode>/`.
+  `apps/ios/Merian/Features/CaptureWorkspace/Modalities/<Mode>/`.
 - `Core/UI` should contain reusable primitives only; one-off feature chrome
   should move back into the feature.
 - `Core/Utilities` should shrink over time. New utilities belong there only when
@@ -96,7 +96,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platfo
 For web changes:
 
 ```bash
-cd web
+cd apps/web
 npm run typecheck
 npm run build
 ```
@@ -104,7 +104,7 @@ npm run build
 For Supabase function changes:
 
 ```bash
-cd supabase/functions
+cd services/supabase/functions
 deno check <changed-entrypoint>.ts
 deno task test
 ```

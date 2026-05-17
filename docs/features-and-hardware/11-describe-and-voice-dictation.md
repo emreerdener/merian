@@ -108,7 +108,7 @@ New funnel-state properties added alongside the existing `activeQuestionIndex` a
 
 ## 3. `DescribeInputView`
 
-Lives at `merian/Features/Describe/Views/DescribeInputView.swift`.
+Lives at `apps/ios/Merian/Features/Describe/Views/DescribeInputView.swift`.
 
 **Layout contract**: fills the full page frame. The fixed `MediaModeToggle` overlay sits above it in the `CaptureWorkspaceView` Z-stack and must remain interactive — no content above `safeAreaInsets.top + 64` pt.
 
@@ -147,7 +147,7 @@ The tag scroll view carries `.id("tags_scroll_\(promptManager.activeQuestionInde
 
 ## 4. `SpeechManager`
 
-Lives at `merian/Features/Describe/Managers/SpeechManager.swift`. Registered as `var speechManager = SpeechManager()` in `AppDIContainer` and distributed via `.environment(container.speechManager)` in `DIContainerModifier.body()`. Accessed in `CaptureWorkspaceView` as `@Environment(SpeechManager.self) var speechManager`.
+Lives at `apps/ios/Merian/Features/Describe/Managers/SpeechManager.swift`. Registered as `var speechManager = SpeechManager()` in `AppDIContainer` and distributed via `.environment(container.speechManager)` in `DIContainerModifier.body()`. Accessed in `CaptureWorkspaceView` as `@Environment(SpeechManager.self) var speechManager`.
 
 ### Class declaration
 

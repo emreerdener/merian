@@ -40,9 +40,9 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.2"
-    sources: [merian]
+    sources: [apps/ios/Merian]
     entitlements:
-      path: merian/Configuration/Merian.entitlements
+      path: apps/ios/Merian/Configuration/Merian.entitlements
       properties:
         com.apple.developer.applesignin: ["Default"]
         com.apple.security.application-groups: ["group.app.merian.shared"]
@@ -52,7 +52,7 @@ targets:
       Release: Config.xcconfig
     settings:
       base:
-        INFOPLIST_FILE: merian/Configuration/Info.plist
+        INFOPLIST_FILE: apps/ios/Merian/Configuration/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1" # iPhone Only to bypass iPad Multitasking requirements
         CODE_SIGN_STYLE: Automatic
@@ -83,7 +83,7 @@ targets:
     type: application
     platform: watchOS
     deploymentTarget: "10.0"
-    sources: [MerianWatch]
+    sources: [apps/watch/MerianWatch]
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig
@@ -107,10 +107,10 @@ targets:
     platform: iOS
     deploymentTarget: "17.2"
     sources:
-      - MerianExploreWidget
-      - merian/Features/Explore/Widgets/ExploreWidgetCache.swift
+      - apps/ios/widgets/Explore
+      - apps/ios/Merian/Features/Explore/Widgets/ExploreWidgetCache.swift
     entitlements:
-      path: MerianExploreWidget/Configuration/MerianExploreWidget.entitlements
+      path: apps/ios/widgets/Explore/Configuration/MerianExploreWidget.entitlements
       properties:
         com.apple.security.application-groups: ["group.app.merian.shared"]
     configFiles:
@@ -119,7 +119,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.merian.Merian.ExploreWidget
-        INFOPLIST_FILE: MerianExploreWidget/Configuration/Info.plist
+        INFOPLIST_FILE: apps/ios/widgets/Explore/Configuration/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
         CODE_SIGN_STYLE: Automatic
@@ -132,7 +132,7 @@ targets:
     type: bundle.unit-test
     platform: iOS
     deploymentTarget: "17.2"
-    sources: [merianTests]
+    sources: [apps/ios/MerianTests]
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig
@@ -147,7 +147,7 @@ targets:
     type: bundle.ui-testing
     platform: iOS
     deploymentTarget: "17.2"
-    sources: [merianUITests]
+    sources: [apps/ios/MerianUITests]
     configFiles:
       Debug: Signing.xcconfig
       Release: Signing.xcconfig

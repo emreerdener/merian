@@ -49,16 +49,16 @@ Excluded in V1:
 
 Primary files:
 
-- `supabase/functions/_shared/publicSpeciesProjection.ts`
-- `merian/Core/Network/SpeciesDictionaryAPIModels.swift`
-- `merian/Core/Network/MerianNetworkClient.swift`
-- `merian/Features/SpeciesDictionary/ViewModels/SpeciesDictionaryPageViewModel.swift`
-- `merian/Features/SpeciesDictionary/Views/SpeciesDictionaryPageView.swift`
-- `merian/Features/SpeciesDictionary/Components/SpeciesDictionaryReferenceGallery.swift`
-- `merian/Features/SpeciesDictionary/Components/SpeciesDictionaryCards.swift`
-- `merian/Features/Insights/Components/Cards/SimilarSpeciesGallery.swift`
-- `merian/Features/Insights/Views/Content/BiologicalView.swift`
-- `merian/Features/Explore/Views/ExplorePostDetailView.swift`
+- `services/supabase/functions/_shared/publicSpeciesProjection.ts`
+- `apps/ios/Merian/Core/Network/SpeciesDictionaryAPIModels.swift`
+- `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/ViewModels/SpeciesDictionaryPageViewModel.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Views/SpeciesDictionaryPageView.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Components/SpeciesDictionaryReferenceGallery.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Components/SpeciesDictionaryCards.swift`
+- `apps/ios/Merian/Features/Insights/Components/Cards/SimilarSpeciesGallery.swift`
+- `apps/ios/Merian/Features/Insights/Views/Content/BiologicalView.swift`
+- `apps/ios/Merian/Features/Explore/Views/ExplorePostDetailView.swift`
 
 `SpeciesDictionaryPageView` is the standalone sheet shell. It owns a
 `NavigationStack`, presents at `.large`, hides the sheet grabber, and renders
@@ -382,8 +382,8 @@ same response safely without an authenticated session.
 Backend:
 
 ```sh
-deno check supabase/functions/_shared/http.ts supabase/functions/_shared/publicSpeciesProjection.ts supabase/functions/_shared/speciesContentProvenance.ts supabase/functions/refresh-species-content/index.ts supabase/functions/refresh-species-content/db.ts supabase/functions/species-dictionary/index.ts supabase/functions/species-dictionary/db.ts supabase/functions/species-dictionary/db.test.ts
-deno test supabase/functions/_shared/http_test.ts supabase/functions/_shared/publicSpeciesProjection_test.ts supabase/functions/_shared/speciesContentProvenance_test.ts supabase/functions/refresh-species-content/db.test.ts supabase/functions/species-dictionary/db.test.ts
+deno check services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts
+deno test services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts
 ```
 
 iOS:

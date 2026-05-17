@@ -1,6 +1,6 @@
 # Public Web Share Pages
 
-Merian's public web surface lives in `web/`. It is a Next.js + Mantine app for public, shareable Merian pages, starting with Explore post links on `merian.earth`.
+Merian's public web surface lives in `apps/web/`. It is a Next.js + Mantine app for public, shareable Merian pages, starting with Explore post links on `merian.earth`.
 
 The first shipped route is:
 
@@ -13,7 +13,7 @@ This URL is the long-term share target for Explore posts. It should render a use
 ## Product Contract
 
 - Primary domain: `merian.earth`.
-- App location: `web/`.
+- App location: `apps/web/`.
 - Frameworks: Next.js App Router, React, Mantine, and Supabase JS.
 - Initial route: `/explore/post/[postId]`.
 - Policy/support routes: `/privacy`, `/privacy-choices`, `/terms`, `/guidelines`,
@@ -28,7 +28,7 @@ The public web page is not the full Explore product yet. It is a public detail s
 
 1. The iOS app shares `https://merian.earth/explore/post/{postId}` in the message text.
 2. Next.js server-rendering handles `/explore/post/[postId]`.
-3. `web/lib/explore.ts` creates a server Supabase client through `web/lib/supabase.ts`.
+3. `apps/web/lib/explore.ts` creates a server Supabase client through `apps/web/lib/supabase.ts`.
 4. The page calls the `get_explore_post` RPC with:
 
    ```ts
@@ -117,9 +117,9 @@ parameter so the web surface follows the app's theme preference:
 ?theme=system
 ```
 
-`web/lib/theme-preference.ts` maps `system` to Mantine's `auto` scheme, while
-`web/components/ThemePreferenceBridge.tsx` syncs the value into Mantine storage.
-`web/app/layout.tsx` also runs a small pre-hydration script before
+`apps/web/lib/theme-preference.ts` maps `system` to Mantine's `auto` scheme, while
+`apps/web/components/ThemePreferenceBridge.tsx` syncs the value into Mantine storage.
+`apps/web/app/layout.tsx` also runs a small pre-hydration script before
 `ColorSchemeScript` so the initial paint uses the requested color scheme.
 
 Do not append this parameter to public Explore share payloads. Recipient-facing
@@ -151,7 +151,7 @@ After Universal Links are live, the app should still tolerate the custom scheme 
 ## Local Development
 
 ```bash
-cd web
+cd apps/web
 cp .env.example .env.local
 npm install
 npm run dev
@@ -183,9 +183,9 @@ the `theme` query parameter; public share URLs should not.
 
 ## Maintenance Notes
 
-- Keep `web/.env.example`, `web/README.md`, root `README.md`, and this doc aligned when adding public web routes or env variables.
+- Keep `apps/web/.env.example`, `apps/web/README.md`, root `README.md`, and this doc aligned when adding public web routes or env variables.
 - Keep Open Graph metadata server-rendered. Messages and social crawlers need HTML metadata before client-side hydration.
-- Treat `web/lib/explore.ts` as a public projection mapper, not a place to expose raw database rows.
+- Treat `apps/web/lib/explore.ts` as a public projection mapper, not a place to expose raw database rows.
 - Prefer adding dedicated Supabase RPCs/views for web surfaces instead of querying broad private tables.
 - Use `NEXT_PUBLIC_SITE_URL=https://merian.earth` in production so canonical and Open Graph URLs point at the real domain.
 - If an Explore post is unshared, blocked, removed, or privacy-filtered out for the public viewer, the route should resolve to not found rather than showing stale metadata.

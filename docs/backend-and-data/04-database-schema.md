@@ -289,7 +289,7 @@ and `lookalike_id`); without the explicit hint PostgREST cannot determine which
 FK to follow.
 
 **Shared public projection**: Deno Edge code uses
-`supabase/functions/_shared/publicSpeciesProjection.ts` for public species DTOs,
+`services/supabase/functions/_shared/publicSpeciesProjection.ts` for public species DTOs,
 common-name fallback, normalized/legacy reference-image mapping, and
 private-field contract checks. Explore detail uses matching SQL helpers
 (`public.public_species_common_name`,
@@ -337,7 +337,7 @@ Added in migration `20260513050000_add_species_content_provenance.sql`.
 - Primary key: `(species_id, content_key)`.
 - RLS: anyone can read; non-service writes are not exposed by policy.
 
-**Writers**: `supabase/functions/_shared/speciesContentProvenance.ts` owns the
+**Writers**: `services/supabase/functions/_shared/speciesContentProvenance.ts` owns the
 Deno row builders and best-effort upsert helper. The shared identify path, audio
 identify path, and `enrich-scan` write provenance when they update dictionary
 fields, reference-image-backed content, group tags, or durable lookalike rows.
@@ -1021,9 +1021,9 @@ that safely transpose old structures (e.g. `MerianSchemaV8` to `MerianSchemaV9`)
 without corrupting local scan data._
 
 **File layout:** The universally active models natively live in the global
-namespace within `merian/Models/ActiveSchema/`. Historical schema snapshots live
-in their own file (`merian/Models/Schema/SchemaV1.swift` through
-`SchemaV39.swift`). The file `merian/Models/SchemaVersions.swift` declares
+namespace within `apps/ios/Merian/Models/ActiveSchema/`. Historical schema snapshots live
+in their own file (`apps/ios/Merian/Models/Schema/SchemaV1.swift` through
+`SchemaV39.swift`). The file `apps/ios/Merian/Models/SchemaVersions.swift` declares
 `MerianMigrationPlan` — the ordered list of schemas and migration stages. When
 bumping to V{N+1}, follow the runbook at `.agents/workflows/schema_update.md`:
 
@@ -1078,7 +1078,7 @@ The current active schema is `MerianSchemaV42`. Recent milestones:
   V41 snapshots. The legacy per-scan UserDefaults bridge remains a fallback
   only; `FieldNotesRepository` promotes bridge-only notes back into SwiftData.
 
-**Edge DTO Layer** (`merian/Core/AI/InferenceEdgeDTOs.swift`): Declares
+**Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): Declares
 `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and
 `EnrichScanResponse` (the `/enrich-scan` response). `EnrichScanResponse`
 contains nested `EnrichData` (maps `habitat_description`, `gbif_taxon_key`,
@@ -1100,7 +1100,7 @@ additionally contains a nested `ImageQuality` struct (`sharpness: Int?`,
 Function response, update both the TypeScript schema and the corresponding Swift
 `Codable` struct simultaneously.
 
-**`SpeciesData` override fields** (`merian/Models/SpeciesData.swift`):
+**`SpeciesData` override fields** (`apps/ios/Merian/Models/SpeciesData.swift`):
 `SpeciesData` carries four identification-review fields that are never part of
 the Edge response but are synthesised from `LocalScanRecord` when opening a
 historical scan:
@@ -1150,7 +1150,7 @@ querying `species_dictionary` for the override species:
 making it a safe anchor for revert operations regardless of how many times the
 user cycles through overrides.
 
-**Historical Sync DTO** (`merian/Core/Data/Database/ScanRepository.swift`):
+**Historical Sync DTO** (`apps/ios/Merian/Core/Data/Database/ScanRepository.swift`):
 `HistoricalScanResponse` (the cloud sync DTO) includes
 `candidates: [CloudIdentificationCandidate]?`,
 `user_identification_override: String?`, `user_confirmed_identification: Bool?`,

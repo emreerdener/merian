@@ -20,7 +20,7 @@ This matches the camera pipeline's `CameraManager` → `ViewfinderIntelligence` 
 
 ## 2. `SpectrogramActor` — DSP Worker
 
-**File**: `merian/Core/Hardware/SpectrogramActor.swift`
+**File**: `apps/ios/Merian/Core/Hardware/SpectrogramActor.swift`
 
 A Swift `actor` that runs all FFT and mel-scale arithmetic off the main thread, keeping `@MainActor` free for 60fps SwiftUI rendering.
 
@@ -60,7 +60,7 @@ Wrapped in `autoreleasepool` to prevent Obj-C `AVAudioPCMBuffer` objects from ac
 
 ## 3. `AudioCaptureManager` — Recording Pipeline
 
-**File**: `merian/Core/Hardware/AudioCaptureManager.swift`
+**File**: `apps/ios/Merian/Core/Hardware/AudioCaptureManager.swift`
 
 `@MainActor @Observable` class. Registered in `AppDIContainer.shared.audioCaptureManager` and injected via `DIContainerModifier`.
 
@@ -164,7 +164,7 @@ Audio is written to `FileManager.default.temporaryDirectory/<uuid>.wav` as **Int
 
 ## 4. Submission Flow — `AudioAnalysis.swift`
 
-**File**: `merian/Features/CaptureWorkspace/Core/ViewModels/AudioAnalysis.swift`
+**File**: `apps/ios/Merian/Features/CaptureWorkspace/Core/ViewModels/AudioAnalysis.swift`
 
 `extension CaptureWorkspaceViewModel { func submitAudio(audioFileName:modelContext:) }` now routes through the shared non-visual submission path rather than a dedicated audio-only analyzer.
 
@@ -188,7 +188,7 @@ submitNonVisualCapture(
 
 ## 5. `OfflineQueueManager.enqueueNonVisualCapture` — Queue Record
 
-**Files**: `merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`, `OfflineQueueManager+URLSession.swift`
+**Files**: `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift`, `OfflineQueueManager+URLSession.swift`
 
 Audio now uses the same ordered queue shape as every other mixed-media submission. The queue record stores the serialized media timeline in `capturedMediaJSON`, and V41 also materializes that timeline into the `capturedMediaEntries` relationship mirror.
 
@@ -230,7 +230,7 @@ Replay uses the same endpoint and payload shape through the offline queue’s sh
 
 ### `AudioRecordingView`
 
-**File**: `merian/Features/CaptureWorkspace/Modalities/Audio/Views/AudioRecordingView.swift`
+**File**: `apps/ios/Merian/Features/CaptureWorkspace/Modalities/Audio/Views/AudioRecordingView.swift`
 
 Full-screen content view for the `.audio` pager page. All persistent controls (capture button, `MediaModeToggle`, tab bar, flanking action buttons) live in `CaptureWorkspaceView`'s fixed overlay layers.
 
@@ -253,7 +253,7 @@ The countdown ring uses `Circle.trim(from: 0, to: recordingProgress)` with `.ani
 
 ### `SpectrogramView`
 
-**File**: `merian/Features/CaptureWorkspace/Modalities/Audio/Views/SpectrogramView.swift`
+**File**: `apps/ios/Merian/Features/CaptureWorkspace/Modalities/Audio/Views/SpectrogramView.swift`
 
 Canvas-based 2D spectrogram. Draws one vertical strip per `SpectrogramColumn`, left (oldest) to right (newest), with frequency increasing bottom-to-top (bin 0 = 80 Hz at bottom, bin 63 = 16 kHz at top). The canvas background is a fixed dark field (`Color(red: 0.06, green: 0.06, blue: 0.1)`) so the colormap's near-black low-magnitude cells blend seamlessly into the background.
 
@@ -272,7 +272,7 @@ Draws up to `columnCap × outputBinCount = 180 × 64 = 11,520` filled rects per 
 
 ### `SNRGaugeView`
 
-**File**: `merian/Features/CaptureWorkspace/Modalities/Audio/Views/SNRGaugeView.swift`
+**File**: `apps/ios/Merian/Features/CaptureWorkspace/Modalities/Audio/Views/SNRGaugeView.swift`
 
 Rounded pill showing SNR level with a color-coded background and SF Symbol icon. Triggers a keyframe shake animation on `.clipping` events using sequential `DispatchQueue.main.asyncAfter` calls.
 
@@ -377,7 +377,7 @@ The camera session is **not** started when the user is on `.audio` (camera is st
 
 ## 12. Audio Inference Backend
 
-**Primary endpoint**: `supabase/functions/identify-multimodal/index.ts`
+**Primary endpoint**: `services/supabase/functions/identify-multimodal/index.ts`
 
 The active audio pipeline now routes through `/identify-multimodal`, not a standalone `/audio-spec` endpoint. The handler:
 

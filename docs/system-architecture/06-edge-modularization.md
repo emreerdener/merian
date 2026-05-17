@@ -4,7 +4,7 @@ Merian's proxy backend executes exclusively via Deno Edge Functions managed loca
 
 Historically, Edge Functions were single-file monoliths (`index.ts`). Merian has been structurally refactored into a **Domain-Driven Modular Architecture**. 
 
-_Any new Edge Function created within `supabase/functions/` MUST adhere to the following file-bound separations natively._
+_Any new Edge Function created within `services/supabase/functions/` MUST adhere to the following file-bound separations natively._
 
 ## 1. The HTTP Orchestrator (`index.ts`)
 
@@ -41,7 +41,7 @@ The `types.ts` script ensures explicit DTO (Data Transfer Object) mapping parity
 
 ## 4. Threshold Constants (`thresholds.ts`)
 
-`supabase/functions/_shared/identify/thresholds.ts` is the **canonical source of truth** for confidence threshold values used across the `identify` pipeline:
+`services/supabase/functions/_shared/identify/thresholds.ts` is the **canonical source of truth** for confidence threshold values used across the `identify` pipeline:
 
 ```typescript
 export const FLASH_STRONG = 0.95;
@@ -72,7 +72,7 @@ For exceptionally heavy or bespoke routing streams that violate the 10-second De
 
 By explicitly decoupling Data mapping from HTTP orchestration natively, the Deno backend becomes immediately immune to traditional Node.JS monolith "spaghetti-code" scaling failures. Engineers can formally upgrade complex PostgREST schemas in `db.ts` without jeopardizing the critical `timingSafeCompare` JWT block natively inside `index.ts`.
 
-All shared primitives natively driving API functions (`aws.ts`, `biology.ts`, `http.ts`, `posthog.ts`, `tierCache.ts`) are stored in `supabase/functions/_shared/`. For guidelines regarding the global dependencies, refer directly to `_shared/README.md`.
+All shared primitives natively driving API functions (`aws.ts`, `biology.ts`, `http.ts`, `posthog.ts`, `tierCache.ts`) are stored in `services/supabase/functions/_shared/`. For guidelines regarding the global dependencies, refer directly to `_shared/README.md`.
 
 **PostHog Rule — Fire-and-Forget:** All `trackPostHogEvent(...)` calls in **all** Edge Functions and `_shared/biology.ts` **must not be `await`-ed**. Analytics are best-effort and must never add latency to the critical path or the background ingestion flow. The correct pattern is:
 ```typescript
@@ -237,6 +237,6 @@ Token Usage [identify | <tier>]: Prompt: X | Candidates: Y | Thinking: Z | Total
 
 ## 2026-05 Shared Identify Rule
 
-- Shared orchestration across `identify`, `identify-multimodal`, `identify-describe`, and `audio-spec` must live under `supabase/functions/_shared/identify/` only when the domain purpose is identical.
+- Shared orchestration across `identify`, `identify-multimodal`, `identify-describe`, and `audio-spec` must live under `services/supabase/functions/_shared/identify/` only when the domain purpose is identical.
 - Keep modality-specific request DTOs, response DTOs, and validation isolated in each function. Do not merge them behind conditional flags just to reduce line count.
 - Candidate enrichment, group-tag resolution, and post-classification helpers are safe to share when they consume and produce the same shape. If a helper needs modality branching to stay correct, keep that logic local to the function.

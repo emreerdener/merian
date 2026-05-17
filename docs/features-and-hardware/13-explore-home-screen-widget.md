@@ -25,7 +25,7 @@ This keeps the extension lightweight and reliable. The widget process only needs
 
 ## Shared Cache Contract
 
-Shared types live in `merian/Features/Explore/Widgets/ExploreWidgetCache.swift` and are compiled into both the app target and widget extension target.
+Shared types live in `apps/ios/Merian/Features/Explore/Widgets/ExploreWidgetCache.swift` and are compiled into both the app target and widget extension target.
 
 - App Group: `group.app.merian.shared`
 - Widget kind: `ExploreCarouselWidget`
@@ -34,7 +34,7 @@ Shared types live in `merian/Features/Explore/Widgets/ExploreWidgetCache.swift` 
 - Max cached items: `12`
 - Timeline rotation interval: `30 minutes`
 - Empty-state refresh interval: `60 minutes`
-- Bundled fallback asset: `ExploreWidgetPlaceholder` in the widget extension asset catalog, sourced from `merian/Assets.xcassets/Widget/widget-flower.imageset/widget-flower.jpg`. The same photo is also copied into `MerianExploreWidget/Resources/ExploreWidgetPlaceholder.jpg` as a direct bundle fallback for WidgetKit gallery rendering. Keep the widget extension copies downsampled for WidgetKit memory limits; the current bundled copies are `1024x1024`.
+- Bundled fallback asset: `ExploreWidgetPlaceholder` in the widget extension asset catalog, sourced from `apps/ios/Merian/Assets.xcassets/Widget/widget-flower.imageset/widget-flower.jpg`. The same photo is also copied into `apps/ios/widgets/Explore/Resources/ExploreWidgetPlaceholder.jpg` as a direct bundle fallback for WidgetKit gallery rendering. Keep the widget extension copies downsampled for WidgetKit memory limits; the current bundled copies are `1024x1024`.
 
 Each `ExploreWidgetItem` stores only:
 
@@ -46,7 +46,7 @@ Do not add user-private scan metadata, exact coordinates, auth tokens, comments,
 
 ## Deep Linking
 
-The app declares the `merian` URL scheme in `merian/Configuration/Info.plist`. `MerianApp.handleMerianDeepLink(_:)` accepts only:
+The app declares the `merian` URL scheme in `apps/ios/Merian/Configuration/Info.plist`. `MerianApp.handleMerianDeepLink(_:)` accepts only:
 
 ```text
 merian://explore/post/{postId}
@@ -74,7 +74,7 @@ External Explore shares should use the durable public HTTPS URL instead:
 https://merian.earth/explore/post/{postId}
 ```
 
-The public web route lives in `web/app/explore/post/[postId]/page.tsx` and renders a privacy-filtered post page plus Open Graph metadata. When Universal Links are enabled for `merian.earth`, the same HTTPS URL should open `ExplorePostDetailView` in the installed app and fall back to the web page for recipients without Merian.
+The public web route lives in `apps/web/app/explore/post/[postId]/page.tsx` and renders a privacy-filtered post page plus Open Graph metadata. When Universal Links are enabled for `merian.earth`, the same HTTPS URL should open `ExplorePostDetailView` in the installed app and fall back to the web page for recipients without Merian.
 
 ### Session Timeout Race Guard
 
@@ -92,8 +92,8 @@ xcodegen generate
 
 Both targets need the same App Group entitlement:
 
-- `merian/Configuration/Merian.entitlements`
-- `MerianExploreWidget/Configuration/MerianExploreWidget.entitlements`
+- `apps/ios/Merian/Configuration/Merian.entitlements`
+- `apps/ios/widgets/Explore/Configuration/MerianExploreWidget.entitlements`
 
 For device/TestFlight builds, the Apple Developer identifiers for both `app.merian.Merian` and `app.merian.Merian.ExploreWidget` must have the `group.app.merian.shared` App Group capability enabled. If provisioning does not include the group, `FileManager.containerURL(forSecurityApplicationGroupIdentifier:)` returns `nil` and the widget stays empty.
 

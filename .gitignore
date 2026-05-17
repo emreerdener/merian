@@ -76,9 +76,9 @@ appDsyms/
 *.env
 
 # Supabase Local State
-supabase/.temp/
-supabase/.branches/
-supabase/.supabase/
+services/supabase/.temp/
+services/supabase/.branches/
+services/supabase/.supabase/
 
 # Deno Cache / Dependencies
 vendor/
@@ -98,16 +98,16 @@ node_modules/
 Signing.local.xcconfig
 
 # Next.js web app
-web/.next/
-web/.turbo/
-web/.vercel/
-web/out/
-web/coverage/
-web/playwright-report/
-web/test-results/
-web/tsconfig.tsbuildinfo
-web/npm-debug.log*
-web/yarn-debug.log*
-web/yarn-error.log*
-web/pnpm-debug.log*
-!web/.env.example
+apps/web/.next/
+apps/web/.turbo/
+apps/web/.vercel/
+apps/web/out/
+apps/web/coverage/
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/tsconfig.tsbuildinfo
+apps/web/npm-debug.log*
+apps/web/yarn-debug.log*
+apps/web/yarn-error.log*
+apps/web/pnpm-debug.log*
+!apps/web/.env.example

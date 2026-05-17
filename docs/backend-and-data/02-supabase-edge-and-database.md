@@ -28,7 +28,7 @@ are identified by a persistent Keychain-backed
 ## Shared Edge Utilities (`_shared/`)
 
 Several utilities are shared across all Edge Functions via
-`supabase/functions/_shared/`:
+`services/supabase/functions/_shared/`:
 
 - **`http.ts`**: The unified networking primitive module. Defines `corsHeaders`,
   export tools for `jsonResponse(payload, status)`, strict POST payload
@@ -73,7 +73,7 @@ Several utilities are shared across all Edge Functions via
   asynchronous `node-fetch` style queries to log per-scan events to PostHog for
   behavioral analytics (conversion funnel, scan frequency, species discovery
   rate). LLM token cost analytics are NOT owned by PostHog — they are owned by
-  Supabase SQL queries in `supabase/analytics/` (see below), which query the
+  Supabase SQL queries in `services/supabase/analytics/` (see below), which query the
   `scans` table directly as the authoritative source.
 - **`tierCache.ts`**: Worker-level `_tierCache` Map storing subscription tiers
   with a 5-minute TTL to eliminate DB round-trips on warm isolate reuse.
@@ -131,7 +131,7 @@ The `/identify` Edge Function acts as the inference proxy:
 1. **Auth**: Receives a structured payload from iOS. The `Authorization` header
    JWT is verified via `requireAuth` inside `withEdgeHandler`. Merian uses
    anonymous ES256 sessions (`signInAnonymously`), so the default Supabase
-   `verify_jwt` Edge Middleware is disabled in `supabase/config.toml`
+   `verify_jwt` Edge Middleware is disabled in `services/supabase/config.toml`
    (`verify_jwt = false`). Auth is handled manually via the Supabase SDK.
 2. **Direct Base64 Transfer**: If the iOS client sends `imageBase64s`, the Edge
    Function validates the request `Content-Length` and aggregate base64
@@ -294,7 +294,7 @@ frontend.
 
 Key rules:
 
-- `verify_jwt = false` is configured in `supabase/config.toml`.
+- `verify_jwt = false` is configured in `services/supabase/config.toml`.
 - The function intentionally does not call `withEdgeHandler` / `requireAuth`;
   user identity must not affect the response.
 - The service role key is used only for tightly scoped reads from
@@ -664,7 +664,7 @@ that operate on anonymous IDFV boundaries:
     invoke the worker, then enforces the service-role bearer header inside Deno
     with `timingSafeCompare`.
 - **Rule for new Edge Functions**: Every new function directory under
-  `supabase/functions/` MUST have a corresponding `[functions.<name>]` entry in
+  `services/supabase/functions/` MUST have a corresponding `[functions.<name>]` entry in
   `config.toml` before deployment. Use `verify_jwt = false` for
   anonymous-compatible app routes, deliberately public routes, and `pg_net`
   workers that perform their own service-role secret check; use
@@ -748,9 +748,9 @@ R2's concurrency rate limits. It zeroes out the `image_storage_urls` array
 rather than dropping the row, ensuring the user's localized text record safely
 remains in their app gallery.
 
-## Token Cost Analytics (`supabase/analytics/`)
+## Token Cost Analytics (`services/supabase/analytics/`)
 
-`supabase/analytics/` contains version-controlled SQL queries for LLM cost
+`services/supabase/analytics/` contains version-controlled SQL queries for LLM cost
 observability. These are the authoritative source for API spend analysis —
 PostHog owns behavioral metrics (funnel, session, conversion); Supabase SQL owns
 cost metrics (token counts are persisted directly to `public.scans` and are
@@ -873,7 +873,7 @@ Individual scan deletion severs the record from both Supabase and Cloudflare R2:
 - **Explicit Deno ES Modules**: To avoid Supabase CLI bundling failures caused
   by unresolved local import maps, all edge dependencies use direct HTTP module
   URLs (e.g., `https://esm.sh/@supabase/supabase-js@2.49.1`). The
-  `supabase/functions/deno.json` config includes
+  `services/supabase/functions/deno.json` config includes
   `"exclude": ["no-import-prefix"]` to suppress the corresponding `deno-lint`
   warning locally.
 - **`_shared` Utilities**: The `http.ts`, `edgeHandler.ts`, `biology.ts`,

@@ -6,7 +6,7 @@ This document defines the canonical structure for every feature in Merian and ex
 
 ## Directory Layout
 
-Every feature lives under `merian/Features/<FeatureName>/` and follows this folder structure:
+Every feature lives under `apps/ios/Merian/Features/<FeatureName>/` and follows this folder structure:
 
 ```
 Features/
@@ -35,7 +35,7 @@ Features/
 - `Views/` contain only SwiftUI `View` structs. Zero business logic.
 - `ViewModels/` contain `@Observable @MainActor final class` ViewModels. Split large ViewModels into extensions in separate files (e.g. `Capture.swift`, `Analysis.swift`) rather than growing one file.
 - `Components/` are passive — they receive data via `let` properties and closures. They must not access `AppDIContainer.shared` directly.
-- `Models/` are local to the feature and never `@Model` (SwiftData models live in `merian/Models/`).
+- `Models/` are local to the feature and never `@Model` (SwiftData models live in `apps/ios/Merian/Models/`).
 - `Modifiers/` implement `ViewModifier` or provide `.modifier(...)` call-site helpers.
 - `Managers/` hold `@Observable @MainActor final class` service objects that own a hardware or OS resource scoped to the feature (e.g. `SpeechManager` owns `AVAudioEngine`). Managers that must be shared across multiple features belong in `AppDIContainer` instead.
 
@@ -159,12 +159,12 @@ Complex sheet routing logic (multiple `.sheet`, `.fullScreenCover`, custom modif
 
 ## Adding a New Feature
 
-1. Create `merian/Features/<FeatureName>/` with the subdirectories above.
+1. Create `apps/ios/Merian/Features/<FeatureName>/` with the subdirectories above.
 2. Add `<FeatureName>RootView.swift` in `Views/`.
 3. Add `<FeatureName>ViewModel.swift` in `ViewModels/` — `@Observable @MainActor final class`.
 4. Wire DI access via `let diContainer = AppDIContainer.shared` inside the ViewModel.
 5. If the feature needs Core managers exposed to the view layer, register them in `MerianApp.swift`'s `.environment()` chain.
 6. If the feature introduces a new Core manager, add it as a `var` in `AppDIContainer.swift`, add `.environment(container.managerName)` to `DIContainerModifier.body()`, and document it in `docs/development-guides/09-core-managers.md`.
 7. If the feature introduces a hardware/OS resource manager scoped only to that feature, place it in `Managers/` (not `AppDIContainer`).
-8. Run `xcodegen generate` after adding any new Swift file or subdirectory — `project.yml` uses a directory wildcard (`sources: [Merian]`) so no `project.yml` edit is required, but the `.xcodeproj` must be regenerated.
-9. Update `docs/development-guides/09-ai-agent-guidelines.md` Section 2 if the directory structure changes.
+8. Run `xcodegen generate` after adding any new Swift file or subdirectory — `project.yml` uses a directory wildcard (`sources: [apps/ios/Merian]`) so no `project.yml` edit is required, but the `.xcodeproj` must be regenerated.
+9. Update `docs/development-guides/07-ai-agent-guidelines.md` Section 2 if the directory structure changes.

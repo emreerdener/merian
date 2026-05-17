@@ -25,9 +25,9 @@ Following does not affect `Recent`, `Trending`, `Nearby`, map results, the Home 
 
 ## Database Model
 
-Migration: `supabase/migrations/20260511161000_add_explore_following.sql`
+Migration: `services/supabase/migrations/20260511161000_add_explore_following.sql`
 
-Supporting enum migration: `supabase/migrations/20260511160000_add_follow_notification_type.sql`
+Supporting enum migration: `services/supabase/migrations/20260511160000_add_follow_notification_type.sql`
 
 New table:
 
@@ -58,7 +58,7 @@ New and extended RPCs:
 
 New Edge Function:
 
-- `supabase/functions/set-user-follow`
+- `services/supabase/functions/set-user-follow`
 
 Request:
 
@@ -120,13 +120,13 @@ The push-delivery trigger intentionally skips `type = 'follow'`. Follow activity
 
 Primary files:
 
-- `merian/Core/Network/ExploreAPIModels.swift`
-- `merian/Core/Network/MerianNetworkClient.swift`
-- `merian/Features/Explore/Views/ExploreView.swift`
-- `merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
-- `merian/Features/Explore/Models/ExploreNotification.swift`
-- `merian/Features/Explore/Components/NotificationRowView.swift`
-- `merian/Features/Explore/Views/ExploreNotificationsSheet.swift`
+- `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
+- `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Features/Explore/Views/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
+- `apps/ios/Merian/Features/Explore/Models/ExploreNotification.swift`
+- `apps/ios/Merian/Features/Explore/Components/NotificationRowView.swift`
+- `apps/ios/Merian/Features/Explore/Views/ExploreNotificationsSheet.swift`
 
 Important model changes:
 
@@ -148,21 +148,21 @@ MerianNetworkClient.shared.setUserFollow(authorUserId:isFollowing:)
 
 Backend:
 
-- `supabase/functions/_tests/userFollowsDb.test.ts`
-- `supabase/functions/_tests/exploreFeedDb.test.ts`
-- `supabase/functions/_tests/exploreAuthorProfileDb.test.ts`
-- `supabase/functions/_tests/exploreNotificationsDb.test.ts`
-- `supabase/functions/_tests/mergeGhostProfile.test.ts`
+- `services/supabase/functions/_tests/userFollowsDb.test.ts`
+- `services/supabase/functions/_tests/exploreFeedDb.test.ts`
+- `services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts`
+- `services/supabase/functions/_tests/exploreNotificationsDb.test.ts`
+- `services/supabase/functions/_tests/mergeGhostProfile.test.ts`
 
 iOS:
 
-- `merianTests/Core/Network/MerianNetworkClientTests.swift`
+- `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
 
 Useful verification:
 
 ```sh
-deno check supabase/functions/get-explore-feed/index.ts supabase/functions/get-explore-author-profile/index.ts supabase/functions/get-explore-notifications/index.ts supabase/functions/set-user-follow/index.ts supabase/functions/block-user/index.ts supabase/functions/merge-ghost-profile/index.ts
-deno test --allow-env --allow-net supabase/functions/_tests/exploreFeedDb.test.ts supabase/functions/_tests/exploreAuthorProfileDb.test.ts supabase/functions/_tests/exploreNotificationsDb.test.ts supabase/functions/_tests/mergeGhostProfile.test.ts supabase/functions/_tests/userFollowsDb.test.ts
+deno check services/supabase/functions/get-explore-feed/index.ts services/supabase/functions/get-explore-author-profile/index.ts services/supabase/functions/get-explore-notifications/index.ts services/supabase/functions/set-user-follow/index.ts services/supabase/functions/block-user/index.ts services/supabase/functions/merge-ghost-profile/index.ts
+deno test --allow-env --allow-net services/supabase/functions/_tests/exploreFeedDb.test.ts services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts services/supabase/functions/_tests/exploreNotificationsDb.test.ts services/supabase/functions/_tests/mergeGhostProfile.test.ts services/supabase/functions/_tests/userFollowsDb.test.ts
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
 ```

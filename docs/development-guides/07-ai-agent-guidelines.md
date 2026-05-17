@@ -12,7 +12,7 @@ The `docs/` folder contains the master reference for the application:
 - Refer to `docs/backend-and-data/01-offline-sync-pipeline.md` for offline queue, sync state machine, and deletion architecture.
 - Refer to `docs/development-guides/02-app-lifecycle.md` for `AppLifecycleManager` phase contracts and trigger ordering.
 - Refer to `docs/system-architecture/03-image-pipeline.md` for capture → disk → cache → display image flow.
-- Refer to `docs/features-and-hardware/17-public-web-share-pages.md` before changing `web/`, `merian.earth` routes, Open Graph metadata, or Explore share URL behavior.
+- Refer to `docs/features-and-hardware/17-public-web-share-pages.md` before changing `apps/web/`, `merian.earth` routes, Open Graph metadata, or Explore share URL behavior.
 
 ## 1. Project Generation (XcodeGen)
 - **NEVER** directly modify `Merian.xcodeproj`.
@@ -23,7 +23,7 @@ The `docs/` folder contains the master reference for the application:
 - API Keys must be injected via `Config.xcconfig` or `MerianEnvironment.swift`. NEVER hardcode `GEMINI_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift` files.
 
 ## 2. Directory Structure
-The workspace enforces this layout inside `merian/`:
+The workspace enforces this layout inside `apps/ios/Merian/`:
 - `Features/`: Complete user domains (`CaptureWorkspace`, `Explore`, `Insights`, `Onboarding`, `Profile`, `Scans`, `SpeciesDictionary`).
 - `Core/`: Foundational logic organized into subdirectories:
   - `AI/`: `InferenceEngine`, `InferenceProcessingActor`
@@ -36,9 +36,9 @@ The workspace enforces this layout inside `merian/`:
   - `Utilities/`: `MerianConfig`, `AppLifecycleManager`, `BackgroundTaskWrapper`, `FieldNotesRepository`, `ImageDownsampler`
   - `Analytics/`, `Intents/`
 - `Models/`: Standardized pure Data structures and `SwiftData` logic.
-- `Configuration/`: `project.yml`, `Config.xcconfig`, App Intents, and Entrypoint metadata.
+- `Configuration/`: target-owned Info.plist and entitlement files. Repo-level project files such as `project.yml`, `Config.xcconfig`, and signing config remain at the repository root.
 
-The public web app lives outside the iOS source tree in `web/`. It uses Next.js,
+The public web app lives outside the iOS source tree in `apps/web/`. It uses Next.js,
 React, and Mantine for server-rendered public pages. Keep service-role secrets
 server-side only and run the web checks from `docs/development-guides/08-testing-strategy.md`
 when changing web routes.
@@ -70,7 +70,7 @@ when changing web routes.
 - Never write direct Gemini inference code inside iOS Swift controllers — this leaks API keys and bypasses edge limits.
 - Keep the Deno Edge `index.ts` files synchronized with the Swift `IdentifyResponse` API Contract mapped in `docs/backend-and-data/05-api-contracts.md`.
 - Ensure all unstructured display text (e.g. `common_name`) is locked via `systemInstruction` rules to format as Title Case, preventing lowercase UI outputs before values are cached to the database.
-- **Every new Edge Function MUST have a `[functions.<name>]` entry in `supabase/config.toml`.** App-facing anonymous-compatible functions should use `verify_jwt = false`; omitting the entry causes Supabase's Kong gateway to default to `verify_jwt = true`, which performs gateway-level JWT validation before the function code runs. This rejects valid ES256 anonymous sessions with `401 Invalid JWT` even though the token is structurally valid. Authenticated endpoints then verify identity inside the function with `withEdgeHandler` / `requireAuth`. Intentional deviations must be documented: `merge-ghost-profile` and `request-export-dwca` use `verify_jwt = true`; `species-dictionary` uses `verify_jwt = false` but intentionally does not call `requireAuth` because it returns only public species-level dictionary data; `refresh-species-content` and `refresh-merian-reference-images` use `verify_jwt = false` for `pg_net` compatibility but must require `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` with `timingSafeCompare`.
+- **Every new Edge Function MUST have a `[functions.<name>]` entry in `services/supabase/config.toml`.** App-facing anonymous-compatible functions should use `verify_jwt = false`; omitting the entry causes Supabase's Kong gateway to default to `verify_jwt = true`, which performs gateway-level JWT validation before the function code runs. This rejects valid ES256 anonymous sessions with `401 Invalid JWT` even though the token is structurally valid. Authenticated endpoints then verify identity inside the function with `withEdgeHandler` / `requireAuth`. Intentional deviations must be documented: `merge-ghost-profile` and `request-export-dwca` use `verify_jwt = true`; `species-dictionary` uses `verify_jwt = false` but intentionally does not call `requireAuth` because it returns only public species-level dictionary data; `refresh-species-content` and `refresh-merian-reference-images` use `verify_jwt = false` for `pg_net` compatibility but must require `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` with `timingSafeCompare`.
 
 ## 7. Database Safeties
 - Anonymous IDs (`DeviceIdentityManager.shared.deviceId`) exist solely to persist `UsageManager` limits locally on iOS across reinstalls. Do not use IDFV (`.deviceId`) for backend user records, analytics identifiers, or constructed S3/R2 storage keys.
@@ -155,7 +155,7 @@ enum MerianSchemaV26: VersionedSchema {
 
 Only use `typealias` for models that are **unchanged AND not referenced by any relationship inside the schema** (e.g., `OfflineQueuedScan`, `PendingCloudDeletionTask`). Any model with a relationship to `LocalScanRecord` must be redeclared in each schema's enum body.
 
-**Two-tier regression test**: `merianTests/Models/MigrationPlanTests.swift` has two tests — both must pass on an iOS 26 simulator on every schema bump:
+**Two-tier regression test**: `apps/ios/MerianTests/Models/MigrationPlanTests.swift` has two tests — both must pass on an iOS 26 simulator on every schema bump:
 - `migrationPlanContainerInitializesWithoutCrash` — fresh store (no migration), covers init-time validation.
 - `migrationFromV26ToV27DoesNotCrash` — creates a disk-based V26 store then reopens with migration plan, covers the migration execution path where iOS 26 validates ALL custom stages.
 - The same suite also source-scans `SchemaVersions.swift` for migration safety invariants: no silent custom-stage saves, no active/global fetch descriptors or active model convenience helpers in `MerianMigrationPlan`, and no bare active `CapturedMediaEntry` relationship targets in retired schemas.

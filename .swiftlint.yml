@@ -18,12 +18,12 @@ opt_in_rules:
   - sorted_imports
 
 included:
-  - merian
+  - apps/ios/Merian
 
 excluded:
   - Pods
   - fastlane
-  - supabase
+  - services/supabase
   - docs
   - .agents
 
@@ -33,19 +33,19 @@ analyzer_rules:
 custom_rules:
   raw_appstorage_literal:
     included:
-      - merian/App/MerianApp.swift
-      - merian/Core/UI/Components/CaptureControlBar.swift
-      - merian/Core/UI/Components/ActiveScanToolbar.swift
-      - merian/Features/CaptureWorkspace/Core/Views/CaptureWorkspaceView.swift
-      - merian/Features/CaptureWorkspace/Core/Modifiers/CameraSheetRouter.swift
-      - merian/Features/CaptureWorkspace/Modalities/Audio/Views/SNRGaugeView.swift
-      - merian/Features/Profile/Components/Settings/Preferences.swift
-      - merian/Features/Profile/Views/SettingsTabView.swift
-      - merian/Features/Profile/Views/NotificationSettingsView.swift
-      - merian/Features/Scans/Views/ScansSheetView.swift
-      - merian/Features/Scans/Modifiers/ScansToolbarModifier.swift
-      - merian/Features/Scans/Components/ScansGrid.swift
-      - merian/Features/Onboarding/ViewModels/OnboardingViewModel.swift
+      - apps/ios/Merian/App/MerianApp.swift
+      - apps/ios/Merian/Core/UI/Components/CaptureControlBar.swift
+      - apps/ios/Merian/Core/UI/Components/ActiveScanToolbar.swift
+      - apps/ios/Merian/Features/CaptureWorkspace/Core/Views/CaptureWorkspaceView.swift
+      - apps/ios/Merian/Features/CaptureWorkspace/Core/Modifiers/CameraSheetRouter.swift
+      - apps/ios/Merian/Features/CaptureWorkspace/Modalities/Audio/Views/SNRGaugeView.swift
+      - apps/ios/Merian/Features/Profile/Components/Settings/Preferences.swift
+      - apps/ios/Merian/Features/Profile/Views/SettingsTabView.swift
+      - apps/ios/Merian/Features/Profile/Views/NotificationSettingsView.swift
+      - apps/ios/Merian/Features/Scans/Views/ScansSheetView.swift
+      - apps/ios/Merian/Features/Scans/Modifiers/ScansToolbarModifier.swift
+      - apps/ios/Merian/Features/Scans/Components/ScansGrid.swift
+      - apps/ios/Merian/Features/Onboarding/ViewModels/OnboardingViewModel.swift
     name: "Raw AppStorage Literal"
     regex: '@AppStorage\("'
     message: "Use AppSettings or a typed storage boundary instead of inline @AppStorage string literals."
@@ -53,19 +53,19 @@ custom_rules:
 
   raw_userdefaults_string_key:
     included:
-      - merian/App/MerianApp.swift
-      - merian/Core/UI/Components/CaptureControlBar.swift
-      - merian/Core/UI/Components/ActiveScanToolbar.swift
-      - merian/Features/CaptureWorkspace/Core/Views/CaptureWorkspaceView.swift
-      - merian/Features/CaptureWorkspace/Core/Modifiers/CameraSheetRouter.swift
-      - merian/Features/CaptureWorkspace/Modalities/Audio/Views/SNRGaugeView.swift
-      - merian/Features/Profile/Components/Settings/Preferences.swift
-      - merian/Features/Profile/Views/SettingsTabView.swift
-      - merian/Features/Profile/Views/NotificationSettingsView.swift
-      - merian/Features/Scans/Views/ScansSheetView.swift
-      - merian/Features/Scans/Modifiers/ScansToolbarModifier.swift
-      - merian/Features/Scans/Components/ScansGrid.swift
-      - merian/Features/Onboarding/ViewModels/OnboardingViewModel.swift
+      - apps/ios/Merian/App/MerianApp.swift
+      - apps/ios/Merian/Core/UI/Components/CaptureControlBar.swift
+      - apps/ios/Merian/Core/UI/Components/ActiveScanToolbar.swift
+      - apps/ios/Merian/Features/CaptureWorkspace/Core/Views/CaptureWorkspaceView.swift
+      - apps/ios/Merian/Features/CaptureWorkspace/Core/Modifiers/CameraSheetRouter.swift
+      - apps/ios/Merian/Features/CaptureWorkspace/Modalities/Audio/Views/SNRGaugeView.swift
+      - apps/ios/Merian/Features/Profile/Components/Settings/Preferences.swift
+      - apps/ios/Merian/Features/Profile/Views/SettingsTabView.swift
+      - apps/ios/Merian/Features/Profile/Views/NotificationSettingsView.swift
+      - apps/ios/Merian/Features/Scans/Views/ScansSheetView.swift
+      - apps/ios/Merian/Features/Scans/Modifiers/ScansToolbarModifier.swift
+      - apps/ios/Merian/Features/Scans/Components/ScansGrid.swift
+      - apps/ios/Merian/Features/Onboarding/ViewModels/OnboardingViewModel.swift
     name: "Raw UserDefaults String Key"
     regex: 'forKey:\s*"'
     message: "Use UserDefaultsKeys or AppSettings instead of inline UserDefaults string keys."
@@ -73,10 +73,10 @@ custom_rules:
 
   raw_task_detached:
     included:
-      - merian/App/MerianApp.swift
-      - merian/Features/CaptureWorkspace/Core/ViewModels/CaptureWorkspaceViewModel.swift
-      - merian/Features/Profile/Components/Settings/DangerZone.swift
-      - merian/Features/Scans/Views/NonBiologicalScansView.swift
+      - apps/ios/Merian/App/MerianApp.swift
+      - apps/ios/Merian/Features/CaptureWorkspace/Core/ViewModels/CaptureWorkspaceViewModel.swift
+      - apps/ios/Merian/Features/Profile/Components/Settings/DangerZone.swift
+      - apps/ios/Merian/Features/Scans/Views/NonBiologicalScansView.swift
     name: "Raw Task.detached"
     regex: '\bTask\.detached\('
     message: "Route detached work through DetachedWork so the boundary stays documented and searchable."

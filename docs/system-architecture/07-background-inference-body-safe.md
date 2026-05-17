@@ -23,9 +23,9 @@ Live audio still uses inline base64 because it is a foreground request and avoid
 - Cross-language upload manifest contract: `docs/contracts/media-staging-upload-manifest.json`
 - Upload orchestration: `OfflineQueueManager+Sync.prepareUploadItems(from:userId:)`
 - Replay dispatcher: `OfflineQueueManager+URLSession.dispatchInferenceDownloadTask(...)`
-- Shared Edge media budget helpers: `supabase/functions/_shared/mediaBudgets.ts`
-- Edge handler: `supabase/functions/identify-multimodal/index.ts`
-- Pre-signed URL signing and manifest validation: `supabase/functions/generate-upload-urls/storage.ts`
+- Shared Edge media budget helpers: `services/supabase/functions/_shared/mediaBudgets.ts`
+- Edge handler: `services/supabase/functions/identify-multimodal/index.ts`
+- Pre-signed URL signing and manifest validation: `services/supabase/functions/generate-upload-urls/storage.ts`
 
 ## Guardrails
 

@@ -32,7 +32,7 @@ This constraint applies to ALL custom stages in `MerianMigrationPlan.stages`, ev
 
 No schema-freezing automation script is currently checked into this repository.
 Freeze the outgoing schema manually before touching any file in
-`merian/Models/ActiveSchema/`.
+`apps/ios/Merian/Models/ActiveSchema/`.
 
 Manual freeze checklist inside `SchemaV{N}.swift` or `SchemaVersions.swift`:
 
@@ -76,7 +76,7 @@ Manual freeze checklist inside `SchemaV{N}.swift` or `SchemaVersions.swift`:
 ### Step 2 — Modify global models
 
 After Step 1 compiles, it is safe to add, remove, or rename fields in
-`merian/Models/ActiveSchema/`:
+`apps/ios/Merian/Models/ActiveSchema/`:
 - `LocalScanRecord.swift`
 - `OfflineQueuedScan.swift`
 - `ScanCollection.swift`
@@ -88,7 +88,7 @@ Any model that changes here is the **only** model that needs a new snapshot in S
 
 ### Step 3 — Create SchemaV{N+1}.swift
 
-Create `merian/Models/Schema/SchemaV{N+1}.swift`:
+Create `apps/ios/Merian/Models/Schema/SchemaV{N+1}.swift`:
 
 ```swift
 import Foundation
@@ -168,7 +168,7 @@ static let migrateV{N}toV{N+1} = MigrationStage.custom(
 
 ### Step 6 — Add SchemaV{N+1}.swift to project.yml
 
-XcodeGen uses glob source discovery. If the glob pattern already covers `merian/Models/Schema/`, no change is needed. Verify:
+XcodeGen uses glob source discovery. If the glob pattern already covers `apps/ios/Merian/Models/Schema/`, no change is needed. Verify:
 
 ```bash
 grep -A2 "Schema" project.yml | head -10

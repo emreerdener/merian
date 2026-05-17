@@ -4,10 +4,10 @@ Merian uses a lightweight, Swift-native testing structure built on the `Testing`
 framework, isolating offline UI queues and core engine components from Apple
 lifecycle dependencies.
 
-The public web app in `web/` has its own checks:
+The public web app in `apps/web/` has its own checks:
 
 ```bash
-cd web
+cd apps/web
 npm run typecheck
 npm run build
 npm audit --audit-level=moderate
@@ -82,7 +82,7 @@ boundaries:
 
 ## Core Suites
 
-Tests are organized under `merianTests/Core` and `merianTests/Features`:
+Tests are organized under `apps/ios/MerianTests/Core` and `apps/ios/MerianTests/Features`:
 
 ### Analytics & Telemetry
 
@@ -273,7 +273,7 @@ Tests are organized under `merianTests/Core` and `merianTests/Features`:
     Replicates the `syncPendingScans` backoff formula inline and asserts the
     full delay sequence (0→1→2→4→8→16→30) and cap behavior. Also asserts
     `maxUploadRetryDelay == 30`.
-- **`CompositeLibraryTests.swift`** (`merianTests/Features/Scans/`): Validates
+- **`CompositeLibraryTests.swift`** (`apps/ios/MerianTests/Features/Scans/`): Validates
   the bounding behaviors of the composite `ScansGrid` that renders both
   `OfflineQueuedScan` and `LocalScanRecord` items in the same `LazyVGrid`.
   - **Unique ID Guarantee**: Inserts three `OfflineQueuedScan` records and

@@ -27,9 +27,9 @@ Before contributing, please review our core architectural tenets. Refactoring co
 ## Testing Protocol
 
 - **Swift/iOS**: All `@MainActor` lifecycle boundaries must not block the main thread.
-- **Edge Functions**: You must write and validate code natively using Deno testing frameworks. Before opening a PR targeting `supabase/functions`, run:
+- **Edge Functions**: You must write and validate code natively using Deno testing frameworks. Before opening a PR targeting `services/supabase/functions`, run:
   ```bash
-  cd supabase/functions
+  cd services/supabase/functions
   deno task test
   ```
 

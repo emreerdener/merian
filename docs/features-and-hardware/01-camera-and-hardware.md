@@ -213,7 +213,7 @@ A dedicated `PHPhotoLibrary` handler.
 
 ### `EnvironmentContext`
 
-A plain data struct extracted from `EnvironmentContextManager`. Lives in `merian/Core/Hardware/EnvironmentContext.swift`.
+A plain data struct extracted from `EnvironmentContextManager`. Lives in `apps/ios/Merian/Core/Hardware/EnvironmentContext.swift`.
 
 Fields: `location: CLLocation?`, `locationName: String?`, `weatherCondition: String?`, `weatherTemperature: Double?`, `captureDate: Date?`.
 

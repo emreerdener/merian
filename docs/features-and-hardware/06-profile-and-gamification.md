@@ -38,7 +38,7 @@ The `UserPersona` enumeration (defined in `GamificationModels.swift`) replaces l
 
 The `Persona` UI component cross-references this enum against the user's live profile statistics to render the appropriate `.imageset` container from the `Profile/Personas/` catalog. It sits adjacent to the `Terrarium` component on the Profile Tab, which loads compounding biological elements based on the same 5-tier logic.
 
-**Plan Card Integration**: The `PlanCard` dynamic banner also eschews standard SF Symbols in favor of custom vectors. Depending on `RevenueCatManager.shared.isProActive`, it targets `merian/Assets.xcassets/Profile/Plan/sparkles.imageset` for Premium users, falling back to `compass.imageset` for Free-tier users.
+**Plan Card Integration**: The `PlanCard` dynamic banner also eschews standard SF Symbols in favor of custom vectors. Depending on `RevenueCatManager.shared.isProActive`, it targets `apps/ios/Merian/Assets.xcassets/Profile/Plan/sparkles.imageset` for Premium users, falling back to `compass.imageset` for Free-tier users.
 
 ---
 

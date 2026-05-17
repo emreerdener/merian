@@ -446,13 +446,13 @@ from both the Insight scan and Explore post-detail contracts:
 - Species dictionary data includes only canonical dictionary fields and
   reference imagery.
 
-The function has `verify_jwt = false` in `supabase/config.toml` and does not
+The function has `verify_jwt = false` in `services/supabase/config.toml` and does not
 call `requireAuth`. It may receive normal app auth headers from
 `MerianNetworkClient`, but identity is not read and must not affect the
 response.
 
 The response is built through the shared public species projection in
-`supabase/functions/_shared/publicSpeciesProjection.ts`. That module owns
+`services/supabase/functions/_shared/publicSpeciesProjection.ts`. That module owns
 common-name fallback, alternate-name dedupe, normalized/legacy reference-image
 mapping, nullable taxonomy shape, and contract tests for private-field leaks.
 SQL-only Explore detail lookalikes use matching database helpers so the same
@@ -1104,7 +1104,7 @@ request body is:
 - `limit` is optional and capped at `500`.
 
 The Edge Function reads `public.get_explore_map_posts(...)` and then applies
-zoom-aware clustering in `supabase/functions/get-explore-map-points/cluster.ts`.
+zoom-aware clustering in `services/supabase/functions/get-explore-map-points/cluster.ts`.
 The shipped behavior is:
 
 - when the visible result set is small, return `mode: "posts"`
@@ -1625,16 +1625,16 @@ activity pushes:
 
 The Explore client decodes these endpoints via:
 
-- `merian/Core/Network/ExploreAPIModels.swift`
-- `merian/Core/Network/MerianNetworkClient.swift`
-- `merian/Features/Explore/ViewModels/ExploreFeedViewModel.swift`
-- `merian/Features/Explore/ViewModels/ExploreFeedViewModel+Interactions.swift`
-- `merian/Features/Explore/ViewModels/ExploreFeedViewModel+Notifications.swift`
-- `merian/Features/Explore/ViewModels/ExploreMapViewModel.swift`
-- `merian/Features/Explore/ViewModels/ExploreNotificationsViewModel.swift`
-- `merian/Features/Explore/Models/ExploreNotification.swift`
-- `merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
-- `merian/Features/Explore/Views/ExploreMapView.swift`
+- `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
+- `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Features/Explore/ViewModels/ExploreFeedViewModel.swift`
+- `apps/ios/Merian/Features/Explore/ViewModels/ExploreFeedViewModel+Interactions.swift`
+- `apps/ios/Merian/Features/Explore/ViewModels/ExploreFeedViewModel+Notifications.swift`
+- `apps/ios/Merian/Features/Explore/ViewModels/ExploreMapViewModel.swift`
+- `apps/ios/Merian/Features/Explore/ViewModels/ExploreNotificationsViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Models/ExploreNotification.swift`
+- `apps/ios/Merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
+- `apps/ios/Merian/Features/Explore/Views/ExploreMapView.swift`
 
 The current feed UI uses only a subset of the payload for visible card
 rendering:
@@ -2152,7 +2152,7 @@ and `collection_scans` schemas, handling diffing and missing FK references.
 
 **Critical Kong API Gateway Requirement**: To allow `sync-collections` to
 manually parse and extract the JWT using Deno `.headers.get("Authorization")`,
-the edge function must be explicitly exposed in `supabase/config.toml` with
+the edge function must be explicitly exposed in `services/supabase/config.toml` with
 `verify_jwt = false`. If not disabled, Kong dynamically strips the
 `Authorization` header before it reaches Deno to prevent replay attacks, causing
 a `401 Unauthorized: Missing Authorization header` response from the Edge

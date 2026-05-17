@@ -146,10 +146,10 @@ Configure the required app-facing client config in `Config.xcconfig`. Public cli
 
 ### Local Web
 
-The public web surface lives in `web/`.
+The public web surface lives in `apps/web/`.
 
 ```bash
-cd web
+cd apps/web
 cp .env.example .env.local
 npm install
 npm run dev
@@ -157,11 +157,12 @@ npm run dev
 
 The initial web routes include `/explore/post/[postId]`, a server-rendered public Explore share page with Open Graph metadata for rich Messages/social previews, plus public policy/support pages at `/privacy`, `/terms`, `/guidelines`, `/privacy-choices`, `/support`, and `/legal`.
 
-See `web/README.md` and `docs/features-and-hardware/17-public-web-share-pages.md` for the web env contract, share URL strategy, and Universal Links roadmap.
+See `apps/web/README.md` and `docs/features-and-hardware/17-public-web-share-pages.md` for the web env contract, share URL strategy, and Universal Links roadmap.
 
 ### Local Backend
 
 ```bash
+cd services/supabase
 supabase start
 supabase functions serve identify
 ```
@@ -169,6 +170,7 @@ supabase functions serve identify
 ### Database Migrations
 
 ```bash
+cd services/supabase
 supabase db push
 ```
 

@@ -5,7 +5,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ## Hardware Domain
 
 ### `SpeechManager`
-- `@MainActor @Observable final class` living at `merian/Features/Describe/Managers/SpeechManager.swift`, registered in `AppDIContainer` and distributed to the view hierarchy via `DIContainerModifier`.
+- `@MainActor @Observable final class` living at `apps/ios/Merian/Features/Describe/Managers/SpeechManager.swift`, registered in `AppDIContainer` and distributed to the view hierarchy via `DIContainerModifier`.
 - Owns the full `AVAudioEngine` + `SFSpeechRecognizer` pipeline for live voice dictation on the Describe page.
 - **`isRecording: Bool`** — the single source of truth for dictation state. Drives the `CaptureButton` pulse animation and the `onTranscribe` stop-path guard in `CaptureWorkspaceView`. Never set to `true` until `audioEngine.start()` succeeds; reset to `false` in all failure and teardown paths.
 - **`startDictation(onResult: @MainActor @escaping (String) -> Void) async throws`**:
@@ -20,7 +20,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **`PermissionError`** — a `LocalizedError` struct defined in the same file. Thrown exclusively on permission denial, caught by `catch is PermissionError` at the `CaptureWorkspaceView` call site for toast display. All other throws (hardware faults, `AVAudioEngine` start failure) are silently swallowed at the call site since no user-actionable recovery path exists.
 
 ### `AudioCaptureManager`
-- `@MainActor @Observable final class` at `merian/Core/Hardware/AudioCaptureManager.swift`, registered as `var audioCaptureManager = AudioCaptureManager()` in `AppDIContainer` and distributed via `DIContainerModifier`.
+- `@MainActor @Observable final class` at `apps/ios/Merian/Core/Hardware/AudioCaptureManager.swift`, registered as `var audioCaptureManager = AudioCaptureManager()` in `AppDIContainer` and distributed via `DIContainerModifier`.
 - Owns the full `AVAudioEngine` bioacoustic recording pipeline for the `.audio` capture page.
 - **`isRecording: Bool`** — single source of truth for recording state. Set to `true` only after `audioEngine.start()` succeeds.
 - **`isPaused: Bool`** — engine is paused mid-recording (tap preserved, countdown halted). Can only be `true` when `isRecording` is also `true`.
@@ -42,7 +42,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **Strict Requirement**: Never call `AVAudioSession.sharedInstance()` directly on `@MainActor`. Route all activation/deactivation through `AudioSessionCoordinator`.
 
 ### `SpectrogramActor`
-- Swift `actor` at `merian/Core/Hardware/SpectrogramActor.swift`. All FFT and mel-scale arithmetic runs on a background actor thread, keeping `@MainActor` free for 60fps rendering.
+- Swift `actor` at `apps/ios/Merian/Core/Hardware/SpectrogramActor.swift`. All FFT and mel-scale arithmetic runs on a background actor thread, keeping `@MainActor` free for 60fps rendering.
 - **2048-point real FFT** via Accelerate `vDSP_fft_zrip` with `vDSP_hann_window`. Wrapped in `autoreleasepool` per buffer to prevent `AVAudioPCMBuffer` Obj-C object accumulation.
 - **64-bin mel scale**, 80 Hz – 16 kHz: covers the bioacoustically relevant range for bird, insect, and frog ID.
 - **`process(buffer:) -> SpectrogramColumn?`** — main entry point from the tap callback; returns `nil` if FFT setup unavailable or buffer empty.
@@ -57,7 +57,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **Deferred Mutex Unlocks**: Mitigates AVFoundation buffer leaks and device thread lockouts by placing `defer { device.unlockForConfiguration() }` and `defer { CVPixelBufferUnlockBaseAddress }` guards across all hardware control paths.
 
 ### `EnvironmentContextManager`
-- Manages the `EnvironmentContext` struct, which is defined in `merian/Core/Hardware/EnvironmentContext.swift` as a plain data model with `location`, `locationName`, `weatherCondition`, and `weatherTemperature` fields.
+- Manages the `EnvironmentContext` struct, which is defined in `apps/ios/Merian/Core/Hardware/EnvironmentContext.swift` as a plain data model with `location`, `locationName`, `weatherCondition`, and `weatherTemperature` fields.
 - Maintains two data sources without triggering UI rerenders:
   - **CoreLocation**: Caches and updates `CLLocationCoordinate2D`, `altitude`, and `course`.
   - **WeatherKit**: Fetches hyper-local `temperature` and `condition` to supplement inference payloads.
@@ -89,7 +89,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 ## AI & Offline Synchronization
 
 ### `InferenceEngine`
-- The core processing unit in `merian/Core/AI/`.
+- The core processing unit in `apps/ios/Merian/Core/AI/`.
 - Dispatches sensor data via `CaptureTelemetry` — forwarding `depthScaleText`, `deviceLocale`, `currentMonth`, and coordinate state — to the active Supabase Edge path (`MerianNetworkClient.identifyMultiModal` / `buildMultiModalRequest(...)`).
 - Selects between `gemini-2.5-flash` and `gemini-2.5-pro` based on the user's subscription tier, then maps the taxonomy strings from the response back to local model properties.
 - Maps ephemeral telemetry metadata (`gpsLatitude`, `gpsLongitude`, `gpsElevation`, `weatherCondition`, `weatherTemperatureF`, `locationName`) into the parsed `SpeciesData` model, abstracting this detail from the Edge runtime and making it consistent across live and offline inference paths.
@@ -158,7 +158,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **Detached Primitive Sort Engine**: `ScansManager` maps pure `@Model` objects into `ScanSortPrimitive` arrays before offloading large sorts to `Task.detached`. The "no query / all categories" path caches sorted ID arrays per sort option, so repeated sort changes and query clears do not rebuild the same full-library sort every time.
 
 ### `ProfileDatabaseActor` (Profile Stats)
-- `@ModelActor` living with `UserStats` in `merian/Features/Profile/Components/Profile/UserStats.swift`.
+- `@ModelActor` living with `UserStats` in `apps/ios/Merian/Features/Profile/Components/Profile/UserStats.swift`.
 - Owns the off-main projection pipeline for `ProfileTabView`: species count, streak, 52-week heatmap, and award payloads.
 - **Shared stats projection**: `calculateProfileStats()`, `calculateAll()`, `calculateHeatmapData()`, and `calculateAwardsProjection()` all load the same cached `ProfileStatsProjection` instead of issuing separate SwiftData fetches. The projection is built from `propertiesToFetch` scalar columns and contains only `Sendable` values (`ProfileAnalyticsProjection`, timestamps, and a precomputed unique-species count).
 - **Cache fingerprint**: The actor validates cached projections with `recordCount`, latest scan ID, and latest timestamp before reuse. Inserts/deletes naturally invalidate the cache without reloading full rows just to check freshness. If a future long-lived caller edits existing scan fields in place, call `invalidateCachedProfileProjections()` before asking for updated profile stats.
