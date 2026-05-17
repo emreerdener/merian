@@ -228,11 +228,25 @@ struct ExplorePostDetailView: View {
             }
         }
         .onReceive(AppEventPublisher.shared.publisher) { event in
-            guard case .explorePostNeedsRefresh(let changedPostId) = event,
-                  changedPostId == postId else { return }
-            Task {
-                await viewModel.refreshPost(postId: changedPostId)
-                await loadPostDetail()
+            switch event {
+            case .explorePostNeedsRefresh(let changedPostId) where changedPostId == postId:
+                Task {
+                    await viewModel.refreshPost(postId: changedPostId)
+                    await loadPostDetail()
+                }
+            case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
+                guard let post = currentPost,
+                      authorIdentityChangeAffects(
+                        post.authorUserId,
+                        previousUserId: previousUserId,
+                        currentUserId: currentUserId
+                      ) else { return }
+                Task {
+                    await viewModel.refreshPost(postId: post.id)
+                    await loadPostDetail()
+                }
+            default:
+                break
             }
         }
         .overlay {
@@ -542,6 +556,15 @@ struct ExplorePostDetailView: View {
     private func isOwnedByCurrentUser(_ post: ExplorePost) -> Bool {
         let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString
         return post.isOwnedByViewer || currentUserId == post.authorUserId
+    }
+
+    private func authorIdentityChangeAffects(
+        _ authorUserId: String,
+        previousUserId: String?,
+        currentUserId: String
+    ) -> Bool {
+        let normalizedAuthorId = authorUserId.lowercased()
+        return previousUserId == normalizedAuthorId || currentUserId == normalizedAuthorId
     }
 
     private func resolvedAuthorAvatarUrl(for post: ExplorePost) -> URL? {

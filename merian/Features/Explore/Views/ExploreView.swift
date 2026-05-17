@@ -161,8 +161,22 @@ struct ExploreView: View {
             Task { await viewModel.refreshUnreadNotificationCount() }
         }
         .onReceive(AppEventPublisher.shared.publisher) { event in
-            guard case .explorePostNeedsRefresh(let postId) = event else { return }
-            Task { await viewModel.refreshPost(postId: postId) }
+            switch event {
+            case .explorePostNeedsRefresh(let postId):
+                Task { await viewModel.refreshPost(postId: postId) }
+            case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
+                selectedAuthorProfileRoute = selectedAuthorProfileRoute.flatMap { route in
+                    authorIdentityChangeAffects(route.authorUserId, previousUserId: previousUserId, currentUserId: currentUserId)
+                        ? nil
+                        : route
+                }
+                Task {
+                    await viewModel.refreshFeed()
+                    mapViewModel.syncPosts(from: viewModel.store.allPosts)
+                }
+            default:
+                break
+            }
         }
         .merianSystemFeedback(
             toastMessage: Binding(
@@ -240,6 +254,15 @@ struct ExploreView: View {
     private func isOwnedByCurrentUser(_ post: ExplorePost) -> Bool {
         let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString
         return post.isOwnedByViewer || currentUserId == post.authorUserId
+    }
+
+    private func authorIdentityChangeAffects(
+        _ authorUserId: String,
+        previousUserId: String?,
+        currentUserId: String
+    ) -> Bool {
+        let normalizedAuthorId = authorUserId.lowercased()
+        return previousUserId == normalizedAuthorId || currentUserId == normalizedAuthorId
     }
 
     private var bellButton: some View {

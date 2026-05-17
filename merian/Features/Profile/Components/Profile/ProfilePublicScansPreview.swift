@@ -311,6 +311,11 @@ struct ProfilePublicScansPreview: View {
                     upsertRemotePost(post)
                 }
             }
+        case .publicAuthorIdentityChanged(_, let currentUserId):
+            Task {
+                await loadPreviewPosts(for: currentUserId)
+                await profileViewModel.fetchSocialStats()
+            }
         default:
             break
         }
@@ -370,6 +375,19 @@ private struct ProfilePublishedScansLibraryView: View {
         .task(id: authorUserId) {
             await reloadPosts()
         }
+        .onReceive(AppEventPublisher.shared.publisher) { event in
+            guard case .publicAuthorIdentityChanged(let previousUserId, let currentUserId) = event,
+                  authorIdentityChangeAffects(
+                    authorUserId,
+                    previousUserId: previousUserId,
+                    currentUserId: currentUserId
+                  ) else { return }
+
+            Task {
+                await reloadPosts()
+                await profileViewModel.fetchSocialStats()
+            }
+        }
         .refreshable {
             await reloadPosts()
         }
@@ -393,6 +411,15 @@ private struct ProfilePublishedScansLibraryView: View {
 
     private var publishedPostCount: Int? {
         profileViewModel.socialStats?.publishedPostCount
+    }
+
+    private func authorIdentityChangeAffects(
+        _ authorUserId: String,
+        previousUserId: String?,
+        currentUserId: String
+    ) -> Bool {
+        let normalizedAuthorId = authorUserId.lowercased()
+        return previousUserId == normalizedAuthorId || currentUserId == normalizedAuthorId
     }
 
     private var publishedCountSummary: String? {

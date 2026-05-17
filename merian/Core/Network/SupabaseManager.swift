@@ -327,9 +327,20 @@ import Supabase
             }
             let accessToken = result.user.accessToken.tokenString
 
-            try await self.finalizeOAuthLogin(provider: .google, idToken: idToken, accessToken: accessToken, nonce: nil)
+            let previousUserId = try await self.finalizeOAuthLogin(
+                provider: .google,
+                idToken: idToken,
+                accessToken: accessToken,
+                nonce: nil
+            )
             let session = try await client.auth.session
+            currentUser = session.user
+            isAuthenticated = true
             _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
+            publishPublicAuthorIdentityChanged(
+                previousUserId: previousUserId,
+                currentUserId: session.user.id.uuidString
+            )
 
             KeychainManager.shared.set(true, forKey: KeychainKeys.hasAuthenticatedOAuth)
             MerianLog.auth.debug("Google Sign-In complete.")
@@ -372,21 +383,27 @@ import Supabase
 
     // MARK: - Private OAuth Helpers
 
-    private func finalizeOAuthLogin(provider: OpenIDConnectCredentials.Provider, idToken: String, accessToken: String?, nonce: String?) async throws {
+    private func finalizeOAuthLogin(
+        provider: OpenIDConnectCredentials.Provider,
+        idToken: String,
+        accessToken: String?,
+        nonce: String?
+    ) async throws -> String? {
+        let previousUserId = try? await client.auth.session.user.id.uuidString
+
         if self.isGuestUser {
-            let ghostId = try? await client.auth.session.user.id.uuidString
             do {
                 _ = try await client.auth.linkIdentityWithIdToken(
                     credentials: .init(provider: provider, idToken: idToken, accessToken: accessToken, nonce: nonce)
                 )
-                if let ghostId = ghostId {
+                if let ghostId = previousUserId {
                     await triggerGhostProfileMerge(from: ghostId)
                 }
             } catch {
                 _ = try await client.auth.signInWithIdToken(
                     credentials: .init(provider: provider, idToken: idToken, accessToken: accessToken, nonce: nonce)
                 )
-                if let ghostId = ghostId {
+                if let ghostId = previousUserId {
                     await triggerGhostProfileMerge(from: ghostId)
                 }
             }
@@ -395,6 +412,8 @@ import Supabase
                 credentials: .init(provider: provider, idToken: idToken, accessToken: accessToken, nonce: nonce)
             )
         }
+
+        return previousUserId
     }
 
     private func triggerGhostProfileMerge(from ghostId: String) async {
@@ -408,6 +427,15 @@ import Supabase
         } catch {
             MerianLog.auth.debug("Ghost profile merge failed: \(error.localizedDescription, privacy: .private)")
         }
+    }
+
+    private func publishPublicAuthorIdentityChanged(previousUserId: String?, currentUserId: String) {
+        AppEventPublisher.shared.send(
+            .publicAuthorIdentityChanged(
+                previousUserId: previousUserId?.lowercased(),
+                currentUserId: currentUserId.lowercased()
+            )
+        )
     }
 
     private func getRootViewController() -> UIViewController? {
@@ -496,9 +524,20 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
 
         Task {
             do {
-                try await self.finalizeOAuthLogin(provider: .apple, idToken: idTokenString, accessToken: nil, nonce: nonce)
+                let previousUserId = try await self.finalizeOAuthLogin(
+                    provider: .apple,
+                    idToken: idTokenString,
+                    accessToken: nil,
+                    nonce: nonce
+                )
                 let session = try await client.auth.session
+                currentUser = session.user
+                isAuthenticated = true
                 _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
+                publishPublicAuthorIdentityChanged(
+                    previousUserId: previousUserId,
+                    currentUserId: session.user.id.uuidString
+                )
                 KeychainManager.shared.set(true, forKey: KeychainKeys.hasAuthenticatedOAuth)
                 MerianLog.auth.debug("Apple Sign-In complete.")
             } catch {

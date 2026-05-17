@@ -31,6 +31,8 @@ enum AppEvent {
     case explorePostNeedsRefresh(postId: String)
     /// Dispatched after a local scan's Explore publication state changes.
     case exploreShareStateChanged(scanId: String, postId: String?)
+    /// Dispatched after OAuth sign-in/linking refreshes the public Explore author identity.
+    case publicAuthorIdentityChanged(previousUserId: String?, currentUserId: String)
 }
 
 /// A centralized, `@MainActor`-bound event bus for system-wide internal message routing.

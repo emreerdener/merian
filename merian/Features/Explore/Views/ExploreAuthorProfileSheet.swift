@@ -100,6 +100,21 @@ struct ExploreAuthorProfileSheet: View {
         .task(id: route.authorUserId) {
             await loadProfile()
         }
+        .onReceive(AppEventPublisher.shared.publisher) { event in
+            guard case .publicAuthorIdentityChanged(let previousUserId, let currentUserId) = event,
+                  authorIdentityChangeAffects(
+                    route.authorUserId,
+                    previousUserId: previousUserId,
+                    currentUserId: currentUserId
+                  ) else { return }
+
+            if previousUserId == route.authorUserId.lowercased(),
+               currentUserId != route.authorUserId.lowercased() {
+                dismiss()
+            } else {
+                Task { await loadProfile(force: true) }
+            }
+        }
     }
 
     private enum ProfileState {
@@ -127,6 +142,15 @@ struct ExploreAuthorProfileSheet: View {
         case .library:
             return "Published scans"
         }
+    }
+
+    private func authorIdentityChangeAffects(
+        _ authorUserId: String,
+        previousUserId: String?,
+        currentUserId: String
+    ) -> Bool {
+        let normalizedAuthorId = authorUserId.lowercased()
+        return previousUserId == normalizedAuthorId || currentUserId == normalizedAuthorId
     }
 
     @ToolbarContentBuilder
