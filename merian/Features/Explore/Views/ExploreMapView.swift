@@ -274,8 +274,8 @@ struct ExploreMapView: View {
 
     private var infoChip: some View {
         let label = viewModel.mode == .clusters
-            ? "\(viewModel.visibleCount.formatted(.number.notation(.compactName))) discoveries in view"
-            : "\(viewModel.posts.count.formatted()) discoveries in view"
+            ? discoveriesInViewLabel(count: viewModel.visibleCount, usesCompactCount: true)
+            : discoveriesInViewLabel(count: viewModel.posts.count)
 
         return Button {
             isShowingDiscoveriesSheet = true
@@ -396,7 +396,7 @@ struct ExploreMapView: View {
                 }
                 .padding()
             }
-            .navigationTitle("\(viewModel.posts.count) discoveries in view")
+            .navigationTitle(discoveriesInViewLabel(count: viewModel.posts.count))
             .navigationBarTitleDisplayMode(.inline)
             .background(Color(uiColor: .systemGroupedBackground))
         }
@@ -408,6 +408,14 @@ struct ExploreMapView: View {
         AppTelemetry.trackExploreMapDetailOpened(entryPoint: focusCommentComposer ? "comments" : "preview")
         feedViewModel.upsertPost(post)
         onOpenDetail(post, focusCommentComposer)
+    }
+
+    private func discoveriesInViewLabel(count: Int, usesCompactCount: Bool = false) -> String {
+        let formattedCount = usesCompactCount
+            ? count.formatted(.number.notation(.compactName))
+            : count.formatted()
+        let noun = count == 1 ? "discovery" : "discoveries"
+        return "\(formattedCount) \(noun) in view"
     }
 
     private func openSelectedPost(focusCommentComposer: Bool) {
