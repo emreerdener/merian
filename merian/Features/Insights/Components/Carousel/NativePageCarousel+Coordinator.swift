@@ -13,6 +13,10 @@ extension NativePageCarousel {
             self.controllers = pages.map { ZoomPageViewController(page: $0.view) }
         }
 
+        static func requiresDataSourceReset(previousPages: [CarouselPageItem], nextPages: [CarouselPageItem]) -> Bool {
+            previousPages.map(\.id) != nextPages.map(\.id)
+        }
+
         // MARK: UIPageViewControllerDataSource
         func pageViewController(
             _ pvc: UIPageViewController,

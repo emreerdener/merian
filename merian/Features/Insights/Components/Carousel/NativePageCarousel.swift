@@ -43,7 +43,10 @@ struct NativePageCarousel: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: UIPageViewController, context: Context) {
         let coordinator = context.coordinator
-        var needsDataSourceReset = false
+        let needsDataSourceReset = Coordinator.requiresDataSourceReset(
+            previousPages: coordinator.pages,
+            nextPages: pages
+        )
         
         // Clamp the selectedIndex if the pages array shrunk async.
         if !pages.isEmpty && selectedIndex >= pages.count {
@@ -65,24 +68,19 @@ struct NativePageCarousel: UIViewControllerRepresentable {
             } else {
                 // It is structurally new (e.g., .liveImage -> .image) or a brand new insertion.
                 newControllers.append(ZoomPageViewController(page: newPage.view))
-                
-                // If the user is actively viewing the index where this structurally new item is appearing,
-                // we forcibly reload the data source to transition the UI immediately.
-                if let newIndex = pages.firstIndex(of: newPage), selectedIndex == newIndex {
-                    needsDataSourceReset = true
-                }
             }
         }
         
         coordinator.controllers = newControllers
         coordinator.pages = pages
 
-        // Force UIPageViewController to re-query its neighbors after the active view controller changes.
+        // Force UIPageViewController to re-query its neighbors after page identities change.
         if needsDataSourceReset {
             uiViewController.dataSource = nil
             uiViewController.dataSource = coordinator
             
-            // To prevent a frozen state after a data source change, UIPageViewController demands a setViewControllers call.
+            // Reference pages can be appended while the first audio page is visible. UIPageViewController
+            // may have already cached "no next page", so force it to re-query neighbors after any identity change.
             let safeIndex = max(0, min(selectedIndex, coordinator.controllers.count - 1))
             if let target = coordinator.controllers[safe: safeIndex] {
                 uiViewController.setViewControllers([target], direction: .forward, animated: false)

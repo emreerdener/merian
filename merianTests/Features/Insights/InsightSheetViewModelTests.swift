@@ -440,4 +440,28 @@ struct InsightSheetViewModelTests {
 
         #expect(pages.map(\.referenceAttributionLabel) == ["Merian", "Wikipedia", "GBIF"])
     }
+
+    @Test func testNativeCarouselResetsDataSourceWhenReferencesAppendAfterAudioPage() {
+        let audioPath = "documents/audio_only.wav"
+        let audioOnlyPages = CarouselPageBuilder.buildPages(
+            for: ActiveScanMedia(items: [.audio(audioPath)]),
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+
+        let withReferencePages = CarouselPageBuilder.buildPages(
+            for: ActiveScanMedia(
+                items: [.audio(audioPath)],
+                referenceState: .loaded(["https://example.com/field-sparrow.jpg"])
+            ),
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        )
+
+        #expect(audioOnlyPages.map(\.id) == ["audio-\(audioPath)"])
+        #expect(withReferencePages.map(\.id) == ["audio-\(audioPath)", "reference-https://example.com/field-sparrow.jpg"])
+        #expect(NativePageCarousel.Coordinator.requiresDataSourceReset(previousPages: audioOnlyPages, nextPages: withReferencePages))
+    }
 }
