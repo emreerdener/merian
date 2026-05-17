@@ -145,22 +145,29 @@ struct FieldNotesSheet: View {
                 startDictation()
             }
         } label: {
-            HStack(spacing: 10) {
-                Image(systemName: isDictating ? "stop.fill" : "mic.fill")
-                    .font(.system(size: 16, weight: .semibold))
+            ZStack {
+                HStack(spacing: 10) {
+                    Image(systemName: isDictating ? "stop.fill" : "mic.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 18)
 
-                Text(isDictating ? "Stop dictation" : "Dictate field notes")
-                    .font(.headline)
+                    Text(isDictating ? "Stop dictation" : "Dictate field notes")
+                        .font(.headline)
+                }
+                .frame(maxWidth: .infinity)
 
-                if speechManager.isStarting {
-                    Spacer(minLength: 8)
+                HStack {
+                    Spacer()
                     ProgressView()
                         .progressViewStyle(.circular)
                         .tint(isDictating ? .white : .primary)
+                        .opacity(speechManager.isStarting ? 1 : 0)
+                        .accessibilityHidden(!speechManager.isStarting)
                 }
+                .padding(.trailing, 18)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
+            .frame(height: 52)
             .foregroundStyle(isDictating ? .white : .primary)
             .background(
                 Capsule(style: .continuous)

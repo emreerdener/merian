@@ -8,5 +8,6 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed field notes dictation startup and kept the loading spinner from shifting the button label.
 - Fixed Explore map count text so exactly one visible item says "1 discovery in view."
 - Fixed audio insight carousel swiping when reference images load after the audio page is already visible.

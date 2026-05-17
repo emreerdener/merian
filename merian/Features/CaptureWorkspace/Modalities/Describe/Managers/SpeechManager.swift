@@ -8,6 +8,12 @@ struct PermissionError: LocalizedError {
     }
 }
 
+struct DictationUnavailableError: LocalizedError {
+    var errorDescription: String? {
+        return "Dictation is temporarily unavailable. Please try again."
+    }
+}
+
 @MainActor
 @Observable
 final class SpeechManager {
@@ -31,10 +37,6 @@ final class SpeechManager {
         isStarting = true
         defer { isStarting = false }
 
-        guard let recognizer = SFSpeechRecognizer(), recognizer.isAvailable else {
-            return
-        }
-        
         let speechStatus = await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { status in
                 continuation.resume(returning: status)
@@ -45,6 +47,10 @@ final class SpeechManager {
         }
         
         if Task.isCancelled { return }
+
+        guard let recognizer = await availableSpeechRecognizer() else {
+            throw DictationUnavailableError()
+        }
         
         let micStatus = await AVAudioApplication.requestRecordPermission()
         guard micStatus else {
@@ -132,6 +138,19 @@ final class SpeechManager {
         }
         
         isRecording = true
+    }
+
+    private func availableSpeechRecognizer() async -> SFSpeechRecognizer? {
+        for attempt in 0..<5 {
+            if Task.isCancelled { return nil }
+            if let recognizer = SFSpeechRecognizer(), recognizer.isAvailable {
+                return recognizer
+            }
+            if attempt < 4 {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+        }
+        return nil
     }
     
     func stopDictation() {
