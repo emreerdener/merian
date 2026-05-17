@@ -61,20 +61,55 @@ struct ExplorePostDetailView: View {
                 ScrollViewReader { scrollProxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
-                            headerRow(for: post)
+                            ExplorePostDetailAuthorHeader(
+                                post: post,
+                                avatarUrl: resolvedAuthorAvatarUrl(for: post),
+                                locationText: locationText(for: post),
+                                opensAuthorProfile: allowsAuthorProfilePresentation,
+                                onOpenAuthorProfile: {
+                                    selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
+                                }
+                            )
                                 .padding(.horizontal, 12)
                                 .padding(.top, 12)
                                 .padding(.bottom, 12)
 
-                            heroImage(for: post)
+                            ExploreDetailMediaView(
+                                imageUrl: post.heroImageUrl,
+                                reloadGeneration: viewModel.mediaReloadGeneration
+                            )
 
-                            actionRow(for: post, scrollProxy: scrollProxy)
+                            ExplorePostDetailActionRow(
+                                viewerHasLiked: post.viewerHasLiked,
+                                likeCountText: compactCount(post.likeCount),
+                                commentCountText: compactCount(post.commentCount),
+                                onLike: {
+                                    Task { await viewModel.toggleLike(for: post) }
+                                },
+                                onComments: {
+                                    focusComments(using: scrollProxy)
+                                },
+                                onShare: {
+                                    viewModel.share(post)
+                                }
+                            )
                                 .padding(.horizontal, 16)
                                 .padding(.top, 14)
                                 .padding(.bottom, 12)
 
                             VStack(spacing: 24) {
-                                speciesSection(for: post)
+                                ExplorePostDetailSpeciesSummary(
+                                    scientificName: post.speciesScientificName,
+                                    postCommonName: post.speciesCommonName,
+                                    displayCommonName: viewModel.resolvedSpeciesCommonName(for: post),
+                                    alternativeCommonNames: detail?.alternativeCommonNames ?? [],
+                                    aiReasoning: detail?.trimmedAiReasoning.map {
+                                        styledAiReasoning(text: $0, scientificName: post.speciesScientificName)
+                                    },
+                                    onCommonNameMaxYChange: {
+                                        evaluateCommonNameScrollOffset(maxY: $0)
+                                    }
+                                )
 
                                 fieldNotesSection(for: post)
 
@@ -308,151 +343,10 @@ struct ExplorePostDetailView: View {
         .zIndex(100)
     }
 
-    private func headerRow(for post: ExplorePost) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            authorAvatarView(for: post)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(post.authorName)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.primary)
-
-                if let locationText = locationText(for: post) {
-                    Text(locationText)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard allowsAuthorProfilePresentation else { return }
-            selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
-        }
-    }
-
-    @ViewBuilder
-    private func authorAvatarView(for post: ExplorePost) -> some View {
-        if let avatarUrl = resolvedAuthorAvatarUrl(for: post) {
-            AsyncImage(url: avatarUrl) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                case .failure:
-                    fallbackAuthorAvatar
-                case .empty:
-                    Color(uiColor: .tertiarySystemFill)
-                @unknown default:
-                    fallbackAuthorAvatar
-                }
-            }
-            .frame(width: 40, height: 40)
-            .clipShape(Circle())
-        } else {
-            fallbackAuthorAvatar
-        }
-    }
-
     private var fallbackAuthorAvatar: some View {
         Image(systemName: "person.crop.circle")
             .font(.system(size: 40, weight: .regular))
             .foregroundStyle(.primary)
-    }
-
-    private func heroImage(for post: ExplorePost) -> some View {
-        ExploreDetailMediaView(
-            imageUrl: post.heroImageUrl,
-            reloadGeneration: viewModel.mediaReloadGeneration
-        )
-    }
-
-    private func actionRow(for post: ExplorePost, scrollProxy: ScrollViewProxy) -> some View {
-        HStack(spacing: 20) {
-            ExploreDetailActionButton(
-                systemImage: post.viewerHasLiked ? "heart.fill" : "heart",
-                value: compactCount(post.likeCount),
-                isHighlighted: post.viewerHasLiked,
-                action: {
-                    Task { await viewModel.toggleLike(for: post) }
-                }
-            )
-
-            ExploreDetailActionButton(
-                systemImage: "bubble.right",
-                value: compactCount(post.commentCount),
-                isHighlighted: false,
-                action: {
-                    focusComments(using: scrollProxy)
-                }
-            )
-
-            Spacer(minLength: 12)
-
-            Button(action: { viewModel.share(post) }) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 24, weight: .regular))
-                    .foregroundStyle(.primary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Share post")
-        }
-    }
-
-    private func speciesSection(for post: ExplorePost) -> some View {
-        let aiReasoning = detail?.trimmedAiReasoning
-        let commonName = viewModel.resolvedSpeciesCommonName(for: post)
-
-        return VStack(alignment: .center, spacing: 8) {
-            // Scientific name
-            if !post.speciesScientificName.isEmpty && post.speciesScientificName.lowercased() != post.speciesCommonName.lowercased() && post.speciesScientificName != "Taxonomy Unavailable" {
-                Text(post.speciesScientificName.replacingOccurrences(of: "'", with: "").trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\n", with: " "))
-                    .font(.system(.title3))
-                    .italic()
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-
-            // Species Common Name with Emoji
-            Text(commonName)
-                .font(.system(.largeTitle, design: .serif).weight(.bold))
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.center)
-                .background(
-                    GeometryReader { geo in
-                        Color.clear
-                            .onChange(
-                                of: geo.frame(in: .named("ExplorePostDetailScrollSpace")).maxY,
-                                initial: true
-                            ) { _, newMaxY in
-                                evaluateCommonNameScrollOffset(maxY: newMaxY)
-                            }
-                    }
-                )
-
-            AlternativeCommonNamesLine(
-                names: detail?.alternativeCommonNames ?? [],
-                primaryCommonName: commonName
-            )
-
-            // AI Reasoning
-            if let aiReasoning {
-                Text(styledAiReasoning(text: aiReasoning, scientificName: post.speciesScientificName))
-                    .font(.system(.body))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-                    .padding(.top, 8)
-            }
-        }
-        .frame(maxWidth: .infinity)
     }
 
     private func exploreSimilarSpeciesRoute(for entry: SimilarSpeciesEntry) -> SpeciesDictionaryRoute {
