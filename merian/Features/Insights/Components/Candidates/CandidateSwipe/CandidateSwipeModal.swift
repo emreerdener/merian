@@ -26,7 +26,7 @@ struct CandidateSwipeModal: View {
     // MARK: - State
     
     @State private var stack: [IdentificationCandidate]
-    @State private var isGridMode = false
+    @State private var isGridMode = true
     @State private var topCardOffset: CGSize = .zero
     @State private var topCardIsDragging = false
     @State private var isDismissing = false
