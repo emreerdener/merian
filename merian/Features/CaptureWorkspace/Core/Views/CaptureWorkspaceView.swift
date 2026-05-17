@@ -56,6 +56,7 @@ struct CaptureWorkspaceView: View {
     // MARK: - View Hierarchy
     var body: some View {
         let orderedModes = CaptureMode.userOrder(from: appSettings.captureModeOrderRaw)
+        let shouldHideBottomChrome = isKeyboardVisible && captureMode == .describe
 
         ZStack {
                 // Paged capture mode switcher.
@@ -184,7 +185,7 @@ struct CaptureWorkspaceView: View {
                         viewModel: viewModel,
                         captureMode: captureMode,
                         observationContext: $observationContext,
-                        isKeyboardVisible: isKeyboardVisible,
+                        isKeyboardVisible: shouldHideBottomChrome,
                         coordinator: coordinator
                     )
                 }
@@ -221,8 +222,8 @@ struct CaptureWorkspaceView: View {
                     }
                 }
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.isEmpty)
-                .opacity(isKeyboardVisible ? 0 : 1)
-                .allowsHitTesting(!isKeyboardVisible)
+                .opacity(shouldHideBottomChrome ? 0 : 1)
+                .allowsHitTesting(!shouldHideBottomChrome)
 
         } // ZStack
         .merianSystemFeedback(
@@ -297,6 +298,7 @@ struct CaptureWorkspaceView: View {
             AppDIContainer.shared.environmentContextManager.stopLiveLocationTracking()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            guard captureMode == .describe else { return }
             withAnimation(.easeOut(duration: 0.25)) { isKeyboardVisible = true }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
@@ -334,6 +336,11 @@ struct CaptureWorkspaceView: View {
             )
         }
         .onChange(of: captureMode) { _, newMode in
+            if newMode != .describe {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    isKeyboardVisible = false
+                }
+            }
             viewModel.handleCaptureModeChange(
                 newMode,
                 scenePhase: scenePhase,
