@@ -496,5 +496,5 @@ The sheet is dismissed via `DismissAction` after the database operations complet
 
 `InsightMediaExportManager.shared` handles two export paths:
 
-- **Save to Photos**: passes live capture data, valid historic file paths, and any R2-hosted reference URLs (filtered to `merian.app` domain only) to `ExportProcessingActor.shared.saveUserPhotos`. Each image is saved to Camera Roll via `PhotoLibraryManager.shared.saveImageManual`. On completion, `showSaveSuccessAlert` is set to `true`.
+- **Save to Photos**: passes live capture data, valid historic file paths, and any R2-hosted reference URLs (filtered to the exact `media.merian.app` host only) to `ExportProcessingActor.shared.saveUserPhotos`. Each image is saved to Camera Roll via `PhotoLibraryManager.shared.saveImageManual`. On completion, `showSaveSuccessAlert` is set to `true`.
 - **Share Sheet**: constructs a share payload with the species common name, scientific name, and the best available image (live > historic > reference), then presents `UIActivityViewController` via `ShareSheetUtility.present`.

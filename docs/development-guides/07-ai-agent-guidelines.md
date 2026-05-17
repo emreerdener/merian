@@ -12,6 +12,7 @@ The `docs/` folder contains the master reference for the application:
 - Refer to `docs/backend-and-data/01-offline-sync-pipeline.md` for offline queue, sync state machine, and deletion architecture.
 - Refer to `docs/development-guides/02-app-lifecycle.md` for `AppLifecycleManager` phase contracts and trigger ordering.
 - Refer to `docs/system-architecture/03-image-pipeline.md` for capture → disk → cache → display image flow.
+- Refer to `docs/features-and-hardware/17-public-web-share-pages.md` before changing `web/`, `merian.earth` routes, Open Graph metadata, or Explore share URL behavior.
 
 ## 1. Project Generation (XcodeGen)
 - **NEVER** directly modify `Merian.xcodeproj`.
@@ -36,6 +37,11 @@ The workspace enforces this layout inside `merian/`:
   - `Analytics/`, `Intents/`
 - `Models/`: Standardized pure Data structures and `SwiftData` logic.
 - `Configuration/`: `project.yml`, `Config.xcconfig`, App Intents, and Entrypoint metadata.
+
+The public web app lives outside the iOS source tree in `web/`. It uses Next.js,
+React, and Mantine for server-rendered public pages. Keep service-role secrets
+server-side only and run the web checks from `docs/development-guides/08-testing-strategy.md`
+when changing web routes.
 - `MerianLog` lives at `Core/MerianLog.swift`.
 - `SearchDatabaseActor` lives with `ScansManager` in `Features/Scans/ViewModels/ScansManager.swift` because it is an implementation detail of the Scans library search index.
 

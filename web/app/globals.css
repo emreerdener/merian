@@ -1,0 +1,32 @@
+:root {
+  color-scheme: light dark;
+  background: #f4f6f3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(112, 184, 132, 0.18), transparent 34rem),
+    linear-gradient(180deg, #f7f8f3 0%, #eef4ef 42%, #e9f0ec 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.legal-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}

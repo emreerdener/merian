@@ -1,0 +1,146 @@
+import type { Metadata } from "next";
+import { Text } from "@mantine/core";
+import { LegalEmailLink, LegalList, LegalPage, LegalSection } from "@/components/LegalPage";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description: "How Merian collects, uses, shares, and protects information."
+};
+
+export default function PrivacyPolicyPage() {
+  return (
+    <LegalPage
+      eyebrow="Merian legal"
+      title="Privacy Policy"
+      description="This policy explains what Merian collects, how it is used, and the controls available to you."
+    >
+      <LegalSection title="Overview">
+        <Text>
+          Merian helps people identify and document plants, animals, fungi, insects, and
+          other ecological observations. To provide the app, Merian may process observation
+          media, account information, location context, device diagnostics, payments
+          status, and community activity.
+        </Text>
+      </LegalSection>
+
+      <LegalSection title="Information We Collect">
+        <LegalList>
+          <li>
+            <Text>
+              <strong>Account information:</strong> anonymous device identity, Supabase
+              user id, and, if you sign in, account details such as email, name, and avatar
+              from Apple or Google.
+            </Text>
+          </li>
+          <li>
+            <Text>
+              <strong>Observation content:</strong> photos, audio clips, descriptions,
+              AI-generated species results, taxonomy, field notes, and scan metadata.
+            </Text>
+          </li>
+          <li>
+            <Text>
+              <strong>Location and environmental context:</strong> GPS coordinates,
+              approximate place names, elevation, weather, time of day, month, and device
+              capture context when permissions allow.
+            </Text>
+          </li>
+          <li>
+            <Text>
+              <strong>Explore activity:</strong> posts you share publicly, comments, likes,
+              reactions, follows, reports, blocks, public author name, and public avatar.
+            </Text>
+          </li>
+          <li>
+            <Text>
+              <strong>Payments and entitlement status:</strong> subscription status and
+              purchase events from RevenueCat and Apple, but not full payment card details.
+            </Text>
+          </li>
+          <li>
+            <Text>
+              <strong>Analytics and diagnostics:</strong> app events, device state,
+              crashes, performance signals, feature usage, and support communications.
+            </Text>
+          </li>
+        </LegalList>
+      </LegalSection>
+
+      <LegalSection title="How We Use Information">
+        <LegalList>
+          <li>Identify observations and generate structured ecological results.</li>
+          <li>Save and sync your personal scan library, collections, and field notes.</li>
+          <li>Provide offline upload/retry, exports, notifications, and support.</li>
+          <li>Operate Explore posts, comments, likes, follows, reports, and blocks.</li>
+          <li>Enforce geoprivacy, moderation, anti-abuse, and account-safety rules.</li>
+          <li>Understand app reliability, usage, subscription status, and feature health.</li>
+        </LegalList>
+      </LegalSection>
+
+      <LegalSection title="Public Explore Sharing">
+        <Text>
+          Your personal scans are private unless you choose to share them to Explore. When
+          you share a scan, Merian may display the public image, species labels, public
+          author identity, privacy-filtered location label, coarse environmental context,
+          engagement counts, comments, and any field notes you choose to publish. Exact
+          coordinates and private notes are not shown on public Explore pages.
+        </Text>
+      </LegalSection>
+
+      <LegalSection title="Location and Geoprivacy">
+        <Text>
+          Location improves identification and helps build your personal ecological journal.
+          You can control location permission in iOS and configure Merian geoprivacy as
+          open, obscured, or private. Public Explore surfaces use Merian&apos;s filtered
+          location projection, and sensitive species handling may further reduce location
+          precision.
+        </Text>
+      </LegalSection>
+
+      <LegalSection title="Service Providers">
+        <Text>
+          Merian uses trusted infrastructure and product providers to operate the app,
+          including Supabase, Cloudflare R2, Google Gemini, Apple platform services,
+          Google sign-in, RevenueCat, PostHog, TelemetryDeck, and Resend. These providers
+          process information only as needed to provide, secure, analyze, or support
+          Merian.
+        </Text>
+      </LegalSection>
+
+      <LegalSection title="Your Choices">
+        <LegalList>
+          <li>Disable camera, microphone, photo library, speech, or location permissions in iOS.</li>
+          <li>Change geoprivacy settings in Merian.</li>
+          <li>Unshare Explore posts or delete scans in the app.</li>
+          <li>Request a Darwin Core Archive export from the profile settings.</li>
+          <li>Delete your account from the app or contact support for help.</li>
+        </LegalList>
+      </LegalSection>
+
+      <LegalSection title="Retention">
+        <Text>
+          Merian keeps account, scan, subscription, and Explore data for as long as needed
+          to provide the service, maintain records, prevent abuse, comply with legal
+          obligations, and honor deletion requests. Some free-tier cloud media may be
+          subject to lifecycle limits, while local copies may remain on your device until
+          you delete them or remove the app.
+        </Text>
+      </LegalSection>
+
+      <LegalSection title="Children">
+        <Text>
+          Merian is not directed to children under 13. If you believe a child has provided
+          personal information without appropriate consent, contact us so we can review and
+          delete it where required.
+        </Text>
+      </LegalSection>
+
+      <LegalSection title="Changes and Contact">
+        <Text>
+          We may update this policy as Merian changes. For privacy questions, account
+          requests, or support, contact <LegalEmailLink />.
+        </Text>
+      </LegalSection>
+    </LegalPage>
+  );
+}

@@ -4,6 +4,19 @@ Merian uses a lightweight, Swift-native testing structure built on the `Testing`
 framework, isolating offline UI queues and core engine components from Apple
 lifecycle dependencies.
 
+The public web app in `web/` has its own checks:
+
+```bash
+cd web
+npm run typecheck
+npm run build
+npm audit --audit-level=moderate
+```
+
+Run these when changing Next.js routes, Mantine UI, public metadata, Supabase
+web access, or `merian.earth` share behavior. Open Graph routes should remain
+server-rendered so link unfurlers can read metadata without client hydration.
+
 ## In-Memory Database Containers (`SwiftData`)
 
 Test suites must not pollute the local iOS file system or SQLite databases. All

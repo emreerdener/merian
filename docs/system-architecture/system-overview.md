@@ -15,6 +15,8 @@ When the user captures an image, the architecture triggers a coordinated sequenc
 
 The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh, while `/refresh-merian-reference-images` promotes high-quality published Explore media into Merian-sourced reference images without exposing scan/post/user provenance through public species APIs.
 
+Merian also has a small public web frontend in `web/`. The first route, `https://merian.earth/explore/post/{postId}`, server-renders a public Explore post from the `get_explore_post` RPC and emits Open Graph metadata for share previews. This web surface is a public projection only: it may show public species, image, author, count, and privacy-filtered location fields, but it must never expose exact coordinates, private notes, raw scan telemetry, or server credentials.
+
 ## Core Decoupling (AppDIContainer)
 
 Merian does not use `@EnvironmentObject` for its core architectural engines. All complex business logic is bound using `@Observable` macros and `@Environment()` injection to keep the `View` lifecycle free from recursive updates or `EXC_BAD_ACCESS` warnings.

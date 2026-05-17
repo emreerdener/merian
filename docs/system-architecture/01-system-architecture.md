@@ -69,6 +69,10 @@ The backend logic is strictly decoupled into modular, single-responsibility func
   - `/species-dictionary`: Public species-level dictionary projection for the in-app species page and future web frontend.
   - `/refresh-species-content`: Internal service-role cron worker that consumes `species_content_provenance`, refreshes GBIF/Wikipedia-backed fields, and synchronizes normalized reference imagery.
   - `/refresh-merian-reference-images`: Internal service-role cron worker that promotes high-quality published Explore media into Merian-sourced species reference images and mirrors source visibility.
+- **Public Web & Sharing**
+  - `web/`: Next.js + Mantine frontend for public Merian pages on `merian.earth`.
+  - `/explore/post/[postId]`: Server-rendered public Explore share route. It calls the `get_explore_post` RPC from the Next.js server, emits Open Graph metadata for rich previews, and links back into the native app with `merian://explore/post/{postId}`.
+  - Universal Links should eventually bind `https://merian.earth/explore/post/{postId}` to the same native Explore detail router while preserving the web page as the fallback for users without the app.
 - **Moderation & Social**
   - `/get-filtered-discovery-feed`: Paginates heavy spatial queries (abstracting global `geoprivacy = 'open'` filtering away from the mobile client), handles blocking mechanisms, and destructively rounds coordinates natively via the IUCN Red List index to protect vulnerable species from poachers.
   - `/block-user` & `/flag-issue`: Trust and Safety endpoint managers mitigating bad actors on the global feed.

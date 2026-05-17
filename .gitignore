@@ -96,3 +96,18 @@ node_modules/
 !Signing.xcconfig
 !Signing.local.example.xcconfig
 Signing.local.xcconfig
+
+# Next.js web app
+web/.next/
+web/.turbo/
+web/.vercel/
+web/out/
+web/coverage/
+web/playwright-report/
+web/test-results/
+web/tsconfig.tsbuildinfo
+web/npm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*
+web/pnpm-debug.log*
+!web/.env.example

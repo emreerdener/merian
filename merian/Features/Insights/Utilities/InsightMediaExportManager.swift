@@ -118,7 +118,7 @@ final class InsightMediaExportManager {
             
             if payloads.count == 1 {
                 let p = payloads[0]
-                items.append("Check out this \(p.commonName) (\(p.scientificName)) I discovered using Merian!\nhttps://merian.app")
+                items.append("Check out this \(p.commonName) (\(p.scientificName)) I discovered using Merian!\nhttps://merian.earth")
             } else if payloads.count > 1 {
                 var message = "Check out these \(payloads.count) discoveries I made using Merian!\n"
                 let displayLimit = 10
@@ -130,7 +130,7 @@ final class InsightMediaExportManager {
                         break
                     }
                 }
-                message += "\nhttps://merian.app"
+                message += "\nhttps://merian.earth"
                 items.append(message)
             }
             

@@ -789,9 +789,13 @@ single post:
 }
 ```
 
-This endpoint exists for notification routing and future deep links. It solves
-the case where the tapped post is not already present in the currently loaded
-in-memory feed page.
+This endpoint exists for notification routing, native deep links, and the
+privacy-safe projection behind public web share pages such as
+`https://merian.earth/explore/post/{postId}`. It solves the case where the
+tapped or shared post is not already present in the currently loaded in-memory
+feed page. The Next.js web route may call the underlying `get_explore_post` SQL
+RPC directly from the server, but it must preserve this response boundary rather
+than querying private scan/auth tables.
 
 Current response shape:
 

@@ -6,6 +6,12 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Added
+
+- Added the initial Next.js + Mantine web app scaffold for public Explore share pages.
+- Added public Terms, Privacy Policy, Community Guidelines, Privacy Choices, Support, and Legal hub pages for `merian.earth`.
+- Added an iOS-to-web theme bridge so Merian-opened web pages can follow the app's theme preference.
+
 ### Fixed
 
 - Fixed capture bottom controls getting hidden by stale keyboard state after leaving Describe or canceling staged input.

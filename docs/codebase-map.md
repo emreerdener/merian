@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-05-16.
+Last reviewed: 2026-05-17.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -19,6 +19,7 @@ target, package, entitlement, build setting, or source-list changes.
 | `MerianWatch` | watchOS companion app | `MerianWatch/` | watchOS 10.0 |
 | `merianTests` | Unit tests | `merianTests/` | iOS 17.2 |
 | `merianUITests` | UI tests | `merianUITests/` | iOS 17.2 |
+| `@merian/web` | Next.js public web app | `web/` | Node/Next.js |
 
 Tracked build config:
 
@@ -29,6 +30,13 @@ Tracked build config:
 - `Signing.xcconfig` includes optional ignored `Signing.local.xcconfig`.
 - `Signing.local.example.xcconfig` is the template for a local Apple Developer
   Team ID.
+
+Web runtime config:
+
+- `web/.env.example` documents the public web environment.
+- `NEXT_PUBLIC_SITE_URL` should be `https://merian.earth` in production.
+- `SUPABASE_SERVICE_ROLE_KEY` is server-only. Never expose it through a
+  `NEXT_PUBLIC_` variable or client component.
 
 ## App Entry And Dependency Injection
 
@@ -86,6 +94,22 @@ V40 through V42 live in `SchemaVersions.swift` alongside the migration plan.
 | Profile | `merian/Features/Profile/` | Profile tab, settings, RevenueCat plan screens, geoprivacy, notifications, achievements, heatmap, export, danger-zone actions. |
 | Species Dictionary | `merian/Features/SpeciesDictionary/` | Public species dictionary page, reference gallery, similar-species entry points, and preferred common-name display. |
 | Onboarding | `merian/Features/Onboarding/` | Permission priming flow and `hasCompletedOnboarding` gate. |
+
+## Public Web App
+
+The public web frontend lives in `web/` and is intentionally separate from the
+native iOS source tree.
+
+| Area | Current files | Responsibility |
+|---|---|---|
+| App shell | `web/app/layout.tsx`, `web/app/theme.ts`, `web/app/globals.css` | Mantine provider, global metadata defaults, theme, pre-hydration color-scheme bridge, and responsive page chrome. |
+| Marketing/home placeholder | `web/app/page.tsx` | Lightweight Merian landing surface until the broader public website exists. |
+| Explore share page | `web/app/explore/post/[postId]/page.tsx` | Server-rendered public Explore post page with canonical, Open Graph, and Twitter metadata. |
+| Policy/support pages | `web/app/privacy/`, `web/app/privacy-choices/`, `web/app/terms/`, `web/app/guidelines/`, `web/app/support/`, `web/app/legal/` | App Store-friendly public policy, data-choice, community, support, and legal hub pages. |
+| Legal/public components | `web/components/PublicPageShell.tsx`, `web/components/LegalPage.tsx`, `web/components/ThemePreferenceBridge.tsx`, `web/lib/site.ts`, `web/lib/theme-preference.ts` | Shared public page chrome, legal document layout, iOS-to-Mantine theme preference sync, support email/site URL config. |
+| Supabase access | `web/lib/supabase.ts`, `web/lib/explore.ts` | Server-side Supabase client creation and `get_explore_post` RPC mapping. |
+| Formatting helpers | `web/lib/formatting.ts` | Shared web copy/URL formatting, including `merian://explore/post/{postId}` button URLs. |
+| Local setup | `web/README.md`, `web/.env.example`, `web/package.json` | Web setup, env variable contract, npm scripts, and dependency manifest. |
 
 ## Core Modules
 
@@ -209,3 +233,5 @@ When changing the codebase, update docs in the same change if any of these move:
 - Feature module names, file paths, or view-model/actor ownership.
 - Public Explore surfaces, notification behavior, widget cache shape, or privacy
   contracts.
+- Public web routes, metadata, env variables, Universal Link behavior, or
+  `merian.earth` share URL shape.

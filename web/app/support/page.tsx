@@ -1,0 +1,89 @@
+import type { Metadata } from "next";
+import { Anchor, Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import { IconMail, IconShieldLock } from "@tabler/icons-react";
+import { PublicPageShell } from "@/components/PublicPageShell";
+import { siteConfig, supportMailto } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "Support",
+  description: "Contact Merian support and find policy links."
+};
+
+export default function SupportPage() {
+  return (
+    <PublicPageShell>
+      <Paper radius="md" shadow="sm" withBorder p={{ base: "lg", sm: "xl" }}>
+        <Stack gap="xl">
+          <Stack gap="xs">
+            <Text fw={700} c="dimmed" tt="uppercase" size="sm">
+              Merian support
+            </Text>
+            <Title order={1}>How can we help?</Title>
+            <Text size="lg" c="dimmed">
+              Send bug reports, feature ideas, account questions, and privacy requests to
+              the Merian support inbox.
+            </Text>
+          </Stack>
+
+          <Group>
+            <Button
+              component="a"
+              href={supportMailto("Merian support request")}
+              leftSection={<IconMail size={18} />}
+            >
+              Email support
+            </Button>
+            <Button
+              component="a"
+              href="/privacy-choices"
+              variant="light"
+              leftSection={<IconShieldLock size={18} />}
+            >
+              Privacy choices
+            </Button>
+          </Group>
+
+          <Stack gap="sm">
+            <Title order={2} size="h3">
+              Contact
+            </Title>
+            <Text>
+              Email:{" "}
+              <Anchor href={`mailto:${siteConfig.supportEmail}`} fw={700}>
+                {siteConfig.supportEmail}
+              </Anchor>
+            </Text>
+          </Stack>
+
+          <Stack gap="sm">
+            <Title order={2} size="h3">
+              Useful Links
+            </Title>
+            <ul className="legal-list">
+              <li>
+                <Anchor href="/privacy">
+                  Privacy Policy
+                </Anchor>
+              </li>
+              <li>
+                <Anchor href="/terms">
+                  Terms of Service
+                </Anchor>
+              </li>
+              <li>
+                <Anchor href="/guidelines">
+                  Community Guidelines
+                </Anchor>
+              </li>
+              <li>
+                <Anchor href="/legal">
+                  Legal hub
+                </Anchor>
+              </li>
+            </ul>
+          </Stack>
+        </Stack>
+      </Paper>
+    </PublicPageShell>
+  );
+}

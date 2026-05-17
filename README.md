@@ -50,6 +50,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Share/unshare scans to Explore, like posts, comment, react to comments, follow authors, and receive Explore notifications.
 - Author profile sheets expose privacy-scoped public stats and non-opening public achievements.
 - Home Screen widget caches image-only Explore snapshots through the shared App Group.
+- Public Explore share pages render at `https://merian.earth/explore/post/{postId}` through the Next.js web app.
 
 ### Profile & Gamification
 - Running species count, current scan streak, and longest streak.
@@ -104,6 +105,7 @@ Merian is a field-ready biological identification app built around zero-friction
 | Layer | Technology |
 |---|---|
 | iOS client | Swift 6, SwiftUI, SwiftData, AVFoundation, CoreLocation, Vision, MapKit |
+| Web frontend | Next.js, React, Mantine |
 | Animation | RiveRuntime |
 | Backend | Supabase (PostgreSQL, Deno Edge Functions) |
 | Cloud storage | Cloudflare R2 (S3-compatible) |
@@ -142,6 +144,21 @@ Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your Apple Develope
 
 Configure the required app-facing client config in `Config.xcconfig`. Public client values like `SUPABASE_URL` and `SUPABASE_ANON_KEY` are used by the app at runtime; true backend secrets like `GEMINI_API_KEY` must stay server-side only.
 
+### Local Web
+
+The public web surface lives in `web/`.
+
+```bash
+cd web
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+The initial web routes include `/explore/post/[postId]`, a server-rendered public Explore share page with Open Graph metadata for rich Messages/social previews, plus public policy/support pages at `/privacy`, `/terms`, `/guidelines`, `/privacy-choices`, `/support`, and `/legal`.
+
+See `web/README.md` and `docs/features-and-hardware/17-public-web-share-pages.md` for the web env contract, share URL strategy, and Universal Links roadmap.
+
 ### Local Backend
 
 ```bash
@@ -166,6 +183,7 @@ Extended architecture documentation lives in `docs/`:
 | `docs/codebase-map.md` | Current target/module/function/schema map generated from this repo state |
 | `docs/system-architecture/` | Data flow, concurrency model, zero-OOM patterns, AI engineering |
 | `docs/features-and-hardware/` | Camera pipeline, hardware orchestration, feature module breakdowns |
+| `docs/features-and-hardware/17-public-web-share-pages.md` | Public `merian.earth` share page contract and Universal Links roadmap |
 | `docs/backend-and-data/` | Edge function contracts, database schema, offline sync, API contracts |
 | `docs/development-guides/` | Core managers reference, app lifecycle, testing strategy |
 

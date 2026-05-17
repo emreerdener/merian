@@ -60,6 +60,22 @@ Accepted URLs publish `AppEvent.appDidEnterActivePhaseWithExplorePost(postId:)`.
 
 `ExploreView(initialPostId:)` then seeds `selectedPostRoute`, pushing `ExplorePostDetailView` inside the sheet.
 
+### Public Web Links
+
+Widget taps continue to use the custom native URL scheme because they originate on the same iOS device:
+
+```text
+merian://explore/post/{postId}
+```
+
+External Explore shares should use the durable public HTTPS URL instead:
+
+```text
+https://merian.earth/explore/post/{postId}
+```
+
+The public web route lives in `web/app/explore/post/[postId]/page.tsx` and renders a privacy-filtered post page plus Open Graph metadata. When Universal Links are enabled for `merian.earth`, the same HTTPS URL should open `ExplorePostDetailView` in the installed app and fall back to the web page for recipients without Merian.
+
 ### Session Timeout Race Guard
 
 Widget taps often happen after Merian has been backgrounded for more than the 5-minute session timeout. On foreground, iOS can deliver the widget URL and Merian's `.appDidResumeAfterTimeout` reset in either order. If the URL route wins first, the timeout reset would otherwise clear `activeSheet` immediately and return the user to the camera.
@@ -89,5 +105,6 @@ The app target embeds `MerianExploreWidget`; the widget target also directly com
 - Avoid network work in the widget extension unless there is a strong product reason. Widget refresh budgets are limited, and authenticated Supabase work belongs in the app.
 - Keep the widget view text-free. Widget gallery display name and description are allowed because they are system configuration metadata, not in-widget UI.
 - When touching widget tap routing, keep `CaptureWorkspaceViewModel`'s external-route timeout suppression covered by tests. The expected behavior is: a fresh widget route survives an immediate `.appDidResumeAfterTimeout`, while an ordinary stale Explore sheet still clears on timeout.
+- Keep widget custom-scheme routing and public web share routing aligned. Both should resolve the same post id shape, but only the HTTPS route should be used in user-to-user share text.
 - If the visual design changes, preserve `.contentMarginsDisabled()`, `.scaledToFill()`, and the iOS 18+ `.widgetAccentedRenderingMode(.fullColor)` image modifier so the image remains full-bleed and full-color.
 - If cache shape changes, keep decoding backward-compatible or tolerate a missing/old snapshot by showing the empty state.

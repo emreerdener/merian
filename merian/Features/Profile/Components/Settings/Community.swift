@@ -2,6 +2,8 @@ import StoreKit
 import SwiftUI
 
 struct Community: View {
+    @Environment(AppSettings.self) private var appSettings
+
     @Binding var safariUrl: URL?
     @Binding var showSafari: Bool
     
@@ -13,20 +15,54 @@ struct Community: View {
                 }
             }
             Button("Suggest a feature / Report a bug") {
-                if let url = URL(string: "mailto:support@merian.app") {
+                if let url = MerianWebURL.supportEmail {
                     UIApplication.shared.open(url)
                 }
             }
             Button("Community guidelines") {
-                safariUrl = URL(string: "https://merian.app/guidelines")
-                showSafari = true
+                openWebPage(path: "/guidelines")
             }
             Button("Terms of service & Privacy Policy") {
-                safariUrl = URL(string: "https://merian.app/legal")
-                showSafari = true
+                openWebPage(path: "/legal")
             }
         } header: {
             Text("Community")
+        }
+    }
+
+    private func openWebPage(path: String) {
+        guard let url = MerianWebURL.url(path: path, themeMode: appSettings.themeMode) else { return }
+
+        safariUrl = url
+        showSafari = true
+    }
+}
+
+private enum MerianWebURL {
+    static let supportEmail = URL(string: "mailto:support@merian.earth")
+
+    static func url(path: String, themeMode: ThemeMode) -> URL? {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "merian.earth"
+        components.path = path.hasPrefix("/") ? path : "/\(path)"
+        components.queryItems = [
+            URLQueryItem(name: "theme", value: themeMode.webThemePreferenceValue)
+        ]
+
+        return components.url
+    }
+}
+
+private extension ThemeMode {
+    var webThemePreferenceValue: String {
+        switch self {
+        case .system:
+            return "system"
+        case .light:
+            return "light"
+        case .dark:
+            return "dark"
         }
     }
 }

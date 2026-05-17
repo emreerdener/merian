@@ -462,10 +462,12 @@ self-notifications are suppressed server-side, and notification rows are pruned
 when a post is unshared, a comment is author-deleted or owner-moderated, a
 follow is removed, or either user blocks the other.
 
-`get-explore-post` is an important routing helper for the iOS client: it returns
-a single feed-card projection so notification taps and future deep links do not
-depend on the target post already existing in the currently paged
-`ExploreFeedViewModel.posts` array.
+`get-explore-post` is an important routing helper for the iOS client and the
+public Next.js web app: it returns a single privacy-safe feed-card projection so
+notification taps, deep links, and `https://merian.earth/explore/post/{postId}`
+pages do not depend on the target post already existing in the currently paged
+`ExploreFeedViewModel.posts` array. Public web consumers must treat this as the
+maximum public projection and avoid querying private scan/auth tables directly.
 
 Author profile reads are split the same way as feed/detail reads.
 `get-explore-author-profile` returns a privacy-scoped profile sheet payload only
@@ -1015,7 +1017,7 @@ Vault via the CLI (`supabase secrets set KEY=VALUE`):
 - **`RESEND_API_KEY`**: The API Key from Resend for sending transactional emails
   (like DwC-A exports).
 - **`RESEND_FROM_EMAIL`**: The verified sender domain (e.g.,
-  `exports@merian.app`). If absent, it falls back to Resend's testing domain
+  `exports@merian.earth`). If absent, it falls back to Resend's testing domain
   `onboarding@resend.dev` which will FAIL unless sending to the developer's
   registered account.
 - **`DWC_A_SECRET_SALT`**: A high-entropy salt used to generate stable but

@@ -1,10 +1,11 @@
-# Merian App Documentation
+# Merian Documentation
 
-This directory is the technical master reference for the native iOS application, Supabase PostgreSQL backend, Cloudflare R2 ephemeral networking, and hardware orchestration logic.
+This directory is the technical master reference for the native iOS application, public web frontend, Supabase PostgreSQL backend, Cloudflare R2 ephemeral networking, and hardware orchestration logic.
 
 ## Current Snapshot
 
 - **App targets**: iOS app (`merian/`), watchOS companion (`MerianWatch/`), Explore WidgetKit extension (`MerianExploreWidget/`), unit tests, and UI tests.
+- **Web frontend**: Next.js + Mantine app in `web/`, initially serving public Explore share pages on `merian.earth`.
 - **Deployment target**: iOS 17.2 for the app and widget; watchOS 10.0 for the companion target.
 - **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is committed for convenience and should be regenerated after project-structure changes.
 - **Active SwiftData schema**: `MerianSchemaV42` via `typealias CurrentSchema = MerianSchemaV42` in `merian/Models/Aliases.swift`.
@@ -51,7 +52,9 @@ This directory is the technical master reference for the native iOS application,
 - **[`/features-and-hardware/14-explore-author-profiles.md`](./features-and-hardware/14-explore-author-profiles.md)** — Public Explore author profile sheets, privacy-scoped profile stats, non-opening public achievements, and the paginated published-scan library.
 - **[`/features-and-hardware/15-explore-following.md`](./features-and-hardware/15-explore-following.md)** — Explore Follow relationships: Following feed filter, public profile counts, follow notifications, block cleanup, and ghost-merge repair.
 - **[`/features-and-hardware/16-species-dictionary.md`](./features-and-hardware/16-species-dictionary.md)** — Standalone public species dictionary page, `species-dictionary` Edge Function contract, similar-species entry points from Insight and Explore detail, public cache rules, content quality, media attribution, and refresh provenance.
+- **[`/features-and-hardware/17-public-web-share-pages.md`](./features-and-hardware/17-public-web-share-pages.md)** — Next.js public web share pages for `merian.earth`, including Explore post links, Supabase server reads, metadata, privacy boundaries, and the Universal Links roadmap.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map product/RPC architecture, including the shipped V1 map implementation and follow-up recommendations.
+- **[`/rfcs/codebase-cleanup.md`](./rfcs/codebase-cleanup.md)** — Phased cleanup plan for repo hygiene, behavior-preserving file splits, and ownership cleanup.
 - **[`/rfcs/species-dictionary-long-term-todo.md`](./rfcs/species-dictionary-long-term-todo.md)** — Long-term species dictionary TODO covering canonical identity, reference media normalization, public projections, provenance and refresh, caching, licensing, and analytics.
 - **[`/rfcs/geological-expansions.md`](./rfcs/geological-expansions.md)** — Roadmap for extending inference to rocks, minerals, and fossils.
 

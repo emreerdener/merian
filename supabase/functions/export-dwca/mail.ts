@@ -10,8 +10,8 @@ export async function sendExportEmail(email: string, signedUrl: string) {
   const resend = new Resend(resendKey);
 
   const { error } = await resend.emails.send({
-    // TODO: PRODUCTION - Remove onboarding fallback once merian.app is verified in Resend.
-    // Set RESEND_FROM_EMAIL to 'exports@merian.app' in Supabase Edge Secrets.
+    // TODO: PRODUCTION - Remove onboarding fallback once merian.earth is verified in Resend.
+    // Set RESEND_FROM_EMAIL to 'exports@merian.earth' in Supabase Edge Secrets.
     from: Deno.env.get("RESEND_FROM_EMAIL") || "Merian Data Exports <onboarding@resend.dev>",
     to: [email],
     subject: "Your Merian Darwin Core Archive is Ready",
