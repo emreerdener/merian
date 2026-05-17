@@ -103,12 +103,9 @@ extension ExploreFeedViewModel {
             shareText += " in \(publicLocationLabel)"
         }
 
-        var items: [Any] = [shareText]
-        if let heroImageURL = URL(string: post.heroImageUrl) {
-            items.append(heroImageURL)
-        }
+        shareText += "\nhttps://merian.earth/explore/post/\(post.id)"
 
-        ShareSheetUtility.present(items: items)
+        ShareSheetUtility.present(items: [shareText])
         HapticManager.shared.triggerSelectionPulse()
     }
 
