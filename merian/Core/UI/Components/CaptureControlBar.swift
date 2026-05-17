@@ -49,8 +49,8 @@ struct CaptureControlBar: View {
                     TableOfContentsButton(
                         onTap: { coordinator.tocRequestID = UUID() }
                     )
-                    .opacity(captureMode == .describe ? 1 : 0)
-                    .allowsHitTesting(captureMode == .describe)
+                    .opacity(captureMode == .describe && !isRefining ? 1 : 0)
+                    .allowsHitTesting(captureMode == .describe && !isRefining)
 
                     AudioDeleteButton(
                         isRecording: audioCaptureManager.isRecording,

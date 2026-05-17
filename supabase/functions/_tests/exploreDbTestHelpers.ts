@@ -116,6 +116,7 @@ type InsertScanOptions = {
   confirmedSpeciesId?: string | null;
   isTombstoned?: boolean;
   semanticLocation?: string | null;
+  publicLocationLabel?: string | null;
 };
 
 export async function insertScan(
@@ -138,7 +139,8 @@ export async function insertScan(
         gps_long_public,
         geoprivacy,
         is_tombstoned,
-        semantic_location
+        semantic_location,
+        public_location_label
       )
       VALUES (
         $1,
@@ -154,7 +156,8 @@ export async function insertScan(
         $11,
         $12,
         $13,
-        $14
+        $14,
+        $15
       )
     `,
     [
@@ -173,6 +176,7 @@ export async function insertScan(
       options.geoprivacy,
       options.isTombstoned ?? false,
       options.semanticLocation ?? null,
+      options.publicLocationLabel ?? null,
     ],
   );
 }

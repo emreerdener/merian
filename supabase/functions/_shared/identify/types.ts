@@ -10,7 +10,17 @@ export interface MerianIdentification {
   extracted_visual_traits: string[];
   common_name?: string;
   hazard_type?: "none" | "poisonous" | "venomous" | "allergenic" | "irritant";
-  life_stage?: "egg" | "larva" | "pupa" | "nymph" | "juvenile" | "subadult" | "adult" | "seedling" | "sapling" | "unknown";
+  life_stage?:
+    | "egg"
+    | "larva"
+    | "pupa"
+    | "nymph"
+    | "juvenile"
+    | "subadult"
+    | "adult"
+    | "seedling"
+    | "sapling"
+    | "unknown";
   reproductive_condition?:
     | "flowering"
     | "fruiting"
@@ -60,6 +70,7 @@ export interface Payload {
   gpsLongitude?: number | null;
   gpsElevation?: number | null;
   semanticLocation?: string;
+  publicLocationLabel?: string;
   weatherCondition?: string;
   weatherTemperatureF?: number;
   deviceLocale?: string;
@@ -74,6 +85,7 @@ export interface Payload {
   gps_longitude?: number | null;
   gps_elevation?: number | null;
   semantic_location?: string;
+  public_location_label?: string;
   weather_condition?: string;
   weather_temperature_f?: number;
   device_locale?: string;
@@ -100,6 +112,7 @@ export interface MultimodalPayload {
   gpsLongitude?: number | null;
   gpsElevation?: number | null;
   semanticLocation?: string;
+  publicLocationLabel?: string;
   weatherCondition?: string;
   weatherTemperatureF?: number;
   deviceLocale?: string;
@@ -111,6 +124,7 @@ export interface MultimodalPayload {
   gps_longitude?: number | null;
   gps_elevation?: number | null;
   semantic_location?: string;
+  public_location_label?: string;
   weather_condition?: string;
   weather_temperature_f?: number;
   device_locale?: string;

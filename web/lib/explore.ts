@@ -21,29 +21,73 @@ type ExplorePostRow = {
   is_owned_by_viewer: boolean;
 };
 
-const stateCodes = new Set([
-  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL",
-  "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME",
-  "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH",
-  "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
-  "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI",
-  "WY"
-]);
+const stateCodeToName: Record<string, string> = {
+  AL: "Alabama",
+  AK: "Alaska",
+  AZ: "Arizona",
+  AR: "Arkansas",
+  CA: "California",
+  CO: "Colorado",
+  CT: "Connecticut",
+  DE: "Delaware",
+  DC: "District of Columbia",
+  FL: "Florida",
+  GA: "Georgia",
+  HI: "Hawaii",
+  ID: "Idaho",
+  IL: "Illinois",
+  IN: "Indiana",
+  IA: "Iowa",
+  KS: "Kansas",
+  KY: "Kentucky",
+  LA: "Louisiana",
+  ME: "Maine",
+  MD: "Maryland",
+  MA: "Massachusetts",
+  MI: "Michigan",
+  MN: "Minnesota",
+  MS: "Mississippi",
+  MO: "Missouri",
+  MT: "Montana",
+  NE: "Nebraska",
+  NV: "Nevada",
+  NH: "New Hampshire",
+  NJ: "New Jersey",
+  NM: "New Mexico",
+  NY: "New York",
+  NC: "North Carolina",
+  ND: "North Dakota",
+  OH: "Ohio",
+  OK: "Oklahoma",
+  OR: "Oregon",
+  PA: "Pennsylvania",
+  RI: "Rhode Island",
+  SC: "South Carolina",
+  SD: "South Dakota",
+  TN: "Tennessee",
+  TX: "Texas",
+  UT: "Utah",
+  VT: "Vermont",
+  VA: "Virginia",
+  WA: "Washington",
+  WV: "West Virginia",
+  WI: "Wisconsin",
+  WY: "Wyoming",
+};
 
-const stateNames = new Set([
-  "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
-  "connecticut", "delaware", "district of columbia", "florida", "georgia",
-  "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas", "kentucky",
-  "louisiana", "maine", "maryland", "massachusetts", "michigan",
-  "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada",
-  "new hampshire", "new jersey", "new mexico", "new york",
-  "north carolina", "north dakota", "ohio", "oklahoma", "oregon",
-  "pennsylvania", "rhode island", "south carolina", "south dakota",
-  "tennessee", "texas", "utah", "vermont", "virginia", "washington",
-  "west virginia", "wisconsin", "wyoming"
-]);
+const stateNameToCode = new Map(
+  Object.entries(stateCodeToName).map((
+    [code, name],
+  ) => [name.toLowerCase(), code]),
+);
 
-const countryNames = new Set(["united states", "united states of america", "usa", "us", "canada"]);
+const countryNames = new Set([
+  "united states",
+  "united states of america",
+  "usa",
+  "us",
+  "canada",
+]);
 
 export type ExplorePost = {
   postId: string;
@@ -71,12 +115,18 @@ function containsCoordinatePair(value: string) {
   if (commaParts.length === 2) {
     const latitude = Number(commaParts[0]);
     const longitude = Number(commaParts[1]);
-    if (Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) {
+    if (
+      Number.isFinite(latitude) && Number.isFinite(longitude) &&
+      Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
+    ) {
       return true;
     }
   }
 
-  const numbers = Array.from(value.matchAll(/[-+]?\d{1,3}\.\d{3,}/g), (match) => Number(match[0]));
+  const numbers = Array.from(
+    value.matchAll(/[-+]?\d{1,3}\.\d{3,}/g),
+    (match) => Number(match[0]),
+  );
   for (let index = 0; index < numbers.length - 1; index += 1) {
     if (Math.abs(numbers[index]) <= 90 && Math.abs(numbers[index + 1]) <= 180) {
       return true;
@@ -90,9 +140,61 @@ function isCountry(value: string) {
   return countryNames.has(value.trim().toLowerCase());
 }
 
-function isStateLike(value: string) {
+function removingTrailingCountry(value: string) {
   const trimmed = value.trim();
-  return stateCodes.has(trimmed.toUpperCase()) || stateNames.has(trimmed.toLowerCase());
+  const lowercased = trimmed.toLowerCase();
+
+  for (
+    const country of Array.from(countryNames).sort((a, b) =>
+      b.length - a.length
+    )
+  ) {
+    if (lowercased === country) {
+      return "";
+    }
+
+    const suffix = ` ${country}`;
+    if (lowercased.endsWith(suffix)) {
+      return trimmed.slice(0, -suffix.length).trim();
+    }
+  }
+
+  return trimmed;
+}
+
+function normalizedState(value: string) {
+  const trimmed = removingTrailingCountry(value);
+  const uppercased = trimmed.toUpperCase();
+  const zipMatch = trimmed.match(/^(.+?)\s+\d{5}(?:-\d{4})?$/);
+  if (zipMatch) {
+    const stateCandidate = zipMatch[1].trim();
+    const stateCodeCandidate = stateCandidate.toUpperCase();
+    const stateName = stateCodeToName[stateCodeCandidate];
+    if (stateName) {
+      return { code: stateCodeCandidate, name: stateName };
+    }
+
+    const stateCode = stateNameToCode.get(stateCandidate.toLowerCase());
+    const stateNameForCode = stateCode ? stateCodeToName[stateCode] : null;
+    if (stateCode && stateNameForCode) {
+      return { code: stateCode, name: stateNameForCode };
+    }
+  }
+
+  const stateName = stateCodeToName[uppercased];
+  if (stateName) {
+    return { code: uppercased, name: stateName };
+  }
+
+  const stateCode = stateNameToCode.get(trimmed.toLowerCase());
+  const stateNameForCode = stateCode ? stateCodeToName[stateCode] : null;
+  return stateCode && stateNameForCode
+    ? { code: stateCode, name: stateNameForCode }
+    : null;
+}
+
+function isStateLike(value: string) {
+  return normalizedState(value) !== null;
 }
 
 function isPrivateLocationPart(value: string) {
@@ -106,8 +208,33 @@ function isPrivateLocationPart(value: string) {
     /(street|avenue|road|boulevard|drive|lane|court|terrace|highway|route|suite|unit|apartment)/,
     /\b(st|ave|rd|blvd|dr|ln|ct|pl)\.?$/,
     /(gps|latitude|longitude|coordinate)/,
-    /\b(park|trail|preserve|garden|campus|building|museum|hotel|restaurant|cafe|creek|beach|woods|forest|campground)\.?$/
+    /\b(park|trail|preserve|garden|campus|building|museum|hotel|restaurant|cafe|creek|beach|woods|forest|campground|bay|harbor|harbour|marina|island|lake|pond|river|canal|inlet|lagoon|wetland|swamp|sound|cove|estuary)\.?$/,
   ].some((pattern) => pattern.test(trimmed));
+}
+
+function isSafeCityPart(value: string) {
+  if (isPrivateLocationPart(value)) {
+    return false;
+  }
+
+  const trimmed = value.trim().toLowerCase();
+  return ![
+    /\b(county|parish|borough|district|municipality|prefecture)\b/,
+    /\b(province|region)\b$/,
+  ].some((pattern) => pattern.test(trimmed));
+}
+
+function lastIndexWhere(
+  values: string[],
+  predicate: (value: string) => boolean,
+) {
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    if (predicate(values[index])) {
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 function publicDisplayLocationLabel(location?: string | null) {
@@ -116,13 +243,22 @@ function publicDisplayLocationLabel(location?: string | null) {
     return null;
   }
 
-  const parts = cleaned.split(",").map((part) => part.trim()).filter(Boolean);
+  let parts = cleaned.split(",").map((part) => part.trim()).filter(Boolean);
   if (parts.length === 0) {
     return null;
   }
 
-  if (parts.length >= 2 && isCountry(parts[parts.length - 1])) {
-    parts.pop();
+  parts = parts.filter((part) => !isCountry(part));
+
+  const stateIndex = lastIndexWhere(parts, isStateLike);
+  if (stateIndex >= 0) {
+    const state = normalizedState(parts[stateIndex]);
+    if (!state) {
+      return null;
+    }
+
+    const city = parts.slice(0, stateIndex).reverse().find(isSafeCityPart);
+    return city ? `${city}, ${state.code}` : state.name;
   }
 
   const state = parts[parts.length - 1];
@@ -131,11 +267,11 @@ function publicDisplayLocationLabel(location?: string | null) {
   }
 
   if (parts.length >= 2) {
-    const city = parts[parts.length - 2];
-    return isPrivateLocationPart(city) ? (isStateLike(state) ? state : null) : `${city}, ${state}`;
+    const city = parts.slice(0, -1).reverse().find(isSafeCityPart);
+    return city ? `${city}, ${state}` : null;
   }
 
-  return isStateLike(state) ? state : null;
+  return isSafeCityPart(state) ? state : null;
 }
 
 function mapExplorePost(row: ExplorePostRow): ExplorePost {
@@ -157,11 +293,13 @@ function mapExplorePost(row: ExplorePostRow): ExplorePost {
     likeCount: row.like_count,
     commentCount: row.comment_count,
     viewerHasLiked: row.viewer_has_liked,
-    isOwnedByViewer: row.is_owned_by_viewer
+    isOwnedByViewer: row.is_owned_by_viewer,
   };
 }
 
-export async function fetchExplorePost(postId: string): Promise<ExplorePost | null> {
+export async function fetchExplorePost(
+  postId: string,
+): Promise<ExplorePost | null> {
   const supabase = createServerSupabaseClient();
 
   if (!supabase) {
@@ -171,7 +309,7 @@ export async function fetchExplorePost(postId: string): Promise<ExplorePost | nu
   const publicViewerId = process.env.SUPABASE_PUBLIC_VIEWER_ID ?? null;
   const { data, error } = await supabase.rpc("get_explore_post", {
     self_id: publicViewerId,
-    target_post_id: postId
+    target_post_id: postId,
   });
 
   if (error) {

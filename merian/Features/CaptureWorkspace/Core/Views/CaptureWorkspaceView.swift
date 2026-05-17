@@ -53,6 +53,13 @@ struct CaptureWorkspaceView: View {
         _scrollPageMode = State(initialValue: mode)
     }
 
+    private var describePageIdentity: String {
+        if viewModel.baseRefinementRecord != nil {
+            return "reanalysis-\(viewModel.refinementSubjectId ?? "unknown")"
+        }
+        return "standard"
+    }
+
     // MARK: - View Hierarchy
     var body: some View {
         let orderedModes = CaptureMode.userOrder(from: appSettings.captureModeOrderRaw)
@@ -95,13 +102,13 @@ struct CaptureWorkspaceView: View {
                                         DescribeInputView(
                                             captureMode: captureMode,
                                             promptFlow: viewModel.describePromptFlow,
-                                            mediaContext: viewModel.describePromptMediaContext,
                                             context: $observationContext,
                                             coordinator: coordinator,
                                             showToast: { viewModel.offlineToastMessage = $0 }
                                         )
                                         .frame(width: proxy.size.width, height: proxy.size.height)
                                         .clipped()
+                                        .id(describePageIdentity)
                                         .id(CaptureMode.describe)
                                     }
                                 }
@@ -209,6 +216,10 @@ struct CaptureWorkspaceView: View {
                             selectedPhotoItems: $viewModel.selectedPhotoItems,
                             onThumbnailTap: { index in viewModel.presentCrop(for: index) },
                             onCancel: {
+                                if let record = viewModel.baseRefinementRecord {
+                                    viewModel.diContainer.inferenceEngine.load(from: record)
+                                    viewModel.activeSheet = .insight
+                                }
                                 viewModel.stagedCapture.clearAll()
                                 viewModel.cancelRefinementStaging()
                             },

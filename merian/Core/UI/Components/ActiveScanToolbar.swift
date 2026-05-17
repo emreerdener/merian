@@ -149,7 +149,7 @@ extension ActiveScanToolbar {
             HStack(spacing: 6) {
                 Image(systemName: "sparkles.2")
                     .font(.system(size: 18, weight: .semibold))
-                Text("Identify")
+                Text(isRefining ? "Analyze" : "Identify")
                     .font(.headline.weight(.semibold))
                     .lineLimit(1)
             }

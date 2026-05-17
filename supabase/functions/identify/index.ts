@@ -166,6 +166,8 @@ serve((req: Request) =>
       deviceRegion,
       currentMonth,
       semanticLocation,
+      publicLocationLabel,
+      public_location_label,
       timeOfDay,
       timestamp,
       estimated_size_cm,
@@ -173,6 +175,8 @@ serve((req: Request) =>
       description,
       observation_context,
     } = body;
+    const publicExploreLocationLabel = publicLocationLabel ??
+      public_location_label;
     const normalizedCurrentMonth = normalizeCurrentMonth(currentMonth);
 
     // Range-validate GPS coordinates — out-of-bounds values from a corrupted or
@@ -767,6 +771,7 @@ serve((req: Request) =>
             weather_condition: weatherCondition,
             weather_temperature_f: weatherTemperatureF,
             semantic_location: semanticLocation,
+            public_location_label: publicExploreLocationLabel,
             device_locale: deviceLocale,
             device_time_zone: deviceTimeZone,
             current_month: normalizedCurrentMonth ?? null,

@@ -31,7 +31,15 @@ Deno.test("Explore location sanitizer DB - strips exact addresses and coordinate
             (1, $1::text),
             (2, $2::text),
             (3, $3::text),
-            (4, $4::text)
+            (4, $4::text),
+            (5, $5::text),
+            (6, $6::text),
+            (7, $7::text),
+            (8, $8::text),
+            (9, $9::text),
+            (10, $10::text),
+            (11, $11::text),
+            (12, $12::text)
         ) AS cases(sort_order, raw_location)
         ORDER BY sort_order
       `,
@@ -40,12 +48,33 @@ Deno.test("Explore location sanitizer DB - strips exact addresses and coordinate
         "Central Park, NY",
         "30.2672, -97.7431",
         "California",
+        "Austin, Travis County, TX, United States",
+        "Austin",
+        "123 Main St, Austin, TX 78701, United States",
+        "123 Main St, Austin, Texas 78701, United States",
+        "123 Main St, Austin, TX 78701 United States",
+        "Little Sarasota Bay",
+        "Little Sarasota Bay, FL",
+        "FL",
       ],
     );
 
     assertEquals(
       rows.rows.map((row) => row.label),
-      ["Austin, TX", "NY", null, "California"],
+      [
+        "Austin, TX",
+        "New York",
+        null,
+        "California",
+        "Austin, TX",
+        "Austin",
+        "Austin, TX",
+        "Austin, TX",
+        "Austin, TX",
+        null,
+        "Florida",
+        "Florida",
+      ],
     );
   });
 });
@@ -97,6 +126,48 @@ Deno.test("Explore feed DB - location labels are city/state only for feed and de
 
     assertEquals(feedRows.rows[0]?.public_location_label, "Austin, TX");
     assertEquals(detailRows.rows[0]?.public_location_label, "Austin, TX");
+  });
+});
+
+Deno.test("Explore feed DB - canonical public location label repairs landmark-only legacy text", async () => {
+  await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {
+    const ownerId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    const scanId = crypto.randomUUID();
+    const postId = crypto.randomUUID();
+
+    await insertUser(client, ownerId, "Canonical Location Owner");
+    await insertUser(client, viewerId, "Canonical Location Viewer");
+    await insertSpecies(client, speciesId, "Rosa canonica");
+
+    await insertScan(client, {
+      id: scanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 27.3364,
+      longitude: -82.5453,
+      geoprivacy: "open",
+      semanticLocation: "Little Sarasota Bay",
+      publicLocationLabel: "Sarasota, FL",
+    });
+
+    await insertExplorePost(client, {
+      id: postId,
+      userId: ownerId,
+      scanId,
+      sharedAt: "2026-04-28T12:05:00.000Z",
+    });
+
+    const rows = await client.queryObject<ExploreLocationRow>(
+      `
+        SELECT public_location_label
+        FROM public.get_explore_feed($1, 20, NULL, NULL)
+      `,
+      [viewerId],
+    );
+
+    assertEquals(rows.rows[0]?.public_location_label, "Sarasota, FL");
   });
 });
 
@@ -458,9 +529,17 @@ Deno.test("Explore trending feed DB - ranking pagination preserves stable orderi
         sharedAt: posts[index].sharedAt,
       });
 
-      for (let likeIndex = 0; likeIndex < posts[index].likeCount; likeIndex += 1) {
+      for (
+        let likeIndex = 0;
+        likeIndex < posts[index].likeCount;
+        likeIndex += 1
+      ) {
         const likerId = crypto.randomUUID();
-        await insertUser(client, likerId, `Trending Liker ${index}-${likeIndex}`);
+        await insertUser(
+          client,
+          likerId,
+          `Trending Liker ${index}-${likeIndex}`,
+        );
         await client.queryArray(
           `
             INSERT INTO public.explore_post_likes (post_id, user_id, created_at)

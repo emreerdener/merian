@@ -2,11 +2,11 @@
 // identify-describe returns the exact same ClientPayload so the iOS client
 // needs zero changes to parse describe results.
 export type {
-  MerianIdentification,
+  CachedSpeciesRow,
+  ClientPayload,
   IdentificationCandidate,
   ImageQuality,
-  ClientPayload,
-  CachedSpeciesRow,
+  MerianIdentification,
   StaticSpeciesData,
 } from "../_shared/identify/types.ts";
 
@@ -31,6 +31,8 @@ export interface DescribeRequest {
   deviceRegion?: string;
   currentMonth?: number;
   semanticLocation?: string;
+  publicLocationLabel?: string;
+  public_location_label?: string;
   timeOfDay?: string;
   timestamp?: string;
 }

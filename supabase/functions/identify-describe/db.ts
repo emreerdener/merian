@@ -11,11 +11,11 @@ import {
 // operate on the same tables (users, species_dictionary) regardless of whether
 // identification came from an image or a text description.
 export {
-  upsertGhostUserIfMissing,
   fetchCachedSpecies,
-  upsertSpeciesDictionary,
   fetchCandidateCommonNames,
   updateGroupTags,
+  upsertGhostUserIfMissing,
+  upsertSpeciesDictionary,
 } from "../_shared/identify/db.ts";
 
 export type { CachedSpeciesRow };
@@ -41,6 +41,7 @@ export interface DescribeScanInsertRow {
   weather_condition?: string;
   weather_temperature_f?: number;
   semantic_location?: string;
+  public_location_label?: string | null;
   device_locale?: string;
   device_time_zone?: string;
   current_month?: number | null;

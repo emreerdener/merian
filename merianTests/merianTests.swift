@@ -193,6 +193,26 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertEqual(viewModel.stagedCapture.images.first?.displayData, expectedDisplaySignature)
     }
 
+    func testStartRefinementScanPreselectsDescribeSubjectFromOriginalScan() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+
+        let record = LocalScanRecord(
+            speciesId: "original-species-id",
+            scientificName: "Epipremnum aureum",
+            commonName: "Golden Pothos",
+            semanticTags: ["Houseplants"]
+        )
+
+        viewModel.startRefinementScan(from: record)
+
+        XCTAssertEqual(viewModel.refinementSubjectId, "subj_plan")
+        XCTAssertEqual(viewModel.describePromptFlow, .reanalysis(subjectId: "subj_plan"))
+    }
+
     func testStartRefinementScanClearsLoadingStateWhenPreparationFails() async throws {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
@@ -411,17 +431,39 @@ final class ExploreLocationPrivacyTests: XCTestCase {
             ExploreLocationPrivacy.displayLabel(from: "123 Main St, Austin, TX, United States"),
             "Austin, TX"
         )
+        XCTAssertEqual(
+            ExploreLocationPrivacy.displayLabel(from: "Austin, Travis County, TX, United States"),
+            "Austin, TX"
+        )
+        XCTAssertEqual(
+            ExploreLocationPrivacy.displayLabel(from: "123 Main St, Austin, TX 78701, United States"),
+            "Austin, TX"
+        )
+        XCTAssertEqual(
+            ExploreLocationPrivacy.displayLabel(from: "123 Main St, Austin, Texas 78701, United States"),
+            "Austin, TX"
+        )
+        XCTAssertEqual(
+            ExploreLocationPrivacy.displayLabel(from: "123 Main St, Austin, TX 78701 United States"),
+            "Austin, TX"
+        )
     }
 
     func testDisplayLabelFallsBackToStateForLandmarkAndSingleState() {
-        XCTAssertEqual(ExploreLocationPrivacy.displayLabel(from: "Central Park, NY"), "NY")
+        XCTAssertEqual(ExploreLocationPrivacy.displayLabel(from: "Central Park, NY"), "New York")
+        XCTAssertEqual(ExploreLocationPrivacy.displayLabel(from: "Little Sarasota Bay, FL"), "Florida")
+        XCTAssertEqual(ExploreLocationPrivacy.displayLabel(from: "FL"), "Florida")
         XCTAssertEqual(ExploreLocationPrivacy.displayLabel(from: "California"), "California")
     }
 
-    func testDisplayLabelSuppressesCoordinatesAndUnscopedPlaceNames() {
+    func testDisplayLabelKeepsSafeCityOnlyHistoricalLabels() {
+        XCTAssertEqual(ExploreLocationPrivacy.displayLabel(from: "Austin"), "Austin")
+    }
+
+    func testDisplayLabelSuppressesCoordinatesAndSmallSiteLabels() {
         XCTAssertNil(ExploreLocationPrivacy.displayLabel(from: "30.2672, -97.7431"))
         XCTAssertNil(ExploreLocationPrivacy.displayLabel(from: "Zilker Park"))
-        XCTAssertNil(ExploreLocationPrivacy.displayLabel(from: "Austin"))
+        XCTAssertNil(ExploreLocationPrivacy.displayLabel(from: "Little Sarasota Bay"))
     }
 }
 

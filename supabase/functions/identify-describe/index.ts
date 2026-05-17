@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { jsonResponse, withEdgeHandler, runBackground, logStructuredError } from "../_shared/edgeHandler.ts";
+import {
+  jsonResponse,
+  logStructuredError,
+  runBackground,
+  withEdgeHandler,
+} from "../_shared/edgeHandler.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
@@ -20,14 +25,17 @@ import {
 import { sanitizeScientificName } from "../identify/sanitize.ts";
 
 import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
-import { getDescribeSystemInstruction, getDescribeResponseSchema } from "./schema.ts";
 import {
-  upsertGhostUserIfMissing,
+  getDescribeResponseSchema,
+  getDescribeSystemInstruction,
+} from "./schema.ts";
+import {
   fetchCachedSpecies,
-  upsertSpeciesDictionary,
   fetchCandidateCommonNames,
-  updateGroupTags,
   insertDescribeScan,
+  updateGroupTags,
+  upsertGhostUserIfMissing,
+  upsertSpeciesDictionary,
 } from "./db.ts";
 
 // Text-only model configs — no image parts, so thinking budgets are smaller.
@@ -78,36 +86,59 @@ serve((req: Request) =>
       deviceRegion,
       currentMonth,
       semanticLocation,
+      publicLocationLabel,
+      public_location_label,
       timeOfDay,
       timestamp,
       client_scan_id,
       observation_context,
     } = body;
+    const publicExploreLocationLabel = publicLocationLabel ??
+      public_location_label;
     const normalizedCurrentMonth = normalizeCurrentMonth(currentMonth);
 
     if (typeof description !== "string" || description.trim().length === 0) {
-      return jsonResponse({ error: "description must be a non-empty string." }, 400);
+      return jsonResponse(
+        { error: "description must be a non-empty string." },
+        400,
+      );
     }
 
     // Range-validate GPS — same guard as identify/index.ts.
     const safeGpsLat: number | null =
       gpsLatitude != null && Number.isFinite(gpsLatitude) &&
-      gpsLatitude >= -90 && gpsLatitude <= 90 ? gpsLatitude : null;
+        gpsLatitude >= -90 && gpsLatitude <= 90
+        ? gpsLatitude
+        : null;
     const safeGpsLon: number | null =
       gpsLongitude != null && Number.isFinite(gpsLongitude) &&
-      gpsLongitude >= -180 && gpsLongitude <= 180 ? gpsLongitude : null;
+        gpsLongitude >= -180 && gpsLongitude <= 180
+        ? gpsLongitude
+        : null;
 
     console.log(`[⏱ BENCH] payload_parsed: ${Date.now() - fnStart}ms`);
 
     const userTier = await getTierForUser(user.id, supabaseAdmin);
-    const targetModel = userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
-    const diagnosticTrigger = diagnosticTriggerForTier(userTier === "pro" ? "pro" : "flash");
+    const targetModel = userTier === "pro"
+      ? "gemini-2.5-pro"
+      : "gemini-2.5-flash";
+    const diagnosticTrigger = diagnosticTriggerForTier(
+      userTier === "pro" ? "pro" : "flash",
+    );
     const modelCfg = userTier === "pro" ? modelConfigs.pro : modelConfigs.flash;
 
     const promptText = buildObservationPrompt(description, {
-      safeGpsLat, safeGpsLon, gpsElevation, semanticLocation,
-      weatherCondition, weatherTemperatureF, deviceLocale,
-      deviceTimeZone, deviceRegion, currentMonth: normalizedCurrentMonth, timeOfDay,
+      safeGpsLat,
+      safeGpsLon,
+      gpsElevation,
+      semanticLocation,
+      weatherCondition,
+      weatherTemperatureF,
+      deviceLocale,
+      deviceTimeZone,
+      deviceRegion,
+      currentMonth: normalizedCurrentMonth,
+      timeOfDay,
     });
 
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
@@ -138,7 +169,9 @@ serve((req: Request) =>
 
       if (!responseText) {
         const firstPart = result.candidates?.[0]?.content?.parts?.[0];
-        if (firstPart && "text" in firstPart && typeof firstPart.text === "string") {
+        if (
+          firstPart && "text" in firstPart && typeof firstPart.text === "string"
+        ) {
           responseText = firstPart.text;
         }
       }
@@ -154,21 +187,33 @@ serve((req: Request) =>
           `Token Usage [${user.id}]: Prompt: ${llmPromptTokens} | Candidates: ${llmCandidateTokens} | Thinking: ${llmThinkingTokens} | Cached: ${llmCachedTokens} | Total: ${llmTotalTokens}`,
         );
       }
-      console.log(`[⏱ BENCH] gemini_done: ${Date.now() - fnStart}ms total, ${Date.now() - geminiStart}ms inference`);
+      console.log(
+        `[⏱ BENCH] gemini_done: ${Date.now() - fnStart}ms total, ${
+          Date.now() - geminiStart
+        }ms inference`,
+      );
     } catch (genError) {
-      const errMsg = genError instanceof Error ? genError.message : String(genError);
+      const errMsg = genError instanceof Error
+        ? genError.message
+        : String(genError);
       logStructuredError("identify-describe/gemini_failed", {
         user_id: user.id,
         model: targetModel,
         elapsed_ms: Date.now() - geminiStart,
         error_message: errMsg,
       });
-      return jsonResponse({ error: "AI processing error. Please try again." }, 503);
+      return jsonResponse(
+        { error: "AI processing error. Please try again." },
+        503,
+      );
     }
 
-    if (finishReason && finishReason !== "STOP" && finishReason !== "FINISH_REASON_UNSPECIFIED") {
-      const isPermanentContentFailure =
-        finishReason === "SAFETY" || finishReason === "PROHIBITED_CONTENT";
+    if (
+      finishReason && finishReason !== "STOP" &&
+      finishReason !== "FINISH_REASON_UNSPECIFIED"
+    ) {
+      const isPermanentContentFailure = finishReason === "SAFETY" ||
+        finishReason === "PROHIBITED_CONTENT";
       logStructuredError("identify-describe/non_stop_finish", {
         user_id: user.id,
         finish_reason: finishReason,
@@ -189,36 +234,52 @@ serve((req: Request) =>
         finish_reason: finishReason ?? "unknown",
         response_length: responseText.length,
         response_preview: responseText.slice(0, 500),
-        error: parseError instanceof Error ? parseError.message : String(parseError),
+        error: parseError instanceof Error
+          ? parseError.message
+          : String(parseError),
       });
-      return jsonResponse({ error: "Processing Error: Malformed AI response." }, 422);
+      return jsonResponse(
+        { error: "Processing Error: Malformed AI response." },
+        422,
+      );
     }
 
     // Sanitize names and clamp arrays — same guards as identify/index.ts.
     if (parsedData.scientific_name) {
-      parsedData.scientific_name = sanitizeScientificName(parsedData.scientific_name);
+      parsedData.scientific_name = sanitizeScientificName(
+        parsedData.scientific_name,
+      );
     }
     if (Array.isArray(parsedData.candidates)) {
       parsedData.candidates = parsedData.candidates
-        .map((c) => ({ ...c, scientific_name: sanitizeScientificName(c.scientific_name) }))
+        .map((c) => ({
+          ...c,
+          scientific_name: sanitizeScientificName(c.scientific_name),
+        }))
         .slice(0, 5);
     }
     if (Array.isArray(parsedData.extracted_visual_traits)) {
-      parsedData.extracted_visual_traits = parsedData.extracted_visual_traits.slice(0, 10);
+      parsedData.extracted_visual_traits = parsedData.extracted_visual_traits
+        .slice(0, 10);
     }
-    if (typeof parsedData.ai_reasoning === "string" && parsedData.ai_reasoning.length > 2000) {
+    if (
+      typeof parsedData.ai_reasoning === "string" &&
+      parsedData.ai_reasoning.length > 2000
+    ) {
       parsedData.ai_reasoning = parsedData.ai_reasoning.slice(0, 2000);
     }
     if (parsedData.individual_count != null) {
       parsedData.individual_count =
-        Number.isFinite(parsedData.individual_count) && parsedData.individual_count > 0
+        Number.isFinite(parsedData.individual_count) &&
+          parsedData.individual_count > 0
           ? Math.min(Math.round(parsedData.individual_count), 99999)
           : undefined;
     }
-    parsedData.life_stage = sanitizeLifeStage(parsedData.life_stage)
-      ?? parsedData.life_stage;
-    parsedData.reproductive_condition = sanitizeReproductiveCondition(parsedData.reproductive_condition)
-      ?? parsedData.reproductive_condition;
+    parsedData.life_stage = sanitizeLifeStage(parsedData.life_stage) ??
+      parsedData.life_stage;
+    parsedData.reproductive_condition =
+      sanitizeReproductiveCondition(parsedData.reproductive_condition) ??
+        parsedData.reproductive_condition;
 
     // Describes always have zero blur (no image).
     parsedData.blur_score = 0;
@@ -238,21 +299,21 @@ serve((req: Request) =>
       payloadReadyForClient.candidates = null;
     }
 
-    const isIdentifiedBio = !!(parsedData.is_biological_subject && parsedData.scientific_name);
+    const isIdentifiedBio =
+      !!(parsedData.is_biological_subject && parsedData.scientific_name);
     let speciesId: string | null = null;
     let cachedSpecies: CachedSpeciesRow | null = null;
     let missingCandidates: string[] = [];
 
-    const hasCandidates =
-      Array.isArray(payloadReadyForClient.candidates) &&
+    const hasCandidates = Array.isArray(payloadReadyForClient.candidates) &&
       payloadReadyForClient.candidates.length > 0;
 
     const [commonNameMap, fetchedCachedSpecies] = await Promise.all([
       hasCandidates
         ? fetchCandidateCommonNames(
-            payloadReadyForClient.candidates!.map((c) => c.scientific_name),
-            supabaseAdmin,
-          )
+          payloadReadyForClient.candidates!.map((c) => c.scientific_name),
+          supabaseAdmin,
+        )
         : Promise.resolve(new Map<string, string>()),
       isIdentifiedBio
         ? fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin)
@@ -260,13 +321,16 @@ serve((req: Request) =>
     ]);
 
     if (hasCandidates) {
-      const candidateNames = payloadReadyForClient.candidates!.map((c) => c.scientific_name);
+      const candidateNames = payloadReadyForClient.candidates!.map((c) =>
+        c.scientific_name
+      );
       missingCandidates = candidateNames.filter((n) => !commonNameMap.has(n));
       if (commonNameMap.size > 0) {
-        payloadReadyForClient.candidates = payloadReadyForClient.candidates!.map((c) => ({
-          ...c,
-          common_name: commonNameMap.get(c.scientific_name),
-        }));
+        payloadReadyForClient.candidates = payloadReadyForClient.candidates!
+          .map((c) => ({
+            ...c,
+            common_name: commonNameMap.get(c.scientific_name),
+          }));
       }
     }
 
@@ -284,7 +348,8 @@ serve((req: Request) =>
             family: cachedSpecies.family ?? "Unknown",
             genus: cachedSpecies.genus ?? "Unknown",
           },
-          iucn_red_list_status: cachedSpecies.iucn_red_list_status ?? "not_evaluated",
+          iucn_red_list_status: cachedSpecies.iucn_red_list_status ??
+            "not_evaluated",
           hazard_type: cachedSpecies.hazard_type || "none",
           speciesHabitat: cachedSpecies.habitat_description ?? undefined,
         };
@@ -293,13 +358,18 @@ serve((req: Request) =>
           payloadReadyForClient.common_name = cachedSpecies.common_names.en;
         }
         if (cachedSpecies.alternative_common_names?.length) {
-          const primaryEn = (payloadReadyForClient.common_name ?? "").toLowerCase();
-          payloadReadyForClient.alternative_common_names =
-            cachedSpecies.alternative_common_names.filter((n) => n.toLowerCase() !== primaryEn);
+          const primaryEn = (payloadReadyForClient.common_name ?? "")
+            .toLowerCase();
+          payloadReadyForClient.alternative_common_names = cachedSpecies
+            .alternative_common_names.filter((n) =>
+              n.toLowerCase() !== primaryEn
+            );
         }
-        payloadReadyForClient.reference_image_url = cachedSpecies.reference_image_url;
+        payloadReadyForClient.reference_image_url =
+          cachedSpecies.reference_image_url;
         payloadReadyForClient.wikipedia_url = cachedSpecies.wikipedia_url;
-        payloadReadyForClient.wikipedia_overview = cachedSpecies.wikipedia_overview;
+        payloadReadyForClient.wikipedia_overview =
+          cachedSpecies.wikipedia_overview;
         if (cachedSpecies.group_tags?.length) {
           payloadReadyForClient.group_tags = cachedSpecies.group_tags;
         }
@@ -308,16 +378,21 @@ serve((req: Request) =>
         }
       }
 
-      if (staticData.taxonomy) payloadReadyForClient.taxonomy = staticData.taxonomy;
+      if (staticData.taxonomy) {
+        payloadReadyForClient.taxonomy = staticData.taxonomy;
+      }
       if (staticData.iucn_red_list_status) {
-        payloadReadyForClient.iucn_red_list_status = staticData.iucn_red_list_status;
+        payloadReadyForClient.iucn_red_list_status =
+          staticData.iucn_red_list_status;
       }
       payloadReadyForClient.insight_data = {
         ai_reasoning: parsedData.ai_reasoning || "Reasoning omitted.",
         hazard_type: staticData.hazard_type,
       };
       if (staticData.speciesHabitat) {
-        payloadReadyForClient.species_insights = { habitat_description: staticData.speciesHabitat };
+        payloadReadyForClient.species_insights = {
+          habitat_description: staticData.speciesHabitat,
+        };
       }
     }
 
@@ -325,23 +400,32 @@ serve((req: Request) =>
       try {
         await upsertGhostUserIfMissing(user.id, supabaseAdmin);
 
-        const needsGroupTags = isIdentifiedBio && !cachedSpecies?.group_tags?.length;
+        const needsGroupTags = isIdentifiedBio &&
+          !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
           ? fetchGroupTags(user, parsedData.scientific_name!)
           : Promise.resolve(null);
 
         if (!speciesId && isIdentifiedBio) {
-          const externalData = await fetchExternalEnrichment(parsedData.scientific_name!);
-          const freshSpecies = await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin);
+          const externalData = await fetchExternalEnrichment(
+            parsedData.scientific_name!,
+          );
+          const freshSpecies = await fetchCachedSpecies(
+            parsedData.scientific_name!,
+            supabaseAdmin,
+          );
 
           const newCommonNames = {
-            ...(freshSpecies?.common_names ?? cachedSpecies?.common_names ?? {}),
+            ...(freshSpecies?.common_names ?? cachedSpecies?.common_names ??
+              {}),
             ...(parsedData.common_name ? { en: parsedData.common_name } : {}),
           };
           const primaryEn = (newCommonNames.en ?? "").toLowerCase();
           const newAltNames: string[] | null =
             externalData.alternativeCommonNames.length > 0
-              ? externalData.alternativeCommonNames.filter((n) => n.toLowerCase() !== primaryEn)
+              ? externalData.alternativeCommonNames.filter((n) =>
+                n.toLowerCase() !== primaryEn
+              )
               : freshSpecies?.alternative_common_names ?? null;
 
           const upsertedId = await upsertSpeciesDictionary(
@@ -355,17 +439,20 @@ serve((req: Request) =>
               order: freshSpecies?.order || "Unknown",
               family: freshSpecies?.family || "Unknown",
               genus: freshSpecies?.genus || "Unknown",
-              wikipedia_overview:
-                freshSpecies?.wikipedia_overview ?? externalData.wikiExtract ?? null,
+              wikipedia_overview: freshSpecies?.wikipedia_overview ??
+                externalData.wikiExtract ?? null,
               hazard_type: freshSpecies?.hazard_type ?? "none",
               native_region: "Unknown",
-              iucn_red_list_status:
-                freshSpecies?.iucn_red_list_status ?? "not_evaluated",
-              habitat_description: freshSpecies?.habitat_description || undefined,
-              wikipedia_url: freshSpecies?.wikipedia_url || externalData.wikipediaUrl,
-              gbif_taxon_key: freshSpecies?.gbif_taxon_key ?? externalData.gbifKey,
-              reference_image_url:
-                freshSpecies?.reference_image_url || externalData.referenceImageUrl,
+              iucn_red_list_status: freshSpecies?.iucn_red_list_status ??
+                "not_evaluated",
+              habitat_description: freshSpecies?.habitat_description ||
+                undefined,
+              wikipedia_url: freshSpecies?.wikipedia_url ||
+                externalData.wikipediaUrl,
+              gbif_taxon_key: freshSpecies?.gbif_taxon_key ??
+                externalData.gbifKey,
+              reference_image_url: freshSpecies?.reference_image_url ||
+                externalData.referenceImageUrl,
             },
             supabaseAdmin,
           );
@@ -388,6 +475,7 @@ serve((req: Request) =>
             weather_condition: weatherCondition,
             weather_temperature_f: weatherTemperatureF,
             semantic_location: semanticLocation,
+            public_location_label: publicExploreLocationLabel,
             device_locale: deviceLocale,
             device_time_zone: deviceTimeZone,
             current_month: normalizedCurrentMonth ?? null,
@@ -402,14 +490,17 @@ serve((req: Request) =>
             llm_cached_tokens: llmCachedTokens,
             llm_total_tokens: llmTotalTokens,
             life_stage: parsedData.life_stage ?? "unknown",
-            reproductive_condition: parsedData.reproductive_condition ?? "not_applicable",
+            reproductive_condition: parsedData.reproductive_condition ??
+              "not_applicable",
             individual_count: parsedData.individual_count ?? null,
             ecological_interactions: [],
             inference_tier: userTier === "pro" ? "pro" : "flash",
             candidates: payloadReadyForClient.candidates ?? null,
             image_quality_score: null,
             is_live_capture: false,
-            user_observation_context: (observation_context != null && typeof observation_context === "object" && !Array.isArray(observation_context))
+            user_observation_context: (observation_context != null &&
+                typeof observation_context === "object" &&
+                !Array.isArray(observation_context))
               ? observation_context as Record<string, unknown>
               : null,
           },
@@ -418,7 +509,11 @@ serve((req: Request) =>
 
         const resolvedGroupTags = await groupTagsPromise;
         if (resolvedGroupTags?.group_tags?.length && isIdentifiedBio) {
-          await updateGroupTags(parsedData.scientific_name!, resolvedGroupTags.group_tags, supabaseAdmin);
+          await updateGroupTags(
+            parsedData.scientific_name!,
+            resolvedGroupTags.group_tags,
+            supabaseAdmin,
+          );
           if (!payloadReadyForClient.group_tags?.length) {
             payloadReadyForClient.group_tags = resolvedGroupTags.group_tags;
           }

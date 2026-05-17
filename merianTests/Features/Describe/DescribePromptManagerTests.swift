@@ -215,8 +215,8 @@ struct DescribePromptManagerTests {
         #expect(manager.activeSubjectId == "subj_bird")
         #expect(manager.isFunnelActive)
         #expect(manager.activeQuestionIndex == 0)
-        #expect(manager.activeQuestions.first?.prompt == guidedQuestions[0].prompt)
-        #expect(manager.activeQuestions.dropFirst().first?.prompt == subjectFunnels["subj_bird"]?.first?.prompt)
+        #expect(manager.activeQuestions.count == 1)
+        #expect(manager.currentPrompt == "What would you like to reanalyze?")
     }
 
     @Test("Reanalysis flow tolerates unknown subject")
@@ -226,8 +226,18 @@ struct DescribePromptManagerTests {
 
         #expect(manager.activeSubjectId == nil)
         #expect(!manager.isFunnelActive)
-        #expect(manager.activeQuestions == guidedQuestions)
+        #expect(manager.activeQuestions.count == 1)
         #expect(manager.currentPrompt == "What would you like to reanalyze?")
+    }
+
+    @Test("Reanalysis flow does not include Describe prompts")
+    func testReanalysisFlowDoesNotIncludeDescribePrompts() {
+        let manager = DescribePromptManager()
+        manager.configureReanalysisFlow(subjectId: "subj_plan")
+
+        #expect(manager.activeQuestions.count == 1)
+        #expect(manager.activeQuestions.first?.tags.isEmpty == true)
+        #expect(manager.activeQuestions.first?.prompt == "What would you like to reanalyze?")
     }
 
     @Test("Resetting reanalysis flow restores reanalysis heading")
@@ -242,6 +252,31 @@ struct DescribePromptManagerTests {
         #expect(manager.activeQuestionIndex == 0)
         #expect(manager.activeSubjectId == "subj_mush")
         #expect(manager.currentPrompt == "What would you like to reanalyze?")
+    }
+
+    @Test("Reanalysis input placeholder stays general")
+    func testReanalysisInputPlaceholderStaysGeneral() {
+        let manager = DescribePromptManager()
+        manager.configureReanalysisFlow(subjectId: "subj_bird")
+
+        #expect(manager.inputPlaceholder == DescribePromptCopy.reanalysisInputPlaceholder)
+    }
+
+    @Test("Unknown reanalysis subject uses same general placeholder")
+    func testUnknownReanalysisSubjectUsesSameGeneralPlaceholder() {
+        let manager = DescribePromptManager()
+        manager.configureReanalysisFlow(subjectId: nil)
+
+        #expect(manager.inputPlaceholder == DescribePromptCopy.reanalysisInputPlaceholder)
+    }
+
+    @Test("Reanalysis placeholder ignores switched subject")
+    func testReanalysisPlaceholderIgnoresSwitchedSubject() {
+        let manager = DescribePromptManager()
+        manager.configureReanalysisFlow(subjectId: "subj_bird")
+        manager.activateFunnel(for: "subj_insec")
+
+        #expect(manager.inputPlaceholder == DescribePromptCopy.reanalysisInputPlaceholder)
     }
 
     // MARK: - Describe Subject Resolver
@@ -262,6 +297,10 @@ struct DescribePromptManagerTests {
     @Test("DescribeSubjectResolver falls back to names and unknown stays nil")
     func testDescribeSubjectResolverNameFallbacks() {
         #expect(DescribeSubjectResolver.subjectId(for: species(commonName: "Monarch Butterfly")) == "subj_insec")
+        #expect(DescribeSubjectResolver.subjectId(forText: "House Finch") == "subj_bird")
+        #expect(DescribeSubjectResolver.subjectId(forText: "houseplant") == "subj_plan")
+        #expect(DescribeSubjectResolver.subjectId(forText: "pothos") == "subj_plan")
+        #expect(DescribeSubjectResolver.subjectId(forText: "Epipremnum aureum") == "subj_plan")
         #expect(DescribeSubjectResolver.subjectId(for: species(scientificName: "Quercus macrocarpa")) == "subj_plan")
         #expect(DescribeSubjectResolver.subjectId(
             taxonomy: taxonomy(order: "Lepidoptera", family: nil, genus: nil),
@@ -269,6 +308,18 @@ struct DescribePromptManagerTests {
             scientificName: nil
         ) == "subj_insec")
         #expect(DescribeSubjectResolver.subjectId(for: species(commonName: "Unknown subject", scientificName: "Taxonomy Unavailable")) == nil)
+    }
+
+    @Test("DescribeSubjectResolver uses original scan semantic tags")
+    func testDescribeSubjectResolverUsesRecordSemanticTags() {
+        let record = LocalScanRecord(
+            speciesId: "original-species-id",
+            scientificName: "Epipremnum aureum",
+            commonName: "Golden Pothos",
+            semanticTags: ["Houseplants"]
+        )
+
+        #expect(DescribeSubjectResolver.subjectId(for: record) == "subj_plan")
     }
 
     private func species(

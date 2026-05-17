@@ -127,6 +127,8 @@ serve((req: Request) =>
     const gpsElevation = payload.gpsElevation ?? payload.gps_elevation;
     const semanticLocation = payload.semanticLocation ??
       payload.semantic_location;
+    const publicExploreLocationLabel = payload.publicLocationLabel ??
+      payload.public_location_label;
     const weatherCondition = payload.weatherCondition ??
       payload.weather_condition;
     const weatherTemperatureF = payload.weatherTemperatureF ??
@@ -641,6 +643,7 @@ serve((req: Request) =>
             weather_condition: weatherCondition ?? undefined,
             weather_temperature_f: weatherTemperatureF ?? undefined,
             semantic_location: semanticLocation ?? undefined,
+            public_location_label: publicExploreLocationLabel ?? undefined,
             device_locale: deviceLocale ?? undefined,
             device_time_zone: deviceTimeZone ?? undefined,
             current_month: currentMonth ?? null,

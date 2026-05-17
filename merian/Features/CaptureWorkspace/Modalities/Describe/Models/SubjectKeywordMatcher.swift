@@ -27,14 +27,16 @@ enum DescribeSubjectResolver {
         return subjectId(
             taxonomy: taxonomy,
             commonName: record.commonName,
-            scientificName: record.scientificName
+            scientificName: record.scientificName,
+            additionalSearchFields: record.semanticTags
         )
     }
 
     static func subjectId(
         taxonomy: TaxonomyData?,
         commonName: String?,
-        scientificName: String?
+        scientificName: String?,
+        additionalSearchFields: [String] = []
     ) -> String? {
         if let kingdom = normalize(taxonomy?.kingdom) {
             if kingdom == "fungi" { return "subj_mush" }
@@ -66,7 +68,7 @@ enum DescribeSubjectResolver {
             taxonomy?.order,
             taxonomy?.family,
             taxonomy?.genus
-        ])
+        ] + additionalSearchFields)
     }
 
     static func subjectId(forText text: String) -> String? {
@@ -92,52 +94,62 @@ enum DescribeSubjectResolver {
         (
             "subj_bird",
             [
-                "bird", "sparrow", "hawk", "eagle", "robin", "pigeon", "duck",
-                "goose", "owl", "warbler", "heron", "passeriformes", "anatidae", "corvidae"
+                "bird", "birds", "avian", "sparrow", "finch", "cardinal", "hawk",
+                "eagle", "robin", "pigeon", "dove", "duck", "goose", "owl",
+                "warbler", "heron", "jay", "crow", "raven", "gull", "passeriformes",
+                "anatidae", "corvidae"
             ]
         ),
         (
             "subj_insec",
             [
-                "insect", "beetle", "butterfly", "moth", "bee", "wasp", "fly",
-                "dragonfly", "ant", "bug", "lepidoptera", "coleoptera", "diptera",
+                "insect", "insects", "beetle", "butterfly", "moth", "bee",
+                "wasp", "fly", "dragonfly", "damselfly", "ant", "bug", "cicada",
+                "cricket", "grasshopper", "lepidoptera", "coleoptera", "diptera",
                 "hymenoptera", "odonata", "danaus"
             ]
         ),
         (
             "subj_spid",
             [
-                "spider", "arachnid", "tarantula", "scorpion", "tick", "mite",
+                "spider", "spiders", "arachnid", "arachnids", "tarantula", "scorpion", "tick", "mite",
                 "araneae", "salticidae", "lycosidae"
             ]
         ),
         (
             "subj_rept",
             [
-                "reptile", "amphibian", "snake", "lizard", "turtle", "tortoise",
-                "frog", "toad", "salamander", "newt", "squamata", "anura",
+                "reptile", "reptiles", "amphibian", "amphibians", "snake",
+                "lizard", "turtle", "tortoise", "frog", "toad", "salamander", "newt", "squamata", "anura",
                 "caudata", "testudines"
             ]
         ),
         (
             "subj_plan",
             [
-                "plant", "tree", "flower", "shrub", "bush", "fern", "moss",
-                "grass", "weed", "leaf", "oak", "quercus", "rosa", "rosaceae",
-                "poaceae", "asteraceae", "pinus", "acer"
+                "plant", "plants", "tree", "flower", "wildflower", "shrub",
+                "bush", "houseplant", "houseplants", "potted", "fern", "moss",
+                "grass", "weed", "leaf", "leaves", "succulent", "succulents",
+                "cactus", "cacti", "oak", "quercus", "rosa", "rosaceae",
+                "poaceae", "asteraceae", "pinus", "acer", "monstera",
+                "philodendron", "pothos", "dracaena", "sansevieria", "ficus",
+                "spathiphyllum", "chlorophytum", "zamioculcas", "peperomia",
+                "aglaonema", "crassula", "aloe", "epipremnum", "schefflera",
+                "dieffenbachia", "calathea", "maranta", "pilea", "hoya",
+                "begonia", "ivy"
             ]
         ),
         (
             "subj_mush",
             [
-                "mushroom", "fungus", "fungi", "toadstool", "puffball", "lichen",
-                "amanita", "boletus", "agaricus", "polyporales"
+                "mushroom", "mushrooms", "fungus", "fungi", "fungal", "toadstool",
+                "puffball", "lichen", "amanita", "boletus", "agaricus", "polyporales"
             ]
         ),
         (
             "subj_mamm",
             [
-                "mammal", "rodent", "squirrel", "rabbit", "hare", "raccoon",
+                "mammal", "mammals", "rodent", "squirrel", "rabbit", "hare", "raccoon",
                 "skunk", "opossum", "mouse", "rat", "bat", "fox", "deer",
                 "rodentia", "sciuridae", "canidae", "cervidae"
             ]
@@ -145,7 +157,7 @@ enum DescribeSubjectResolver {
         (
             "subj_fish",
             [
-                "fish", "shark", "stingray", "manta", "eel", "trout", "salmon",
+                "fish", "fishes", "shark", "stingray", "manta", "eel", "trout", "salmon",
                 "ray", "perciformes", "salmonidae", "salmo", "oncorhynchus"
             ]
         )

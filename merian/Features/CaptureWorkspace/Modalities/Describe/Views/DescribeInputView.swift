@@ -4,9 +4,8 @@ import SwiftUI
 
 /// Full-screen text-first input field for Describe identification.
 ///
-/// The view is intentionally decoupled from `InferenceEngine` and `CaptureWorkspaceViewModel` —
-/// it only produces an `ObservationContext` value and delivers it via `onSubmit`.
-/// All network orchestration and multi-modal routing lives in `CaptureWorkspaceViewModel.submitDescribe`.
+/// The view only produces an `ObservationContext` value; all network orchestration
+/// and multi-modal routing lives in `CaptureWorkspaceViewModel.submitDescribe`.
 ///
 /// Layout contract with `CaptureWorkspaceView`:
 /// - Fills the full page frame (same size as the camera and audio pages).
@@ -15,8 +14,7 @@ import SwiftUI
 ///   `safeAreaInsets.top + 64` band.
 struct DescribeInputView: View {
     var captureMode: CaptureMode
-    var promptFlow: DescribePromptFlow
-    var mediaContext: DescribePromptMediaContext
+    let promptFlow: DescribePromptFlow
 
     @Binding var context: ObservationContext
     @FocusState private var isTextFieldFocused: Bool
@@ -36,14 +34,12 @@ struct DescribeInputView: View {
     init(
         captureMode: CaptureMode,
         promptFlow: DescribePromptFlow,
-        mediaContext: DescribePromptMediaContext,
         context: Binding<ObservationContext>,
         coordinator: CaptureActionCoordinator,
         showToast: ((String) -> Void)? = nil
     ) {
         self.captureMode = captureMode
         self.promptFlow = promptFlow
-        self.mediaContext = mediaContext
         self._context = context
         self.coordinator = coordinator
         self.showToast = showToast
@@ -61,21 +57,13 @@ struct DescribeInputView: View {
     }
 
     private var textFieldPlaceholder: String {
-        if promptFlow.isReanalysis {
-            switch mediaContext {
-            case .photo:
-                return "Guide the AI for this staged photo. Example: \"Recheck this as a moth; focus on wing shape, markings, size, and habitat.\""
-            case .audio:
-                return "Guide the AI for this staged audio. Example: \"Recheck the call as a frog; focus on rhythm, pitch, repetition, and habitat.\""
-            case .description:
-                return "Guide the AI for this staged description. Example: \"Recheck this as a mushroom; focus on cap shape, underside, substrate, and habitat.\""
-            case .mixed:
-                return "Guide the AI for the staged media. Example: \"Recheck this as a moth; weigh the photo against habitat notes and any audio.\""
-            case .none:
-                return "Guide the AI for the staged media. Example: \"Recheck this as a moth; focus on wing shape, markings, size, and habitat.\""
-            }
-        }
-        return "e.g., A bright green beetle with gold stripes resting on an oak leaf..."
+        isReanalysisMode
+            ? DescribePromptCopy.reanalysisInputPlaceholder
+            : DescribePromptCopy.standardInputPlaceholder
+    }
+
+    private var isReanalysisMode: Bool {
+        promptFlow.isReanalysis || promptManager.isReanalysisFlow
     }
 
     // MARK: - Body
@@ -94,44 +82,60 @@ struct DescribeInputView: View {
 
                     // MARK: Question Header
                     VStack(alignment: .leading, spacing: 0) {
+                        if isReanalysisMode {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(DescribePromptCopy.reanalysisHeading)
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.primary)
 
-                        // Navigation row: dots flush left (decorative only), buttons flush right.
-                        HStack {
-                            HStack(spacing: 5) {
-                                ForEach(promptManager.activeQuestions.indices, id: \.self) { idx in
-                                    Circle()
-                                        .fill(idx == promptManager.activeQuestionIndex
-                                              ? Color.primary
-                                              : Color.primary.opacity(0.2))
-                                        .frame(width: 6, height: 6)
-                                }
-                            }.animation(.easeInOut(duration: 0.3), value: promptManager.activeQuestionIndex)
+                                Text(DescribePromptCopy.reanalysisSubheading)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 35, alignment: .topLeading)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 20)
+                            .padding(.bottom, 16)
+                        } else {
+                            // Navigation row: dots flush left (decorative only), buttons flush right.
+                            HStack {
+                                HStack(spacing: 5) {
+                                    ForEach(promptManager.activeQuestions.indices, id: \.self) { idx in
+                                        Circle()
+                                            .fill(idx == promptManager.activeQuestionIndex
+                                                  ? Color.primary
+                                                  : Color.primary.opacity(0.2))
+                                            .frame(width: 6, height: 6)
+                                    }
+                                }.animation(.easeInOut(duration: 0.3), value: promptManager.activeQuestionIndex)
 
-                            Spacer()
+                                Spacer()
 
-                            HStack(spacing: 4) {
-                                Button(action: previousQuestion) {
-                                    Image(systemName: "chevron.left")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(.primary)
-                                        .frame(width: 44, height: 44)
-                                }
-                                Button(action: advanceQuestion) {
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(.primary)
-                                        .frame(width: 44, height: 44)
+                                HStack(spacing: 4) {
+                                    Button(action: previousQuestion) {
+                                        Image(systemName: "chevron.left")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.primary)
+                                            .frame(width: 44, height: 44)
+                                    }
+                                    Button(action: advanceQuestion) {
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.primary)
+                                            .frame(width: 44, height: 44)
+                                    }
                                 }
                             }
-                        }
-                        .padding(.horizontal, 20)
+                            .padding(.horizontal, 20)
 
-                    // MARK: Question Header
-                    DescribePromptHeader(
-                        promptManager: promptManager,
-                        appendTag: appendTag,
-                        advanceQuestion: advanceQuestion
-                    )
+                            DescribePromptHeader(
+                                promptManager: promptManager,
+                                appendTag: appendTag,
+                                advanceQuestion: advanceQuestion
+                            )
+                        }
                     } // Closes VStack(alignment: .leading)
 
                     // MARK: Text Area
@@ -153,6 +157,8 @@ struct DescribeInputView: View {
                             text: $context.freeText,
                             axis: .vertical
                         )
+                        .id(textFieldPlaceholder)
+                        .accessibilityLabel(textFieldPlaceholder)
                         .lineLimit(5...10)
                         .font(.body)
                         .foregroundStyle(.primary)
@@ -176,8 +182,12 @@ struct DescribeInputView: View {
             .scrollDismissesKeyboard(.immediately)
             .onChange(of: promptFlow, initial: true) { _, newFlow in
                 promptManager.configure(for: newFlow)
+                if newFlow.isReanalysis {
+                    isDescribeQuestionsSheetPresented = false
+                }
             }
             .onChange(of: context.freeText) { _, newText in
+                guard !isReanalysisMode else { return }
                 if newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     promptManager.resetFunnel()
                     return
@@ -219,7 +229,7 @@ struct DescribeInputView: View {
                 }
             }
             .onChange(of: coordinator.tocRequestID) { _, id in
-                if id != nil {
+                if id != nil && !isReanalysisMode {
                     isDescribeQuestionsSheetPresented = true
                 }
             }

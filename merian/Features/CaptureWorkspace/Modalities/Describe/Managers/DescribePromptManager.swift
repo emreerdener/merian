@@ -9,6 +9,15 @@ enum DescribePromptFlow: Equatable {
         if case .reanalysis = self { return true }
         return false
     }
+
+    var inputPlaceholder: String {
+        switch self {
+        case .standard:
+            return DescribePromptCopy.standardInputPlaceholder
+        case .reanalysis:
+            return DescribePromptCopy.reanalysisInputPlaceholder
+        }
+    }
 }
 
 enum DescribePromptMediaContext: Equatable {
@@ -17,6 +26,13 @@ enum DescribePromptMediaContext: Equatable {
     case audio
     case description
     case mixed
+}
+
+enum DescribePromptCopy {
+    static let standardInputPlaceholder = "e.g., A bright green beetle with gold stripes resting on an oak leaf..."
+    static let reanalysisHeading = "What would you like to reanalyze?"
+    static let reanalysisSubheading = "Tell the AI what to reconsider: the likely species, visible traits, behavior, habitat, or anything the first result missed."
+    static let reanalysisInputPlaceholder = "e.g., Recheck this as a houseplant. Focus on leaf shape, growth habit, variegation, and the potting environment."
 }
 
 /// State container for the Describe identification interview.
@@ -32,6 +48,10 @@ enum DescribePromptMediaContext: Equatable {
     var activeQuestions: [GuidedQuestion] = guidedQuestions
 
     private var promptFlow: DescribePromptFlow = .standard
+    private static let reanalysisQuestion = GuidedQuestion(
+        prompt: DescribePromptCopy.reanalysisHeading,
+        tags: []
+    )
 
     var isFunnelActive: Bool { activeSubjectId != nil }
     var isReanalysisFlow: Bool { promptFlow.isReanalysis }
@@ -40,10 +60,14 @@ enum DescribePromptMediaContext: Equatable {
         displayPrompt(at: activeQuestionIndex)
     }
 
+    var inputPlaceholder: String {
+        promptFlow.inputPlaceholder
+    }
+
     func displayPrompt(at index: Int) -> String {
         guard activeQuestions.indices.contains(index) else { return "" }
         if promptFlow.isReanalysis && index == 0 {
-            return "What would you like to reanalyze?"
+            return DescribePromptCopy.reanalysisHeading
         }
         return activeQuestions[index].prompt
     }
@@ -60,10 +84,16 @@ enum DescribePromptMediaContext: Equatable {
     func activateFunnel(for subjectId: String) {
         guard let funnel = subjectFunnels[subjectId] else { return }
         activeSubjectId = subjectId
-        let generalTelemetry = [guidedQuestions[1], guidedQuestions[2], guidedQuestions.last!]
-        activeQuestions = [guidedQuestions[0]] + funnel + generalTelemetry
+        switch promptFlow {
+        case .standard:
+            let generalTelemetry = [guidedQuestions[1], guidedQuestions[2], guidedQuestions.last!]
+            activeQuestions = [guidedQuestions[0]] + funnel + generalTelemetry
+            activeQuestionIndex = 1
+        case .reanalysis:
+            activeQuestions = [Self.reanalysisQuestion]
+            activeQuestionIndex = 0
+        }
         interactedQuestionIndices = []
-        activeQuestionIndex = 1
     }
 
     func configureInsightFlow(for subjectId: String?) {
@@ -80,7 +110,12 @@ enum DescribePromptMediaContext: Equatable {
 
     func clearSubjectSelection() {
         activeSubjectId = nil
-        activeQuestions = guidedQuestions
+        switch promptFlow {
+        case .standard:
+            activeQuestions = guidedQuestions
+        case .reanalysis:
+            activeQuestions = [Self.reanalysisQuestion]
+        }
         interactedQuestionIndices = []
         activeQuestionIndex = 0
     }
@@ -91,12 +126,12 @@ enum DescribePromptMediaContext: Equatable {
             activeSubjectId = nil
             activeQuestions = guidedQuestions
         case .reanalysis(let subjectId):
-            if let subjectId, let funnel = subjectFunnels[subjectId] {
+            if let subjectId, subjectFunnels[subjectId] != nil {
                 activeSubjectId = subjectId
-                activeQuestions = [guidedQuestions[0]] + funnel + insightTelemetryQuestions
+                activeQuestions = [Self.reanalysisQuestion]
             } else {
                 activeSubjectId = nil
-                activeQuestions = guidedQuestions
+                activeQuestions = [Self.reanalysisQuestion]
             }
         }
         interactedQuestionIndices = []

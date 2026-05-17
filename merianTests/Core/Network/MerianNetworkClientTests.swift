@@ -106,6 +106,7 @@ struct MerianNetworkClientTests {
             #expect(payload["imageBase64s"] as? [String] == ["fake_base64_string"])
             #expect(payload["mimeType"] as? String == "image/webp")
             #expect(payload["semanticLocation"] as? String == "Central Park")
+            #expect(payload["publicLocationLabel"] == nil)
             #expect(payload["zoomFactor"] as? Double == 1.5)
             #expect(payload["gps_latitude"] == nil)
             #expect(payload["semantic_location"] == nil)
@@ -1026,6 +1027,7 @@ struct MerianNetworkClientTests {
         #expect(payload["gpsLongitude"] as? Double == -122.4194)
         #expect(payload["gpsElevation"] as? Double == 42.5)
         #expect(payload["semanticLocation"] as? String == "Zilker Park")
+        #expect(payload["publicLocationLabel"] == nil)
         #expect(payload["weatherCondition"] as? String == "Partly Cloudy")
         #expect(payload["deviceLocale"] as? String == "en")
         #expect(payload["deviceTimeZone"] as? String == "America/Chicago")
@@ -1044,6 +1046,44 @@ struct MerianNetworkClientTests {
         #expect(contexts[0]["freeText"] as? String == "Heard rustling before spotting it")
         #expect(contexts[0]["addedAt"] as? String == "2026-04-24T10:29:30.000Z")
         #expect(contexts[0]["free_text"] == nil)
+    }
+
+    @Test func multimodalRequestBodyIncludesPublicLocationLabelWhenDerivable() throws {
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: nil,
+            gpsLatitude: nil,
+            gpsLongitude: nil,
+            gpsElevation: nil,
+            locationName: "123 Main St, Austin, TX, United States",
+            weatherCondition: nil,
+            weatherTemperatureF: nil,
+            timeOfDay: nil,
+            timestamp: nil,
+            zoomFactor: nil,
+            estimatedSizeCm: nil
+        )
+
+        let bodyData = try MerianNetworkClient.buildMultiModalRequestBody(
+            r2ObjectKeys: ["staging/test-user/image.webp"],
+            base64ImageDatas: [],
+            audioBase64s: [],
+            observationContextsJSON: [],
+            userId: "test-user",
+            mimeType: "image/webp",
+            telemetry: telemetry,
+            deviceLocale: "en",
+            deviceTimeZone: "America/Chicago",
+            deviceRegion: "US",
+            currentMonth: 4,
+            timeOfDay: "10:30 AM",
+            depthScaleText: nil,
+            clientScanId: "scan-123"
+        )
+
+        let payload = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+        #expect(payload["semanticLocation"] as? String == "123 Main St, Austin, TX, United States")
+        #expect(payload["publicLocationLabel"] as? String == "Austin, TX")
+        #expect(payload["public_location_label"] == nil)
     }
 
     @Test func multimodalRequestBodyCarriesStagedAudioR2KeysWithoutInlineAudio() throws {
