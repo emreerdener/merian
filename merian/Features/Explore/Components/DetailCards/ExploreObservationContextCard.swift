@@ -6,9 +6,7 @@ struct ExploreObservationContextCard: View {
     private var rows: [ExploreObservationContextRow] {
         var rows: [ExploreObservationContextRow] = []
 
-        if let location = post.publicLocationLabel?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !location.isEmpty {
+        if let location = post.publicDisplayLocationLabel {
             rows.append(
                 ExploreObservationContextRow(
                     title: "LOCATION",

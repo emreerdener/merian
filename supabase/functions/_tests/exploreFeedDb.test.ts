@@ -13,9 +13,92 @@ type ExploreFeedRow = {
   shared_at: string;
 };
 
+type ExploreLocationRow = {
+  public_location_label: string | null;
+};
+
 type TrendingExploreFeedRow = ExploreFeedRow & {
   ranking_value: number;
 };
+
+Deno.test("Explore location sanitizer DB - strips exact addresses and coordinate strings", async () => {
+  await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {
+    const rows = await client.queryObject<{ label: string | null }>(
+      `
+        SELECT public.sanitize_explore_location(raw_location) AS label
+        FROM (
+          VALUES
+            (1, $1::text),
+            (2, $2::text),
+            (3, $3::text),
+            (4, $4::text)
+        ) AS cases(sort_order, raw_location)
+        ORDER BY sort_order
+      `,
+      [
+        "123 Main St, Austin, TX, United States",
+        "Central Park, NY",
+        "30.2672, -97.7431",
+        "California",
+      ],
+    );
+
+    assertEquals(
+      rows.rows.map((row) => row.label),
+      ["Austin, TX", "NY", null, "California"],
+    );
+  });
+});
+
+Deno.test("Explore feed DB - location labels are city/state only for feed and detail", async () => {
+  await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {
+    const ownerId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    const scanId = crypto.randomUUID();
+    const postId = crypto.randomUUID();
+
+    await insertUser(client, ownerId, "Location Owner");
+    await insertUser(client, viewerId, "Location Viewer");
+    await insertSpecies(client, speciesId, "Rosa locationis");
+
+    await insertScan(client, {
+      id: scanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "open",
+      semanticLocation: "123 Main St, Austin, TX, United States",
+    });
+
+    await insertExplorePost(client, {
+      id: postId,
+      userId: ownerId,
+      scanId,
+      sharedAt: "2026-04-28T12:00:00.000Z",
+    });
+
+    const feedRows = await client.queryObject<ExploreLocationRow>(
+      `
+        SELECT public_location_label
+        FROM public.get_explore_feed($1, 20, NULL, NULL)
+      `,
+      [viewerId],
+    );
+
+    const detailRows = await client.queryObject<ExploreLocationRow>(
+      `
+        SELECT public_location_label
+        FROM public.get_explore_post($1, $2)
+      `,
+      [viewerId, postId],
+    );
+
+    assertEquals(feedRows.rows[0]?.public_location_label, "Austin, TX");
+    assertEquals(detailRows.rows[0]?.public_location_label, "Austin, TX");
+  });
+});
 
 Deno.test("Explore feed DB - cursor pagination preserves stable ordering across ties and avoids duplicates", async () => {
   await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {

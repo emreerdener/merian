@@ -205,10 +205,8 @@ import WeatherKit
                         if let placemark = placemarks?.first {
                             if let city = placemark.locality, let adminArea = placemark.administrativeArea {
                                 continuation.resume(returning: "\(city), \(adminArea)")
-                            } else if let city = placemark.locality {
-                                continuation.resume(returning: city)
-                            } else if let name = placemark.name {
-                                continuation.resume(returning: name)
+                            } else if let adminArea = placemark.administrativeArea {
+                                continuation.resume(returning: adminArea)
                             } else {
                                 continuation.resume(returning: nil)
                             }

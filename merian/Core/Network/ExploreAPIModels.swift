@@ -48,9 +48,141 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
 
     var id: String { postId }
 
+    var publicDisplayLocationLabel: String? {
+        ExploreLocationPrivacy.displayLabel(from: publicLocationLabel)
+    }
+
     var sharedAtDate: Date? {
         DateUtilities.iso8601FractionalFormatter.date(from: sharedAt)
             ?? DateUtilities.iso8601Formatter.date(from: sharedAt)
+    }
+}
+
+enum ExploreLocationPrivacy {
+    private static let stateCodes: Set<String> = [
+        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL",
+        "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME",
+        "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH",
+        "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
+        "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI",
+        "WY"
+    ]
+
+    private static let stateNames: Set<String> = [
+        "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+        "connecticut", "delaware", "district of columbia", "florida", "georgia",
+        "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas", "kentucky",
+        "louisiana", "maine", "maryland", "massachusetts", "michigan",
+        "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada",
+        "new hampshire", "new jersey", "new mexico", "new york",
+        "north carolina", "north dakota", "ohio", "oklahoma", "oregon",
+        "pennsylvania", "rhode island", "south carolina", "south dakota",
+        "tennessee", "texas", "utah", "vermont", "virginia", "washington",
+        "west virginia", "wisconsin", "wyoming"
+    ]
+
+    private static let countryNames: Set<String> = [
+        "united states", "united states of america", "usa", "us", "canada"
+    ]
+
+    static func displayLabel(from rawLocation: String?) -> String? {
+        guard let rawLocation else { return nil }
+        let cleaned = rawLocation
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+
+        guard !cleaned.isEmpty, !containsCoordinatePair(cleaned) else { return nil }
+
+        var parts = cleaned
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !parts.isEmpty else { return nil }
+
+        if parts.count >= 2, let last = parts.last, isCountry(last) {
+            parts.removeLast()
+        }
+
+        guard let lastPart = parts.last, !isPrivateLocationPart(lastPart) else { return nil }
+
+        if parts.count >= 2 {
+            let city = parts[parts.count - 2]
+            let state = lastPart
+
+            if isPrivateLocationPart(city) {
+                return isStateLike(state) ? state : nil
+            }
+
+            return "\(city), \(state)"
+        }
+
+        return isStateLike(lastPart) ? lastPart : nil
+    }
+
+    private static func containsCoordinatePair(_ value: String) -> Bool {
+        let commaSeparated = value
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        if commaSeparated.count == 2,
+           let latitude = Double(commaSeparated[0]),
+           let longitude = Double(commaSeparated[1]),
+           abs(latitude) <= 90,
+           abs(longitude) <= 180 {
+            return true
+        }
+
+        let pattern = #"[-+]?\d{1,3}\.\d{3,}"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
+        let range = NSRange(value.startIndex..<value.endIndex, in: value)
+        let matches = regex.matches(in: value, range: range)
+        let numbers = matches.compactMap { match -> Double? in
+            guard let numberRange = Range(match.range, in: value) else { return nil }
+            return Double(value[numberRange])
+        }
+
+        guard numbers.count >= 2 else { return false }
+
+        for index in numbers.indices.dropLast() {
+            let latitude = numbers[index]
+            let longitude = numbers[index + 1]
+            if abs(latitude) <= 90, abs(longitude) <= 180 {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private static func isPrivateLocationPart(_ part: String) -> Bool {
+        let lowercased = part
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        guard !lowercased.isEmpty else { return true }
+        if isCountry(lowercased) || containsCoordinatePair(lowercased) { return true }
+
+        let privatePatterns = [
+            #"^\d+"#,
+            #"(street|avenue|road|boulevard|drive|lane|court|terrace|highway|route|suite|unit|apartment)"#,
+            #"\b(st|ave|rd|blvd|dr|ln|ct|pl)\.?$"#,
+            #"(gps|latitude|longitude|coordinate)"#,
+            #"\b(park|trail|preserve|garden|campus|building|museum|hotel|restaurant|cafe|creek|beach|woods|forest|campground)\.?$"#
+        ]
+
+        return privatePatterns.contains { pattern in
+            lowercased.range(of: pattern, options: .regularExpression) != nil
+        }
+    }
+
+    private static func isCountry(_ value: String) -> Bool {
+        countryNames.contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+
+    private static func isStateLike(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return stateCodes.contains(trimmed.uppercased()) || stateNames.contains(trimmed.lowercased())
     }
 }
 
@@ -259,6 +391,10 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
 
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    var publicDisplayLocationLabel: String? {
+        ExploreLocationPrivacy.displayLabel(from: publicLocationLabel)
     }
 
     var asExplorePost: ExplorePost {

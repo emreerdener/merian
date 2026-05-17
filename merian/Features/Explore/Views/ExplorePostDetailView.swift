@@ -583,13 +583,7 @@ struct ExplorePostDetailView: View {
     }
 
     private func locationText(for post: ExplorePost) -> String? {
-        guard let publicLocationLabel = post.publicLocationLabel?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              !publicLocationLabel.isEmpty else {
-            return nil
-        }
-
-        return publicLocationLabel
+        post.publicDisplayLocationLabel
     }
 
     private func compactCount(_ count: Int) -> String {

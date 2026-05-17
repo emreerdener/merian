@@ -405,6 +405,27 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 }
 
 @MainActor
+final class ExploreLocationPrivacyTests: XCTestCase {
+    func testDisplayLabelKeepsCityAndStateFromExactAddress() {
+        XCTAssertEqual(
+            ExploreLocationPrivacy.displayLabel(from: "123 Main St, Austin, TX, United States"),
+            "Austin, TX"
+        )
+    }
+
+    func testDisplayLabelFallsBackToStateForLandmarkAndSingleState() {
+        XCTAssertEqual(ExploreLocationPrivacy.displayLabel(from: "Central Park, NY"), "NY")
+        XCTAssertEqual(ExploreLocationPrivacy.displayLabel(from: "California"), "California")
+    }
+
+    func testDisplayLabelSuppressesCoordinatesAndUnscopedPlaceNames() {
+        XCTAssertNil(ExploreLocationPrivacy.displayLabel(from: "30.2672, -97.7431"))
+        XCTAssertNil(ExploreLocationPrivacy.displayLabel(from: "Zilker Park"))
+        XCTAssertNil(ExploreLocationPrivacy.displayLabel(from: "Austin"))
+    }
+}
+
+@MainActor
 final class ExploreMapViewModelSelectionTests: XCTestCase {
     private func makeMapPost(id: String, latitude: Double) -> ExploreMapPost {
         ExploreMapPost(

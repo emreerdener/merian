@@ -897,8 +897,7 @@ private struct ExploreMapPreviewCard: View {
     }
 
     private var subtitle: String? {
-        let trimmed = post.publicLocationLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed?.isEmpty == false ? trimmed : nil
+        post.publicDisplayLocationLabel
     }
 
     private func previewPill(

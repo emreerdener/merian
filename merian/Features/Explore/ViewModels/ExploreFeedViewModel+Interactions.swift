@@ -98,8 +98,7 @@ extension ExploreFeedViewModel {
         if !post.speciesScientificName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             shareText += " (\(post.speciesScientificName))"
         }
-        if let publicLocationLabel = post.publicLocationLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !publicLocationLabel.isEmpty {
+        if let publicLocationLabel = post.publicDisplayLocationLabel {
             shareText += " in \(publicLocationLabel)"
         }
 
