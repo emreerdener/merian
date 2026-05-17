@@ -137,7 +137,7 @@ struct CaptureWorkspaceView: View {
                         // drag events that pan the scroll don't write captureMode mid-drag.
                         .onChange(of: scrollPageMode) { _, newPage in
                             if newPage != .describe {
-                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                dismissCaptureKeyboardAndRestoreChrome()
                             }
                             guard let newPage, newPage != captureMode, !isToggleDragging else { return }
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
@@ -148,7 +148,7 @@ struct CaptureWorkspaceView: View {
                         // programmatically scroll the pager to match.
                         .onChange(of: captureMode) { _, newMode in
                             if newMode != .describe {
-                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                dismissCaptureKeyboardAndRestoreChrome()
                             }
                             guard newMode != scrollPageMode else { return }
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
@@ -216,12 +216,16 @@ struct CaptureWorkspaceView: View {
                             selectedPhotoItems: $viewModel.selectedPhotoItems,
                             onThumbnailTap: { index in viewModel.presentCrop(for: index) },
                             onCancel: {
+                                let isCancelingRefinement = viewModel.baseRefinementRecord != nil
                                 if let record = viewModel.baseRefinementRecord {
                                     viewModel.diContainer.inferenceEngine.load(from: record)
                                     viewModel.activeSheet = .insight
                                 }
                                 viewModel.stagedCapture.clearAll()
                                 viewModel.cancelRefinementStaging()
+                                if isCancelingRefinement {
+                                    observationContext = ObservationContext()
+                                }
                             },
                             onSubmit: { 
                                 viewModel.submitStagedCapture(modelContext: modelContext)
@@ -237,6 +241,7 @@ struct CaptureWorkspaceView: View {
                 .allowsHitTesting(!shouldHideBottomChrome)
 
         } // ZStack
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .merianSystemFeedback(
             toastMessage: Binding(
                 get: { viewModel.offlineToastMessage },
@@ -309,7 +314,10 @@ struct CaptureWorkspaceView: View {
             AppDIContainer.shared.environmentContextManager.stopLiveLocationTracking()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            guard captureMode == .describe else { return }
+            guard captureMode == .describe else {
+                restoreBottomChrome(animated: false)
+                return
+            }
             withAnimation(.easeOut(duration: 0.25)) { isKeyboardVisible = true }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
@@ -348,9 +356,7 @@ struct CaptureWorkspaceView: View {
         }
         .onChange(of: captureMode) { _, newMode in
             if newMode != .describe {
-                withAnimation(.easeOut(duration: 0.18)) {
-                    isKeyboardVisible = false
-                }
+                dismissCaptureKeyboardAndRestoreChrome()
             }
             viewModel.handleCaptureModeChange(
                 newMode,
@@ -424,6 +430,26 @@ struct CaptureWorkspaceView: View {
                        !viewModel.isStagingRefinement
         ) {
             viewModel.executeCapture()
+        }
+    }
+
+    private func dismissCaptureKeyboardAndRestoreChrome() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        restoreBottomChrome(animated: true)
+    }
+
+    private func restoreBottomChrome(animated: Bool) {
+        guard isKeyboardVisible else { return }
+        let update = {
+            isKeyboardVisible = false
+        }
+
+        if animated {
+            withAnimation(.easeOut(duration: 0.18), update)
+        } else {
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction, update)
         }
     }
 

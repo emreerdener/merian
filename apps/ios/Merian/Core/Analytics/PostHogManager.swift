@@ -41,13 +41,15 @@ final class PostHogManager {
             host: "https://us.i.posthog.com"
         )
 
-        // Track lifecycle events but not screen views or element interactions.
-        // captureScreenViews is disabled: PostHog inserts 'UIKitToolbar' into SwiftUI
-        // UIHostingController hierarchies, causing iOS 18 layout constraint warnings.
+        // Track lifecycle events but keep swizzling-based UI integrations off.
+        // PostHog's screen, replay, survey, and autocapture hooks subscribe to layout
+        // changes and can insert UIKit helper views into SwiftUI hosting hierarchies.
         configuration.captureApplicationLifecycleEvents = true
         configuration.captureScreenViews = false
         configuration.captureElementInteractions = false
         configuration.sessionReplay = false
+        configuration.surveys = false
+        configuration.enableSwizzling = false
 
         PostHogSDK.shared.setup(configuration)
         

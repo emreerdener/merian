@@ -138,7 +138,8 @@ struct ExploreAuthorProfileSheet: View {
     private var navigationTitle: String {
         switch mode {
         case .profile:
-            return route.authorFirstName
+            guard let profile else { return "Profile" }
+            return authorTierTitle(for: profile)
         case .library:
             return "Published scans"
         }
@@ -493,6 +494,12 @@ struct ExploreAuthorProfileSheet: View {
 
     private func isCurrentUserProfile(_ profile: ExploreAuthorProfile) -> Bool {
         SupabaseManager.shared.currentUser?.id.uuidString.lowercased() == profile.authorUserId.lowercased()
+    }
+
+    private func authorTierTitle(for profile: ExploreAuthorProfile) -> String {
+        let isPro = profile.authorIsPro == true
+            || (isCurrentUserProfile(profile) && RevenueCatManager.shared.isProActive)
+        return isPro ? "Pro" : "Free"
     }
 
     @MainActor

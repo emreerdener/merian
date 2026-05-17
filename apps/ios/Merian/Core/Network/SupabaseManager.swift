@@ -351,10 +351,14 @@ import Supabase
                 accessToken: accessToken,
                 nonce: nil
             )
+            let didPersistGoogleMetadata = await updateGoogleUserMetadataIfAvailable(from: result.user)
             let session = try await client.auth.session
             currentUser = session.user
             isAuthenticated = true
             _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
+            if didPersistGoogleMetadata {
+                await triggerGhostProfileMerge(from: session.user.id.uuidString)
+            }
             publishPublicAuthorIdentityChanged(
                 previousUserId: previousUserId,
                 currentUserId: session.user.id.uuidString
@@ -445,6 +449,45 @@ import Supabase
             return true
         } catch {
             MerianLog.auth.debug("Ghost profile merge failed: \(error.localizedDescription, privacy: .private)")
+            return false
+        }
+    }
+
+    @discardableResult
+    private func updateGoogleUserMetadataIfAvailable(from googleUser: GIDGoogleUser) async -> Bool {
+        var metadata: [String: AnyJSON] = [:]
+
+        if let displayName = googleUser.profile?.name.trimmingCharacters(in: .whitespacesAndNewlines),
+           !displayName.isEmpty {
+            metadata["full_name"] = .string(displayName)
+            metadata["name"] = .string(displayName)
+        }
+
+        if let givenName = googleUser.profile?.givenName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !givenName.isEmpty {
+            metadata["given_name"] = .string(givenName)
+        }
+
+        if let familyName = googleUser.profile?.familyName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !familyName.isEmpty {
+            metadata["family_name"] = .string(familyName)
+        }
+
+        if let imageUrl = googleUser.profile?.imageURL(withDimension: 256)?.absoluteString,
+           !imageUrl.isEmpty {
+            metadata["avatar_url"] = .string(imageUrl)
+            metadata["picture"] = .string(imageUrl)
+        }
+
+        guard !metadata.isEmpty else { return false }
+
+        do {
+            let updatedUser = try await client.auth.update(user: UserAttributes(data: metadata))
+            currentUser = updatedUser
+            MerianLog.auth.debug("Google profile metadata persisted for public author identity.")
+            return true
+        } catch {
+            MerianLog.auth.debug("Google profile metadata update failed: \(error.localizedDescription, privacy: .private)")
             return false
         }
     }

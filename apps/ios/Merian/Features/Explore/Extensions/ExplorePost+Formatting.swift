@@ -46,6 +46,31 @@ extension ExplorePost {
         return values.joined(separator: " • ")
     }
 
+    var publicAuthorDisplayName: String {
+        Self.publicAuthorDisplayName(from: authorName)
+    }
+
+    static func publicAuthorDisplayName(from rawName: String) -> String {
+        let normalizedName = rawName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        guard !normalizedName.isEmpty else { return rawName }
+
+        var parts = normalizedName.split(separator: " ").map(String.init)
+        guard let lastPart = parts.last,
+              lastPart.count == 2,
+              lastPart.last == ".",
+              lastPart.first?.isLetter == true else {
+            return normalizedName
+        }
+
+        parts.removeLast()
+        return parts.isEmpty ? normalizedName : parts.joined(separator: " ")
+    }
+
     var publicWeatherLabel: String? {
         let normalizedCondition = weatherCondition?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -66,5 +91,11 @@ extension ExplorePost {
     var sharedDateLabel: String? {
         guard let sharedAtDate else { return nil }
         return sharedAtDate.formatted(date: .abbreviated, time: .omitted)
+    }
+}
+
+extension ExploreComment {
+    var displayAuthorName: String {
+        ExplorePost.publicAuthorDisplayName(from: authorName)
     }
 }

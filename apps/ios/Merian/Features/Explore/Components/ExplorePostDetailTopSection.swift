@@ -12,10 +12,18 @@ struct ExplorePostDetailAuthorHeader: View {
             authorAvatarView
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(post.authorName)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.primary)
+                HStack(alignment: .center, spacing: 6) {
+                    Text(post.publicAuthorDisplayName)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    if shouldShowAuthorProBadge {
+                        ExploreProBadge()
+                    }
+                }
+                .accessibilityElement(children: .combine)
 
                 if let locationText {
                     Text(locationText)
@@ -62,6 +70,11 @@ struct ExplorePostDetailAuthorHeader: View {
         Image(systemName: "person.crop.circle")
             .font(.system(size: 40, weight: .regular))
             .foregroundStyle(.primary)
+    }
+
+    private var shouldShowAuthorProBadge: Bool {
+        post.authorIsPro == true
+            || (post.isOwnedByViewer && RevenueCatManager.shared.isProActive)
     }
 }
 

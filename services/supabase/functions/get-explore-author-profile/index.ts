@@ -6,6 +6,7 @@ import {
   normalizeLimit,
   refreshExploreAuthorStateBestEffort,
   requireUuid,
+  withExploreAuthorProfileProBadge,
 } from "../_shared/explore.ts";
 import { fetchExploreAuthorProfile } from "./db.ts";
 
@@ -29,16 +30,18 @@ serve((req: Request) =>
       "get-explore-author-profile",
     );
 
-    const data = await fetchExploreAuthorProfile(
+    const profile = await fetchExploreAuthorProfile(
       user.id,
       authorUserId,
       previewLimit,
       supabaseAdmin,
     );
 
-    if (!data) {
+    if (!profile) {
       return jsonResponse({ error: "Explore author profile not found" }, 404);
     }
+
+    const data = await withExploreAuthorProfileProBadge(profile, supabaseAdmin);
 
     return jsonResponse({ data }, 200);
   })

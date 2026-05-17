@@ -161,17 +161,23 @@ See `apps/web/README.md` and `docs/features-and-hardware/17-public-web-share-pag
 
 ### Local Backend
 
+From the repo root, point the Supabase CLI at the backend service directory:
+
 ```bash
-cd services/supabase
-supabase start
-supabase functions serve identify
+supabase --workdir services start
+supabase --workdir services functions serve identify
 ```
 
 ### Database Migrations
 
 ```bash
-cd services/supabase
-supabase db push
+supabase --workdir services db push
+```
+
+### Edge Function Deploys
+
+```bash
+supabase --workdir services functions deploy
 ```
 
 ---

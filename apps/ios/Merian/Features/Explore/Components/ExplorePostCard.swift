@@ -1,6 +1,22 @@
 import SwiftUI
 import UIKit
 
+struct ExploreProBadge: View {
+    var body: some View {
+        Text("PRO")
+            .font(.system(size: 9, weight: .black, design: .rounded))
+            .tracking(0.5)
+            .foregroundStyle(Color(uiColor: .systemBackground))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(Color.primary)
+            }
+            .accessibilityLabel("Pro")
+    }
+}
+
 struct ExplorePostCard: View {
     let post: ExplorePost
     let speciesDisplayName: String
@@ -79,10 +95,18 @@ struct ExplorePostCard: View {
                 authorAvatarView
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(post.authorName)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
+                    HStack(alignment: .center, spacing: 6) {
+                        Text(post.publicAuthorDisplayName)
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        if shouldShowAuthorProBadge {
+                            ExploreProBadge()
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
 
                     if let locationText = locationText {
                         Text(locationText)
@@ -257,6 +281,11 @@ struct ExplorePostCard: View {
 
     private var locationText: String? {
         post.publicDisplayLocationLabel
+    }
+
+    private var shouldShowAuthorProBadge: Bool {
+        post.authorIsPro == true
+            || (post.isOwnedByViewer && RevenueCatManager.shared.isProActive)
     }
 
     private func compactCount(_ count: Int) -> String {

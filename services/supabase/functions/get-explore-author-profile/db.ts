@@ -4,6 +4,7 @@ export interface ExploreAuthorProfileRow {
   author_user_id: string;
   author_name: string;
   author_avatar_url?: string | null;
+  author_is_pro?: boolean;
   species_count: number;
   current_streak: number;
   heatmap: unknown;

@@ -179,7 +179,7 @@ struct ExploreCommentsSheet: View {
                 authorAvatarView(for: comment)
                 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(comment.authorName)
+                    Text(comment.displayAuthorName)
                         .font(.subheadline)
                         .fontWeight(.semibold)
 

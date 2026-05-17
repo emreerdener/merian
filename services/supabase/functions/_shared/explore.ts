@@ -238,6 +238,87 @@ export async function fetchPublicAuthorIdentity(
   };
 }
 
+export interface ExploreAuthorProBadgeProjection {
+  author_user_id: string;
+  author_is_pro?: boolean;
+}
+
+interface ExploreAuthorProfileProBadgeProjection {
+  author_user_id: string;
+  author_is_pro?: boolean;
+  preview_posts?: unknown[];
+}
+
+interface AuthorSubscriptionTierRow {
+  id: string;
+  subscription_tier: string | null;
+}
+
+export async function withExploreAuthorProBadges<
+  T extends ExploreAuthorProBadgeProjection,
+>(
+  rows: T[],
+  supabaseAdmin: SupabaseClient,
+): Promise<Array<T & { author_is_pro: boolean }>> {
+  const authorIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.author_user_id?.toLowerCase())
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+
+  if (authorIds.length === 0) {
+    return rows.map((row) => ({ ...row, author_is_pro: false }));
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("id,subscription_tier")
+    .in("id", authorIds);
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Explore author pro state: ${error.message}`,
+    );
+  }
+
+  const proAuthorIds = new Set(
+    ((data ?? []) as AuthorSubscriptionTierRow[])
+      .filter((row) => row.subscription_tier === "pro")
+      .map((row) => row.id.toLowerCase()),
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    author_is_pro: proAuthorIds.has(row.author_user_id.toLowerCase()),
+  }));
+}
+
+export async function withExploreAuthorProfileProBadge<
+  T extends ExploreAuthorProfileProBadgeProjection,
+>(
+  profile: T,
+  supabaseAdmin: SupabaseClient,
+): Promise<T & { author_is_pro: boolean; preview_posts?: unknown[] }> {
+  const [authorProjection] = await withExploreAuthorProBadges(
+    [{ author_user_id: profile.author_user_id }],
+    supabaseAdmin,
+  );
+  const previewPosts = Array.isArray(profile.preview_posts)
+    ? await withExploreAuthorProBadges(
+      profile.preview_posts as ExploreAuthorProBadgeProjection[],
+      supabaseAdmin,
+    )
+    : profile.preview_posts;
+
+  return {
+    ...profile,
+    author_is_pro: authorProjection.author_is_pro,
+    preview_posts: previewPosts,
+  };
+}
+
 export async function hasMutualBlock(
   userId: string,
   otherUserId: string,

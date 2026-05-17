@@ -160,6 +160,7 @@ final class ExploreMapViewModel {
                 authorUserId: canonical.authorUserId,
                 authorName: canonical.authorName,
                 authorAvatarUrl: canonical.authorAvatarUrl,
+                authorIsPro: canonical.authorIsPro,
                 speciesCommonName: canonical.speciesCommonName,
                 speciesScientificName: canonical.speciesScientificName,
                 publicLocationLabel: canonical.publicLocationLabel,

@@ -24,10 +24,10 @@ deno check enrich-scan/index.ts
 Test the payloads against active Supabase Ghost sessions. Ensure `.env` is properly loaded for integration blocks but never hardcoded into git.
 
 ## Step 4: Deploy All Functions
-Deploying replaces the live production functions immediately. This command requires the Supabase CLI to be authenticated via `supabase login`.
+Deploying replaces the live production functions immediately. Run this from the repository root. The command requires the Supabase CLI to be authenticated via `supabase login`.
 
 ```bash
-supabase functions deploy --project-ref [YOUR_PROJECT_ID]
+supabase --workdir services functions deploy --project-ref [YOUR_PROJECT_ID]
 ```
 
 ## Step 5: Verify Secret Bindings

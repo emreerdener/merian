@@ -468,6 +468,15 @@ final class ExploreLocationPrivacyTests: XCTestCase {
 }
 
 @MainActor
+final class ExploreAuthorDisplayNameTests: XCTestCase {
+    func testDisplayNameRemovesTrailingLastInitialOnly() {
+        XCTAssertEqual(ExplorePost.publicAuthorDisplayName(from: "River W."), "River")
+        XCTAssertEqual(ExplorePost.publicAuthorDisplayName(from: "Mary Jane W."), "Mary Jane")
+        XCTAssertEqual(ExplorePost.publicAuthorDisplayName(from: "Moss Walker"), "Moss Walker")
+    }
+}
+
+@MainActor
 final class ExploreMapViewModelSelectionTests: XCTestCase {
     private func makeMapPost(id: String, latitude: Double) -> ExploreMapPost {
         ExploreMapPost(
@@ -481,6 +490,7 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
             authorUserId: "author-\(id)",
             authorName: "Test Author",
             authorAvatarUrl: nil,
+            authorIsPro: nil,
             speciesCommonName: "Monarch Butterfly",
             speciesScientificName: "Danaus plexippus",
             publicLocationLabel: "Austin, TX",

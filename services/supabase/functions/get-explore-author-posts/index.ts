@@ -6,6 +6,7 @@ import {
   normalizeLimit,
   refreshExploreAuthorStateBestEffort,
   requireUuid,
+  withExploreAuthorProBadges,
 } from "../_shared/explore.ts";
 import { fetchExploreAuthorPosts } from "./db.ts";
 
@@ -50,12 +51,15 @@ serve((req: Request) =>
       "get-explore-author-posts",
     );
 
-    const data = await fetchExploreAuthorPosts(
-      user.id,
-      authorUserId,
-      limit,
-      beforeSharedAt,
-      beforePostId,
+    const data = await withExploreAuthorProBadges(
+      await fetchExploreAuthorPosts(
+        user.id,
+        authorUserId,
+        limit,
+        beforeSharedAt,
+        beforePostId,
+        supabaseAdmin,
+      ),
       supabaseAdmin,
     );
 

@@ -4,6 +4,7 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import {
   normalizeLimit,
   refreshExploreAuthorStateBestEffort,
+  withExploreAuthorProBadges,
 } from "../_shared/explore.ts";
 import { fetchExploreMapPosts } from "./db.ts";
 import { buildExploreMapPayload } from "./cluster.ts";
@@ -87,13 +88,16 @@ serve((req: Request) =>
       "get-explore-map-points",
     );
 
-    const rows = await fetchExploreMapPosts(
-      user.id,
-      northLatitude,
-      southLatitude,
-      eastLongitude,
-      westLongitude,
-      limit,
+    const rows = await withExploreAuthorProBadges(
+      await fetchExploreMapPosts(
+        user.id,
+        northLatitude,
+        southLatitude,
+        eastLongitude,
+        westLongitude,
+        limit,
+        supabaseAdmin,
+      ),
       supabaseAdmin,
     );
 

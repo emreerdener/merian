@@ -8,6 +8,7 @@ export interface ExploreAuthorPostRow {
   author_user_id: string;
   author_name: string;
   author_avatar_url?: string | null;
+  author_is_pro?: boolean;
   species_common_name: string;
   species_scientific_name: string;
   public_location_label?: string | null;

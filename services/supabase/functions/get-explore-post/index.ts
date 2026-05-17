@@ -9,6 +9,7 @@ import { requireParams } from "../_shared/http.ts";
 import {
   refreshExploreAuthorStateBestEffort,
   requireUuid,
+  withExploreAuthorProBadges,
 } from "../_shared/explore.ts";
 import { fetchExplorePost } from "./db.ts";
 
@@ -33,7 +34,14 @@ serve((req: Request) =>
 
     let data;
     try {
-      data = await fetchExplorePost(user.id, postId, supabaseAdmin);
+      const fetchedPost = await fetchExplorePost(
+        user.id,
+        postId,
+        supabaseAdmin,
+      );
+      data = fetchedPost
+        ? (await withExploreAuthorProBadges([fetchedPost], supabaseAdmin))[0]
+        : null;
     } catch (error) {
       logStructuredError("explore_notification_open_fetch_failed", {
         user_id: user.id,

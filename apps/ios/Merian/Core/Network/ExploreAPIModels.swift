@@ -33,6 +33,7 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     let authorUserId: String
     let authorName: String
     let authorAvatarUrl: String?
+    let authorIsPro: Bool?
     let speciesCommonName: String
     let speciesScientificName: String
     let publicLocationLabel: String?
@@ -310,6 +311,7 @@ struct ExploreAuthorPostCursor: Equatable {
 struct ExploreAuthorProfile: Decodable, Equatable {
     let authorUserId: String
     let authorName: String
+    let authorIsPro: Bool?
     let authorAvatarUrl: String?
     let speciesCount: Int
     let currentStreak: Int
@@ -438,6 +440,7 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
     let authorUserId: String
     let authorName: String
     let authorAvatarUrl: String?
+    let authorIsPro: Bool?
     let speciesCommonName: String
     let speciesScientificName: String
     let publicLocationLabel: String?
@@ -469,6 +472,7 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
             authorUserId: authorUserId,
             authorName: authorName,
             authorAvatarUrl: authorAvatarUrl,
+            authorIsPro: authorIsPro,
             speciesCommonName: speciesCommonName,
             speciesScientificName: speciesScientificName,
             publicLocationLabel: publicLocationLabel,
