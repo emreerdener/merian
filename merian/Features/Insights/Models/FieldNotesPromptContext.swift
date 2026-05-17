@@ -46,68 +46,6 @@ enum FieldNotesPromptResolver {
     }
 
     static func subjectId(for speciesData: SpeciesData) -> String? {
-        if let kingdom = normalize(speciesData.taxonomy?.kingdom) {
-            if kingdom == "fungi" { return "subj_mush" }
-            if kingdom == "plantae" { return "subj_plan" }
-        }
-
-        if let className = normalize(speciesData.taxonomy?.className) {
-            switch className {
-            case "aves":
-                return "subj_bird"
-            case "insecta":
-                return "subj_insec"
-            case "arachnida":
-                return "subj_spid"
-            case "mammalia":
-                return "subj_mamm"
-            case "amphibia", "reptilia":
-                return "subj_rept"
-            case "actinopterygii", "chondrichthyes", "myxini", "cephalaspidomorphi", "sarcopterygii":
-                return "subj_fish"
-            default:
-                break
-            }
-        }
-
-        let searchCorpus = [
-            speciesData.commonName,
-            speciesData.scientificName,
-            speciesData.taxonomy?.order,
-            speciesData.taxonomy?.family,
-            speciesData.taxonomy?.genus
-        ]
-            .compactMap { $0?.lowercased() }
-            .joined(separator: " ")
-        let searchWords = Set(
-            searchCorpus
-                .split { !$0.isLetter }
-                .map(String.init)
-        )
-
-        let heuristics: [(subjectId: String, tokens: [String])] = [
-            ("subj_bird", ["bird", "sparrow", "owl", "hawk", "eagle", "warbler", "duck", "goose", "heron"]),
-            ("subj_insec", ["insect", "beetle", "butterfly", "moth", "bee", "wasp", "dragonfly"]),
-            ("subj_spid", ["spider", "arachnid", "tarantula", "tick", "mite"]),
-            ("subj_rept", ["snake", "lizard", "frog", "toad", "salamander", "newt", "turtle", "reptile", "amphibian"]),
-            ("subj_plan", ["plant", "flower", "tree", "shrub", "fern", "grass", "moss", "leaf"]),
-            ("subj_mush", ["mushroom", "fungus", "fungi", "toadstool", "lichen"]),
-            ("subj_mamm", ["mammal", "rodent", "rabbit", "hare", "squirrel", "mouse", "bat", "fox", "raccoon", "deer"]),
-            ("subj_fish", ["fish", "shark", "ray", "eel", "salmon", "trout"])
-        ]
-
-        for heuristic in heuristics where heuristic.tokens.contains(where: { token in
-            searchWords.contains(token) || searchCorpus.contains(token)
-        }) {
-            return heuristic.subjectId
-        }
-
-        return nil
-    }
-
-    private static func normalize(_ value: String?) -> String? {
-        value?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
+        DescribeSubjectResolver.subjectId(for: speciesData)
     }
 }

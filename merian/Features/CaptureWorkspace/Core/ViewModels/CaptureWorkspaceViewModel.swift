@@ -115,6 +115,7 @@ final class CaptureWorkspaceViewModel {
     /// Drives the multi-image composition path in `submitActiveScan`.
     var baseRefinementRecord: LocalScanRecord?
     var refinementInitialDescriptionDraft: String?
+    var refinementSubjectId: String?
     var isStagingRefinement: Bool = false
     @ObservationIgnored private var refinementStagingTask: Task<Void, Never>?
     /// Set to `.describe` when reanalysis is triggered so `CaptureWorkspaceView` navigates to the
@@ -155,6 +156,28 @@ final class CaptureWorkspaceViewModel {
 
     var shouldShowMediaModeToggle: Bool {
         hasAvailableStagedCaptureSlot || baseRefinementRecord != nil
+    }
+
+    var describePromptFlow: DescribePromptFlow {
+        if baseRefinementRecord != nil {
+            return .reanalysis(subjectId: refinementSubjectId)
+        }
+        return .standard
+    }
+
+    var describePromptMediaContext: DescribePromptMediaContext {
+        let activeMediaKinds = [
+            !stagedCapture.images.isEmpty,
+            !stagedCapture.audios.isEmpty,
+            !stagedCapture.observationContexts.isEmpty
+        ].filter { $0 }.count
+
+        guard activeMediaKinds == 1 else {
+            return activeMediaKinds == 0 ? .none : .mixed
+        }
+        if !stagedCapture.images.isEmpty { return .photo }
+        if !stagedCapture.audios.isEmpty { return .audio }
+        return .description
     }
     
     // MARK: - Lifecycle
@@ -429,6 +452,7 @@ final class CaptureWorkspaceViewModel {
     }
     
     func startRefinementScan(from record: LocalScanRecord, initialDescription: String? = nil) {
+        self.refinementSubjectId = DescribeSubjectResolver.subjectId(for: record)
         self.baseRefinementRecord = record
         let trimmedDescription = initialDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.refinementInitialDescriptionDraft = trimmedDescription?.isEmpty == false ? trimmedDescription : nil
@@ -575,6 +599,7 @@ final class CaptureWorkspaceViewModel {
         isStagingRefinement = false
         baseRefinementRecord = nil
         refinementInitialDescriptionDraft = nil
+        refinementSubjectId = nil
     }
     
     // MARK: - Tooltip Orchestration

@@ -38,6 +38,7 @@ extension CaptureWorkspaceViewModel {
             )
             stagedCapture.clearAll()
             baseRefinementRecord = nil
+            refinementSubjectId = nil
             return
         }
 
@@ -60,6 +61,7 @@ extension CaptureWorkspaceViewModel {
         // 3. Clear the staging buffers immediately so the UI resets behind the overlay.
         stagedCapture.clearAll()
         baseRefinementRecord = nil
+        refinementSubjectId = nil
         preFetchTask = nil
         diContainer.cameraManager.resetZoom()
 

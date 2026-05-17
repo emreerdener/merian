@@ -1,49 +1,159 @@
 import Foundation
 
 struct SubjectKeywordMatcher {
-    private static let keywords: [String: String] = [
-        // Birds
-        "bird": "subj_bird", "sparrow": "subj_bird", "hawk": "subj_bird",
-        "eagle": "subj_bird", "robin": "subj_bird", "pigeon": "subj_bird",
-        "duck": "subj_bird", "goose": "subj_bird", "owl": "subj_bird",
-        // Insects
-        "insect": "subj_insec", "beetle": "subj_insec", "butterfly": "subj_insec",
-        "moth": "subj_insec", "bee": "subj_insec", "wasp": "subj_insec",
-        "fly": "subj_insec", "dragonfly": "subj_insec", "ant": "subj_insec",
-        "bug": "subj_insec", "spider": "subj_spid", "arachnid": "subj_spid",
-        "tarantula": "subj_spid", "scorpion": "subj_spid", "tick": "subj_spid", "mite": "subj_spid",
-        
-        // Reptiles & Amphibians
-        "reptile": "subj_rept", "amphibian": "subj_rept", "snake": "subj_rept", 
-        "lizard": "subj_rept", "turtle": "subj_rept", "tortoise": "subj_rept", 
-        "frog": "subj_rept", "toad": "subj_rept", "salamander": "subj_rept",
-        
-        // Mushrooms
-        "mushroom": "subj_mush", "fungus": "subj_mush", "fungi": "subj_mush", 
-        "toadstool": "subj_mush", "puffball": "subj_mush",
-        
-        // Mammals
-        "mammal": "subj_mamm", "rodent": "subj_mamm", "squirrel": "subj_mamm", 
-        "rabbit": "subj_mamm", "hare": "subj_mamm", "raccoon": "subj_mamm", 
-        "skunk": "subj_mamm", "opossum": "subj_mamm", "mouse": "subj_mamm", "rat": "subj_mamm",
-        
-        // Fish
-        "fish": "subj_fish", "shark": "subj_fish", "stingray": "subj_fish", "manta": "subj_fish",
-        "eel": "subj_fish", "trout": "subj_fish", "salmon": "subj_fish",
-        
-        // Plants
-        "plant": "subj_plan", "tree": "subj_plan", "flower": "subj_plan",
-        "shrub": "subj_plan", "bush": "subj_plan", "fern": "subj_plan",
-        "moss": "subj_plan", "grass": "subj_plan", "weed": "subj_plan"
-    ]
-    
     static func infer(from text: String) -> String? {
-        let words = text.lowercased()
-            .components(separatedBy: .whitespacesAndNewlines)
-            .map { $0.trimmingCharacters(in: .punctuationCharacters) }
-        for word in words {
-            if let match = keywords[word] { return match }
+        DescribeSubjectResolver.subjectId(forText: text)
+    }
+}
+
+enum DescribeSubjectResolver {
+    static func subjectId(for speciesData: SpeciesData) -> String? {
+        subjectId(
+            taxonomy: speciesData.taxonomy,
+            commonName: speciesData.commonName,
+            scientificName: speciesData.scientificName
+        )
+    }
+
+    static func subjectId(for record: LocalScanRecord) -> String? {
+        let taxonomy = TaxonomyData(
+            kingdom: record.taxonomyKingdom,
+            phylum: record.taxonomyPhylum,
+            className: record.taxonomyClass,
+            order: record.taxonomyOrder,
+            family: record.taxonomyFamily,
+            genus: record.taxonomyGenus
+        )
+        return subjectId(
+            taxonomy: taxonomy,
+            commonName: record.commonName,
+            scientificName: record.scientificName
+        )
+    }
+
+    static func subjectId(
+        taxonomy: TaxonomyData?,
+        commonName: String?,
+        scientificName: String?
+    ) -> String? {
+        if let kingdom = normalize(taxonomy?.kingdom) {
+            if kingdom == "fungi" { return "subj_mush" }
+            if kingdom == "plantae" { return "subj_plan" }
+        }
+
+        if let className = normalize(taxonomy?.className) {
+            switch className {
+            case "aves":
+                return "subj_bird"
+            case "insecta":
+                return "subj_insec"
+            case "arachnida":
+                return "subj_spid"
+            case "mammalia":
+                return "subj_mamm"
+            case "amphibia", "reptilia":
+                return "subj_rept"
+            case "actinopterygii", "chondrichthyes", "myxini", "cephalaspidomorphi", "sarcopterygii":
+                return "subj_fish"
+            default:
+                break
+            }
+        }
+
+        return subjectId(fromSearchFields: [
+            commonName,
+            scientificName,
+            taxonomy?.order,
+            taxonomy?.family,
+            taxonomy?.genus
+        ])
+    }
+
+    static func subjectId(forText text: String) -> String? {
+        subjectId(fromSearchFields: [text])
+    }
+
+    private static func subjectId(fromSearchFields fields: [String?]) -> String? {
+        let words = Set(
+            fields
+                .compactMap { $0?.lowercased() }
+                .joined(separator: " ")
+                .split { !$0.isLetter }
+                .map(String.init)
+        )
+
+        for heuristic in heuristics where heuristic.tokens.contains(where: words.contains) {
+            return heuristic.subjectId
         }
         return nil
+    }
+
+    private static let heuristics: [(subjectId: String, tokens: [String])] = [
+        (
+            "subj_bird",
+            [
+                "bird", "sparrow", "hawk", "eagle", "robin", "pigeon", "duck",
+                "goose", "owl", "warbler", "heron", "passeriformes", "anatidae", "corvidae"
+            ]
+        ),
+        (
+            "subj_insec",
+            [
+                "insect", "beetle", "butterfly", "moth", "bee", "wasp", "fly",
+                "dragonfly", "ant", "bug", "lepidoptera", "coleoptera", "diptera",
+                "hymenoptera", "odonata", "danaus"
+            ]
+        ),
+        (
+            "subj_spid",
+            [
+                "spider", "arachnid", "tarantula", "scorpion", "tick", "mite",
+                "araneae", "salticidae", "lycosidae"
+            ]
+        ),
+        (
+            "subj_rept",
+            [
+                "reptile", "amphibian", "snake", "lizard", "turtle", "tortoise",
+                "frog", "toad", "salamander", "newt", "squamata", "anura",
+                "caudata", "testudines"
+            ]
+        ),
+        (
+            "subj_plan",
+            [
+                "plant", "tree", "flower", "shrub", "bush", "fern", "moss",
+                "grass", "weed", "leaf", "oak", "quercus", "rosa", "rosaceae",
+                "poaceae", "asteraceae", "pinus", "acer"
+            ]
+        ),
+        (
+            "subj_mush",
+            [
+                "mushroom", "fungus", "fungi", "toadstool", "puffball", "lichen",
+                "amanita", "boletus", "agaricus", "polyporales"
+            ]
+        ),
+        (
+            "subj_mamm",
+            [
+                "mammal", "rodent", "squirrel", "rabbit", "hare", "raccoon",
+                "skunk", "opossum", "mouse", "rat", "bat", "fox", "deer",
+                "rodentia", "sciuridae", "canidae", "cervidae"
+            ]
+        ),
+        (
+            "subj_fish",
+            [
+                "fish", "shark", "stingray", "manta", "eel", "trout", "salmon",
+                "ray", "perciformes", "salmonidae", "salmo", "oncorhynchus"
+            ]
+        )
+    ]
+
+    private static func normalize(_ value: String?) -> String? {
+        value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 }

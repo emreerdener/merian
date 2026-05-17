@@ -15,6 +15,8 @@ import SwiftUI
 ///   `safeAreaInsets.top + 64` band.
 struct DescribeInputView: View {
     var captureMode: CaptureMode
+    var promptFlow: DescribePromptFlow
+    var mediaContext: DescribePromptMediaContext
 
     @Binding var context: ObservationContext
     @FocusState private var isTextFieldFocused: Bool
@@ -23,7 +25,7 @@ struct DescribeInputView: View {
     let coordinator: CaptureActionCoordinator
     var showToast: ((String) -> Void)?
 
-    @State private var promptManager = DescribePromptManager()
+    @State private var promptManager: DescribePromptManager
     @State private var isDescribeQuestionsSheetPresented: Bool = false
 
     // MARK: - Dictation state
@@ -31,11 +33,49 @@ struct DescribeInputView: View {
     @State private var dictationTask: Task<Void, Never>?
     @State private var inferenceDebounceTask: Task<Void, Never>?
 
+    init(
+        captureMode: CaptureMode,
+        promptFlow: DescribePromptFlow,
+        mediaContext: DescribePromptMediaContext,
+        context: Binding<ObservationContext>,
+        coordinator: CaptureActionCoordinator,
+        showToast: ((String) -> Void)? = nil
+    ) {
+        self.captureMode = captureMode
+        self.promptFlow = promptFlow
+        self.mediaContext = mediaContext
+        self._context = context
+        self.coordinator = coordinator
+        self.showToast = showToast
+
+        let promptManager = DescribePromptManager()
+        promptManager.configure(for: promptFlow)
+        self._promptManager = State(initialValue: promptManager)
+    }
+
     // MARK: - Derived
 
     private var topSafeArea: CGFloat {
         let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
         return windowScene?.windows.first?.safeAreaInsets.top ?? 59
+    }
+
+    private var textFieldPlaceholder: String {
+        if promptFlow.isReanalysis {
+            switch mediaContext {
+            case .photo:
+                return "Guide the AI for this staged photo. Example: \"Recheck this as a moth; focus on wing shape, markings, size, and habitat.\""
+            case .audio:
+                return "Guide the AI for this staged audio. Example: \"Recheck the call as a frog; focus on rhythm, pitch, repetition, and habitat.\""
+            case .description:
+                return "Guide the AI for this staged description. Example: \"Recheck this as a mushroom; focus on cap shape, underside, substrate, and habitat.\""
+            case .mixed:
+                return "Guide the AI for the staged media. Example: \"Recheck this as a moth; weigh the photo against habitat notes and any audio.\""
+            case .none:
+                return "Guide the AI for the staged media. Example: \"Recheck this as a moth; focus on wing shape, markings, size, and habitat.\""
+            }
+        }
+        return "e.g., A bright green beetle with gold stripes resting on an oak leaf..."
     }
 
     // MARK: - Body
@@ -109,7 +149,7 @@ struct DescribeInputView: View {
                             )
 
                         TextField(
-                            "e.g., A bright green beetle with gold stripes resting on an oak leaf...",
+                            textFieldPlaceholder,
                             text: $context.freeText,
                             axis: .vertical
                         )
@@ -134,6 +174,9 @@ struct DescribeInputView: View {
                 .frame(minHeight: proxy.size.height)
             }
             .scrollDismissesKeyboard(.immediately)
+            .onChange(of: promptFlow, initial: true) { _, newFlow in
+                promptManager.configure(for: newFlow)
+            }
             .onChange(of: context.freeText) { _, newText in
                 if newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     promptManager.resetFunnel()
@@ -246,7 +289,7 @@ struct DescribeInputView: View {
         
         // Handle toggling off an active funnel
         if promptManager.activeQuestionIndex == 0 && promptManager.activeSubjectId == tag.tagId {
-            promptManager.resetFunnel()
+            promptManager.clearSubjectSelection()
             
             // Try to gracefully remove the text insertion
             let insertion = tag.aiText
@@ -325,7 +368,7 @@ private struct DescribePromptHeader: View {
     var body: some View {
         // Heading text
         if promptManager.activeQuestions.indices.contains(promptManager.activeQuestionIndex) {
-            Text(promptManager.activeQuestions[promptManager.activeQuestionIndex].prompt)
+            Text(promptManager.currentPrompt)
                 .font(.title2)
                 .fontWeight(.bold)
                 .foregroundStyle(.primary)

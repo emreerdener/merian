@@ -56,6 +56,7 @@ extension CaptureWorkspaceViewModel {
                 } else {
                     let targetEradicationRecord = baseRefinementRecord
                     baseRefinementRecord = nil
+                    refinementSubjectId = nil
                     submitDescribeSolo(observationContext: stagedContext, modelContext: modelContext, targetEradicationRecord: targetEradicationRecord)
                 }
                 return true

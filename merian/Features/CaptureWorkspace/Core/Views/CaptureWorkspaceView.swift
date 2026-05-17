@@ -93,6 +93,8 @@ struct CaptureWorkspaceView: View {
                                         // MARK: Page 3 — Describe Input
                                         DescribeInputView(
                                             captureMode: captureMode,
+                                            promptFlow: viewModel.describePromptFlow,
+                                            mediaContext: viewModel.describePromptMediaContext,
                                             context: $observationContext,
                                             coordinator: coordinator,
                                             showToast: { viewModel.offlineToastMessage = $0 }

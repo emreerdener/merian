@@ -194,4 +194,111 @@ struct DescribePromptManagerTests {
             #expect(manager.activeQuestionIndex == 1)
         }
     }
+
+    // MARK: - Reanalysis Flow
+
+    @Test("Reanalysis flow uses reanalysis heading")
+    func testReanalysisFlowUsesReanalysisHeading() {
+        let manager = DescribePromptManager()
+        manager.configureReanalysisFlow(subjectId: nil)
+
+        #expect(manager.currentPrompt == "What would you like to reanalyze?")
+        #expect(manager.displayPrompt(at: 0) == "What would you like to reanalyze?")
+        #expect(manager.activeQuestionIndex == 0)
+    }
+
+    @Test("Reanalysis flow preselects provided subject")
+    func testReanalysisFlowPreselectsProvidedSubject() {
+        let manager = DescribePromptManager()
+        manager.configureReanalysisFlow(subjectId: "subj_bird")
+
+        #expect(manager.activeSubjectId == "subj_bird")
+        #expect(manager.isFunnelActive)
+        #expect(manager.activeQuestionIndex == 0)
+        #expect(manager.activeQuestions.first?.prompt == guidedQuestions[0].prompt)
+        #expect(manager.activeQuestions.dropFirst().first?.prompt == subjectFunnels["subj_bird"]?.first?.prompt)
+    }
+
+    @Test("Reanalysis flow tolerates unknown subject")
+    func testReanalysisFlowToleratesUnknownSubject() {
+        let manager = DescribePromptManager()
+        manager.configureReanalysisFlow(subjectId: "subj_unknown_xyz")
+
+        #expect(manager.activeSubjectId == nil)
+        #expect(!manager.isFunnelActive)
+        #expect(manager.activeQuestions == guidedQuestions)
+        #expect(manager.currentPrompt == "What would you like to reanalyze?")
+    }
+
+    @Test("Resetting reanalysis flow restores reanalysis heading")
+    func testResettingReanalysisFlowRestoresHeading() {
+        let manager = DescribePromptManager()
+        manager.configureReanalysisFlow(subjectId: "subj_mush")
+        manager.activeQuestionIndex = 2
+        manager.clearSubjectSelection()
+
+        manager.resetFunnel()
+
+        #expect(manager.activeQuestionIndex == 0)
+        #expect(manager.activeSubjectId == "subj_mush")
+        #expect(manager.currentPrompt == "What would you like to reanalyze?")
+    }
+
+    // MARK: - Describe Subject Resolver
+
+    @Test("DescribeSubjectResolver maps taxonomy to subject IDs")
+    func testDescribeSubjectResolverMapsTaxonomy() {
+        #expect(DescribeSubjectResolver.subjectId(for: species(taxonomy: taxonomy(className: "Aves"))) == "subj_bird")
+        #expect(DescribeSubjectResolver.subjectId(for: species(taxonomy: taxonomy(className: "Insecta"))) == "subj_insec")
+        #expect(DescribeSubjectResolver.subjectId(for: species(taxonomy: taxonomy(className: "Arachnida"))) == "subj_spid")
+        #expect(DescribeSubjectResolver.subjectId(for: species(taxonomy: taxonomy(className: "Mammalia"))) == "subj_mamm")
+        #expect(DescribeSubjectResolver.subjectId(for: species(taxonomy: taxonomy(className: "Amphibia"))) == "subj_rept")
+        #expect(DescribeSubjectResolver.subjectId(for: species(taxonomy: taxonomy(className: "Reptilia"))) == "subj_rept")
+        #expect(DescribeSubjectResolver.subjectId(for: species(taxonomy: taxonomy(className: "Actinopterygii"))) == "subj_fish")
+        #expect(DescribeSubjectResolver.subjectId(for: species(taxonomy: taxonomy(kingdom: "Plantae"))) == "subj_plan")
+        #expect(DescribeSubjectResolver.subjectId(for: species(taxonomy: taxonomy(kingdom: "Fungi"))) == "subj_mush")
+    }
+
+    @Test("DescribeSubjectResolver falls back to names and unknown stays nil")
+    func testDescribeSubjectResolverNameFallbacks() {
+        #expect(DescribeSubjectResolver.subjectId(for: species(commonName: "Monarch Butterfly")) == "subj_insec")
+        #expect(DescribeSubjectResolver.subjectId(for: species(scientificName: "Quercus macrocarpa")) == "subj_plan")
+        #expect(DescribeSubjectResolver.subjectId(
+            taxonomy: taxonomy(order: "Lepidoptera", family: nil, genus: nil),
+            commonName: nil,
+            scientificName: nil
+        ) == "subj_insec")
+        #expect(DescribeSubjectResolver.subjectId(for: species(commonName: "Unknown subject", scientificName: "Taxonomy Unavailable")) == nil)
+    }
+
+    private func species(
+        commonName: String = "Unknown subject",
+        scientificName: String = "Taxonomy Unavailable",
+        taxonomy: TaxonomyData? = nil
+    ) -> SpeciesData {
+        SpeciesData(
+            commonName: commonName,
+            scientificName: scientificName,
+            insightData: InsightData(aiReasoning: "", hazardType: "none"),
+            confidenceScore: 0,
+            taxonomy: taxonomy
+        )
+    }
+
+    private func taxonomy(
+        kingdom: String? = nil,
+        className: String? = nil,
+        order: String? = nil,
+        family: String? = nil,
+        genus: String? = nil
+    ) -> TaxonomyData {
+        TaxonomyData(
+            kingdom: kingdom,
+            phylum: nil,
+            className: className,
+            order: order,
+            family: family,
+            genus: genus
+        )
+    }
 }

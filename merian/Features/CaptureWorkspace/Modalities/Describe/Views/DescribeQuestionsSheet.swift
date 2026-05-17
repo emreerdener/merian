@@ -14,14 +14,14 @@ struct DescribeQuestionsSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(Array(promptManager.activeQuestions.enumerated()), id: \.element.prompt) { idx, question in
+                ForEach(Array(promptManager.activeQuestions.enumerated()), id: \.element.prompt) { idx, _ in
                     Button(action: {
                         HapticManager.shared.triggerSelectionPulse()
                         promptManager.activeQuestionIndex = idx
                         dismiss()
                     }) {
                         HStack {
-                            Text(question.prompt)
+                            Text(promptManager.displayPrompt(at: idx))
                                 .font(.body)
                                 .foregroundColor(.primary)
                             Spacer()
