@@ -13,7 +13,7 @@ import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { fetchGroupTags } from "../_shared/biology.ts";
-import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
+import { deleteR2Object } from "../_shared/aws.ts";
 import {
   processWavBuffer,
   TARGET_AUDIO_SAMPLE_RATE,
@@ -152,9 +152,6 @@ serve((req: Request) =>
         : null;
 
     // 1. Load audio — either from base64 inline payload (iOS live path) or R2 staging.
-    let rawWavBuffer: ArrayBuffer;
-    let r2Config: ReturnType<typeof getR2Config> | null = null;
-
     const audioResolution = await resolveAudioBuffers({
       userId: user.id,
       audioR2ObjectKeys: audio_base64 ? [] : [audio_r2_key!],
@@ -164,14 +161,14 @@ serve((req: Request) =>
       pathTraversalMessage: "Bad Request: path traversal detected.",
       wrongUserMessage:
         "Forbidden: audio_r2_key does not belong to the requesting user.",
-      r2FetchError: (response) => ({
+      r2FetchError: (response: Response) => ({
         message: `Audio file not found in staging (${response.status}).`,
         status: 404,
       }),
     });
     if (audioResolution.errorResponse) return audioResolution.errorResponse;
-    rawWavBuffer = audioResolution.audioBuffers[0];
-    r2Config = audioResolution.r2Config ?? null;
+    const rawWavBuffer = audioResolution.audioBuffers[0];
+    const r2Config = audioResolution.r2Config ?? null;
     console.log(
       `[⏱ BENCH] ${audio_base64 ? "base64_decode" : "r2_download"}: ${
         Date.now() - fnStart
