@@ -54,6 +54,11 @@ struct ExplorePostDetailView: View {
         detail?.trimmedFieldNotes != nil
     }
 
+    private var canManageFieldNotes: Bool {
+        detail?.trimmedFieldNotes != nil
+            || localFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
     var body: some View {
         Group {
             if let post = currentPost {
@@ -153,7 +158,23 @@ struct ExplorePostDetailView: View {
                         }
 
                         ToolbarItem(placement: .topBarTrailing) {
-                            detailMenuButton(for: post)
+                            ExplorePostDetailMenuButton(
+                                isOwnedByCurrentUser: isOwnedByCurrentUser(post),
+                                allowsInsightPresentation: allowsInsightPresentation,
+                                canManageFieldNotes: canManageFieldNotes,
+                                fieldNotesArePublic: fieldNotesArePublicOnExplore,
+                                isUpdatingFieldNotesVisibility: isUpdatingFieldNotesVisibility,
+                                onOpenInsight: { openInsight(for: post) },
+                                onEditFieldNotes: { openFieldNotesEditor(for: post) },
+                                onToggleFieldNotesVisibility: { showFieldNotesVisibilityConfirmation() },
+                                onUnpublish: { postToUnpublish = post },
+                                onBlockAuthor: {
+                                    Task { await viewModel.blockAuthor(of: post) }
+                                },
+                                onReportPost: {
+                                    Task { await viewModel.report(post) }
+                                }
+                            )
                         }
                     }
                     .task(id: post.id) {
@@ -210,7 +231,15 @@ struct ExplorePostDetailView: View {
         }
         .overlay {
             if showHideFieldNotesConfirmation {
-                fieldNotesVisibilityConfirmationOverlay
+                ExploreFieldNotesVisibilityOverlay(
+                    fieldNotesArePublic: fieldNotesArePublicOnExplore,
+                    isUpdating: isUpdatingFieldNotesVisibility,
+                    onCancel: hideFieldNotesVisibilityConfirmation,
+                    onConfirm: { nextVisibility in
+                        hideFieldNotesVisibilityConfirmation()
+                        Task { await updateFieldNotesVisibility(isPublic: nextVisibility) }
+                    }
+                )
             }
         }
         .sheet(item: $selectedInsightRecord, onDismiss: {
@@ -272,82 +301,6 @@ struct ExplorePostDetailView: View {
         }
     }
 
-    private var fieldNotesVisibilityConfirmationOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.28)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showHideFieldNotesConfirmation = false
-                    }
-                }
-
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(fieldNotesArePublicOnExplore ? "Hide field notes?" : "Show field notes?")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-
-                    Text(fieldNotesArePublicOnExplore
-                        ? "Your post stays live, but these notes will be hidden."
-                        : "These notes will be visible on your Explore post.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-
-                HStack(spacing: 12) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            showHideFieldNotesConfirmation = false
-                        }
-                    } label: {
-                        Text("Cancel")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.primary)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color.primary.opacity(0.08))
-                    )
-
-                    Button {
-                        let nextVisibility = !fieldNotesArePublicOnExplore
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            showHideFieldNotesConfirmation = false
-                        }
-                        Task { await updateFieldNotesVisibility(isPublic: nextVisibility) }
-                    } label: {
-                        Text(fieldNotesArePublicOnExplore ? "Hide" : "Show")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color(uiColor: .systemBackground))
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color.primary)
-                    )
-                    .disabled(isUpdatingFieldNotesVisibility)
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: 340)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-            )
-            .padding(.horizontal, 24)
-        }
-        .transition(.opacity.combined(with: .scale(scale: 0.96)))
-        .zIndex(100)
-    }
-
     private func exploreSimilarSpeciesRoute(for entry: SimilarSpeciesEntry) -> SpeciesDictionaryRoute {
         SpeciesDictionaryRoute(
             scientificName: entry.scientificName,
@@ -377,7 +330,7 @@ struct ExplorePostDetailView: View {
                 canEdit: isOwnedByCurrentUser(post),
                 isUpdating: isUpdatingFieldNotesVisibility,
                 onEdit: { openFieldNotesEditor(for: post) },
-                onToggleVisibility: { showHideFieldNotesConfirmation = true }
+                onToggleVisibility: showFieldNotesVisibilityConfirmation
             )
         }
     }
@@ -443,62 +396,6 @@ struct ExplorePostDetailView: View {
         }
     }
 
-    private func detailMenuButton(for post: ExplorePost) -> some View {
-        Menu {
-            if isOwnedByCurrentUser(post) {
-                if allowsInsightPresentation {
-                    Button {
-                        openInsight(for: post)
-                    } label: {
-                        Label("Open insight", systemImage: "sparkles")
-                    }
-                }
-
-                if detail?.trimmedFieldNotes != nil || localFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-                    Button {
-                        openFieldNotesEditor(for: post)
-                    } label: {
-                        Label("Edit field notes", systemImage: "pencil")
-                    }
-
-                    Button {
-                        showHideFieldNotesConfirmation = true
-                    } label: {
-                        Label(
-                            fieldNotesArePublicOnExplore ? "Hide field notes" : "Show field notes",
-                            systemImage: fieldNotesArePublicOnExplore ? "eye.slash" : "eye"
-                        )
-                    }
-                    .disabled(isUpdatingFieldNotesVisibility)
-                }
-
-                Button(role: .destructive) {
-                    postToUnpublish = post
-                } label: {
-                    Label("Unpublish post", systemImage: "minus.circle")
-                }
-                .tint(.red)
-            } else {
-                Button(role: .destructive) {
-                    Task { await viewModel.blockAuthor(of: post) }
-                } label: {
-                    Label("Block user", systemImage: "person.crop.circle.badge.xmark")
-                }
-                .tint(.red)
-
-                Button(role: .destructive) {
-                    Task { await viewModel.report(post) }
-                } label: {
-                    Label("Report post", systemImage: "flag")
-                }
-                .tint(.red)
-            }
-        } label: {
-            Image(systemName: "ellipsis")
-        }
-        .tint(.primary)
-    }
-
     private func focusComments(using scrollProxy: ScrollViewProxy, animated: Bool = true) {
         let scrollBlock = {
             scrollProxy.scrollTo(commentsComposerId, anchor: .bottom)
@@ -535,6 +432,18 @@ struct ExplorePostDetailView: View {
             detail = try await MerianNetworkClient.shared.getExplorePostDetail(postId: postId)
         } catch {
             detailErrorMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+
+    private func showFieldNotesVisibilityConfirmation() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showHideFieldNotesConfirmation = true
+        }
+    }
+
+    private func hideFieldNotesVisibilityConfirmation() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showHideFieldNotesConfirmation = false
         }
     }
 
