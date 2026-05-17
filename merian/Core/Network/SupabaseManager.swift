@@ -379,6 +379,9 @@ import Supabase
                 _ = try await client.auth.linkIdentityWithIdToken(
                     credentials: .init(provider: provider, idToken: idToken, accessToken: accessToken, nonce: nonce)
                 )
+                if let ghostId = ghostId {
+                    await triggerGhostProfileMerge(from: ghostId)
+                }
             } catch {
                 _ = try await client.auth.signInWithIdToken(
                     credentials: .init(provider: provider, idToken: idToken, accessToken: accessToken, nonce: nonce)
@@ -401,7 +404,7 @@ import Supabase
                 "merge-ghost-profile",
                 options: .init(body: GhostPayload(ghost_id: ghostId))
             )
-            MerianLog.auth.debug("Ghost profile merged for \(ghostId, privacy: .private)")
+            MerianLog.auth.debug("Ghost profile upgrade finalized for \(ghostId, privacy: .private)")
         } catch {
             MerianLog.auth.debug("Ghost profile merge failed: \(error.localizedDescription, privacy: .private)")
         }

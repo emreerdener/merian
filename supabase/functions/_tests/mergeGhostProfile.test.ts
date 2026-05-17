@@ -5,18 +5,22 @@
 //
 // Covers:
 //   - ghost_id UUID format validation
-//   - Self-merge guard (ghost_id === user.id → early 200, no DB work)
+//   - Self-merge guard (ghost_id === user.id → refresh identity, no transfer work)
 //   - verifyGhostUser IDOR guard (authenticated accounts rejected)
-//   - Transfer order correctness (scans → collections → Explore posts → follows → purge)
+//   - Transfer order correctness (scans → collections → Explore posts → follows → identity sync → purge)
 
-import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import {
+  assert,
+  assertEquals,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 // ---------------------------------------------------------------------------
 // ghost_id UUID format validation
 // Mirrors the UUID_RE guard in merge-ghost-profile/index.ts.
 // ---------------------------------------------------------------------------
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidGhostId(v: unknown): boolean {
   return typeof v === "string" && UUID_RE.test(v);
@@ -52,28 +56,46 @@ Deno.test("ghost_id — number is rejected", () => {
 
 // ---------------------------------------------------------------------------
 // Self-merge guard
-// ghost_id === user.id → return early 200, never reach DB transfer steps.
+// ghost_id === user.id → refresh identity, return early 200, never reach DB transfer steps.
 // ---------------------------------------------------------------------------
 
 type MergeResult = { status: number; skipped: boolean };
 
 function simulateSelfMergeGuard(ghostId: string, userId: string): MergeResult {
-  if (ghostId === userId) {
+  if (ghostId.toLowerCase() === userId.toLowerCase()) {
     return { status: 200, skipped: true };
   }
   return { status: 200, skipped: false };
 }
 
-Deno.test("self-merge guard — identical IDs trigger early return (no DB work)", () => {
+Deno.test("self-merge guard — identical IDs trigger early return after identity refresh", async () => {
   const id = crypto.randomUUID();
+  const callOrder: string[] = [];
+
+  async function stubSyncPublicAuthorIdentity() {
+    callOrder.push("syncPublicAuthorIdentity");
+  }
+
   const result = simulateSelfMergeGuard(id, id);
+  if (result.skipped) await stubSyncPublicAuthorIdentity();
+
   assertEquals(result.status, 200);
   assertEquals(result.skipped, true);
+  assertEquals(callOrder, ["syncPublicAuthorIdentity"]);
 });
 
 Deno.test("self-merge guard — different IDs proceed to DB transfer", () => {
-  const result = simulateSelfMergeGuard(crypto.randomUUID(), crypto.randomUUID());
+  const result = simulateSelfMergeGuard(
+    crypto.randomUUID(),
+    crypto.randomUUID(),
+  );
   assertEquals(result.skipped, false);
+});
+
+Deno.test("self-merge guard — UUID casing does not miss linked anonymous upgrades", () => {
+  const id = crypto.randomUUID();
+  const result = simulateSelfMergeGuard(id.toUpperCase(), id.toLowerCase());
+  assertEquals(result.skipped, true);
 });
 
 // ---------------------------------------------------------------------------
@@ -81,7 +103,9 @@ Deno.test("self-merge guard — different IDs proceed to DB transfer", () => {
 // Prevents authenticated accounts from being merged (only anonymous allowed).
 // ---------------------------------------------------------------------------
 
-function simulateVerifyGhostUser(isAnonymous: boolean): { allowed: boolean; status?: number } {
+function simulateVerifyGhostUser(
+  isAnonymous: boolean,
+): { allowed: boolean; status?: number } {
   if (!isAnonymous) {
     return { allowed: false, status: 403 };
   }
@@ -102,23 +126,37 @@ Deno.test("verifyGhostUser — authenticated account is rejected with 403", () =
 
 // ---------------------------------------------------------------------------
 // Transfer operation order
-// scans must move before collections before purge — both must precede purge
-// to avoid ON DELETE CASCADE silently dropping data.
+// scans, collections, posts, follows, and public identity sync must all happen
+// before purge to avoid ON DELETE CASCADE silently dropping data.
 // ---------------------------------------------------------------------------
 
-Deno.test("transfer order — scans, collections, purge execute in correct sequence", async () => {
+Deno.test("transfer order — scans, collections, identity sync, purge execute in correct sequence", async () => {
   const callOrder: string[] = [];
 
-  async function stubTransferScans() { callOrder.push("transferScans"); }
-  async function stubTransferCollections() { callOrder.push("transferCollections"); }
-  async function stubTransferExplorePosts() { callOrder.push("transferExplorePosts"); }
-  async function stubTransferUserFollows() { callOrder.push("transferUserFollows"); }
-  async function stubPurgeGhostUser() { callOrder.push("purgeGhostUser"); }
+  async function stubTransferScans() {
+    callOrder.push("transferScans");
+  }
+  async function stubTransferCollections() {
+    callOrder.push("transferCollections");
+  }
+  async function stubTransferExplorePosts() {
+    callOrder.push("transferExplorePosts");
+  }
+  async function stubTransferUserFollows() {
+    callOrder.push("transferUserFollows");
+  }
+  async function stubSyncPublicAuthorIdentity() {
+    callOrder.push("syncPublicAuthorIdentity");
+  }
+  async function stubPurgeGhostUser() {
+    callOrder.push("purgeGhostUser");
+  }
 
   await stubTransferScans();
   await stubTransferCollections();
   await stubTransferExplorePosts();
   await stubTransferUserFollows();
+  await stubSyncPublicAuthorIdentity();
   await stubPurgeGhostUser();
 
   assertEquals(callOrder, [
@@ -126,6 +164,7 @@ Deno.test("transfer order — scans, collections, purge execute in correct seque
     "transferCollections",
     "transferExplorePosts",
     "transferUserFollows",
+    "syncPublicAuthorIdentity",
     "purgeGhostUser",
   ]);
 });
@@ -133,19 +172,41 @@ Deno.test("transfer order — scans, collections, purge execute in correct seque
 Deno.test("transfer order — purge must not run before follow transfer", async () => {
   const callOrder: string[] = [];
 
-  async function stubTransferScans() { callOrder.push("transferScans"); }
-  async function stubTransferCollections() { callOrder.push("transferCollections"); }
-  async function stubTransferExplorePosts() { callOrder.push("transferExplorePosts"); }
-  async function stubTransferUserFollows() { callOrder.push("transferUserFollows"); }
-  async function stubPurgeGhostUser() { callOrder.push("purgeGhostUser"); }
+  async function stubTransferScans() {
+    callOrder.push("transferScans");
+  }
+  async function stubTransferCollections() {
+    callOrder.push("transferCollections");
+  }
+  async function stubTransferExplorePosts() {
+    callOrder.push("transferExplorePosts");
+  }
+  async function stubTransferUserFollows() {
+    callOrder.push("transferUserFollows");
+  }
+  async function stubSyncPublicAuthorIdentity() {
+    callOrder.push("syncPublicAuthorIdentity");
+  }
+  async function stubPurgeGhostUser() {
+    callOrder.push("purgeGhostUser");
+  }
 
   await stubTransferScans();
   await stubTransferCollections();
   await stubTransferExplorePosts();
   await stubTransferUserFollows();
+  await stubSyncPublicAuthorIdentity();
   await stubPurgeGhostUser();
 
   const purgeIndex = callOrder.indexOf("purgeGhostUser");
   const followsIndex = callOrder.indexOf("transferUserFollows");
-  assert(followsIndex < purgeIndex, "transferUserFollows must run before purgeGhostUser");
+  const syncIndex = callOrder.indexOf("syncPublicAuthorIdentity");
+  assert(
+    followsIndex < purgeIndex,
+    "transferUserFollows must run before purgeGhostUser",
+  );
+  assert(
+    syncIndex < purgeIndex,
+    "syncPublicAuthorIdentity must run before purgeGhostUser",
+  );
 });

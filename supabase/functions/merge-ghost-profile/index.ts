@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { syncPublicAuthorIdentity } from "../_shared/explore.ts";
 import { requireParams } from "../_shared/http.ts";
 import {
   purgeGhostUser,
@@ -30,35 +31,44 @@ serve((req: Request) =>
       return jsonResponse({ error: "ghost_id must be a valid UUID." }, 400);
     }
 
+    const ghostId = ghost_id.toLowerCase();
+    const targetUserId = user.id.toLowerCase();
+
     // Redundant client-side fire trap
-    if (ghost_id === user.id) {
+    if (ghostId === targetUserId) {
+      await syncPublicAuthorIdentity(targetUserId, supabaseAdmin);
       return jsonResponse(
-        { message: "No merge required: ghost_id matches current user." },
+        {
+          success: true,
+          targetUserId,
+          message: "No merge required: current user identity refreshed.",
+        },
         200,
       );
     }
 
     // 1. Verify Target Identity
     const verificationErrorResponse = await verifyGhostUser(
-      ghost_id,
-      user.id,
+      ghostId,
+      targetUserId,
       supabaseAdmin,
     );
     if (verificationErrorResponse) return verificationErrorResponse;
 
     // 2. Safely Execute Transfer
-    await transferScans(ghost_id, user.id, supabaseAdmin);
-    await transferCollections(ghost_id, user.id, supabaseAdmin);
-    await transferExplorePosts(ghost_id, user.id, supabaseAdmin);
-    await transferUserFollows(ghost_id, user.id, supabaseAdmin);
+    await transferScans(ghostId, targetUserId, supabaseAdmin);
+    await transferCollections(ghostId, targetUserId, supabaseAdmin);
+    await transferExplorePosts(ghostId, targetUserId, supabaseAdmin);
+    await transferUserFollows(ghostId, targetUserId, supabaseAdmin);
+    await syncPublicAuthorIdentity(targetUserId, supabaseAdmin);
 
     // 3. Purge Empty Ghost Profile
-    await purgeGhostUser(ghost_id, supabaseAdmin);
+    await purgeGhostUser(ghostId, supabaseAdmin);
 
     return jsonResponse(
       {
         success: true,
-        targetUserId: user.id,
+        targetUserId,
         message: "Ghost account securely merged and structurally deleted.",
       },
       200,
