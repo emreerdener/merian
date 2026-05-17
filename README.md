@@ -2,18 +2,20 @@
 
 **Native AI-Powered Ecological Identification for iOS**
 
-Merian is a field-ready biological identification app built around zero-friction capture and scientific-grade accuracy. Point the camera at any plant, animal, insect, fungus, or other organism and receive a structured identification in seconds — including taxonomy, ecology, conservation status, and diagnostic comparisons against lookalike species.
+Merian is a field-ready biological identification app built around zero-friction capture and scientific-grade accuracy. Point the camera at any plant, animal, insect, fungus, or other organism, describe it in text, or capture a short sound clip and receive a structured identification in seconds — including taxonomy, ecology, conservation status, and diagnostic comparisons against lookalike species.
 
 ---
 
 ## Features
 
-### Camera
+### Capture Workspace
 - Instant-on `AVCaptureSession` with device priority: triple camera → LiDAR → dual → wide. Triple camera is preferred on Pro models to expose the full 0.5×–15× optical zoom range.
 - LiDAR depth harvesting via `AVCaptureDepthDataOutput`, feeding absolute subject distance (up to ~5m) to the AI model to prevent scale hallucinations.
 - Tap-to-focus, tap-to-expose, pinch zoom, vertical swipe zoom, and direct drag on the zoom meter.
 - Native hardware button capture via `AVCaptureEventInteraction` (volume buttons, Action button, iPhone 16 Camera Control).
-- Multi-image staging mode — queue up to 2 images before submitting to inference.
+- Mixed-media staging mode — queue up to 2 total images, audio clips, or descriptions before submitting to inference.
+- Audio Listen Mode records a 15-second WAV clip with live spectrogram and SNR feedback.
+- Describe Mode supports typed observations and live voice dictation through `SpeechManager`.
 - Real-time viewfinder intelligence hints (brightness, distance, motion blur) powered by on-device luma analysis at 3fps.
 - Logarithmic zoom meter with optical stop indicators, haptic detents at each lens transition, and a tick-elongation animation around the active position.
 
@@ -22,6 +24,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Structured JSON output schema enforced server-side: common name, scientific name, full Linnaean taxonomy, ecology type, IUCN Red List status, invasiveness flag, confidence score, dominant colors, categorical group tags, and a lookalike diagnostic comparison.
 - Concurrent on-device `VNClassifyImageRequest` drives the scanning overlay's status phrases while the network round-trip runs.
 - Environmental telemetry attached to every inference call: GPS coordinates, elevation, LiDAR depth scale, weather condition and temperature, semantic location, zoom factor, time of day, month, and device locale.
+- `/identify-multimodal` is the shared live and replay endpoint for visual, audio, describe, and mixed submissions; queued media uploads through R2 staging before inference.
 
 ### Scans Library
 - Grid view of all personal captures, sorted by newest, oldest, or alphabetical.
@@ -29,6 +32,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Category filter bar: All, Plants, Fungi, Insects, Birds, Mammals, Reptiles, Other.
 - User-created collections (albums) with many-to-many scan relationships, synced to Supabase.
 - Non-biological captures isolated in a dedicated view.
+- Pending queued captures render above completed scans with state-aware upload/inference affordances.
 
 ### Insight Sheet
 - Species header with common name, scientific name, and AI confidence spectrum (3-band visual scale).
@@ -39,6 +43,13 @@ Merian is a field-ready biological identification app built around zero-friction
 - Toxicity warning banner, IUCN conservation status, and species badges (invasive, ecology type).
 - Diagnostic comparison: primary match rationale, confusing lookalike, and key visual differentiators.
 - New species discovery celebration banner.
+- Private field notes persist on `LocalScanRecord` / `OfflineQueuedScan` and can optionally be published to Explore posts.
+
+### Explore
+- Public feed, following feed, trending, nearby, and map views backed by Supabase RPCs and Edge Functions.
+- Share/unshare scans to Explore, like posts, comment, react to comments, follow authors, and receive Explore notifications.
+- Author profile sheets expose privacy-scoped public stats and non-opening public achievements.
+- Home Screen widget caches image-only Explore snapshots through the shared App Group.
 
 ### Profile & Gamification
 - Running species count, current scan streak, and longest streak.
@@ -98,11 +109,12 @@ Merian is a field-ready biological identification app built around zero-friction
 | Cloud storage | Cloudflare R2 (S3-compatible) |
 | AI model | Google Gemini 2.5 Flash / Pro |
 | Payments | RevenueCat |
+| Analytics | TelemetryDeck and PostHog |
 | CI/CD | GitHub Actions |
 | Email Services | Resend |
 
-**Minimum deployment target**: iOS 17
-**Current schema**: MerianSchemaV40
+**Minimum deployment target**: iOS 17.2
+**Current schema**: MerianSchemaV42
 
 ---
 
@@ -110,7 +122,7 @@ Merian is a field-ready biological identification app built around zero-friction
 
 ### Prerequisites
 - macOS 14+
-- Xcode 15+
+- Xcode 16+ for Swift 6-era concurrency checks
 - `xcodegen` (`brew install xcodegen`)
 - Supabase CLI
 
@@ -126,7 +138,9 @@ open Merian.xcodeproj
 
 Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your Apple Developer Team ID before opening the project. This file is ignored by git so your local signing choice survives `xcodegen generate`.
 
-Configure the required app-facing client config in your `.xcconfig` files. Public client values like `SUPABASE_URL` and `SUPABASE_ANON_KEY` are used by the app at runtime; true backend secrets like `GEMINI_API_KEY` must stay server-side only.
+`Merian.xcodeproj` is committed for convenience, but `project.yml` remains the source of truth. Regenerate the project after target, package, build setting, entitlement, or source-group changes.
+
+Configure the required app-facing client config in `Config.xcconfig`. Public client values like `SUPABASE_URL` and `SUPABASE_ANON_KEY` are used by the app at runtime; true backend secrets like `GEMINI_API_KEY` must stay server-side only.
 
 ### Local Backend
 
@@ -149,6 +163,7 @@ Extended architecture documentation lives in `docs/`:
 
 | Directory | Contents |
 |---|---|
+| `docs/codebase-map.md` | Current target/module/function/schema map generated from this repo state |
 | `docs/system-architecture/` | Data flow, concurrency model, zero-OOM patterns, AI engineering |
 | `docs/features-and-hardware/` | Camera pipeline, hardware orchestration, feature module breakdowns |
 | `docs/backend-and-data/` | Edge function contracts, database schema, offline sync, API contracts |

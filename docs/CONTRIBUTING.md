@@ -13,22 +13,24 @@ Before contributing, please review our core architectural tenets. Refactoring co
 
 ## Setting Up the Development Environment
 
-1.  **Xcode**: Ensure you are running Xcode 15 or later, as we exclusively target iOS 17+.
+1.  **Xcode**: Use Xcode 16 or later. The app deploys to iOS 17.2+, but the codebase relies on Swift 6-era concurrency diagnostics and modern SDK APIs such as `AVCaptureEventInteraction`.
 2.  **Supabase CLI**: For testing edge functions locally, you will need the Supabase CLI installed.
-3.  **Project Generation**: We do not commit the `.xcodeproj` or `.xcworkspace`. Use XcodeGen to generate the project file natively:
+3.  **Project Generation**: `project.yml` is the source of truth. `Merian.xcodeproj` is committed for convenience, but you should regenerate it after changing targets, packages, entitlements, build settings, or source-group layout:
     ```bash
     cp Signing.local.example.xcconfig Signing.local.xcconfig
     xcodegen generate
     open Merian.xcodeproj
     ```
     Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your personal Apple Developer Team ID. Do not hardcode a real team ID into `project.yml` or the shared `Signing.xcconfig`.
+4.  **Client Config**: App-facing runtime values live in `Config.xcconfig`. These values ship in the app bundle and are not backend-only secrets. Backend secrets, including Gemini and service-role keys, belong only in Supabase Edge Function secrets.
 
 ## Testing Protocol
 
 - **Swift/iOS**: All `@MainActor` lifecycle boundaries must not block the main thread.
 - **Edge Functions**: You must write and validate code natively using Deno testing frameworks. Before opening a PR targeting `supabase/functions`, run:
   ```bash
-  supabase functions test YOUR_MODULE_NAME
+  cd supabase/functions
+  deno task test
   ```
 
 ## Submitting a Pull Request 🚀

@@ -89,13 +89,13 @@ The backend logic is strictly decoupled into modular, single-responsibility func
 
 - **Instant Cold Boot:** `AppTelemetry.initialize()` runs synchronously in `MerianApp.init()` (it is just config storage — no I/O). `PostHog.configure()` is idempotent and runs before Supabase auth begins restoring a session, preventing identity-link races. Heavy `CameraManager` hardware initialization (`AVCaptureSession.beginConfiguration`) stays off the critical render path.
 - **RAM Image Cache (`ImageCache`):** A thread-safe `@unchecked Sendable` `NSCache` stores downsampled scan thumbnails in RAM, avoiding massive disk I/O thrashing during 120Hz `LazyVGrid` and `TabView` scrolling. This prevents OOM crashes and micro-stutters by capping at ~100 thumbnail entries, with iOS memory pressure controlling eviction.
-- **Asynchronous Grid Downsampling:** Image-heavy views (`ScansSearchView`, `InsightSheetView`, `InsightCarousel`) offload decoding onto a CPU pool using `ImageIO`'s `CGImageSourceCreateThumbnailAtIndex`, bounds-checking 12 MP files without allocating generic `Data` blocks. This keeps scrolling locked to 60fps on edge devices.
+- **Asynchronous Grid Downsampling:** Image-heavy views (`ScansSheetView`, `ScansGrid`, `InsightSheetView`, and the insight carousel) offload decoding onto a CPU pool using `ImageIO`'s `CGImageSourceCreateThumbnailAtIndex`, bounds-checking 12 MP files without allocating generic `Data` blocks. This keeps scrolling locked to 60fps on edge devices.
 
 ### 7. watchOS Extension (`MerianWatch`)
 
-Merian includes a companion watchOS app for acoustic identification. It bridges audio captures to the iPhone inference pipeline and does **not** perform independent Supabase or Gemini calls.
+Merian includes a companion watchOS app for acoustic identification. The watch target captures and dispatches audio via WatchConnectivity and does **not** perform independent Supabase or Gemini calls. The iOS `WCSessionDelegate` receiver is not currently implemented, so watch payloads are not yet ingested by the iPhone offline queue.
 
-- **Build Target Nuance**: Relies on explicit `project.yml` product type declarations (`watch2-app`) and correctly mapped `Contents.json` icon configurations inside `Assets.xcassets` to avoid watchOS Simulator deployment failures.
+- **Build Target Nuance**: Relies on the `MerianWatch` target in `project.yml`, explicit watchOS deployment settings, and correctly mapped `Contents.json` icon configurations inside `Assets.xcassets` to avoid watchOS Simulator deployment failures.
 - **Acoustic Capture (`WatchAcousticManager`)**: Records a 15-second AAC audio clip via `AVAudioRecorder`. Simultaneously acquires `CLLocation` coordinates and `WeatherKit` context to bundle environmental metadata with the audio payload.
 - **WatchConnectivity Bridge**: Once recording completes, the encoded payload (base64 audio + GPS + weather) is dispatched to the companion iPhone via `WCSession.sendMessage` in the foreground, with `transferUserInfo` as the background fallback when the session is unreachable.
 - **iPhone-Dependent Inference**: The iPhone receives the WatchConnectivity payload and routes it through `OfflineQueueManager` and the Edge inference pipeline. All AI processing happens server-side — the watch has no direct Supabase or Gemini calls.

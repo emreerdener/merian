@@ -443,11 +443,13 @@ the identify pipeline. The current shipped surface includes:
 - author profile reads: `get-explore-author-profile`, `get-explore-author-posts`
 - map reads: `get-explore-map-points`
 - mutations: `share-scan-to-explore`, `unshare-explore-post`,
-  `set-explore-post-like`, `set-user-follow`, `create-explore-comment`,
-  `delete-explore-comment`, `report-explore-comment`
+  `update-explore-field-notes`, `set-explore-post-like`, `set-user-follow`,
+  `create-explore-comment`, `delete-explore-comment`,
+  `toggle-explore-comment-reaction`, `report-explore-comment`
 - activity reads: `get-explore-notifications`,
   `get-explore-unread-notification-count`, `mark-explore-notifications-read`
-- device registration: `register-push-device`
+- device registration and delivery: `register-push-device`,
+  `send-push-notification`
 
 The in-app notifications feed is backed by `public.explore_post_notifications`,
 not by local client state. Like notifications are recomputed from the

@@ -1,19 +1,63 @@
 # `_shared` Directory
 
-The `_shared` repository contains the core abstraction domains that power Merian's globally isolated Deno Edge Functions.
+The `_shared` repository contains the core abstraction domains that power
+Merian's globally isolated Deno Edge Functions.
 
-Rather than fragmenting logic recursively through standard HTTP proxies, the dependencies are strictly decoupled into 10 pure domain abstractions.
+Rather than fragmenting logic recursively through every function directory, the
+shared dependencies are grouped by domain. Keep new shared code here only when
+multiple functions need the same behavior and the ownership boundary is clear.
 
 ## Infrastructure Map
 
-- **`biology.ts`**: The unified generative pipeline responsible for routing `Gemini Flash 2.5` payloads mapped directly into standard scientific JSON structures (`iucn_red_list_status`, `habitat_description`). Aggregates usage parameters manually extracting LLM LLM token telemetry logic via PostHog metrics logging.
-- **`http.ts`**: The baremetal HTTP isolation boundary. Governs cross-origin policy headers (`corsHeaders`), exports JSON payload serialization natively (`jsonResponse`), and defends against standard payload tampering using `requireParams` checking and constant-time cryptography checks against timing attacks via `timingSafeCompare`.
-- **`aws.ts`**: Maps generic logic controlling S3-compatible endpoints like Cloudflare R2 via `aws4fetch`. Generates natively pre-signed upload URL blocks, and natively powers explicit array deletion routines capable of efficiently batch-bypassing strict `1,000 Key` evaluation ceilings natively on `DeleteObjects`.
-- **`mediaBudgets.ts`**: Centralizes media byte ceilings, endpoint JSON body ceilings, allowed staging content types, inline audio base64 guards, staged R2 key ownership/path traversal checks, audio clip count validation, and `Content-Length` prechecks used by `identify`, `identify-multimodal`, `audio-spec`, and `generate-upload-urls`.
-- **`identify/media.ts`**: Owns shared inference media resolution for `identify`, `identify-multimodal`, and `audio-spec`: image R2 key validation, serial R2 image reads, inline image budget validation, inline audio decode guards, staged audio R2 reads, and consistent IDOR/path traversal responses.
-- **`edgeHandler.ts`**: Merian’s critical Edge isolation proxy. Authenticated user-facing functions invoke `withEdgeHandler()`, natively bypassing the complex `OPTIONS` preflight layer while explicitly parsing `JWT` validation securely prior to execution. Deliberately public functions, such as `species-dictionary`, may handle `OPTIONS` and request parsing directly when they do not need identity. `edgeHandler.ts` also invokes `EdgeRuntime.waitUntil(task)` to bypass strict Deno V8 wall-clock bounds via `runBackground(task)`, and exports `logStructuredError(event, details)` — emits `JSON.stringify({ event, ts, ...details })` to `console.error`. All Edge Functions **must** use `logStructuredError` for alertable operational failures (partial deletes, inconsistent state, IDOR attempts, DB write failures that could produce false-success responses) rather than plain `console.error` strings. Structured log lines are machine-parseable and can drive alerting pipelines.
-- **`external.ts`**: Drives parallel execution layers interacting directly with structured APIs natively, including Wikipedia and the GBIF (Global Biodiversity Information Facility). Safely wraps DaaS fetch blocks behind an aggressive `AbortSignal.timeout(2500)`. `fetchExternalEnrichment` returns Wikipedia URL/extract/image, GBIF usage key, GBIF match taxonomy, GBIF occurrence images, and English vernacular names so identify paths and the scheduled species refresh worker share the same authoritative external data source.
-- **`gemini.ts`**: Instantiates the global `GoogleGenAI` client (`@google/genai@1.0.0`) once at module scope. Exports `createFlashModel(systemInstruction, maxOutputTokens)` for all structured-output Flash calls (encyclopedic data, lookalikes, group tags) with `thinkingBudget: 0`. Returns the **native `GenerateContentResponse`** from `@google/genai` directly — callers access `result.text` (string | undefined) and `result.usageMetadata` without any wrapper shim. Generation config is passed as `config:` at call sites, not `generationConfig:`. Contains `extractJson<T>(text)` logic designed expressly to rip Markdown fences securely off of corrupted Gemini LLM strings natively.
-- **`auth.ts`**: Native Deno SDK integration mapped explicitly against the JSON Web Token lifecycle validating `Supabase` authentication payloads.
-- **`posthog.ts`**: Wraps native HTTP payload logging executing directly to PostHog, decoupling Telemetry from the `identify` critical path.
-- **`tierCache.ts`**: Natively provisions a generic `Map<string, { tier: string, ts: number }>` global executing locally in the V8 Isolate memory chunk natively preserving `5-minute TTL` validations to securely eliminate heavy Deno->Supabase Postgres roundtrip checks.
+- **`edgeHandler.ts`**: Authenticated user-facing function wrapper,
+  preflight handling, background task dispatch, and structured operational
+  logging.
+- **`http.ts`**: CORS headers, JSON responses, parameter validation,
+  JSON-body parsing, body-size checks, and constant-time comparison helpers.
+- **`auth.ts`**: Supabase user/session validation helpers.
+- **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object fetch, and
+  batch deletion helpers.
+- **`mediaBudgets.ts`**: Shared media byte ceilings, allowed staging content
+  types, inline/staged audio and image validation, clip-count limits, and
+  `Content-Length` prechecks.
+- **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
+  by `audio-spec` and `identify-multimodal`.
+- **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,
+  enrichment, species refresh, and dictionary paths.
+- **`gemini.ts`**: Global `GoogleGenAI` client setup plus structured-output and
+  JSON extraction helpers.
+- **`biology.ts`**: Shared structured biological generation helpers retained for
+  functions that still need text-only ecological generation.
+- **`posthog.ts`**: Best-effort PostHog HTTP capture helpers.
+- **`tierCache.ts`**: Short-lived user-tier cache to avoid repeated Supabase
+  lookups inside hot Edge paths.
+- **`explore.ts`**: Explore UUID validation, public author identity sync, and
+  shared social-surface helpers.
+- **`publicSpeciesProjection.ts`**: Public species projection sanitizer that
+  prevents private scan/user fields from leaking into dictionary and Explore
+  responses.
+- **`speciesContentProvenance.ts`**: Provenance mapping for scheduled species
+  content refresh outputs.
+- **`taxonomy.ts`**: Taxonomic normalization helpers and test-backed taxonomy
+  transformations.
+
+## Identify Subdomain
+
+`_shared/identify/` is the shared inference stack used by `identify`,
+`identify-multimodal`, `identify-describe`, and `audio-spec` where behavior is
+identical:
+
+- **`clientPayload.ts`**: Cache-hit payload hydration shared by identify
+  endpoints.
+- **`context.ts`**: Telemetry context normalization, month/time handling, and
+  ecological field clamping.
+- **`db.ts`**: Scan insert/update helpers, species cache writes, and shared
+  database boundaries.
+- **`media.ts`**: Image/audio media resolution from inline payloads and R2
+  staging keys.
+- **`moderation.ts`**: Gemini safety evaluation, abuse strikes, and safe media
+  promotion.
+- **`schema.ts`**: Gemini response schema definitions.
+- **`thresholds.ts`**: Tier-specific confidence thresholds mirrored by
+  `MerianConfig`.
+- **`types.ts`**: Shared TypeScript DTOs for the identify family.

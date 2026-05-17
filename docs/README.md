@@ -2,7 +2,19 @@
 
 This directory is the technical master reference for the native iOS application, Supabase PostgreSQL backend, Cloudflare R2 ephemeral networking, and hardware orchestration logic.
 
+## Current Snapshot
+
+- **App targets**: iOS app (`merian/`), watchOS companion (`MerianWatch/`), Explore WidgetKit extension (`MerianExploreWidget/`), unit tests, and UI tests.
+- **Deployment target**: iOS 17.2 for the app and widget; watchOS 10.0 for the companion target.
+- **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is committed for convenience and should be regenerated after project-structure changes.
+- **Active SwiftData schema**: `MerianSchemaV42` via `typealias CurrentSchema = MerianSchemaV42` in `merian/Models/Aliases.swift`.
+- **Primary inference endpoint**: `/identify-multimodal` for visual, audio, describe, and mixed-media submissions. `/identify` remains documented for legacy/image-specific compatibility and shared backend primitives.
+
 ## Directory Structure
+
+### Current Codebase Map
+
+- **[`/codebase-map.md`](./codebase-map.md)** — Current target, folder, schema, SwiftData actor, feature, Edge Function, and testing inventory for this repo state.
 
 ### System Architecture
 
@@ -18,7 +30,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/backend-and-data/01-offline-sync-pipeline.md`](./backend-and-data/01-offline-sync-pipeline.md)** — Zero-data-loss architecture, SwiftData queues, and AppDelegate background URLSession mappings.
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)** — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species dictionary workers, and cron/webhook boundaries.
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)** — SwiftData actor model: `BackgroundDatabaseActor`, `HistoricalDatabaseActor`, and `FileIOActor`.
-- **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)** — Physical table maps for PostgreSQL and the SwiftData persistent schemas, including the V41 `CapturedMediaEntry` mixed-media model.
+- **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)** — Physical table maps for PostgreSQL and the SwiftData persistent schemas, including the V41 `CapturedMediaEntry` mixed-media model and V42 field-notes columns.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, `/species-dictionary`, Explore detail similar species, and internal cron workers such as Merian reference-image refresh.
 
 ### Features & Hardware
@@ -59,4 +71,4 @@ This directory is the technical master reference for the native iOS application,
 
 ## About Merian
 
-Merian is a native iOS and iPadOS application that identifies plants, animals, insects, fungi, and indoor ecology with scientific-grade accuracy in under 3 seconds. It uses dynamic routing between the Gemini 2.5 Flash and Pro APIs via Supabase Edge functions, with a full offline-first architecture backed by SwiftData and Cloudflare R2.
+Merian is a native iOS application that identifies plants, animals, insects, fungi, and indoor ecology with scientific-grade accuracy across visual, audio, and text-described observations. It uses dynamic routing between the Gemini 2.5 Flash and Pro APIs via Supabase Edge Functions, with a full offline-first architecture backed by SwiftData and Cloudflare R2.

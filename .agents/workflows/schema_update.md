@@ -30,16 +30,13 @@ This constraint applies to ALL custom stages in `MerianMigrationPlan.stages`, ev
 
 ### Step 1 — Freeze the outgoing schema V(N)
 
-**Use the automation script first:**
-```bash
-python3 .agents/workflows/freeze_schema.py {N} --apply
-```
-This reads `ActiveSchema/LocalScanRecord.swift` as it exists NOW, strips `public` modifiers, wraps it in `extension MerianSchemaV{N}`, and appends it to `SchemaV{N}.swift`. Preview without writing: omit `--apply`.
+No schema-freezing automation script is currently checked into this repository.
+Freeze the outgoing schema manually before touching any file in
+`merian/Models/ActiveSchema/`.
 
-After the script runs, complete these manual steps inside `SchemaV{N}.swift`:
+Manual freeze checklist inside `SchemaV{N}.swift` or `SchemaVersions.swift`:
 
 1. **Declare the frozen `LocalScanRecord` inside the enum body (not an extension)**:
-   - The script generates an `extension MerianSchemaV{N} { ... }` block. **Move the class declaration into the enum body directly** — this is the canonical pattern.
    - Extension-declared inner classes introduce a Swift name-resolution ambiguity: bare `LocalScanRecord.self` in the enum body's `models` computed property may silently resolve to the global `ActiveSchema` type instead of the frozen snapshot, causing the iOS 26 "cannot be equal" crash.
    - If an extension is unavoidable (e.g., the `@Relationship` macro reflection bug from V24/V25), **always use fully-qualified `MerianSchemaV{N}.LocalScanRecord.self` in the `models` array**.
 
@@ -78,7 +75,8 @@ After the script runs, complete these manual steps inside `SchemaV{N}.swift`:
 
 ### Step 2 — Modify global models
 
-Now it is safe to add, remove, or rename fields in `merian/Models/ActiveSchema/`:
+After Step 1 compiles, it is safe to add, remove, or rename fields in
+`merian/Models/ActiveSchema/`:
 - `LocalScanRecord.swift`
 - `OfflineQueuedScan.swift`
 - `ScanCollection.swift`
@@ -212,7 +210,7 @@ All tests must pass before committing.
 
 ## Checklist
 
-- [ ] `freeze_schema.py {N} --apply` run BEFORE modifying any `ActiveSchema/` file
+- [ ] Outgoing schema V(N) frozen manually BEFORE modifying any `ActiveSchema/` file
 - [ ] V(N) frozen `LocalScanRecord` declared **inside the enum body** (not an extension)
 - [ ] V(N) frozen `ScanCollection` redeclared **inside the enum body** (not a typealias) — relationship key path must point to V(N).LocalScanRecord
 - [ ] V(N) `OfflineQueuedScan` and `PendingCloudDeletionTask` may use typealiases (no relationship to LocalScanRecord)

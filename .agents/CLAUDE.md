@@ -11,7 +11,7 @@ Before proposing structural changes or refactoring any code, you MUST review the
   - `index.ts`: Strict HTTP controller orchestrating JWT validation and IDOR guards. No PostgreSQL `.select()`/`.insert()` logic allowed here.
   - `db.ts`: The native data layer encapsulating all PostgREST operations. All queries pulling variable array fields must enforce mathematically safe bounds (e.g., `.limit(500)`) natively to protect V8 Isolates from memory crashes.
   - `types.ts`: Strict schema mapping bridging Swift `Codable` structs directly to Deno JSON payloads.
-- **Shared Utilities**: The `supabase/functions/_shared/` folder contains exactly 9 pristine domains controlling CORS headers, telemetrics, AWS payloads, and the Gemini AI abstraction layer (see `_shared/README.md`). Do not hallucinate or create duplicate shared scripts.
+- **Shared Utilities**: The `supabase/functions/_shared/` folder contains the shared domains for HTTP handling, auth, media budgets, R2, Gemini, PostHog, Explore helpers, taxonomy/projection helpers, and the `_shared/identify/` inference stack (see `_shared/README.md`). Do not hallucinate or create duplicate shared scripts.
 - **Strict Typing**: TypeScript `any` types and `@ts-ignore` flags are forbidden. All modifications must natively pass a recursive `deno check` compilation before you declare a task complete.
 
 ## 2. iOS Frontend Stack (SwiftUI & SwiftData)

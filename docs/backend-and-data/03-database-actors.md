@@ -146,7 +146,7 @@ await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifica
 
 ---
 
-### `SearchDatabaseActor` (`Core/Data/Database/SearchDatabaseActor.swift`)
+### `SearchDatabaseActor` (`Features/Scans/ViewModels/ScansManager.swift`)
 
 **Declaration**: `@ModelActor actor SearchDatabaseActor`
 

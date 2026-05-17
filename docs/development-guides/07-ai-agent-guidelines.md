@@ -23,19 +23,21 @@ The `docs/` folder contains the master reference for the application:
 
 ## 2. Directory Structure
 The workspace enforces this layout inside `merian/`:
-- `Features/`: Complete user domains (`Camera`, `Insights`, `Scans`, `Profile`, `Settings`).
+- `Features/`: Complete user domains (`CaptureWorkspace`, `Explore`, `Insights`, `Onboarding`, `Profile`, `Scans`, `SpeciesDictionary`).
 - `Core/`: Foundational logic organized into subdirectories:
   - `AI/`: `InferenceEngine`, `InferenceProcessingActor`
-  - `Data/Database/`: `BackgroundDatabaseActor`, `FileIOActor`, `HistoricalDatabaseActor`, `ScanRepository`, `SearchDatabaseActor`
+  - `Data/Database/`: `BackgroundDatabaseActor`, `FileIOActor`, `HistoricalDatabaseActor`, `ScanRepository`
   - `Data/Images/`: `LocalImageLoader`, `ImageCache`, `ArchiveManager`, `PhotoLibraryManager`
-  - `Data/OfflineSync/`: `OfflineQueueManager`, `SyncStateManager`, `CircuitBreakerManager`
-  - `Hardware/`: `CameraManager`, `HardwareOrchestrator`, `EnvironmentContextManager`
+  - `Data/OfflineSync/`: `OfflineQueueManager`, `SyncStateManager`
+  - `Hardware/`: `CameraManager`, `HardwareOrchestrator`, `EnvironmentContextManager`, `AudioCaptureManager`, `SpectrogramActor`
   - `Network/`: `MerianNetworkClient`, `SupabaseManager`
-  - `Security/`: `KeychainManager`, `DeviceIdentityManager`
-  - `Utilities/`: `MerianConfig`, `AppLifecycleManager`, `BackgroundTaskWrapper`, `ImageDownsampler`, `MerianLog`
+  - `Security/`: `CircuitBreakerManager`, `DeviceIdentityManager`, `RevenueCatManager`, `SocialGuardManager`
+  - `Utilities/`: `MerianConfig`, `AppLifecycleManager`, `BackgroundTaskWrapper`, `FieldNotesRepository`, `ImageDownsampler`
   - `Analytics/`, `Intents/`
 - `Models/`: Standardized pure Data structures and `SwiftData` logic.
 - `Configuration/`: `project.yml`, `Config.xcconfig`, App Intents, and Entrypoint metadata.
+- `MerianLog` lives at `Core/MerianLog.swift`.
+- `SearchDatabaseActor` lives with `ScansManager` in `Features/Scans/ViewModels/ScansManager.swift` because it is an implementation detail of the Scans library search index.
 
 ## 3. Application State & Dependency Injection
 - **DO NOT** use scattered `@EnvironmentObject` implementations or rely heavily on SwiftUI environment scoping for heavy singletons.
@@ -93,14 +95,14 @@ The workspace enforces this layout inside `merian/`:
 ## 10. Agent Workflows
 Merian maintains reproducible, automated workflows inside the `.agents/workflows/` directory. AI Agents **MUST** execute these runbooks (e.g. via slash commands or manually reading and running) for critical operations instead of guessing:
 - `schema_update.md`: Bumping SwiftData schema versions and snapshotting global active models.
-- `freeze_schema.py`: Script run as Step 1 of every schema bump. Reads `ActiveSchema/LocalScanRecord.swift` and generates a frozen `@Model` snapshot (with `public` modifiers stripped) for the outgoing schema. Usage: `python3 .agents/workflows/freeze_schema.py <version> --apply`. Run this BEFORE modifying any global model.
-- `deploy_edge_functions.md`: Deploying TypeScript Supabase modifications and executing type checks.
-- `revenuecat_entitlements.md`: Adding/Modifying in-app purchases and localized StoreKit files.
-- `mock_camera_inference.md`: Faking `AVCapturePhoto` hardware feeds via `InferenceEngine` to test caching lines on the simulator.
+
+No `freeze_schema.py` helper is currently checked in. When bumping schemas,
+follow `.agents/workflows/schema_update.md` manually and freeze the outgoing
+schema before changing any global model in `ActiveSchema/`.
 
 ## 11. SwiftData Schema Migration Safety
 
-**CRITICAL — read `.agents/workflows/schema_update.md` before touching any schema. Use `freeze_schema.py` to automate Step 1.**
+**CRITICAL — read `.agents/workflows/schema_update.md` before touching any schema.**
 
 Two invariants govern every schema file:
 
@@ -110,7 +112,7 @@ Two invariants govern every schema file:
 | Current (V(N)) | Global types: `LocalScanRecord.self` | App code (`@Query`, `context.insert`, etc.) must operate on the same entity as the container |
 
 **The single rule that prevents `NSStagedMigrationManager` crashes:**
-> Freeze the outgoing schema (V(N)) — run `python3 .agents/workflows/freeze_schema.py {N} --apply` — **BEFORE** modifying any global model in `ActiveSchema/`. Never add fields to a global model first.
+> Freeze the outgoing schema (V(N)) manually **BEFORE** modifying any global model in `ActiveSchema/`. Never add fields to a global model first.
 
 **Compile-time enforcement**: Retired schemas MUST use fully-qualified type names in their `models` array (e.g., `MerianSchemaV26.LocalScanRecord.self`). A missing snapshot causes a build error rather than a runtime crash at a user's device.
 

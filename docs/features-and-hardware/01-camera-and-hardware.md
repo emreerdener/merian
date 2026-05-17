@@ -29,7 +29,7 @@ The lowest-level integration, interfacing directly with the iPhone optics.
 - **Simulator no-preview camera**: In simulator builds, `CameraManager.startSession()` does not start `AVCaptureSession`. Recent iOS Simulator runtimes can surface `FigCaptureSourceSimulator` / `FormatDescription` failures and leave the preview layer permanently black. Merian instead marks the session as running with `maxZoomFactor = 1.0`, hides the zoom slider through the normal `isZoomSupported` gate, and renders a plain black `SimulatorCameraSurfaceView` with tap/drag affordances but no fake imagery. Hardware shutter capture is unavailable in simulator; use the photo-library picker for simulator scan testing. Physical devices still use the full AVFoundation pipeline.
 - **Thread-Safe Capture Operations**: Resolves data races and array bounds exceptions (`SIGABRT`) from overlapping hardware capture timeouts. Replaces the linear `activeCaptureRequests` array with a thread-safe `Dictionary<Int64, CaptureRequest>` keyed by `AVCapturePhotoSettings.uniqueID`, providing atomic O(1) removals via an `NSLock` that synchronizes `@MainActor` continuation callbacks with the asynchronous hardware delegates.
 
-### `ZoomSliderView` (`Features/Camera/Components/ZoomSliderView.swift`)
+### `ZoomSliderView` (`Features/CaptureWorkspace/Modalities/Visual/Components/ZoomSliderView.swift`)
 
 Vertical zoom meter overlaid on the viewfinder. Supports direct drag interaction as well as reflecting zoom changes from pinch and viewfinder swipe gestures. Reads `CameraManager` from the environment; no parameters are passed from `MainOverlayView`.
 
@@ -84,7 +84,7 @@ Centralizes UI vibration feedback, keeping haptic engine initialization off the 
 - **System Haptics Toggle (`isHapticsEnabled`)**: All motor triggers are guarded by the injected `AppSettings.isHapticsEnabled` boundary. If the user disables haptics in Settings, `HapticManager` skips all `.impactOccurred()` calls. Haptics are also suppressed while expedition mode is active through the injected `HardwareOrchestrator`.
 - **Strict Requirement**: Never use `UIImpactFeedbackGenerator` or `.sensoryFeedback` modifiers directly in views. Always route haptic feedback through `HapticManager.shared` API methods to ensure the user's `isHapticsEnabled` preference is respected globally.
 
-### `ViewfinderHints` (`Features/Camera/Components/ViewfinderHints.swift`)
+### `ViewfinderHints` (`Features/CaptureWorkspace/Modalities/Visual/Components/ViewfinderHints.swift`)
 
 Glassmorphic hint capsule overlaid at the bottom of the camera viewfinder. Bridges `ViewfinderIntelligence` output to the user without blocking the shutter path.
 
@@ -95,7 +95,7 @@ Glassmorphic hint capsule overlaid at the bottom of the camera viewfinder. Bridg
 
 ---
 
-### `CaptureMode` & `MediaModeToggle` (`Features/Camera/Components/MediaModeToggle.swift`)
+### `CaptureMode` & `MediaModeToggle` (`Core/UI/Components/MediaModeToggle.swift`)
 
 `CaptureMode` is a `String` `CaseIterable` enum defining the three capture pages:
 

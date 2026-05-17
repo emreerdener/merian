@@ -1025,14 +1025,13 @@ namespace within `merian/Models/ActiveSchema/`. Historical schema snapshots live
 in their own file (`merian/Models/Schema/SchemaV1.swift` through
 `SchemaV39.swift`). The file `merian/Models/SchemaVersions.swift` declares
 `MerianMigrationPlan` — the ordered list of schemas and migration stages. When
-bumping to V{N+1}, follow the runbook at `.agents/workflows/schema_update.md`
-(or run it via `/schema_update` command):
+bumping to V{N+1}, follow the runbook at `.agents/workflows/schema_update.md`:
 
-1. **Run `python3 .agents/workflows/freeze_schema.py {N} --apply`** — generates
-   a frozen `LocalScanRecord` snapshot for `SchemaV{N}.swift` from the current
-   `ActiveSchema/` before any changes. Move the generated class into the enum
-   body (not the extension block the script outputs).
-2. Update `SchemaV{N}.swift` `models` array to use fully-qualified
+1. Manually freeze the outgoing schema V{N} from the current `ActiveSchema/`
+   before any changes. Declare changed models inside the schema enum body, not
+   in an extension, unless a documented macro bug requires otherwise.
+2. Update `SchemaV{N}.swift` or the V{N} block in `SchemaVersions.swift`
+   `models` array to use fully-qualified
    `MerianSchemaV{N}.LocalScanRecord.self` references — this locks the checksum
    and prevents the iOS 26 "equal model references" crash for custom migration
    stages.
@@ -1074,8 +1073,10 @@ The current active schema is `MerianSchemaV42`. Recent milestones:
   `capturedMediaEntries` relationships on both `LocalScanRecord` and
   `OfflineQueuedScan`, while continuing to write `capturedMediaJSON` as the
   scalar durability/read mirror.
-- V42 is a lightweight active-schema handoff after freezing V41 snapshots,
-  keeping `CurrentSchema` bound to the active global model classes.
+- V42 added first-class `fieldNotes` columns to both `LocalScanRecord` and
+  `OfflineQueuedScan`, then performed the active-schema handoff after freezing
+  V41 snapshots. The legacy per-scan UserDefaults bridge remains a fallback
+  only; `FieldNotesRepository` promotes bridge-only notes back into SwiftData.
 
 **Edge DTO Layer** (`merian/Core/AI/InferenceEdgeDTOs.swift`): Declares
 `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and
@@ -1187,6 +1188,11 @@ mirror for migration safety and compatibility.
 - `coverImagePath`: String? (Added in `MerianSchemaV40`. First image extracted
   from the canonical media timeline, used for queue thumbnails without reparsing
   the full payload.)
+- `fieldNotes`: String? (Added in `MerianSchemaV42`. Private user-authored
+  notes captured while the scan is queued. These are carried through
+  `BackgroundDatabaseActor` when the queued row becomes a `LocalScanRecord` and
+  are resolved through `FieldNotesRepository` before falling back to the legacy
+  UserDefaults bridge.)
 - `gpsLatitude`, `gpsLongitude`, `gpsElevation`: Double?
 - `weatherCondition`, `locationName`: String?
 - `weatherTemperatureF`, `blurScore`: Double?
@@ -1237,6 +1243,11 @@ Tracks locally synchronized species scans for the Scans library.
 - `scientificName`: String
 - `commonName`: String
 - `confidenceScore`: Double?
+- `fieldNotes`: String? (Added in `MerianSchemaV42`. Private user-authored
+  discovery notes. Local insight surfaces read and write this through
+  `FieldNotesRepository`; Explore receives a public copy only when the user
+  explicitly shares notes through `/share-scan-to-explore` or
+  `/update-explore-field-notes`.)
 - Image, audio, and description items are restored through
   `serializedCapturedMediaItems` / `capturedMediaSnapshot`. Those helpers prefer
   `capturedMediaJSON` first and only lazily fault `capturedMediaEntries` if the

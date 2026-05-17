@@ -354,8 +354,9 @@ Tests are organized under `merianTests/Core` and `merianTests/Features`:
 - **`ImageDownsamplerTests.swift`**: Tests Core Graphics memory constraints by
   processing 4000x4000 payloads under safe metric limits, preventing
   Out-Of-Memory JetSam crashes.
-- **`ScansSearchManagerTests.swift`**: Verifies debounced string filtering via
-  SwiftData `@Query` mechanisms.
+- **`ScansManagerTests.swift`**: Verifies search-index construction,
+  incremental reindexing, sort behavior, and selection limits for the Scans
+  library.
 - **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine
   progression, ensuring hardware fallback steps prevent `Int` scalar
   out-of-bounds crashes. Tests core persistence loops simulating `@AppStorage`

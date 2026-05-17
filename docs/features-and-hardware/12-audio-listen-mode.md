@@ -399,7 +399,7 @@ Mirrors the other inference endpoints: Gemini API failures → 503 (transient, i
 | Item | Status |
 |---|---|
 | `/identify-multimodal` audio path | **Complete** — live and replay audio route here |
-| `InferenceEngine.analyzeAudio` live path | **Complete** — in `InferenceEngine.swift` |
+| `InferenceEngine.analyzeNonVisual` live path | **Complete** — in `InferenceEngine.swift`; audio shares the non-visual path with describe captures |
 | iOS live audio request via inline `audioBase64s` | **Complete** — byte-preflighted in `MerianNetworkClient.buildMultiModalRequest` |
 | Offline replay audio dispatch path | **Complete** — queued audio uploads to R2 and replays as `audioR2ObjectKeys` |
 | Two-phase R2 audio upload | **Complete for queued replay** — foreground live audio remains inline by design |

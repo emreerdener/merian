@@ -23,7 +23,7 @@ Merian ships a companion watchOS target (`MerianWatch/`) that captures acoustic 
     [iPhone OfflineQueueManager]  ← NOT YET IMPLEMENTED
             │
             ▼
-    [/identify Edge Function]
+    [/identify-multimodal Edge Function]
 ```
 
 ## `WatchAcousticManager`
@@ -60,11 +60,11 @@ Merian ships a companion watchOS target (`MerianWatch/`) that captures acoustic 
 
 ## Payload Schema
 
-The payload delivered to the iPhone via `WCSession` matches the `/identify` Edge Function's body contract:
+The payload delivered to the iPhone via `WCSession` is a watch handoff envelope. It is not yet consumed by iOS, and the eventual receiver should translate it into Merian's current non-visual `/identify-multimodal` request shape:
 
 ```json
 {
-  "audioData": "<base64-encoded M4A>",
+  "audioData": "<base64-encoded M4A watch recording>",
   "currentMonth": 4,
   "deviceLocale": "en_US",
   "gpsLatitude": 37.7749,
@@ -97,7 +97,8 @@ session.sendMessage(payload, replyHandler: nil) { error in
 The iPhone side requires a `WCSessionDelegate` that:
 1. Implements `session(_:didReceiveMessage:)` for foreground payloads
 2. Implements `session(_:didReceiveUserInfo:)` for background-queued payloads
-3. Forwards the payload into `OfflineQueueManager` as an acoustic identification job
+3. Converts or transcodes the watch `.m4a` handoff into the supported non-visual audio flow
+4. Forwards the payload into `OfflineQueueManager` as an acoustic identification job routed through `/identify-multimodal`
 
 Until this is implemented, payloads from the watch are silently dropped on the iOS side. The watch capture and dispatch pipeline is fully functional — the work remaining is entirely on the iOS receiver.
 

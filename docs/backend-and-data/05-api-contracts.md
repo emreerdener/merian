@@ -1244,15 +1244,56 @@ Follow-up page requests send:
 ### `/share-scan-to-explore` and `/unshare-explore-post`
 
 - `share-scan-to-explore` creates or reactivates a manual-share Explore post for
-  an eligible biological image scan.
+  an eligible biological scan with shareable image media. If a scan's public
+  media URLs expired but the client can provide owner-scoped
+  `restored_object_keys`, the function promotes safe media back into
+  `image_storage_urls` before sharing.
 - `unshare-explore-post` soft-removes the post from the public feed via
   `unshared_at` without deleting the underlying scan.
+- `field_notes` is optional and capped at 1000 characters. It is a public copy
+  controlled by the user, not the private local source of truth.
 - Unsharing also purges any Explore notifications tied to that post so the
   activity feed cannot route into hidden content.
 - The current Explore map reads privacy-safe coordinates from the backing
   `scans` row. `trg_sync_scan_public_coordinates` ensures those public
   coordinates are derived or backfilled even when a scan was originally inserted
   with only exact GPS fields.
+
+### `/update-explore-field-notes`
+
+Updates the public field-notes copy on an already-shared Explore post owned by
+the current viewer. This endpoint does not mutate the private local notes stored
+in SwiftData; iOS continues to treat `FieldNotesRepository` as the local source
+of truth.
+
+Request body:
+
+```json
+{
+  "post_id": "uuid",
+  "field_notes": "Found at the shaded meadow edge after rain."
+}
+```
+
+Response body:
+
+```json
+{
+  "success": true,
+  "post_id": "uuid",
+  "field_notes": "Found at the shaded meadow edge after rain."
+}
+```
+
+Rules:
+
+- Requires an authenticated user through `withEdgeHandler`.
+- `post_id` must be a valid UUID.
+- `field_notes` may be a string or `null`.
+- Empty or whitespace-only strings are normalized to `null`.
+- Non-empty notes are trimmed and capped at 1000 characters.
+- The update is scoped by `explore_posts.id`, `explore_posts.user_id`, and
+  `unshared_at IS NULL`; non-owned or unshared posts return 404.
 
 ### `/get-scan-explore-share-state`
 
@@ -1390,6 +1431,7 @@ Removal semantics:
 Idempotently toggles an emoji reaction for the current viewer on a specific
 comment and returns:
 
+- `success`
 - `comment_id`
 - `emoji`
 
