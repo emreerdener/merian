@@ -449,6 +449,58 @@ import Supabase
         }
     }
 
+    @discardableResult
+    private func updateAppleUserMetadataIfAvailable(
+        from components: PersonNameComponents?
+    ) async -> Bool {
+        guard let components else { return false }
+
+        var metadata: [String: AnyJSON] = [:]
+        if let displayName = formattedAppleDisplayName(from: components) {
+            metadata["full_name"] = .string(displayName)
+            metadata["name"] = .string(displayName)
+        }
+        if let givenName = components.givenName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !givenName.isEmpty {
+            metadata["given_name"] = .string(givenName)
+        }
+        if let familyName = components.familyName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !familyName.isEmpty {
+            metadata["family_name"] = .string(familyName)
+        }
+
+        guard !metadata.isEmpty else { return false }
+
+        do {
+            let updatedUser = try await client.auth.update(user: UserAttributes(data: metadata))
+            currentUser = updatedUser
+            MerianLog.auth.debug("Apple profile metadata persisted for public author identity.")
+            return true
+        } catch {
+            MerianLog.auth.debug("Apple profile metadata update failed: \(error.localizedDescription, privacy: .private)")
+            return false
+        }
+    }
+
+    private func formattedAppleDisplayName(from components: PersonNameComponents) -> String? {
+        let formatter = PersonNameComponentsFormatter()
+        formatter.style = .medium
+
+        let formatted = formatter.string(from: components)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !formatted.isEmpty { return formatted }
+
+        let fallbackParts = [
+            components.givenName,
+            components.familyName
+        ]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !fallbackParts.isEmpty else { return nil }
+        return fallbackParts.joined(separator: " ")
+    }
+
     private func schedulePublicAuthorIdentityRefreshIfNeeded(for user: User) {
         guard !TestExecutionCoordinator.isRunningTests, !user.isAnonymous else { return }
 
@@ -578,10 +630,16 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                     accessToken: nil,
                     nonce: nonce
                 )
+                let didPersistAppleMetadata = await updateAppleUserMetadataIfAvailable(
+                    from: appleIDCredential.fullName
+                )
                 let session = try await client.auth.session
                 currentUser = session.user
                 isAuthenticated = true
                 _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
+                if didPersistAppleMetadata {
+                    await triggerGhostProfileMerge(from: session.user.id.uuidString)
+                }
                 publishPublicAuthorIdentityChanged(
                     previousUserId: previousUserId,
                     currentUserId: session.user.id.uuidString
