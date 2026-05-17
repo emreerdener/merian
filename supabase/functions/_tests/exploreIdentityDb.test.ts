@@ -4,7 +4,13 @@ import {
   assertNotMatch,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
-import { withExploreDbTest } from "./exploreDbTestHelpers.ts";
+import {
+  insertExplorePost,
+  insertScan,
+  insertSpecies,
+  insertUser,
+  withExploreDbTest,
+} from "./exploreDbTestHelpers.ts";
 
 Deno.test("Explore identity DB - default public alias is human-readable and deterministic", async () => {
   await withExploreDbTest("exploreIdentityDb.test", async (client: Client) => {
@@ -45,5 +51,52 @@ Deno.test("Explore identity DB - auth user updates refresh public author identit
     );
 
     assertEquals(result.rows[0]?.trigger_count, 1);
+  });
+});
+
+Deno.test("Explore identity DB - repair function aligns Explore post owner with scan owner", async () => {
+  await withExploreDbTest("exploreIdentityDb.test", async (client: Client) => {
+    const ghostId = "00000000-0000-0000-0000-00000000a001";
+    const targetId = "00000000-0000-0000-0000-00000000a002";
+    const speciesId = "00000000-0000-0000-0000-00000000a003";
+    const scanId = "00000000-0000-0000-0000-00000000a004";
+    const postId = "00000000-0000-0000-0000-00000000a005";
+
+    await insertUser(client, ghostId, "Ghost Alias");
+    await insertUser(client, targetId, "Logged In User");
+    await insertSpecies(client, speciesId, "Rosa testus");
+    await insertScan(client, {
+      id: scanId,
+      userId: targetId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "open",
+    });
+    await insertExplorePost(client, {
+      id: postId,
+      userId: ghostId,
+      scanId,
+    });
+
+    const repairResult = await client.queryObject<{ repaired_count: number }>(
+      `
+        SELECT public.repair_explore_post_ownership_for_user($1::uuid) AS repaired_count
+      `,
+      [targetId],
+    );
+
+    assertEquals(repairResult.rows[0]?.repaired_count, 1);
+
+    const postResult = await client.queryObject<{ user_id: string }>(
+      `
+        SELECT user_id::text
+        FROM public.explore_posts
+        WHERE id = $1
+      `,
+      [postId],
+    );
+
+    assertEquals(postResult.rows[0]?.user_id, targetId);
   });
 });

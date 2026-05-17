@@ -6,7 +6,10 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
-import { requireUuid } from "../_shared/explore.ts";
+import {
+  refreshExploreAuthorStateBestEffort,
+  requireUuid,
+} from "../_shared/explore.ts";
 import { fetchExplorePost } from "./db.ts";
 
 serve((req: Request) =>
@@ -22,6 +25,12 @@ serve((req: Request) =>
     if (paramErr) return paramErr;
 
     const postId = requireUuid(body.post_id, "post_id");
+    await refreshExploreAuthorStateBestEffort(
+      user.id,
+      supabaseAdmin,
+      "get-explore-post",
+    );
+
     let data;
     try {
       data = await fetchExplorePost(user.id, postId, supabaseAdmin);
@@ -39,5 +48,5 @@ serve((req: Request) =>
     }
 
     return jsonResponse({ data }, 200);
-  }),
+  })
 );

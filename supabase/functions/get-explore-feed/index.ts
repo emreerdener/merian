@@ -8,11 +8,15 @@ import {
   normalizeLimit,
   normalizeLongitude,
   normalizeNonNegativeInteger,
+  refreshExploreAuthorStateBestEffort,
   requireUuid,
 } from "../_shared/explore.ts";
 import { fetchExploreFeed } from "./db.ts";
 
-function makeHttpError(status: number, message: string): Error & { status: number } {
+function makeHttpError(
+  status: number,
+  message: string,
+): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
@@ -29,17 +33,28 @@ serve((req: Request) =>
 
     const limit = normalizeLimit(body.limit, 20, 100);
     const filter = normalizeExploreFeedFilter(body.filter);
-    const beforeSharedAt = normalizeCursorTimestamp(body.before_shared_at, "before_shared_at");
+    const beforeSharedAt = normalizeCursorTimestamp(
+      body.before_shared_at,
+      "before_shared_at",
+    );
     const beforePostId = body.before_post_id == null
       ? null
       : requireUuid(body.before_post_id, "before_post_id");
-    const beforeRankingValue = normalizeNonNegativeInteger(body.before_ranking_value, "before_ranking_value");
+    const beforeRankingValue = normalizeNonNegativeInteger(
+      body.before_ranking_value,
+      "before_ranking_value",
+    );
     const latitude = normalizeLatitude(body.latitude, "latitude");
     const longitude = normalizeLongitude(body.longitude, "longitude");
 
     if (filter === "trending") {
-      const hasAnyCursor = beforeRankingValue != null || beforeSharedAt != null || beforePostId != null;
-      if (hasAnyCursor && (beforeRankingValue == null || beforeSharedAt == null || beforePostId == null)) {
+      const hasAnyCursor = beforeRankingValue != null ||
+        beforeSharedAt != null || beforePostId != null;
+      if (
+        hasAnyCursor &&
+        (beforeRankingValue == null || beforeSharedAt == null ||
+          beforePostId == null)
+      ) {
         throw makeHttpError(
           400,
           "before_ranking_value, before_shared_at, and before_post_id must be provided together for trending pagination.",
@@ -47,17 +62,32 @@ serve((req: Request) =>
       }
     } else {
       if ((beforeSharedAt == null) != (beforePostId == null)) {
-        throw makeHttpError(400, "before_shared_at and before_post_id must be provided together.");
+        throw makeHttpError(
+          400,
+          "before_shared_at and before_post_id must be provided together.",
+        );
       }
 
       if (beforeRankingValue != null) {
-        throw makeHttpError(400, "before_ranking_value is only supported for the trending filter.");
+        throw makeHttpError(
+          400,
+          "before_ranking_value is only supported for the trending filter.",
+        );
       }
     }
 
     if (filter === "nearby" && (latitude == null || longitude == null)) {
-      throw makeHttpError(400, "latitude and longitude are required for the nearby filter.");
+      throw makeHttpError(
+        400,
+        "latitude and longitude are required for the nearby filter.",
+      );
     }
+
+    await refreshExploreAuthorStateBestEffort(
+      user.id,
+      supabaseAdmin,
+      "get-explore-feed",
+    );
 
     const data = await fetchExploreFeed(
       user.id,
@@ -76,5 +106,5 @@ serve((req: Request) =>
     );
 
     return jsonResponse({ data }, 200);
-  }),
+  })
 );

@@ -1,6 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export type ExploreFeedFilter = "recent" | "following" | "trending" | "nearby";
 
 type NestedRelation<T> = T | T[] | null | undefined;
@@ -9,7 +10,13 @@ interface ExplorePostLookupRow {
   id: string;
   user_id: string;
   unshared_at: string | null;
-  scan?: NestedRelation<{ image_storage_urls?: string[] | null; is_tombstoned?: boolean | null; geoprivacy?: string | null }>;
+  scan?: NestedRelation<
+    {
+      image_storage_urls?: string[] | null;
+      is_tombstoned?: boolean | null;
+      geoprivacy?: string | null;
+    }
+  >;
   author?: NestedRelation<{ is_shadowbanned?: boolean | null }>;
 }
 
@@ -18,7 +25,10 @@ function relationValue<T>(value: NestedRelation<T>): T | undefined {
   return value ?? undefined;
 }
 
-function makeHttpError(status: number, message: string): Error & { status: number } {
+function makeHttpError(
+  status: number,
+  message: string,
+): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
@@ -31,8 +41,14 @@ export function requireUuid(value: unknown, fieldName: string): string {
   return value;
 }
 
-export function normalizeLimit(rawValue: unknown, fallback: number, maxValue: number): number {
-  if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) return fallback;
+export function normalizeLimit(
+  rawValue: unknown,
+  fallback: number,
+  maxValue: number,
+): number {
+  if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
+    return fallback;
+  }
   return Math.max(0, Math.min(Math.floor(rawValue), maxValue));
 }
 
@@ -41,45 +57,76 @@ export function normalizeOffset(rawValue: unknown): number {
   return Math.max(0, Math.floor(rawValue));
 }
 
-export function normalizeCursorTimestamp(rawValue: unknown, fieldName: string): string | null {
+export function normalizeCursorTimestamp(
+  rawValue: unknown,
+  fieldName: string,
+): string | null {
   if (rawValue == null) return null;
   if (typeof rawValue !== "string" || !Number.isFinite(Date.parse(rawValue))) {
-    throw makeHttpError(400, `${fieldName} must be a valid ISO 8601 timestamp.`);
+    throw makeHttpError(
+      400,
+      `${fieldName} must be a valid ISO 8601 timestamp.`,
+    );
   }
 
   return rawValue;
 }
 
-export function normalizeExploreFeedFilter(rawValue: unknown): ExploreFeedFilter {
+export function normalizeExploreFeedFilter(
+  rawValue: unknown,
+): ExploreFeedFilter {
   if (rawValue == null) return "recent";
-  if (rawValue === "recent" || rawValue === "following" || rawValue === "trending" || rawValue === "nearby") {
+  if (
+    rawValue === "recent" || rawValue === "following" ||
+    rawValue === "trending" || rawValue === "nearby"
+  ) {
     return rawValue;
   }
 
-  throw makeHttpError(400, "filter must be one of: recent, following, trending, nearby.");
+  throw makeHttpError(
+    400,
+    "filter must be one of: recent, following, trending, nearby.",
+  );
 }
 
-export function normalizeNonNegativeInteger(rawValue: unknown, fieldName: string): number | null {
+export function normalizeNonNegativeInteger(
+  rawValue: unknown,
+  fieldName: string,
+): number | null {
   if (rawValue == null) return null;
-  if (typeof rawValue !== "number" || !Number.isInteger(rawValue) || rawValue < 0) {
+  if (
+    typeof rawValue !== "number" || !Number.isInteger(rawValue) || rawValue < 0
+  ) {
     throw makeHttpError(400, `${fieldName} must be a non-negative integer.`);
   }
 
   return rawValue;
 }
 
-export function normalizeLatitude(rawValue: unknown, fieldName: string): number | null {
+export function normalizeLatitude(
+  rawValue: unknown,
+  fieldName: string,
+): number | null {
   if (rawValue == null) return null;
-  if (typeof rawValue !== "number" || !Number.isFinite(rawValue) || rawValue < -90 || rawValue > 90) {
+  if (
+    typeof rawValue !== "number" || !Number.isFinite(rawValue) ||
+    rawValue < -90 || rawValue > 90
+  ) {
     throw makeHttpError(400, `${fieldName} must be a valid latitude.`);
   }
 
   return rawValue;
 }
 
-export function normalizeLongitude(rawValue: unknown, fieldName: string): number | null {
+export function normalizeLongitude(
+  rawValue: unknown,
+  fieldName: string,
+): number | null {
   if (rawValue == null) return null;
-  if (typeof rawValue !== "number" || !Number.isFinite(rawValue) || rawValue < -180 || rawValue > 180) {
+  if (
+    typeof rawValue !== "number" || !Number.isFinite(rawValue) ||
+    rawValue < -180 || rawValue > 180
+  ) {
     throw makeHttpError(400, `${fieldName} must be a valid longitude.`);
   }
 
@@ -99,6 +146,52 @@ export async function syncPublicAuthorIdentity(
   }
 }
 
+export async function syncPublicAuthorIdentityBestEffort(
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+  context: string,
+): Promise<void> {
+  try {
+    await syncPublicAuthorIdentity(userId, supabaseAdmin);
+  } catch (error) {
+    console.warn("public_author_identity_sync_failed", {
+      context,
+      user_id: userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+export async function repairExplorePostOwnershipBestEffort(
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+  context: string,
+): Promise<void> {
+  const { error } = await supabaseAdmin.rpc(
+    "repair_explore_post_ownership_for_user",
+    {
+      target_user_id: userId,
+    },
+  );
+
+  if (error) {
+    console.warn("explore_post_ownership_repair_failed", {
+      context,
+      user_id: userId,
+      error: error.message,
+    });
+  }
+}
+
+export async function refreshExploreAuthorStateBestEffort(
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+  context: string,
+): Promise<void> {
+  await syncPublicAuthorIdentityBestEffort(userId, supabaseAdmin, context);
+  await repairExplorePostOwnershipBestEffort(userId, supabaseAdmin, context);
+}
+
 export async function fetchPublicAuthorName(
   userId: string,
   supabaseAdmin: SupabaseClient,
@@ -110,7 +203,11 @@ export async function fetchPublicAuthorName(
     .single();
 
   if (error || !data?.public_author_name) {
-    throw new Error(`Failed to fetch public author name: ${error?.message ?? "No name found"}`);
+    throw new Error(
+      `Failed to fetch public author name: ${
+        error?.message ?? "No name found"
+      }`,
+    );
   }
 
   return data.public_author_name as string;
@@ -127,12 +224,17 @@ export async function fetchPublicAuthorIdentity(
     .single();
 
   if (error || !data?.public_author_name) {
-    throw new Error(`Failed to fetch public author identity: ${error?.message ?? "No identity found"}`);
+    throw new Error(
+      `Failed to fetch public author identity: ${
+        error?.message ?? "No identity found"
+      }`,
+    );
   }
 
   return {
     authorName: data.public_author_name as string,
-    authorAvatarUrl: (data.public_avatar_url as string | null | undefined) ?? null,
+    authorAvatarUrl: (data.public_avatar_url as string | null | undefined) ??
+      null,
   };
 }
 
@@ -173,7 +275,12 @@ export async function fetchInteractiveExplorePost(
     .single();
 
   if (error || !data) {
-    throw makeHttpError(404, error ? `DB Error: ${error.message} - ${error.details || ''}` : "Explore post not found.");
+    throw makeHttpError(
+      404,
+      error
+        ? `DB Error: ${error.message} - ${error.details || ""}`
+        : "Explore post not found.",
+    );
   }
 
   const typedRow = data as ExplorePostLookupRow;

@@ -2,7 +2,11 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
-import { normalizeLimit, requireUuid } from "../_shared/explore.ts";
+import {
+  normalizeLimit,
+  refreshExploreAuthorStateBestEffort,
+  requireUuid,
+} from "../_shared/explore.ts";
 import { fetchExploreAuthorProfile } from "./db.ts";
 
 serve((req: Request) =>
@@ -19,6 +23,12 @@ serve((req: Request) =>
 
     const authorUserId = requireUuid(body.author_user_id, "author_user_id");
     const previewLimit = normalizeLimit(body.preview_limit, 9, 30);
+    await refreshExploreAuthorStateBestEffort(
+      user.id,
+      supabaseAdmin,
+      "get-explore-author-profile",
+    );
+
     const data = await fetchExploreAuthorProfile(
       user.id,
       authorUserId,

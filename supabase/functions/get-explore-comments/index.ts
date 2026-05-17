@@ -5,11 +5,15 @@ import { requireParams } from "../_shared/http.ts";
 import {
   normalizeCursorTimestamp,
   normalizeLimit,
+  refreshExploreAuthorStateBestEffort,
   requireUuid,
 } from "../_shared/explore.ts";
 import { fetchExploreComments } from "./db.ts";
 
-function makeHttpError(status: number, message: string): Error & { status: number } {
+function makeHttpError(
+  status: number,
+  message: string,
+): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
@@ -29,14 +33,26 @@ serve((req: Request) =>
 
     const postId = requireUuid(body.post_id, "post_id");
     const limit = normalizeLimit(body.limit, 50, 100);
-    const afterCreatedAt = normalizeCursorTimestamp(body.after_created_at, "after_created_at");
+    const afterCreatedAt = normalizeCursorTimestamp(
+      body.after_created_at,
+      "after_created_at",
+    );
     const afterCommentId = body.after_comment_id == null
       ? null
       : requireUuid(body.after_comment_id, "after_comment_id");
 
     if ((afterCreatedAt == null) != (afterCommentId == null)) {
-      throw makeHttpError(400, "after_created_at and after_comment_id must be provided together.");
+      throw makeHttpError(
+        400,
+        "after_created_at and after_comment_id must be provided together.",
+      );
     }
+
+    await refreshExploreAuthorStateBestEffort(
+      user.id,
+      supabaseAdmin,
+      "get-explore-comments",
+    );
 
     const data = await fetchExploreComments(
       user.id,
@@ -49,5 +65,5 @@ serve((req: Request) =>
       supabaseAdmin,
     );
     return jsonResponse({ data }, 200);
-  }),
+  })
 );

@@ -1,23 +1,37 @@
 // deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
-import { normalizeLimit } from "../_shared/explore.ts";
+import {
+  normalizeLimit,
+  refreshExploreAuthorStateBestEffort,
+} from "../_shared/explore.ts";
 import { fetchExploreMapPosts } from "./db.ts";
 import { buildExploreMapPayload } from "./cluster.ts";
 
-function makeHttpError(status: number, message: string): Error & { status: number } {
+function makeHttpError(
+  status: number,
+  message: string,
+): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
 }
 
-function normalizeCoordinate(value: unknown, label: string, minimum: number, maximum: number): number {
+function normalizeCoordinate(
+  value: unknown,
+  label: string,
+  minimum: number,
+  maximum: number,
+): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw makeHttpError(400, `${label} must be a valid number.`);
   }
 
   if (value < minimum || value > maximum) {
-    throw makeHttpError(400, `${label} must be between ${minimum} and ${maximum}.`);
+    throw makeHttpError(
+      400,
+      `${label} must be between ${minimum} and ${maximum}.`,
+    );
   }
 
   return value;
@@ -40,12 +54,38 @@ serve((req: Request) =>
       return jsonResponse({ error: "Invalid JSON body" }, 400);
     }
 
-    const northLatitude = normalizeCoordinate(body.north_latitude, "north_latitude", -90, 90);
-    const southLatitude = normalizeCoordinate(body.south_latitude, "south_latitude", -90, 90);
-    const eastLongitude = normalizeCoordinate(body.east_longitude, "east_longitude", -180, 180);
-    const westLongitude = normalizeCoordinate(body.west_longitude, "west_longitude", -180, 180);
+    const northLatitude = normalizeCoordinate(
+      body.north_latitude,
+      "north_latitude",
+      -90,
+      90,
+    );
+    const southLatitude = normalizeCoordinate(
+      body.south_latitude,
+      "south_latitude",
+      -90,
+      90,
+    );
+    const eastLongitude = normalizeCoordinate(
+      body.east_longitude,
+      "east_longitude",
+      -180,
+      180,
+    );
+    const westLongitude = normalizeCoordinate(
+      body.west_longitude,
+      "west_longitude",
+      -180,
+      180,
+    );
     const zoomLevel = normalizeZoomLevel(body.zoom_level);
     const limit = normalizeLimit(body.limit, 500, 500);
+
+    await refreshExploreAuthorStateBestEffort(
+      user.id,
+      supabaseAdmin,
+      "get-explore-map-points",
+    );
 
     const rows = await fetchExploreMapPosts(
       user.id,
@@ -58,5 +98,5 @@ serve((req: Request) =>
     );
 
     return jsonResponse(buildExploreMapPayload(rows, zoomLevel), 200);
-  }),
+  })
 );

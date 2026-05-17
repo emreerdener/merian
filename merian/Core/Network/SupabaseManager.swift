@@ -22,6 +22,10 @@ import Supabase
         }
     }
 
+    private struct GhostProfileMergePayload: Encodable {
+        let ghost_id: String
+    }
+
     // MARK: - Singleton Architecture
     static let shared = SupabaseManager()
 
@@ -63,6 +67,8 @@ import Supabase
     /// `initializeGhostSession()` while the first network round-trip is suspended; without this
     /// handle they each attempt a fresh anonymous sign-in and race to replace the active session.
     @ObservationIgnored private var ghostSessionTask: Task<Void, Never>?
+    @ObservationIgnored private var publicAuthorIdentityRefreshTask: Task<Void, Never>?
+    private var lastPublicAuthorIdentityRefreshUserId: String?
 
     // MARK: - Initialization
 
@@ -97,6 +103,7 @@ import Supabase
             if let session = state.session, !session.isExpired {
                 self.currentUser = session.user
                 self.isAuthenticated = true
+                schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
 
                 if !TestExecutionCoordinator.isRunningTests,
                    await self.ensureTelemetryLinkedIfNeeded(for: session.user) {
@@ -121,6 +128,9 @@ import Supabase
                 self.currentUser = nil
                 self.isAuthenticated = false
                 lastLinkedUserId = nil
+                lastPublicAuthorIdentityRefreshUserId = nil
+                publicAuthorIdentityRefreshTask?.cancel()
+                publicAuthorIdentityRefreshTask = nil
             }
 
             MerianLog.auth.debug("Auth event: \(String(describing: state.event), privacy: .public) | authenticated: \(self.isAuthenticated, privacy: .private)")
@@ -178,6 +188,7 @@ import Supabase
         do {
             let session = try await client.auth.session
             MerianLog.auth.debug("Existing session resolved on device.")
+            schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
             _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
         } catch {
             let errString = String(describing: error)
@@ -210,6 +221,9 @@ import Supabase
             currentUser = nil
             isAuthenticated = false
             lastLinkedUserId = nil
+            lastPublicAuthorIdentityRefreshUserId = nil
+            publicAuthorIdentityRefreshTask?.cancel()
+            publicAuthorIdentityRefreshTask = nil
             KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
             PostHogManager.shared.reset()
         }
@@ -238,6 +252,7 @@ import Supabase
             let session = try await client.auth.refreshSession()
             currentUser = session.user
             isAuthenticated = true
+            schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
             _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
             MerianLog.auth.debug("Supabase session refreshed after auth failure.")
             return true
@@ -275,6 +290,9 @@ import Supabase
         currentUser = nil
         isAuthenticated = false
         lastLinkedUserId = nil
+        lastPublicAuthorIdentityRefreshUserId = nil
+        publicAuthorIdentityRefreshTask?.cancel()
+        publicAuthorIdentityRefreshTask = nil
         KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
         PostHogManager.shared.reset()
         await RevenueCatManager.shared.handleSupabaseSignOut()
@@ -416,17 +434,47 @@ import Supabase
         return previousUserId
     }
 
-    private func triggerGhostProfileMerge(from ghostId: String) async {
-        struct GhostPayload: Encodable { let ghost_id: String }
+    @discardableResult
+    private func triggerGhostProfileMerge(from ghostId: String) async -> Bool {
         do {
             _ = try await client.functions.invoke(
                 "merge-ghost-profile",
-                options: .init(body: GhostPayload(ghost_id: ghostId))
+                options: .init(body: GhostProfileMergePayload(ghost_id: ghostId))
             )
             MerianLog.auth.debug("Ghost profile upgrade finalized for \(ghostId, privacy: .private)")
+            return true
         } catch {
             MerianLog.auth.debug("Ghost profile merge failed: \(error.localizedDescription, privacy: .private)")
+            return false
         }
+    }
+
+    private func schedulePublicAuthorIdentityRefreshIfNeeded(for user: User) {
+        guard !TestExecutionCoordinator.isRunningTests, !user.isAnonymous else { return }
+
+        let userId = user.id.uuidString.lowercased()
+        guard userId != lastPublicAuthorIdentityRefreshUserId else { return }
+
+        lastPublicAuthorIdentityRefreshUserId = userId
+        publicAuthorIdentityRefreshTask?.cancel()
+        publicAuthorIdentityRefreshTask = Task { [weak self] in
+            await self?.refreshPublicAuthorIdentityForRestoredSession(userId: userId)
+        }
+    }
+
+    private func refreshPublicAuthorIdentityForRestoredSession(userId: String) async {
+        defer {
+            if currentUser?.id.uuidString.lowercased() == userId || currentUser == nil {
+                publicAuthorIdentityRefreshTask = nil
+            }
+        }
+
+        guard !Task.isCancelled else { return }
+        guard await triggerGhostProfileMerge(from: userId) else { return }
+        guard !Task.isCancelled else { return }
+        guard currentUser?.id.uuidString.lowercased() == userId else { return }
+
+        publishPublicAuthorIdentityChanged(previousUserId: nil, currentUserId: userId)
     }
 
     private func publishPublicAuthorIdentityChanged(previousUserId: String?, currentUserId: String) {

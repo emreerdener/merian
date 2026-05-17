@@ -8,11 +8,15 @@ import {
 import {
   normalizeCursorTimestamp,
   normalizeLimit,
+  refreshExploreAuthorStateBestEffort,
   requireUuid,
 } from "../_shared/explore.ts";
 import { fetchExploreNotifications } from "./db.ts";
 
-function makeHttpError(status: number, message: string): Error & { status: number } {
+function makeHttpError(
+  status: number,
+  message: string,
+): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
@@ -28,14 +32,26 @@ serve((req: Request) =>
     }
 
     const limit = normalizeLimit(body.limit, 50, 100);
-    const beforeUpdatedAt = normalizeCursorTimestamp(body.before_updated_at, "before_updated_at");
+    const beforeUpdatedAt = normalizeCursorTimestamp(
+      body.before_updated_at,
+      "before_updated_at",
+    );
     const beforeNotificationId = body.before_notification_id == null
       ? null
       : requireUuid(body.before_notification_id, "before_notification_id");
 
     if ((beforeUpdatedAt == null) != (beforeNotificationId == null)) {
-      throw makeHttpError(400, "before_updated_at and before_notification_id must be provided together.");
+      throw makeHttpError(
+        400,
+        "before_updated_at and before_notification_id must be provided together.",
+      );
     }
+
+    await refreshExploreAuthorStateBestEffort(
+      user.id,
+      supabaseAdmin,
+      "get-explore-notifications",
+    );
 
     let data;
     try {
@@ -60,5 +76,5 @@ serve((req: Request) =>
     }
 
     return jsonResponse({ data }, 200);
-  }),
+  })
 );
