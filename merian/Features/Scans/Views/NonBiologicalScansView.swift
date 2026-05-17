@@ -6,8 +6,6 @@ struct NonBiologicalScansView: View {
     @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == false }, sort: \.timestamp, order: .reverse) private var nonBioRecords: [LocalScanRecord]
     
     @Environment(\.modelContext) private var modelContext
-    @Environment(InferenceEngine.self) var inferenceEngine
-    @Binding var isInsightSheetOpen: Bool
     
     // MARK: - Interface State
     @State private var scanToRescue: LocalScanRecord?

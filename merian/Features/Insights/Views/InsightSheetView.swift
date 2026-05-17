@@ -1,6 +1,15 @@
 import SwiftData
 import SwiftUI
 
+enum InsightPresentationStyle {
+    case sheet
+    case embeddedInScansLibrary
+
+    var isEmbedded: Bool {
+        self == .embeddedInScansLibrary
+    }
+}
+
 /// The master state orchestrator routing biological inference metadata and hardware logic 
 /// safely down into the decoupled visual tree via the `InsightSheetViewModel`.
 struct InsightSheetView: View {
@@ -16,6 +25,7 @@ struct InsightSheetView: View {
     var queuedScan: QueuedScanContext?
     var initialRecord: LocalScanRecord?
     var allowsExplorePresentation: Bool
+    var presentationStyle: InsightPresentationStyle
 
     // MARK: - State
     @State private var viewModel: InsightSheetViewModel
@@ -27,12 +37,14 @@ struct InsightSheetView: View {
         queuedScan: QueuedScanContext? = nil,
         initialRecord: LocalScanRecord? = nil,
         inferenceEngine: InferenceEngine? = nil,
-        allowsExplorePresentation: Bool = true
+        allowsExplorePresentation: Bool = true,
+        presentationStyle: InsightPresentationStyle = .sheet
     ) {
         _isPresented = isPresented
         self.queuedScan = queuedScan
         self.initialRecord = initialRecord
         self.allowsExplorePresentation = allowsExplorePresentation
+        self.presentationStyle = presentationStyle
         _viewModel = State(
             initialValue: InsightSheetViewModel(
                 queuedContext: queuedScan,
@@ -47,101 +59,8 @@ struct InsightSheetView: View {
     
     // MARK: - View
     var body: some View {
-        NavigationStack {
-            mainContentStack
-                .toolbarBackground(.hidden, for: .navigationBar)
-                .toolbar { sheetToolbar }
-                .toolbarBackground(.visible, for: .bottomBar)
-                .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
-                .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
-                    SpeciesDictionaryPageContentView(
-                        scientificName: route.scientificName,
-                        speciesId: route.speciesId,
-                        entryPoint: route.entryPoint,
-                        showsCloseButton: false
-                    )
-                }
-                
-                // MARK: Lifecycle Bindings
-                .onAppear {
-                    // Reset stale @State properties from previous presentations natively.
-                    viewModel.reset()
-
-                    // Seed both references immediately so viewModel computed properties
-                    // resolve on the first frame rather than waiting for InsightContentView's onAppear.
-                    viewModel.bindSettings(appSettings)
-                    viewModel.inferenceEngine = inferenceEngine
-                    viewModel.queuedContext = queuedScan
-                    if let initialRecord {
-                        viewModel.bindPresentedRecord(initialRecord, modelContext: modelContext)
-                    }
-                    viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
-                    // Suppress foreground inference banners while the sheet is visible —
-                    // the user can already see the result. PushNotificationManager.willPresent
-                    // reads this flag and delivers the notification silently instead of as a banner.
-                    appSettings.suppressInferenceBanners = true
-                    // Clear the tab bar badge — the user is actively viewing a scan result.
-                    appSettings.hasUnseenScan = false
-                    PushNotificationManager.shared.setBadgeCount(0)
-                }
-                .onDisappear {
-                    appSettings.suppressInferenceBanners = false
-                }
-                .task {
-                    try? await Task.sleep(nanoseconds: 350_000_000)
-                    withAnimation(.easeIn(duration: 0.2)) {
-                        viewModel.state.showBottomBarTools = true
-                    }
-                }
-                .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
-                    // Queued scan path: the engine's isProcessing reflects a different pipeline.
-                    // Skip celebration, haptics, and record-marking — they don't apply here.
-                    guard viewModel.queuedContext == nil else { return }
-                    viewModel.evaluateProcessingCompletion(isStillProcessing: isStillProcessing, inferenceEngine: inferenceEngine, modelContext: modelContext)
-                }
-                .onChange(of: queuedScan) { oldScan, newScan in
-                    // The parent LibraryView proactively loaded the InferenceEngine
-                    // and cleared the property to signal the handoff is complete.
-                    // Release the queued context to transition cleanly to the results.
-                    if oldScan != nil && newScan == nil {
-                        viewModel.queuedContext = nil
-                    }
-                }
-                .task(id: viewModel.persistentScanId) {
-                    viewModel.syncFieldNotesFromCurrentScan(modelContext: modelContext)
-                }
-                .task(id: inferenceEngine.speciesData?.scanId) {
-                    // Queued scans have no speciesData — skip the record fetch and name load.
-                    guard viewModel.queuedContext == nil else { return }
-                    if let scanId = inferenceEngine.speciesData?.scanId {
-                        // Loop up to 5 times (2.5s max) to allow SwiftData background stores to propagate to the @MainActor context.
-                        for _ in 0..<5 {
-                            viewModel.fetchLocalRecord(for: scanId, modelContext: modelContext)
-                            if viewModel.activeLocalRecord != nil { break }
-                            try? await Task.sleep(nanoseconds: 500_000_000)
-                        }
-                    }
-                    // Load user's preferred display name for this species so resolvedHeaderTitle reflects it.
-                    if let scientificName = inferenceEngine.speciesData?.scientificName {
-                        viewModel.loadPreferredCommonName(for: scientificName, modelContext: modelContext)
-                    }
-                    await viewModel.refreshSharedExploreStateFromServer(modelContext: modelContext)
-                }
-                .task(id: viewModel.state.toastMessage) {
-                    if viewModel.state.toastMessage != nil {
-                        do {
-                            try await Task.sleep(nanoseconds: 2_500_000_000)
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                viewModel.state.toastMessage = nil
-                            }
-                        } catch { } // absorb CancellationError elegantly
-                    }
-                }
-        }
+        presentationRoot
         .accessibilityIdentifier("InsightSheetView")
-        // Presentation Logic Hook
-        .presentationDetents([.large])
-        .presentationDragIndicator(.hidden)
         
         // Dialogs
         .alert("Delete scan?", isPresented: $viewModel.state.showDeleteConfirmation) {
@@ -205,6 +124,111 @@ struct InsightSheetView: View {
 
 // MARK: - Layout Extensions
 private extension InsightSheetView {
+
+    @ViewBuilder
+    var presentationRoot: some View {
+        switch presentationStyle {
+        case .sheet:
+            NavigationStack {
+                configuredContent
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+        case .embeddedInScansLibrary:
+            configuredContent
+        }
+    }
+
+    var configuredContent: some View {
+        mainContentStack
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar { sheetToolbar }
+            .toolbarBackground(.visible, for: .bottomBar)
+            .toolbarBackground(.ultraThinMaterial, for: .bottomBar)
+            .navigationBarBackButtonHidden(presentationStyle.isEmbedded)
+            .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
+                SpeciesDictionaryPageContentView(
+                    scientificName: route.scientificName,
+                    speciesId: route.speciesId,
+                    entryPoint: route.entryPoint,
+                    showsCloseButton: false
+                )
+            }
+            .onAppear {
+                // Reset stale @State properties from previous presentations natively.
+                viewModel.reset()
+
+                // Seed both references immediately so viewModel computed properties
+                // resolve on the first frame rather than waiting for InsightContentView's onAppear.
+                viewModel.bindSettings(appSettings)
+                viewModel.inferenceEngine = inferenceEngine
+                viewModel.queuedContext = queuedScan
+                if let initialRecord {
+                    viewModel.bindPresentedRecord(initialRecord, modelContext: modelContext)
+                }
+                viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
+                // Suppress foreground inference banners while the insight is visible —
+                // the user can already see the result. PushNotificationManager.willPresent
+                // reads this flag and delivers the notification silently instead of as a banner.
+                appSettings.suppressInferenceBanners = true
+                // Clear the tab bar badge — the user is actively viewing a scan result.
+                appSettings.hasUnseenScan = false
+                PushNotificationManager.shared.setBadgeCount(0)
+            }
+            .onDisappear {
+                appSettings.suppressInferenceBanners = false
+            }
+            .task {
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                withAnimation(.easeIn(duration: 0.2)) {
+                    viewModel.state.showBottomBarTools = true
+                }
+            }
+            .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
+                // Queued scan path: the engine's isProcessing reflects a different pipeline.
+                // Skip celebration, haptics, and record-marking — they don't apply here.
+                guard viewModel.queuedContext == nil else { return }
+                viewModel.evaluateProcessingCompletion(isStillProcessing: isStillProcessing, inferenceEngine: inferenceEngine, modelContext: modelContext)
+            }
+            .onChange(of: queuedScan) { oldScan, newScan in
+                // The parent LibraryView proactively loaded the InferenceEngine
+                // and cleared the property to signal the handoff is complete.
+                // Release the queued context to transition cleanly to the results.
+                if oldScan != nil && newScan == nil {
+                    viewModel.queuedContext = nil
+                }
+            }
+            .task(id: viewModel.persistentScanId) {
+                viewModel.syncFieldNotesFromCurrentScan(modelContext: modelContext)
+            }
+            .task(id: inferenceEngine.speciesData?.scanId) {
+                // Queued scans have no speciesData — skip the record fetch and name load.
+                guard viewModel.queuedContext == nil else { return }
+                if let scanId = inferenceEngine.speciesData?.scanId {
+                    // Loop up to 5 times (2.5s max) to allow SwiftData background stores to propagate to the @MainActor context.
+                    for _ in 0..<5 {
+                        viewModel.fetchLocalRecord(for: scanId, modelContext: modelContext)
+                        if viewModel.activeLocalRecord != nil { break }
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                    }
+                }
+                // Load user's preferred display name for this species so resolvedHeaderTitle reflects it.
+                if let scientificName = inferenceEngine.speciesData?.scientificName {
+                    viewModel.loadPreferredCommonName(for: scientificName, modelContext: modelContext)
+                }
+                await viewModel.refreshSharedExploreStateFromServer(modelContext: modelContext)
+            }
+            .task(id: viewModel.state.toastMessage) {
+                if viewModel.state.toastMessage != nil {
+                    do {
+                        try await Task.sleep(nanoseconds: 2_500_000_000)
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            viewModel.state.toastMessage = nil
+                        }
+                    } catch { } // absorb CancellationError elegantly
+                }
+            }
+    }
     
     @ViewBuilder
     var mainContentStack: some View {
@@ -247,6 +271,7 @@ private extension InsightSheetView {
             isSavingPhotos: $viewModel.state.isSavingPhotos,
             showDeleteConfirmation: $viewModel.state.showDeleteConfirmation,
             hasUserPhotos: viewModel.hasUserPhotos,
+            leadingControl: presentationStyle.isEmbedded ? .back : .close,
             onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },
             hasFieldNotes: viewModel.hasFieldNotes,
             onFieldNotes: {

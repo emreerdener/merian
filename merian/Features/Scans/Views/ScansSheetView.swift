@@ -40,7 +40,6 @@ struct ScansSheetView: View {
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.dismiss) var dismiss
-    @Binding var isInsightSheetOpen: Bool
     
     // MARK: - Navigation Control
     @State private var selectedScanForInsight: LocalScanRecord?
@@ -82,7 +81,7 @@ struct ScansSheetView: View {
                     )
                     CollectionsTabContent(
                         searchManager: searchManager, isSearchFocused: isSearchFocused,
-                        sortedCollections: searchManager.sortedCollections, isInsightSheetOpen: $isInsightSheetOpen,
+                        sortedCollections: searchManager.sortedCollections,
                         showNewCollectionAlert: $showNewCollectionAlert,
                         newlyCreatedCollection: $newlyCreatedCollection
                     )
@@ -93,7 +92,7 @@ struct ScansSheetView: View {
             .scrollPosition(id: Binding(get: { activeTab }, set: { if let val = $0 { activeTab = val } }))
             .modifier(ScansSheetModifiers(
                 searchManager: searchManager, activeTab: $activeTab, isSearchFocused: $isSearchFocused,
-                selectedScanForInsight: $selectedScanForInsight, showNewCollectionAlert: $showNewCollectionAlert,
+                showNewCollectionAlert: $showNewCollectionAlert,
                 newCollectionName: $newCollectionName, scanToDelete: $scanToDelete,
                 showDeleteConfirmation: $showDeleteConfirmation, showBatchDeleteConfirmation: $showBatchDeleteConfirmation,
                 showSelectionLimitAlert: $showSelectionLimitAlert, toastMessage: $searchManager.toastMessage,
@@ -116,8 +115,19 @@ struct ScansSheetView: View {
                 )
             }
             .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .bottomBar)
+            .navigationDestination(item: $selectedScanForInsight) { record in
+                InsightSheetView(
+                    isPresented: Binding(
+                        get: { selectedScanForInsight != nil },
+                        set: { if !$0 { selectedScanForInsight = nil } }
+                    ),
+                    initialRecord: record,
+                    inferenceEngine: inferenceEngine,
+                    presentationStyle: .embeddedInScansLibrary
+                )
+            }
             .navigationDestination(isPresented: $isNonBiologicalScansPresented) {
-                NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
+                NonBiologicalScansView()
             }
         }
         .onReceive(AppEventPublisher.shared.publisher) { event in
@@ -280,8 +290,9 @@ private struct LibraryTabContent: View {
                         showSelectionLimitAlert = true
                     }
                 } else {
-                    selectedScanForInsight = scan
                     inferenceEngine.load(from: scan)
+                    isSearchFocused = false
+                    selectedScanForInsight = scan
                 }
             },
             onDelete: { scan in
@@ -299,7 +310,6 @@ private struct CollectionsTabContent: View {
     let searchManager: ScansManager
     let isSearchFocused: Bool
     let sortedCollections: [ScanCollection]
-    @Binding var isInsightSheetOpen: Bool
     @Binding var showNewCollectionAlert: Bool
     @Binding var newlyCreatedCollection: ScanCollection?
 
@@ -308,7 +318,6 @@ private struct CollectionsTabContent: View {
             searchQuery: searchManager.searchQuery,
             isSearchFocused: isSearchFocused,
             collections: sortedCollections,
-            isInsightSheetOpen: $isInsightSheetOpen,
             showNewCollectionAlert: $showNewCollectionAlert,
             newlyCreatedCollection: $newlyCreatedCollection
         )

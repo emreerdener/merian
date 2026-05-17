@@ -42,10 +42,7 @@ struct CameraSheetRouter: ViewModifier {
                                 viewModel.pendingExplorePostId = nil
                             }
                     case .scans:
-                        ScansSheetView(isInsightSheetOpen: Binding(
-                            get: { viewModel.activeSheet == .insight },
-                            set: { if $0 { viewModel.activeSheet = .insight } else if viewModel.activeSheet == .insight { viewModel.activeSheet = nil } }
-                        ))
+                        ScansSheetView()
                         .onAppear {
                             appSettings.hasUnseenScan = false
                             PushNotificationManager.shared.setBadgeCount(0)

@@ -4,7 +4,6 @@ import SwiftUI
 struct CollectionDetailView: View {
     // MARK: - State Dependencies
     @Bindable var collection: ScanCollection
-    @Binding var isInsightSheetOpen: Bool
 
     // Fetch V13-typed scans and filter by this collection.
     // We can't traverse collection.scans directly because ScanCollection is typealiased
@@ -31,8 +30,8 @@ struct CollectionDetailView: View {
             if !memberScans.isEmpty {
                 
                 ScansGrid(scans: memberScans, onSelect: { scan in
-                    selectedScanForInsight = scan
                     inferenceEngine.load(from: scan)
+                    selectedScanForInsight = scan
                 }, onDelete: { scan in
                     scanToDelete = scan
                     showDeleteConfirmation = true
@@ -68,11 +67,16 @@ struct CollectionDetailView: View {
         // MARK: - View Modifiers
         .navigationTitle(collection.name)
         .toolbar { trailingToolbar }
-        .sheet(item: $selectedScanForInsight) { record in
-            InsightSheetView(isPresented: Binding(
-                get: { selectedScanForInsight != nil },
-                set: { if !$0 { selectedScanForInsight = nil } }
-            ), initialRecord: record, inferenceEngine: inferenceEngine)
+        .navigationDestination(item: $selectedScanForInsight) { record in
+            InsightSheetView(
+                isPresented: Binding(
+                    get: { selectedScanForInsight != nil },
+                    set: { if !$0 { selectedScanForInsight = nil } }
+                ),
+                initialRecord: record,
+                inferenceEngine: inferenceEngine,
+                presentationStyle: .embeddedInScansLibrary
+            )
         }
         .sheet(isPresented: $showScanSelection) {
             SelectMultipleScansView(collection: collection)

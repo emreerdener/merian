@@ -26,12 +26,12 @@ struct LibraryView: View {
     // MARK: - Component State
     @State private var toastMessage: String?
     @State private var scanToManage: QueuedScanContext?
-    /// Controls the queued-scan sheet independently of `scanToManage`.
+    /// Controls the queued-scan insight independently of `scanToManage`.
     ///
-    /// Using `.sheet(isPresented:)` instead of `.sheet(item:)` lets us clear
-    /// `scanToManage` (handing off to `InsightSheetView`'s internal transition)
-    /// without immediately dismissing the sheet when a scan completes.
-    @State private var isQueuedSheetPresented = false
+    /// Using a separate boolean lets us clear `scanToManage` (handing off to
+    /// `InsightSheetView`'s internal transition) without immediately popping the
+    /// navigation destination when a scan completes.
+    @State private var isQueuedInsightPresented = false
 
     // MARK: - Visual Layout
     var body: some View {
@@ -92,7 +92,7 @@ struct LibraryView: View {
                                 descriptor.fetchLimit = 1
                                 if let scan = (try? modelContext.fetch(descriptor))?.first {
                                     scanToManage = QueuedScanContext(from: scan)
-                                    isQueuedSheetPresented = true
+                                    isQueuedInsightPresented = true
                                     UITestSeedCoordinator.triggerQueuedAudioHandoffIfNeeded(
                                         scanId: scan.id,
                                         container: modelContext.container
@@ -169,12 +169,20 @@ struct LibraryView: View {
                     .zIndex(100)
                 }
             }
-            .sheet(isPresented: $isQueuedSheetPresented, onDismiss: {
-                scanToManage = nil
-            }) {
+            .navigationDestination(isPresented: $isQueuedInsightPresented) {
                 // Pass the current context — may become nil mid-session when the scan
                 // completes and InsightSheetView transitions internally to results.
-                InsightSheetView(isPresented: $isQueuedSheetPresented, queuedScan: scanToManage, inferenceEngine: inferenceEngine)
+                InsightSheetView(
+                    isPresented: $isQueuedInsightPresented,
+                    queuedScan: scanToManage,
+                    inferenceEngine: inferenceEngine,
+                    presentationStyle: .embeddedInScansLibrary
+                )
+            }
+            .onChange(of: isQueuedInsightPresented) { _, isPresented in
+                if !isPresented {
+                    scanToManage = nil
+                }
             }
             .onChange(of: queuedScans.map(\.id)) { _, newIds in
                 guard let managed = scanToManage, !newIds.contains(managed.id) else { return }
@@ -187,13 +195,13 @@ struct LibraryView: View {
                 if let record = (try? modelContext.fetch(descriptor))?.first {
                     // Completed successfully — load the engine proactively so the sheet
                     // transitions seamlessly to the correct biological state, preventing
-                    // the intermediate \"Analyzing\" fallback that occurs if scanToManage
+                    // the intermediate "Analyzing" fallback that occurs if scanToManage
                     // drops before the engine is populated.
                     inferenceEngine.load(from: record)
                     scanToManage = nil
                 } else {
-                    // Deleted or failed — close the sheet entirely.
-                    isQueuedSheetPresented = false
+                    // Deleted or failed — close the insight entirely.
+                    isQueuedInsightPresented = false
                 }
             }
             .task(id: toastMessage) {

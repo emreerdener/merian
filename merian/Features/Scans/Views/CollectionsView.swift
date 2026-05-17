@@ -5,7 +5,6 @@ struct CollectionsView: View {
     let searchQuery: String
     let isSearchFocused: Bool
     let collections: [ScanCollection]
-    @Binding var isInsightSheetOpen: Bool
     @Binding var showNewCollectionAlert: Bool
     @Binding var newlyCreatedCollection: ScanCollection?
 
@@ -60,7 +59,7 @@ struct CollectionsView: View {
                             iconName: "heart",
                             count: favoritesSummary.count
                         ) {
-                            CollectionDetailView(collection: favoritesCollection, isInsightSheetOpen: $isInsightSheetOpen)
+                            CollectionDetailView(collection: favoritesCollection)
                         }
                     }
 
@@ -70,7 +69,7 @@ struct CollectionsView: View {
                             iconName: "cube",
                             count: nonBioCount
                         ) {
-                            NonBiologicalScansView(isInsightSheetOpen: $isInsightSheetOpen)
+                            NonBiologicalScansView()
                         }
                     }
                 }
@@ -106,7 +105,7 @@ struct CollectionsView: View {
                     ) {
                         ForEach(userCollections) { collection in
                             NavigationLink {
-                                CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
+                                CollectionDetailView(collection: collection)
                             } label: {
                                 CollectionCard(
                                     collection: collection,
@@ -149,7 +148,7 @@ struct CollectionsView: View {
             modelContext: modelContext
         )
         .navigationDestination(item: $newlyCreatedCollection) { collection in
-            CollectionDetailView(collection: collection, isInsightSheetOpen: $isInsightSheetOpen)
+            CollectionDetailView(collection: collection)
         }
         .containerRelativeFrame(.horizontal)
         .id(ScansTab.collections)

@@ -1,6 +1,29 @@
 import SwiftUI
 
 struct TopToolbar: ToolbarContent {
+    enum LeadingControl {
+        case close
+        case back
+
+        var systemImage: String {
+            switch self {
+            case .close:
+                return "xmark"
+            case .back:
+                return "chevron.left"
+            }
+        }
+
+        var accessibilityLabel: String {
+            switch self {
+            case .close:
+                return "Close"
+            case .back:
+                return "Back"
+            }
+        }
+    }
+
     @Environment(\.dismiss) var dismiss
     
     let commonName: String
@@ -9,6 +32,7 @@ struct TopToolbar: ToolbarContent {
     @Binding var isSavingPhotos: Bool
     @Binding var showDeleteConfirmation: Bool
     let hasUserPhotos: Bool
+    var leadingControl: LeadingControl = .close
     let onSavePhotos: () -> Void
     let hasFieldNotes: Bool
     let onFieldNotes: () -> Void
@@ -21,9 +45,10 @@ struct TopToolbar: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
             Button(action: { dismiss() }) {
-                toolbarIcon("xmark")
+                toolbarIcon(leadingControl.systemImage)
                     .imageOverlayToolbarIconChrome(isFallbackActive: shouldUseContainedToolbarChrome)
             }
+            .accessibilityLabel(leadingControl.accessibilityLabel)
             .imageOverlayToolbarButtonChrome(isFallbackActive: shouldUseContainedToolbarChrome)
         }
         
