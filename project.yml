@@ -155,6 +155,7 @@ targets:
         SKIP_INSTALL: YES
         CODE_SIGN_STYLE: Automatic
         APPLICATION_EXTENSION_API_ONLY: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: "iMessage App Icon"
       configs:
         Release:
           CODE_SIGN_IDENTITY: "Apple Development"

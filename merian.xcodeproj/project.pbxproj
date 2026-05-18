@@ -432,6 +432,7 @@
 		F366496097CBC48873E991A4 /* MerianNetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C6607CB16EDD46A55A81A3F /* MerianNetworkClient.swift */; };
 		F387113F901F5F9C5AB789D1 /* PremiumScanningOverlayModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B06385C2E1542CDE8D166F /* PremiumScanningOverlayModifier.swift */; };
 		F52C7C262FEE4E7EAC92F90A /* ExportScans.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785A0F800483B96F6D23FDBA /* ExportScans.swift */; };
+		F564AD3DE0FAB65F81F16646 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9C4F63E678B62AF4008D5A6A /* Assets.xcassets */; };
 		F6B599EBEA64132D7977D9A8 /* FactLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1769B28E09330C1007D119 /* FactLibrary.swift */; };
 		F6EE3CE1DE68F6F1CC6C2985 /* MerianAppIntentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B2EB15E2351DE4B04FF3F9 /* MerianAppIntentsTests.swift */; };
 		F7FB8D4FC97ABF39752B58AA /* StagedCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A75F2EFFA200FCD7A046766 /* StagedCaptureTests.swift */; };
@@ -775,6 +776,7 @@
 		9AED0CB816BE666BBB96D431 /* SerializedMediaItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SerializedMediaItemTests.swift; sourceTree = "<group>"; };
 		9B6D8D7D139747F884E762F3 /* CircuitBreakerManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircuitBreakerManagerTests.swift; sourceTree = "<group>"; };
 		9C139F35236E07D52E2E8057 /* ViewfinderHints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewfinderHints.swift; sourceTree = "<group>"; };
+		9C4F63E678B62AF4008D5A6A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		9C901AB6D32856D0EAD03FB9 /* SchemaV25.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV25.swift; sourceTree = "<group>"; };
 		9CA88E4F44F636C8595861BE /* OfflineSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineSyncTests.swift; sourceTree = "<group>"; };
 		9D501921ABFD54311B26A44E /* ScansSheetModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansSheetModifiers.swift; sourceTree = "<group>"; };
@@ -1568,6 +1570,7 @@
 		5E1A15B98501144EA7097C18 /* MerianMessagesExtension */ = {
 			isa = PBXGroup;
 			children = (
+				9C4F63E678B62AF4008D5A6A /* Assets.xcassets */,
 				4273CDE53B47959145F1F5A0 /* MessageScanLibraryExtensionView.swift */,
 				C53C94060DC966D4C94EFD6A /* MessagesViewController.swift */,
 				8CDB93734117E5B48433688F /* Configuration */,
@@ -2544,6 +2547,7 @@
 			buildConfigurationList = 8EE0CA909DC9D3D90BD08654 /* Build configuration list for PBXNativeTarget "MerianMessagesExtension" */;
 			buildPhases = (
 				9CE34C101E006E940827C968 /* Sources */,
+				DD9E98DEE8373BC9FF4ABC51 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -2739,6 +2743,14 @@
 				2EA34DB4680CC269E0767805 /* Assets.xcassets in Resources */,
 				B087D06DE6AAEE6A196DEE5F /* LaunchScreen.storyboard in Resources */,
 				AAFD187B366737D254C78537 /* build.log in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DD9E98DEE8373BC9FF4ABC51 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F564AD3DE0FAB65F81F16646 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3307,6 +3319,7 @@
 			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
 				CODE_SIGN_ENTITLEMENTS = apps/ios/messages/MerianMessagesExtension/Configuration/MerianMessagesExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -3522,6 +3535,7 @@
 			baseConfigurationReference = B03EAD808B1F5D84E75D030C /* Config.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
 				CODE_SIGN_ENTITLEMENTS = apps/ios/messages/MerianMessagesExtension/Configuration/MerianMessagesExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = NO;
