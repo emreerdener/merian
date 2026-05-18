@@ -7,6 +7,7 @@ private extension QueuedScanContext {
     init(
         id: String,
         capturedMediaJSON: String? = nil,
+        queueState: ScanQueueState = .pending,
         timestamp: Date,
         locationName: String?,
         weatherTemperatureF: Double?,
@@ -17,6 +18,7 @@ private extension QueuedScanContext {
     ) {
         self.id = id
         self.capturedMediaItems = CapturedMediaSnapshot(jsonString: capturedMediaJSON).items
+        self.queueState = queueState
         self.timestamp = timestamp
         self.locationName = locationName
         self.weatherTemperatureF = weatherTemperatureF
@@ -86,13 +88,54 @@ struct QueuedContentView: View {
     /// offline → "No connection" | online waiting → "In queue" | syncing → "Uploading..."
     private var badgePhrase: String {
         guard offlineQueueManager.isOnline else { return "No connection" }
-        return offlineQueueManager.isSyncing ? "Uploading..." : "In queue"
+        switch queuedContext.queueState {
+        case .pending:
+            return "In queue"
+        case .uploading:
+            return "Uploading..."
+        case .staged:
+            return "Preparing analysis"
+        case .inferencing:
+            return "Analyzing..."
+        case .externalImport:
+            return "Importing..."
+        case .failed:
+            return "Needs attention"
+        }
     }
 
     /// The large serif title describes what this scan *is*, not the network state.
     /// Stable noun phrase so the badge above can report live status independently.
     private var displayTitle: String {
-        return offlineQueueManager.isSyncing ? "Syncing" : "Queued for upload"
+        switch queuedContext.queueState {
+        case .pending:
+            return "Queued for upload"
+        case .uploading:
+            return "Uploading"
+        case .staged:
+            return "Queued for analysis"
+        case .inferencing:
+            return "Analyzing"
+        case .externalImport:
+            return "Importing"
+        case .failed:
+            return "Upload paused"
+        }
+    }
+
+    private var helperText: String {
+        switch queuedContext.queueState {
+        case .pending, .uploading:
+            return "This scan is saved locally and will be uploaded to Merian in the background."
+        case .staged:
+            return "The image has uploaded and is waiting for identification."
+        case .inferencing:
+            return "Merian is identifying this scan. Results will appear here automatically."
+        case .externalImport:
+            return "Merian is importing this scan into your library."
+        case .failed:
+            return "Merian could not finish processing this scan."
+        }
     }
 
     var body: some View {
@@ -115,7 +158,7 @@ struct QueuedContentView: View {
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: displayTitle)
 
             // MARK: - Helper Text
-            Text("This scan is saved locally and will be automatically uploaded and analyzed in the background once a connection is available.")
+            Text(helperText)
                 .font(.system(.subheadline))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

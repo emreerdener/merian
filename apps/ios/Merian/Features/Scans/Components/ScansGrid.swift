@@ -13,7 +13,17 @@ import SwiftUI
 struct QueuedScanSnapshot: Identifiable, Equatable {
     let id: String          // raw scan UUID — used for deletion lookups and onChange tracking
     let imagePath: String?
+    let capturedMediaJSON: String?
+    let queueState: ScanQueueState
     let timestamp: Date
+
+    var capturedMediaItems: [SerializedMediaItem] {
+        var items = CapturedMediaSnapshot(jsonString: capturedMediaJSON).items
+        if items.isEmpty, let imagePath = imagePath?.trimmingCharacters(in: .whitespacesAndNewlines), !imagePath.isEmpty {
+            items = [.image(StoredMediaReference(legacyPath: imagePath))]
+        }
+        return items
+    }
 
     /// Namespaced key for use as the `ForEach` identity within `LazyVGrid`.
     ///
@@ -57,12 +67,14 @@ struct ScansGrid<MenuContent: View>: View {
         let screenWidth = UIScreen.main.bounds.width
         let cellWidth = (screenWidth - CGFloat(2 * (gridColumns - 1))) / CGFloat(gridColumns)
         let thumbnailSize = Int(cellWidth * UIScreen.main.scale)
+        let completedScanIds = Set(scans.map(\.id))
+        let visibleQueuedScans = queuedScans.filter { !completedScanIds.contains($0.id) }
 
         LazyVGrid(columns: columns, spacing: 2) {
-            // Offline-queued scans render first — they have no AI analysis yet and
-            // are excluded from selection mode. Tapping them shows a toast via the
-            // onQueuedScanTapped callback rather than opening InsightSheet.
-            ForEach(queuedScans, id: \.gridId) { queued in
+            // Offline-queued scans render first — they have no completed AI analysis yet and
+            // are excluded from selection mode. Tapping them opens the queued insight sheet,
+            // or the completed scan if the upload finished between render and tap.
+            ForEach(visibleQueuedScans, id: \.gridId) { queued in
                 Button(action: {
                     HapticManager.shared.triggerMediumPulse()
                     onQueuedScanTapped?(queued)

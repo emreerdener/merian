@@ -34,15 +34,18 @@ struct ScansSheetView: View {
     /// accessing an unfaulted attribute crashes. Copying the needed data into a value type at
     /// fetch time means SwiftData deletions never affect what the grid has already captured.
     @State private var queuedScans: [QueuedScanSnapshot] = []
+    @State private var lastQueuedPipelineKickAt = Date.distantPast
 
     @Environment(\.modelContext) private var modelContext
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.dismiss) var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     
     // MARK: - Navigation Control
     @State private var selectedScanForInsight: LocalScanRecord?
+    @State private var selectedQueuedScanForInsight: QueuedScanContext?
     @State private var activeTab: ScansTab = .library
     
     // MARK: - Component State
@@ -69,27 +72,47 @@ struct ScansSheetView: View {
     
     // MARK: - Core View Builder
     var body: some View {
+        navigationStack
+        .sheet(item: $selectedQueuedScanForInsight) { queuedScan in
+            queuedInsightSheet(for: queuedScan)
+        }
+        .onReceive(AppEventPublisher.shared.publisher) { event in
+            handleAppEvent(event)
+        }
+        .onAppear {
+            handleAppear()
+        }
+        // If a scan completes while this sheet is already visible, the badge fires but
+        // the user is already looking at their library — clear it immediately.
+        .onChange(of: appSettings.hasUnseenScan) { _, isSet in
+            handleUnseenScanBadgeChange(isSet)
+        }
+        .onChange(of: rawRecords) { _, _ in
+            handleRawRecordsChange()
+        }
+        .onChange(of: collections) { _, _ in
+            handleCollectionsChange()
+        }
+        .onChange(of: offlineQueueManager.unsyncedItemsCount) { _, _ in
+            // `@Observable` change notifications are queued and delivered on the next active
+            // render pass — reliable even when the app was backgrounded when the scan
+            // completed and the @Query save notification was never processed by the sheet.
+            handleOfflineQueueCountChange()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            handleScenePhaseChange(newPhase)
+        }
+        .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+            handleLibraryDidUpdate()
+        }
+        .task(id: queuedRefreshTaskID) { @MainActor in
+            await refreshQueuedScansUntilCancelled()
+        }
+    }
+
+    private var navigationStack: some View {
         NavigationStack {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    LibraryTabContent(
-                        searchManager: searchManager, filterCategories: filterCategories,
-                        queuedScans: queuedScans,
-                        isSearchFocused: $isSearchFocused, selectedScanForInsight: $selectedScanForInsight,
-                        showSelectionLimitAlert: $showSelectionLimitAlert, scanToDelete: $scanToDelete,
-                        showDeleteConfirmation: $showDeleteConfirmation
-                    )
-                    CollectionsTabContent(
-                        searchManager: searchManager, isSearchFocused: isSearchFocused,
-                        sortedCollections: searchManager.sortedCollections,
-                        showNewCollectionAlert: $showNewCollectionAlert,
-                        newlyCreatedCollection: $newlyCreatedCollection
-                    )
-                }
-                .scrollTargetLayout()
-            }
-            .scrollTargetBehavior(.paging)
-            .scrollPosition(id: Binding(get: { activeTab }, set: { if let val = $0 { activeTab = val } }))
+            tabPager
             .modifier(ScansSheetModifiers(
                 searchManager: searchManager, activeTab: $activeTab, isSearchFocused: $isSearchFocused,
                 showNewCollectionAlert: $showNewCollectionAlert,
@@ -103,74 +126,175 @@ struct ScansSheetView: View {
                 ScansSheetToolbar(
                     searchManager: searchManager, activeTab: $activeTab,
                     showNewCollectionAlert: $showNewCollectionAlert, dismiss: dismiss,
-                    onShare: {
-                        let selectedScans = searchManager.getSelectedLocalRecords()
-                        Task { await searchManager.batchShare(scans: selectedScans) }
-                    },
-                    onDownload: {
-                        let selectedScans = searchManager.getSelectedLocalRecords()
-                        Task { await searchManager.batchSavePhotos(scans: selectedScans) }
-                    },
+                    onShare: shareSelectedScans,
+                    onDownload: downloadSelectedScans,
                     onDelete: { showBatchDeleteConfirmation = true }
                 )
             }
             .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .bottomBar)
             .navigationDestination(item: $selectedScanForInsight) { record in
-                InsightSheetView(
-                    isPresented: Binding(
-                        get: { selectedScanForInsight != nil },
-                        set: { if !$0 { selectedScanForInsight = nil } }
-                    ),
-                    initialRecord: record,
-                    inferenceEngine: inferenceEngine,
-                    presentationStyle: .embeddedInScansLibrary
-                )
+                localInsightDestination(for: record)
             }
             .navigationDestination(isPresented: $isNonBiologicalScansPresented) {
                 NonBiologicalScansView()
             }
         }
-        .onReceive(AppEventPublisher.shared.publisher) { event in
-            if case .requestOpenNonBiologicalScansIntent = event {
-                activeTab = .collections
-                // Dispatch async to allow the tab change to render before pushing the navigation
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isNonBiologicalScansPresented = true
-                }
+    }
+
+    private var tabPager: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                LibraryTabContent(
+                    searchManager: searchManager,
+                    filterCategories: filterCategories,
+                    queuedScans: queuedScans,
+                    isSearchFocused: $isSearchFocused,
+                    selectedScanForInsight: $selectedScanForInsight,
+                    selectedQueuedScanForInsight: $selectedQueuedScanForInsight,
+                    showSelectionLimitAlert: $showSelectionLimitAlert,
+                    scanToDelete: $scanToDelete,
+                    showDeleteConfirmation: $showDeleteConfirmation
+                )
+                CollectionsTabContent(
+                    searchManager: searchManager,
+                    isSearchFocused: isSearchFocused,
+                    sortedCollections: searchManager.sortedCollections,
+                    showNewCollectionAlert: $showNewCollectionAlert,
+                    newlyCreatedCollection: $newlyCreatedCollection
+                )
+            }
+            .scrollTargetLayout()
+        }
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: Binding(
+            get: { activeTab },
+            set: { if let val = $0 { activeTab = val } }
+        ))
+    }
+
+    private func localInsightDestination(for record: LocalScanRecord) -> some View {
+        InsightSheetView(
+            isPresented: Binding(
+                get: { selectedScanForInsight != nil },
+                set: { if !$0 { selectedScanForInsight = nil } }
+            ),
+            initialRecord: record,
+            inferenceEngine: inferenceEngine,
+            presentationStyle: .embeddedInScansLibrary
+        )
+    }
+
+    private func queuedInsightSheet(for queuedScan: QueuedScanContext) -> some View {
+        InsightSheetView(
+            isPresented: Binding(
+                get: { selectedQueuedScanForInsight != nil },
+                set: { if !$0 { selectedQueuedScanForInsight = nil } }
+            ),
+            queuedScan: queuedScan,
+            inferenceEngine: inferenceEngine,
+            presentationStyle: .sheet
+        )
+    }
+
+    private func handleAppEvent(_ event: AppEvent) {
+        if case .requestOpenNonBiologicalScansIntent = event {
+            activeTab = .collections
+            // Dispatch async to allow the tab change to render before pushing the navigation.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isNonBiologicalScansPresented = true
             }
         }
-        .onAppear {
-            searchManager.bindSettings(appSettings)
-            syncStateLocally()
+    }
+
+    private func handleAppear() {
+        searchManager.bindSettings(appSettings)
+        refreshLibraryAndQueue()
+        if !queuedScans.isEmpty {
+            kickQueuedScanPipeline(reason: "onAppear")
+        }
+        Task { @MainActor in
+            await reconcileShareImportsFromSheet()
+        }
+        appSettings.hasUnseenScan = false
+        PushNotificationManager.shared.setBadgeCount(0)
+    }
+
+    private func handleUnseenScanBadgeChange(_ isSet: Bool) {
+        guard isSet else { return }
+        appSettings.hasUnseenScan = false
+        PushNotificationManager.shared.setBadgeCount(0)
+    }
+
+    private func handleRawRecordsChange() {
+        syncStateLocally()
+        refreshThumbnailPipeline()
+    }
+
+    private func handleCollectionsChange() {
+        searchManager.collections = collections
+        searchManager.performSearch(query: searchManager.searchQuery)
+    }
+
+    private func handleOfflineQueueCountChange() {
+        refreshQueuedScans()
+        syncStateFromStore()
+        refreshThumbnailPipeline()
+    }
+
+    private func handleScenePhaseChange(_ newPhase: ScenePhase) {
+        guard newPhase == .active else { return }
+        ShareImportLog.logger.debug("ScansSheetView.scenePhase active: refreshing queue and library snapshots")
+        refreshLibraryAndQueue()
+        if !queuedScans.isEmpty {
+            kickQueuedScanPipeline(reason: "scenePhase")
+        }
+    }
+
+    private func handleLibraryDidUpdate() {
+        ShareImportLog.logger.debug("ScansSheetView.libraryDidUpdate: refreshing queue and library snapshots")
+        refreshLibraryAndQueue()
+        if !queuedScans.isEmpty {
+            kickQueuedScanPipeline(reason: "libraryDidUpdate")
+        }
+    }
+
+    @MainActor
+    private func reconcileShareImportsFromSheet() async {
+        ShareImportLog.logger.debug("ScansSheetView.onAppear: reconciling share imports backstop")
+        await ShareImportReceiptReconciler.reconcileIfNeeded(
+            modelContext: modelContext,
+            scanRepository: AppDIContainer.shared.scanRepository
+        )
+        refreshLibraryAndQueue()
+        if !queuedScans.isEmpty {
+            kickQueuedScanPipeline(reason: "post-reconcile")
+        }
+    }
+
+    @MainActor
+    private func refreshQueuedScansUntilCancelled() async {
+        guard !queuedScans.isEmpty else { return }
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(1_500))
+            guard !Task.isCancelled else { return }
             refreshQueuedScans()
-            refreshThumbnailPipeline()
-            appSettings.hasUnseenScan = false
-            PushNotificationManager.shared.setBadgeCount(0)
         }
-        // If a scan completes while this sheet is already visible, the badge fires but
-        // the user is already looking at their library — clear it immediately.
-        .onChange(of: appSettings.hasUnseenScan) { _, isSet in
-            if isSet {
-                appSettings.hasUnseenScan = false
-                PushNotificationManager.shared.setBadgeCount(0)
-            }
-        }
-        .onChange(of: rawRecords) { _, _ in
-            syncStateLocally()
-            refreshThumbnailPipeline()
-        }
-        .onChange(of: collections) { _, _ in
-            searchManager.collections = collections
-            searchManager.performSearch(query: searchManager.searchQuery)
-        }
-        .onChange(of: offlineQueueManager.unsyncedItemsCount) { _, _ in
-            // `@Observable` change notifications are queued and delivered on the next active
-            // render pass — reliable even when the app was backgrounded when the scan
-            // completed and the @Query save notification was never processed by the sheet.
-            refreshQueuedScans()
-            syncStateFromStore()
-            refreshThumbnailPipeline()
-        }
+    }
+
+    private func refreshLibraryAndQueue() {
+        syncStateFromStore()
+        refreshQueuedScans()
+        refreshThumbnailPipeline()
+    }
+
+    private func shareSelectedScans() {
+        let selectedScans = searchManager.getSelectedLocalRecords()
+        Task { await searchManager.batchShare(scans: selectedScans) }
+    }
+
+    private func downloadSelectedScans() {
+        let selectedScans = searchManager.getSelectedLocalRecords()
+        Task { await searchManager.batchSavePhotos(scans: selectedScans) }
     }
     
     // MARK: - Data Refresh
@@ -210,6 +334,27 @@ struct ScansSheetView: View {
         }
     }
 
+    private func kickQueuedScanPipeline(reason: String) {
+        let now = Date()
+        guard now.timeIntervalSince(lastQueuedPipelineKickAt) >= 2 else {
+            ShareImportLog.logger.debug(
+                "ScansSheetView.kickQueuedScanPipeline: throttled reason=\(reason, privacy: .public)"
+            )
+            return
+        }
+
+        lastQueuedPipelineKickAt = now
+        ShareImportLog.logger.debug(
+            "ScansSheetView.kickQueuedScanPipeline: kicking reason=\(reason, privacy: .public)"
+        )
+        offlineQueueManager.syncPendingScans()
+        offlineQueueManager.replayInferenceForUploadedScans()
+    }
+
+    private var queuedRefreshTaskID: String {
+        queuedScans.map(\.id).sorted().joined(separator: "|")
+    }
+
     /// Fetches the current `OfflineQueuedScan` list directly from the model context and
     /// converts it to `[QueuedScanSnapshot]` — value-type copies that are immune to
     /// SwiftData object deletion.
@@ -224,14 +369,43 @@ struct ScansSheetView: View {
     /// the backing inaccessible. `LazyVGrid` receives only the value-type snapshot array,
     /// so it can never hold a zombie `@Model` reference.
     private func refreshQueuedScans() {
-        let nonFailedMax = ScanQueueState.failed.rawValue
+        let readContext = ModelContext(modelContext.container)
+        let firstNonRunnableRaw = ScanQueueState.externalImport.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate<OfflineQueuedScan> { $0.scanStateRaw < nonFailedMax },
+            predicate: #Predicate<OfflineQueuedScan> { $0.scanStateRaw < firstNonRunnableRaw },
             sortBy: [SortDescriptor(\OfflineQueuedScan.timestamp, order: .reverse)]
         )
-        let fetched = (try? modelContext.fetch(descriptor)) ?? []
-        queuedScans = fetched.map {
-            QueuedScanSnapshot(id: $0.id, imagePath: $0.coverImagePath, timestamp: $0.timestamp)
+        let fetched = (try? readContext.fetch(descriptor)) ?? []
+        let queuedIds = fetched.map(\.id)
+        let completedIds: Set<String>
+        if queuedIds.isEmpty {
+            completedIds = []
+        } else {
+            let recordDescriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate<LocalScanRecord> { queuedIds.contains($0.id) }
+            )
+            completedIds = Set(((try? readContext.fetch(recordDescriptor)) ?? []).map(\.id))
+        }
+        let visibleQueued = fetched.filter { !completedIds.contains($0.id) }
+        let stateSummary = Dictionary(grouping: fetched, by: \.scanStateRaw)
+            .map { "\($0.key):\($0.value.count)" }
+            .sorted()
+            .joined(separator: ",")
+        let visibleSummary = visibleQueued.map(\.id).joined(separator: ",")
+        ShareImportLog.logger.debug(
+            "ScansSheetView.refreshQueuedScans: freshContext queued=\(fetched.count, privacy: .public) visible=\(visibleQueued.count, privacy: .public) completedMatches=\(completedIds.count, privacy: .public) states=\(stateSummary, privacy: .public) visibleIds=\(visibleSummary, privacy: .public)"
+        )
+        let snapshots = visibleQueued.map {
+            QueuedScanSnapshot(
+                id: $0.id,
+                imagePath: $0.coverImagePath,
+                capturedMediaJSON: $0.capturedMediaJSON,
+                queueState: $0.queueState,
+                timestamp: $0.timestamp
+            )
+        }
+        if queuedScans != snapshots {
+            queuedScans = snapshots
         }
     }
 
@@ -245,9 +419,27 @@ struct ScansSheetView: View {
             predicate: #Predicate<LocalScanRecord> { $0.isBiological == true },
             sortBy: [SortDescriptor(\LocalScanRecord.timestamp, order: .reverse)]
         )
-        searchManager.allScans = (try? modelContext.fetch(descriptor)) ?? []
+        let records = (try? modelContext.fetch(descriptor)) ?? []
+        let latestSummary = records.prefix(3).map { record in
+            "\(record.id):\(record.commonName)"
+        }.joined(separator: ",")
+        ShareImportLog.logger.debug(
+            "ScansSheetView.syncStateFromStore: records=\(records.count, privacy: .public) latest=\(latestSummary, privacy: .public)"
+        )
+        guard scanListSignature(records) != scanListSignature(searchManager.allScans) else {
+            searchManager.collections = collections
+            return
+        }
+
+        searchManager.allScans = records
         searchManager.collections = collections
         searchManager.performSearch(query: searchManager.searchQuery)
+    }
+
+    private func scanListSignature(_ records: [LocalScanRecord]) -> [String] {
+        records.map { record in
+            "\(record.id)|\(record.timestamp.timeIntervalSince1970)|\(record.hasBeenViewed)"
+        }
     }
 
     // MARK: - Action Handlers
@@ -269,6 +461,7 @@ private struct LibraryTabContent: View {
     let queuedScans: [QueuedScanSnapshot]
     @Binding var isSearchFocused: Bool
     @Binding var selectedScanForInsight: LocalScanRecord?
+    @Binding var selectedQueuedScanForInsight: QueuedScanContext?
     @Binding var showSelectionLimitAlert: Bool
     @Binding var scanToDelete: LocalScanRecord?
     @Binding var showDeleteConfirmation: Bool
@@ -301,6 +494,12 @@ private struct LibraryTabContent: View {
             },
             onShareToExplore: { scan in
                 Task { await searchManager.shareToExplore(scan: scan) }
+            },
+            onQueuedInsight: { queuedContext in
+                MerianLog.data.debug(
+                    "ScansSheetView: presenting queued insight scanId=\(queuedContext.id, privacy: .public) state=\(queuedContext.queueState.rawValue, privacy: .public)"
+                )
+                selectedQueuedScanForInsight = queuedContext
             }
         )
     }

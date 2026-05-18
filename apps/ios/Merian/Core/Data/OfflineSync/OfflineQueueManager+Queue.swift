@@ -50,6 +50,8 @@ extension OfflineQueueManager {
         do {
             try context.save()
             updateUnsyncedItemCount()
+            ScanLibraryEvents.postLibraryDidUpdate()
+            MerianLog.data.debug("flushOfflineQueuedScan: deleted queue scanId=\(scanId, privacy: .public)")
             return true
         } catch {
             context.rollback()
@@ -59,12 +61,12 @@ extension OfflineQueueManager {
         }
     }
 
-    /// Refreshes `unsyncedItemsCount` from the count of active (non-failed) `OfflineQueuedScan` records.
+    /// Refreshes `unsyncedItemsCount` from the count of locally runnable queue records.
     func updateUnsyncedItemCount() {
         guard let context = modelContext else { return }
-        let failedRaw = ScanQueueState.failed.rawValue
+        let firstNonRunnableRaw = ScanQueueState.externalImport.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.scanStateRaw != failedRaw }
+            predicate: #Predicate { $0.scanStateRaw < firstNonRunnableRaw }
         )
         let count: Int
         do {
@@ -234,8 +236,17 @@ extension OfflineQueueManager {
     /// cross-reference to catch scans stuck in `.uploading` when `generateUploadURLs` failed
     /// or the `syncPendingScans` Task was killed before its catch block could run.
     func replayInferenceForUploadedScans() {
-        guard isOnline else { return }
-        guard let context = modelContext else { return }
+        MerianLog.data.debug(
+            "replayInferenceForUploadedScans: requested isOnline=\(self.isOnline, privacy: .public) startupReconciled=\(self.hasReconciledStartupState, privacy: .public)"
+        )
+        guard isOnline else {
+            MerianLog.data.debug("replayInferenceForUploadedScans: skipped because network is offline")
+            return
+        }
+        guard let context = modelContext else {
+            MerianLog.data.error("replayInferenceForUploadedScans: skipped because modelContext is nil")
+            return
+        }
         let container = context.container
 
         // One-time cold-start reconciliation for orphaned .uploading scans.
@@ -248,8 +259,15 @@ extension OfflineQueueManager {
                 let activeIds = Set(allTasks.compactMap {
                     MediaStagingContract.parseUploadTaskDescription($0.taskDescription)?.scanId
                 })
+                let preparingUploadIds = await MainActor.run { self.uploadPreparationScanIds }
+                let completingUploadIds = await MainActor.run { self.uploadCompletionScanIds }
+                MerianLog.data.debug(
+                    "replayInferenceForUploadedScans: cold-start live upload tasks=\(activeIds.count, privacy: .public) preparing=\(preparingUploadIds.count, privacy: .public) completing=\(completingUploadIds.count, privacy: .public)"
+                )
                 let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                let hadOrphans = await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeIds)
+                let hadOrphans = await dbActor.reconcileOrphanedUploadingScans(
+                    activeScanIds: activeIds.union(preparingUploadIds).union(completingUploadIds)
+                )
                 // Only call syncPendingScans if the reconcile actually reset scans from
                 // .uploading → .pending. Without this, the initial syncPendingScans call
                 // (from handleActivePhase) already ran and found nothing — .uploading scans
@@ -295,13 +313,32 @@ extension OfflineQueueManager {
             let activeUploadScanIds = Set(allTasks.compactMap { task in
                 MediaStagingContract.parseUploadTaskDescription(task.taskDescription)?.scanId
             })
-            await sharedActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadScanIds)
+            let preparingUploadScanIds = await MainActor.run { self.uploadPreparationScanIds }
+            let completingUploadScanIds = await MainActor.run { self.uploadCompletionScanIds }
+            MerianLog.data.debug(
+                "replayInferenceForUploadedScans: activeUploadTasks=\(activeUploadScanIds.count, privacy: .public) preparingUpload=\(preparingUploadScanIds.count, privacy: .public) completingUpload=\(completingUploadScanIds.count, privacy: .public)"
+            )
+            await sharedActor.reconcileOrphanedUploadingScans(
+                activeScanIds: activeUploadScanIds.union(preparingUploadScanIds).union(completingUploadScanIds)
+            )
 
             let activeInferenceScanIds = Set(allTasks.compactMap { task -> String? in
-                guard let desc = task.taskDescription, desc.hasPrefix("inference_") else { return nil }
+                guard task.state != .canceling,
+                      task.state != .completed,
+                      let desc = task.taskDescription,
+                      desc.hasPrefix("inference_") else { return nil }
                 return String(desc.dropFirst("inference_".count))
             })
-            await sharedActor.reconcileOrphanedInferencingScans(activeInferenceScanIds: activeInferenceScanIds)
+            let preparingInferenceScanIds = await MainActor.run { self.inferencePreparationScanIds }
+            let completingInferenceScanIds = await MainActor.run { self.inferenceCompletionScanIds }
+            MerianLog.data.debug(
+                "replayInferenceForUploadedScans: activeInferenceTasks=\(activeInferenceScanIds.count, privacy: .public) preparing=\(preparingInferenceScanIds.count, privacy: .public) completing=\(completingInferenceScanIds.count, privacy: .public)"
+            )
+            await sharedActor.reconcileOrphanedInferencingScans(
+                activeInferenceScanIds: activeInferenceScanIds
+                    .union(preparingInferenceScanIds)
+                    .union(completingInferenceScanIds)
+            )
             await MainActor.run { self.replayInferenceStagedScans() }
         }
     }
@@ -320,7 +357,11 @@ extension OfflineQueueManager {
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.scanStateRaw == stagedRaw }
         )
-        guard let staged = try? context.fetch(descriptor), !staged.isEmpty else { return }
+        guard let staged = try? context.fetch(descriptor), !staged.isEmpty else {
+            MerianLog.data.debug("replayInferenceStagedScans: no staged scans")
+            return
+        }
+        MerianLog.data.debug("replayInferenceStagedScans: staged scans=\(staged.count, privacy: .public)")
 
         for scan in staged {
             let scanId = scan.id
@@ -329,7 +370,18 @@ extension OfflineQueueManager {
                 let dbActor = resolvedInferenceDbActor(container: container)
                 // Atomic claim: transitions .staged → .inferencing.
                 // If another path already claimed it, this returns false and we skip.
-                guard await dbActor.tryClaimForInference(scanId: scanId) else { return }
+                await MainActor.run { _ = self.inferencePreparationScanIds.insert(scanId) }
+                let didClaim = await dbActor.tryClaimForInference(scanId: scanId)
+                if !didClaim {
+                    MerianLog.data.debug(
+                        "replayInferenceStagedScans: claim skipped scanId=\(scanId, privacy: .public)"
+                    )
+                    await MainActor.run { _ = self.inferencePreparationScanIds.remove(scanId) }
+                    return
+                }
+                MerianLog.data.debug(
+                    "replayInferenceStagedScans: claimed scanId=\(scanId, privacy: .public)"
+                )
 
 #if DEBUG
                 // Increment before any network work so tests can observe this as a
@@ -394,10 +446,15 @@ extension OfflineQueueManager {
         blurScore: Double? = nil,
         scanId: String? = nil,
         observationContexts: [ObservationContext] = [],
-        mediaTimeline: [CaptureSubmissionMediaItem]? = nil
+        mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
+        captureDate: Date = Date(),
+        onQueued: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
         let resolvedScanId = scanId ?? UUID().uuidString
         let documentsDirectory = URL.documentsDirectory
+        MerianLog.data.debug(
+            "enqueueCapture: requested scanId=\(resolvedScanId, privacy: .public) images=\(imageDatas.count, privacy: .public) bytes=\(imageDatas.reduce(0) { $0 + $1.count }, privacy: .public)"
+        )
         let timeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
             imageCount: imageDatas.count,
             observationContexts: observationContexts,
@@ -405,17 +462,28 @@ extension OfflineQueueManager {
         )
 
         BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite", priority: .userInitiated) { [weak self] _ in
-            guard let self else { return }
+            guard let self else {
+                if let onQueued {
+                    await MainActor.run { onQueued(false) }
+                }
+                return
+            }
             var fileURLs: [URL] = []
             do {
                 let fileNames = await FileIOActor.shared.writeTemporaryImages(imageDatas: imageDatas)
                 guard fileNames.count == imageDatas.count else {
                     await FileIOActor.shared.deleteImages(at: fileNames)
                     MerianLog.data.error("enqueueCapture: failed to persist the full staged image set — scan will not be queued.")
+                    if let onQueued {
+                        await MainActor.run { onQueued(false) }
+                    }
                     return
                 }
 
                 fileURLs = fileNames.map { documentsDirectory.appendingPathComponent($0) }
+                MerianLog.data.debug(
+                    "enqueueCapture: persisted temp files scanId=\(resolvedScanId, privacy: .public) files=\(fileNames.joined(separator: ","), privacy: .public)"
+                )
                 let persistedAudioNamesBySourcePath = try self.persistQueuedAudioFiles(
                     audioFilePaths,
                     documentsDirectory: documentsDirectory
@@ -426,17 +494,27 @@ extension OfflineQueueManager {
                     persistedAudioNamesBySourcePath: persistedAudioNamesBySourcePath
                 )
 
-                await self.insertAndPersistRecord(
+                let didQueue = await self.insertAndPersistRecord(
                     scanId: resolvedScanId,
                     fileURLs: fileURLs,
                     capturedMediaJSON: capturedMediaJSON,
                     telemetry: telemetry,
-                    blurScore: blurScore
+                    blurScore: blurScore,
+                    timestamp: captureDate
+                )
+                if let onQueued {
+                    await MainActor.run { onQueued(didQueue) }
+                }
+                MerianLog.data.debug(
+                    "enqueueCapture: insert complete scanId=\(resolvedScanId, privacy: .public) didQueue=\(didQueue, privacy: .public)"
                 )
             } catch {
                 MerianLog.data.error("enqueueCapture: image write to disk failed — scan will not be queued: \(error, privacy: .private)")
                 if !fileURLs.isEmpty {
                     await self.cleanupPersistedCaptureFiles(fileURLs)
+                }
+                if let onQueued {
+                    await MainActor.run { onQueued(false) }
                 }
             }
         }
@@ -672,14 +750,18 @@ extension OfflineQueueManager {
         fileURLs: [URL],
         capturedMediaJSON: String?,
         telemetry: CaptureTelemetry,
-        blurScore: Double?
-    ) async {
+        blurScore: Double?,
+        timestamp: Date
+    ) async -> Bool {
         // Enforce quota at enqueue time so every scan that enters the queue is guaranteed to upload.
         // Consuming here (not at upload time) prevents silent stalls when syncPendingScans fires
         // after the experience was already granted to the user.
         guard let modelContext else {
+            MerianLog.data.error(
+                "insertAndPersistRecord: modelContext missing scanId=\(scanId, privacy: .public)"
+            )
             await cleanupPersistedCaptureFiles(fileURLs)
-            return
+            return false
         }
 
         var didConsumeQuota = false
@@ -687,7 +769,7 @@ extension OfflineQueueManager {
             guard UsageManager.shared.canPerformScan(isProActive: false) else {
                 MerianLog.data.debug("enqueueCapture: free user scan quota exhausted — scan not enqueued")
                 await cleanupPersistedCaptureFiles(fileURLs)
-                return
+                return false
             }
             UsageManager.shared.consumeScan()
             didConsumeQuota = true
@@ -695,7 +777,7 @@ extension OfflineQueueManager {
         
         let scan = OfflineQueuedScan(
             id: scanId,
-            timestamp: Date(),
+            timestamp: timestamp,
             capturedMediaJSON: capturedMediaJSON,
             gpsLatitude: telemetry.gpsLatitude,
             gpsLongitude: telemetry.gpsLongitude,
@@ -724,7 +806,11 @@ extension OfflineQueueManager {
             try modelContext.save()
             updateUnsyncedItemCount()
             AppTelemetry.trackOfflineQueued()
+            MerianLog.data.debug(
+                "insertAndPersistRecord: saved queue scanId=\(scanId, privacy: .public) state=pending images=\(fileURLs.count, privacy: .public)"
+            )
             syncPendingScans()
+            return true
         } catch {
             modelContext.rollback()
             if didConsumeQuota {
@@ -732,6 +818,7 @@ extension OfflineQueueManager {
             }
             MerianLog.data.error("enqueueCapture: context.save() failed — scan record lost, cleaning up image footprints: \(error, privacy: .private)")
             await cleanupPersistedCaptureFiles(fileURLs)
+            return false
         }
     }
 }

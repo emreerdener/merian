@@ -7,7 +7,6 @@ struct LibraryView: View {
     // MARK: - State Dependencies
     @Bindable var searchManager: ScansManager
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
-    @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -22,16 +21,10 @@ struct LibraryView: View {
     let onSelect: (LocalScanRecord) -> Void
     let onDelete: (LocalScanRecord) -> Void
     var onShareToExplore: ((LocalScanRecord) -> Void)?
+    var onQueuedInsight: ((QueuedScanContext) -> Void)?
 
     // MARK: - Component State
     @State private var toastMessage: String?
-    @State private var scanToManage: QueuedScanContext?
-    /// Controls the queued-scan insight independently of `scanToManage`.
-    ///
-    /// Using a separate boolean lets us clear `scanToManage` (handing off to
-    /// `InsightSheetView`'s internal transition) without immediately popping the
-    /// navigation destination when a scan completes.
-    @State private var isQueuedInsightPresented = false
 
     // MARK: - Visual Layout
     var body: some View {
@@ -69,35 +62,21 @@ struct LibraryView: View {
             }
 
             // 2. Main Discovery Scroll Container
-            let hasContent = !searchManager.filteredScans.isEmpty || !queuedScans.isEmpty
+            let completedScanIds = Set(searchManager.allScans.map(\.id))
+            let visibleQueuedScans = queuedScans.filter { !completedScanIds.contains($0.id) }
+            let hasContent = !searchManager.filteredScans.isEmpty || !visibleQueuedScans.isEmpty
             ZStack(alignment: .bottom) {
                 ScrollView {
                     if hasContent {
                         ScansGrid(
                             scans: searchManager.filteredScans,
-                            queuedScans: queuedScans,
+                            queuedScans: visibleQueuedScans,
                             onSelect: onSelect,
                             onDelete: onDelete,
                             isSelected: isSelected,
                             onAddScans: nil,
                             onQueuedScanTapped: { snapshot in
-                                // Fetch the live OfflineQueuedScan and immediately snapshot
-                                // it into QueuedScanContext — resolving all attribute faults
-                                // while the object is live. The insight sheet chain then holds
-                                // only the value type; no @Model reference survives the tap.
-                                let scanId = snapshot.id
-                                var descriptor = FetchDescriptor<OfflineQueuedScan>(
-                                    predicate: #Predicate { $0.id == scanId }
-                                )
-                                descriptor.fetchLimit = 1
-                                if let scan = (try? modelContext.fetch(descriptor))?.first {
-                                    scanToManage = QueuedScanContext(from: scan)
-                                    isQueuedInsightPresented = true
-                                    UITestSeedCoordinator.triggerQueuedAudioHandoffIfNeeded(
-                                        scanId: scan.id,
-                                        container: modelContext.container
-                                    )
-                                }
+                                openQueuedScan(snapshot)
                             },
                             onQueuedScanDelete: { snapshot in
                                 Task {
@@ -163,45 +142,9 @@ struct LibraryView: View {
                             .fontWeight(.medium)
                             .foregroundColor(.primary)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 60)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(100)
-                }
-            }
-            .navigationDestination(isPresented: $isQueuedInsightPresented) {
-                // Pass the current context — may become nil mid-session when the scan
-                // completes and InsightSheetView transitions internally to results.
-                InsightSheetView(
-                    isPresented: $isQueuedInsightPresented,
-                    queuedScan: scanToManage,
-                    inferenceEngine: inferenceEngine,
-                    presentationStyle: .embeddedInScansLibrary
-                )
-            }
-            .onChange(of: isQueuedInsightPresented) { _, isPresented in
-                if !isPresented {
-                    scanToManage = nil
-                }
-            }
-            .onChange(of: queuedScans.map(\.id)) { _, newIds in
-                guard let managed = scanToManage, !newIds.contains(managed.id) else { return }
-                // Scan left the queue. Determine whether it completed or was deleted/failed.
-                let scanId = managed.id
-                var descriptor = FetchDescriptor<LocalScanRecord>(
-                    predicate: #Predicate { $0.id == scanId }
-                )
-                descriptor.fetchLimit = 1
-                if let record = (try? modelContext.fetch(descriptor))?.first {
-                    // Completed successfully — load the engine proactively so the sheet
-                    // transitions seamlessly to the correct biological state, preventing
-                    // the intermediate "Analyzing" fallback that occurs if scanToManage
-                    // drops before the engine is populated.
-                    inferenceEngine.load(from: record)
-                    scanToManage = nil
-                } else {
-                    // Deleted or failed — close the insight entirely.
-                    isQueuedInsightPresented = false
                 }
             }
             .task(id: toastMessage) {
@@ -212,12 +155,64 @@ struct LibraryView: View {
                 }
             }
             .onChange(of: offlineQueueManager.isOnline) { _, isOnline in
-                if isOnline && !queuedScans.isEmpty {
+                if isOnline && !visibleQueuedScans.isEmpty {
                     withAnimation { toastMessage = "Back online, uploading scans..." }
                 }
             }
         }
         .containerRelativeFrame(.horizontal)
         .id(ScansTab.library)
+    }
+
+    private func openQueuedScan(_ snapshot: QueuedScanSnapshot) {
+        if let completedRecord = localScanRecord(id: snapshot.id) {
+            MerianLog.data.debug(
+                "LibraryView.openQueuedScan: opening completed record scanId=\(snapshot.id, privacy: .public)"
+            )
+            onSelect(completedRecord)
+            return
+        }
+
+        if let queuedScanContext = queuedScanContext(id: snapshot.id) {
+            MerianLog.data.debug(
+                "LibraryView.openQueuedScan: opening fresh queued insight scanId=\(snapshot.id, privacy: .public) state=\(queuedScanContext.queueState.rawValue, privacy: .public)"
+            )
+            onQueuedInsight?(queuedScanContext)
+            UITestSeedCoordinator.triggerQueuedAudioHandoffIfNeeded(
+                scanId: queuedScanContext.id,
+                container: modelContext.container
+            )
+            return
+        }
+
+        MerianLog.data.debug(
+            "LibraryView.openQueuedScan: opening snapshot queued insight scanId=\(snapshot.id, privacy: .public) state=\(snapshot.queueState.rawValue, privacy: .public)"
+        )
+        onQueuedInsight?(
+            QueuedScanContext(
+                id: snapshot.id,
+                capturedMediaItems: snapshot.capturedMediaItems,
+                queueState: snapshot.queueState,
+                timestamp: snapshot.timestamp
+            )
+        )
+    }
+
+    private func localScanRecord(id scanId: String) -> LocalScanRecord? {
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        return (try? modelContext.fetch(descriptor))?.first
+    }
+
+    private func queuedScanContext(id scanId: String) -> QueuedScanContext? {
+        let readContext = ModelContext(modelContext.container)
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let scan = (try? readContext.fetch(descriptor))?.first else { return nil }
+        return QueuedScanContext(from: scan)
     }
 }

@@ -15,6 +15,7 @@ import Foundation
 struct QueuedScanContext: Identifiable, Equatable {
     let id: String
     let capturedMediaItems: [SerializedMediaItem]
+    let queueState: ScanQueueState
     let timestamp: Date
     let locationName: String?
     let weatherTemperatureF: Double?
@@ -34,14 +35,41 @@ struct QueuedScanContext: Identifiable, Equatable {
     /// Initialises the context by resolving all attribute faults on the live `OfflineQueuedScan`.
     /// Must be called while the object is still alive (before any `context.delete()`).
     init(from scan: OfflineQueuedScan) {
-        self.id = scan.id
-        self.capturedMediaItems = scan.serializedCapturedMediaItems
-        self.timestamp = scan.timestamp
-        self.locationName = scan.locationName
-        self.weatherTemperatureF = scan.weatherTemperatureF
-        self.weatherCondition = scan.weatherCondition
-        self.gpsElevation = scan.gpsElevation
-        self.gpsLatitude = scan.gpsLatitude
-        self.gpsLongitude = scan.gpsLongitude
+        self.init(
+            id: scan.id,
+            capturedMediaItems: scan.serializedCapturedMediaItems,
+            queueState: scan.queueState,
+            timestamp: scan.timestamp,
+            locationName: scan.locationName,
+            weatherTemperatureF: scan.weatherTemperatureF,
+            weatherCondition: scan.weatherCondition,
+            gpsElevation: scan.gpsElevation,
+            gpsLatitude: scan.gpsLatitude,
+            gpsLongitude: scan.gpsLongitude
+        )
+    }
+
+    init(
+        id: String,
+        capturedMediaItems: [SerializedMediaItem],
+        queueState: ScanQueueState,
+        timestamp: Date,
+        locationName: String? = nil,
+        weatherTemperatureF: Double? = nil,
+        weatherCondition: String? = nil,
+        gpsElevation: Double? = nil,
+        gpsLatitude: Double? = nil,
+        gpsLongitude: Double? = nil
+    ) {
+        self.id = id
+        self.capturedMediaItems = capturedMediaItems
+        self.queueState = queueState
+        self.timestamp = timestamp
+        self.locationName = locationName
+        self.weatherTemperatureF = weatherTemperatureF
+        self.weatherCondition = weatherCondition
+        self.gpsElevation = gpsElevation
+        self.gpsLatitude = gpsLatitude
+        self.gpsLongitude = gpsLongitude
     }
 }

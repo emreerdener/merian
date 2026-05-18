@@ -131,8 +131,15 @@ actor LocalImageLoader {
 
     /// Decodes a local APFS file path into a UIImage without touching the actor's executor.
     private static nonisolated func loadLocal(path: String, cacheKey: String, maxSize: CGFloat) -> UIImage? {
-        let filename = (path as NSString).lastPathComponent
-        let url = URL.documentsDirectory.appendingPathComponent(filename)
+        let url: URL
+        if path.hasPrefix("/") {
+            url = URL(fileURLWithPath: path)
+        } else if let fileURL = URL(string: path), fileURL.isFileURL {
+            url = fileURL
+        } else {
+            let filename = (path as NSString).lastPathComponent
+            url = URL.documentsDirectory.appendingPathComponent(filename)
+        }
         
         LocalImageLoader.decodeSemaphore.wait()
         defer { LocalImageLoader.decodeSemaphore.signal() }

@@ -6,6 +6,7 @@ final class ShareViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        ShareImportLog.logger.debug("ShareViewController.viewDidLoad: share extension loaded")
 
         let rootView = ShareImportView(viewModel: viewModel)
         let hostingController = UIHostingController(rootView: rootView)

@@ -43,19 +43,16 @@ final class AppLifecycleManager {
             await container.supabaseManager.initializeGhostSession()
             await container.pushNotificationManager.syncRemotePushRegistrationIfPossible(reason: "app_active")
             container.offlineQueueManager.purgeSoftDeletedRecords()
-            container.offlineQueueManager.syncPendingScans()
-            // Recover scans whose upload completed but inference was interrupted
-            // (e.g. app killed or suspended mid-inference). NWPathMonitor only fires
-            // on connectivity *changes*, so this must also run on every foreground.
-            container.offlineQueueManager.replayInferenceForUploadedScans()
 
             let now = Date()
 
             if let context = container.offlineQueueManager.modelContext {
+                ShareImportLog.logger.debug("AppLifecycleManager.handleActivePhase: reconciling share imports")
                 await ShareImportReceiptReconciler.reconcileIfNeeded(
                     modelContext: context,
                     scanRepository: container.scanRepository
                 )
+                ShareImportLog.logger.debug("AppLifecycleManager.handleActivePhase: share import reconcile complete")
                 await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context)
 
                 // Restore account history on re-install or multi-device login.
@@ -69,6 +66,13 @@ final class AppLifecycleManager {
                     await container.scanRepository.syncHistoricalScansDown(modelContext: context)
                 }
             }
+
+            ShareImportLog.logger.debug("AppLifecycleManager.handleActivePhase: kicking offline queue after active phase")
+            container.offlineQueueManager.syncPendingScans()
+            // Recover scans whose upload completed but inference was interrupted
+            // (e.g. app killed or suspended mid-inference). NWPathMonitor only fires
+            // on connectivity *changes*, so this must also run on every foreground.
+            container.offlineQueueManager.replayInferenceForUploadedScans()
 
             // Evaluate archive rescue once per 24 hours.
             let lastRescueDate = UserDefaults.standard.object(forKey: UserDefaultsKeys.lastArchiveRescueDate) as? Date ?? Date.distantPast

@@ -5,6 +5,10 @@ struct InsightContentRouterView: View {
     @Bindable var viewModel: InsightSheetViewModel
     var queuedScan: QueuedScanContext?
     @Environment(InferenceEngine.self) private var inferenceEngine
+
+    private var presentationQueuedScan: QueuedScanContext? {
+        viewModel.queuedContext ?? (viewModel.activeLocalRecord == nil ? queuedScan : nil)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -15,7 +19,7 @@ struct InsightContentRouterView: View {
                     // presenting a queued scan — we're just in the nil-window before onAppear
                     // sets `viewModel.queuedContext`. Show QueuedContentView immediately instead
                     // of the transient analyzing skeleton.
-                    if let ctx = queuedScan {
+                    if let ctx = presentationQueuedScan {
                         QueuedContentView(viewModel: viewModel, queuedContext: ctx)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             .background(Color(uiColor: .systemBackground))
@@ -27,7 +31,7 @@ struct InsightContentRouterView: View {
                             .transition(.opacity)
                     }
                 case .queued:
-                    if let ctx = viewModel.queuedContext ?? queuedScan {
+                    if let ctx = presentationQueuedScan {
                         QueuedContentView(viewModel: viewModel, queuedContext: ctx)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                             .background(Color(uiColor: .systemBackground))

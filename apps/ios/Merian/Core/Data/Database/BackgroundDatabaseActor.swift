@@ -43,6 +43,7 @@ actor BackgroundDatabaseActor {
             MerianLog.data.error("fetchPendingScans: fetch failed: \(error, privacy: .private)")
             return []
         }
+        MerianLog.data.debug("fetchPendingScans: fetched \(pending.count, privacy: .public) pending scans")
         return pending.map { scan in
             let snapshot = scan.capturedMediaSnapshot
             return PendingScanPayload(
@@ -97,11 +98,20 @@ actor BackgroundDatabaseActor {
         let inferencingRaw = ScanQueueState.inferencing.rawValue
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
-        guard let scan = (try? modelContext.fetch(descriptor))?.first else { return false }
-        guard scan.scanStateRaw == stagedRaw else { return false }
+        guard let scan = (try? modelContext.fetch(descriptor))?.first else {
+            MerianLog.data.debug("tryClaimForInference: scan missing scanId=\(scanId, privacy: .public)")
+            return false
+        }
+        guard scan.scanStateRaw == stagedRaw else {
+            MerianLog.data.debug(
+                "tryClaimForInference: state mismatch scanId=\(scanId, privacy: .public) state=\(scan.scanStateRaw, privacy: .public)"
+            )
+            return false
+        }
         scan.scanStateRaw = inferencingRaw
         do {
             try modelContext.save()
+            MerianLog.data.debug("tryClaimForInference: claimed scanId=\(scanId, privacy: .public)")
         } catch {
             modelContext.rollback()
             MerianLog.data.error("tryClaimForInference: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
@@ -146,13 +156,24 @@ actor BackgroundDatabaseActor {
     func markScanAsStaged(scanId: String, r2Keys: [String]) {
         var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
-        guard let scan = (try? modelContext.fetch(descriptor))?.first else { return }
+        guard let scan = (try? modelContext.fetch(descriptor))?.first else {
+            MerianLog.data.debug("markScanAsStaged: scan missing scanId=\(scanId, privacy: .public)")
+            return
+        }
         // Only advance from .uploading — do not resurrect tombstoned (.failed) scans.
-        guard scan.scanStateRaw == ScanQueueState.uploading.rawValue else { return }
+        guard scan.scanStateRaw == ScanQueueState.uploading.rawValue else {
+            MerianLog.data.debug(
+                "markScanAsStaged: state mismatch scanId=\(scanId, privacy: .public) state=\(scan.scanStateRaw, privacy: .public)"
+            )
+            return
+        }
         scan.stagedR2Keys  = r2Keys
         scan.scanStateRaw  = ScanQueueState.staged.rawValue
         do {
             try modelContext.save()
+            MerianLog.data.debug(
+                "markScanAsStaged: staged scanId=\(scanId, privacy: .public) keys=\(r2Keys.count, privacy: .public)"
+            )
         } catch {
             modelContext.rollback()
             MerianLog.data.error("markScanAsStaged: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
@@ -183,13 +204,18 @@ actor BackgroundDatabaseActor {
             return false
         }
         var changed = false
+        var resetIds: [String] = []
         for scan in scans where !activeScanIds.contains(scan.id) {
             scan.scanStateRaw = pendingRaw
             changed = true
+            resetIds.append(scan.id)
         }
         if changed {
             do {
                 try modelContext.save()
+                MerianLog.data.debug(
+                    "reconcileOrphanedUploadingScans: reset ids=\(resetIds.joined(separator: ","), privacy: .public)"
+                )
             } catch {
                 modelContext.rollback()
                 MerianLog.data.error("reconcileOrphanedUploadingScans: save failed: \(error, privacy: .private)")
@@ -291,10 +317,18 @@ actor BackgroundDatabaseActor {
             }
         }
 
-        guard !claimedScanIds.isEmpty else { return [] }
+        guard !claimedScanIds.isEmpty else {
+            MerianLog.data.debug(
+                "markScansAsUploading: no pending scans claimed from candidates=\(scanIds.joined(separator: ","), privacy: .public)"
+            )
+            return []
+        }
 
         do {
             try modelContext.save()
+            MerianLog.data.debug(
+                "markScansAsUploading: claimed ids=\(claimedScanIds.sorted().joined(separator: ","), privacy: .public)"
+            )
             return claimedScanIds
         } catch {
             modelContext.rollback()
@@ -373,7 +407,8 @@ actor BackgroundDatabaseActor {
                     mappedData: mappedData,
                     recordId: recordId,
                     activeSpeciesId: activeSpeciesId,
-                    originalTimestamp: originalTimestamp,
+                    discoveryTimestamp: Date(),
+                    captureDate: originalTimestamp,
                     originalImagePaths: originalImagePaths,
                     observationContextsJSON: observationContextsJSON,
                     audioFilePaths: audioFilePaths,
@@ -551,7 +586,8 @@ actor BackgroundDatabaseActor {
         mappedData: SpeciesData,
         recordId: String,
         activeSpeciesId: String,
-        originalTimestamp: Date,
+        discoveryTimestamp: Date,
+        captureDate: Date,
         originalImagePaths: [String],
         observationContextsJSON: [String]? = nil,
         audioFilePaths: [String]? = nil,
@@ -574,8 +610,8 @@ actor BackgroundDatabaseActor {
                 from: mappedData,
                 recordId: recordId,
                 speciesId: activeSpeciesId,
-                timestamp: originalTimestamp,
-                captureDate: originalTimestamp,
+                timestamp: discoveryTimestamp,
+                captureDate: captureDate,
                 capturedMediaJSON: resolvedCapturedMediaJSON,
                 coverImagePath: originalImagePaths.first,
                 isLiveCapture: mappedData.isLiveCapture,

@@ -16,6 +16,9 @@ struct InsightContentView: View {
     private let overlapRadius: CGFloat = 32
     private let imageSize: CGFloat = UIScreen.main.bounds.width
     @State private var isObservationSheetPresented = false
+    private var presentationQueuedScan: QueuedScanContext? {
+        viewModel.queuedContext ?? (viewModel.activeLocalRecord == nil ? queuedScan : nil)
+    }
 
     // MARK: - View
     var body: some View {
@@ -30,10 +33,11 @@ struct InsightContentView: View {
                     // This creates a physical pixel bridge seamlessly masking `TabView` vertical pan-gesture framework synchronization tearing.
                     let bleedBuffer: CGFloat = 50
 
-                    let activeQueuedContext = viewModel.queuedContext ?? queuedScan
-                    let activeIsProcessing = activeQueuedContext != nil ? false : viewModel.isProcessing
+                    let activeQueuedContext = presentationQueuedScan
+                    let activeIsProcessing = activeQueuedContext?.queueState == .inferencing
+                        || (activeQueuedContext == nil && viewModel.isProcessing)
 
-                    let activeMedia = viewModel.resolvedMedia(for: queuedScan)
+                    let activeMedia = viewModel.resolvedMedia(for: activeQueuedContext)
 
                     ImagesCarousel(
                         scanId: activeQueuedContext?.id ?? viewModel.persistentScanId,
@@ -55,7 +59,7 @@ struct InsightContentView: View {
                 .zIndex(0)
 
                 // 2. OVERLAPPING BOTTOM SHEET CONTENT
-                InsightContentRouterView(viewModel: viewModel, queuedScan: queuedScan)
+                InsightContentRouterView(viewModel: viewModel, queuedScan: presentationQueuedScan)
                     .padding(.top, overlapRadius)
                     .frame(maxWidth: .infinity)
                     .background(contentSheetBackground)

@@ -9,7 +9,6 @@ import Foundation
 ///
 /// **Never reorder or reassign existing raw values** — they are persisted in SQLite
 /// and used in `#Predicate` integer comparisons across the codebase.
-/// The gap at raw value 4 is intentional (reserved).
 public enum ScanQueueState: Int, Sendable {
     /// Files written to the Documents directory; upload not yet dispatched.
     case pending     = 0
@@ -22,7 +21,9 @@ public enum ScanQueueState: Int, Sendable {
     /// Acts as a persistent distributed lock — only one pipeline can hold this state
     /// per scan. Transitioned atomically via `BackgroundDatabaseActor.tryClaimForInference`.
     case inferencing = 3
-    // raw value 4 reserved
+    /// Legacy Photos share-extension placeholder state.
+    /// Local upload/replay workers ignore it, so the scans grid and queue badge exclude it.
+    case externalImport = 4
     /// Tombstoned: upload or inference permanently rejected, or user-deleted.
     /// Awaiting purge by `purgeSoftDeletedRecords()`.
     case failed      = 5

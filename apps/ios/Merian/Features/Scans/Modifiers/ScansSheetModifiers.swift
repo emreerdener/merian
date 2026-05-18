@@ -73,23 +73,21 @@ struct ScansSheetModifiers: ViewModifier {
             } message: {
                 Text("You can only select up to 20 items at a time to ensure optimal system performance during export and deletion workloads.")
             }
-            .overlay {
+            .overlay(alignment: .bottom) {
                 if let message = toastMessage {
-                    VStack {
-                        Spacer()
-                        Text(message)
-                            .font(.footnote)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .colorScheme(.dark)
-                            .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
-                            .padding(.bottom, 60)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                            .zIndex(100)
-                    }
+                    Text(message)
+                        .font(.footnote)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .colorScheme(.dark)
+                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
+                        .padding(.bottom, 60)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .zIndex(100)
+                        .allowsHitTesting(false)
                 }
             }
             .overlay {

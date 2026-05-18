@@ -79,6 +79,32 @@ import SwiftData
     /// Resets on app restart — a fresh process always gets a clean slate of retries.
     @ObservationIgnored var uploadRetryCount: [String: Int] = [:]
 
+    /// Scans that have been claimed as `.inferencing` while the background URLSession
+    /// download task is still being built. Replay must treat these as active so the
+    /// WeatherKit/request-construction window does not get mistaken for an orphan.
+    @ObservationIgnored var inferencePreparationScanIds: Set<String> = []
+
+    /// Scans that have been claimed as `.uploading` while signed URLs are being fetched
+    /// and URLSession upload tasks are being created. Upload orphan reconciliation must
+    /// treat these as active so it does not reset a live upload before its task exists.
+    @ObservationIgnored var uploadPreparationScanIds: Set<String> = []
+
+    /// Scans whose upload task has completed and is being promoted from `.uploading`
+    /// to `.staged`. During this tiny window the URLSession task is gone, so orphan
+    /// reconciliation must still treat the scan as active.
+    @ObservationIgnored var uploadCompletionScanIds: Set<String> = []
+
+    /// Delayed status probes for inference tasks. The edge function can persist the
+    /// scan but lose the background response path; these probes recover from that gap.
+    @ObservationIgnored var inferenceStatusProbeTasks: [String: Task<Void, Never>] = [:]
+
+    /// Scans whose inference response is being processed. During this window the
+    /// URLSession task is already gone, but replay must not treat the scan as orphaned.
+    @ObservationIgnored var inferenceCompletionScanIds: Set<String> = []
+
+    /// Dispatch timestamps for active inference tasks, used only for watchdog logging.
+    @ObservationIgnored var inferenceDispatchDates: [String: Date] = [:]
+
     /// Guards the one-time cold-start reconciliation of orphaned `.uploading` scans.
     /// Runs exactly once per process life on the first connectivity restore.
     @ObservationIgnored var hasReconciledStartupState = false

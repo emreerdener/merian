@@ -30,6 +30,7 @@ struct InsightSheetView: View {
 
     // MARK: - State
     @State private var viewModel: InsightSheetViewModel
+    @State private var queuedCompletionHandoffInFlight = false
 
     // Seed queued scans and persisted records at @State initialization time so the
     // first render reflects the correct content path before onAppear finishes rebinding.
@@ -65,8 +66,8 @@ struct InsightSheetView: View {
         
         // Dialogs
         .alert("Delete scan?", isPresented: $viewModel.state.showDeleteConfirmation) {
-            Button(queuedScan != nil ? "Cancel upload & delete" : "Delete scan permanently", role: .destructive) {
-                if let queued = queuedScan {
+            Button(viewModel.queuedContext != nil ? "Cancel upload & delete" : "Delete scan permanently", role: .destructive) {
+                if let queued = viewModel.queuedContext {
                     Task { await offlineQueueManager.deleteQueuedScan(scanId: queued.id) }
                     dismiss()
                 } else {
@@ -75,7 +76,7 @@ struct InsightSheetView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text(queuedScan != nil
+            Text(viewModel.queuedContext != nil
                 ? "Are you sure you want to cancel this upload? The scan will be permanently deleted from your device."
                 : "Are you sure you want to delete this scan? This will permanently remove the photo and data from your device and the global biological archive.")
         }
@@ -209,6 +210,14 @@ private extension InsightSheetView {
                     viewModel.queuedContext = nil
                 }
             }
+            .task(id: queuedScan?.id) {
+                guard let scanId = queuedScan?.id else { return }
+                await attemptQueuedCompletionHandoff(scanId: scanId)
+            }
+            .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+                guard let scanId = queuedScan?.id else { return }
+                Task { await attemptQueuedCompletionHandoff(scanId: scanId) }
+            }
             .task(id: viewModel.persistentScanId) {
                 viewModel.syncFieldNotesFromCurrentScan(modelContext: modelContext)
             }
@@ -263,7 +272,7 @@ private extension InsightSheetView {
     var sheetToolbar: some ToolbarContent {
         // Queued scan path: the standard ellipsis menu is suppressed (isAnalyzing == true),
         // so surface a dedicated trash button for the only available destructive action.
-        if queuedScan != nil {
+        if viewModel.queuedContext != nil {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
                     viewModel.state.showDeleteConfirmation = true
@@ -343,6 +352,34 @@ private extension InsightSheetView {
                     modelContext: modelContext
                 )
             }
+        )
+    }
+
+    @MainActor
+    private func attemptQueuedCompletionHandoff(scanId: String) async {
+        guard !queuedCompletionHandoffInFlight else { return }
+        queuedCompletionHandoffInFlight = true
+        defer { queuedCompletionHandoffInFlight = false }
+
+        for attempt in 0..<8 {
+            guard queuedScan?.id == scanId || viewModel.queuedContext?.id == scanId else { return }
+            if viewModel.promoteQueuedScanIfLocalRecordExists(
+                scanId: scanId,
+                modelContext: modelContext,
+                inferenceEngine: inferenceEngine
+            ) {
+                appSettings.hasUnseenScan = false
+                PushNotificationManager.shared.setBadgeCount(0)
+                return
+            }
+
+            if attempt < 7 {
+                try? await Task.sleep(nanoseconds: 350_000_000)
+            }
+        }
+
+        MerianLog.data.debug(
+            "InsightSheetView.attemptQueuedCompletionHandoff: no completed local record visible scanId=\(scanId, privacy: .public)"
         )
     }
 }

@@ -107,10 +107,25 @@ extension OfflineQueueManager {
     ///
     /// Guards: expedition mode, connectivity, and an in-flight sync must all clear.
     func syncPendingScans() {
-        guard !hardwareOrchestrator.isExpeditionModeActive else { return }
-        guard isOnline else { return }
-        guard !isSyncing else { return }
-        guard let container = modelContext?.container else { return }
+        MerianLog.data.debug(
+            "syncPendingScans: requested isOnline=\(self.isOnline, privacy: .public) isSyncing=\(self.isSyncing, privacy: .public) unsynced=\(self.unsyncedItemsCount, privacy: .public)"
+        )
+        guard !hardwareOrchestrator.isExpeditionModeActive else {
+            MerianLog.data.debug("syncPendingScans: skipped because expedition mode is active")
+            return
+        }
+        guard isOnline else {
+            MerianLog.data.debug("syncPendingScans: skipped because network is offline")
+            return
+        }
+        guard !isSyncing else {
+            MerianLog.data.debug("syncPendingScans: skipped because a sync is already active")
+            return
+        }
+        guard let container = modelContext?.container else {
+            MerianLog.data.error("syncPendingScans: skipped because modelContext is nil")
+            return
+        }
 
         isSyncing = true
 
@@ -131,6 +146,9 @@ extension OfflineQueueManager {
             let session  = await MainActor.run { self.backgroundSession }
 
             let filteredScans = self.selectUploadBatch(from: scanData)
+            MerianLog.data.debug(
+                "syncPendingScans: fetched pending=\(scanData.count, privacy: .public) selected=\(filteredScans.count, privacy: .public)"
+            )
 
             guard !filteredScans.isEmpty else {
                 await MainActor.run {
@@ -156,6 +174,9 @@ extension OfflineQueueManager {
             }
 
             let uploadItems = preparation.uploadItems
+            MerianLog.data.debug(
+                "syncPendingScans: prepared uploadItems=\(uploadItems.count, privacy: .public) rejected=\(preparation.rejectedScanIds.count, privacy: .public)"
+            )
 
             guard !uploadItems.isEmpty else {
                 await MainActor.run {
@@ -165,7 +186,24 @@ extension OfflineQueueManager {
                 return
             }
 
-            let claimedScanIds = await dbActor.markScansAsUploading(scanIds: Array(Set(uploadItems.map(\.scanId))))
+            let candidateUploadScanIds = Set(uploadItems.map(\.scanId))
+            await MainActor.run {
+                self.uploadPreparationScanIds.formUnion(candidateUploadScanIds)
+                MerianLog.data.debug(
+                    "syncPendingScans: tracking upload preparation ids=\(candidateUploadScanIds.sorted().joined(separator: ","), privacy: .public)"
+                )
+            }
+
+            let claimedScanIds = await dbActor.markScansAsUploading(scanIds: Array(candidateUploadScanIds))
+            MerianLog.data.debug(
+                "syncPendingScans: claimed scans=\(claimedScanIds.count, privacy: .public) ids=\(claimedScanIds.sorted().joined(separator: ","), privacy: .public)"
+            )
+            let unclaimedScanIds = candidateUploadScanIds.subtracting(claimedScanIds)
+            if !unclaimedScanIds.isEmpty {
+                await MainActor.run {
+                    self.uploadPreparationScanIds.subtract(unclaimedScanIds)
+                }
+            }
             let claimedUploadPairs = zip(uploadItems, preparation.uploadFiles).filter { claimedScanIds.contains($0.0.scanId) }
             let claimedUploadItems = claimedUploadPairs.map { $0.0 }
             let claimedUploadFiles = claimedUploadPairs.map { $0.1 }
@@ -173,6 +211,7 @@ extension OfflineQueueManager {
             guard !claimedUploadItems.isEmpty else {
                 MerianLog.data.error("syncPendingScans: no scans could be claimed for upload; leaving queue for retry")
                 await MainActor.run {
+                    self.uploadPreparationScanIds.subtract(candidateUploadScanIds)
                     self.isSyncing = false
                     SyncStateManager.shared.completeUploadPhase()
                 }
@@ -183,6 +222,9 @@ extension OfflineQueueManager {
                 let presignedUrls = try await MerianNetworkClient.shared.generateUploadURLs(
                     uploadFiles: claimedUploadFiles
                 )
+                MerianLog.data.debug(
+                    "syncPendingScans: received presigned URLs=\(presignedUrls.count, privacy: .public)"
+                )
                 await MainActor.run { self.uploadRetryDelay = 0 }
 
                 let dispatchedScanIDs = await self.dispatchUploadTasks(
@@ -190,9 +232,18 @@ extension OfflineQueueManager {
                     uploadItems: claimedUploadItems,
                     presignedUrls: presignedUrls
                 )
+                await MainActor.run {
+                    self.uploadPreparationScanIds.subtract(claimedScanIds)
+                    MerianLog.data.debug(
+                        "syncPendingScans: cleared upload preparation ids=\(claimedScanIds.sorted().joined(separator: ","), privacy: .public) dispatched=\(dispatchedScanIDs.sorted().joined(separator: ","), privacy: .public)"
+                    )
+                }
 
                 if dispatchedScanIDs.isEmpty {
                     let taskCount = await session.allTasks.count
+                    MerianLog.data.debug(
+                        "syncPendingScans: dispatched no upload tasks activeTaskCount=\(taskCount, privacy: .public)"
+                    )
                     if taskCount == 0 {
                         await MainActor.run {
                             self.isSyncing = false
@@ -201,12 +252,18 @@ extension OfflineQueueManager {
                     }
                 }
             } catch {
+                await MainActor.run {
+                    self.uploadPreparationScanIds.subtract(claimedScanIds)
+                }
                 await self.handleSyncNetworkFailure(error: error, session: session, dbActor: dbActor)
                 return
             }
 
             // Failsafe: if no tasks were spawned, unlock manually.
             let activeTaskCount = await session.allTasks.count
+            MerianLog.data.debug(
+                "syncPendingScans: active task count after dispatch=\(activeTaskCount, privacy: .public)"
+            )
             if activeTaskCount == 0 {
                 await MainActor.run {
                     self.isSyncing = false

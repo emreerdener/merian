@@ -14,6 +14,7 @@ final class ScanRepository {
     // MARK: - Singleton
 
     static let shared = ScanRepository()
+    private static let historicalScanSelectColumns = "id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
 
     // MARK: - Dependencies
 
@@ -114,7 +115,7 @@ final class ScanRepository {
             while true {
                 let page: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                     .from("scans")
-                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)")
+                    .select(Self.historicalScanSelectColumns)
                     .eq("user_id", value: userId)
                     .order("timestamp", ascending: false)
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
@@ -166,6 +167,46 @@ final class ScanRepository {
 
         } catch {
             MerianLog.data.error("🚨 Failed reconciling historical scans from Supabase: \(error, privacy: .private)")
+        }
+    }
+
+    /// Pulls a single completed scan by ID after the outbox status endpoint confirms
+    /// the server has persisted it. This avoids waiting for a full historical sync when
+    /// the photo's EXIF timestamp places it deep in the user's remote history.
+    func syncHistoricalScanDown(scanId: String, modelContext: ModelContext) async -> Bool {
+        guard SupabaseManager.shared.isAuthenticated,
+              let userId = SupabaseManager.shared.currentUser?.id.uuidString else { return false }
+
+        do {
+            let container = modelContext.container
+            let dbActor = HistoricalDatabaseActor(modelContainer: container)
+            let response: [HistoricalScanResponse] = try await SupabaseManager.shared.client
+                .from("scans")
+                .select(Self.historicalScanSelectColumns)
+                .eq("user_id", value: userId)
+                .eq("id", value: scanId)
+                .limit(1)
+                .execute()
+                .value
+
+            guard !response.isEmpty else {
+                MerianLog.data.debug(
+                    "syncHistoricalScanDown: server had status=found but targeted fetch returned no row scanId=\(scanId, privacy: .public)"
+                )
+                return false
+            }
+
+            let newRecords = await dbActor.reconcileScanPage(responses: response)
+            MerianLog.data.debug(
+                "syncHistoricalScanDown: reconciled scanId=\(scanId, privacy: .public) newRecords=\(newRecords, privacy: .public)"
+            )
+            ScanLibraryEvents.postLibraryDidUpdate()
+            return true
+        } catch {
+            MerianLog.data.error(
+                "syncHistoricalScanDown: failed scanId=\(scanId, privacy: .public) error=\(error, privacy: .private)"
+            )
+            return false
         }
     }
 
@@ -292,6 +333,7 @@ struct CloudSpeciesDictionary: Decodable, Sendable {
 
 struct HistoricalScanResponse: Decodable, Sendable {
     let id: String
+    let created_at: String?
     let image_storage_urls: [String]?
     let timestamp: String?
     let weather_condition: String?
@@ -457,11 +499,13 @@ actor HistoricalDatabaseActor {
                         return reference.serializedPath
                     }
                 }
-                if paths.isEmpty {
-                    var newItems: [SerializedMediaItem] = []
-                    if let rawR2Image { newItems.append(.image(.remoteURL(rawR2Image))) }
-                    if let additionalUrls { newItems.append(contentsOf: additionalUrls.map { .image(.remoteURL($0)) }) }
-                    if !newItems.isEmpty {
+                var newItems: [SerializedMediaItem] = []
+                if let rawR2Image { newItems.append(.image(.remoteURL(rawR2Image))) }
+                if let additionalUrls { newItems.append(contentsOf: additionalUrls.map { .image(.remoteURL($0)) }) }
+                if !newItems.isEmpty {
+                    let hasRemoteMedia = paths.contains { $0.starts(with: "http://") || $0.starts(with: "https://") }
+                    let onlyLocalOrMissingMedia = paths.isEmpty || !hasRemoteMedia
+                    if onlyLocalOrMissingMedia {
                         existing.replaceCapturedMedia(with: newItems)
                         chunkDidUpdate = true
                     }
@@ -476,6 +520,16 @@ actor HistoricalDatabaseActor {
                     existing.gpsLatitude = remoteLat
                     existing.gpsLongitude = remoteLon
                     existing.gpsElevation = res.gps_elevation
+                    chunkDidUpdate = true
+                }
+                if let remoteCreatedAt = parseHistoricalDate(res.created_at),
+                   existing.timestamp != remoteCreatedAt {
+                    existing.timestamp = remoteCreatedAt
+                    chunkDidUpdate = true
+                }
+                if let remoteCaptureDate = parseHistoricalDate(res.timestamp),
+                   existing.captureDate != remoteCaptureDate {
+                    existing.captureDate = remoteCaptureDate
                     chunkDidUpdate = true
                 }
                 if let newReasoning = res.ai_reasoning, existing.aiReasoning != newReasoning {
@@ -570,20 +624,12 @@ actor HistoricalDatabaseActor {
         let encoder = JSONEncoder()
         for (index, scan) in missingScans.enumerated() {
             if Task.isCancelled { break }
-            // Parse timestamp exactly once — parsedDate and exifDate are always identical
-            // derivations of the same string. Halves formatter invocations over the full batch.
-            let exifDate: Date? = scan.timestamp.flatMap { ts -> Date? in
-                if ts.contains(".") {
-                    return DateUtilities.iso8601FractionalFormatter.date(from: ts)
-                        ?? DateUtilities.iso8601Formatter.date(from: ts)
-                }
-                return DateUtilities.iso8601Formatter.date(from: ts)
-                    ?? DateUtilities.iso8601FractionalFormatter.date(from: ts)
-            }
+            let exifDate = parseHistoricalDate(scan.timestamp)
             guard let parsedDate = exifDate else {
                 MerianLog.data.error("ingestScans: unparseable timestamp '\(scan.timestamp ?? "nil")' for scan \(scan.id) — skipping")
                 continue
             }
+            let discoveryDate = parseHistoricalDate(scan.created_at) ?? parsedDate
 
             let dict = scan.species_dictionary
             let sciName = dict?.scientific_name ?? "Unknown Subject"
@@ -607,8 +653,8 @@ actor HistoricalDatabaseActor {
                 speciesId: UUID().uuidString,
                 scientificName: sciName,
                 commonName: cName,
-                timestamp: parsedDate,
-                captureDate: exifDate,
+                timestamp: discoveryDate,
+                captureDate: parsedDate,
                 semanticTags: semanticTags,
                 hazardType: dict?.hazard_type ?? "none",
                 isBiological: true,
@@ -774,6 +820,16 @@ actor HistoricalDatabaseActor {
             MerianLog.data.error("\(logContext, privacy: .public): save failed; rolled back context: \(error, privacy: .private)")
             return false
         }
+    }
+
+    private func parseHistoricalDate(_ timestamp: String?) -> Date? {
+        guard let timestamp else { return nil }
+        if timestamp.contains(".") {
+            return DateUtilities.iso8601FractionalFormatter.date(from: timestamp)
+                ?? DateUtilities.iso8601Formatter.date(from: timestamp)
+        }
+        return DateUtilities.iso8601Formatter.date(from: timestamp)
+            ?? DateUtilities.iso8601FractionalFormatter.date(from: timestamp)
     }
 
     private func fetchCollectionMembersByID(

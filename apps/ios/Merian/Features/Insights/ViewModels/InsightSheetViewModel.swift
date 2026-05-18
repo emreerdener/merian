@@ -590,6 +590,35 @@ final class InsightSheetViewModel {
         }
     }
 
+    @discardableResult
+    func promoteQueuedScanIfLocalRecordExists(
+        scanId: String,
+        modelContext: ModelContext,
+        inferenceEngine: InferenceEngine
+    ) -> Bool {
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+
+        guard let record = (try? modelContext.fetch(descriptor))?.first else {
+            return false
+        }
+
+        inferenceEngine.load(from: record)
+        bindPresentedRecord(record, modelContext: modelContext)
+        queuedContext = nil
+
+        if let scientificName = inferenceEngine.speciesData?.scientificName {
+            loadPreferredCommonName(for: scientificName, modelContext: modelContext)
+        }
+        evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
+        MerianLog.data.debug(
+            "InsightSheetViewModel.promoteQueuedScanIfLocalRecordExists: promoted scanId=\(scanId, privacy: .public)"
+        )
+        return true
+    }
+
     func bindPresentedRecord(_ record: LocalScanRecord, modelContext: ModelContext) {
         activeLocalRecord = record
         cachedActiveMedia = record.capturedMediaSnapshot.activeScanMedia
