@@ -361,12 +361,20 @@ Tests are organized under `apps/ios/MerianTests/Core` and `apps/ios/MerianTests/
   cross-run contamination.
 - **`SocialGuardManagerTests.swift`, `CircuitBreakerManagerTests.swift`**:
   Asserts offline logic ensuring blocked users do not re-populate the feed.
+- **`ShareImportTests.swift`**: Covers Photos share-extension helpers without
+  launching the extension host: `NSItemProvider` image filtering, image
+  downsampling/encoding, EXIF timestamp/GPS extraction, App Group receipt
+  read/write/remove behavior, and shared Supabase session parsing/migration
+  selection.
 
 ### UI & Utilities
 
 - **`ImageDownsamplerTests.swift`**: Tests Core Graphics memory constraints by
   processing 4000x4000 payloads under safe metric limits, preventing
   Out-Of-Memory JetSam crashes.
+- **`MessageScanShareCacheTests.swift`**: Verifies the Messages App Group cache,
+  generated description text, field-notes opt-in behavior, public Explore URL
+  inclusion, and `merian://scan/{id}` / `merian://scans` deep-link parsing.
 - **`ScansManagerTests.swift`**: Verifies search-index construction,
   incremental reindexing, sort behavior, and selection limits for the Scans
   library.
@@ -497,6 +505,11 @@ guaranteed by AST regression guards.
   `jsonResponse(...)` can merge endpoint-specific cache headers without dropping
   standard JSON/CORS headers. `/species-dictionary` uses this path for cacheable
   `200 OK` public dictionary responses; error responses stay uncached.
+- **Photos share import queue**:
+  `share-import-scan/shareImport_test.ts` verifies one-image validation,
+  staged-key ownership, MIME allowlist handling, `/identify-multimodal` payload
+  generation, queued job rows, and explicit failure-state updates. Run with
+  `deno test services/supabase/functions/share-import-scan/shareImport_test.ts`.
 
 ### `export-dwca/index_test.ts`
 

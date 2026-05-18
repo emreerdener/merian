@@ -74,14 +74,6 @@ struct SpeciesObservationChartsCard: View {
                 ),
                 emptyTitle: "No life-stage observations yet"
             )
-        case .sex:
-            monthChart(
-                points: normalizedCategoryPoints(
-                    localSeries: [],
-                    publicSeries: viewModel.publicStats?.sex ?? []
-                ),
-                emptyTitle: "No public sex annotations yet"
-            )
         }
     }
 
@@ -166,7 +158,7 @@ struct SpeciesObservationChartsCard: View {
 
     private func emptyChartState(title: String) -> some View {
         VStack(spacing: 8) {
-            Image(systemName: selectedTab == .sex ? "person.2.slash" : "chart.line.uptrend.xyaxis")
+            Image(systemName: "chart.line.uptrend.xyaxis")
                 .font(.title3)
                 .foregroundStyle(.secondary)
             Text(title)
@@ -222,8 +214,6 @@ struct SpeciesObservationChartsCard: View {
             return "Local logs will appear here as this species is recorded."
         case .lifeStage:
             return "Merian shows local life stages when the log includes them and public iNaturalist annotations when available."
-        case .sex:
-            return "Sex is external-only in this version because Merian does not capture sex locally."
         }
     }
 
@@ -301,8 +291,6 @@ struct SpeciesObservationChartsCard: View {
                 topCategorySummary(name: "Local", series: viewModel.localStats.lifeStage),
                 topCategorySummary(name: "Public", series: viewModel.publicStats?.lifeStage ?? [])
             ])
-        case .sex:
-            return topCategorySummary(name: "Public", series: viewModel.publicStats?.sex ?? [])
         }
     }
 
@@ -357,7 +345,6 @@ private enum SpeciesObservationChartTab: String, CaseIterable, Identifiable {
     case seasonality
     case history
     case lifeStage
-    case sex
 
     var id: String { rawValue }
 
@@ -369,8 +356,6 @@ private enum SpeciesObservationChartTab: String, CaseIterable, Identifiable {
             return "History"
         case .lifeStage:
             return "Life Stage"
-        case .sex:
-            return "Sex"
         }
     }
 }

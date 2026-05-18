@@ -31,6 +31,8 @@
 
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>MERIAN_APP_IDENTIFIER_PREFIX</key>
+	<string>$(AppIdentifierPrefix)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>

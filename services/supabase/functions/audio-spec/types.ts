@@ -36,6 +36,15 @@ export interface AudioIdentification {
   ai_reasoning: string;
   ecology_type?: "wild" | "urban" | "domesticated" | "unknown";
   is_invasive?: boolean;
+  sex?:
+    | "female"
+    | "male"
+    | "hermaphrodite"
+    | "mixed"
+    | "cannot_determine"
+    | "not_applicable";
+  sex_confidence?: number;
+  sex_evidence?: string;
   candidates?: AudioCandidate[] | null;
 }
 
@@ -62,6 +71,9 @@ export interface AudioClientPayload {
   ecology_type?: string;
   is_invasive?: boolean;
   life_stage?: string;
+  sex?: string;
+  sex_confidence?: number;
+  sex_evidence?: string;
   inference_tier: string;
   taxonomy?: Record<string, string>;
   iucn_red_list_status?: string;

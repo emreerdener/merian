@@ -102,6 +102,9 @@ struct SpeciesData {
     var estimatedSizeCm: Double?
     var lifeStage: String?
     var reproductiveCondition: String?
+    var sex: String?
+    var sexConfidence: Double?
+    var sexEvidence: String?
     var individualCount: Int?
     var ecologicalInteractions: [String]?
 
@@ -237,6 +240,9 @@ extension SpeciesData {
         self.estimatedSizeCm = edgeRes.estimated_size_cm
         self.lifeStage = edgeRes.life_stage
         self.reproductiveCondition = edgeRes.reproductive_condition
+        self.sex = edgeRes.sex
+        self.sexConfidence = edgeRes.sex_confidence
+        self.sexEvidence = edgeRes.sex_evidence
         self.individualCount = edgeRes.individual_count
         self.ecologicalInteractions = edgeRes.ecological_interactions
         self.aiReasoning = edgeRes.insight_data?.ai_reasoning  // per-scan; unique to the specific photo submitted
@@ -293,6 +299,9 @@ extension SpeciesData {
         estimatedSizeCm: Double? = nil,
         lifeStage: String? = nil,
         reproductiveCondition: String? = nil,
+        sex: String? = nil,
+        sexConfidence: Double? = nil,
+        sexEvidence: String? = nil,
         individualCount: Int? = nil,
         ecologicalInteractions: [String]? = nil,
         aiReasoning: String? = nil,
@@ -337,6 +346,9 @@ extension SpeciesData {
         self.estimatedSizeCm = estimatedSizeCm
         self.lifeStage = lifeStage
         self.reproductiveCondition = reproductiveCondition
+        self.sex = sex
+        self.sexConfidence = sexConfidence
+        self.sexEvidence = sexEvidence
         self.individualCount = individualCount
         self.ecologicalInteractions = ecologicalInteractions
         self.aiReasoning = aiReasoning

@@ -48,8 +48,11 @@ import {
 import {
   buildContextText,
   normalizeCurrentMonth,
+  sanitizeObservationConfidence,
+  sanitizeObservationEvidence,
   sanitizeLifeStage,
   sanitizeReproductiveCondition,
+  sanitizeSex,
 } from "../_shared/identify/context.ts";
 
 import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
@@ -71,6 +74,9 @@ Listen to the provided audio recording and identify the primary biological sound
 - confidence_score: 0.0–1.0. Use below 0.70 when the recording is ambiguous, noisy, or the call is partially obscured.
 - ai_reasoning: concise acoustic diagnosis citing observable call characteristics (frequency, tempo, pattern, note duration, harmonic structure). Be specific.
 - ecology_type: "wild" for natural habitat, "urban" for urban/suburban, "domesticated" for pets or livestock.
+- sex: use female, male, mixed, hermaphrodite, cannot_determine, or not_applicable. Only report female/male/mixed when the recording contains explicit species-specific acoustic evidence that distinguishes sex; otherwise use cannot_determine. Never infer or report human sex/gender.
+- sex_confidence: 0.0–1.0 confidence in the sex annotation from direct acoustic evidence only. Omit when sex is cannot_determine or not_applicable.
+- sex_evidence: short acoustic cue supporting sex, such as sex-specific song, call type, or duet role. Omit when unsupported.
 - Use authoritative nomenclature (Clements Checklist v2024 for birds, GBIF Backbone Taxonomy for all other taxa).
 - Never fabricate scientific names.`;
 
@@ -78,7 +84,10 @@ const DESCRIBE_SYSTEM_INSTRUCTION = `# Role
 You are a taxonomic analyst interpreting user text descriptions to identify biological subjects.
 
 # Task
-Read the user's description and identify the biological subject they are describing.`;
+Read the user's description and identify the biological subject they are describing.
+
+# Sex
+Report sex only when the user's description contains diagnostic evidence for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use not_applicable for human subjects. Use cannot_determine when evidence is absent or non-diagnostic.`;
 
 const MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION = `# Role
 You are an expert encyclopedic field-guide biologist and taxonomist with specialized expertise in cross-modal taxonomy.
@@ -86,7 +95,8 @@ You are an expert encyclopedic field-guide biologist and taxonomist with special
 # Core Directives
 - **Holistic Evaluation:** Evaluate the provided audio spectrograms AND visual images sequentially before formulating a combined taxonomic confidence score.
 - **Modality Synthesis:** Weigh BOTH visual and acoustic evidence. Prioritize the bio-acoustic trace unless it clearly contradicts the vision context or the vision context is overwhelmingly diagnostic.
-- **Reporting:** Your \`ai_reasoning\` MUST encompass BOTH modalities, explaining how they corroborate or contradict each other.`;
+- **Reporting:** Your \`ai_reasoning\` MUST encompass BOTH modalities, explaining how they corroborate or contradict each other.
+- **Sex:** Report sex only when visual, described, or acoustic evidence is diagnostic for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use not_applicable for human subjects. Use cannot_determine when evidence is absent or non-diagnostic.`;
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -417,6 +427,34 @@ serve((req: Request) =>
       });
     }
     parsedData.reproductive_condition = sanitizedReproductiveCondition;
+
+    const sanitizedSex = sanitizeSex(parsedData.sex);
+    if (parsedData.sex != null && sanitizedSex != parsedData.sex) {
+      logStructuredError("multimodal/unknown_sex", {
+        user_id: user.id,
+        value: parsedData.sex,
+      });
+    }
+    parsedData.sex = sanitizedSex;
+    parsedData.sex_confidence = sanitizeObservationConfidence(
+      parsedData.sex_confidence,
+    );
+    parsedData.sex_evidence = sanitizeObservationEvidence(
+      parsedData.sex_evidence,
+    );
+    if (!parsedData.is_biological_subject) {
+      parsedData.sex = undefined;
+      parsedData.sex_confidence = undefined;
+      parsedData.sex_evidence = undefined;
+    } else if (
+      parsedData.sex == null ||
+      parsedData.sex === "cannot_determine" ||
+      parsedData.sex === "not_applicable"
+    ) {
+      parsedData.sex_confidence = undefined;
+      parsedData.sex_evidence = undefined;
+    }
+
     parsedData.blur_score = Math.max(
       0,
       (10 - (parsedData.image_quality?.sharpness ?? 10)) / 10,
@@ -446,6 +484,9 @@ serve((req: Request) =>
       ecology_type: parsedData.ecology_type,
       is_invasive: parsedData.is_invasive,
       life_stage: parsedData.life_stage ?? "unknown",
+      sex: parsedData.sex,
+      sex_confidence: parsedData.sex_confidence,
+      sex_evidence: parsedData.sex_evidence,
       inference_tier: userTier === "pro" ? "pro" : "flash",
       candidates: parsedData.candidates,
       image_quality: parsedData.image_quality,
@@ -661,6 +702,9 @@ serve((req: Request) =>
             life_stage: parsedData.life_stage ?? "unknown",
             reproductive_condition: parsedData.reproductive_condition ??
               "not_applicable",
+            sex: parsedData.sex ?? null,
+            sex_confidence: parsedData.sex_confidence ?? null,
+            sex_evidence: parsedData.sex_evidence ?? null,
             individual_count: parsedData.individual_count ?? null,
             ecological_interactions: parsedData.ecological_interactions ?? [],
             estimated_size_cm:

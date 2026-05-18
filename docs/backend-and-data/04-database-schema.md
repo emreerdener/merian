@@ -451,6 +451,13 @@ The transaction log for every successful identification.
   Gemini mapped to Darwin Core vocabulary (`flowering`, `fruiting`, `budding`,
   `vegetative`, `sporing`, `pregnant`, `gravid`, `mating`, `spawning`,
   `nesting`, `dormant`, `not_applicable`).
+- `sex` (Text): Darwin Core sex annotation extracted by Gemini only when direct
+  evidence supports it. Values are constrained to `female`, `male`,
+  `hermaphrodite`, `mixed`, `cannot_determine`, or `not_applicable`.
+- `sex_confidence` (Float): Confidence from direct sex evidence only, bounded to
+  `0...1`.
+- `sex_evidence` (Text): Short phrase naming the visible, described, or acoustic
+  cue supporting the sex annotation.
 - `individual_count` (Int): Primary subject population density within the frame.
 - `ecological_interactions` (Text Array): Biotic interactions between subjects
   (e.g., predation, pollination, parasitism) derived by the AI.
@@ -537,6 +544,40 @@ The transaction log for every successful identification.
   shapes documented during earlier describe experiments. `NULL` for image-only
   scans. Added in migration `20260414000000_add_user_observation_context.sql`.
   Never mutated after scan insertion.
+
+### `scan_import_jobs`
+
+Queue visibility table for scans that originate in the native Photos share
+extension. Added in migration `20260518100000_add_scan_import_jobs.sql`.
+
+- `id` (UUID): Primary key.
+- `scan_id` (UUID): Client scan id returned to the share extension and later
+  reconciled through the App Group receipt store.
+- `user_id` (UUID - Foreign Key): References `auth.users(id)` with cascade
+  delete.
+- `status` (Text): `queued`, `processing`, `completed`, or `failed`. The
+  `/share-import-scan` Edge Function inserts `queued`, sets `processing` before
+  dispatching `/identify-multimodal`, then stores `completed` or `failed` from
+  the identify response path.
+- `r2_object_key` (Text): The validated `staging/{userId}/...` image key. This
+  is never a public media URL and is used only to feed the queued inference.
+- `mime_type` (Text): Image content type accepted by the shared staging image
+  allowlist.
+- `response_status` (Integer, nullable): HTTP status returned by
+  `/identify-multimodal` when the background dispatch completes.
+- `error_message` (Text, nullable): Truncated failure message for dead-letter
+  visibility.
+- `created_at`, `updated_at` (TIMESTAMPTZ): Queue lifecycle timestamps.
+
+Indexes:
+
+- Unique `(scan_id, user_id)` to prevent duplicate queue rows for a single
+  user.
+- `(user_id, status, created_at DESC)` for user-scoped queue visibility and
+  support diagnostics.
+
+RLS is enabled. Authenticated users can select only their own rows; writes are
+performed through the Edge Function with service-role privileges.
 
 ### `flagged_reviews`
 
@@ -1097,7 +1138,7 @@ historical schema must also be schema-scoped snapshots; V41 owns
 without SwiftData casting V41 records to active `LocalScanRecord` or
 `OfflineQueuedScan`.
 
-The current active schema is `MerianSchemaV42`. Recent milestones:
+The current active schema is `MerianSchemaV43`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -1115,6 +1156,9 @@ The current active schema is `MerianSchemaV42`. Recent milestones:
   `OfflineQueuedScan`, then performed the active-schema handoff after freezing
   V41 snapshots. The legacy per-scan UserDefaults bridge remains a fallback
   only; `FieldNotesRepository` promotes bridge-only notes back into SwiftData.
+- V43 added AI-derived sex observation metadata (`sex`, `sexConfidence`,
+  `sexEvidence`) to completed local scans, matching the cloud `scans` columns
+  introduced by migration `20260518090000_add_scan_sex_metadata.sql`.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): Declares
 `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and
@@ -1451,6 +1495,12 @@ Tracks locally synchronized species scans for the Scans library.
   "adult" or "larva", extracted by Gemini API.)
 - `reproductiveCondition`: String? (Added in `MerianSchemaV20`. Phenological
   state, e.g. "flowering" or "fruiting", extracted by Gemini API.)
+- `sex`: String? (Added in `MerianSchemaV43`. Darwin Core sex annotation when
+  directly supported by scan evidence.)
+- `sexConfidence`: Double? (Added in `MerianSchemaV43`. Confidence in the local
+  sex annotation.)
+- `sexEvidence`: String? (Added in `MerianSchemaV43`. Short evidence phrase for
+  the local sex annotation.)
 - `individualCount`: Int? (Added in `MerianSchemaV20`. Core population scale
   within the frame.)
 - `ecologicalInteractions`: [String]? (Added in `MerianSchemaV20`. Array of

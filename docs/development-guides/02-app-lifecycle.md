@@ -13,12 +13,13 @@ Merian centralizes all iOS phase-transition logic inside `AppLifecycleManager` (
 Triggered by `MerianApp.swift` when `scenePhase == .active`.
 
 **Synchronous triggers (Main thread):**
-1. `UsageManager.evaluateDailyRefresh()` — resets daily scan token count if the calendar day has rolled over.
+1. `UsageManager.evaluateDailyRefresh()` — resets daily scan token count if the calendar day has rolled over and refreshes the App Group share-import settings snapshot.
 2. `PushNotificationManager.setupDelegate()` — re-registers the UNUserNotificationCenter delegate.
 3. `PushNotificationManager.syncPermissionState()` — reconciles local notification settings with the OS authorization status to handle revocations in Settings.
 4. `PushNotificationManager.registerForRemoteNotificationsIfAuthorized()` — re-registers APNs when the user has already granted notification access.
 5. **Session timeout reconciliation:** reads `UserDefaultsKeys.lastBackgroundedDate`. If the app was backgrounded for more than 5 minutes, publishes `.appDidResumeAfterTimeout`, then clears the stored background timestamp.
 6. `AppSettings.refreshFromDefaults()` — reconciles settings written by background delegates while SwiftUI was suspended.
+7. `ShareImportSharedStateWriter.refresh()` — mirrors `requiresScanConfirmation`, Pro state, quota state, and alpha scan overrides to the App Group for `MerianShareExtension`.
 
 Camera session startup is owned by `CaptureWorkspaceView` / `CaptureWorkspaceViewModel.handleScenePhaseChange`, not by `AppLifecycleManager`. `handleActivePhase()` should not directly start AVFoundation hardware.
 
@@ -34,9 +35,10 @@ Camera session startup is owned by `CaptureWorkspaceView` / `CaptureWorkspaceVie
 3. `OfflineQueueManager.purgeSoftDeletedRecords()` — removes local records that are safe to delete after sync.
 4. `OfflineQueueManager.syncPendingScans()` — drains queued captures immediately if `NWPathMonitor` shows connectivity.
 5. `OfflineQueueManager.replayInferenceForUploadedScans()` — re-enters any `OfflineQueuedScan` stuck in `.staged` or `.inferencing` state (upload confirmed but inference interrupted, e.g. app killed or suspended mid-inference). Also reconciles `.uploading` orphans back to `.pending` on every call so scans whose `generateUploadURLs` request failed mid-session are visible on the next retry. `NWPathMonitor` only fires on connectivity *changes*, so this call is required here to recover stuck scans when the app returns to foreground on an already-stable connection.
-6. `SpeciesPreferredNameRepository.syncCloudPreferences(modelContext:)` — reconciles preferred species names when a model context is available. Clean lifecycle/auth syncs skip when a successful sync completed in the last 60 seconds, while local set/clear edits force a follow-up sync.
-7. `ScanRepository.syncHistoricalScansDown(modelContext:)` — fetches paginated cloud history and reconciles against local SwiftData (supports reinstalls and multi-device access). **Throttled to once per 15 minutes** via `UserDefaultsKeys.lastHistoricalSyncDate` to prevent redundant full-table network syncs on every foreground transition. The timestamp is stamped **before** the sync starts, not after — this is an optimistic lock that prevents two concurrent foreground handlers from both reading `distantPast` before either has written the timestamp.
-8. **Archive Safety Protocol** (once per 24 hours via `UserDefaultsKeys.lastArchiveRescueDate`): `ArchiveManager.evaluateAndRescueAgingScans(modelContext:)` — downloads images for Free-tier domesticated scans approaching the targeted 90-day edge function domesticated purge window (wild and invasive scans are permanently archived by the server).
+6. `ShareImportReceiptReconciler.reconcileIfNeeded(modelContext:scanRepository:)` — loads queued Photos share-extension receipts from the App Group, forces historical scan sync, marks resolved imported scans as unseen, updates the app badge, and clears only receipts that now exist locally.
+7. `SpeciesPreferredNameRepository.syncCloudPreferences(modelContext:)` — reconciles preferred species names when a model context is available. Clean lifecycle/auth syncs skip when a successful sync completed in the last 60 seconds, while local set/clear edits force a follow-up sync.
+8. `ScanRepository.syncHistoricalScansDown(modelContext:)` — fetches paginated cloud history and reconciles against local SwiftData (supports reinstalls and multi-device access). **Throttled to once per 15 minutes** via `UserDefaultsKeys.lastHistoricalSyncDate` to prevent redundant full-table network syncs on every foreground transition. The timestamp is stamped **before** the sync starts, not after — this is an optimistic lock that prevents two concurrent foreground handlers from both reading `distantPast` before either has written the timestamp. The share-import receipt reconciler is the intentional exception: it forces a sync when a queued Photos import receipt exists.
+9. **Archive Safety Protocol** (once per 24 hours via `UserDefaultsKeys.lastArchiveRescueDate`): `ArchiveManager.evaluateAndRescueAgingScans(modelContext:)` — downloads images for Free-tier domesticated scans approaching the targeted 90-day edge function domesticated purge window (wild and invasive scans are permanently archived by the server).
 
 ---
 

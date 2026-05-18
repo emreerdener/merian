@@ -82,14 +82,8 @@ import Supabase
             PostHogManager.shared.configure()
         }
 
-        let url = URL(string: MerianEnvironment.supabaseUrl) ?? URL(string: MerianEnvironment.fallbackSupabaseURL)!
-        self.client = SupabaseClient(
-            supabaseURL: url,
-            supabaseKey: MerianEnvironment.supabaseAnonKey,
-            options: SupabaseClientOptions(
-                auth: .init(emitLocalSessionAsInitialSession: true)
-            )
-        )
+        ShareImportAuthStore.migrateLegacySessionToSharedIfNeeded()
+        self.client = MerianSupabaseClientFactory.makeClient(emitLocalSessionAsInitialSession: true)
 
         super.init()
 

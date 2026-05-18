@@ -15,6 +15,11 @@ struct CaptureWorkspaceView: View {
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Query(
+        filter: #Predicate<LocalScanRecord> { $0.isBiological == true },
+        sort: \LocalScanRecord.timestamp,
+        order: .reverse
+    ) private var messageShareCacheRecords: [LocalScanRecord]
 
     // MARK: - View Model & State
     @State private var viewModel = CaptureWorkspaceViewModel()
@@ -58,6 +63,25 @@ struct CaptureWorkspaceView: View {
             return "reanalysis-\(viewModel.refinementSubjectId ?? "unknown")"
         }
         return "standard"
+    }
+
+    private var messageShareCacheSignature: String {
+        messageShareCacheRecords
+            .prefix(MessageScanShareCacheConstants.maxRecordCount)
+            .map { record in
+                [
+                    record.id,
+                    String(record.timestamp.timeIntervalSinceReferenceDate),
+                    record.commonName,
+                    record.scientificName,
+                    record.locationName ?? "",
+                    record.coverImagePath ?? "",
+                    record.capturedMediaSnapshot.imagePaths.joined(separator: ","),
+                    record.fieldNotes ?? "",
+                    ExploreShareStateStore.sharedPostId(for: record.id) ?? ""
+                ].joined(separator: "|")
+            }
+            .joined(separator: "\n")
     }
 
     // MARK: - View Hierarchy
@@ -255,6 +279,9 @@ struct CaptureWorkspaceView: View {
             updateControlBarHeight(newHeight)
         }
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
+        .task(id: messageShareCacheSignature) {
+            await MessageScanShareCacheWriter.refresh(records: messageShareCacheRecords)
+        }
         .sheet(
             isPresented: Binding(
                 get: { stagedDescriptionEditIndex != nil },
@@ -396,6 +423,10 @@ struct CaptureWorkspaceView: View {
                 // If there's an active or historical cache for a scan, open the modal natively
                 if inferenceEngine.historicHydrationTask != nil || inferenceEngine.speciesData != nil {
                     viewModel.activeSheet = .insight
+                }
+            case .exploreShareStateChanged:
+                Task {
+                    await MessageScanShareCacheWriter.refresh(records: messageShareCacheRecords)
                 }
             default: break
             }

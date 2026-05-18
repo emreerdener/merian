@@ -24,14 +24,16 @@ struct SpeciesObservationStatsViewModelTests {
             commonName: "Monarch",
             timestamp: date(year: 2026, month: 1, day: 1),
             captureDate: date(year: 2026, month: 5, day: 3),
-            lifeStage: "Adult"
+            lifeStage: "Adult",
+            sex: "female"
         ))
         context.insert(LocalScanRecord(
             speciesId: "legacy-b",
             scientificName: "Danaus plexippus",
             commonName: "Monarch",
             timestamp: date(year: 2025, month: 8, day: 4),
-            lifeStage: "larva"
+            lifeStage: "larva",
+            sex: "male"
         ))
         context.insert(LocalScanRecord(
             speciesId: "legacy-c",
@@ -39,6 +41,7 @@ struct SpeciesObservationStatsViewModelTests {
             commonName: "Override",
             timestamp: date(year: 2026, month: 5, day: 10),
             lifeStage: "unknown",
+            sex: "cannot_determine",
             userIdentificationOverride: "Danaus plexippus"
         ))
         context.insert(LocalScanRecord(
@@ -47,6 +50,7 @@ struct SpeciesObservationStatsViewModelTests {
             commonName: "Confirmed",
             timestamp: date(year: 2024, month: 4, day: 15),
             lifeStage: "pupa",
+            sex: "mixed",
             confirmedSpeciesId: speciesId
         ))
         context.insert(LocalScanRecord(

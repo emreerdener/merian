@@ -59,6 +59,9 @@ export interface DescribeScanInsertRow {
   llm_total_tokens?: number | null;
   life_stage?: string;
   reproductive_condition?: string;
+  sex?: string | null;
+  sex_confidence?: number | null;
+  sex_evidence?: string | null;
   individual_count?: number | null;
   ecological_interactions: string[];
   inference_tier: string;

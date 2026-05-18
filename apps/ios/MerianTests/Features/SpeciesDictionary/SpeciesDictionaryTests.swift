@@ -393,7 +393,6 @@ struct SpeciesDictionaryTests {
         #expect(response.data.totalObservations == 450448)
         #expect(response.data.source.inaturalistTaxonId == 48662)
         #expect(response.data.lifeStage.first?.label == "Adult")
-        #expect(response.data.sex.first?.key == "female")
     }
 
     @Test func testGetSpeciesObservationStatsConstructsPayloadAndMemoizes() async throws {

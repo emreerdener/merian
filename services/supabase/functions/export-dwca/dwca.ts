@@ -22,8 +22,9 @@ export const DWCA_META_XML = `<?xml version="1.0" encoding="UTF-8"?>
     <field index="14" term="http://rs.tdwg.org/dwc/terms/lifeStage" />
     <field index="15" term="http://rs.tdwg.org/dwc/terms/reproductiveCondition" />
     <field index="16" term="http://rs.tdwg.org/dwc/terms/individualCount" />
-    <field index="17" term="http://rs.tdwg.org/dwc/terms/associatedTaxa" />
-    <field index="18" term="http://rs.tdwg.org/dwc/terms/identificationVerificationStatus" />
+    <field index="17" term="http://rs.tdwg.org/dwc/terms/sex" />
+    <field index="18" term="http://rs.tdwg.org/dwc/terms/associatedTaxa" />
+    <field index="19" term="http://rs.tdwg.org/dwc/terms/identificationVerificationStatus" />
   </core>
   <extension encoding="UTF-8" linesTerminatedBy="\\n" fieldsTerminatedBy="," fieldsEnclosedBy="&quot;" ignoreHeaderLines="1" rowType="http://rs.gbif.org/terms/1.0/Multimedia">
     <files><location>multimedia.csv</location></files>
@@ -38,7 +39,7 @@ export const OCCURRENCE_HEADERS = [
   "kingdom","phylum","class","order","family","genus",
   "decimalLatitude","decimalLongitude","coordinateUncertaintyInMeters",
   "lifeStage","reproductiveCondition","individualCount",
-  "associatedTaxa","identificationVerificationStatus",
+  "sex","associatedTaxa","identificationVerificationStatus",
 ].map((h) => `"${h}"`).join(",");
 
 export const MULTIMEDIA_HEADERS = ["coreid","identifier","format"]
@@ -105,6 +106,7 @@ export async function generateDwcARow(
   const lifeStage = scan.life_stage || "unknown";
   const reproductiveCondition = scan.reproductive_condition || "not_applicable";
   const individualCount = scan.individual_count != null ? scan.individual_count : "";
+  const sex = scan.sex || "";
 
   // Join ecological interactions with " | " separator; commas within each entry become
   // semicolons so the joined string doesn't need further escaping beyond csvField's quoting.
@@ -135,6 +137,7 @@ export async function generateDwcARow(
     csvField(lifeStage),
     csvField(reproductiveCondition),
     csvField(individualCount),
+    csvField(sex),
     csvField(associatedTaxa),
     csvField(verificationStatus),
   ].join(",");

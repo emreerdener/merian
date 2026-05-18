@@ -129,6 +129,7 @@ Deno.test("generateDwcARow escapes commas and quotes in free-text fields", async
   const scan = {
     id: "scan_127",
     user_id: "emre_uuid_0001",
+    sex: "female",
     ecological_interactions: ['eats "aphids", beetles', "parasitized by Cotesia glomerata"],
     species_dictionary: { scientific_name: "Papilio, sp." }
   };
@@ -138,12 +139,13 @@ Deno.test("generateDwcARow escapes commas and quotes in free-text fields", async
     scan, "personal", false, "emre_uuid_0001", mockSalt
   );
 
-  // Row must parse to exactly 19 fields despite commas inside values.
+  // Row must parse to exactly 20 fields despite commas inside values.
   const parts = splitCsvRow(result.occurrenceRow);
-  assertEquals(parts.length, 19);
+  assertEquals(parts.length, 20);
 
   // scientificName field should contain the comma intact after unquoting.
   assertEquals(unquote(parts[4]), "Papilio, sp.");
+  assertEquals(unquote(parts[17]), "female");
 });
 
 // ---------------------------------------------------------------------------

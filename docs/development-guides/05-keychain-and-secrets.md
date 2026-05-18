@@ -10,6 +10,8 @@ This document explains what storage mechanism to use for persistent identity tok
 |---|---|---|
 | Supabase JWT (access token) | Supabase GoTrue SDK (internal Keychain) | Managed automatically by the SDK |
 | Supabase anonymous session | Supabase GoTrue SDK (internal Keychain) | Managed automatically by the SDK |
+| Supabase extension session copy | Shared keychain access group `$(AppIdentifierPrefix)app.merian.shared` | Read by `MerianShareExtension`; migrated from the SDK keychain item by the containing app |
+| Extension settings/receipts/cache | App Group `group.app.merian.shared` | Non-secret extension coordination data shared by the app, Messages extension, widget, and Photos share extension |
 | RevenueCat customer ID | RevenueCat SDK (internal) | Managed automatically by the SDK |
 | `SUPABASE_ANON_KEY` | `Config.xcconfig` → `MerianEnvironment.swift` | Read-only build config, not secret |
 | `REVENUECAT_API_KEY` | `Config.xcconfig` → `MerianEnvironment.swift` | Read-only build config, not secret |
@@ -87,6 +89,52 @@ Currently stored keys:
 The Keychain entry uses `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, which means the IDFV survives app reinstall as long as another app from the same vendor group is installed. This is intentional: it preserves anonymous user identity across reinstalls for Ghost Session continuity.
 
 The IDFV is used as the anonymous user identifier for Ghost Sessions (`signInAnonymously`), and is passed to PostHog and RevenueCat for anonymous funnel tracking.
+
+---
+
+## Shared Extension Storage
+
+Merian uses `group.app.merian.shared` for non-secret extension coordination:
+
+- Explore widget snapshots
+- Messages scan share cache (`message-scan-share-cache.json`,
+  `MessageScanThumbnails/`, `MessageScanAttachments/`)
+- Photos share-import settings snapshot
+- Photos share-import receipts (`share-import-receipts.json`)
+
+Do not put provider secrets, service-role keys, raw private notes dumps, or
+SwiftData stores in the App Group. The App Group is for small, explicit
+handoff artifacts whose schema is owned by shared Swift structs.
+
+## Shared Supabase Session for the Photos Share Extension
+
+`MerianShareExtension` must authenticate network calls without launching the
+containing app. The main app therefore creates a second Supabase GoTrue session
+copy in the shared keychain access group.
+
+Implementation contract:
+
+- The main app configures Supabase through
+  `MerianSupabaseClientFactory.makeClient(...)`, using
+  `KeychainLocalStorage(service: "supabase.gotrue.swift", accessGroup:
+  ShareImportAuthStore.keychainAccessGroup())`.
+- On `SupabaseManager` initialization,
+  `ShareImportAuthStore.migrateLegacySessionToSharedIfNeeded()` copies a valid
+  legacy SDK session from the default keychain item to the shared access group
+  if the shared item is missing.
+- The extension reads the shared item directly with Security.framework via
+  `ShareImportKeychainSessionStore`. The Supabase SDK is not compiled into the
+  share extension target.
+- `ShareImportAuthStore.validAccessToken()` parses the stored session, checks
+  `expiresAt` or JWT `exp`, refreshes through
+  `/auth/v1/token?grant_type=refresh_token` when possible, and writes the
+  refreshed session back to the shared access group.
+
+The shared keychain access group is derived at runtime from
+`MERIAN_APP_IDENTIFIER_PREFIX` plus `app.merian.shared`. This key must be present
+in both the app and share-extension Info.plists. If the prefix is unresolved or
+missing, the extension cannot read the shared session and must show an "open
+Merian" recovery state.
 
 ---
 

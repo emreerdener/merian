@@ -35,9 +35,6 @@ final class SpeciesObservationStatsViewModel {
         publicStats?.history.contains(where: \.hasObservations) == true ||
         publicStats?.lifeStage.contains(where: { series in
             series.values.contains(where: \.hasObservations)
-        }) == true ||
-        publicStats?.sex.contains(where: { series in
-            series.values.contains(where: \.hasObservations)
         }) == true
     }
 
@@ -146,9 +143,10 @@ final class SpeciesObservationStatsViewModel {
                 historyCounts[key, default: 0] += 1
             }
 
-            guard let stage = normalizedLifeStage(record.lifeStage) else { continue }
-            lifeStageLabels[stage.key] = stage.label
-            lifeStageMonthCounts[stage.key, default: Dictionary(uniqueKeysWithValues: (1...12).map { ($0, 0) })][month, default: 0] += 1
+            if let stage = normalizedLifeStage(record.lifeStage) {
+                lifeStageLabels[stage.key] = stage.label
+                lifeStageMonthCounts[stage.key, default: Dictionary(uniqueKeysWithValues: (1...12).map { ($0, 0) })][month, default: 0] += 1
+            }
         }
 
         let seasonality = (1...12).map { month in
@@ -173,7 +171,6 @@ final class SpeciesObservationStatsViewModel {
                 }
             )
         }
-
         return SpeciesObservationLocalStats(
             seasonality: seasonality,
             history: history,
@@ -231,12 +228,15 @@ final class SpeciesObservationStatsViewModel {
     }
 
     private static func normalizedLifeStage(_ value: String?) -> (key: String, label: String)? {
+        normalizedCategory(value, excluding: ["unknown", "not_applicable", "not applicable", "n/a", "none"])
+    }
+
+    private static func normalizedCategory(_ value: String?, excluding excluded: Set<String>) -> (key: String, label: String)? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty else {
             return nil
         }
 
         let lowered = trimmed.lowercased()
-        let excluded = ["unknown", "not_applicable", "not applicable", "n/a", "none"]
         guard !excluded.contains(lowered) else { return nil }
 
         let key = lowered

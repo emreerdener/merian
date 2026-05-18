@@ -19,6 +19,7 @@ final class AppLifecycleManager {
         guard container.appSettings.hasCompletedOnboarding else { return }
 
         container.usageManager.evaluateDailyRefresh()
+        ShareImportSharedStateWriter.refresh()
         container.pushNotificationManager.setupDelegate()
         container.pushNotificationManager.syncPermissionState()
         container.pushNotificationManager.registerForRemoteNotificationsIfAuthorized()
@@ -51,6 +52,10 @@ final class AppLifecycleManager {
             let now = Date()
 
             if let context = container.offlineQueueManager.modelContext {
+                await ShareImportReceiptReconciler.reconcileIfNeeded(
+                    modelContext: context,
+                    scanRepository: container.scanRepository
+                )
                 await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context)
 
                 // Restore account history on re-install or multi-device login.

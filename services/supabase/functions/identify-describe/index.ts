@@ -13,8 +13,11 @@ import { requireParams } from "../_shared/http.ts";
 import {
   buildObservationPrompt,
   normalizeCurrentMonth,
+  sanitizeObservationConfidence,
+  sanitizeObservationEvidence,
   sanitizeLifeStage,
   sanitizeReproductiveCondition,
+  sanitizeSex,
 } from "../_shared/identify/context.ts";
 import {
   CachedSpeciesRow,
@@ -280,6 +283,25 @@ serve((req: Request) =>
     parsedData.reproductive_condition =
       sanitizeReproductiveCondition(parsedData.reproductive_condition) ??
         parsedData.reproductive_condition;
+    parsedData.sex = sanitizeSex(parsedData.sex) ?? parsedData.sex;
+    parsedData.sex_confidence = sanitizeObservationConfidence(
+      parsedData.sex_confidence,
+    );
+    parsedData.sex_evidence = sanitizeObservationEvidence(
+      parsedData.sex_evidence,
+    );
+    if (!parsedData.is_biological_subject) {
+      parsedData.sex = undefined;
+      parsedData.sex_confidence = undefined;
+      parsedData.sex_evidence = undefined;
+    } else if (
+      parsedData.sex == null ||
+      parsedData.sex === "cannot_determine" ||
+      parsedData.sex === "not_applicable"
+    ) {
+      parsedData.sex_confidence = undefined;
+      parsedData.sex_evidence = undefined;
+    }
 
     // Describes always have zero blur (no image).
     parsedData.blur_score = 0;
@@ -492,6 +514,9 @@ serve((req: Request) =>
             life_stage: parsedData.life_stage ?? "unknown",
             reproductive_condition: parsedData.reproductive_condition ??
               "not_applicable",
+            sex: parsedData.sex ?? null,
+            sex_confidence: parsedData.sex_confidence ?? null,
+            sex_evidence: parsedData.sex_evidence ?? null,
             individual_count: parsedData.individual_count ?? null,
             ecological_interactions: [],
             inference_tier: userTier === "pro" ? "pro" : "flash",

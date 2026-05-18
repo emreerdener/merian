@@ -4,11 +4,11 @@ This directory is the technical master reference for the native iOS application,
 
 ## Current Snapshot
 
-- **App targets**: iOS app (`apps/ios/Merian/`), watchOS companion (`apps/watch/MerianWatch/`), Explore WidgetKit extension (`apps/ios/widgets/Explore/`), unit tests, and UI tests.
+- **App targets**: iOS app (`apps/ios/Merian/`), watchOS companion (`apps/watch/MerianWatch/`), Explore WidgetKit extension (`apps/ios/widgets/Explore/`), Messages extension (`apps/ios/messages/MerianMessagesExtension/`), Photos share extension (`apps/ios/share/MerianShareExtension/`), unit tests, and UI tests.
 - **Web frontend**: Next.js + Mantine app in `apps/web/`, initially serving public Explore share pages on `merian.earth`.
 - **Deployment target**: iOS 17.2 for the app and widget; watchOS 10.0 for the companion target.
 - **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is committed for convenience and should be regenerated after project-structure changes.
-- **Active SwiftData schema**: `MerianSchemaV42` via `typealias CurrentSchema = MerianSchemaV42` in `apps/ios/Merian/Models/Aliases.swift`.
+- **Active SwiftData schema**: `MerianSchemaV43` via `typealias CurrentSchema = MerianSchemaV43` in `apps/ios/Merian/Models/Aliases.swift`.
 - **Primary inference endpoint**: `/identify-multimodal` for visual, audio, describe, and mixed-media submissions. `/identify` remains documented for legacy/image-specific compatibility and shared backend primitives.
 
 ## Directory Structure
@@ -31,8 +31,8 @@ This directory is the technical master reference for the native iOS application,
 - **[`/backend-and-data/01-offline-sync-pipeline.md`](./backend-and-data/01-offline-sync-pipeline.md)** — Zero-data-loss architecture, SwiftData queues, and AppDelegate background URLSession mappings.
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)** — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species dictionary workers, and cron/webhook boundaries.
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)** — SwiftData actor model: `BackgroundDatabaseActor`, `HistoricalDatabaseActor`, and `FileIOActor`.
-- **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)** — Physical table maps for PostgreSQL and the SwiftData persistent schemas, including the V41 `CapturedMediaEntry` mixed-media model and V42 field-notes columns.
-- **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, `/species-dictionary`, `/species-observation-stats`, Explore detail similar species, and internal cron workers such as Merian reference-image refresh.
+- **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)** — Physical table maps for PostgreSQL and the SwiftData persistent schemas, including the V41 `CapturedMediaEntry` mixed-media model, V42 field-notes columns, and V43 sex observation metadata.
+- **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, `/share-import-scan`, `/species-dictionary`, `/species-observation-stats`, Explore detail similar species, and internal cron workers such as Merian reference-image refresh.
 
 ### Features & Hardware
 
@@ -54,6 +54,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/features-and-hardware/16-species-dictionary.md`](./features-and-hardware/16-species-dictionary.md)** — Standalone public species dictionary page, `species-dictionary` Edge Function contract, similar-species entry points from Insight and Explore detail, public cache rules, content quality, media attribution, and refresh provenance.
 - **[`/features-and-hardware/17-public-web-share-pages.md`](./features-and-hardware/17-public-web-share-pages.md)** — Next.js public web share pages for `merian.earth`, including Explore post links, Supabase server reads, metadata, privacy boundaries, and the Universal Links roadmap.
 - **[`/features-and-hardware/18-species-observation-charts.md`](./features-and-hardware/18-species-observation-charts.md)** — Reusable species observation charts, local-on-device aggregation, public iNaturalist stats cache, annotation mappings, privacy boundaries, and verification.
+- **[`/features-and-hardware/19-native-share-extensions.md`](./features-and-hardware/19-native-share-extensions.md)** — Native iOS share extensions: Messages scan library, Photos share-sheet import, App Group cache/receipt contracts, shared keychain auth, backend queueing, privacy rules, and QA.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map product/RPC architecture, including the shipped V1 map implementation and follow-up recommendations.
 - **[`/rfcs/codebase-cleanup.md`](./rfcs/codebase-cleanup.md)** — Phased cleanup plan for repo hygiene, behavior-preserving file splits, and ownership cleanup.
 - **[`/rfcs/species-dictionary-long-term-todo.md`](./rfcs/species-dictionary-long-term-todo.md)** — Long-term species dictionary TODO covering canonical identity, reference media normalization, public projections, provenance and refresh, caching, licensing, and analytics.

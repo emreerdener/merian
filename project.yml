@@ -46,6 +46,7 @@ targets:
       properties:
         com.apple.developer.applesignin: ["Default"]
         com.apple.security.application-groups: ["group.app.merian.shared"]
+        keychain-access-groups: ["$(AppIdentifierPrefix)app.merian.shared"]
         com.apple.developer.weatherkit: true
     configFiles:
       Debug: Config.xcconfig
@@ -59,6 +60,10 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: NO
     dependencies:
       - target: MerianExploreWidget
+        embed: true
+      - target: MerianMessagesExtension
+        embed: true
+      - target: MerianShareExtension
         embed: true
       - target: MerianWatch # Natively bundles the companion watchApp binary directly into the parent iPhone executable
         embed: true
@@ -120,6 +125,61 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.merian.Merian.ExploreWidget
         INFOPLIST_FILE: apps/ios/widgets/Explore/Configuration/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        CODE_SIGN_STYLE: Automatic
+        APPLICATION_EXTENSION_API_ONLY: YES
+      configs:
+        Release:
+          CODE_SIGN_IDENTITY: "Apple Development"
+
+  MerianMessagesExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.2"
+    sources:
+      - apps/ios/messages/MerianMessagesExtension
+      - apps/ios/Merian/Features/Messages/MessageScanShareCache.swift
+    entitlements:
+      path: apps/ios/messages/MerianMessagesExtension/Configuration/MerianMessagesExtension.entitlements
+      properties:
+        com.apple.security.application-groups: ["group.app.merian.shared"]
+    configFiles:
+      Debug: Config.xcconfig
+      Release: Config.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.merian.Merian.MessagesExtension
+        INFOPLIST_FILE: apps/ios/messages/MerianMessagesExtension/Configuration/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        CODE_SIGN_STYLE: Automatic
+        APPLICATION_EXTENSION_API_ONLY: YES
+      configs:
+        Release:
+          CODE_SIGN_IDENTITY: "Apple Development"
+
+  MerianShareExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.2"
+    sources:
+      - apps/ios/share/MerianShareExtension
+      - apps/ios/Merian/Configuration/MerianEnvironment.swift
+      - apps/ios/Merian/Core/Utilities/ImageDownsampler.swift
+      - apps/ios/Merian/Features/ShareImport/Shared
+    entitlements:
+      path: apps/ios/share/MerianShareExtension/Configuration/MerianShareExtension.entitlements
+      properties:
+        com.apple.security.application-groups: ["group.app.merian.shared"]
+        keychain-access-groups: ["$(AppIdentifierPrefix)app.merian.shared"]
+    configFiles:
+      Debug: Config.xcconfig
+      Release: Config.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.merian.Merian.ShareExtension
+        INFOPLIST_FILE: apps/ios/share/MerianShareExtension/Configuration/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
         CODE_SIGN_STYLE: Automatic

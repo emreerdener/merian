@@ -34,6 +34,15 @@ export interface MerianIdentification {
     | "nesting"
     | "dormant"
     | "not_applicable";
+  sex?:
+    | "female"
+    | "male"
+    | "hermaphrodite"
+    | "mixed"
+    | "cannot_determine"
+    | "not_applicable";
+  sex_confidence?: number;
+  sex_evidence?: string;
   individual_count?: number;
   ecological_interactions?: string[];
   candidates?: IdentificationCandidate[] | null;

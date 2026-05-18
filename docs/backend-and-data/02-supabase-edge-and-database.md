@@ -116,15 +116,41 @@ Several utilities are shared across all Edge Functions via
 
 The `/generate-upload-urls` Edge Function signs direct-to-Cloudflare R2 `PUT`
 URLs for background staging. Current clients send a structured `files` manifest
-built by `MediaStagingContract` rather than a loose filename array: each entry
-includes `fileName`, `mediaKind`, `contentType`, and `sizeBytes`. The Edge
-parser rejects unsanitized names, media-kind/content-type mismatches,
-over-budget audio or image files, batches above five files, and batches above
-two audio files before calling `generatePresignedPutUrl()`. Legacy `fileNames`
-remains accepted for older clients only; it is compatibility-only because it
-cannot express byte budgets. The limit and content-type contract is pinned in
+built by `MediaStagingContract` for the app queue or by
+`ShareImportNetworkClient` for the Photos share extension rather than a loose
+filename array: each entry includes `fileName`, `mediaKind`, `contentType`, and
+`sizeBytes`. The Edge parser rejects unsanitized names,
+media-kind/content-type mismatches, over-budget audio or image files, batches
+above five files, and batches above two audio files before calling
+`generatePresignedPutUrl()`. Legacy `fileNames` remains accepted for older
+clients only; it is compatibility-only because it cannot express byte budgets.
+The limit and content-type contract is pinned in
 `docs/contracts/media-staging-upload-manifest.json` and loaded by both Swift and
 Deno tests.
+
+## The Photos Share Import Queue Node (`share-import-scan`)
+
+The `/share-import-scan` Edge Function is the fast-return queue endpoint for the
+native Photos share extension. The extension first requests a signed image URL
+from `/generate-upload-urls`, performs the R2 `PUT`, then calls
+`/share-import-scan` with the resulting staged object key and EXIF-derived
+telemetry.
+
+The function validates:
+
+- exactly one staged image key
+- ownership under `staging/{user.id}/...`
+- path traversal rejection through the shared media budget/key validator
+- MIME type membership in the allowed staged image content types
+- optional client scan id normalization to a UUID
+
+After validation it inserts `public.scan_import_jobs` with status `queued`,
+schedules a background call to `/identify-multimodal`, immediately returns
+`202 Accepted` with the `scan_id`, and updates the job row to `processing`,
+`completed`, or `failed` from the detached dispatch path. A completed job means
+`/identify-multimodal` accepted the inference request; the iOS app still relies
+on historical sync plus the App Group receipt reconciler to surface the
+completed scan locally.
 
 ## The Edge Inference Node (`identify`)
 
@@ -158,7 +184,8 @@ The `/identify` Edge Function acts as the inference proxy:
    after the tier SELECT — before the Gemini call — so both tiers receive the
    correct model. Generation uses `temperature: 0.1` for rigid JSON output. The
    schema explicitly instructs Gemini to extract Data-as-a-Service (DaaS)
-   parameters: phenology (`life_stage`, `reproductive_condition`), population
+   parameters: phenology (`life_stage`, `reproductive_condition`), sex
+   annotation (`sex`, `sex_confidence`, `sex_evidence`), population
    counts (`individual_count`), and cross-species relationships
    (`ecological_interactions`) synchronously within this zero-OOM primary pass.
 5. **Asynchronous Edge Decoupling**: Heavy background work (the moderation
@@ -454,10 +481,12 @@ pipeline while the legacy endpoints remain deployed for compatibility.
      pipeline utilizing only the user's structured observation text.
 4. The current iOS client sends queued images via `r2ObjectKeys`, queued audio
    via `audioR2ObjectKeys`, live foreground audio via inline `audioBase64s`, and
-   text via `observation_contexts`. Telemetry on this active path is camelCase
-   (`gpsLatitude`, `semanticLocation`, `deviceTimeZone`, etc.); the server also
-   accepts legacy snake_case aliases for backward compatibility during offline
-   queue replay and staged endpoint migration.
+   text via `observation_contexts`. Photos share-sheet imports reach this same
+   inference node indirectly through `/share-import-scan`, which supplies one
+   staged image key plus EXIF timestamp/GPS metadata. Telemetry on this active
+   path is camelCase (`gpsLatitude`, `semanticLocation`, `deviceTimeZone`,
+   etc.); the server also accepts legacy snake_case aliases for backward
+   compatibility during offline queue replay and staged endpoint migration.
 5. Candidate handling on `/identify-multimodal` now matches `/identify`:
    scientific names are sanitized before cache lookup/persistence, `candidates`
    are stripped at `confidence_score >= diagnosticTrigger`, cached English
@@ -636,9 +665,9 @@ architecture that completely bypasses Edge HTTP timeout constraints:
      accessing the underlying Supabase token. Exact GPS coordinates are scrubbed
      for any user data apart from the requesting user.
    - **DaaS Standardization**: Natively maps `life_stage`,
-     `reproductive_condition`, `individual_count`, `estimated_size_cm`, and
+     `reproductive_condition`, `sex`, `individual_count`, `estimated_size_cm`, and
      `ecological_interactions` directly into standard GBIF DwC-A headers
-     (`lifeStage`, `reproductiveCondition`, `individualCount`, etc.).
+     (`lifeStage`, `reproductiveCondition`, `sex`, `individualCount`, etc.).
    - **Asynchronous Delivery**: Once the ZIP reaches R2, it fetches the user's
      `auth.users` database email and dispatches a secure Resend email containing
      an expiring `X-Amz-Expires=86400` download link.

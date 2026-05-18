@@ -8,7 +8,7 @@ Before contributing, please review our core architectural tenets. Refactoring co
 
 1.  **Thermal Management is King**: iOS is hostile to apps that run the GPU and CPU concurrently at full load. Any feature added to the viewfinder MUST interface with `HardwareOrchestrator`. Frame rates must dynamically drop behind modals or when the device hits `.fair` or `.serious` thermal states.
 2.  **Zero-OOM Edge Infrastructure**: Deno Edge Functions crash violently when handed 20MB Base64 strings. Merian processes media _exclusively_ via Gemini File URIs or Cloudflare R2 pointers. Do not attempt to reintroduce Base64 image bloat into the network payload arrays.
-3.  **Offline-First Paradigm**: Network availability in the field is chaotic. Any user-generated action (e.g., snapping a photo) must first natively write to the `NWPathMonitor` SwiftData queue rather than awaiting network validations globally.
+3.  **Offline-First Paradigm**: Network availability in the field is chaotic. Any user-generated action (e.g., snapping a photo) must first natively write to the `NWPathMonitor` SwiftData queue rather than awaiting network validations globally. Native share extensions are the narrow exception: `MerianShareExtension` is network/upload-only, must not open SwiftData, and records an App Group receipt for the containing app to reconcile later.
 4.  **Accessibility (a11y)**: If a feature presents visual data natively, it must possess native SwiftUI `.accessibilityLabel` arrays explicitly reading components in a human-friendly format (e.g., using `.combine` on Grid tables).
 
 ## Setting Up the Development Environment
@@ -18,11 +18,16 @@ Before contributing, please review our core architectural tenets. Refactoring co
 3.  **Project Generation**: `project.yml` is the source of truth. `Merian.xcodeproj` is committed for convenience, but you should regenerate it after changing targets, packages, entitlements, build settings, or source-group layout:
     ```bash
     cp Signing.local.example.xcconfig Signing.local.xcconfig
-    xcodegen generate
+    make xcodegen
     open Merian.xcodeproj
     ```
     Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your personal Apple Developer Team ID. Do not hardcode a real team ID into `project.yml` or the shared `Signing.xcconfig`.
 4.  **Client Config**: App-facing runtime values live in `Config.xcconfig`. These values ship in the app bundle and are not backend-only secrets. Backend secrets, including Gemini and service-role keys, belong only in Supabase Edge Function secrets.
+5.  **Backend Operations**: From the repo root, use the Makefile shortcuts so Supabase commands resolve the nested `services/supabase` project correctly:
+    ```bash
+    make db-push
+    make functions-deploy
+    ```
 
 ## Testing Protocol
 

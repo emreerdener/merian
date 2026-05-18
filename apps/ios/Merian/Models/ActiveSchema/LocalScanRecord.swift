@@ -72,6 +72,9 @@ public final class LocalScanRecord {
     @Attribute public var estimatedSizeCm: Double?
     @Attribute public var lifeStage: String?
     @Attribute public var reproductiveCondition: String?
+    @Attribute public var sex: String?
+    @Attribute public var sexConfidence: Double?
+    @Attribute public var sexEvidence: String?
     @Attribute public var individualCount: Int?
     @Attribute public var ecologicalInteractions: [String]?
     @Attribute public var inferenceTier: String?
@@ -156,6 +159,9 @@ public final class LocalScanRecord {
         estimatedSizeCm: Double? = nil,
         lifeStage: String? = nil,
         reproductiveCondition: String? = nil,
+        sex: String? = nil,
+        sexConfidence: Double? = nil,
+        sexEvidence: String? = nil,
         individualCount: Int? = nil,
         ecologicalInteractions: [String]? = nil,
         inferenceTier: String? = nil,
@@ -220,6 +226,9 @@ public final class LocalScanRecord {
         self.estimatedSizeCm = estimatedSizeCm
         self.lifeStage = lifeStage
         self.reproductiveCondition = reproductiveCondition
+        self.sex = sex
+        self.sexConfidence = sexConfidence
+        self.sexEvidence = sexEvidence
         self.individualCount = individualCount
         self.ecologicalInteractions = ecologicalInteractions
         self.inferenceTier = inferenceTier

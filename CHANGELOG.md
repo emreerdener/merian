@@ -11,6 +11,8 @@ TestFlight, App Store, support, and QA.
 - Added the initial Next.js + Mantine web app scaffold for public Explore share pages.
 - Added public Terms, Privacy Policy, Community Guidelines, Privacy Choices, Support, and Legal hub pages for `merian.earth`.
 - Added an iOS-to-web theme bridge so Merian-opened web pages can follow the app's theme preference.
+- Added AI-derived sex observation metadata to scan records, the Overview card, Supabase persistence, and Darwin Core exports.
+- Added native Messages and Photos share extensions: Messages can insert cached scan images/cards/descriptions, and Photos can queue one shared image for Merian identification.
 
 ### Fixed
 

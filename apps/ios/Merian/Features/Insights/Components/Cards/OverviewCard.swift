@@ -39,6 +39,27 @@ struct OverviewCard: View {
             let ecology = data.ecologyType == "unknown" ? nil : capitalizeFirstLetter(data.ecologyType)
             let lifeStage = data.lifeStage.flatMap { $0 == "unknown" ? nil : capitalizeFirstLetter($0) }
             let reproduction = data.reproductiveCondition.flatMap { $0 == "not_applicable" ? nil : capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }
+            let sexLabel = data.sex.flatMap { raw -> String? in
+                let normalized = raw.replacingOccurrences(of: "_", with: " ").lowercased()
+                guard normalized != "cannot determine", normalized != "not applicable" else { return nil }
+                return capitalizeFirstLetter(normalized)
+            }
+            let sexConfidence = data.sexConfidence.flatMap { confidence -> String? in
+                guard confidence.isFinite else { return nil }
+                let bounded = min(max(confidence, 0), 1)
+                return "\(Int((bounded * 100).rounded()))% confidence"
+            }
+            let sex = sexLabel.map { label in
+                [label, sexConfidence].compactMap { $0 }.joined(separator: " · ")
+            }
+            let sexEvidence: String? = {
+                guard sexLabel != nil,
+                      let trimmed = data.sexEvidence?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !trimmed.isEmpty else {
+                    return nil
+                }
+                return capitalizeFirstLetter(trimmed)
+            }()
             
             let hasOriginalImage = inferenceEngine.activeMedia.liveImageData != nil || !inferenceEngine.activeMedia.imagePathsForUpload.isEmpty
             
@@ -52,7 +73,7 @@ struct OverviewCard: View {
                 return raw.map { capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }.joined(separator: ", ")
             }()
             
-            let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || interactions != nil || data.isInvasive || iucnStatus != nil
+            let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || sex != nil || sexEvidence != nil || interactions != nil || data.isInvasive || iucnStatus != nil
             
             if hasAnyMetadata {
                 VStack(alignment: .leading, spacing: 16) {
@@ -68,6 +89,12 @@ struct OverviewCard: View {
                         }
                         if let val = reproduction {
                             KeyValueRow(title: "REPRODUCTION", value: val)
+                        }
+                        if let val = sex {
+                            KeyValueRow(title: "SEX", value: val)
+                        }
+                        if let val = sexEvidence {
+                            KeyValueRow(title: "SEX CUE", value: val)
                         }
                         if let val = ecology {
                             KeyValueRow(title: "ECOLOGY", value: val)

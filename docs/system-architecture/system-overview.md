@@ -13,6 +13,14 @@ When the user captures an image, the architecture triggers a coordinated sequenc
 3. **Biological Inference (`InferenceEngine.swift`)**: Fires the R2 key and `CaptureTelemetry` to the Supabase `/identify` Edge Node, keeping the `GEMINI_API_KEY` off the client.
 4. **Offline Resilience**: If a user is off-grid, the payload is written to `.documentDirectory` and a `SwiftData` row is inserted with `scanStateRaw = 0` (`.pending`). Apple's background `URLSession` triggers upload when connectivity returns. Offline queuing is gated by the daily scan quota (`UsageManager.canPerformScan`) — free users who have exhausted their 2-scan-per-day limit hit the paywall at capture time rather than at sync time. Every scan that enters the queue is already paid for and uploads unconditionally.
 
+Photos share-sheet imports use a lighter variant of the same staging/inference
+architecture. `MerianShareExtension` receives one `public.image`, downsamples it,
+extracts EXIF timestamp/GPS when present, requests `/generate-upload-urls`,
+uploads the image to R2, calls `/share-import-scan`, writes an App Group receipt,
+and exits. The containing app later reconciles that receipt through historical
+scan sync. The SwiftData store remains app-owned and is not opened by the share
+extension.
+
 The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh, while `/refresh-merian-reference-images` promotes high-quality published Explore media into Merian-sourced reference images without exposing scan/post/user provenance through public species APIs.
 
 Merian also has a small public web frontend in `apps/web/`. The first route, `https://merian.earth/explore/post/{postId}`, server-renders a public Explore post from the `get_explore_post` RPC and emits Open Graph metadata for share previews. This web surface is a public projection only: it may show public species, image, author, count, and privacy-filtered location fields, but it must never expose exact coordinates, private notes, raw scan telemetry, or server credentials.

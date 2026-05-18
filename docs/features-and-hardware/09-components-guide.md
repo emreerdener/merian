@@ -61,7 +61,7 @@ A vertical timeline of `SpectrumNode` items inside `ConfidenceExplanationSheet`,
 **Location**: `Features/Insights/Components/Cards/OverviewCard.swift`
 
 An informational liquid-glass component displaying AI-enriched encyclopedic extracts (`wikipediaOverview`), alongside a suite of dynamic biological `KeyValueRow` metrics, and a native Safari overlay button.
-- **Structural Rendering**: Dynamically parses and lists available biological telemetry such as `estimatedSizeCm`, `lifeStage`, `reproductiveCondition`, and `ecologicalInteractions` while safely omitting empty values. Note: The `individualCount` metric is captured via backend Edge Functions for DWCA telemetry but intentionally omitted from this front-end display to conserve UI space.
+- **Structural Rendering**: Dynamically parses and lists available biological telemetry such as `estimatedSizeCm`, `lifeStage`, `reproductiveCondition`, `sex`, and `ecologicalInteractions` while safely omitting empty values. Note: The `individualCount` metric is captured via backend Edge Functions for DWCA telemetry but intentionally omitted from this front-end display to conserve UI space.
 - **Heuristic Filtering**: Enforces a strict ≥60 character length threshold on `wikipediaOverview`. When valid, the extract is capped at an 8-line truncation limit to avoid walls of text, terminating gracefully into a "Read more on Wikipedia" pill that relies on injected parent `$isSafariPresented` bindings.
 - **Shared card chrome**: `OverviewCard` and `ExploreOverviewCard` keep separate data sourcing and visibility gates, but both render through `InsightCardHeader`, `WikipediaSummarySection`, and `WikipediaReadMoreButton` from `Features/Insights/Components/Cards/Card.swift`. Future Explore/Insights cards should reuse these presentational helpers instead of copying header typography or Wikipedia button styling.
 
@@ -104,8 +104,8 @@ A reusable Swift Charts card for species-level observation patterns.
 - **Data ownership**: `SpeciesObservationStatsViewModel` owns local SwiftData
   aggregation and public baseline loading. Local scan data stays on-device; the
   network request contains only species identity.
-- **Tabs**: Seasonality, History, Life Stage, and Sex. Sex is external-only in
-  V1 because Merian does not capture local sex.
+- **Tabs**: Seasonality, History, and Life Stage. Sex is treated as per-scan
+  Overview metadata rather than a species-level chart dimension.
 - **Normalized compare scale**: Local and public series normalize independently
   so small personal logs remain visible beside large iNaturalist counts. Raw
   peak counts remain available in the footer and accessibility text.

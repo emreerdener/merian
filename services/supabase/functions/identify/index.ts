@@ -25,8 +25,11 @@ import {
 import {
   buildContextText,
   normalizeCurrentMonth,
+  sanitizeObservationConfidence,
+  sanitizeObservationEvidence,
   sanitizeLifeStage,
   sanitizeReproductiveCondition,
+  sanitizeSex,
 } from "../_shared/identify/context.ts";
 
 import {
@@ -498,6 +501,33 @@ serve((req: Request) =>
     }
     parsedData.reproductive_condition = sanitizedReproductiveCondition;
 
+    const sanitizedSex = sanitizeSex(parsedData.sex);
+    if (parsedData.sex != null && sanitizedSex != parsedData.sex) {
+      logStructuredError("identify/unknown_sex", {
+        user_id: user.id,
+        value: parsedData.sex,
+      });
+    }
+    parsedData.sex = sanitizedSex;
+    parsedData.sex_confidence = sanitizeObservationConfidence(
+      parsedData.sex_confidence,
+    );
+    parsedData.sex_evidence = sanitizeObservationEvidence(
+      parsedData.sex_evidence,
+    );
+    if (!parsedData.is_biological_subject) {
+      parsedData.sex = undefined;
+      parsedData.sex_confidence = undefined;
+      parsedData.sex_evidence = undefined;
+    } else if (
+      parsedData.sex == null ||
+      parsedData.sex === "cannot_determine" ||
+      parsedData.sex === "not_applicable"
+    ) {
+      parsedData.sex_confidence = undefined;
+      parsedData.sex_evidence = undefined;
+    }
+
     // Derive blur_score from sharpness (1-10) for latency savings
     parsedData.blur_score = Math.max(
       0,
@@ -789,6 +819,9 @@ serve((req: Request) =>
             life_stage: parsedData.life_stage ?? "unknown",
             reproductive_condition: parsedData.reproductive_condition ??
               "not_applicable",
+            sex: parsedData.sex ?? null,
+            sex_confidence: parsedData.sex_confidence ?? null,
+            sex_evidence: parsedData.sex_evidence ?? null,
             individual_count: parsedData.individual_count ?? null,
             ecological_interactions: parsedData.ecological_interactions ?? [],
             estimated_size_cm: (estimated_size_cm != null &&

@@ -120,6 +120,34 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **Quota Enforcement at Enqueue Time**: `insertAndPersistRecord` calls `UsageManager.shared.canPerformScan(isProActive: false)` before inserting a new `OfflineQueuedScan`. If the quota is exhausted the scan is rejected and any files written to disk are cleaned up atomically — `AppTelemetry.trackOfflineQueued()` is **not** fired on rejection. If the check passes, `UsageManager.shared.consumeScan()` reserves the token before the record enters SwiftData; if `modelContext.save()` fails, the queue rollback path calls `UsageManager.shared.refundScan()` before deleting staged files. `syncPendingScans` has no quota checks or `consumeScan` calls — every scan in the queue at upload time is already paid for and uploads unconditionally regardless of `freeScansRemaining`.
 - **Sync Phase Transitions**: Drives `SyncStateManager` through `.uploading(count:)` → `.inferencing` → `.finalizing` → `.idle` as the pipeline progresses.
 
+### `MessageScanShareCacheWriter`
+- App-side writer for the iMessage scan library cache. It reads completed
+  biological `LocalScanRecord` values, limits the snapshot to the 100 most
+  recent scans, renders downsampled thumbnails and attachment JPEGs, and writes
+  `message-scan-share-cache.json` plus image directories into
+  `group.app.merian.shared`.
+- The Messages extension reads this cache only. It must not open SwiftData,
+  mutate scans, run inference, or assume the containing app is alive.
+- The generated description text excludes field notes by default. Field notes
+  are included only when the user explicitly enables the action-sheet toggle in
+  the Messages extension.
+
+### `ShareImportSharedStateWriter` and `ShareImportReceiptReconciler`
+- `ShareImportSharedStateWriter.refresh()` mirrors the main app's
+  `requiresScanConfirmation`, Pro state, free quota count, and alpha unlimited
+  flag into an App Group settings snapshot. It is called from app lifecycle,
+  settings changes, RevenueCat entitlement updates, and `UsageManager` quota
+  transitions.
+- `ShareImportReceiptStore` records Photos share-extension imports as small
+  App Group receipts keyed by `scanId`. Receipts are local coordination data,
+  not the scan source of truth.
+- `ShareImportReceiptReconciler.reconcileIfNeeded(...)` runs on app active
+  when receipts exist. It forces historical sync, looks for matching
+  `LocalScanRecord` rows, marks resolved scans as unseen, updates the app badge,
+  and clears only resolved receipts.
+- The SwiftData store remains in the app container. Share extensions should stay
+  network/upload-only and never open the app's persistent store.
+
 ### `SyncStateManager`
 - `@MainActor @Observable` singleton exposing the current sync phase to UI components.
 - Driven exclusively by `OfflineQueueManager` — no other code should write to it.
@@ -150,7 +178,7 @@ Merian uses a structured singleton pattern managed through `AppDIContainer.swift
 - **Dual-path indexing**: Full rebuilds cooperatively extract `RawScanSnapshot` values from the already-resident `allScans` array on `@MainActor` in 128-record chunks with `Task.yield()` between chunks, then build both `SearchableScan` payloads and a detached `SearchIndexSnapshot`. Incremental inserts stay on `SearchDatabaseActor`, but fetch their delta through one batch `FetchDescriptor` (`WHERE id IN (...)`) rather than faulting records one-by-one; the main actor then upserts only the changed documents into the existing snapshot.
 - **O(1) lookup caches**: `ScansManager` keeps `[String: Int]` index positions, a `[String: LocalScanRecord]` live-reference fallback map, `[String: ScanSortPrimitive]` sort snapshots, and a `sortedAllScanIDsCache` keyed by `ScanSortOption.rawValue`. The record map is rebuilt from the existing `@Query` array only; it must not trigger a second SwiftData fetch or copy model data. `record(for:)` resolves through the index first and falls back to the map if an index is stale during a snapshot transition.
 - **Generation-guarded commits**: `searchCacheGeneration` increments whenever `allScans` changes. Full-rebuild snapshot extraction and incremental actor fetches both verify the generation before committing, so a cancelled/stale indexing task cannot overwrite a newer library snapshot.
-- **`searchString` composition**: Each scan's search index string is a robust concatenation of `commonName + scientificName + ecologyType + semanticTags + taxonomyClass + taxonomyOrder + taxonomyFamily + commonGroupName + aiReasoning + locationName + habitatDescription + weatherCondition + lifeStage + reproductiveCondition + similarSpecies.joined() + iucnRedListStatus + hazardType + ecologicalInteractions`. The `commonGroupName` is derived by `SearchDatabaseActor.commonGroupName(for:)`, which maps Latin class names to plain-English synonyms (e.g. `"aves"` → `"bird birds avian"`). Combined with the AI's natural language reasoning and specific telemetry (weather, ecosystem variables, and locations), casual semantic queries like "small bird", "rainy day", "juvenile", or textual habitat traits effortlessly filter the index without strict taxonomy matches.
+- **`searchString` composition**: Each scan's search index string is a robust concatenation of `commonName + scientificName + ecologyType + semanticTags + taxonomyClass + taxonomyOrder + taxonomyFamily + commonGroupName + aiReasoning + locationName + habitatDescription + weatherCondition + lifeStage + reproductiveCondition + sex + sexEvidence + similarSpecies.joined() + iucnRedListStatus + hazardType + ecologicalInteractions`. The `commonGroupName` is derived by `SearchDatabaseActor.commonGroupName(for:)`, which maps Latin class names to plain-English synonyms (e.g. `"aves"` → `"bird birds avian"`). Combined with the AI's natural language reasoning and specific telemetry (weather, ecosystem variables, and locations), casual semantic queries like "small bird", "rainy day", "juvenile", or textual habitat traits effortlessly filter the index without strict taxonomy matches.
 - **Indexed query path**: `SearchIndexSnapshot` maintains four bounded in-memory indexes: exact word terms plus unigram, bigram, and trigram posting lists. Query tokens are normalized through `SearchIndexTokenizer`, then `SearchFilterActor` intersects posting lists to narrow candidates before performing the final `searchString.contains(...)` verification. This keeps substring semantics intact (`"yard"` still matches `"backyard"`, and one-character queries no longer fall back to the full library) without scanning the entire library for every keystroke.
 - **Debug completion hook**: In `DEBUG`, `ScansManager` exposes internal `SearchDebugEvent` callbacks for `indexingCompleted` and `searchCompleted`. The test suite uses these events to await real background completion instead of sleeping for guessed debounce/indexing windows, which makes search regressions deterministic without changing the production control flow.
 - **Category bucketing**: Category filters (`Plants`, `Fungi`, `Birds`, etc.) are precomputed into `SearchCategoryBucket` posting lists inside the snapshot, so category-only searches never re-evaluate taxonomy on every document.

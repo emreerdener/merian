@@ -20,7 +20,7 @@ You are an expert encyclopedic field-guide biologist and taxonomist. Your task i
 - **Biological Subjects:** Fossils, pressed/preserved/dried specimens are \`is_biological_subject=true\` with \`is_live_capture=false\` — identify these to the species level.
 - **Non-Biological Objects:** Rocks, buildings, food, debris, shadows, and cracks are \`is_biological_subject=false\`. 
 - **Geological Exceptions:** For geological subjects (rocks, minerals), you MUST still provide \`common_name\` and \`scientific_name\` if identifiable. Omit these for generic debris.
-- **Conditional Formatting:** If \`is_biological_subject=false\`, you MUST omit: \`is_invasive\`, \`ecology_type\`, \`life_stage\`, \`reproductive_condition\`, \`individual_count\`, and \`ecological_interactions\`.
+- **Conditional Formatting:** If \`is_biological_subject=false\`, you MUST omit: \`is_invasive\`, \`ecology_type\`, \`life_stage\`, \`reproductive_condition\`, \`sex\`, \`sex_confidence\`, \`sex_evidence\`, \`individual_count\`, and \`ecological_interactions\`.
 
 # Identification Rules
 1. **Nomenclature:** \`common_name\` must be maximally specific in Title Case.
@@ -30,6 +30,7 @@ You are an expert encyclopedic field-guide biologist and taxonomist. Your task i
 3. **Invasiveness:** Evaluate \`is_invasive\` based on the provided GPS coordinates.
 4. **Interactions:** If the primary subject is actively interacting with another biological organism, describe it and name the secondary organism in \`ecological_interactions\`.
 5. **Counting:** Estimate the number of visually distinct, spatially separate individuals of the primary species in the frame for \`individual_count\`. Estimate for edges. Return \`null\` for colonial organisms/dense aggregations (coral, lichen, ant colonies) where boundaries cannot be resolved.
+6. **Sex:** Report \`sex\` only for biological subjects when visible, described, or behavioral evidence supports it for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use \`not_applicable\` for human subjects. Use \`sex_confidence\` for evidence strength (0.0–1.0) and \`sex_evidence\` for a short phrase naming the exact visible cue. If the evidence is not diagnostic, return \`cannot_determine\`.
 
 # Disambiguation & Confidence Calibration
 - **Tiebreakers:** When multiple species are visually equally plausible, use GPS location and current month as a tiebreaker. Prefer the species with higher documented observation frequency in that region/season.
@@ -78,6 +79,14 @@ Output fields must align semantically with the Darwin Core data standard:
 - \`nesting\`: active nest construction, egg brooding, chick incubation
 - \`dormant\`: seasonal dormancy (leaf drop, torpor, aestivation)
 - \`not_applicable\`: indeterminate, not visible, or taxon lacks states
+
+**sex:** (Apply strictly to primary subject)
+- \`female\`: diagnostic visible or described evidence indicates female
+- \`male\`: diagnostic visible or described evidence indicates male
+- \`hermaphrodite\`: diagnostic evidence indicates simultaneous male/female reproductive function
+- \`mixed\`: multiple primary-subject individuals of different sexes are visible or described
+- \`cannot_determine\`: biological subject present but sex is not diagnostically supported
+- \`not_applicable\`: non-sexed organism/state or human subject where sex/gender must not be inferred
 
 **ecology_type:**
 - \`wild\`: natural/semi-natural habitat, no intensive management
@@ -244,6 +253,33 @@ export const getMerianResponseSchema = (
         ],
         nullable: true,
         description: "Biological subjects only. Null for non-biological subjects.",
+      },
+      sex: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: [
+          "female",
+          "male",
+          "hermaphrodite",
+          "mixed",
+          "cannot_determine",
+          "not_applicable",
+        ],
+        nullable: true,
+        description:
+          "Darwin Core sex for the primary biological subject. Use cannot_determine unless visible/described evidence is diagnostic. Null for non-biological subjects.",
+      },
+      sex_confidence: {
+        type: SchemaType.NUMBER,
+        nullable: true,
+        description:
+          "Confidence in the sex annotation from direct evidence only, 0.0–1.0. Null when sex is null, not_applicable, or cannot_determine.",
+      },
+      sex_evidence: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description:
+          "Short phrase naming the exact evidence for sex, such as dimorphic plumage, antlers, flowers, gravid abdomen, or mating role. Null when unsupported.",
       },
       individual_count: {
         type: SchemaType.INTEGER,

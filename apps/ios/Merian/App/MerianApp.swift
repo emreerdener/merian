@@ -601,21 +601,22 @@ struct MerianApp: App {
     }
 
     private func handleMerianDeepLink(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "merian",
-              url.host?.lowercased() == "explore" else {
+        guard let route = MerianDeepLinkRoute(url: url) else {
             return false
         }
 
-        let pathComponents = url.pathComponents.filter { $0 != "/" }
-        guard pathComponents.count == 2,
-              pathComponents[0] == "post",
-              !pathComponents[1].isEmpty else {
-            return false
+        switch route {
+        case .explorePost(let postId):
+            diContainer.appEventPublisher.send(
+                .appDidEnterActivePhaseWithExplorePost(postId: postId)
+            )
+        case .scan(let scanId):
+            diContainer.appEventPublisher.send(
+                .appDidEnterActivePhaseWithScan(scanId: scanId)
+            )
+        case .scansLibrary:
+            diContainer.appEventPublisher.send(.requestOpenScansLibraryIntent)
         }
-
-        diContainer.appEventPublisher.send(
-            .appDidEnterActivePhaseWithExplorePost(postId: pathComponents[1])
-        )
         return true
     }
 }

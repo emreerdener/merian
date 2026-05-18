@@ -28,6 +28,9 @@ struct EdgeResponse: Codable {
     let estimated_size_cm: Double?
     let life_stage: String?
     let reproductive_condition: String?
+    let sex: String?
+    let sex_confidence: Double?
+    let sex_evidence: String?
     let individual_count: Int?
     let ecological_interactions: [String]?
 

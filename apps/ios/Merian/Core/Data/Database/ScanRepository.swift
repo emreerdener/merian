@@ -114,7 +114,7 @@ final class ScanRepository {
             while true {
                 let page: [HistoricalScanResponse] = try await SupabaseManager.shared.client
                     .from("scans")
-                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)")
+                    .select("id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)")
                     .eq("user_id", value: userId)
                     .order("timestamp", ascending: false)
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
@@ -309,6 +309,9 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let estimated_size_cm: Double?
     let life_stage: String?
     let reproductive_condition: String?
+    let sex: String?
+    let sex_confidence: Double?
+    let sex_evidence: String?
     let individual_count: Int?
     let ecological_interactions: [String]?
     let inference_tier: String?
@@ -509,6 +512,15 @@ actor HistoricalDatabaseActor {
                 if let newRepro = res.reproductive_condition, existing.reproductiveCondition != newRepro {
                     existing.reproductiveCondition = newRepro; chunkDidUpdate = true
                 }
+                if let newSex = res.sex, existing.sex != newSex {
+                    existing.sex = newSex; chunkDidUpdate = true
+                }
+                if let newSexConfidence = res.sex_confidence, existing.sexConfidence != newSexConfidence {
+                    existing.sexConfidence = newSexConfidence; chunkDidUpdate = true
+                }
+                if let newSexEvidence = res.sex_evidence, existing.sexEvidence != newSexEvidence {
+                    existing.sexEvidence = newSexEvidence; chunkDidUpdate = true
+                }
                 if let newIndiv = res.individual_count, existing.individualCount != newIndiv {
                     existing.individualCount = newIndiv; chunkDidUpdate = true
                 }
@@ -627,6 +639,9 @@ actor HistoricalDatabaseActor {
                 estimatedSizeCm: scan.estimated_size_cm,
                 lifeStage: scan.life_stage,
                 reproductiveCondition: scan.reproductive_condition,
+                sex: scan.sex,
+                sexConfidence: scan.sex_confidence,
+                sexEvidence: scan.sex_evidence,
                 individualCount: scan.individual_count,
                 ecologicalInteractions: scan.ecological_interactions,
                 inferenceTier: scan.inference_tier ?? "flash",

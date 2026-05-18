@@ -22,6 +22,9 @@ import { resolveAudioBuffers } from "../_shared/identify/media.ts";
 import {
   buildContextText,
   normalizeCurrentMonth,
+  sanitizeObservationConfidence,
+  sanitizeObservationEvidence,
+  sanitizeSex,
 } from "../_shared/identify/context.ts";
 import {
   MEDIA_BUDGETS,
@@ -56,6 +59,9 @@ Listen to the provided audio recording and identify the primary biological sound
 - confidence_score: 0.0–1.0. Use below 0.70 when the recording is ambiguous, noisy, or the call is partially obscured.
 - ai_reasoning: concise acoustic diagnosis citing observable call characteristics (frequency, tempo, pattern, note duration, harmonic structure). Be specific.
 - ecology_type: "wild" for natural habitat, "urban" for urban/suburban, "domesticated" for pets or livestock.
+- sex: use female, male, mixed, hermaphrodite, cannot_determine, or not_applicable. Only report female/male/mixed when the recording contains explicit species-specific acoustic evidence that distinguishes sex; otherwise use cannot_determine. Never infer or report human sex/gender.
+- sex_confidence: 0.0–1.0 confidence in the sex annotation from direct acoustic evidence only. Omit when sex is cannot_determine or not_applicable.
+- sex_evidence: short acoustic cue supporting sex, such as sex-specific song, call type, or duet role. Omit when unsupported.
 - candidates: up to 3 alternative species when confidence is below ${DIAGNOSTIC_TRIGGER}. Only species with genuinely similar acoustic signatures.
 - Use authoritative nomenclature (Clements Checklist v2024 for birds, GBIF Backbone Taxonomy for all other taxa).
 - Never fabricate scientific names.`;
@@ -73,6 +79,19 @@ const audioSchema: Record<string, unknown> = {
       enum: ["wild", "urban", "domesticated", "unknown"],
     },
     is_invasive: { type: Type.BOOLEAN },
+    sex: {
+      type: Type.STRING,
+      enum: [
+        "female",
+        "male",
+        "hermaphrodite",
+        "mixed",
+        "cannot_determine",
+        "not_applicable",
+      ],
+    },
+    sex_confidence: { type: Type.NUMBER },
+    sex_evidence: { type: Type.STRING },
     candidates: {
       type: Type.ARRAY,
       items: {
@@ -329,6 +348,26 @@ serve((req: Request) =>
       parsedData.candidates = parsedData.candidates.slice(0, 5);
     }
 
+    parsedData.sex = sanitizeSex(parsedData.sex);
+    parsedData.sex_confidence = sanitizeObservationConfidence(
+      parsedData.sex_confidence,
+    );
+    parsedData.sex_evidence = sanitizeObservationEvidence(
+      parsedData.sex_evidence,
+    );
+    if (!parsedData.is_biological_subject) {
+      parsedData.sex = undefined;
+      parsedData.sex_confidence = undefined;
+      parsedData.sex_evidence = undefined;
+    } else if (
+      parsedData.sex == null ||
+      parsedData.sex === "cannot_determine" ||
+      parsedData.sex === "not_applicable"
+    ) {
+      parsedData.sex_confidence = undefined;
+      parsedData.sex_evidence = undefined;
+    }
+
     const generatedScanId =
       typeof client_scan_id === "string" && client_scan_id.length > 0
         ? client_scan_id
@@ -354,6 +393,9 @@ serve((req: Request) =>
       ecology_type: parsedData.ecology_type,
       is_invasive: parsedData.is_invasive,
       life_stage: "unknown",
+      sex: parsedData.sex,
+      sex_confidence: parsedData.sex_confidence,
+      sex_evidence: parsedData.sex_evidence,
       inference_tier: userTier === "pro" ? "pro" : "flash",
       candidates: forwardCandidates,
     };
@@ -527,6 +569,9 @@ serve((req: Request) =>
             image_storage_urls: [],
             life_stage: "unknown",
             reproductive_condition: "not_applicable",
+            sex: parsedData.sex ?? null,
+            sex_confidence: parsedData.sex_confidence ?? null,
+            sex_evidence: parsedData.sex_evidence ?? null,
             individual_count: null,
             ecological_interactions: [],
             estimated_size_cm: null,

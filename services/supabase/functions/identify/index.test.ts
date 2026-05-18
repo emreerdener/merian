@@ -3,8 +3,8 @@ import { assert, assertEquals } from "https://deno.land/std@0.224.0/testing/asse
 import { sanitizeScientificName } from "./sanitize.ts";
 
 // ---------------------------------------------------------------------------
-// Enum drift guard — mirrors VALID_LIFE_STAGES / VALID_REPRODUCTIVE_CONDITIONS
-// in index.ts. Keep in sync with life_stage_enum and reproductive_condition_enum.
+// Enum drift guard — mirrors VALID_LIFE_STAGES / VALID_REPRODUCTIVE_CONDITIONS / VALID_SEX_VALUES
+// in index.ts. Keep in sync with the scan metadata constraints.
 // ---------------------------------------------------------------------------
 
 const VALID_LIFE_STAGES = new Set([
@@ -15,6 +15,9 @@ const VALID_REPRODUCTIVE_CONDITIONS = new Set([
   "flowering", "fruiting", "budding", "vegetative", "sporing",
   "pregnant", "gravid", "mating", "spawning", "nesting", "dormant", "not_applicable",
 ]);
+const VALID_SEX_VALUES = new Set([
+  "female", "male", "hermaphrodite", "mixed", "cannot_determine", "not_applicable",
+]);
 
 function sanitizeLifeStage(v: string | undefined): string {
   if (v == null) return "unknown";
@@ -23,6 +26,10 @@ function sanitizeLifeStage(v: string | undefined): string {
 function sanitizeReproductiveCondition(v: string | undefined): string {
   if (v == null) return "not_applicable";
   return VALID_REPRODUCTIVE_CONDITIONS.has(v) ? v : "not_applicable";
+}
+function sanitizeSex(v: string | undefined): string {
+  if (v == null) return "cannot_determine";
+  return VALID_SEX_VALUES.has(v) ? v : "cannot_determine";
 }
 // Instead of importing the heavy generative SDK which requires API keys, we mock the validation
 // of the merianResponseSchema to securely assert that DaaS keys are structurally present.
@@ -41,6 +48,9 @@ Deno.test("Identify Schema Structure validates all Data-as-a-Service properties"
         colors: ["orange", "black", "white"],
         life_stage: "adult",
         reproductive_condition: "not_applicable",
+        sex: "female",
+        sex_confidence: 0.84,
+        sex_evidence: "dimorphic wing pattern",
         individual_count: 1,
         estimated_size_cm: 10.5,
         ecological_interactions: ["pollinating milkweed"],
@@ -57,6 +67,9 @@ Deno.test("Identify Schema Structure validates all Data-as-a-Service properties"
     assertEquals(typeof parsedData.estimated_size_cm, "number", "estimated_size_cm should parse as number");
     assertEquals(typeof parsedData.life_stage, "string", "life_stage should parse as string");
     assertEquals(typeof parsedData.reproductive_condition, "string", "reproductive_condition should parse as string");
+    assertEquals(typeof parsedData.sex, "string", "sex should parse as string");
+    assertEquals(typeof parsedData.sex_confidence, "number", "sex_confidence should parse as number");
+    assertEquals(typeof parsedData.sex_evidence, "string", "sex_evidence should parse as string");
     assertEquals(typeof parsedData.individual_count, "number", "individual_count should parse as number");
 
     assert(Array.isArray(parsedData.ecological_interactions), "ecological_interactions should parse as an array");
@@ -460,6 +473,21 @@ Deno.test("reproductive_condition — unknown value is clamped to 'not_applicabl
 
 Deno.test("reproductive_condition — undefined is clamped to 'not_applicable'", () => {
     assertEquals(sanitizeReproductiveCondition(undefined), "not_applicable");
+});
+
+Deno.test("sex — all current valid enum values pass through", () => {
+    for (const v of VALID_SEX_VALUES) {
+        assertEquals(sanitizeSex(v), v, `${v} should be valid`);
+    }
+});
+
+Deno.test("sex — unknown value is clamped to 'cannot_determine'", () => {
+    assertEquals(sanitizeSex("queen"), "cannot_determine");
+    assertEquals(sanitizeSex("worker"), "cannot_determine");
+});
+
+Deno.test("sex — undefined is clamped to 'cannot_determine'", () => {
+    assertEquals(sanitizeSex(undefined), "cannot_determine");
 });
 
 // ---------------------------------------------------------------------------

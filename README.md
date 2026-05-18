@@ -52,6 +52,11 @@ Merian is a field-ready biological identification app built around zero-friction
 - Home Screen widget caches image-only Explore snapshots through the shared App Group.
 - Public Explore share pages render at `https://merian.earth/explore/post/{postId}` through the Next.js web app.
 
+### Native Share Extensions
+- Messages app extension surfaces a cached, searchable scan library inside iMessage and lets users insert a scan image, rich Merian card, or text description into the compose field.
+- Photos share extension lets users send one image from the iOS share sheet to Merian for identification; it stages the image to R2, queues `/share-import-scan`, and exits without auto-opening the app.
+- Shared App Group cache/receipt files and a shared Supabase keychain access group keep extensions lightweight while the main app owns SwiftData reconciliation.
+
 ### Profile & Gamification
 - Running species count, current scan streak, and longest streak.
 - 52-week rolling contribution heatmap (year and month viewports).
@@ -116,7 +121,7 @@ Merian is a field-ready biological identification app built around zero-friction
 | Email Services | Resend |
 
 **Minimum deployment target**: iOS 17.2
-**Current schema**: MerianSchemaV42
+**Current schema**: MerianSchemaV43
 
 ---
 

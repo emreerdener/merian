@@ -1088,7 +1088,10 @@ final class AppSettings {
         didSet { persistBool(isMultiCaptureEnabled, oldValue: oldValue, key: UserDefaultsKeys.isMultiCaptureEnabled) }
     }
     var requiresScanConfirmation: Bool {
-        didSet { persistBool(requiresScanConfirmation, oldValue: oldValue, key: UserDefaultsKeys.requiresScanConfirmation) }
+        didSet {
+            persistBool(requiresScanConfirmation, oldValue: oldValue, key: UserDefaultsKeys.requiresScanConfirmation)
+            ShareImportSharedStateWriter.refresh()
+        }
     }
     var isExpeditionModeActive: Bool {
         didSet { persistBool(isExpeditionModeActive, oldValue: oldValue, key: UserDefaultsKeys.isExpeditionModeActive) }

@@ -17,9 +17,8 @@ Included in V1:
 - Seasonality by month.
 - Rolling seven-year monthly history.
 - Life Stage by month.
-- Sex by month from public iNaturalist annotations only.
 - Local Merian aggregation for Seasonality, History, and Life Stage.
-- Public global iNaturalist aggregation for all four tabs.
+- Public global iNaturalist aggregation for those three tabs.
 - Normalized compare view so small personal logs remain visible beside large
   public counts.
 - Raw peak counts in footer/accessibility copy.
@@ -28,7 +27,8 @@ Included in V1:
 Excluded in V1:
 
 - Sending local observations to Supabase.
-- Local sex capture.
+- Rendering sex as a species-level chart; scan sex appears in `OverviewCard`
+  with its supporting cue/confidence when available.
 - GBIF fallback for chart buckets.
 - User/location-scoped public stats.
 - Persistent on-device storage for fetched public chart payloads.
@@ -55,7 +55,6 @@ for:
 - `Seasonality`
 - `History`
 - `Life Stage`
-- `Sex`
 
 The plotted y-values are normalized independently per series. This means a
 single local observation in May can still be visible beside tens of thousands of
@@ -84,7 +83,6 @@ Date rules:
   through the current month.
 - Life Stage counts records by month after excluding empty, `unknown`,
   `not_applicable`, `not applicable`, `n/a`, and `none`.
-- Sex has no local series in V1.
 
 ## Public Backend Architecture
 
@@ -121,6 +119,10 @@ in `species_observation_stats_cache`.
 ## Response Contract
 
 The response is wrapped in `schema_version` and `data`:
+
+Current iOS chart rendering consumes `seasonality`, `history`, and
+`life_stage`. The backend may still include `sex` for provider parity, but that
+series is intentionally not rendered as a chart tab.
 
 ```json
 {
@@ -223,7 +225,8 @@ Local observation data stays on-device:
 - Local scan dates are not sent to Supabase.
 - Local life-stage counts are not sent to Supabase.
 - Local species-match results are not sent to Supabase.
-- Sex is external-only because Merian does not currently capture local sex.
+- Per-scan sex metadata follows the normal scan persistence path and is not sent
+  through the observation-stats request.
 
 The public endpoint may return only global species-level data from iNaturalist
 and cache metadata. It must not include user IDs, scan IDs, Explore post IDs,

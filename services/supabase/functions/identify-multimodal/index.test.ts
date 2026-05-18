@@ -41,6 +41,15 @@ const VALID_REPRODUCTIVE_CONDITIONS = new Set([
   "not_applicable",
 ]);
 
+const VALID_SEX_VALUES = new Set([
+  "female",
+  "male",
+  "hermaphrodite",
+  "mixed",
+  "cannot_determine",
+  "not_applicable",
+]);
+
 // ---------------------------------------------------------------------------
 // Pure helpers mirroring identify-multimodal/index.ts without loading Deno serve().
 // ---------------------------------------------------------------------------
@@ -177,6 +186,11 @@ function sanitizeLifeStage(value: string | undefined): string {
 function sanitizeReproductiveCondition(value: string | undefined): string {
   if (value == null) return "not_applicable";
   return VALID_REPRODUCTIVE_CONDITIONS.has(value) ? value : "not_applicable";
+}
+
+function sanitizeSex(value: string | undefined): string {
+  if (value == null) return "cannot_determine";
+  return VALID_SEX_VALUES.has(value) ? value : "cannot_determine";
 }
 
 function sanitizeCandidates(
@@ -504,4 +518,11 @@ Deno.test("reproductive_condition falls back to not_applicable for invalid enum 
     sanitizeReproductiveCondition(undefined),
     "not_applicable",
   );
+});
+
+Deno.test("sex falls back to cannot_determine for invalid enum values", () => {
+  assertEquals(sanitizeSex("female"), "female");
+  assertEquals(sanitizeSex("male"), "male");
+  assertEquals(sanitizeSex("worker"), "cannot_determine");
+  assertEquals(sanitizeSex(undefined), "cannot_determine");
 });

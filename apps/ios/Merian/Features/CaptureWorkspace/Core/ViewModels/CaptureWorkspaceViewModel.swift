@@ -227,6 +227,8 @@ final class CaptureWorkspaceViewModel {
                     self?.startRefinementScan(from: record, initialDescription: initialDescription)
                 case .requestOpenNonBiologicalScansIntent:
                     self?.activeSheet = .scans
+                case .requestOpenScansLibraryIntent:
+                    self?.activeSheet = .scans
                 default:
                     break
                 }

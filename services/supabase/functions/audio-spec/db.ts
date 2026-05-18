@@ -171,6 +171,9 @@ export interface AudioScanInsertRow {
   image_storage_urls: string[];
   life_stage: string;
   reproductive_condition: string;
+  sex?: string | null;
+  sex_confidence?: number | null;
+  sex_evidence?: string | null;
   individual_count: null;
   ecological_interactions: string[];
   estimated_size_cm: null;

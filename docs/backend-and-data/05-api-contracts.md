@@ -37,10 +37,12 @@ The server extracts the verified user identity from the `Authorization` Header
 JWT (`supabaseAdmin.auth.getUser()`), ignoring any `user_id` value in the
 request body. To prevent array-abuse memory locking on the Edge Node, the
 endpoint strictly requires exactly 1 to 5 `files`, with at most 2 audio files.
-iOS builds this manifest through `MediaStagingContract`, which applies the same
-filename sanitization as the Edge function before upload URL generation. The
-Edge parser rejects unsanitized filenames, invalid `mediaKind` values,
-content-type/kind mismatches, and oversized media before signing. Structured
+The main app queue builds this manifest through `MediaStagingContract`; the
+Photos share extension builds its one-image manifest through
+`ShareImportNetworkClient`. Both paths must apply the same filename
+sanitization as the Edge function before upload URL generation. The Edge parser
+rejects unsanitized filenames, invalid `mediaKind` values, content-type/kind
+mismatches, and oversized media before signing. Structured
 manifests require `sizeBytes`; the legacy `fileNames` array remains accepted for
 older clients but is compatibility-only and cannot express byte budgets.
 Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours).
@@ -66,10 +68,87 @@ during subsequent offline inference triggers.
 }
 ```
 
-> The pre-signed URL is generated with `Content-Type: image/webp`. The iOS
-> `URLRequest` must send a matching `Content-Type: image/webp` header on the
-> `PUT`, or Cloudflare R2 will reject the upload with
+> The pre-signed URL is generated with the exact `contentType` from the
+> structured manifest. The iOS `URLRequest` must send the same `Content-Type`
+> header on the `PUT`, or Cloudflare R2 will reject the upload with
 > `403 SignatureDoesNotMatch`.
+
+---
+
+## Deno `/share-import-scan` Edge Node
+
+Queues one image shared from the native iOS Photos share extension after the
+image has already been uploaded to Cloudflare R2 staging. The endpoint returns
+quickly and does not wait for the AI result.
+
+### Request Payload
+
+```json
+{
+  "scan_id": "11111111-1111-4111-8111-111111111111",
+  "r2ObjectKey": "staging/a1b2c3d4-e5f6-7890-abcd-ef1234567890/11111111-1111-4111-8111-111111111111_share_import.webp",
+  "mimeType": "image/webp",
+  "timestamp": "2026-05-18T15:00:00.000Z",
+  "gpsLatitude": 30.25,
+  "gpsLongitude": -97.75,
+  "gpsElevation": 150,
+  "deviceLocale": "en",
+  "deviceTimeZone": "America/Chicago",
+  "deviceRegion": "US"
+}
+```
+
+`scan_id` is optional. If present it must be a UUID; otherwise the Edge function
+generates one. The iOS share extension sends a UUID generated during image prep
+so its App Group receipt can later reconcile the cloud scan after historical
+sync.
+
+`r2ObjectKey` is required. The endpoint also accepts `r2ObjectKeys` for shape
+compatibility, but it must contain exactly one string. The key must belong to
+the authenticated user under `staging/{user.id}/...`; wrong-user and
+path-traversal keys are rejected before any inference dispatch.
+
+`mimeType` defaults to `image/webp` when absent and must be in the staged image
+allowlist from `_shared/mediaBudgets.ts`. Timestamp and GPS fields are optional;
+invalid coordinates are normalized to `null`.
+
+### Response Payload
+
+```json
+{
+  "success": true,
+  "scan_id": "11111111-1111-4111-8111-111111111111"
+}
+```
+
+Successful responses use HTTP `202 Accepted`. The function inserts
+`public.scan_import_jobs`, then schedules a background `/identify-multimodal`
+request with:
+
+```json
+{
+  "user_id": "Supabase Auth UUID",
+  "client_scan_id": "11111111-1111-4111-8111-111111111111",
+  "r2ObjectKeys": [
+    "staging/a1b2c3d4-e5f6-7890-abcd-ef1234567890/11111111-1111-4111-8111-111111111111_share_import.webp"
+  ],
+  "mimeType": "image/webp",
+  "timestamp": "2026-05-18T15:00:00.000Z",
+  "gpsLatitude": 30.25,
+  "gpsLongitude": -97.75,
+  "gpsElevation": 150,
+  "deviceLocale": "en",
+  "deviceTimeZone": "America/Chicago",
+  "deviceRegion": "US",
+  "currentMonth": 5,
+  "timeOfDay": "15:00"
+}
+```
+
+The extension should treat `202` as "queued", not "identified". The main app
+reconciles the result by loading App Group receipts, forcing historical sync on
+foreground, marking resolved scans as unseen, and clearing only receipts whose
+scan appears locally.
 
 ---
 
@@ -231,6 +310,9 @@ constraint in the Deno schema.
   "estimated_size_cm": 15.2,
   "life_stage": "adult",
   "reproductive_condition": "not_applicable",
+  "sex": "female",
+  "sex_confidence": 0.84,
+  "sex_evidence": "dimorphic wing pattern",
   "individual_count": 1,
   "ecological_interactions": ["pollinating Asclepias syriaca"],
   "extracted_visual_traits": [
@@ -288,7 +370,8 @@ constraint in the Deno schema.
 > **Vision schema lean principle**: The vision model response (`identify`) is
 > optimised strictly for identification and ecosystem measurement.
 > Data-as-a-Service fields (`estimated_size_cm`, `life_stage`,
-> `reproductive_condition`, `individual_count`, `ecological_interactions`) are
+> `reproductive_condition`, `sex`, `sex_confidence`, `sex_evidence`,
+> `individual_count`, `ecological_interactions`) are
 > fully generated on the primary pass avoiding secondary inference loops.
 > `extracted_visual_traits` executes a Micro-CoT pass before taxonomic grouping
 > to anchor the model to reality and avoid visual pareidolia.
@@ -748,8 +831,9 @@ Series shapes:
 - `history`: rolling monthly counts from January of current year minus six
   through the current month.
 - `life_stage`: category series with month-of-year values.
-- `sex`: category series with month-of-year values. This is external-only in V1
-  because Merian does not capture local sex.
+- `sex`: category series with month-of-year values. This remains part of the
+  backend payload for provider parity, but the current iOS chart does not render
+  Sex as a tab; per-scan AI sex appears in the Overview card.
 
 iNaturalist mapping:
 
@@ -806,7 +890,8 @@ MerianNetworkClient.shared.getSpeciesObservationStats(
 decodes into `SpeciesObservationStatsResponse` /
 `SpeciesObservationStatsEntry` in `SpeciesObservationStatsAPIModels.swift`.
 `SpeciesObservationStatsViewModel` combines that public baseline with local
-SwiftData aggregates for `SpeciesObservationChartsCard`.
+SwiftData aggregates for `SpeciesObservationChartsCard`, which currently renders
+seasonality, history, and life-stage series.
 
 ---
 

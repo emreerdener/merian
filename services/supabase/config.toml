@@ -466,6 +466,9 @@ entrypoint = "./functions/request-export-dwca/index.ts"
 [functions.share-scan-to-explore]
 verify_jwt = false
 
+[functions.share-import-scan]
+verify_jwt = false
+
 [functions.unshare-explore-post]
 verify_jwt = false
 

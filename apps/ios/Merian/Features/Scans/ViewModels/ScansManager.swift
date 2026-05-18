@@ -503,6 +503,8 @@ struct RawScanSnapshot: Sendable {
     let weatherCondition: String?
     let lifeStage: String?
     let reproductiveCondition: String?
+    let sex: String?
+    let sexEvidence: String?
     let similarSpecies: [String]?
     let iucnRedListStatus: String?
     let hazardType: String
@@ -527,6 +529,8 @@ struct RawScanSnapshot: Sendable {
         self.weatherCondition = record.weatherCondition
         self.lifeStage = record.lifeStage
         self.reproductiveCondition = record.reproductiveCondition
+        self.sex = record.sex
+        self.sexEvidence = record.sexEvidence
         self.similarSpecies = record.similarSpecies
         self.iucnRedListStatus = record.iucnRedListStatus
         self.hazardType = record.hazardType
@@ -552,6 +556,8 @@ actor SearchDatabaseActor {
         weatherCondition: String?,
         lifeStage: String?,
         reproductiveCondition: String?,
+        sex: String?,
+        sexEvidence: String?,
         similarSpecies: [String]?,
         iucnRedListStatus: String?,
         hazardType: String,
@@ -564,7 +570,7 @@ actor SearchDatabaseActor {
         let groupName = commonGroupName(for: taxonomyClass)
         let hazard = hazardType == "none" ? "" : hazardType
 
-        return "\(commonName) \(scientificName) \(ecologyType) \(tags) \(customTags.joined(separator: " ")) \(isInvasive ? "invasive" : "") \(taxonomyTerms) \(groupName) \(aiReasoning ?? "") \(locationName ?? "") \(habitatDescription ?? "") \(weatherCondition ?? "") \(lifeStage ?? "") \(reproductiveCondition ?? "") \(similarSpecies?.joined(separator: " ") ?? "") \(iucnRedListStatus ?? "") \(hazard) \(ecologicalInteractions?.joined(separator: " ") ?? "")".lowercased()
+        return "\(commonName) \(scientificName) \(ecologyType) \(tags) \(customTags.joined(separator: " ")) \(isInvasive ? "invasive" : "") \(taxonomyTerms) \(groupName) \(aiReasoning ?? "") \(locationName ?? "") \(habitatDescription ?? "") \(weatherCondition ?? "") \(lifeStage ?? "") \(reproductiveCondition ?? "") \(sex ?? "") \(sexEvidence ?? "") \(similarSpecies?.joined(separator: " ") ?? "") \(iucnRedListStatus ?? "") \(hazard) \(ecologicalInteractions?.joined(separator: " ") ?? "")".lowercased()
     }
 
     /// Builds `SearchableScan` payloads from pre-extracted `RawScanSnapshot` values.
@@ -595,6 +601,8 @@ actor SearchDatabaseActor {
                     weatherCondition: snapshot.weatherCondition,
                     lifeStage: snapshot.lifeStage,
                     reproductiveCondition: snapshot.reproductiveCondition,
+                    sex: snapshot.sex,
+                    sexEvidence: snapshot.sexEvidence,
                     similarSpecies: snapshot.similarSpecies,
                     iucnRedListStatus: snapshot.iucnRedListStatus,
                     hazardType: snapshot.hazardType,
@@ -650,6 +658,8 @@ actor SearchDatabaseActor {
                     weatherCondition: record.weatherCondition,
                     lifeStage: record.lifeStage,
                     reproductiveCondition: record.reproductiveCondition,
+                    sex: record.sex,
+                    sexEvidence: record.sexEvidence,
                     similarSpecies: record.similarSpecies,
                     iucnRedListStatus: record.iucnRedListStatus,
                     hazardType: record.hazardType,

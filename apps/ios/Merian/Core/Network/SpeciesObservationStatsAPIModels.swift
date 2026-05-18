@@ -19,7 +19,6 @@ struct SpeciesObservationStatsEntry: Decodable, Equatable, Identifiable {
     let seasonality: [SpeciesObservationMonthCount]
     let history: [SpeciesObservationHistoryCount]
     let lifeStage: [SpeciesObservationCategorySeries]
-    let sex: [SpeciesObservationCategorySeries]
 
     var id: String { speciesId ?? scientificName }
 }

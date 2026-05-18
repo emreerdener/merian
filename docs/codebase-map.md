@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-05-17.
+Last reviewed: 2026-05-18.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -16,6 +16,8 @@ target, package, entitlement, build setting, or source-list changes.
 |---|---|---|---|
 | `Merian` | iOS application | `apps/ios/Merian/` | iOS 17.2 |
 | `MerianExploreWidget` | WidgetKit app extension | `apps/ios/widgets/Explore/`, `apps/ios/Merian/Features/Explore/Widgets/ExploreWidgetCache.swift` | iOS 17.2 |
+| `MerianMessagesExtension` | Messages app extension | `apps/ios/messages/MerianMessagesExtension/`, `apps/ios/Merian/Features/Messages/MessageScanShareCache.swift` | iOS 17.2 |
+| `MerianShareExtension` | Share extension | `apps/ios/share/MerianShareExtension/`, `apps/ios/Merian/Features/ShareImport/Shared/` | iOS 17.2 |
 | `MerianWatch` | watchOS companion app | `apps/watch/MerianWatch/` | watchOS 10.0 |
 | `merianTests` | Unit tests | `apps/ios/MerianTests/` | iOS 17.2 |
 | `merianUITests` | UI tests | `apps/ios/MerianUITests/` | iOS 17.2 |
@@ -42,7 +44,7 @@ Web runtime config:
 
 | Area | File | Notes |
 |---|---|---|
-| SwiftUI app entry | `apps/ios/Merian/App/MerianApp.swift` | Builds the `ModelContainer` from `CurrentSchema`, performs corruption-aware store quarantine, configures `ScanRepository`, migrates species display preferences, initializes TelemetryDeck outside tests, applies global theme to `UIWindow`, and handles `merian://explore/post/<id>` deep links. |
+| SwiftUI app entry | `apps/ios/Merian/App/MerianApp.swift` | Builds the `ModelContainer` from `CurrentSchema`, performs corruption-aware store quarantine, configures `ScanRepository`, migrates species display preferences, initializes TelemetryDeck outside tests, applies global theme to `UIWindow`, and handles `merian://explore/post/<id>`, `merian://scan/<id>`, and `merian://scans` deep links. |
 | App delegate bridge | `apps/ios/Merian/App/MerianApp.swift` | Owns background `URLSession` completion handoff and push token callbacks. |
 | Dependency container | `apps/ios/Merian/Core/AppDIContainer.swift` | Injects hardware, AI, sync, network, analytics, security, settings, and profile dependencies through SwiftUI `@Environment`. |
 | Detached work helper | `apps/ios/Merian/Core/AppDIContainer.swift` | Small wrapper for intentional detached image, database, file-system, and bootstrap work. |
@@ -52,10 +54,10 @@ Web runtime config:
 The active schema is:
 
 ```swift
-typealias CurrentSchema = MerianSchemaV42
+typealias CurrentSchema = MerianSchemaV43
 ```
 
-`MerianSchemaV42` is declared in `apps/ios/Merian/Models/SchemaVersions.swift` and points
+`MerianSchemaV43` is declared in `apps/ios/Merian/Models/SchemaVersions.swift` and points
 at the global active model classes in `apps/ios/Merian/Models/ActiveSchema/`.
 
 Active persistent models:
@@ -76,9 +78,10 @@ Recent schema milestones:
 - V42 added first-class `fieldNotes` columns to `LocalScanRecord` and
   `OfflineQueuedScan`, while preserving the legacy UserDefaults bridge through
   `FieldNotesRepository`.
+- V43 introduced AI-derived sex observation metadata on completed local scans.
 
 Historical schema snapshots V1 through V39 live under `apps/ios/Merian/Models/Schema/`.
-V40 through V42 live in `SchemaVersions.swift` alongside the migration plan.
+V40 through V43 live in `SchemaVersions.swift` alongside the migration plan.
 
 ## Feature Modules
 
@@ -91,6 +94,8 @@ V40 through V42 live in `SchemaVersions.swift` alongside the migration plan.
 | Insights | `apps/ios/Merian/Features/Insights/` | Insight sheet state, biological/non-biological/queued content, candidates/review UX, field notes, sharing, collection actions, media export, reference hydration, and species observation charts. |
 | Scans | `apps/ios/Merian/Features/Scans/` | `ScansSheetView`, `ScansManager`, library/collections tabs, search index, selection, queued-scan snapshots, non-biological isolation, and collection management. |
 | Explore | `apps/ios/Merian/Features/Explore/` | Public feed/map, post detail, comments, notifications, author profiles, follow/like/comment/reaction actions, and widget snapshot writing. |
+| Messages sharing | `apps/ios/Merian/Features/Messages/`, `apps/ios/messages/MerianMessagesExtension/` | App Group scan-share cache, iMessage scan library UI, image/card/text insertion, and scan/library deep links. |
+| Photos share import | `apps/ios/Merian/Features/ShareImport/`, `apps/ios/share/MerianShareExtension/` | Share-sheet image loading, EXIF extraction, shared auth/session migration, App Group settings/receipts, R2 upload, `/share-import-scan` queueing, and app-active reconciliation. |
 | Profile | `apps/ios/Merian/Features/Profile/` | Profile tab, settings, RevenueCat plan screens, geoprivacy, notifications, achievements, heatmap, export, danger-zone actions. |
 | Species Dictionary | `apps/ios/Merian/Features/SpeciesDictionary/` | Public species dictionary page, reference gallery, similar-species entry points, preferred common-name display, and species observation charts. |
 | Onboarding | `apps/ios/Merian/Features/Onboarding/` | Permission priming flow and `hasCompletedOnboarding` gate. |
@@ -142,6 +147,7 @@ native iOS source tree.
 Inference and media staging:
 
 - `generate-upload-urls`
+- `share-import-scan`
 - `identify`
 - `identify-multimodal`
 - `identify-describe`
@@ -213,7 +219,8 @@ Swift unit tests live under `apps/ios/MerianTests/` and cover:
   queued handoff flows.
 - Core AI, network, security, hardware, analytics, utilities, and data actors.
 - Profile achievements, heatmap/stats, Explore, Species Dictionary, species
-  observation stats, Insights, Scans, and onboarding view models.
+  observation stats, Messages sharing, Photos share import, Insights, Scans, and
+  onboarding view models.
 
 UI tests live under `apps/ios/MerianUITests/` and include launch coverage plus seeded
 flows in `MerianApp.swift` through `UITestSeedCoordinator`.

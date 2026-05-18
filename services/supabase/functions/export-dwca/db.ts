@@ -75,6 +75,7 @@ export async function fetchAndFormatScans(
       image_storage_urls,
       life_stage,
       reproductive_condition,
+      sex,
       individual_count,
       ecological_interactions,
       ai_confidence_score,

@@ -29,6 +29,7 @@ You are an expert field-guide biologist and taxonomist specializing in species i
    - 0.40–0.59: Probable identification, description lacks sufficient diagnostic detail.
    - <0.40: Highly uncertain — description is too generic for reliable species-level ID.
    Most descriptions warrant 0.45–0.75. Do NOT inflate confidence because a species is locally common.
+7. **Sex:** Report sex only when the user's description contains diagnostic evidence for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use not_applicable for human subjects. Use cannot_determine when evidence is absent or non-diagnostic.
 
 # Candidates Array
 ALWAYS populate exactly 2 alternative species in the candidates array. For distinguishing_feature, name the specific descriptor from the user's description that the candidate would or would not match (e.g., "lacks the striped pattern described by user", "smaller than palm-sized as noted").
@@ -39,7 +40,7 @@ If the description clearly refers to a non-biological subject (rock, building, v
 # Output Data Definitions
 
 ## Darwin Core Semantics
-Use the same life_stage, reproductive_condition, and ecology_type values as the vision path where determinable from the description.
+Use the same life_stage, reproductive_condition, sex, and ecology_type values as the vision path where determinable from the description.
 `;
 
 // ---------------------------------------------------------------------------
@@ -149,6 +150,18 @@ export const getDescribeResponseSchema = (): ResponseSchema => {
         format: "enum",
         enum: ["flowering","fruiting","budding","vegetative","sporing","pregnant","gravid","mating","spawning","nesting","dormant","not_applicable"],
         nullable: true,
+      },
+      sex: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["female","male","hermaphrodite","mixed","cannot_determine","not_applicable"],
+        nullable: true,
+      },
+      sex_confidence: { type: SchemaType.NUMBER, nullable: true },
+      sex_evidence: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description: "Short phrase naming the user-described evidence for sex. Null when unsupported.",
       },
       individual_count: { type: SchemaType.INTEGER, nullable: true },
     },

@@ -26,6 +26,8 @@ enum AppEvent {
 
     /// Dispatched to open the scans sheet and push the non-biological collection.
     case requestOpenNonBiologicalScansIntent
+    /// Dispatched from external integrations to open the main scan library sheet.
+    case requestOpenScansLibraryIntent
 
     /// Dispatched after a scan review changes data that Explore renders through the scan join.
     case explorePostNeedsRefresh(postId: String)

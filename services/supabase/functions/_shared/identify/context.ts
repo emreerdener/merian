@@ -2,6 +2,7 @@ import type { MerianIdentification } from "./types.ts";
 
 type LifeStage = MerianIdentification["life_stage"];
 type ReproductiveCondition = MerianIdentification["reproductive_condition"];
+type Sex = MerianIdentification["sex"];
 
 export const VALID_LIFE_STAGES = new Set([
   "egg",
@@ -30,6 +31,15 @@ export const VALID_REPRODUCTIVE_CONDITIONS = new Set([
   "dormant",
   "not_applicable",
 ]) as ReadonlySet<NonNullable<ReproductiveCondition>>;
+
+export const VALID_SEX_VALUES = new Set([
+  "female",
+  "male",
+  "hermaphrodite",
+  "mixed",
+  "cannot_determine",
+  "not_applicable",
+]) as ReadonlySet<NonNullable<Sex>>;
 
 export interface TelemetryContextInput {
   safeGpsLat: number | null;
@@ -130,4 +140,28 @@ export function sanitizeReproductiveCondition(
     return value as NonNullable<ReproductiveCondition>;
   }
   return "not_applicable";
+}
+
+export function sanitizeSex(value: string | null | undefined): Sex {
+  if (value == null) return undefined;
+  if (VALID_SEX_VALUES.has(value as NonNullable<Sex>)) {
+    return value as NonNullable<Sex>;
+  }
+  return "cannot_determine";
+}
+
+export function sanitizeObservationConfidence(
+  value: number | null | undefined,
+): number | undefined {
+  if (value == null || !Number.isFinite(value)) return undefined;
+  return Math.max(0, Math.min(1, value));
+}
+
+export function sanitizeObservationEvidence(
+  value: string | null | undefined,
+  maxLength = 500,
+): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
 }
