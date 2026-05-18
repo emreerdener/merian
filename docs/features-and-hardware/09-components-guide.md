@@ -74,7 +74,7 @@ A `ViewModifier` that animates cards into view with a fade + 20pt upward slide o
 - **Stagger via `index`**: Each card receives a sequential integer index. Delay is computed as `Double(index) × 0.07s`, producing a natural cascading entrance without firing simultaneous layout passes.
 - **One-shot guard**: The `hasAppeared: Bool` state flag prevents re-animation on SwiftUI view identity changes or sheet re-presentations.
 - **Spring curve**: `.spring(response: 0.5, dampingFraction: 0.78)` — responsive enough to feel alive without overshooting on dense content stacks.
-- **Current usage**: `BiologicalView` applies indices 0–9 across `InsightHeader` (0), `ToxicityBanner` (1), `ConservationBanner` (2), `CandidatesCard` (3), `SimilarSpeciesGallery` or its skeleton (4), `OverviewCard` (5), `HabitatAndDistributionCard` (6), `TaxonomyCard` (7), `ScanInformationCard` (8), and `UserTagsCard` (9), giving a ~700ms full-stack cascade at nominal hardware. `CandidatesCard` occupies index 3 unconditionally — when confidence is above the diagnostic threshold (card not shown), the stagger gap between `ConservationBanner` and `SimilarSpeciesGallery` simply increases by one step (~70ms). Both the live `SimilarSpeciesGallery` and its `Skeleton` placeholder share index 4 so the stagger position is stable regardless of enrichment state.
+- **Current usage**: `BiologicalView` applies indices 0–10 across `InsightHeader` (0), `ToxicityBanner` (1), conditional `CandidatesCard` (2), `FieldNotesCard` (3), `OverviewCard` (4), `HabitatAndDistributionCard` (5), `SpeciesObservationChartsCard` (6), `TaxonomyCard` (7), `SimilarSpeciesGallery` or its skeleton (8), `ScanInformationCard` (9), and `UserTagsCard` (10), giving a ~770ms full-stack cascade at nominal hardware. Conditional cards intentionally leave small stagger gaps when hidden; the remaining card indices stay stable.
 
 ## 10. Circular Control Chrome: `CircularMaterialControlModifier`
 **Location**: `Core/UI/Modifiers/IconButtonModifiers.swift`
@@ -93,7 +93,26 @@ An edge-to-edge structural presentation component for the `gbifTaxonKey` density
 - **Loading continuity**: While habitat copy is still hydrating, the card keeps the same map chrome mounted and renders a compact pulsing text placeholder below the header. The retry loop stays local to `HabitatAndDistributionCard`; the shared chrome does not own any enrichment behavior.
 - **Null Fallbacks**: Wraps the map in a `ZStack` so that if `isEnrichmentLoading` completes but the GBIF occurrence dataset yields no result (nil `gbifTaxonKey`), `GBIFHeatmapMapView` still renders its world-level base map snapshot and drops a distinct "No distribution data available" pill directly atop it.
 
-## 12. Identification Candidates: `CandidatesCard`
+## 12. Observation Charts: `SpeciesObservationChartsCard`
+**Location**: `Features/Insights/Components/Cards/SpeciesObservationChartsCard.swift`
+
+A reusable Swift Charts card for species-level observation patterns.
+
+- **Shared surface**: Rendered inside Insight biological results and Species
+  Dictionary pages. Both surfaces pass a species ID when available and the
+  canonical scientific name.
+- **Data ownership**: `SpeciesObservationStatsViewModel` owns local SwiftData
+  aggregation and public baseline loading. Local scan data stays on-device; the
+  network request contains only species identity.
+- **Tabs**: Seasonality, History, Life Stage, and Sex. Sex is external-only in
+  V1 because Merian does not capture local sex.
+- **Normalized compare scale**: Local and public series normalize independently
+  so small personal logs remain visible beside large iNaturalist counts. Raw
+  peak counts remain available in the footer and accessibility text.
+- **Graceful states**: Empty, local-only, public-only, partial provider, and
+  stale-cache states all keep the card mounted with explanatory copy.
+
+## 13. Identification Candidates: `CandidatesCard`
 **Location**: `Features/Insights/Components/Cards/CandidatesCard.swift`
 
 A diagnostic card surfacing up to 2 alternative species the AI genuinely considered, with a full approve/deny UX for the user's identification review. Manages a local `ReviewState` enum: `.pending`, `.confirmed`, `.overridden(to:)`.
@@ -106,7 +125,7 @@ A diagnostic card surfacing up to 2 alternative species the AI genuinely conside
 - **`.flagged` state**: Always emits `EmptyView()`. For the "all candidates rejected" sub-path (`candidates.count >= 2`), `BiologicalView` gates the card out via `allCandidatesRejected` before `CandidatesCard` is even instantiated. The condensed `AllCandidatesReviewedView` inside `ConfidenceExplanationSheet` replaces it with a "Review again" button that re-opens `CandidateSwipeModal(candidates:aiScientificName:onFlagIssue:nil)` — the user can reconsider the alternatives and select one as an override without resetting the flagged state first.
 - **Data origin**: Candidates are scan-specific — they model genuine per-image uncertainty rather than species-level similarity. They are stored as a `candidates JSONB` column in `public.scans` (not in `species_dictionary`) and as `LocalScanRecord.candidatesData: Data?` (`MerianSchemaV28`) on-device. The override is stored as `LocalScanRecord.userIdentificationOverride: String?` (`MerianSchemaV29`) locally and in `public.scans.user_identification_override` in the cloud.
 
-## 13. Similar Species Gallery: `SimilarSpeciesGallery`
+## 14. Similar Species Gallery: `SimilarSpeciesGallery`
 **Location**: `Features/Insights/Components/Cards/SimilarSpeciesGallery.swift`
 
 A horizontally scrolling carousel of ecologically similar lookalike species, rendered in `BiologicalView` at card entrance index 4. Sourced from `speciesData.similarSpecies` (a `SimilarSpecies` struct with an `entries: [SimilarSpeciesEntry]` array), which is populated asynchronously by `fetchAndApplyEnrichment` and persisted to `LocalScanRecord.lookalikesData: Data?`.
@@ -135,7 +154,7 @@ Displays public species reference images from `/species-dictionary`.
 - **Attribution footer**: When the active `SpeciesDictionaryReferenceImage` has `attribution` or `license`, the gallery renders a compact caption below the carousel. Multi-image galleries update the caption as paging changes.
 - **Fallback behavior**: Images without attribution metadata still render in iOS with source labeling. Future web renderers must run the shared public projection attribution audit before publishing reference media.
 
-## 14. Candidate Swipe Experience: `CandidateSwipeModal`
+## 15. Candidate Swipe Experience: `CandidateSwipeModal`
 **Location**: `Features/Insights/Components/Cards/CandidateSwipe/` (Directory)
 
 A high-end, Tinder-style gesture interface allowing users to rapidly review and identify AI alternative candidates. The `CandidateSwipeModal` has been fully decoupled from a monolith into a clean, modular folder hierarchy consisting of 10 isolated files:
@@ -151,7 +170,7 @@ A high-end, Tinder-style gesture interface allowing users to rapidly review and 
 - **`CandidateActionBar`**: Replaces icon-only toolbars with explicit, text-labeled liquid glass `.ultraThickMaterial` buttons.
 - **`GridSwipeableCell`**: The fallback wrapper component utilized when the user toggles the interface out of the Card Deck into the Grid layout.
 
-## 15. Model Info Section: `ModelInfoSection`
+## 16. Model Info Section: `ModelInfoSection`
 **Location**: `Features/Insights/Components/Confidence/ModelInfoSection.swift`
 
 An informational card rendered inside `ConfidenceExplanationSheet`, positioned between `ConfidenceSpectrum` and `AIMistakesBanner`. Communicates which Merian AI tier processed the scan — using Merian AI branding rather than raw model names to preserve the product abstraction layer and future-proof against model changes.
@@ -161,7 +180,7 @@ An informational card rendered inside `ConfidenceExplanationSheet`, positioned b
 - **Branding rationale**: All user-facing copy uses "Merian AI" rather than "Gemini" to maintain product consistency with `ConfidenceHeader` ("Merian's AI") and to decouple the UI from any specific underlying model version. The "Powered by Gemini" attribution is surfaced only on the Pro tier where model provenance is a meaningful quality signal.
 - **Visual style**: Matches the full-section glass card aesthetic of the sheet — `Color(uiColor: .secondarySystemFill).opacity(0.5)` fill, `RoundedRectangle(cornerRadius: 32, style: .continuous)`, `.white.opacity(0.1)` border stroke, and 24 pt inner padding — identical to `ConfidenceSpectrum` and `ProTips`.
 
-## 16. Image Carousel: `ImagesCarousel`
+## 17. Image Carousel: `ImagesCarousel`
 **Location**: `Features/Insights/Components/ImagesCarousel.swift`
 
 The full-width image carousel at the top of the Insight Sheet, combining live captures, on-disk paths, and reference images into a horizontally scrolling full-screen strip with per-page pinch-to-zoom and pan.
@@ -185,7 +204,7 @@ The full-width image carousel at the top of the Insight Sheet, combining live ca
 - **Image failure handling**: `handleImageFailure(identifier:)` calls the injected `onImageFailure` closure and adjusts `selectedIndex`. `InsightContentView` passes `{ path in inferenceEngine.dropInvalidCarouselImage(path) }` for the live path; the queued-scan path passes a no-op. `updateUIViewController` trims the controller pool and navigates away with `.reverse` if the displayed page was removed.
 - **`LiveCapturePageView`**: Asynchronously downsamples live capture `Data` in `DetachedWork.value(category: .imagePreparation)` and commits only the final `UIImage` to `@State`. It remains backed by `NSCache<NSNumber, UIImage>` keyed by `data.hashValue`, but ImageIO decode no longer runs from `body` layout evaluation.
 
-## 17. Analyzing Content View: `AnalyzingContentView`
+## 18. Analyzing Content View: `AnalyzingContentView`
 **Location**: `Features/Insights/Views/Content/AnalyzingContentView.swift`
 
 The analyzing state rendered inside `InsightSheetView` when `viewModel.contentMode == .analyzing`. `contentMode` is `.analyzing` while `InferenceEngine.isProcessing == true`, `speciesData == nil`, **or** a `queuedContext` is set. The insight sheet opens immediately on scan submission — no fullscreen overlay is used. When `contentMode` transitions away from `.analyzing`, the view cross-fades out via `.easeInOut(duration: 0.35)` and `BiologicalView` or `NonBiologicalView` fades in. `InsightContentView` switches on `viewModel.contentMode` — not `inferenceEngine.isProcessing` directly — keeping the routing extensible without modifying the view.
@@ -200,7 +219,7 @@ The analyzing state rendered inside `InsightSheetView` when `viewModel.contentMo
 - **Eager telemetry via `ScanInformationCard`**: The scan's map, timestamp, weather, and altitude are rendered immediately regardless of whether the scan is live or queued.
 - **No internal spacer**: `AnalyzingContentView` intentionally omits a trailing `Spacer` — `InsightContentView.contentCards` provides the universal `Spacer(minLength: 40)` outside the routing block, preventing double-spacing.
 
-## 18. Drag-to-Confirm Pill: `SlideToConfirm`
+## 19. Drag-to-Confirm Pill: `SlideToConfirm`
 **Location**: `Core/UI/Components/SlideToConfirm.swift`
 
 A pill-shaped drag-to-confirm control that replicates the iPhone unlock gesture, used in `CandidateVerificationView` and `CandidateAlternativesView` to gate identification confirmations behind intentional gesture input.

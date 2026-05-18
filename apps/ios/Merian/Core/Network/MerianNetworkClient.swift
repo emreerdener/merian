@@ -291,9 +291,18 @@ final class MerianNetworkClient {
     private let speciesDictionaryCacheLimit = 64
     private let speciesDictionaryCacheLock = NSLock()
     private var speciesDictionaryCache: [String: SpeciesDictionaryCacheEntry] = [:]
+    private let speciesObservationStatsCacheTTL: TimeInterval = 5 * 60
+    private let speciesObservationStatsCacheLimit = 64
+    private let speciesObservationStatsCacheLock = NSLock()
+    private var speciesObservationStatsCache: [String: SpeciesObservationStatsCacheEntry] = [:]
 
     private struct SpeciesDictionaryCacheEntry {
         let value: SpeciesDictionaryEntry
+        let storedAt: Date
+    }
+
+    private struct SpeciesObservationStatsCacheEntry {
+        let value: SpeciesObservationStatsEntry
         let storedAt: Date
     }
 
@@ -365,6 +374,10 @@ final class MerianNetworkClient {
         speciesDictionaryCacheLock.lock()
         speciesDictionaryCache.removeAll()
         speciesDictionaryCacheLock.unlock()
+
+        speciesObservationStatsCacheLock.lock()
+        speciesObservationStatsCache.removeAll()
+        speciesObservationStatsCacheLock.unlock()
     }
     #endif
 
@@ -973,6 +986,45 @@ final class MerianNetworkClient {
         try await performSpeciesDictionaryRequest(speciesId: speciesId, scientificName: scientificName)
     }
 
+    func getSpeciesObservationStats(
+        speciesId: String? = nil,
+        scientificName: String
+    ) async throws -> SpeciesObservationStatsEntry {
+        let functionUrl = try endpointURL("species-observation-stats")
+        var payload: [String: Any] = [:]
+        let requestedSpeciesId = normalizedSpeciesDictionaryId(speciesId)
+        let requestedScientificName = scientificName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .nilIfEmpty
+
+        if let cached = cachedSpeciesObservationStatsEntry(
+            speciesId: requestedSpeciesId,
+            scientificName: requestedScientificName
+        ) {
+            return cached
+        }
+
+        if let requestedSpeciesId {
+            payload["species_id"] = requestedSpeciesId
+        }
+        if let requestedScientificName {
+            payload["scientific_name"] = requestedScientificName
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        let entry = try makeExploreDecoder().decode(SpeciesObservationStatsResponse.self, from: data).data
+        cacheSpeciesObservationStatsEntry(
+            entry,
+            requestedSpeciesId: requestedSpeciesId,
+            requestedScientificName: requestedScientificName
+        )
+        return entry
+    }
+
     private func performSpeciesDictionaryRequest(speciesId: String?, scientificName: String?) async throws -> SpeciesDictionaryEntry {
         let functionUrl = try endpointURL("species-dictionary")
         var payload: [String: Any] = [:]
@@ -1081,6 +1133,81 @@ final class MerianNetworkClient {
             return "name:\(scientificName)"
         }
         return nil
+    }
+
+    private func cachedSpeciesObservationStatsEntry(
+        speciesId: String?,
+        scientificName: String?
+    ) -> SpeciesObservationStatsEntry? {
+        guard let key = speciesDictionaryCacheKey(
+            speciesId: speciesId,
+            scientificName: scientificName
+        ) else {
+            return nil
+        }
+
+        speciesObservationStatsCacheLock.lock()
+        defer { speciesObservationStatsCacheLock.unlock() }
+
+        guard let cached = speciesObservationStatsCache[key] else { return nil }
+        guard Date().timeIntervalSince(cached.storedAt) < speciesObservationStatsCacheTTL else {
+            speciesObservationStatsCache.removeValue(forKey: key)
+            return nil
+        }
+
+        return cached.value
+    }
+
+    private func cacheSpeciesObservationStatsEntry(
+        _ entry: SpeciesObservationStatsEntry,
+        requestedSpeciesId: String?,
+        requestedScientificName: String?
+    ) {
+        var keys = Set<String>()
+        if let requestedSpeciesId = normalizedSpeciesDictionaryId(requestedSpeciesId) {
+            keys.insert("id:\(requestedSpeciesId)")
+        }
+        if let entrySpeciesId = normalizedSpeciesDictionaryId(entry.speciesId) {
+            keys.insert("id:\(entrySpeciesId)")
+        }
+        if let requestedScientificName = normalizedSpeciesDictionaryName(requestedScientificName) {
+            keys.insert("name:\(requestedScientificName)")
+        }
+        if let entryScientificName = normalizedSpeciesDictionaryName(entry.scientificName) {
+            keys.insert("name:\(entryScientificName)")
+        }
+        guard !keys.isEmpty else { return }
+
+        let now = Date()
+        speciesObservationStatsCacheLock.lock()
+        defer { speciesObservationStatsCacheLock.unlock() }
+
+        for key in keys {
+            speciesObservationStatsCache[key] = SpeciesObservationStatsCacheEntry(
+                value: entry,
+                storedAt: now
+            )
+        }
+
+        if speciesObservationStatsCache.count > speciesObservationStatsCacheLimit {
+            let expiredKeys = speciesObservationStatsCache
+                .filter { now.timeIntervalSince($0.value.storedAt) >= speciesObservationStatsCacheTTL }
+                .map(\.key)
+            for key in expiredKeys {
+                speciesObservationStatsCache.removeValue(forKey: key)
+            }
+
+            if speciesObservationStatsCache.count > speciesObservationStatsCacheLimit {
+                let currentOverflowCount = speciesObservationStatsCache.count - speciesObservationStatsCacheLimit
+                let keysToRemove = speciesObservationStatsCache
+                    .sorted { $0.value.storedAt < $1.value.storedAt }
+                    .prefix(currentOverflowCount)
+                    .map(\.key)
+                for key in keysToRemove {
+                    speciesObservationStatsCache.removeValue(forKey: key)
+                }
+            }
+        }
     }
 
     private func speciesDictionaryCacheKeys(

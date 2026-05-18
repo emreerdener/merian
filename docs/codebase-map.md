@@ -88,11 +88,11 @@ V40 through V42 live in `SchemaVersions.swift` alongside the migration plan.
 | Visual capture | `apps/ios/Merian/Features/CaptureWorkspace/Modalities/Visual/` | Camera preview, focus/zoom gestures, cropper, flash, photo picker, viewfinder hints, and visual capture components. |
 | Audio capture | `apps/ios/Merian/Features/CaptureWorkspace/Modalities/Audio/` plus `apps/ios/Merian/Core/Hardware/AudioCaptureManager.swift` and `SpectrogramActor.swift` | 15-second WAV recording, spectrogram, SNR gauge, review/playback, staging, and `/identify-multimodal` submission. |
 | Describe capture | `apps/ios/Merian/Features/CaptureWorkspace/Modalities/Describe/` | Typed observation input, guided question funnels, subject keyword matching, and `SpeechManager` dictation. |
-| Insights | `apps/ios/Merian/Features/Insights/` | Insight sheet state, biological/non-biological/queued content, candidates/review UX, field notes, sharing, collection actions, media export, and reference hydration. |
+| Insights | `apps/ios/Merian/Features/Insights/` | Insight sheet state, biological/non-biological/queued content, candidates/review UX, field notes, sharing, collection actions, media export, reference hydration, and species observation charts. |
 | Scans | `apps/ios/Merian/Features/Scans/` | `ScansSheetView`, `ScansManager`, library/collections tabs, search index, selection, queued-scan snapshots, non-biological isolation, and collection management. |
 | Explore | `apps/ios/Merian/Features/Explore/` | Public feed/map, post detail, comments, notifications, author profiles, follow/like/comment/reaction actions, and widget snapshot writing. |
 | Profile | `apps/ios/Merian/Features/Profile/` | Profile tab, settings, RevenueCat plan screens, geoprivacy, notifications, achievements, heatmap, export, danger-zone actions. |
-| Species Dictionary | `apps/ios/Merian/Features/SpeciesDictionary/` | Public species dictionary page, reference gallery, similar-species entry points, and preferred common-name display. |
+| Species Dictionary | `apps/ios/Merian/Features/SpeciesDictionary/` | Public species dictionary page, reference gallery, similar-species entry points, preferred common-name display, and species observation charts. |
 | Onboarding | `apps/ios/Merian/Features/Onboarding/` | Permission priming flow and `hasCompletedOnboarding` gate. |
 
 ## Public Web App
@@ -121,7 +121,7 @@ native iOS source tree.
 | Data/Images | `apps/ios/Merian/Core/Data/Images/` | Archive rescue, photo-library access, thumbnails, local image loading, and RAM image cache. |
 | Offline sync | `apps/ios/Merian/Core/Data/OfflineSync/` | Queue state machine, upload URLSession handoff, background inference replay, audio queue helpers, and sync phase state. |
 | Hardware | `apps/ios/Merian/Core/Hardware/` | Camera, environment context, audio, spectrogram, haptics, thermal/battery orchestration, and push token management. |
-| Network | `apps/ios/Merian/Core/Network/` | Supabase auth/client facade, TLS-pinned network client, Explore DTOs, species dictionary DTOs, and Keychain manager. |
+| Network | `apps/ios/Merian/Core/Network/` | Supabase auth/client facade, TLS-pinned network client, Explore DTOs, species dictionary/observation-stats DTOs, and Keychain manager. |
 | Security | `apps/ios/Merian/Core/Security/` | Circuit breaker, device identity, RevenueCat, and social guard. |
 | UI | `apps/ios/Merian/Core/UI/` | Shared controls, tab bar, media mode toggle, slide-to-confirm, reusable modifiers, and theme model. |
 | Utilities | `apps/ios/Merian/Core/Utilities/` | App lifecycle, app events, config constants, field notes repository, image downsampling, errors, sharing, date/size helpers, and UserDefaults keys. |
@@ -148,6 +148,11 @@ Inference and media staging:
 - `audio-spec`
 - `check-scan-status`
 - `enrich-scan`
+
+Public species data:
+
+- `species-dictionary`
+- `species-observation-stats`
 
 Explore and social:
 
@@ -207,8 +212,8 @@ Swift unit tests live under `apps/ios/MerianTests/` and cover:
 - Capture workspace staging, camera analysis, audio/describe helpers, and
   queued handoff flows.
 - Core AI, network, security, hardware, analytics, utilities, and data actors.
-- Profile achievements, heatmap/stats, Explore, Species Dictionary, Insights,
-  Scans, and onboarding view models.
+- Profile achievements, heatmap/stats, Explore, Species Dictionary, species
+  observation stats, Insights, Scans, and onboarding view models.
 
 UI tests live under `apps/ios/MerianUITests/` and include launch coverage plus seeded
 flows in `MerianApp.swift` through `UITestSeedCoordinator`.

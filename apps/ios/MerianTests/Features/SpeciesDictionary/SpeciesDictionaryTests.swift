@@ -340,6 +340,121 @@ struct SpeciesDictionaryTests {
         #expect(requestCount == 1)
     }
 
+    @Test func testSpeciesObservationStatsResponseDecodesPublicCharts() throws {
+        let data = """
+        {
+            "schema_version": 1,
+            "data": {
+                "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                "scientific_name": "Danaus plexippus",
+                "source": {
+                    "provider": "inaturalist",
+                    "scope": "global",
+                    "inaturalist_taxon_id": 48662,
+                    "fetched_at": "2026-05-17T12:00:00.000Z"
+                },
+                "status": "partial",
+                "total_observations": 450448,
+                "last_observation_date": "2026-05-17",
+                "fetched_at": "2026-05-17T12:00:00.000Z",
+                "provider_errors": ["life stage bucket unavailable"],
+                "seasonality": [
+                    { "month": 1, "count": 10 },
+                    { "month": 2, "count": 20 }
+                ],
+                "history": [
+                    { "year": 2026, "month": 5, "count": 40 }
+                ],
+                "life_stage": [
+                    {
+                        "key": "adult",
+                        "label": "Adult",
+                        "values": [{ "month": 8, "count": 100 }]
+                    }
+                ],
+                "sex": [
+                    {
+                        "key": "female",
+                        "label": "Female",
+                        "values": [{ "month": 8, "count": 12 }]
+                    }
+                ]
+            }
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(SpeciesObservationStatsResponse.self, from: data)
+
+        #expect(response.effectiveSchemaVersion == 1)
+        #expect(response.data.scientificName == "Danaus plexippus")
+        #expect(response.data.status == .partial)
+        #expect(response.data.totalObservations == 450448)
+        #expect(response.data.source.inaturalistTaxonId == 48662)
+        #expect(response.data.lifeStage.first?.label == "Adult")
+        #expect(response.data.sex.first?.key == "female")
+    }
+
+    @Test func testGetSpeciesObservationStatsConstructsPayloadAndMemoizes() async throws {
+        let testData = """
+        {
+            "schema_version": 1,
+            "data": {
+                "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                "scientific_name": "Danaus plexippus",
+                "source": {
+                    "provider": "inaturalist",
+                    "scope": "global",
+                    "inaturalist_taxon_id": 48662,
+                    "fetched_at": "2026-05-17T12:00:00.000Z"
+                },
+                "status": "fresh",
+                "total_observations": 450448,
+                "last_observation_date": "2026-05-17",
+                "fetched_at": "2026-05-17T12:00:00.000Z",
+                "provider_errors": [],
+                "seasonality": [{ "month": 5, "count": 1200 }],
+                "history": [{ "year": 2026, "month": 5, "count": 1200 }],
+                "life_stage": [],
+                "sex": []
+            }
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        var requestCount = 0
+
+        MockURLProtocol.mockEndpoints["/species-observation-stats"] = { request in
+            requestCount += 1
+            #expect(request.url?.path.hasSuffix("/species-observation-stats") == true)
+            #expect(request.httpMethod == "POST")
+
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["species_id"] as? String == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
+            #expect(payload["scientific_name"] as? String == "Danaus plexippus")
+            return (mockResponse, testData)
+        }
+
+        let first = try await MerianNetworkClient.shared.getSpeciesObservationStats(
+            speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+            scientificName: "Danaus plexippus"
+        )
+        let second = try await MerianNetworkClient.shared.getSpeciesObservationStats(
+            speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+            scientificName: "  Danaus   plexippus  "
+        )
+
+        #expect(first.totalObservations == 450448)
+        #expect(second.totalObservations == 450448)
+        #expect(requestCount == 1)
+    }
+
     @Test func testSpeciesDictionaryViewModelLoadsSpecies() async throws {
         MockURLProtocol.mockEndpoints["/species-dictionary"] = { _ in
             let data = """

@@ -32,7 +32,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)** — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species dictionary workers, and cron/webhook boundaries.
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)** — SwiftData actor model: `BackgroundDatabaseActor`, `HistoricalDatabaseActor`, and `FileIOActor`.
 - **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)** — Physical table maps for PostgreSQL and the SwiftData persistent schemas, including the V41 `CapturedMediaEntry` mixed-media model and V42 field-notes columns.
-- **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, `/species-dictionary`, Explore detail similar species, and internal cron workers such as Merian reference-image refresh.
+- **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, `/species-dictionary`, `/species-observation-stats`, Explore detail similar species, and internal cron workers such as Merian reference-image refresh.
 
 ### Features & Hardware
 
@@ -53,6 +53,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/features-and-hardware/15-explore-following.md`](./features-and-hardware/15-explore-following.md)** — Explore Follow relationships: Following feed filter, public profile counts, follow notifications, block cleanup, and ghost-merge repair.
 - **[`/features-and-hardware/16-species-dictionary.md`](./features-and-hardware/16-species-dictionary.md)** — Standalone public species dictionary page, `species-dictionary` Edge Function contract, similar-species entry points from Insight and Explore detail, public cache rules, content quality, media attribution, and refresh provenance.
 - **[`/features-and-hardware/17-public-web-share-pages.md`](./features-and-hardware/17-public-web-share-pages.md)** — Next.js public web share pages for `merian.earth`, including Explore post links, Supabase server reads, metadata, privacy boundaries, and the Universal Links roadmap.
+- **[`/features-and-hardware/18-species-observation-charts.md`](./features-and-hardware/18-species-observation-charts.md)** — Reusable species observation charts, local-on-device aggregation, public iNaturalist stats cache, annotation mappings, privacy boundaries, and verification.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map product/RPC architecture, including the shipped V1 map implementation and follow-up recommendations.
 - **[`/rfcs/codebase-cleanup.md`](./rfcs/codebase-cleanup.md)** — Phased cleanup plan for repo hygiene, behavior-preserving file splits, and ownership cleanup.
 - **[`/rfcs/species-dictionary-long-term-todo.md`](./rfcs/species-dictionary-long-term-todo.md)** — Long-term species dictionary TODO covering canonical identity, reference media normalization, public projections, provenance and refresh, caching, licensing, and analytics.

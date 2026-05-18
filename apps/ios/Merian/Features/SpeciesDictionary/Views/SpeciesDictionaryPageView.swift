@@ -185,6 +185,11 @@ struct SpeciesDictionaryPageContentView: View {
                         )
                     }
 
+                    SpeciesObservationChartsCard(
+                        speciesId: species.id,
+                        scientificName: species.scientificName
+                    )
+
                     if let similarData = species.similarSpeciesData {
                         SimilarSpeciesGallery(
                             similarData: similarData,

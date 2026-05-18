@@ -2,8 +2,10 @@
 
 The Species Dictionary Page is the standalone in-app public page for a
 discovered species. It presents canonical species-level dictionary data and
-reference imagery without loading a user scan, Explore post, field notes,
-comments, or any personalized content.
+reference imagery without loading a user scan, Explore post, field notes, or
+comments. The only personalized V1 element is the on-device local-observation
+overlay inside `SpeciesObservationChartsCard`; those local counts are never sent
+to Supabase.
 
 This creates three separate species surfaces in the iOS app:
 
@@ -11,7 +13,7 @@ This creates three separate species surfaces in the iOS app:
 | ----------------------- | ----------------------------- | --------------------------------------------------------------------------------- |
 | Insight scan            | A user's specific scan result | `InferenceEngine.shared.speciesData`, local scan media, and per-scan AI reasoning |
 | Explore post            | A public shared scan          | Explore post/detail endpoints plus the backing public scan projection             |
-| Species dictionary page | General species reference     | `species_dictionary`, `species_lookalikes`, and public reference imagery only     |
+| Species dictionary page | General species reference     | `species_dictionary`, `species_lookalikes`, public reference imagery, local on-device observation aggregates, and cached global public iNaturalist stats |
 
 ## Product Scope
 
@@ -29,6 +31,8 @@ Included in V1:
 - reference image gallery from normalized public reference imagery
 - Wikipedia overview
 - habitat description and GBIF heatmap when `gbif_taxon_key` is available
+- observation pattern charts from local on-device logs plus cached global public
+  iNaturalist stats
 - taxonomy
 - IUCN Red List status
 - hazard status
@@ -37,7 +41,7 @@ Included in V1:
 Excluded in V1:
 
 - Explore posts as dictionary-page content
-- local scans
+- local scan lists, scan media, or per-scan detail pages
 - user-uploaded gallery media
 - field notes
 - comments
@@ -51,7 +55,10 @@ Primary files:
 
 - `services/supabase/functions/_shared/publicSpeciesProjection.ts`
 - `apps/ios/Merian/Core/Network/SpeciesDictionaryAPIModels.swift`
+- `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Features/Insights/Components/Cards/SpeciesObservationChartsCard.swift`
+- `apps/ios/Merian/Features/Insights/ViewModels/SpeciesObservationStatsViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/ViewModels/SpeciesDictionaryPageViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Views/SpeciesDictionaryPageView.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Components/SpeciesDictionaryReferenceGallery.swift`
@@ -81,6 +88,14 @@ user-visible states:
 The model trims the incoming scientific name before fetching and prefers a
 `speciesId` lookup when the route provides one. A `404` from the backend maps to
 `notFound`; other failures map to `error`.
+
+`SpeciesObservationChartsCard` is embedded in the loaded dictionary content
+after Habitat & Distribution. It owns its own
+`SpeciesObservationStatsViewModel`, aggregates local `LocalScanRecord` counts
+on-device, and fetches the public baseline from `/species-observation-stats`.
+The dictionary page passes `species.id` and `species.scientificName`, so the
+stats endpoint can use the dictionary UUID and resolve/store
+`inaturalist_taxon_id`.
 
 ## Entry Point
 
@@ -201,6 +216,21 @@ dictionary data only.
 dictionary page and Explore detail similar-species projection. iOS treats the
 key as optional for backward compatibility with older mocks or deployed
 functions, and future web clients should use it before depending on new fields.
+
+Observation pattern charts use a separate public endpoint:
+
+```swift
+MerianNetworkClient.shared.getSpeciesObservationStats(
+    speciesId:scientificName:
+)
+```
+
+That method POSTs to `species-observation-stats` with the dictionary
+`species_id` and `scientific_name`. It returns global public iNaturalist
+aggregates only. Local Merian logs are aggregated on-device and are not sent to
+Supabase. See
+[`Species Observation Charts`](./18-species-observation-charts.md) for the full
+contract, cache behavior, annotation mappings, and privacy rules.
 
 ## Caching
 

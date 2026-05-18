@@ -136,6 +136,17 @@ struct BiologicalView: View {
                     HabitatAndDistributionCard()
                         .cardEntrance(index: 5)
                 }
+
+                // MARK: - Observation Patterns
+                if !isUnknownSubject,
+                   let scientificName = inferenceEngine.speciesData?.scientificName,
+                   !scientificName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    SpeciesObservationChartsCard(
+                        speciesId: viewModel.activeLocalRecord?.confirmedSpeciesId,
+                        scientificName: scientificName
+                    )
+                    .cardEntrance(index: 6)
+                }
     
                 // MARK: - Biological Classification
                 if !isUnknownSubject {
@@ -143,7 +154,7 @@ struct BiologicalView: View {
                         taxonomyData: inferenceEngine.speciesData?.taxonomy,
                         scientificName: inferenceEngine.speciesData?.scientificName
                     )
-                    .cardEntrance(index: 6)
+                    .cardEntrance(index: 7)
                 }
     
                 // MARK: - Similar Species Gallery
@@ -163,7 +174,7 @@ struct BiologicalView: View {
                         }
                     }
                     .animation(.easeInOut, value: inferenceEngine.isLookalikesLoading)
-                    .cardEntrance(index: 7)
+                    .cardEntrance(index: 8)
                 }
     
                 // MARK: - Spatiotemporal Context
@@ -172,12 +183,12 @@ struct BiologicalView: View {
                     timestamp: timestamp,
                     imageCount: max(1, viewModel.activeLocalRecord?.capturedMediaSnapshot.imagePaths.count ?? 0)
                 )
-                .cardEntrance(index: 8)
+                .cardEntrance(index: 9)
 
                 // MARK: - Custom Tags
                 if let scanId = inferenceEngine.speciesData?.scanId {
                     UserTagsCard(scanId: scanId)
-                        .cardEntrance(index: 9)
+                        .cardEntrance(index: 10)
                 }
             }
         }

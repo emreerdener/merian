@@ -13,6 +13,8 @@ are identified by a persistent Keychain-backed
 
 - **`species_dictionary`**: Stores every tracked taxon with its scientific and
   biological descriptors.
+- **`species_observation_stats_cache`**: Stores public global provider
+  aggregates for species observation charts, keyed by species/source/scope.
 - **`scans`**: Records GPS bounds, the LLM-generated `ai_confidence_score`,
   `inference_tier`, UUID references, and the `ecology_type_enum` for each scan,
   tied to the user's streak.
@@ -325,6 +327,39 @@ Key rules:
 See `docs/backend-and-data/05-api-contracts.md` and
 `docs/features-and-hardware/16-species-dictionary.md` for the request/response
 contract and iOS surface.
+
+## The Public Species Observation Stats Node (`species-observation-stats`)
+
+The `/species-observation-stats` Edge Function returns global public
+iNaturalist aggregates for reusable species observation charts. It powers the
+Insight Sheet and Species Dictionary chart cards, while local Merian logs are
+aggregated entirely on-device by iOS.
+
+Key rules:
+
+- `verify_jwt = false` is configured in `services/supabase/config.toml`.
+- The function intentionally does not call `withEdgeHandler` / `requireAuth`;
+  user identity must not affect the response.
+- The service role key is used for scoped reads from `species_dictionary`, cache
+  reads/writes to `species_observation_stats_cache`, and best-effort writes to
+  `species_dictionary.inaturalist_taxon_id`.
+- The provider scope is global and source is currently only `inaturalist`.
+- Requests prefer a stored `inaturalist_taxon_id`, fall back to exact
+  scientific-name taxon resolution, and finally fall back to iNaturalist
+  `taxon_name`.
+- Successful payloads are cached for seven days. If provider refresh fails, a
+  usable stale cache payload can be returned for 30 more days with
+  `status: "stale"`.
+- Partial provider failures return `status: "partial"` when enough buckets are
+  still available to render a useful chart.
+- The response must not include Merian scan IDs, user IDs, Explore post IDs,
+  field notes, comments, locations, local media, local observation counts, or
+  preferred-name overrides.
+
+See `docs/features-and-hardware/18-species-observation-charts.md` and
+`services/supabase/functions/species-observation-stats/README.md` for the
+request/response contract, iNaturalist annotation mappings, cache semantics, and
+iOS surface.
 
 ## The Scheduled Species Content Refresh Node (`refresh-species-content`)
 
@@ -651,7 +686,7 @@ that operate on anonymous IDFV boundaries:
   anonymous-compatible routes: omitting an entry causes Supabase's Kong gateway
   to default to `verify_jwt = true`, which validates the JWT at the gateway
   layer before the function code runs and rejects valid ES256 anonymous sessions
-  with `401 Invalid JWT`. There are four intentional deviations:
+  with `401 Invalid JWT`. Current intentional deviations:
   - **`merge-ghost-profile`**: Keeps `verify_jwt = true` because merging a ghost
     into an unauthenticated session is semantically invalid and a security risk.
     The gateway enforces a fully authenticated session before the function runs.
@@ -660,6 +695,10 @@ that operate on anonymous IDFV boundaries:
     have no stable identity to bind an export to.
   - **`species-dictionary`**: Keeps `verify_jwt = false` but intentionally skips
     `requireAuth` because it returns only public species-level dictionary data.
+  - **`species-observation-stats`**: Keeps `verify_jwt = false` but
+    intentionally skips `requireAuth` because it returns only public
+    species-level iNaturalist aggregates and cache metadata. Local Merian
+    observation data is not sent to this endpoint.
   - **`refresh-species-content`**: Keeps `verify_jwt = false` so `pg_net` can
     invoke the worker, then enforces the service-role bearer header inside Deno
     with `timingSafeCompare`.
@@ -690,6 +729,12 @@ following:
 - `idx_scans_lifecycle` on `scans (timestamp) WHERE image_storage_urls != '{}'`
   — scopes the daily storage cleanup cron job to rows that have images, avoiding
   full-table scans.
+
+Additional migration-specific indexes:
+
+- `idx_species_observation_stats_cache_expires_at` on
+  `species_observation_stats_cache (expires_at)` — supports stale/fresh cache
+  sweeps and operational inspection for public observation chart payloads.
 
 `20260324000000_add_historical_sync_index.sql` adds:
 

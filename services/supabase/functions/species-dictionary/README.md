@@ -220,3 +220,13 @@ to read the safe projected fields listed above.
 deno check services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/_shared/identify/db.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts
 deno test services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/_shared/identify/db_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts
 ```
+
+## Related Endpoint
+
+Species dictionary pages also render observation pattern charts from
+`/species-observation-stats`. That endpoint is separate from this dictionary
+projection because it reads/caches public iNaturalist aggregates and has its own
+stale-cache behavior. Local Merian observation logs are still aggregated
+on-device and are never sent to Supabase. See
+`services/supabase/functions/species-observation-stats/README.md` for the stats
+contract.

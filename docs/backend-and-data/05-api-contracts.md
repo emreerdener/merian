@@ -655,6 +655,161 @@ hydrated lookalikes into the shared `SimilarSpeciesGallery`.
 
 ---
 
+## Public Species Observation Stats Edge Node
+
+The `/species-observation-stats` Edge Function returns public, global
+iNaturalist observation aggregates for a species. It is deliberately separate
+from local Merian observation aggregation:
+
+- iOS aggregates local `LocalScanRecord` data on-device.
+- The Edge Function receives only `species_id` and `scientific_name`.
+- The Edge Function returns only public iNaturalist-derived species aggregates
+  and cache metadata.
+
+The function has `verify_jwt = false` in `services/supabase/config.toml` and
+does not call `requireAuth`. It may receive normal app auth headers from
+`MerianNetworkClient`, but identity is not read and must not affect the
+response.
+
+### `/species-observation-stats`
+
+Request body:
+
+```json
+{
+  "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+  "scientific_name": "Danaus plexippus"
+}
+```
+
+Validation rules:
+
+- `scientific_name` is required.
+- `scientific_name` must be a string and non-empty after trimming.
+- Internal whitespace is collapsed before lookup.
+- Names longer than 160 characters return `400`.
+- `species_id`, when present and non-empty, must be a valid UUID.
+
+Current response shape:
+
+```json
+{
+  "schema_version": 1,
+  "data": {
+    "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+    "scientific_name": "Danaus plexippus",
+    "source": {
+      "provider": "inaturalist",
+      "scope": "global",
+      "inaturalist_taxon_id": 48662,
+      "fetched_at": "2026-05-17T12:00:00.000Z"
+    },
+    "status": "fresh",
+    "total_observations": 450448,
+    "last_observation_date": "2026-05-17",
+    "fetched_at": "2026-05-17T12:00:00.000Z",
+    "provider_errors": [],
+    "seasonality": [{ "month": 5, "count": 1200 }],
+    "history": [{ "year": 2026, "month": 5, "count": 1200 }],
+    "life_stage": [
+      {
+        "key": "adult",
+        "label": "Adult",
+        "values": [{ "month": 8, "count": 100 }]
+      }
+    ],
+    "sex": [
+      {
+        "key": "female",
+        "label": "Female",
+        "values": [{ "month": 8, "count": 12 }]
+      }
+    ]
+  }
+}
+```
+
+`schema_version = 1` marks the current public observation-stats contract.
+Within this version, new response keys must be additive, existing nullable
+fields may remain `null`, and clients should ignore unknown keys.
+
+Status values:
+
+- `fresh`: provider fetch completed and data exists.
+- `no_data`: provider fetch completed but no observation buckets were found.
+- `partial`: one or more provider buckets failed, but useful data is still
+  available.
+- `stale`: provider refresh failed and a stale cache payload was returned.
+- `unavailable`: provider refresh failed and no usable cache existed.
+
+Series shapes:
+
+- `seasonality`: month-of-year counts, `month` in `1...12`.
+- `history`: rolling monthly counts from January of current year minus six
+  through the current month.
+- `life_stage`: category series with month-of-year values.
+- `sex`: category series with month-of-year values. This is external-only in V1
+  because Merian does not capture local sex.
+
+iNaturalist mapping:
+
+- Taxon lookup prefers `species_dictionary.inaturalist_taxon_id`.
+- If absent, Deno resolves an exact `scientific_name` through `/v1/taxa`.
+- If no exact taxon ID is found, Deno falls back to iNaturalist `taxon_name`.
+- Observation totals and latest dates use `/v1/observations`.
+- Seasonality, history, life stage, and sex use
+  `/v1/observations/histogram`.
+- Life Stage annotation IDs use `term_id = 1` with values Adult `2`, Teneral
+  `3`, Pupa `4`, Nymph `5`, Larva `6`, Egg `7`, Juvenile `8`, and Subimago
+  `16`.
+- Sex annotation IDs use `term_id = 9` with values Female `10`, Male `11`, and
+  Cannot determine `20`.
+
+Caching:
+
+- Backend cache table: `species_observation_stats_cache`.
+- Cache key: `species_id + source + scope`.
+- Source: `inaturalist`.
+- Scope: `global`.
+- Fresh TTL: 7 days.
+- Stale fallback window: 30 additional days.
+- `200 OK` responses include
+  `Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800`
+  and `Vary: Accept-Encoding`.
+- iOS adds a 5-minute, 64-key in-memory memo cache in `MerianNetworkClient`,
+  keyed by normalized `species_id` and scientific name.
+
+Privacy:
+
+- Local Merian logs are never sent to Supabase.
+- The response must not include scan IDs, user IDs, Explore post IDs, field
+  notes, comments, user locations, local media, local observation counts, or
+  preferred-name overrides.
+
+Error responses:
+
+| Status | Body                                                   | Meaning                                      |
+| ------ | ------------------------------------------------------ | -------------------------------------------- |
+| `400`  | `{ "error": "Missing required parameter: scientific_name" }` | Missing, non-string, or blank name     |
+| `400`  | `{ "error": "species_id must be a valid UUID." }`      | Invalid species ID                           |
+| `400`  | `{ "error": "scientific_name is too long." }`          | Scientific name exceeds the request bound    |
+| `500`  | `{ "error": "Internal Server Error" }`                 | Database or unexpected function failure      |
+
+Swift mapping:
+
+```swift
+MerianNetworkClient.shared.getSpeciesObservationStats(
+    speciesId:scientificName:
+)
+```
+
+decodes into `SpeciesObservationStatsResponse` /
+`SpeciesObservationStatsEntry` in `SpeciesObservationStatsAPIModels.swift`.
+`SpeciesObservationStatsViewModel` combines that public baseline with local
+SwiftData aggregates for `SpeciesObservationChartsCard`.
+
+---
+
 ## Explore Edge Nodes
 
 Explore traffic is intentionally separate from the identify pipeline. The iOS

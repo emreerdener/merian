@@ -135,6 +135,12 @@ The global source-of-truth for biological models.
   Hit response and the public `/species-dictionary` response; stored in
   `LocalScanRecord.alternativeCommonNames` (SwiftData V34) for scan surfaces
   only.
+- `inaturalist_taxon_id` (INTEGER, nullable): Stable public iNaturalist taxon
+  ID used by `/species-observation-stats` for observation charts. The stats
+  Edge Function writes this after exact scientific-name resolution so future
+  requests can use `taxon_id` rather than a name fallback. Constraint:
+  `NULL OR > 0`. Added in migration
+  `20260517190000_add_species_observation_stats.sql`.
 
 **Public dictionary projection**: `/species-dictionary` reads only safe
 species-level columns from this table: identifiers, canonical names, taxonomy,
@@ -142,6 +148,10 @@ hazard/conservation status, Wikipedia/habitat/GBIF fields, group tags, alternate
 common names, and normalized public reference imagery from
 `species_reference_images`. It must not project scan-specific or user-specific
 data other than public media attribution labels stored on reference-image rows.
+
+**Public observation stats**: `/species-observation-stats` reads
+`species_dictionary.id`, `scientific_name`, and `inaturalist_taxon_id` only. It
+does not read `scans` and does not receive local SwiftData observation records.
 
 ### `species_reference_images`
 
@@ -195,6 +205,34 @@ provenance fields were added in
 - RLS is enabled with no anon/authenticated read policy; only `service_role`
   receives table grants. Public APIs expose only the safe
   `species_reference_images` row fields.
+
+### `species_observation_stats_cache`
+
+Server-side cache for global public species observation chart payloads. Added in
+migration `20260517190000_add_species_observation_stats.sql`.
+
+- `species_id` (UUID FK -> `species_dictionary.id`, CASCADE DELETE): Owning
+  species.
+- `source` (TEXT): Provider key. V1 supports only `inaturalist`.
+- `scope` (TEXT): Public aggregation scope. V1 supports only `global`.
+- `scientific_name` (TEXT): Normalized species name used for display/debugging.
+- `payload` (JSONB): Full public stats response payload stored as an object.
+- `status` (TEXT): `fresh`, `stale`, `no_data`, `unavailable`, or `partial`.
+- `provider_error` (TEXT, nullable): Joined provider error messages from the
+  most recent refresh attempt.
+- `fetched_at` (TIMESTAMPTZ): Provider/cache payload timestamp.
+- `expires_at` (TIMESTAMPTZ): Freshness cutoff. V1 writes a 7-day TTL.
+- `created_at` / `updated_at` (TIMESTAMPTZ): Audit fields. `updated_at` is
+  maintained by trigger.
+- Primary key: `(species_id, source, scope)`.
+- Index: `idx_species_observation_stats_cache_expires_at`.
+- RLS: anyone can read; writes are service-role only.
+
+The payload contains public iNaturalist aggregates only: seasonality, rolling
+seven-year history, life-stage annotation series, sex annotation series, total
+observations, most recent observation date, provider metadata, and provider
+errors. It must not contain Merian user IDs, scan IDs, Explore post IDs, field
+notes, local media, locations, or local observation counts.
 
 ### `user_species_preferences`
 

@@ -144,6 +144,16 @@ Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your Apple Develope
 
 Configure the required app-facing client config in `Config.xcconfig`. Public client values like `SUPABASE_URL` and `SUPABASE_ANON_KEY` are used by the app at runtime; true backend secrets like `GEMINI_API_KEY` must stay server-side only.
 
+### Common Shortcuts
+
+From the repo root:
+
+```bash
+make xcodegen
+make db-push
+make functions-deploy
+```
+
 ### Local Web
 
 The public web surface lives in `apps/web/`.
