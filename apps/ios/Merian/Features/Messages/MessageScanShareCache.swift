@@ -161,23 +161,7 @@ enum MessageScanShareTextBuilder {
         let commonName = normalizedName(record.commonName, fallback: "a nature find")
         let scientificName = normalizedName(record.scientificName, fallback: "unknown species")
 
-        var lines = ["I found \(commonName) (\(scientificName)) with Merian."]
-
-        let contextPieces = contextPieces(for: record)
-        if !contextPieces.isEmpty {
-            lines.append(contextPieces.joined(separator: " "))
-        }
-
-        if includeFieldNotes,
-           let notes = trimmedNonEmpty(record.fieldNotes) {
-            lines.append("Notes: \(notes)")
-        }
-
-        if let publicURL = record.publicExploreURL {
-            lines.append(publicURL.absoluteString)
-        }
-
-        return lines.joined(separator: "\n")
+        return "Check out this \(commonName) (\(scientificName)) I discovered!"
     }
 
     static func cardCaption(for record: MessageScanShareCacheRecord) -> String {
@@ -189,7 +173,7 @@ enum MessageScanShareTextBuilder {
 
         let dateLabel = dateFormatter.string(from: record.timestamp)
         if !dateLabel.isEmpty {
-            pieces.append("Seen \(dateLabel).")
+            pieces.append("Discovered \(dateLabel).")
         }
 
         if let location = trimmedNonEmpty(record.locationName) {

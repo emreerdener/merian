@@ -134,7 +134,7 @@ targets:
           CODE_SIGN_IDENTITY: "Apple Development"
 
   MerianMessagesExtension:
-    type: app-extension
+    type: app-extension.messages
     platform: iOS
     deploymentTarget: "17.2"
     sources:

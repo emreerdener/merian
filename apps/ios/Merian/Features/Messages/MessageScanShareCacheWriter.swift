@@ -13,7 +13,7 @@ enum MessageScanShareCacheWriter {
         let confidenceScore: Double?
         let publicExplorePostId: String?
         let fieldNotes: String?
-        let localImageURL: URL?
+        let imageURL: URL?
     }
 
     static func refresh(
@@ -50,22 +50,22 @@ enum MessageScanShareCacheWriter {
             confidenceScore: record.confidenceScore,
             publicExplorePostId: ExploreShareStateStore.sharedPostId(for: record.id),
             fieldNotes: trimmedNonEmpty(record.fieldNotes),
-            localImageURL: firstLocalImageURL(for: record, fileManager: fileManager)
+            imageURL: firstImageURL(for: record, fileManager: fileManager)
         )
     }
 
-    private static func firstLocalImageURL(
+    private static func firstImageURL(
         for record: LocalScanRecord,
         fileManager: FileManager
     ) -> URL? {
         for reference in record.capturedMediaSnapshot.imageReferences {
-            if let url = localURL(from: reference, fileManager: fileManager) {
+            if let url = imageURL(from: reference, fileManager: fileManager) {
                 return url
             }
         }
 
         if let coverImagePath = trimmedNonEmpty(record.coverImagePath) {
-            return localURL(
+            return imageURL(
                 from: StoredMediaReference(legacyPath: coverImagePath),
                 fileManager: fileManager
             )
@@ -74,17 +74,20 @@ enum MessageScanShareCacheWriter {
         return nil
     }
 
-    private static func localURL(
+    private static func imageURL(
         from reference: StoredMediaReference,
         fileManager: FileManager
     ) -> URL? {
-        guard !reference.isRemote,
-              let url = reference.resolvedURL,
-              fileManager.fileExists(atPath: url.path) else {
+        guard let url = reference.resolvedURL else {
             return nil
         }
 
-        return url
+        if reference.isRemote {
+            let scheme = url.scheme?.lowercased()
+            return scheme == "http" || scheme == "https" ? url : nil
+        }
+
+        return fileManager.fileExists(atPath: url.path) ? url : nil
     }
 
     private static func trimmedNonEmpty(_ value: String?) -> String? {
@@ -100,7 +103,7 @@ actor MessageScanShareCacheRenderActor {
         sources: [MessageScanShareCacheWriter.Source],
         rootURL: URL,
         fileManager: FileManager
-    ) {
+    ) async {
         do {
             try fileManager.createDirectory(
                 at: MessageScanShareCacheStore.thumbnailDirectoryURL(rootURL: rootURL),
@@ -111,9 +114,12 @@ actor MessageScanShareCacheRenderActor {
                 withIntermediateDirectories: true
             )
 
-            let records = sources.map { source in
-                let filenames = renderImages(for: source, rootURL: rootURL, fileManager: fileManager)
-                return MessageScanShareCacheRecord(
+            var records: [MessageScanShareCacheRecord] = []
+            records.reserveCapacity(sources.count)
+
+            for source in sources {
+                let filenames = await renderImages(for: source, rootURL: rootURL, fileManager: fileManager)
+                let record = MessageScanShareCacheRecord(
                     id: source.id,
                     commonName: source.commonName,
                     scientificName: source.scientificName,
@@ -125,6 +131,7 @@ actor MessageScanShareCacheRenderActor {
                     publicExplorePostId: source.publicExplorePostId,
                     fieldNotes: source.fieldNotes
                 )
+                records.append(record)
             }
 
             let snapshot = MessageScanShareCacheSnapshot(generatedAt: Date(), records: records)
@@ -147,28 +154,53 @@ actor MessageScanShareCacheRenderActor {
         for source: MessageScanShareCacheWriter.Source,
         rootURL: URL,
         fileManager: FileManager
-    ) -> (thumbnail: String?, attachment: String?) {
-        guard let localImageURL = source.localImageURL else {
+    ) async -> (thumbnail: String?, attachment: String?) {
+        guard let imageURL = source.imageURL else {
             return (nil, nil)
         }
 
         let safeID = safeFilenameComponent(source.id)
-        let thumbnailFilename = "thumb-\(safeID).jpg"
-        let attachmentFilename = "attachment-\(safeID).jpg"
+        let thumbnailFilename = "thumb-square-v2-\(safeID).jpg"
+        let attachmentFilename = "attachment-square-v2-\(safeID).jpg"
 
         let thumbnailURL = MessageScanShareCacheStore.thumbnailDirectoryURL(rootURL: rootURL)
             .appendingPathComponent(thumbnailFilename)
         let attachmentURL = MessageScanShareCacheStore.attachmentDirectoryURL(rootURL: rootURL)
             .appendingPathComponent(attachmentFilename)
 
+        if !imageURL.isFileURL,
+           fileManager.fileExists(atPath: thumbnailURL.path),
+           fileManager.fileExists(atPath: attachmentURL.path) {
+            return (thumbnailFilename, attachmentFilename)
+        }
+
+        let temporaryDownloadURL: URL?
+        if imageURL.isFileURL {
+            temporaryDownloadURL = nil
+        } else {
+            temporaryDownloadURL = await downloadRemoteImage(from: imageURL, fileManager: fileManager)
+        }
+
+        defer {
+            if let temporaryDownloadURL {
+                try? fileManager.removeItem(at: temporaryDownloadURL)
+            }
+        }
+
+        guard let renderSourceURL = temporaryDownloadURL ?? (imageURL.isFileURL ? imageURL : nil) else {
+            return (nil, nil)
+        }
+
         let thumbnailWasWritten = writeJPEG(
-            sourceURL: localImageURL,
+            sourceURL: renderSourceURL,
+            originalSourceURL: imageURL,
             destinationURL: thumbnailURL,
             maxDimension: CGFloat(MessageScanShareCacheConstants.thumbnailMaxDimension),
             fileManager: fileManager
         )
         let attachmentWasWritten = writeJPEG(
-            sourceURL: localImageURL,
+            sourceURL: renderSourceURL,
+            originalSourceURL: imageURL,
             destinationURL: attachmentURL,
             maxDimension: CGFloat(MessageScanShareCacheConstants.attachmentMaxDimension),
             fileManager: fileManager
@@ -182,11 +214,13 @@ actor MessageScanShareCacheRenderActor {
 
     private func writeJPEG(
         sourceURL: URL,
+        originalSourceURL: URL,
         destinationURL: URL,
         maxDimension: CGFloat,
         fileManager: FileManager
     ) -> Bool {
-        if fileManager.fileExists(atPath: destinationURL.path),
+        if originalSourceURL.isFileURL,
+           fileManager.fileExists(atPath: destinationURL.path),
            let sourceAttributes = try? fileManager.attributesOfItem(atPath: sourceURL.path),
            let destinationAttributes = try? fileManager.attributesOfItem(atPath: destinationURL.path),
            let sourceModifiedAt = sourceAttributes[.modificationDate] as? Date,
@@ -196,7 +230,8 @@ actor MessageScanShareCacheRenderActor {
         }
 
         guard let cgImage = ImageDownsampler.downsample(url: sourceURL, maxSize: maxDimension),
-              let data = UIImage(cgImage: cgImage).jpegData(
+              let squareImage = centerSquareCroppedImage(cgImage),
+              let data = UIImage(cgImage: squareImage).jpegData(
                 compressionQuality: MessageScanShareCacheConstants.imageCompressionQuality
               ) else {
             return false
@@ -208,6 +243,41 @@ actor MessageScanShareCacheRenderActor {
         } catch {
             MerianLog.general.error("Failed to write Messages share image: \(error.localizedDescription, privacy: .private)")
             return false
+        }
+    }
+
+    private func centerSquareCroppedImage(_ image: CGImage) -> CGImage? {
+        let side = min(image.width, image.height)
+        guard side > 0 else {
+            return nil
+        }
+
+        let cropRect = CGRect(
+            x: CGFloat((image.width - side) / 2),
+            y: CGFloat((image.height - side) / 2),
+            width: CGFloat(side),
+            height: CGFloat(side)
+        )
+        return image.cropping(to: cropRect) ?? image
+    }
+
+    private func downloadRemoteImage(from url: URL, fileManager: FileManager) async -> URL? {
+        do {
+            let (temporaryURL, response) = try await URLSession.shared.download(from: url)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200..<300).contains(httpResponse.statusCode) else {
+                try? fileManager.removeItem(at: temporaryURL)
+                return nil
+            }
+
+            let destinationURL = fileManager.temporaryDirectory
+                .appendingPathComponent("merian-message-cache-\(UUID().uuidString)")
+                .appendingPathExtension(url.pathExtension.isEmpty ? "img" : url.pathExtension)
+            try fileManager.moveItem(at: temporaryURL, to: destinationURL)
+            return destinationURL
+        } catch {
+            MerianLog.general.error("Failed to download Messages share image: \(error.localizedDescription, privacy: .private)")
+            return nil
         }
     }
 

@@ -2,16 +2,17 @@ import SwiftUI
 import UIKit
 
 struct MessageScanLibraryExtensionView: View {
-    let onInsertImage: (MessageScanShareCacheRecord, URL) -> Void
-    let onInsertCard: (MessageScanShareCacheRecord, URL?) -> Void
-    let onInsertDescription: (MessageScanShareCacheRecord, Bool) -> Void
+    let onInsertScan: (MessageScanShareCacheRecord, URL?, @escaping (Result<Void, Error>) -> Void) -> Void
     let onOpenMerian: (URL) -> Void
+    let onClose: () -> Void
     let onRequestExpandedPresentation: () -> Void
 
     @State private var rootURL = MessageScanShareCacheStore.appGroupRootURL()
     @State private var snapshot = MessageScanShareCacheSnapshot.empty
     @State private var searchText = ""
-    @State private var selectedRecord: MessageScanShareCacheRecord?
+    @State private var insertingRecordID: String?
+    @State private var insertionErrorMessage: String?
+    @State private var refreshToastMessage: String?
 
     private var filteredRecords: [MessageScanShareCacheRecord] {
         let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -38,9 +39,18 @@ struct MessageScanLibraryExtensionView: View {
             .navigationTitle("Merian")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        onClose()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Close")
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        refreshSnapshot()
+                        refreshSnapshot(showFeedback: true)
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -49,79 +59,87 @@ struct MessageScanLibraryExtensionView: View {
             }
         }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search scans")
+        .overlay(alignment: .top) {
+            if let refreshToastMessage {
+                MessageScanLibraryToast(message: refreshToastMessage) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        self.refreshToastMessage = nil
+                    }
+                }
+                .padding(.top, 8)
+                .padding(.horizontal, 16)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .task(id: refreshToastMessage) {
+            guard let message = refreshToastMessage else { return }
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            if refreshToastMessage == message {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    refreshToastMessage = nil
+                }
+            }
+        }
         .onAppear {
             onRequestExpandedPresentation()
-            refreshSnapshot()
-        }
-        .sheet(item: $selectedRecord) { record in
-            MessageScanActionSheet(
-                record: record,
-                thumbnailURL: thumbnailURL(for: record),
-                attachmentURL: attachmentURL(for: record),
-                onInsertImage: { attachmentURL in
-                    onInsertImage(record, attachmentURL)
-                    selectedRecord = nil
-                },
-                onInsertCard: {
-                    onInsertCard(record, thumbnailURL(for: record))
-                    selectedRecord = nil
-                },
-                onInsertDescription: { includeFieldNotes in
-                    onInsertDescription(record, includeFieldNotes)
-                    selectedRecord = nil
-                },
-                onOpenMerian: {
-                    if let url = record.scanDeepLinkURL ?? MerianDeepLinkRoute.scansLibrary.url {
-                        onOpenMerian(url)
-                    }
-                    selectedRecord = nil
-                }
-            )
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
+            refreshSnapshot(showFeedback: false)
         }
     }
 
     private var scanList: some View {
-        List(filteredRecords) { record in
-            Button {
-                selectedRecord = record
-            } label: {
-                HStack(spacing: 12) {
-                    MessageScanThumbnailView(url: thumbnailURL(for: record))
-                        .frame(width: 56, height: 56)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(record.commonName)
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-
-                        Text(record.scientificName)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .italic()
-                            .lineLimit(1)
-
-                        if let caption = optionalCaption(for: record) {
-                            Text(caption)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-
-                    Spacer(minLength: 8)
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+        ScrollView {
+            LazyVStack(spacing: 28) {
+                if let insertionErrorMessage {
+                    Text(insertionErrorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
                 }
-                .contentShape(Rectangle())
+
+                ForEach(filteredRecords) { record in
+                    Button {
+                        insert(record)
+                    } label: {
+                        HStack(spacing: 16) {
+                            MessageScanThumbnailView(url: thumbnailURL(for: record), size: 96)
+
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(record.commonName)
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+
+                                Text(record.scientificName)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .italic()
+                                    .lineLimit(1)
+
+                                if let caption = optionalCaption(for: record) {
+                                    Text(caption)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+
+                            Spacer(minLength: 8)
+
+                            if insertingRecordID == record.id {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(insertingRecordID != nil)
+                }
             }
-            .buttonStyle(.plain)
+            .padding(.vertical, 28)
         }
-        .listStyle(.plain)
     }
 
     private var emptyState: some View {
@@ -153,9 +171,31 @@ struct MessageScanLibraryExtensionView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func refreshSnapshot() {
+    private func refreshSnapshot(showFeedback: Bool) {
         rootURL = MessageScanShareCacheStore.appGroupRootURL()
         snapshot = MessageScanShareCacheStore.loadSnapshot(rootURL: rootURL) ?? .empty
+        if showFeedback {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                refreshToastMessage = "Library refreshed"
+            }
+        }
+    }
+
+    private func insert(_ record: MessageScanShareCacheRecord) {
+        guard insertingRecordID == nil else {
+            return
+        }
+
+        insertingRecordID = record.id
+        insertionErrorMessage = nil
+        onInsertScan(record, attachmentURL(for: record) ?? thumbnailURL(for: record)) { result in
+            DispatchQueue.main.async {
+                insertingRecordID = nil
+                if case .failure = result {
+                    insertionErrorMessage = "Could not add this scan to Messages."
+                }
+            }
+        }
     }
 
     private func thumbnailURL(for record: MessageScanShareCacheRecord) -> URL? {
@@ -182,8 +222,40 @@ struct MessageScanLibraryExtensionView: View {
     }
 }
 
+private struct MessageScanLibraryToast: View {
+    let message: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.green)
+
+            Text(message)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: 8)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.thinMaterial, in: Capsule())
+        .shadow(color: Color.black.opacity(0.16), radius: 10, x: 0, y: 4)
+    }
+}
+
 private struct MessageScanThumbnailView: View {
     let url: URL?
+    let size: CGFloat
 
     var body: some View {
         ZStack {
@@ -195,102 +267,15 @@ private struct MessageScanThumbnailView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
+                    .frame(width: size, height: size)
+                    .clipped()
             } else {
                 Image(systemName: "leaf")
-                    .font(.title3.weight(.semibold))
+                    .font(.system(size: size * 0.34, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
         }
+        .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
-
-private struct MessageScanActionSheet: View {
-    let record: MessageScanShareCacheRecord
-    let thumbnailURL: URL?
-    let attachmentURL: URL?
-    let onInsertImage: (URL) -> Void
-    let onInsertCard: () -> Void
-    let onInsertDescription: (Bool) -> Void
-    let onOpenMerian: () -> Void
-
-    @State private var includeFieldNotes = false
-
-    private var hasFieldNotes: Bool {
-        record.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-    }
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 18) {
-                HStack(spacing: 14) {
-                    MessageScanThumbnailView(url: thumbnailURL)
-                        .frame(width: 72, height: 72)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(record.commonName)
-                            .font(.headline)
-                            .lineLimit(2)
-
-                        Text(record.scientificName)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .italic()
-                            .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-
-                VStack(spacing: 10) {
-                    Button {
-                        if let attachmentURL {
-                            onInsertImage(attachmentURL)
-                        }
-                    } label: {
-                        Label("Image", systemImage: "photo")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(attachmentURL == nil)
-
-                    Button {
-                        onInsertCard()
-                    } label: {
-                        Label("Merian Card", systemImage: "rectangle.stack")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        onInsertDescription(includeFieldNotes)
-                    } label: {
-                        Label("Description", systemImage: "text.quote")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        onOpenMerian()
-                    } label: {
-                        Label("Open in Merian", systemImage: "arrow.up.forward.app")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                if hasFieldNotes {
-                    Toggle(isOn: $includeFieldNotes) {
-                        Label("Include field notes", systemImage: "note.text")
-                    }
-                    .toggleStyle(.switch)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(20)
-            .navigationTitle("Attach Scan")
-            .navigationBarTitleDisplayMode(.inline)
-        }
     }
 }

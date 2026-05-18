@@ -2558,7 +2558,7 @@
 			);
 			productName = MerianMessagesExtension;
 			productReference = 66B6468625AB1E47BFE6C8B1 /* MerianMessagesExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
+			productType = "com.apple.product-type.app-extension.messages";
 		};
 		6323AE01529337800346059E /* MerianShareExtension */ = {
 			isa = PBXNativeTarget;

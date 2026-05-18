@@ -4,8 +4,7 @@ Merian has two native iOS extension surfaces that let users move scan media in
 and out of the app without starting a full capture session:
 
 - `MerianMessagesExtension`: an iMessage app that reads a cached scan library
-  and inserts a scan image, rich Messages card, or text description into the
-  active conversation.
+  and inserts a rich scan message into the active conversation.
 - `MerianShareExtension`: a Photos share extension that accepts one image from
   the iOS share sheet, stages it to R2, queues identification, then exits
   quickly.
@@ -22,9 +21,12 @@ keychain access group `$(AppIdentifierPrefix)app.merian.shared`.
 | `MerianMessagesExtension` | `com.apple.message-payload-provider` | `apps/ios/messages/MerianMessagesExtension/` | `MessageScanShareCache.swift`, App Group |
 | `MerianShareExtension` | `com.apple.share-services` | `apps/ios/share/MerianShareExtension/` | `MerianEnvironment.swift`, `ImageDownsampler.swift`, `Features/ShareImport/Shared/`, App Group, shared keychain |
 
-Both targets set `APPLICATION_EXTENSION_API_ONLY = YES`. Code compiled into an
-extension must avoid APIs that are unavailable to app extensions, including
-`UIApplication.shared` and long-running UI flows.
+Both targets set `APPLICATION_EXTENSION_API_ONLY = YES`. `MerianMessagesExtension`
+must use XcodeGen target type `app-extension.messages` so Xcode emits the
+Messages-specific product type (`com.apple.product-type.app-extension.messages`)
+and honors the dedicated `iMessage App Icon` sticker icon set. Code compiled
+into an extension must avoid APIs that are unavailable to app extensions,
+including `UIApplication.shared` and long-running UI flows.
 
 ## Messages Scan Library
 
@@ -36,6 +38,12 @@ periodically writes a small App Group cache:
 - thumbnails: `MessageScanThumbnails/`
 - image attachments: `MessageScanAttachments/`
 
+For image-bearing scans, the app cache writer accepts both local file URLs and
+cloud-synced HTTP/HTTPS captured-image URLs. Remote images are downloaded by the
+main app, center-cropped to square JPEGs, downsampled into the App Group cache,
+and then read locally by the Messages extension. The extension itself never
+downloads images.
+
 The cache is owned by:
 
 - `MessageScanShareCache.swift`: shared record, text, deep-link, and file-store
@@ -45,32 +53,26 @@ The cache is owned by:
 - `MessageScanLibraryExtensionView.swift`: SwiftUI list/search UI hosted by
   `MessagesViewController`.
 
-### Insert Actions
+### Insert Behavior
 
-Selecting a scan shows three insertion actions:
+Selecting a scan immediately creates an `MSMessage` with
+`MSMessageTemplateLayout`. The card includes the cached square image when
+present, the common name as the caption, and the scientific name as the
+subcaption. There is no intermediate action sheet and no choice between image,
+card, description, or "open in Merian" for cached scan rows.
 
-- **Image**: calls `MSConversation.insertAttachment(_:withAlternateFilename:)`
-  using the cached downsampled attachment image. This is disabled if no cached
-  local image exists.
-- **Merian Card**: creates an `MSMessage` with `MSMessageTemplateLayout`. The
-  card includes the cached thumbnail, common name, scientific name, and date or
-  location caption. Its `url` is always HTTP/HTTPS, per Messages API rules:
-  public Explore scans use `https://merian.earth/explore/post/{postId}`;
-  private scans fall back to `https://merian.earth`.
-- **Description**: calls `MSConversation.insertText(_:)` with generated text:
-  `I found [Common Name] ([Scientific Name]) with Merian.` Date and location are
-  appended when present. Public Explore URLs are appended only when a scan is
-  already public.
+The message `url` is always HTTP/HTTPS, per Messages API rules: public Explore
+scans use `https://merian.earth/explore/post/{postId}`; private scans fall back
+to `https://merian.earth`.
 
 Messages insertion only fills the compose field. iOS still requires the user to
 tap Send. Merian must not auto-send.
 
 ### Field Notes Privacy
 
-Private field notes are included in the cache so the user can explicitly opt in
-from the Messages action sheet. They are not included in description text by
-default. Public Explore URLs are appended only for scans with an existing public
-post id.
+Private field notes are not surfaced in the Messages extension insert flow.
+Public Explore URLs are used only as the message payload URL for scans with an
+existing public post id.
 
 ### Deep Links
 
@@ -95,10 +97,16 @@ extension families such as Today and iMessage, not Share extensions.
 `apps/ios/share/MerianShareExtension/Configuration/Info.plist` declares:
 
 ```xml
-<key>NSExtensionActivationSupportsImageWithMaxCount</key>
-<integer>1</integer>
 <key>NSExtensionPointIdentifier</key>
 <string>com.apple.share-services</string>
+<key>NSExtensionAttributes</key>
+<dict>
+  <key>NSExtensionActivationRule</key>
+  <dict>
+    <key>NSExtensionActivationSupportsImageWithMaxCount</key>
+    <integer>1</integer>
+  </dict>
+</dict>
 ```
 
 V1 accepts one `public.image` item only. Video, Live Photo video components,
