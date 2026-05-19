@@ -49,6 +49,19 @@ final class ShareImportTests: XCTestCase {
         XCTAssertTrue(ShareImportReceiptStore.load(rootURL: rootURL).receipts.isEmpty)
     }
 
+    func testMissingSharedSettingsDoNotBlockShareImport() {
+        XCTAssertFalse(ShareImportSettingsSnapshot.fallback.blocksShareImport)
+
+        let exhaustedSnapshot = ShareImportSettingsSnapshot(
+            generatedAt: Date(),
+            requiresScanConfirmation: false,
+            isProActive: false,
+            freeScansRemaining: 0,
+            alphaUnlimitedFreeScansEnabled: false
+        )
+        XCTAssertTrue(exhaustedSnapshot.blocksShareImport)
+    }
+
     func testAuthSessionParsingAndMigrationSelection() throws {
         let sessionData = try JSONSerialization.data(withJSONObject: [
             "accessToken": "header.\(Self.jwtPayload(exp: Date().addingTimeInterval(3_600))).sig",

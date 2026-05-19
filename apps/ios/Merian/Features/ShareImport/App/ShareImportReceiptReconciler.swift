@@ -12,25 +12,33 @@ enum ShareImportReceiptReconciler {
     ) async {
         let snapshot = ShareImportReceiptStore.load()
         let activeReceipts = snapshot.receipts.filter { $0.status == .queued }
+        let serverReceipts = activeReceipts.filter { $0.localImageFilename == nil }
+        let localReceipts = activeReceipts.filter { $0.localImageFilename != nil }
         ShareImportLog.logger.debug(
-            "ShareImportReceiptReconciler.reconcileIfNeeded: loaded receipts=\(snapshot.receipts.count, privacy: .public) queued=\(activeReceipts.count, privacy: .public)"
+            "ShareImportReceiptReconciler.reconcileIfNeeded: loaded receipts=\(snapshot.receipts.count, privacy: .public) queued=\(activeReceipts.count, privacy: .public) server=\(serverReceipts.count, privacy: .public) local=\(localReceipts.count, privacy: .public)"
         )
         guard !activeReceipts.isEmpty else { return }
 
+        let syncedServerScanIds = await syncServerQueuedReceipts(
+            serverReceipts,
+            modelContext: modelContext,
+            scanRepository: scanRepository
+        )
         let legacyPlaceholderPaths = deleteExternalImportPlaceholders(
-            for: activeReceipts,
+            for: localReceipts,
             modelContext: modelContext
         )
         let importResult = importShareImportsIntoOfflineQueue(
-            receipts: activeReceipts,
+            receipts: localReceipts,
             modelContext: modelContext
         )
+        let completedScanIds = importResult.completedScanIds.union(syncedServerScanIds)
 
         ShareImportLog.logger.debug(
-            "ShareImportReceiptReconciler.reconcileIfNeeded: legacyPlaceholders=\(legacyPlaceholderPaths.count, privacy: .public) completed=\(importResult.completedScanIds.count, privacy: .public) started=\(importResult.startedImportCount, privacy: .public)"
+            "ShareImportReceiptReconciler.reconcileIfNeeded: legacyPlaceholders=\(legacyPlaceholderPaths.count, privacy: .public) completed=\(completedScanIds.count, privacy: .public) started=\(importResult.startedImportCount, privacy: .public)"
         )
 
-        guard !legacyPlaceholderPaths.isEmpty || !importResult.completedScanIds.isEmpty || importResult.startedImportCount > 0 else {
+        guard !legacyPlaceholderPaths.isEmpty || !completedScanIds.isEmpty || importResult.startedImportCount > 0 else {
             ShareImportLog.logger.debug("ShareImportReceiptReconciler.reconcileIfNeeded: no actionable receipts")
             return
         }
@@ -43,8 +51,8 @@ enum ShareImportReceiptReconciler {
                     "ShareImportReceiptReconciler.reconcileIfNeeded: deleted legacy placeholders=\(legacyPlaceholderPaths.count, privacy: .public)"
                 )
             }
-            ShareImportReceiptStore.remove(scanIds: importResult.completedScanIds)
-            if !importResult.completedScanIds.isEmpty || importResult.startedImportCount > 0 {
+            ShareImportReceiptStore.remove(scanIds: completedScanIds)
+            if !completedScanIds.isEmpty || importResult.startedImportCount > 0 {
                 ShareImportLog.logger.debug("ShareImportReceiptReconciler.reconcileIfNeeded: kicking offline queue after import")
                 OfflineQueueManager.shared.updateUnsyncedItemCount()
                 OfflineQueueManager.shared.syncPendingScans()
@@ -66,6 +74,35 @@ enum ShareImportReceiptReconciler {
     private struct ShareImportQueueResult {
         var completedScanIds = Set<String>()
         var startedImportCount = 0
+    }
+
+    private static func syncServerQueuedReceipts(
+        _ receipts: [ShareImportReceipt],
+        modelContext: ModelContext,
+        scanRepository: ScanRepository
+    ) async -> Set<String> {
+        guard !receipts.isEmpty else { return [] }
+
+        var completedScanIds = Set<String>()
+        for receipt in receipts {
+            if hasExistingScan(scanId: receipt.scanId, modelContext: modelContext) {
+                completedScanIds.insert(receipt.scanId)
+                continue
+            }
+
+            let didSync = await scanRepository.syncHistoricalScanDown(
+                scanId: receipt.scanId,
+                modelContext: modelContext
+            )
+            if didSync || hasExistingScan(scanId: receipt.scanId, modelContext: modelContext) {
+                completedScanIds.insert(receipt.scanId)
+            } else {
+                ShareImportLog.logger.debug(
+                    "ShareImportReceiptReconciler.syncServerQueuedReceipts: scan not ready yet scanId=\(receipt.scanId, privacy: .public)"
+                )
+            }
+        }
+        return completedScanIds
     }
 
     private static func importShareImportsIntoOfflineQueue(

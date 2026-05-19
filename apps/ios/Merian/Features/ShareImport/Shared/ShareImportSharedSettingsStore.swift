@@ -18,6 +18,14 @@ struct ShareImportSettingsSnapshot: Codable, Equatable, Sendable {
     var canPerformScan: Bool {
         alphaUnlimitedFreeScansEnabled || isProActive || freeScansRemaining > 0
     }
+
+    var hasAuthoritativeQuotaState: Bool {
+        generatedAt > .distantPast
+    }
+
+    var blocksShareImport: Bool {
+        hasAuthoritativeQuotaState && !canPerformScan
+    }
 }
 
 enum ShareImportSharedSettingsStore {

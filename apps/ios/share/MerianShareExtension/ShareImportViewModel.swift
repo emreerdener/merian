@@ -45,31 +45,24 @@ final class ShareImportViewModel: ObservableObject {
         }
 
         let settings = ShareImportSharedSettingsStore.load()
-        guard settings.canPerformScan else {
+        guard !settings.blocksShareImport else {
             ShareImportLog.logger.debug("ShareImportViewModel.startUpload: blocked by shared scan settings")
-            state = .failure("Open Merian to continue identifying images.")
+            state = .failure("Open Merian to review your scan limit, then try sharing again.")
             return
         }
 
         didStartUpload = true
         state = .uploading
-        ShareImportLog.logger.debug("ShareImportViewModel.startUpload: queue handoff started scanId=\(preparedImage.scanId, privacy: .public) bytes=\(preparedImage.imageData.count, privacy: .public)")
+        ShareImportLog.logger.debug("ShareImportViewModel.startUpload: upload handoff started scanId=\(preparedImage.scanId, privacy: .public) bytes=\(preparedImage.imageData.count, privacy: .public)")
 
         Task {
             do {
-                guard let localImageFilename = ShareImportReceiptStore.writeLocalImage(
-                    data: preparedImage.imageData,
-                    scanId: preparedImage.scanId,
-                    fileExtension: preparedImage.fileExtension
-                ) else {
-                    throw ShareImportHandoffError.writeFailed
-                }
-
+                let queuedScanId = try await ShareImportNetworkClient().uploadAndQueue(preparedImage)
                 let receipt = ShareImportReceipt(
-                    scanId: preparedImage.scanId,
+                    scanId: queuedScanId,
                     createdAt: Date(),
                     status: .queued,
-                    localImageFilename: localImageFilename,
+                    localImageFilename: nil,
                     imageContentType: preparedImage.contentType,
                     capturedAt: preparedImage.telemetry.timestamp,
                     gpsLatitude: preparedImage.telemetry.gpsLatitude,
@@ -77,11 +70,12 @@ final class ShareImportViewModel: ObservableObject {
                     gpsElevation: preparedImage.telemetry.gpsElevation
                 )
                 guard ShareImportReceiptStore.upsert(receipt),
-                      ShareImportReceiptStore.containsQueuedReceipt(scanId: preparedImage.scanId) else {
+                      ShareImportReceiptStore.containsQueuedReceipt(scanId: queuedScanId) else {
                     throw ShareImportHandoffError.writeFailed
                 }
 
-                ShareImportLog.logger.debug("ShareImportViewModel.startUpload: receipt queued scanId=\(preparedImage.scanId, privacy: .public) file=\(localImageFilename, privacy: .public)")
+                ShareImportSharedSettingsStore.consumeSharedFreeScanIfNeeded()
+                ShareImportLog.logger.debug("ShareImportViewModel.startUpload: backend queued scanId=\(queuedScanId, privacy: .public)")
                 state = .success
                 scheduleFinish()
             } catch {
