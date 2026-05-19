@@ -83,7 +83,6 @@
 		329A6547440C0315A2793585 /* ExploreCommentsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 817988C3FD2AFBB40CF908C2 /* ExploreCommentsSheet.swift */; };
 		32AA107F24777E3852563BA1 /* InferenceEdgeDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFBFC7584FF4DEB4E53C9998 /* InferenceEdgeDTOs.swift */; };
 		330693D42E143B0427986B32 /* LocalScanRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27B38013EA163674C9FD9DD8 /* LocalScanRecord.swift */; };
-		333DC24D3D42890E1D1757E1 /* MerianShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = FB5F05792926C9C6DD4862F2 /* MerianShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		34535C250F37DAA206CC8C3F /* SwipeableCandidateCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EBBD67E6989C40AE05C40CC /* SwipeableCandidateCard.swift */; };
 		349EFD43894A467824F7018A /* DefaultCollectionLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E93D7ECCBF40522662D41C /* DefaultCollectionLink.swift */; };
 		3508475578C3156EEABCAE81 /* ZoomableScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A806ACF695ED561AE416BE92 /* ZoomableScrollView.swift */; };
@@ -489,13 +488,6 @@
 			remoteGlobalIDString = D06FD3E9CDCF533A0C2D2843;
 			remoteInfo = Merian;
 		};
-		D401C43E25EF3B487F8AED77 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = C2202C8EFE32EB682F84E931 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6323AE01529337800346059E;
-			remoteInfo = MerianShareExtension;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -507,7 +499,6 @@
 			files = (
 				2F64D17DA2C13A7C3A8BB9A2 /* MerianExploreWidget.appex in Embed Foundation Extensions */,
 				3F99FC502E9A8060208B1AD0 /* MerianMessagesExtension.appex in Embed Foundation Extensions */,
-				333DC24D3D42890E1D1757E1 /* MerianShareExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2611,7 +2602,6 @@
 			dependencies = (
 				6A5A9154E14DAF6FC549D6BE /* PBXTargetDependency */,
 				FB35C7655F104EF148AFC6AC /* PBXTargetDependency */,
-				6E4819E2F95AE74D2829003C /* PBXTargetDependency */,
 				A9FB5DF4CB7089758D570E73 /* PBXTargetDependency */,
 			);
 			name = Merian;
@@ -3262,11 +3252,6 @@
 			isa = PBXTargetDependency;
 			target = 8C6C470AF317C18F229FF75B /* MerianExploreWidget */;
 			targetProxy = 4D78F37095C4CAFB9BECF373 /* PBXContainerItemProxy */;
-		};
-		6E4819E2F95AE74D2829003C /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6323AE01529337800346059E /* MerianShareExtension */;
-			targetProxy = D401C43E25EF3B487F8AED77 /* PBXContainerItemProxy */;
 		};
 		A02FA46CCB2E2221257DED13 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;

@@ -547,8 +547,10 @@ The transaction log for every successful identification.
 
 ### `scan_import_jobs`
 
-Queue visibility table for scans that originate in the native Photos share
-extension. Added in migration `20260518100000_add_scan_import_jobs.sql`.
+Parked queue visibility table for scans that originate in the native Photos
+share extension. The extension is not embedded in current app builds, so this
+table is retained for future rebuild work rather than active product traffic.
+Added in migration `20260518100000_add_scan_import_jobs.sql`.
 
 - `id` (UUID): Primary key.
 - `scan_id` (UUID): Client scan id returned to the share extension and later

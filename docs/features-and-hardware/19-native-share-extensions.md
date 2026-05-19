@@ -1,25 +1,53 @@
 # Native Share Extensions
 
-Merian has two native iOS extension surfaces that let users move scan media in
-and out of the app without starting a full capture session:
+Merian currently ships one native iOS extension surface and retains one paused
+extension target for later rebuild:
 
 - `MerianMessagesExtension`: an iMessage app that reads a cached scan library
   and inserts a rich scan message into the active conversation.
-- `MerianShareExtension`: a Photos share extension that accepts one image from
-  the iOS share sheet, stages it to R2, queues identification, then exits
-  quickly.
+- `MerianShareExtension`: a Photos share extension prototype that is **paused
+  and de-shipped as of 2026-05-19**. The target/source are retained in the repo,
+  but the app target does not depend on or embed the extension in current builds.
 
 Both targets are declared in `project.yml` and regenerated into
-`Merian.xcodeproj` by XcodeGen. Both use the shared App Group
-`group.app.merian.shared`; the Photos share extension also uses the shared
-keychain access group `$(AppIdentifierPrefix)app.merian.shared`.
+`Merian.xcodeproj` by XcodeGen. Only `MerianMessagesExtension` is currently
+embedded by the app target. The paused Photos share extension code still refers
+to the shared App Group `group.app.merian.shared` and shared keychain access
+group `$(AppIdentifierPrefix)app.merian.shared`, but those paths should be
+treated as parked implementation notes until the feature is rebuilt.
+
+## Photos Share Extension Status
+
+The Photos share import surface was intentionally removed from shipped app
+builds after proving unreliable in the real iOS Photos share-sheet flow. The
+failure mode was user-hostile: exports could appear to require opening Merian
+or otherwise fail from the extension UI. Rather than keep shipping a fragile
+handoff, the project keeps the source code for future reference and excludes
+the extension product from the app bundle.
+
+Current release contract:
+
+- Do not advertise Photos share-sheet import in product copy or release notes.
+- Do not rely on `/share-import-scan` traffic from the shipped iOS app.
+- Do not regenerate `Merian.xcodeproj` in a way that re-adds
+  `MerianShareExtension` to the `Merian` target dependencies.
+- Do keep the source, tests, backend queue endpoint, App Group receipt types,
+  and shared auth helpers available for a later clean rebuild.
+- A future restart should begin with a tiny vertical slice: one image, direct
+  upload, explicit success/failure, and no app-active receipt reconciliation
+  until the extension flow is stable under Photos.
+
+To re-ship later, add `MerianShareExtension` back to the `Merian` dependencies
+in `project.yml` with `embed: true`, regenerate the Xcode project, verify the
+archive contains `Payload/Merian.app/PlugIns/MerianShareExtension.appex`, and
+run real-device Photos share-sheet tests before enabling user-facing copy.
 
 ## Targets
 
-| Target | Extension point | Source | Shared dependencies |
-|---|---|---|---|
-| `MerianMessagesExtension` | `com.apple.message-payload-provider` | `apps/ios/messages/MerianMessagesExtension/` | `MessageScanShareCache.swift`, App Group |
-| `MerianShareExtension` | `com.apple.share-services` | `apps/ios/share/MerianShareExtension/` | `MerianEnvironment.swift`, `ImageDownsampler.swift`, `Features/ShareImport/Shared/`, App Group, shared keychain |
+| Target | Status | Extension point | Source | Shared dependencies |
+|---|---|---|---|---|
+| `MerianMessagesExtension` | Shipped | `com.apple.message-payload-provider` | `apps/ios/messages/MerianMessagesExtension/` | `MessageScanShareCache.swift`, App Group |
+| `MerianShareExtension` | Paused / not embedded | `com.apple.share-services` | `apps/ios/share/MerianShareExtension/` | `MerianEnvironment.swift`, `ImageDownsampler.swift`, `Features/ShareImport/Shared/`, App Group, shared keychain |
 
 Both targets set `APPLICATION_EXTENSION_API_ONLY = YES`. `MerianMessagesExtension`
 must use XcodeGen target type `app-extension.messages` so Xcode emits the
@@ -85,12 +113,16 @@ The shared `MerianDeepLinkRoute` parser supports:
 `MerianApp.handleMerianDeepLink(_:)` publishes typed `AppEventPublisher` events
 for scan detail, scan library, and Explore detail routing.
 
-## Photos Share Extension Import
+## Parked Photos Share Extension Import Design
 
-The Photos share extension is an upload-and-queue path for one selected image.
-It is intentionally not a miniature app and it does not auto-open Merian after
-completion. Apple only supports `NSExtensionContext.open(_:)` for specific
-extension families such as Today and iMessage, not Share extensions.
+This section records the paused implementation design. It is not a shipped
+capability in current builds.
+
+The Photos share extension prototype is an upload-and-queue path for one
+selected image. It is intentionally not a miniature app and it does not
+auto-open Merian after completion. Apple only supports
+`NSExtensionContext.open(_:)` for specific extension families such as Today and
+iMessage, not Share extensions.
 
 ### Activation
 
@@ -181,8 +213,10 @@ stays in the app container; it is never moved into the App Group.
 
 ## Backend Queue
 
-`services/supabase/functions/share-import-scan/` is the Edge entry point used by
-the Photos share extension after the R2 `PUT` succeeds.
+`services/supabase/functions/share-import-scan/` is the parked Edge entry point
+the Photos share extension prototype used after the R2 `PUT` succeeded. Current
+app builds do not embed that extension, so this endpoint should not receive
+production iOS client traffic.
 
 Request:
 
@@ -227,16 +261,17 @@ does not guarantee the main app has synced the resulting scan yet.
 
 - Share extensions never receive private provider secrets. Supabase URL and
   anon key are public client config, matching the main app.
-- The Photos extension sends EXIF timestamp/GPS/elevation when present; it does
-  not perform weather backfill.
-- The Photos extension uploads only to the authenticated user's
-  `staging/{userId}/...` prefix.
+- A future Photos extension rebuild should send EXIF timestamp/GPS/elevation
+  when present; it should not perform weather backfill.
+- A future Photos extension rebuild should upload only to the authenticated
+  user's `staging/{userId}/...` prefix.
 - The Messages extension reads only the App Group cache and inserts only into
   the compose field.
-- Field notes are opt-in for Messages description insertion and are not sent by
-  the Photos share import path.
-- Neither extension auto-sends Messages content or auto-opens the containing
-  app after a share import.
+- Field notes are opt-in for Messages description insertion and should not be
+  sent by a future Photos share import path.
+- The Messages extension must not auto-send Messages content. A future Photos
+  extension rebuild should not auto-open the containing app after a share
+  import.
 
 ## Verification
 
@@ -245,6 +280,11 @@ Recommended automated checks:
 ```sh
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
+```
+
+Parked Photos share-import regression checks:
+
+```sh
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<simulator-id>' CODE_SIGNING_ALLOWED=NO test-without-building -only-testing:merianTests/ShareImportTests
 deno test services/supabase/functions/share-import-scan/shareImport_test.ts
 ```
@@ -253,10 +293,15 @@ Manual checks:
 
 - Merian appears in the Messages app drawer and can insert image, card, and
   description content without sending automatically.
+- Current app archives do not contain
+  `Payload/Merian.app/PlugIns/MerianShareExtension.appex`.
+
+Future re-enable checks:
+
 - Merian appears in the Photos share sheet for one selected image. iOS may place
   it under More at first; ranking is system-controlled.
 - Unsupported shares, including video-only and multi-image shares, do not route
-  to V1.
+  to the extension.
 - Expired or missing auth shows a clear "open Merian" state.
 - The share extension completes after queueing and the scan appears in Merian
   after the app is opened and historical sync runs.

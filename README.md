@@ -54,8 +54,8 @@ Merian is a field-ready biological identification app built around zero-friction
 
 ### Native Share Extensions
 - Messages app extension surfaces a cached, searchable scan library inside iMessage and lets users insert a scan image, rich Merian card, or text description into the compose field.
-- Photos share extension lets users send one image from the iOS share sheet to Merian for identification; it stages the image to R2, queues `/share-import-scan`, and exits without auto-opening the app.
-- Shared App Group cache/receipt files and a shared Supabase keychain access group keep extensions lightweight while the main app owns SwiftData reconciliation.
+- Photos share extension work is paused and de-shipped from current app builds. The `MerianShareExtension` target/source remain in the repo for a future rebuild, but the app does not embed the extension and no Photos share-sheet import surface is advertised.
+- Shared App Group cache files keep shipped extensions lightweight while the main app owns SwiftData reconciliation. Some share-import App Group/keychain code remains parked with the de-shipped Photos extension.
 
 ### Profile & Gamification
 - Running species count, current scan streak, and longest streak.

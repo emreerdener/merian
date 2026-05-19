@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-05-18.
+Last reviewed: 2026-05-19.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -17,7 +17,7 @@ target, package, entitlement, build setting, or source-list changes.
 | `Merian` | iOS application | `apps/ios/Merian/` | iOS 17.2 |
 | `MerianExploreWidget` | WidgetKit app extension | `apps/ios/widgets/Explore/`, `apps/ios/Merian/Features/Explore/Widgets/ExploreWidgetCache.swift` | iOS 17.2 |
 | `MerianMessagesExtension` | Messages app extension | `apps/ios/messages/MerianMessagesExtension/`, `apps/ios/Merian/Features/Messages/MessageScanShareCache.swift` | iOS 17.2 |
-| `MerianShareExtension` | Share extension | `apps/ios/share/MerianShareExtension/`, `apps/ios/Merian/Features/ShareImport/Shared/` | iOS 17.2 |
+| `MerianShareExtension` | Paused share extension, not embedded in current app builds | `apps/ios/share/MerianShareExtension/`, `apps/ios/Merian/Features/ShareImport/Shared/` | iOS 17.2 |
 | `MerianWatch` | watchOS companion app | `apps/watch/MerianWatch/` | watchOS 10.0 |
 | `merianTests` | Unit tests | `apps/ios/MerianTests/` | iOS 17.2 |
 | `merianUITests` | UI tests | `apps/ios/MerianUITests/` | iOS 17.2 |
@@ -95,7 +95,7 @@ V40 through V43 live in `SchemaVersions.swift` alongside the migration plan.
 | Scans | `apps/ios/Merian/Features/Scans/` | `ScansSheetView`, `ScansManager`, library/collections tabs, search index, selection, queued-scan snapshots, non-biological isolation, and collection management. |
 | Explore | `apps/ios/Merian/Features/Explore/` | Public feed/map, post detail, comments, notifications, author profiles, follow/like/comment/reaction actions, and widget snapshot writing. |
 | Messages sharing | `apps/ios/Merian/Features/Messages/`, `apps/ios/messages/MerianMessagesExtension/` | App Group scan-share cache, iMessage scan library UI, image/card/text insertion, and scan/library deep links. |
-| Photos share import | `apps/ios/Merian/Features/ShareImport/`, `apps/ios/share/MerianShareExtension/` | Share-sheet image loading, EXIF extraction, shared auth/session migration, App Group settings/receipts, R2 upload, `/share-import-scan` queueing, and app-active reconciliation. |
+| Photos share import | `apps/ios/Merian/Features/ShareImport/`, `apps/ios/share/MerianShareExtension/` | Paused and de-shipped as of 2026-05-19. Source, tests, backend queueing, shared auth/session migration, App Group settings/receipts, and reconciliation code remain parked for a future rebuild, but the app target does not embed `MerianShareExtension`. |
 | Profile | `apps/ios/Merian/Features/Profile/` | Profile tab, settings, RevenueCat plan screens, geoprivacy, notifications, achievements, heatmap, export, danger-zone actions. |
 | Species Dictionary | `apps/ios/Merian/Features/SpeciesDictionary/` | Public species dictionary page, reference gallery, similar-species entry points, preferred common-name display, and species observation charts. |
 | Onboarding | `apps/ios/Merian/Features/Onboarding/` | Permission priming flow and `hasCompletedOnboarding` gate. |
@@ -219,8 +219,8 @@ Swift unit tests live under `apps/ios/MerianTests/` and cover:
   queued handoff flows.
 - Core AI, network, security, hardware, analytics, utilities, and data actors.
 - Profile achievements, heatmap/stats, Explore, Species Dictionary, species
-  observation stats, Messages sharing, Photos share import, Insights, Scans, and
-  onboarding view models.
+  observation stats, Messages sharing, parked Photos share import helpers,
+  Insights, Scans, and onboarding view models.
 
 UI tests live under `apps/ios/MerianUITests/` and include launch coverage plus seeded
 flows in `MerianApp.swift` through `UITestSeedCoordinator`.

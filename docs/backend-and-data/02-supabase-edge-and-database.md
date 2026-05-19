@@ -116,9 +116,10 @@ Several utilities are shared across all Edge Functions via
 
 The `/generate-upload-urls` Edge Function signs direct-to-Cloudflare R2 `PUT`
 URLs for background staging. Current clients send a structured `files` manifest
-built by `MediaStagingContract` for the app queue or by
-`ShareImportNetworkClient` for the Photos share extension rather than a loose
-filename array: each entry includes `fileName`, `mediaKind`, `contentType`, and
+built by `MediaStagingContract` for the app queue. The parked
+`ShareImportNetworkClient` for the paused Photos share extension uses the same
+manifest shape for future rebuild work, but current app builds do not embed that
+extension. Each entry includes `fileName`, `mediaKind`, `contentType`, and
 `sizeBytes`. The Edge parser rejects unsanitized names,
 media-kind/content-type mismatches, over-budget audio or image files, batches
 above five files, and batches above two audio files before calling
@@ -130,11 +131,13 @@ Deno tests.
 
 ## The Photos Share Import Queue Node (`share-import-scan`)
 
-The `/share-import-scan` Edge Function is the fast-return queue endpoint for the
-native Photos share extension. The extension first requests a signed image URL
-from `/generate-upload-urls`, performs the R2 `PUT`, then calls
-`/share-import-scan` with the resulting staged object key and EXIF-derived
-telemetry.
+The `/share-import-scan` Edge Function is the parked fast-return queue endpoint
+for the paused native Photos share extension. Current iOS app builds do not
+embed `MerianShareExtension`, so this endpoint should not receive production
+iOS client traffic from the app. The retained extension prototype first
+requests a signed image URL from `/generate-upload-urls`, performs the R2
+`PUT`, then calls `/share-import-scan` with the resulting staged object key and
+EXIF-derived telemetry.
 
 The function validates:
 
@@ -481,12 +484,13 @@ pipeline while the legacy endpoints remain deployed for compatibility.
      pipeline utilizing only the user's structured observation text.
 4. The current iOS client sends queued images via `r2ObjectKeys`, queued audio
    via `audioR2ObjectKeys`, live foreground audio via inline `audioBase64s`, and
-   text via `observation_contexts`. Photos share-sheet imports reach this same
-   inference node indirectly through `/share-import-scan`, which supplies one
-   staged image key plus EXIF timestamp/GPS metadata. Telemetry on this active
-   path is camelCase (`gpsLatitude`, `semanticLocation`, `deviceTimeZone`,
-   etc.); the server also accepts legacy snake_case aliases for backward
-   compatibility during offline queue replay and staged endpoint migration.
+   text via `observation_contexts`. The parked Photos share-sheet import path
+   would reach this same inference node indirectly through `/share-import-scan`,
+   which supplies one staged image key plus EXIF timestamp/GPS metadata.
+   Telemetry on this path is camelCase (`gpsLatitude`, `semanticLocation`,
+   `deviceTimeZone`, etc.); the server also accepts legacy snake_case aliases
+   for backward compatibility during offline queue replay and staged endpoint
+   migration.
 5. Candidate handling on `/identify-multimodal` now matches `/identify`:
    scientific names are sanitized before cache lookup/persistence, `candidates`
    are stripped at `confidence_score >= diagnosticTrigger`, cached English

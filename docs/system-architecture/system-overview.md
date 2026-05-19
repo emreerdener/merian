@@ -13,13 +13,12 @@ When the user captures an image, the architecture triggers a coordinated sequenc
 3. **Biological Inference (`InferenceEngine.swift`)**: Fires the R2 key and `CaptureTelemetry` to the Supabase `/identify` Edge Node, keeping the `GEMINI_API_KEY` off the client.
 4. **Offline Resilience**: If a user is off-grid, the payload is written to `.documentDirectory` and a `SwiftData` row is inserted with `scanStateRaw = 0` (`.pending`). Apple's background `URLSession` triggers upload when connectivity returns. Offline queuing is gated by the daily scan quota (`UsageManager.canPerformScan`) — free users who have exhausted their 2-scan-per-day limit hit the paywall at capture time rather than at sync time. Every scan that enters the queue is already paid for and uploads unconditionally.
 
-Photos share-sheet imports use a lighter variant of the same staging/inference
-architecture. `MerianShareExtension` receives one `public.image`, downsamples it,
-extracts EXIF timestamp/GPS when present, requests `/generate-upload-urls`,
-uploads the image to R2, calls `/share-import-scan`, writes an App Group receipt,
-and exits. The containing app later reconciles that receipt through historical
-scan sync. The SwiftData store remains app-owned and is not opened by the share
-extension.
+Photos share-sheet imports are paused and de-shipped as of 2026-05-19. The
+`MerianShareExtension` target and `/share-import-scan` backend path remain in
+the repository as parked implementation work, but the current app target does
+not embed the extension and product copy should not advertise Photos export to
+Merian. A future rebuild should reintroduce the extension only after the
+one-image Photos share-sheet flow is stable on device.
 
 The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh, while `/refresh-merian-reference-images` promotes high-quality published Explore media into Merian-sourced reference images without exposing scan/post/user provenance through public species APIs.
 

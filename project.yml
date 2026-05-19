@@ -63,8 +63,6 @@ targets:
         embed: true
       - target: MerianMessagesExtension
         embed: true
-      - target: MerianShareExtension
-        embed: true
       - target: MerianWatch # Natively bundles the companion watchApp binary directly into the parent iPhone executable
         embed: true
       - package: RevenueCat
@@ -161,6 +159,9 @@ targets:
           CODE_SIGN_IDENTITY: "Apple Development"
 
   MerianShareExtension:
+    # Paused / de-shipped as of 2026-05-19. The target and source are retained
+    # for a future rebuild, but the Merian app target intentionally does not
+    # depend on or embed this extension in current release builds.
     type: app-extension
     platform: iOS
     deploymentTarget: "17.2"

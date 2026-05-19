@@ -37,12 +37,13 @@ The server extracts the verified user identity from the `Authorization` Header
 JWT (`supabaseAdmin.auth.getUser()`), ignoring any `user_id` value in the
 request body. To prevent array-abuse memory locking on the Edge Node, the
 endpoint strictly requires exactly 1 to 5 `files`, with at most 2 audio files.
-The main app queue builds this manifest through `MediaStagingContract`; the
-Photos share extension builds its one-image manifest through
-`ShareImportNetworkClient`. Both paths must apply the same filename
-sanitization as the Edge function before upload URL generation. The Edge parser
-rejects unsanitized filenames, invalid `mediaKind` values, content-type/kind
-mismatches, and oversized media before signing. Structured
+The main app queue builds this manifest through `MediaStagingContract`. The
+parked Photos share extension prototype builds its one-image manifest through
+`ShareImportNetworkClient`, but that extension is not embedded in current app
+builds. Both paths must apply the same filename sanitization as the Edge
+function before upload URL generation. The Edge parser rejects unsanitized
+filenames, invalid `mediaKind` values, content-type/kind mismatches, and
+oversized media before signing. Structured
 manifests require `sizeBytes`; the legacy `fileNames` array remains accepted for
 older clients but is compatibility-only and cannot express byte budgets.
 Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours).
@@ -77,9 +78,11 @@ during subsequent offline inference triggers.
 
 ## Deno `/share-import-scan` Edge Node
 
-Queues one image shared from the native iOS Photos share extension after the
-image has already been uploaded to Cloudflare R2 staging. The endpoint returns
-quickly and does not wait for the AI result.
+Parked endpoint for queueing one image shared from the native iOS Photos share
+extension after the image has already been uploaded to Cloudflare R2 staging.
+The endpoint returns quickly and does not wait for the AI result. Current app
+builds do not embed `MerianShareExtension`, so this contract is retained for
+future rebuild work rather than active product traffic.
 
 ### Request Payload
 
