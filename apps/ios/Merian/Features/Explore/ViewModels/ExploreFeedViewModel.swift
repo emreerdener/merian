@@ -9,6 +9,11 @@ struct ExploreNearbyLocationSnapshot: Equatable {
     let longitude: Double
 }
 
+struct ExploreCommentCursor {
+    let createdAt: String
+    let commentId: String
+}
+
 @MainActor
 @Observable
 final class ExplorePostStore {
@@ -167,6 +172,11 @@ final class ExploreFeedViewModel {
     var isSubmittingComment = false
     var commentDraft = ""
     var commentErrorMessage: String?
+    var replyingToComment: ExploreComment?
+    var repliesByCommentId: [String: [ExploreComment]] = [:]
+    var expandedReplyCommentIds: Set<String> = []
+    var loadingReplyCommentIds: Set<String> = []
+    var loadingMoreReplyCommentIds: Set<String> = []
 
     var posts: [ExplorePost] {
         store.feedPosts
@@ -183,6 +193,7 @@ final class ExploreFeedViewModel {
 
     @ObservationIgnored let feedPageSize = 20
     @ObservationIgnored let commentsPageSize = 100
+    @ObservationIgnored let repliesPageSize = 25
     @ObservationIgnored var nextFeedCursor = ExploreFeedCursor.empty
     @ObservationIgnored var hasLoadedFeedOnce = false
     @ObservationIgnored var hasReachedEndOfFeed = false
@@ -190,6 +201,10 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var nextCommentsCursorCommentId: String?
     @ObservationIgnored var hasLoadedCommentsOnce = false
     @ObservationIgnored var hasReachedEndOfComments = false
+    @ObservationIgnored var replyCursorsByCommentId: [String: ExploreCommentCursor] = [:]
+    @ObservationIgnored var hasLoadedRepliesByCommentId = Set<String>()
+    @ObservationIgnored var hasReachedEndOfRepliesByCommentId = Set<String>()
+    @ObservationIgnored var pendingExpandedReplyParentCommentId: String?
     @ObservationIgnored var activeCommentsRequestId = UUID()
     @ObservationIgnored var likeRequestsInFlight = Set<String>()
     @ObservationIgnored var isRefreshingUnreadNotificationCount = false

@@ -5,10 +5,11 @@ import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import {
   assertCanInteractWithExplorePost,
   fetchPublicAuthorIdentity,
+  hasMutualBlock,
   requireUuid,
   syncPublicAuthorIdentity,
 } from "../_shared/explore.ts";
-import { fetchExplorePostCommentCount, insertExploreComment } from "./db.ts";
+import { fetchExplorePostCommentCount, fetchReplyParent, insertExploreComment } from "./db.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -20,6 +21,9 @@ serve((req: Request) =>
     if (paramErr) return paramErr;
 
     const postId = requireUuid(body.post_id, "post_id");
+    const parentCommentId = body.parent_comment_id == null
+      ? null
+      : requireUuid(body.parent_comment_id, "parent_comment_id");
     const rawBody = typeof body.body === "string" ? body.body.trim() : "";
     if (rawBody.length === 0) {
       return jsonResponse({ error: "body must be a non-empty string." }, 400);
@@ -29,9 +33,15 @@ serve((req: Request) =>
     }
 
     await assertCanInteractWithExplorePost(postId, user.id, supabaseAdmin);
+    if (parentCommentId != null) {
+      const parent = await fetchReplyParent(parentCommentId, postId, supabaseAdmin);
+      if (parent.user_id !== user.id && await hasMutualBlock(user.id, parent.user_id, supabaseAdmin)) {
+        return jsonResponse({ error: "You cannot reply to this Explore comment." }, 403);
+      }
+    }
 
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
-    const inserted = await insertExploreComment(postId, user.id, rawBody, supabaseAdmin);
+    const inserted = await insertExploreComment(postId, user.id, rawBody, parentCommentId, supabaseAdmin);
     const authorIdentity = await fetchPublicAuthorIdentity(user.id, supabaseAdmin);
     const commentCount = await fetchExplorePostCommentCount(postId, supabaseAdmin);
 
@@ -40,6 +50,7 @@ serve((req: Request) =>
       comment: {
         comment_id: inserted.id,
         post_id: inserted.post_id,
+        parent_comment_id: inserted.parent_comment_id ?? null,
         author_user_id: user.id,
         author_name: authorIdentity.authorName,
         author_avatar_url: authorIdentity.authorAvatarUrl,
@@ -48,6 +59,8 @@ serve((req: Request) =>
         viewer_can_delete: true,
         viewer_can_moderate: false,
         viewer_can_report: false,
+        reply_count: 0,
+        reactions: null,
       },
       comment_count: commentCount,
     });

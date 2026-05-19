@@ -72,7 +72,7 @@ struct ExplorePostDetailCommentsSection: View {
     private var commentsList: some View {
         LazyVStack(spacing: 14) {
             ForEach(viewModel.comments) { comment in
-                commentRow(comment)
+                commentThread(comment)
                     .onAppear {
                         Task { await viewModel.loadMoreCommentsIfNeeded(currentComment: comment) }
                     }
@@ -94,6 +94,28 @@ struct ExplorePostDetailCommentsSection: View {
                     .foregroundStyle(.red)
             }
 
+            if let replyingToComment = viewModel.replyingToComment {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrowshape.turn.up.left")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text("Replying to \(replyingToComment.displayAuthorName)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 8)
+
+                    Button(action: { viewModel.cancelReply() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
             HStack(alignment: .bottom, spacing: 12) {
                 if SupabaseManager.shared.isAuthenticated, let avatarUrl = SupabaseManager.shared.currentUserAvatarUrl {
                     AsyncImage(url: avatarUrl) { image in
@@ -110,7 +132,7 @@ struct ExplorePostDetailCommentsSection: View {
                     .padding(.bottom, 1)
                 }
 
-                TextField("Add a comment", text: $viewModel.commentDraft, axis: .vertical)
+                TextField(composerPlaceholder, text: $viewModel.commentDraft, axis: .vertical)
                     .lineLimit(1...4)
                     .focused(isComposerFocused)
                     .submitLabel(.done)
@@ -160,7 +182,70 @@ struct ExplorePostDetailCommentsSection: View {
         !viewModel.commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func commentRow(_ comment: ExploreComment) -> some View {
+    private var composerPlaceholder: String {
+        if let replyingToComment = viewModel.replyingToComment {
+            return "Reply to \(replyingToComment.displayAuthorName)"
+        }
+        return "Add a comment"
+    }
+
+    private func commentThread(_ comment: ExploreComment) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            commentRow(comment, allowsReply: true)
+
+            let replyCount = comment.replyCount ?? 0
+            if viewModel.expandedReplyCommentIds.contains(comment.id) {
+                repliesList(for: comment)
+            } else if replyCount > 0 {
+                Button(action: { viewModel.toggleReplies(for: comment) }) {
+                    Label("View \(replyCount) \(replyCount == 1 ? "reply" : "replies")", systemImage: "arrowshape.turn.up.left")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 48)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func repliesList(for comment: ExploreComment) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if viewModel.loadingReplyCommentIds.contains(comment.id) {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .padding(.leading, 48)
+            }
+
+            ForEach(viewModel.repliesByCommentId[comment.id] ?? []) { reply in
+                commentRow(reply, allowsReply: false)
+                    .padding(.leading, 36)
+                    .onAppear {
+                        Task { await viewModel.loadMoreRepliesIfNeeded(parentComment: comment, currentReply: reply) }
+                    }
+            }
+
+            if viewModel.loadingMoreReplyCommentIds.contains(comment.id) {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .padding(.leading, 48)
+            } else if viewModel.hasLoadedRepliesByCommentId.contains(comment.id),
+                      !viewModel.hasReachedEndOfRepliesByCommentId.contains(comment.id),
+                      let lastReply = viewModel.repliesByCommentId[comment.id]?.last {
+                Button(action: {
+                    Task { await viewModel.loadMoreRepliesIfNeeded(parentComment: comment, currentReply: lastReply) }
+                }) {
+                    Text("Load more replies")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 48)
+            }
+        }
+    }
+
+    private func commentRow(_ comment: ExploreComment, allowsReply: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
                 authorAvatarView(for: comment)
@@ -214,6 +299,18 @@ struct ExplorePostDetailCommentsSection: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             reactionsView(for: comment)
+
+            if allowsReply {
+                Button(action: {
+                    viewModel.beginReply(to: comment)
+                    isComposerFocused.wrappedValue = true
+                }) {
+                    Label("Reply", systemImage: "arrowshape.turn.up.left")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

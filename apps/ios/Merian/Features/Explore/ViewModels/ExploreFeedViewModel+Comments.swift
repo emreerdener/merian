@@ -21,6 +21,7 @@ extension ExploreFeedViewModel {
         activeCommentsRequestId = UUID()
         activeCommentsPostId = nil
         comments = []
+        resetReplyState()
         commentDraft = ""
         commentErrorMessage = nil
         isCommentsLoading = false
@@ -49,6 +50,7 @@ extension ExploreFeedViewModel {
                 return
             }
             comments = loadedComments
+            resetReplyState(keepingPendingExpansion: true)
             hasLoadedCommentsOnce = true
             hasReachedEndOfComments = loadedComments.count < commentsPageSize
             updateCommentsCursor(using: loadedComments)
@@ -113,6 +115,7 @@ extension ExploreFeedViewModel {
         let trimmed = String(commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
         guard !trimmed.isEmpty else { return }
 
+        let replyParent = replyingToComment
         isSubmittingComment = true
         commentErrorMessage = nil
         let previousDraft = commentDraft
@@ -123,16 +126,24 @@ extension ExploreFeedViewModel {
         do {
             let response = try await MerianNetworkClient.shared.createExploreComment(
                 postId: activeCommentsPostId,
-                body: trimmed
+                body: trimmed,
+                parentCommentId: replyParent?.id
             )
-            comments.append(response.comment)
-            hasLoadedCommentsOnce = true
-            if hasReachedEndOfComments {
-                updateCommentsCursor(using: comments)
-            } else if nextCommentsCursorCreatedAt == nil || nextCommentsCursorCommentId == nil {
-                updateCommentsCursor(using: comments)
-                hasReachedEndOfComments = comments.count < commentsPageSize
+
+            if let parentId = response.comment.parentCommentId ?? replyParent?.id {
+                appendReply(response.comment, parentCommentId: parentId)
+                replyingToComment = nil
+            } else {
+                comments.append(response.comment)
+                hasLoadedCommentsOnce = true
+                if hasReachedEndOfComments {
+                    updateCommentsCursor(using: comments)
+                } else if nextCommentsCursorCreatedAt == nil || nextCommentsCursorCommentId == nil {
+                    updateCommentsCursor(using: comments)
+                    hasReachedEndOfComments = comments.count < commentsPageSize
+                }
             }
+
             updateCommentCount(postId: activeCommentsPostId, commentCount: response.commentCount)
             HapticManager.shared.triggerSelectionPulse()
         } catch {
@@ -145,7 +156,7 @@ extension ExploreFeedViewModel {
     func removeComment(_ comment: ExploreComment) async {
         do {
             let response = try await MerianNetworkClient.shared.deleteExploreComment(commentId: comment.id)
-            comments.removeAll { $0.id == response.commentId }
+            removeCommentLocally(comment)
             updateCommentCount(postId: comment.postId, commentCount: response.commentCount)
             HapticManager.shared.triggerSelectionPulse()
             toastMessage = comment.removalSuccessMessage
@@ -166,9 +177,108 @@ extension ExploreFeedViewModel {
         }
     }
 
+    func beginReply(to comment: ExploreComment) {
+        replyingToComment = comment
+        commentErrorMessage = nil
+    }
+
+    func cancelReply() {
+        replyingToComment = nil
+    }
+
+    func toggleReplies(for comment: ExploreComment) {
+        if expandedReplyCommentIds.contains(comment.id) {
+            expandedReplyCommentIds.remove(comment.id)
+            return
+        }
+
+        expandedReplyCommentIds.insert(comment.id)
+        guard !hasLoadedRepliesByCommentId.contains(comment.id) else { return }
+
+        Task { await loadReplies(for: comment) }
+    }
+
+    func loadReplies(for comment: ExploreComment) async {
+        guard !loadingReplyCommentIds.contains(comment.id) else { return }
+
+        loadingReplyCommentIds.insert(comment.id)
+        commentErrorMessage = nil
+        defer { loadingReplyCommentIds.remove(comment.id) }
+
+        do {
+            let replies = try await MerianNetworkClient.shared.getExploreCommentReplies(
+                parentCommentId: comment.id,
+                limit: repliesPageSize
+            )
+            repliesByCommentId[comment.id] = replies
+            hasLoadedRepliesByCommentId.insert(comment.id)
+            if replies.count < repliesPageSize {
+                hasReachedEndOfRepliesByCommentId.insert(comment.id)
+            } else {
+                hasReachedEndOfRepliesByCommentId.remove(comment.id)
+            }
+            updateReplyCursor(parentCommentId: comment.id, using: replies)
+        } catch {
+            commentErrorMessage = ExploreErrorFormatter.message(for: error)
+            HapticManager.shared.triggerErrorThump()
+        }
+    }
+
+    func loadMoreRepliesIfNeeded(parentComment: ExploreComment, currentReply: ExploreComment) async {
+        guard hasLoadedRepliesByCommentId.contains(parentComment.id),
+              !loadingReplyCommentIds.contains(parentComment.id),
+              !loadingMoreReplyCommentIds.contains(parentComment.id),
+              !hasReachedEndOfRepliesByCommentId.contains(parentComment.id),
+              let replies = repliesByCommentId[parentComment.id],
+              let currentIndex = replies.firstIndex(where: { $0.id == currentReply.id }) else {
+            return
+        }
+
+        let triggerIndex = max(replies.count - 5, 0)
+        guard currentIndex >= triggerIndex else { return }
+        guard let cursor = replyCursorsByCommentId[parentComment.id] else {
+            hasReachedEndOfRepliesByCommentId.insert(parentComment.id)
+            return
+        }
+
+        loadingMoreReplyCommentIds.insert(parentComment.id)
+        defer { loadingMoreReplyCommentIds.remove(parentComment.id) }
+
+        do {
+            let nextPage = try await MerianNetworkClient.shared.getExploreCommentReplies(
+                parentCommentId: parentComment.id,
+                limit: repliesPageSize,
+                afterCreatedAt: cursor.createdAt,
+                afterCommentId: cursor.commentId
+            )
+            appendUniqueReplies(nextPage, parentCommentId: parentComment.id)
+            if nextPage.count < repliesPageSize {
+                hasReachedEndOfRepliesByCommentId.insert(parentComment.id)
+            }
+            updateReplyCursor(parentCommentId: parentComment.id, using: nextPage)
+        } catch {
+            commentErrorMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+
+    func prepareToExpandReplyThread(parentCommentId: String?) {
+        pendingExpandedReplyParentCommentId = parentCommentId
+    }
+
+    func expandPendingReplyThreadIfNeeded() async {
+        guard let parentCommentId = pendingExpandedReplyParentCommentId else { return }
+        guard let parentComment = comments.first(where: { $0.id == parentCommentId }) else { return }
+        pendingExpandedReplyParentCommentId = nil
+        expandedReplyCommentIds.insert(parentCommentId)
+        if !hasLoadedRepliesByCommentId.contains(parentCommentId) {
+            await loadReplies(for: parentComment)
+        }
+    }
+
     func beginCommentsSession(for post: ExplorePost) -> UUID {
         activeCommentsPostId = post.id
         comments = []
+        resetReplyState(keepingPendingExpansion: true)
         commentDraft = ""
         commentErrorMessage = nil
         let requestId = UUID()
@@ -203,12 +313,93 @@ extension ExploreFeedViewModel {
         comments.append(contentsOf: nextPage.filter { existingIds.contains($0.id) == false })
     }
 
+    private func appendReply(_ reply: ExploreComment, parentCommentId: String) {
+        var replies = repliesByCommentId[parentCommentId] ?? []
+        if replies.contains(where: { $0.id == reply.id }) == false {
+            replies.append(reply)
+        }
+        repliesByCommentId[parentCommentId] = replies
+        expandedReplyCommentIds.insert(parentCommentId)
+        hasLoadedRepliesByCommentId.insert(parentCommentId)
+        if let index = comments.firstIndex(where: { $0.id == parentCommentId }) {
+            comments[index].replyCount = (comments[index].replyCount ?? 0) + 1
+        }
+        updateReplyCursor(parentCommentId: parentCommentId, using: replies)
+    }
+
+    private func appendUniqueReplies(_ nextPage: [ExploreComment], parentCommentId: String) {
+        guard !nextPage.isEmpty else { return }
+
+        let existingReplies = repliesByCommentId[parentCommentId] ?? []
+        let existingIds = Set(existingReplies.map(\.id))
+        repliesByCommentId[parentCommentId] = existingReplies + nextPage.filter { existingIds.contains($0.id) == false }
+    }
+
+    private func updateReplyCursor(parentCommentId: String, using page: [ExploreComment]) {
+        guard let lastReply = page.last else { return }
+        replyCursorsByCommentId[parentCommentId] = ExploreCommentCursor(
+            createdAt: lastReply.createdAt,
+            commentId: lastReply.id
+        )
+    }
+
+    private func removeCommentLocally(_ comment: ExploreComment) {
+        if let parentCommentId = comment.parentCommentId {
+            repliesByCommentId[parentCommentId]?.removeAll { $0.id == comment.id }
+            if let index = comments.firstIndex(where: { $0.id == parentCommentId }) {
+                comments[index].replyCount = max((comments[index].replyCount ?? 1) - 1, 0)
+            }
+            return
+        }
+
+        comments.removeAll { $0.id == comment.id }
+        repliesByCommentId[comment.id] = nil
+        expandedReplyCommentIds.remove(comment.id)
+        hasLoadedRepliesByCommentId.remove(comment.id)
+        hasReachedEndOfRepliesByCommentId.remove(comment.id)
+        replyCursorsByCommentId[comment.id] = nil
+    }
+
+    private func resetReplyState(keepingPendingExpansion: Bool = false) {
+        replyingToComment = nil
+        repliesByCommentId = [:]
+        expandedReplyCommentIds = []
+        loadingReplyCommentIds = []
+        loadingMoreReplyCommentIds = []
+        replyCursorsByCommentId = [:]
+        hasLoadedRepliesByCommentId = []
+        hasReachedEndOfRepliesByCommentId = []
+        if !keepingPendingExpansion {
+            pendingExpandedReplyParentCommentId = nil
+        }
+    }
+
     func toggleReaction(for comment: ExploreComment, emoji: String) {
-        guard let index = comments.firstIndex(where: { $0.id == comment.id }) else { return }
-        
-        var updatedComment = comments[index]
+        guard var updatedComment = commentWithUpdatedReaction(comment, emoji: emoji) else { return }
+        HapticManager.shared.triggerSelectionPulse()
+
+        if let parentCommentId = updatedComment.parentCommentId,
+           var replies = repliesByCommentId[parentCommentId],
+           let index = replies.firstIndex(where: { $0.id == updatedComment.id }) {
+            replies[index] = updatedComment
+            repliesByCommentId[parentCommentId] = replies
+        } else if let index = comments.firstIndex(where: { $0.id == updatedComment.id }) {
+            comments[index] = updatedComment
+        }
+
+        Task {
+            do {
+                try await MerianNetworkClient.shared.toggleExploreCommentReaction(commentId: comment.id, emoji: emoji)
+            } catch {
+                MerianLog.network.error("Failed to toggle reaction: \(error)")
+            }
+        }
+    }
+
+    private func commentWithUpdatedReaction(_ comment: ExploreComment, emoji: String) -> ExploreComment? {
+        var updatedComment = comment
         var updatedReactions = updatedComment.reactions ?? []
-        
+
         if let reactionIndex = updatedReactions.firstIndex(where: { $0.emoji == emoji }) {
             var reaction = updatedReactions[reactionIndex]
             if reaction.viewerHasReacted {
@@ -225,21 +416,10 @@ extension ExploreFeedViewModel {
                 updatedReactions[reactionIndex] = reaction
             }
         } else {
-            let newReaction = ExploreCommentReaction(emoji: emoji, count: 1, viewerHasReacted: true)
-            updatedReactions.append(newReaction)
+            updatedReactions.append(ExploreCommentReaction(emoji: emoji, count: 1, viewerHasReacted: true))
         }
-        
+
         updatedComment.reactions = updatedReactions
-        comments[index] = updatedComment
-        HapticManager.shared.triggerSelectionPulse()
-        
-        Task {
-            do {
-                try await MerianNetworkClient.shared.toggleExploreCommentReaction(commentId: comment.id, emoji: emoji)
-            } catch {
-                MerianLog.network.error("Failed to toggle reaction: \(error)")
-                // Note: Revert logic omitted until backend is deployed to allow UI testing
-            }
-        }
+        return updatedComment
     }
 }

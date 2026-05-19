@@ -691,6 +691,7 @@ struct ExploreReferenceGalleryImage: Identifiable, Equatable {
 struct ExploreComment: Decodable, Identifiable, Equatable {
     let commentId: String
     let postId: String
+    let parentCommentId: String?
     let authorUserId: String
     let authorName: String
     let authorAvatarUrl: String?
@@ -699,6 +700,7 @@ struct ExploreComment: Decodable, Identifiable, Equatable {
     let viewerCanDelete: Bool
     let viewerCanModerate: Bool
     let viewerCanReport: Bool
+    var replyCount: Int?
     var reactions: [ExploreCommentReaction]?
 
     var id: String { commentId }
@@ -718,6 +720,10 @@ struct ExploreComment: Decodable, Identifiable, Equatable {
 
     var removalSuccessMessage: String {
         viewerCanModerate ? "Comment removed from post" : "Comment deleted"
+    }
+
+    var isReply: Bool {
+        parentCommentId != nil
     }
 }
 

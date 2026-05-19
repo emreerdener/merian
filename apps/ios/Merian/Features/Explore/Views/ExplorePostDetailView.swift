@@ -187,6 +187,7 @@ struct ExplorePostDetailView: View {
                         async let detailTask: Void = loadPostDetail()
                         async let commentsTask: Void = viewModel.openComments(for: post)
                         _ = await (detailTask, commentsTask)
+                        await viewModel.expandPendingReplyThreadIfNeeded()
                         syncLocalFieldNotes(for: post)
 
                         if shouldFocusCommentComposer {

@@ -3,13 +3,59 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 export interface InsertedExploreComment {
   id: string;
   post_id: string;
+  parent_comment_id?: string | null;
   created_at: string;
+}
+
+export interface ExploreReplyParent {
+  id: string;
+  post_id: string;
+  user_id: string;
+  parent_comment_id?: string | null;
+  deleted_at?: string | null;
+  moderated_at?: string | null;
+}
+
+function makeHttpError(status: number, message: string): Error & { status: number } {
+  const error = new Error(message) as Error & { status: number };
+  error.status = status;
+  return error;
+}
+
+export async function fetchReplyParent(
+  parentCommentId: string,
+  postId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<ExploreReplyParent> {
+  const { data, error } = await supabaseAdmin
+    .from("explore_post_comments")
+    .select("id,post_id,user_id,parent_comment_id,deleted_at,moderated_at")
+    .eq("id", parentCommentId)
+    .single();
+
+  if (error || !data) {
+    throw makeHttpError(404, "Explore parent comment not found.");
+  }
+
+  const parent = data as ExploreReplyParent;
+  if (parent.post_id !== postId) {
+    throw makeHttpError(400, "parent_comment_id must belong to the same Explore post.");
+  }
+  if (parent.parent_comment_id != null) {
+    throw makeHttpError(400, "Replies can only target top-level comments.");
+  }
+  if (parent.deleted_at != null || parent.moderated_at != null) {
+    throw makeHttpError(404, "Explore parent comment is no longer available.");
+  }
+
+  return parent;
 }
 
 export async function insertExploreComment(
   postId: string,
   userId: string,
   body: string,
+  parentCommentId: string | null,
   supabaseAdmin: SupabaseClient,
 ): Promise<InsertedExploreComment> {
   const { data, error } = await supabaseAdmin
@@ -18,8 +64,9 @@ export async function insertExploreComment(
       post_id: postId,
       user_id: userId,
       body,
+      parent_comment_id: parentCommentId,
     })
-    .select("id,post_id,created_at")
+    .select("id,post_id,parent_comment_id,created_at")
     .single();
 
   if (error || !data) {

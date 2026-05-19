@@ -143,31 +143,35 @@ async function fetchLikeNotification(
 type NotificationFeedRow = {
   notification_id: string;
   post_id: string | null;
-  type: "like_aggregated" | "comment" | "comment_reaction" | "follow";
+  type: "like_aggregated" | "comment" | "comment_reaction" | "comment_reply" | "follow";
+  comment_id: string | null;
+  parent_comment_id: string | null;
   reaction_emoji: string | null;
   recent_actor_names: string[];
   action_count: number;
   triggering_user_name: string | null;
   comment_body: string | null;
   is_read: boolean;
+  is_reply_to_viewer_comment: boolean | null;
 };
 
 type PushPayloadRow = {
   notification_id: string;
   recipient_user_id: string;
   post_id: string;
-  type: "like_aggregated" | "comment" | "comment_reaction";
+  type: "like_aggregated" | "comment" | "comment_reaction" | "comment_reply";
   action_count: number;
   reaction_emoji: string | null;
   comment_body: string | null;
   triggering_user_name: string | null;
   recent_actor_names: string[];
+  is_reply_to_viewer_comment: boolean | null;
 };
 
 type NotificationCursorRow = {
   notification_id: string;
   updated_at: string;
-  type: "like_aggregated" | "comment" | "comment_reaction" | "follow";
+  type: "like_aggregated" | "comment" | "comment_reaction" | "comment_reply" | "follow";
 };
 
 type CommentReactionNotificationRow = {
@@ -602,6 +606,99 @@ Deno.test("Explore notifications DB - blocked comment actors are filtered and un
       [ownerId],
     );
     assertEquals(notificationCountResult.rows[0]?.count, 0);
+  });
+});
+
+Deno.test("Explore notifications DB - comment replies notify parent author and distinct post owner", async () => {
+  await withDbTest(async (client) => {
+    const { ownerId, postId } = await seedVisibleExplorePost(client);
+    const parentAuthorId = crypto.randomUUID();
+    const replierId = crypto.randomUUID();
+    const parentCommentId = crypto.randomUUID();
+    const replyId = crypto.randomUUID();
+
+    await insertUser(client, parentAuthorId, "Parent Author");
+    await insertUser(client, replierId, "Reply Author");
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, user_id, body, created_at)
+        VALUES ($1, $2, $3, 'What a find', '2026-05-19T10:00:00Z')
+      `,
+      [parentCommentId, postId, parentAuthorId],
+    );
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, parent_comment_id, user_id, body, created_at)
+        VALUES ($1, $2, $3, $4, 'Agreed, this is lovely', '2026-05-19T10:01:00Z')
+      `,
+      [replyId, postId, parentCommentId, replierId],
+    );
+
+    const parentFeedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
+        WHERE type = 'comment_reply'
+      `,
+      [parentAuthorId],
+    );
+    assertEquals(parentFeedResult.rows.length, 1);
+    assertEquals(parentFeedResult.rows[0].comment_id, replyId);
+    assertEquals(parentFeedResult.rows[0].parent_comment_id, parentCommentId);
+    assertEquals(parentFeedResult.rows[0].triggering_user_name, "Reply Author");
+    assertEquals(parentFeedResult.rows[0].comment_body, "Agreed, this is lovely");
+    assertEquals(parentFeedResult.rows[0].is_reply_to_viewer_comment, true);
+
+    const ownerFeedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
+        WHERE type = 'comment_reply'
+      `,
+      [ownerId],
+    );
+    assertEquals(ownerFeedResult.rows.length, 1);
+    assertEquals(ownerFeedResult.rows[0].comment_id, replyId);
+    assertEquals(ownerFeedResult.rows[0].parent_comment_id, parentCommentId);
+    assertEquals(ownerFeedResult.rows[0].is_reply_to_viewer_comment, false);
+
+    const parentPushPayloadResult = await client.queryObject<PushPayloadRow>(
+      `
+        SELECT *
+        FROM public.get_explore_push_notification_payload($1)
+      `,
+      [parentFeedResult.rows[0].notification_id],
+    );
+    assertEquals(parentPushPayloadResult.rows.length, 1);
+    assertEquals(parentPushPayloadResult.rows[0].type, "comment_reply");
+    assertEquals(parentPushPayloadResult.rows[0].is_reply_to_viewer_comment, true);
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_post_comments
+        SET deleted_at = NOW()
+        WHERE id = $1
+      `,
+      [parentCommentId],
+    );
+
+    const hiddenParentFeedResult = await client.queryObject<NotificationFeedRow>(
+      `
+        SELECT *
+        FROM public.get_explore_notifications($1, 50, NULL, NULL)
+        WHERE type = 'comment_reply'
+      `,
+      [parentAuthorId],
+    );
+    assertEquals(hiddenParentFeedResult.rows.length, 0);
+
+    const unreadCountResult = await client.queryObject<{ count: number }>(
+      `SELECT public.get_unread_explore_notification_count($1) AS count`,
+      [parentAuthorId],
+    );
+    assertEquals(unreadCountResult.rows[0]?.count, 0);
   });
 });
 

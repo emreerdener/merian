@@ -964,6 +964,28 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreCommentsResponse.self, from: data).data
     }
 
+    func getExploreCommentReplies(
+        parentCommentId: String,
+        limit: Int = 25,
+        afterCreatedAt: String? = nil,
+        afterCommentId: String? = nil
+    ) async throws -> [ExploreComment] {
+        let functionUrl = try endpointURL("get-explore-comment-replies")
+        var payload: [String: Any] = [
+            "parent_comment_id": parentCommentId,
+            "limit": limit
+        ]
+
+        if let afterCreatedAt, let afterCommentId {
+            payload["after_created_at"] = afterCreatedAt
+            payload["after_comment_id"] = afterCommentId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreCommentsResponse.self, from: data).data
+    }
+
     func getExplorePost(postId: String) async throws -> ExplorePost {
         let functionUrl = try endpointURL("get-explore-post")
         let bodyData = try JSONSerialization.data(withJSONObject: ["post_id": postId])
@@ -1408,12 +1430,15 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreFollowState.self, from: data)
     }
 
-    func createExploreComment(postId: String, body: String) async throws -> ExploreCreateCommentResponse {
+    func createExploreComment(postId: String, body: String, parentCommentId: String? = nil) async throws -> ExploreCreateCommentResponse {
         let functionUrl = try endpointURL("create-explore-comment")
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "post_id": postId,
             "body": body
         ]
+        if let parentCommentId {
+            payload["parent_comment_id"] = parentCommentId
+        }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(ExploreCreateCommentResponse.self, from: data)

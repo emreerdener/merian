@@ -306,6 +306,9 @@ struct ExploreView: View {
         do {
             let post = try await viewModel.preparePostForNavigation(postId: postId)
             viewModel.dismissNotifications()
+            if notification.type == .commentReply {
+                viewModel.prepareToExpandReplyThread(parentCommentId: notification.parentCommentId)
+            }
             try? await Task.sleep(nanoseconds: 150_000_000)
             openPostDetail(for: post, focusCommentComposer: notification.type == .comment)
         } catch {

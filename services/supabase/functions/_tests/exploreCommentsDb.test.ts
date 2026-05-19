@@ -1,4 +1,7 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import {
+  assertEquals,
+  assertRejects,
+} from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
 import {
   insertExplorePost,
@@ -10,9 +13,11 @@ import {
 
 type ExploreCommentRow = {
   comment_id: string;
+  parent_comment_id?: string | null;
   created_at: string;
   author_user_id: string;
   author_avatar_url?: string | null;
+  reply_count?: number;
 };
 
 Deno.test("Explore comments DB - cursor pagination preserves stable ordering across created_at ties", async () => {
@@ -91,6 +96,155 @@ Deno.test("Explore comments DB - cursor pagination preserves stable ordering acr
       secondPage.rows.map((row) => row.comment_id),
       [commentIds[2], commentIds[3]],
     );
+  });
+});
+
+Deno.test("Explore comments DB - replies stay one-level and paginate under visible parents", async () => {
+  await withExploreDbTest("exploreCommentsDb.test", async (client: Client) => {
+    const viewerId = crypto.randomUUID();
+    const ownerId = crypto.randomUUID();
+    const commenterId = crypto.randomUUID();
+    const replierOneId = crypto.randomUUID();
+    const replierTwoId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    const scanId = crypto.randomUUID();
+    const postId = crypto.randomUUID();
+    const topLevelCommentId = crypto.randomUUID();
+    const siblingCommentId = crypto.randomUUID();
+    const replyOneId = crypto.randomUUID();
+    const replyTwoId = crypto.randomUUID();
+
+    await insertUser(client, viewerId, "Reply Viewer");
+    await insertUser(client, ownerId, "Reply Owner");
+    await insertUser(client, commenterId, "Top Level Commenter");
+    await insertUser(client, replierOneId, "Reply One");
+    await insertUser(client, replierTwoId, "Reply Two");
+    await insertSpecies(client, speciesId, "Rosa responsa");
+
+    await insertScan(client, {
+      id: scanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "open",
+    });
+    await insertExplorePost(client, {
+      id: postId,
+      userId: ownerId,
+      scanId,
+    });
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, user_id, body, created_at)
+        VALUES
+          ($1, $2, $3, 'Parent comment', '2026-05-19T10:00:00Z'),
+          ($4, $2, $3, 'Sibling comment', '2026-05-19T10:03:00Z')
+      `,
+      [topLevelCommentId, postId, commenterId, siblingCommentId],
+    );
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, parent_comment_id, user_id, body, created_at)
+        VALUES
+          ($1, $2, $3, $4, 'First reply', '2026-05-19T10:01:00Z'),
+          ($5, $2, $3, $6, 'Second reply', '2026-05-19T10:02:00Z')
+      `,
+      [replyOneId, postId, topLevelCommentId, replierOneId, replyTwoId, replierTwoId],
+    );
+
+    const topLevelRows = await client.queryObject<ExploreCommentRow>(
+      `
+        SELECT comment_id, parent_comment_id, created_at::text AS created_at, author_user_id, reply_count
+        FROM public.get_explore_comments($1, $2, 50, NULL, NULL)
+      `,
+      [viewerId, postId],
+    );
+
+    assertEquals(
+      topLevelRows.rows.map((row) => row.comment_id),
+      [topLevelCommentId, siblingCommentId],
+    );
+    assertEquals(topLevelRows.rows[0].parent_comment_id, null);
+    assertEquals(topLevelRows.rows[0].reply_count, 2);
+    assertEquals(topLevelRows.rows[1].reply_count, 0);
+
+    const firstReplyPage = await client.queryObject<ExploreCommentRow>(
+      `
+        SELECT comment_id, parent_comment_id, created_at::text AS created_at, author_user_id, reply_count
+        FROM public.get_explore_comment_replies($1, $2, 1, NULL, NULL)
+      `,
+      [viewerId, topLevelCommentId],
+    );
+    assertEquals(firstReplyPage.rows.length, 1);
+    assertEquals(firstReplyPage.rows[0].comment_id, replyOneId);
+    assertEquals(firstReplyPage.rows[0].parent_comment_id, topLevelCommentId);
+    assertEquals(firstReplyPage.rows[0].reply_count, 0);
+
+    const secondReplyPage = await client.queryObject<ExploreCommentRow>(
+      `
+        SELECT comment_id, parent_comment_id, created_at::text AS created_at, author_user_id
+        FROM public.get_explore_comment_replies($1, $2, 1, $3::timestamptz, $4::uuid)
+      `,
+      [
+        viewerId,
+        topLevelCommentId,
+        firstReplyPage.rows[0].created_at,
+        firstReplyPage.rows[0].comment_id,
+      ],
+    );
+    assertEquals(secondReplyPage.rows.map((row) => row.comment_id), [replyTwoId]);
+
+    await assertRejects(
+      () =>
+        client.queryArray(
+          `
+            INSERT INTO public.explore_post_comments (id, post_id, parent_comment_id, user_id, body)
+            VALUES ($1, $2, $3, $4, 'Nested reply should fail')
+          `,
+          [crypto.randomUUID(), postId, replyOneId, viewerId],
+        ),
+    );
+
+    const countResult = await client.queryObject<{ comment_count: number }>(
+      `
+        SELECT comment_count
+        FROM public.explore_posts
+        WHERE id = $1
+      `,
+      [postId],
+    );
+    assertEquals(countResult.rows[0]?.comment_count, 4);
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_post_comments
+        SET deleted_at = NOW()
+        WHERE id = $1
+      `,
+      [topLevelCommentId],
+    );
+
+    const hiddenReplyRows = await client.queryObject<ExploreCommentRow>(
+      `
+        SELECT comment_id, parent_comment_id, created_at::text AS created_at, author_user_id
+        FROM public.get_explore_comment_replies($1, $2, 50, NULL, NULL)
+      `,
+      [viewerId, topLevelCommentId],
+    );
+    assertEquals(hiddenReplyRows.rows.length, 0);
+
+    const hiddenCountResult = await client.queryObject<{ comment_count: number }>(
+      `
+        SELECT comment_count
+        FROM public.explore_posts
+        WHERE id = $1
+      `,
+      [postId],
+    );
+    assertEquals(hiddenCountResult.rows[0]?.comment_count, 1);
   });
 });
 

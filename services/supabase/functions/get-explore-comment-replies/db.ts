@@ -1,9 +1,9 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-export interface ExploreCommentRow {
+export interface ExploreCommentReplyRow {
   comment_id: string;
   post_id: string;
-  parent_comment_id?: string | null;
+  parent_comment_id: string | null;
   author_user_id: string;
   author_name: string;
   author_avatar_url?: string | null;
@@ -12,33 +12,33 @@ export interface ExploreCommentRow {
   viewer_can_delete: boolean;
   viewer_can_moderate: boolean;
   viewer_can_report: boolean;
-  reply_count?: number;
+  reply_count: number;
   reactions: any[] | null;
 }
 
-interface ExploreCommentsCursor {
+interface ExploreRepliesCursor {
   afterCreatedAt: string | null;
   afterCommentId: string | null;
 }
 
-export async function fetchExploreComments(
+export async function fetchExploreCommentReplies(
   userId: string,
-  postId: string,
+  parentCommentId: string,
   limit: number,
-  cursor: ExploreCommentsCursor,
+  cursor: ExploreRepliesCursor,
   supabaseAdmin: SupabaseClient,
-): Promise<ExploreCommentRow[]> {
-  const { data, error } = await supabaseAdmin.rpc("get_explore_comments", {
+): Promise<ExploreCommentReplyRow[]> {
+  const { data, error } = await supabaseAdmin.rpc("get_explore_comment_replies", {
     self_id: userId,
-    target_post_id: postId,
+    target_parent_comment_id: parentCommentId,
     max_limit: limit,
     after_created_at: cursor.afterCreatedAt,
     after_comment_id: cursor.afterCommentId,
   });
 
   if (error) {
-    throw new Error(`Failed to fetch Explore comments: ${error.message}`);
+    throw new Error(`Failed to fetch Explore comment replies: ${error.message}`);
   }
 
-  return (data ?? []) as ExploreCommentRow[];
+  return (data ?? []) as ExploreCommentReplyRow[];
 }

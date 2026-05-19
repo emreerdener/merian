@@ -94,6 +94,18 @@ function buildNotificationCopy(
     };
   }
 
+  if (payload.type === "comment_reply") {
+    const actorName = typeof payload.triggering_user_name === "string" && payload.triggering_user_name.length > 0
+      ? payload.triggering_user_name
+      : "Someone";
+    return {
+      title: payload.is_reply_to_viewer_comment
+        ? `${actorName} replied to your comment`
+        : `${actorName} replied on your post`,
+      body: buildCommentBody(payload.comment_body),
+    };
+  }
+
   const actorNames = payload.recent_actor_names?.filter((value): value is string => value.length > 0) ?? [];
 
   if (payload.type === "comment_reaction") {
