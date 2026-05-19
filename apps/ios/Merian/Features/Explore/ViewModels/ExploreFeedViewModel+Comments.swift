@@ -375,7 +375,7 @@ extension ExploreFeedViewModel {
     }
 
     func toggleReaction(for comment: ExploreComment, emoji: String) {
-        guard var updatedComment = commentWithUpdatedReaction(comment, emoji: emoji) else { return }
+        guard let updatedComment = commentWithUpdatedReaction(comment, emoji: emoji) else { return }
         HapticManager.shared.triggerSelectionPulse()
 
         if let parentCommentId = updatedComment.parentCommentId,
