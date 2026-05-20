@@ -198,6 +198,31 @@ extension ExploreFeedViewModel {
         Task { await loadReplies(for: comment) }
     }
 
+    func loadReplyPreviewIfNeeded(for comment: ExploreComment) async {
+        guard (comment.replyCount ?? 0) > 0,
+              !hasLoadedReplyPreviewByCommentId.contains(comment.id),
+              !hasLoadedRepliesByCommentId.contains(comment.id),
+              !loadingReplyCommentIds.contains(comment.id),
+              repliesByCommentId[comment.id]?.isEmpty ?? true else {
+            return
+        }
+
+        loadingReplyCommentIds.insert(comment.id)
+        defer { loadingReplyCommentIds.remove(comment.id) }
+
+        do {
+            let replies = try await MerianNetworkClient.shared.getExploreCommentReplies(
+                parentCommentId: comment.id,
+                limit: 1
+            )
+            repliesByCommentId[comment.id] = replies
+            hasLoadedReplyPreviewByCommentId.insert(comment.id)
+            updateReplyCursor(parentCommentId: comment.id, using: replies)
+        } catch {
+            commentErrorMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+
     func loadReplies(for comment: ExploreComment) async {
         guard !loadingReplyCommentIds.contains(comment.id) else { return }
 
@@ -211,6 +236,7 @@ extension ExploreFeedViewModel {
                 limit: repliesPageSize
             )
             repliesByCommentId[comment.id] = replies
+            hasLoadedReplyPreviewByCommentId.insert(comment.id)
             hasLoadedRepliesByCommentId.insert(comment.id)
             if replies.count < repliesPageSize {
                 hasReachedEndOfRepliesByCommentId.insert(comment.id)
@@ -267,11 +293,102 @@ extension ExploreFeedViewModel {
 
     func expandPendingReplyThreadIfNeeded() async {
         guard let parentCommentId = pendingExpandedReplyParentCommentId else { return }
+        await loadCommentsUntilCommentIfNeeded(commentId: parentCommentId)
         guard let parentComment = comments.first(where: { $0.id == parentCommentId }) else { return }
         pendingExpandedReplyParentCommentId = nil
         expandedReplyCommentIds.insert(parentCommentId)
         if !hasLoadedRepliesByCommentId.contains(parentCommentId) {
             await loadReplies(for: parentComment)
+        }
+    }
+
+    func expandReplyThread(parentCommentId: String, targetReplyId: String? = nil) async {
+        await loadCommentsUntilCommentIfNeeded(commentId: parentCommentId)
+        guard let parentComment = comments.first(where: { $0.id == parentCommentId }) else { return }
+
+        pendingExpandedReplyParentCommentId = nil
+        expandedReplyCommentIds.insert(parentCommentId)
+
+        if !hasLoadedRepliesByCommentId.contains(parentCommentId) {
+            await loadReplies(for: parentComment)
+        }
+
+        if let targetReplyId {
+            await loadRepliesUntilReplyIfNeeded(parentComment: parentComment, replyId: targetReplyId)
+        }
+    }
+
+    func loadCommentsUntilCommentIfNeeded(commentId: String) async {
+        guard comments.contains(where: { $0.id == commentId }) == false else { return }
+        guard hasLoadedCommentsOnce, !hasReachedEndOfComments else { return }
+        guard let activeCommentsPostId else { return }
+
+        while !Task.isCancelled,
+              comments.contains(where: { $0.id == commentId }) == false,
+              !hasReachedEndOfComments,
+              let cursorCreatedAt = nextCommentsCursorCreatedAt,
+              let cursorCommentId = nextCommentsCursorCommentId {
+            let resolvedRequestId = activeCommentsRequestId
+            isLoadingMoreComments = true
+
+            do {
+                let nextPage = try await MerianNetworkClient.shared.getExploreComments(
+                    postId: activeCommentsPostId,
+                    limit: commentsPageSize,
+                    afterCreatedAt: cursorCreatedAt,
+                    afterCommentId: cursorCommentId
+                )
+                guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
+                    isLoadingMoreComments = false
+                    return
+                }
+
+                appendUniqueComments(nextPage)
+                hasReachedEndOfComments = nextPage.count < commentsPageSize
+                updateCommentsCursor(using: nextPage)
+                isLoadingMoreComments = false
+            } catch {
+                isLoadingMoreComments = false
+                guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
+                    return
+                }
+                commentErrorMessage = ExploreErrorFormatter.message(for: error)
+                return
+            }
+        }
+    }
+
+    func loadRepliesUntilReplyIfNeeded(parentComment: ExploreComment, replyId: String) async {
+        guard repliesByCommentId[parentComment.id]?.contains(where: { $0.id == replyId }) != true else { return }
+        guard hasLoadedRepliesByCommentId.contains(parentComment.id),
+              !hasReachedEndOfRepliesByCommentId.contains(parentComment.id) else {
+            return
+        }
+
+        while !Task.isCancelled,
+              repliesByCommentId[parentComment.id]?.contains(where: { $0.id == replyId }) != true,
+              !hasReachedEndOfRepliesByCommentId.contains(parentComment.id),
+              let cursor = replyCursorsByCommentId[parentComment.id] {
+            loadingMoreReplyCommentIds.insert(parentComment.id)
+
+            do {
+                let nextPage = try await MerianNetworkClient.shared.getExploreCommentReplies(
+                    parentCommentId: parentComment.id,
+                    limit: repliesPageSize,
+                    afterCreatedAt: cursor.createdAt,
+                    afterCommentId: cursor.commentId
+                )
+                appendUniqueReplies(nextPage, parentCommentId: parentComment.id)
+                if nextPage.count < repliesPageSize {
+                    hasReachedEndOfRepliesByCommentId.insert(parentComment.id)
+                }
+                updateReplyCursor(parentCommentId: parentComment.id, using: nextPage)
+                loadingMoreReplyCommentIds.remove(parentComment.id)
+            } catch {
+                loadingMoreReplyCommentIds.remove(parentComment.id)
+                commentErrorMessage = ExploreErrorFormatter.message(for: error)
+                return
+            }
         }
     }
 
@@ -321,6 +438,7 @@ extension ExploreFeedViewModel {
         repliesByCommentId[parentCommentId] = replies
         expandedReplyCommentIds.insert(parentCommentId)
         hasLoadedRepliesByCommentId.insert(parentCommentId)
+        hasLoadedReplyPreviewByCommentId.insert(parentCommentId)
         if let index = comments.firstIndex(where: { $0.id == parentCommentId }) {
             comments[index].replyCount = (comments[index].replyCount ?? 0) + 1
         }
@@ -356,6 +474,7 @@ extension ExploreFeedViewModel {
         repliesByCommentId[comment.id] = nil
         expandedReplyCommentIds.remove(comment.id)
         hasLoadedRepliesByCommentId.remove(comment.id)
+        hasLoadedReplyPreviewByCommentId.remove(comment.id)
         hasReachedEndOfRepliesByCommentId.remove(comment.id)
         replyCursorsByCommentId[comment.id] = nil
     }
@@ -367,6 +486,7 @@ extension ExploreFeedViewModel {
         loadingReplyCommentIds = []
         loadingMoreReplyCommentIds = []
         replyCursorsByCommentId = [:]
+        hasLoadedReplyPreviewByCommentId = []
         hasLoadedRepliesByCommentId = []
         hasReachedEndOfRepliesByCommentId = []
         if !keepingPendingExpansion {

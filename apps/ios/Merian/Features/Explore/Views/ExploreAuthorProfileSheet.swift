@@ -84,6 +84,8 @@ struct ExploreAuthorProfileSheet: View {
                     postId: route.postId,
                     shouldFocusCommentComposer: route.shouldFocusCommentComposer,
                     shouldOpenInsight: route.shouldOpenInsight,
+                    targetCommentId: route.targetCommentId,
+                    targetReplyParentCommentId: route.targetReplyParentCommentId,
                     allowsInsightPresentation: false,
                     allowsAuthorProfilePresentation: false
                 )
@@ -680,7 +682,9 @@ struct ExploreAuthorProfileSheet: View {
         navigationPath.append(ExplorePostRoute(
             postId: post.id,
             shouldFocusCommentComposer: false,
-            shouldOpenInsight: false
+            shouldOpenInsight: false,
+            targetCommentId: nil,
+            targetReplyParentCommentId: nil
         ))
     }
 }

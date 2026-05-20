@@ -253,11 +253,17 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         if let type = userInfo["type"] as? String, type == "explore_activity",
            let postId = userInfo["postId"] as? String {
             guard actionIdentifier != UNNotificationDismissActionIdentifier else { return }
+            let commentId = userInfo["commentId"] as? String ?? userInfo["comment_id"] as? String
+            let parentCommentId = userInfo["parentCommentId"] as? String ?? userInfo["parent_comment_id"] as? String
             Task { @MainActor in
                 MerianLog.hardware.debug(
                     "Explore push notification tapped — routing to postId \(postId, privacy: .private)"
                 )
-                AppEventPublisher.shared.send(.appDidEnterActivePhaseWithExplorePost(postId: postId))
+                AppEventPublisher.shared.send(.appDidEnterActivePhaseWithExplorePost(
+                    postId: postId,
+                    targetCommentId: commentId,
+                    targetReplyParentCommentId: parentCommentId
+                ))
             }
             return
         }

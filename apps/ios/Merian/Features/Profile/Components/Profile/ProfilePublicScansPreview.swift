@@ -403,6 +403,8 @@ private struct ProfilePublishedScansLibraryView: View {
                     postId: selectedPostRoute.postId,
                     shouldFocusCommentComposer: selectedPostRoute.shouldFocusCommentComposer,
                     shouldOpenInsight: selectedPostRoute.shouldOpenInsight,
+                    targetCommentId: selectedPostRoute.targetCommentId,
+                    targetReplyParentCommentId: selectedPostRoute.targetReplyParentCommentId,
                     allowsInsightPresentation: false
                 )
             }
@@ -600,7 +602,9 @@ private struct ProfilePublishedScansLibraryView: View {
         selectedPostRoute = ExplorePostRoute(
             postId: post.id,
             shouldFocusCommentComposer: false,
-            shouldOpenInsight: false
+            shouldOpenInsight: false,
+            targetCommentId: nil,
+            targetReplyParentCommentId: nil
         )
     }
 }

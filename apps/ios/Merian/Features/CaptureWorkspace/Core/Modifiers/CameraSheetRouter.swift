@@ -36,10 +36,16 @@ struct CameraSheetRouter: ViewModifier {
                     case .profile:
                         ProfileView()
                     case .explore:
-                        ExploreView(initialPostId: viewModel.pendingExplorePostId)
+                        ExploreView(
+                            initialPostId: viewModel.pendingExplorePostId,
+                            initialTargetCommentId: viewModel.pendingExploreTargetCommentId,
+                            initialTargetReplyParentCommentId: viewModel.pendingExploreTargetReplyParentCommentId
+                        )
                             .id(viewModel.explorePresentationIdentity)
                             .onDisappear {
                                 viewModel.pendingExplorePostId = nil
+                                viewModel.pendingExploreTargetCommentId = nil
+                                viewModel.pendingExploreTargetReplyParentCommentId = nil
                             }
                     case .scans:
                         ScansSheetView()

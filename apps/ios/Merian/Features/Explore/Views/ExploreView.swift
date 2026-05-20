@@ -28,11 +28,22 @@ struct ExploreView: View {
         )
     }
 
-    init(initialPostId: String? = nil, allowsInsightPresentation: Bool = true) {
+    init(
+        initialPostId: String? = nil,
+        initialTargetCommentId: String? = nil,
+        initialTargetReplyParentCommentId: String? = nil,
+        allowsInsightPresentation: Bool = true
+    ) {
         self.allowsInsightPresentation = allowsInsightPresentation
         if let postId = initialPostId {
             var initialPath = NavigationPath()
-            initialPath.append(ExplorePostRoute(postId: postId, shouldFocusCommentComposer: false, shouldOpenInsight: false))
+            initialPath.append(ExplorePostRoute(
+                postId: postId,
+                shouldFocusCommentComposer: false,
+                shouldOpenInsight: false,
+                targetCommentId: initialTargetCommentId,
+                targetReplyParentCommentId: initialTargetReplyParentCommentId
+            ))
             _navigationPath = State(initialValue: initialPath)
         }
     }
@@ -72,6 +83,8 @@ struct ExploreView: View {
                     postId: route.postId,
                     shouldFocusCommentComposer: route.shouldFocusCommentComposer,
                     shouldOpenInsight: route.shouldOpenInsight,
+                    targetCommentId: route.targetCommentId,
+                    targetReplyParentCommentId: route.targetReplyParentCommentId,
                     allowsInsightPresentation: allowsInsightPresentation
                 )
             }
@@ -216,13 +229,21 @@ struct ExploreView: View {
         }
     }
 
-    private func openPostDetail(for post: ExplorePost, focusCommentComposer: Bool = false, openInsight: Bool = false) {
+    private func openPostDetail(
+        for post: ExplorePost,
+        focusCommentComposer: Bool = false,
+        openInsight: Bool = false,
+        targetCommentId: String? = nil,
+        targetReplyParentCommentId: String? = nil
+    ) {
         viewModel.upsertPost(post)
         viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
         navigationPath.append(ExplorePostRoute(
             postId: post.id,
             shouldFocusCommentComposer: focusCommentComposer,
-            shouldOpenInsight: allowsInsightPresentation && openInsight
+            shouldOpenInsight: allowsInsightPresentation && openInsight,
+            targetCommentId: targetCommentId,
+            targetReplyParentCommentId: targetReplyParentCommentId
         ))
     }
 
@@ -311,7 +332,12 @@ struct ExploreView: View {
                 viewModel.prepareToExpandReplyThread(parentCommentId: notification.parentCommentId)
             }
             try? await Task.sleep(nanoseconds: 150_000_000)
-            openPostDetail(for: post, focusCommentComposer: notification.type == .comment)
+            openPostDetail(
+                for: post,
+                focusCommentComposer: notification.type == .comment,
+                targetCommentId: notification.type == .commentReply ? notification.commentId : nil,
+                targetReplyParentCommentId: notification.type == .commentReply ? notification.parentCommentId : nil
+            )
         } catch {
             MerianLog.network.error(
                 "Failed to open Explore notification \(notification.id, privacy: .private): \(error.localizedDescription, privacy: .private)"
@@ -579,4 +605,6 @@ struct ExplorePostRoute: Hashable {
     let postId: String
     let shouldFocusCommentComposer: Bool
     let shouldOpenInsight: Bool
+    let targetCommentId: String?
+    let targetReplyParentCommentId: String?
 }

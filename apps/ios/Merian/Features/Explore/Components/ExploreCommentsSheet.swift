@@ -7,6 +7,9 @@ struct ExploreCommentsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isComposerFocused: Bool
     @State private var reactingCommentId: String?
+    private let replyThreadLineColor = Color(uiColor: .systemGray4)
+    private let replyThreadParentExtension: CGFloat = 36
+    private let replyThreadRowSpacing: CGFloat = 10
 
     var body: some View {
         NavigationStack {
@@ -207,18 +210,79 @@ struct ExploreCommentsSheet: View {
             commentRow(comment, allowsReply: true)
 
             let replyCount = comment.replyCount ?? 0
-            if viewModel.expandedReplyCommentIds.contains(comment.id) {
-                repliesList(for: comment)
-            } else if replyCount > 0 {
-                Button(action: { viewModel.toggleReplies(for: comment) }) {
-                    Label("View \(replyCount) \(replyCount == 1 ? "reply" : "replies")", systemImage: "arrowshape.turn.up.left")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
+            if replyCount > 0 {
+                VStack(alignment: .leading, spacing: 10) {
+                    replyCountLabel(replyCount, for: comment)
+
+                    if viewModel.expandedReplyCommentIds.contains(comment.id) {
+                        repliesList(for: comment)
+                    } else {
+                        replyPreview(for: comment, replyCount: replyCount)
+                    }
                 }
-                .buttonStyle(.plain)
-                .padding(.leading, 48)
+
+                if viewModel.repliesByCommentId[comment.id]?.isEmpty == false {
+                    threadReplyButton(for: comment)
+                }
             }
         }
+    }
+
+    private func replyCountLabel(_ replyCount: Int, for comment: ExploreComment) -> some View {
+        Button(action: { viewModel.toggleReplies(for: comment) }) {
+            Text("\(replyCount) \(replyCount == 1 ? "reply" : "replies")")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 48)
+    }
+
+    private func threadReplyButton(for comment: ExploreComment) -> some View {
+        Button(action: {
+            viewModel.beginReply(to: comment)
+            isComposerFocused = true
+        }) {
+            Label("Reply", systemImage: "arrowshape.turn.up.left")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 48)
+    }
+
+    @ViewBuilder
+    private func replyPreview(for comment: ExploreComment, replyCount: Int) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if viewModel.loadingReplyCommentIds.contains(comment.id),
+               viewModel.repliesByCommentId[comment.id]?.isEmpty ?? true {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .padding(.leading, 48)
+            }
+
+            if let firstReply = viewModel.repliesByCommentId[comment.id]?.first {
+                replyRow(firstReply, topExtension: replyThreadParentExtension, connectsToNext: false)
+
+                if replyCount > 1 {
+                    Button(action: { viewModel.toggleReplies(for: comment) }) {
+                        Text(showMoreRepliesTitle(for: replyCount))
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 48)
+                }
+            }
+        }
+        .task {
+            await viewModel.loadReplyPreviewIfNeeded(for: comment)
+        }
+    }
+
+    private func showMoreRepliesTitle(for replyCount: Int) -> String {
+        let remainingReplyCount = replyCount - 1
+        return remainingReplyCount == 1 ? "show other reply" : "show \(remainingReplyCount) more replies"
     }
 
     @ViewBuilder
@@ -230,9 +294,12 @@ struct ExploreCommentsSheet: View {
                     .padding(.leading, 48)
             }
 
-            ForEach(viewModel.repliesByCommentId[comment.id] ?? []) { reply in
-                commentRow(reply, allowsReply: false)
-                    .padding(.leading, 36)
+            ForEach(Array((viewModel.repliesByCommentId[comment.id] ?? []).enumerated()), id: \.element.id) { index, reply in
+                replyRow(
+                    reply,
+                    topExtension: index > 0 ? replyThreadRowSpacing / 2 : replyThreadParentExtension,
+                    connectsToNext: index < (viewModel.repliesByCommentId[comment.id] ?? []).count - 1
+                )
                     .onAppear {
                         Task { await viewModel.loadMoreRepliesIfNeeded(parentComment: comment, currentReply: reply) }
                     }
@@ -255,6 +322,50 @@ struct ExploreCommentsSheet: View {
                 .buttonStyle(.plain)
                 .padding(.leading, 48)
             }
+        }
+    }
+
+    private func replyRow(_ reply: ExploreComment, topExtension: CGFloat, connectsToNext: Bool) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            ReplyThreadConnector(
+                topExtension: topExtension,
+                bottomExtension: connectsToNext ? replyThreadRowSpacing / 2 : 0
+            )
+                .stroke(
+                    replyThreadLineColor,
+                    style: StrokeStyle(lineWidth: 2, lineCap: .butt, lineJoin: .round)
+                )
+                .frame(width: 16)
+                .accessibilityHidden(true)
+
+            commentRow(reply, allowsReply: false)
+        }
+        .padding(.leading, 18)
+    }
+
+    private struct ReplyThreadConnector: Shape {
+        let topExtension: CGFloat
+        let bottomExtension: CGFloat
+
+        func path(in rect: CGRect) -> Path {
+            let radius = min(rect.width, 8)
+            let midY = rect.midY
+            var path = Path()
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY - topExtension))
+            path.addLine(to: CGPoint(x: rect.minX, y: connectsBelow ? rect.maxY + bottomExtension : midY - radius))
+            if connectsBelow {
+                path.move(to: CGPoint(x: rect.minX, y: midY - radius))
+            }
+            path.addQuadCurve(
+                to: CGPoint(x: rect.minX + radius, y: midY),
+                control: CGPoint(x: rect.minX, y: midY)
+            )
+            path.addLine(to: CGPoint(x: rect.maxX, y: midY))
+            return path
+        }
+
+        private var connectsBelow: Bool {
+            bottomExtension > 0
         }
     }
 

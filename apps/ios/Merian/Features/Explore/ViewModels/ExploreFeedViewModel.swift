@@ -202,6 +202,7 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var hasLoadedCommentsOnce = false
     @ObservationIgnored var hasReachedEndOfComments = false
     @ObservationIgnored var replyCursorsByCommentId: [String: ExploreCommentCursor] = [:]
+    @ObservationIgnored var hasLoadedReplyPreviewByCommentId = Set<String>()
     @ObservationIgnored var hasLoadedRepliesByCommentId = Set<String>()
     @ObservationIgnored var hasReachedEndOfRepliesByCommentId = Set<String>()
     @ObservationIgnored var pendingExpandedReplyParentCommentId: String?

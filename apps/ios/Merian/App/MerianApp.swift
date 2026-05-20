@@ -618,7 +618,11 @@ struct MerianApp: App {
         switch route {
         case .explorePost(let postId):
             diContainer.appEventPublisher.send(
-                .appDidEnterActivePhaseWithExplorePost(postId: postId)
+                .appDidEnterActivePhaseWithExplorePost(
+                    postId: postId,
+                    targetCommentId: nil,
+                    targetReplyParentCommentId: nil
+                )
             )
         case .scan(let scanId):
             diContainer.appEventPublisher.send(

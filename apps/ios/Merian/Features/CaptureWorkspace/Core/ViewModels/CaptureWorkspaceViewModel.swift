@@ -100,6 +100,8 @@ final class CaptureWorkspaceViewModel {
     // MARK: - UI & Navigation State
     var activeSheet: ActiveSheet?
     var pendingExplorePostId: String?
+    var pendingExploreTargetCommentId: String?
+    var pendingExploreTargetReplyParentCommentId: String?
     var explorePresentationIdentity = UUID()
     var offlineToastMessage: String?
     var imageToCrop: IdentifiableImage?
@@ -221,8 +223,12 @@ final class CaptureWorkspaceViewModel {
                     self?.activeSheet = .paywall
                 case .appDidEnterActivePhaseWithScan(let scanId):
                     self?.handleDeepLinkRoute(scanId: scanId)
-                case .appDidEnterActivePhaseWithExplorePost(let postId):
-                    self?.handleExploreDeepLinkRoute(postId: postId)
+                case .appDidEnterActivePhaseWithExplorePost(let postId, let targetCommentId, let targetReplyParentCommentId):
+                    self?.handleExploreDeepLinkRoute(
+                        postId: postId,
+                        targetCommentId: targetCommentId,
+                        targetReplyParentCommentId: targetReplyParentCommentId
+                    )
                 case .triggerRefinement(let record, let initialDescription):
                     self?.startRefinementScan(from: record, initialDescription: initialDescription)
                 case .requestOpenNonBiologicalScansIntent:
@@ -305,6 +311,8 @@ final class CaptureWorkspaceViewModel {
         // Clear all sheets and UI modals instantly when the session times out
         activeSheet = nil
         pendingExplorePostId = nil
+        pendingExploreTargetCommentId = nil
+        pendingExploreTargetReplyParentCommentId = nil
         imageToCrop = nil
         editingCropIndex = nil
 
@@ -334,9 +342,15 @@ final class CaptureWorkspaceViewModel {
         }
     }
 
-    private func handleExploreDeepLinkRoute(postId: String) {
+    private func handleExploreDeepLinkRoute(
+        postId: String,
+        targetCommentId: String?,
+        targetReplyParentCommentId: String?
+    ) {
         protectExternalRouteFromImmediateSessionTimeoutReset()
         pendingExplorePostId = postId
+        pendingExploreTargetCommentId = targetCommentId
+        pendingExploreTargetReplyParentCommentId = targetReplyParentCommentId
         explorePresentationIdentity = UUID()
         activeSheet = .explore
     }

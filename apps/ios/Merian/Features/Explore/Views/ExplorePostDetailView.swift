@@ -6,6 +6,8 @@ struct ExplorePostDetailView: View {
     let postId: String
     let shouldFocusCommentComposer: Bool
     let shouldOpenInsight: Bool
+    let targetCommentId: String?
+    let targetReplyParentCommentId: String?
     let allowsInsightPresentation: Bool
     let allowsAuthorProfilePresentation: Bool
 
@@ -35,6 +37,8 @@ struct ExplorePostDetailView: View {
         postId: String,
         shouldFocusCommentComposer: Bool,
         shouldOpenInsight: Bool,
+        targetCommentId: String? = nil,
+        targetReplyParentCommentId: String? = nil,
         allowsInsightPresentation: Bool,
         allowsAuthorProfilePresentation: Bool = true
     ) {
@@ -42,6 +46,8 @@ struct ExplorePostDetailView: View {
         self.postId = postId
         self.shouldFocusCommentComposer = shouldFocusCommentComposer
         self.shouldOpenInsight = shouldOpenInsight
+        self.targetCommentId = targetCommentId
+        self.targetReplyParentCommentId = targetReplyParentCommentId
         self.allowsInsightPresentation = allowsInsightPresentation
         self.allowsAuthorProfilePresentation = allowsAuthorProfilePresentation
     }
@@ -188,6 +194,7 @@ struct ExplorePostDetailView: View {
                         async let commentsTask: Void = viewModel.openComments(for: post)
                         _ = await (detailTask, commentsTask)
                         await viewModel.expandPendingReplyThreadIfNeeded()
+                        await focusTargetCommentIfNeeded(using: scrollProxy)
                         syncLocalFieldNotes(for: post)
 
                         if shouldFocusCommentComposer {
@@ -363,6 +370,27 @@ struct ExplorePostDetailView: View {
             try? await Task.sleep(nanoseconds: 250_000_000)
             guard !Task.isCancelled else { return }
             isComposerFocused = true
+        }
+    }
+
+    private func focusTargetCommentIfNeeded(using scrollProxy: ScrollViewProxy) async {
+        guard let targetCommentId else { return }
+
+        if let targetReplyParentCommentId {
+            await viewModel.expandReplyThread(parentCommentId: targetReplyParentCommentId, targetReplyId: targetCommentId)
+        } else {
+            await viewModel.loadCommentsUntilCommentIfNeeded(commentId: targetCommentId)
+        }
+
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        guard !Task.isCancelled else { return }
+
+        let scrollId = targetReplyParentCommentId == nil
+            ? ExploreCommentScrollTarget.comment(targetCommentId).id
+            : ExploreCommentScrollTarget.reply(targetCommentId).id
+
+        withAnimation(.easeInOut(duration: 0.24)) {
+            scrollProxy.scrollTo(scrollId, anchor: .center)
         }
     }
 
