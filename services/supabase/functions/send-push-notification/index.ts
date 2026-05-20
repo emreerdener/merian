@@ -129,6 +129,12 @@ function isTerminalApnsReason(reason: string): boolean {
   ].includes(reason);
 }
 
+function normalizedBadgeCount(count: number | null | undefined): number {
+  return typeof count === "number" && Number.isFinite(count)
+    ? Math.max(0, Math.trunc(count))
+    : 1;
+}
+
 async function getApnsBearerToken(): Promise<string | null> {
   const now = Date.now();
   if (cachedApnsBearerToken && cachedApnsBearerToken.expiresAtMs - now > 5 * 60 * 1000) {
@@ -168,6 +174,7 @@ async function sendApnsPush(
   notificationId: string,
   postId: string,
   notificationType: string,
+  badgeCount: number | null | undefined,
 ): Promise<ApnsFailure | null> {
   const response = await fetch(`${apnsHost(device.environment)}/3/device/${device.device_token}`, {
     method: "POST",
@@ -181,6 +188,7 @@ async function sendApnsPush(
     body: JSON.stringify({
       aps: {
         alert: copy,
+        badge: normalizedBadgeCount(badgeCount),
         sound: "default",
         "thread-id": "explore_activity",
       },
@@ -276,6 +284,7 @@ serve(async (req: Request) => {
         payload.notification_id,
         payload.post_id,
         payload.type,
+        payload.unread_count,
       );
 
       if (!failure) {

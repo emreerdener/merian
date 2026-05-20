@@ -29,7 +29,7 @@ struct CameraSheetRouter: ViewModifier {
                         ), inferenceEngine: inferenceEngine)
                         .onAppear {
                             appSettings.hasUnseenScan = false
-                            PushNotificationManager.shared.setBadgeCount(0)
+                            AppIconBadgeCoordinator.updateAppIconBadge()
                         }
                     case .paywall:
                         PaywallView()
@@ -45,7 +45,7 @@ struct CameraSheetRouter: ViewModifier {
                         ScansSheetView()
                         .onAppear {
                             appSettings.hasUnseenScan = false
-                            PushNotificationManager.shared.setBadgeCount(0)
+                            AppIconBadgeCoordinator.updateAppIconBadge()
                         }
                     }
                 }

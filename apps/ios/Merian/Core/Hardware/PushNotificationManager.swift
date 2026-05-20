@@ -294,3 +294,41 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         }
     }
 }
+
+@MainActor
+enum AppIconBadgeCoordinator {
+    private static let exploreUnreadNotificationCountKey = "exploreUnreadNotificationBadgeCount"
+
+    static var exploreUnreadNotificationCount: Int {
+        max(0, UserDefaults.standard.integer(forKey: exploreUnreadNotificationCountKey))
+    }
+
+    static func setExploreUnreadNotificationCount(_ count: Int) {
+        UserDefaults.standard.set(max(0, count), forKey: exploreUnreadNotificationCountKey)
+        updateAppIconBadge()
+    }
+
+    static func clearExploreUnreadNotificationCount() {
+        setExploreUnreadNotificationCount(0)
+    }
+
+    static func refreshExploreUnreadNotificationCount() async {
+        do {
+            let count = try await MerianNetworkClient.shared.getUnreadExploreNotificationCount()
+            setExploreUnreadNotificationCount(count)
+        } catch is CancellationError {
+            // Absorb cancellation during lifecycle transitions.
+        } catch let error as URLError where error.code == .cancelled {
+            // Absorb URLSession cancellation.
+        } catch {
+            MerianLog.network.debug(
+                "Failed to refresh Explore app icon badge count: \(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
+    static func updateAppIconBadge() {
+        let unseenScanCount = AppSettings.shared.hasUnseenScan ? 1 : 0
+        PushNotificationManager.shared.setBadgeCount(unseenScanCount + exploreUnreadNotificationCount)
+    }
+}

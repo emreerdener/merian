@@ -11,6 +11,7 @@ export interface ExplorePushNotificationPayload {
   triggering_user_name: string | null;
   recent_actor_names: string[] | null;
   is_reply_to_viewer_comment: boolean | null;
+  unread_count?: number | null;
 }
 
 export interface PushDeviceRow {

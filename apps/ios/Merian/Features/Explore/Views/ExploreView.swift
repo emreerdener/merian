@@ -132,6 +132,7 @@ struct ExploreView: View {
             ExploreNotificationsSheet(
                 onUnreadNotificationsCleared: {
                     viewModel.unreadNotificationCount = 0
+                    AppIconBadgeCoordinator.clearExploreUnreadNotificationCount()
                 },
                 onOpenNotification: { notification in
                     await openNotification(notification)

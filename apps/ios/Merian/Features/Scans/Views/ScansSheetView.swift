@@ -216,13 +216,13 @@ struct ScansSheetView: View {
             await reconcileShareImportsFromSheet()
         }
         appSettings.hasUnseenScan = false
-        PushNotificationManager.shared.setBadgeCount(0)
+        AppIconBadgeCoordinator.updateAppIconBadge()
     }
 
     private func handleUnseenScanBadgeChange(_ isSet: Bool) {
         guard isSet else { return }
         appSettings.hasUnseenScan = false
-        PushNotificationManager.shared.setBadgeCount(0)
+        AppIconBadgeCoordinator.updateAppIconBadge()
     }
 
     private func handleRawRecordsChange() {

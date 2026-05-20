@@ -41,6 +41,7 @@ final class AppLifecycleManager {
 
         Task {
             await container.supabaseManager.initializeGhostSession()
+            await AppIconBadgeCoordinator.refreshExploreUnreadNotificationCount()
             await container.pushNotificationManager.syncRemotePushRegistrationIfPossible(reason: "app_active")
             container.offlineQueueManager.purgeSoftDeletedRecords()
 

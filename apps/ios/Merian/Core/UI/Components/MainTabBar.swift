@@ -113,6 +113,7 @@ struct MainTabBar: View {
 
         if let unreadCount {
             hasUnreadExploreNotifications = unreadCount > 0
+            AppIconBadgeCoordinator.setExploreUnreadNotificationCount(unreadCount)
         }
 
         guard let latestPost else {

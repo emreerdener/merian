@@ -144,7 +144,7 @@ extension CaptureWorkspaceViewModel {
         guard !isStillProcessing else { return }
         if diContainer.inferenceEngine.speciesData?.scanId != nil, activeSheet != .insight {
             diContainer.appSettings.hasUnseenScan = true
-            PushNotificationManager.shared.setBadgeCount(1)
+            AppIconBadgeCoordinator.updateAppIconBadge()
         }
     }
 }

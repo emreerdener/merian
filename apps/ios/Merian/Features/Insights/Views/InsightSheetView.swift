@@ -185,7 +185,7 @@ private extension InsightSheetView {
                 appSettings.suppressInferenceBanners = true
                 // Clear the tab bar badge — the user is actively viewing a scan result.
                 appSettings.hasUnseenScan = false
-                PushNotificationManager.shared.setBadgeCount(0)
+                AppIconBadgeCoordinator.updateAppIconBadge()
             }
             .onDisappear {
                 appSettings.suppressInferenceBanners = false
@@ -369,7 +369,7 @@ private extension InsightSheetView {
                 inferenceEngine: inferenceEngine
             ) {
                 appSettings.hasUnseenScan = false
-                PushNotificationManager.shared.setBadgeCount(0)
+                AppIconBadgeCoordinator.updateAppIconBadge()
                 return
             }
 

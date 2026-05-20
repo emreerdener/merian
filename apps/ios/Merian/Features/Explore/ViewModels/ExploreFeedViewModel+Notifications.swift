@@ -19,6 +19,7 @@ extension ExploreFeedViewModel {
 
         do {
             unreadNotificationCount = try await MerianNetworkClient.shared.getUnreadExploreNotificationCount()
+            AppIconBadgeCoordinator.setExploreUnreadNotificationCount(unreadNotificationCount)
         } catch is CancellationError {
             // Absorb cancellation while the view is disappearing.
         } catch let error as URLError where error.code == .cancelled {

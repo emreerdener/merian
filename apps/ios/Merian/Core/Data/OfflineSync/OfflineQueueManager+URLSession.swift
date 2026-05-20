@@ -632,7 +632,7 @@ extension OfflineQueueManager {
                 // sheet — the badge would appear and immediately need clearing on dismiss.
                 if !AppSettings.shared.suppressInferenceBanners {
                     AppSettings.shared.hasUnseenScan = true
-                    PushNotificationManager.shared.setBadgeCount(1)
+                    AppIconBadgeCoordinator.updateAppIconBadge()
                 }
                 if processingResult.isNewDiscovery {
                     GamificationManager.shared.recordNewSpeciesDiscovered()

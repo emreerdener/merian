@@ -166,6 +166,7 @@ type PushPayloadRow = {
   triggering_user_name: string | null;
   recent_actor_names: string[];
   is_reply_to_viewer_comment: boolean | null;
+  unread_count: number;
 };
 
 type NotificationCursorRow = {
@@ -285,6 +286,7 @@ Deno.test("Explore notifications DB - like aggregation, RPC fetch, mark read, an
     assertEquals(pushPayloadResult.rows[0].action_count, 2);
     assertEquals(pushPayloadResult.rows[0].triggering_user_name, "Liker Two");
     assertEquals(pushPayloadResult.rows[0].recent_actor_names, ["Liker Two", "Liker One"]);
+    assertEquals(pushPayloadResult.rows[0].unread_count, 1);
 
     const unreadCountResult = await client.queryObject<{ count: number }>(
       `SELECT public.get_unread_explore_notification_count($1) AS count`,
