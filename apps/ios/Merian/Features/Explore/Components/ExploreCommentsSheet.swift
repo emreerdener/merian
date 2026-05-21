@@ -22,6 +22,12 @@ struct ExploreCommentsSheet: View {
                     commentsScrollView
                 }
             }
+            .background(
+                ExploreKeyboardDismissTapRecognizer(
+                    isEnabled: isComposerFocused,
+                    onTap: { isComposerFocused = false }
+                )
+            )
             .background(Color(uiColor: .systemBackground))
             .navigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
@@ -82,6 +88,7 @@ struct ExploreCommentsSheet: View {
             .padding(.top, 16)
             .padding(.bottom, 12)
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private var loadingState: some View {
@@ -152,6 +159,7 @@ struct ExploreCommentsSheet: View {
                 TextField(composerPlaceholder, text: $viewModel.commentDraft, axis: .vertical)
                     .lineLimit(1...4)
                     .focused($isComposerFocused)
+                    .id(viewModel.composerResetToken)
                     .submitLabel(.done)
                     .onSubmit { isComposerFocused = false }
                     .padding(.horizontal, 14)
@@ -192,6 +200,14 @@ struct ExploreCommentsSheet: View {
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 12)
+        .gesture(
+            DragGesture(minimumDistance: 10, coordinateSpace: .local)
+                .onChanged { value in
+                    if isComposerFocused && value.translation.height > 10 {
+                        isComposerFocused = false
+                    }
+                }
+        )
     }
 
     private var canSubmitComment: Bool {
@@ -282,7 +298,7 @@ struct ExploreCommentsSheet: View {
 
     private func showMoreRepliesTitle(for replyCount: Int) -> String {
         let remainingReplyCount = replyCount - 1
-        return remainingReplyCount == 1 ? "show other reply" : "show \(remainingReplyCount) more replies"
+        return remainingReplyCount == 1 ? "Show other reply" : "Show \(remainingReplyCount) more replies"
     }
 
     @ViewBuilder

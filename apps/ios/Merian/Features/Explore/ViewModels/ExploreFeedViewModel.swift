@@ -171,6 +171,7 @@ final class ExploreFeedViewModel {
     var isLoadingMoreComments = false
     var isSubmittingComment = false
     var commentDraft = ""
+    var composerResetToken = UUID()
     var commentErrorMessage: String?
     var replyingToComment: ExploreComment?
     var repliesByCommentId: [String: [ExploreComment]] = [:]

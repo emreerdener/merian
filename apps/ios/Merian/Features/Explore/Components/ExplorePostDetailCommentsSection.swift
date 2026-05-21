@@ -153,6 +153,7 @@ struct ExplorePostDetailCommentsSection: View {
                 TextField(composerPlaceholder, text: $viewModel.commentDraft, axis: .vertical)
                     .lineLimit(1...4)
                     .focused(isComposerFocused)
+                    .id(viewModel.composerResetToken)
                     .submitLabel(.done)
                     .onSubmit {
                         onDismissComposer()
@@ -194,6 +195,14 @@ struct ExplorePostDetailCommentsSection: View {
         }
         .padding(.top, 12)
         .padding(.bottom, 12)
+        .gesture(
+            DragGesture(minimumDistance: 10, coordinateSpace: .local)
+                .onChanged { value in
+                    if isComposerFocused.wrappedValue && value.translation.height > 10 {
+                        onDismissComposer()
+                    }
+                }
+        )
     }
 
     private var canSubmitComment: Bool {
@@ -284,7 +293,7 @@ struct ExplorePostDetailCommentsSection: View {
 
     private func showMoreRepliesTitle(for replyCount: Int) -> String {
         let remainingReplyCount = replyCount - 1
-        return remainingReplyCount == 1 ? "show other reply" : "show \(remainingReplyCount) more replies"
+        return remainingReplyCount == 1 ? "Show other reply" : "Show \(remainingReplyCount) more replies"
     }
 
     @ViewBuilder

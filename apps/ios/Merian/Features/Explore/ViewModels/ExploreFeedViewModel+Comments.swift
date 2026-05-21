@@ -120,6 +120,7 @@ extension ExploreFeedViewModel {
         commentErrorMessage = nil
         let previousDraft = commentDraft
         commentDraft = ""
+        composerResetToken = UUID()
 
         defer { isSubmittingComment = false }
 
@@ -148,6 +149,7 @@ extension ExploreFeedViewModel {
             HapticManager.shared.triggerSelectionPulse()
         } catch {
             commentDraft = previousDraft
+            composerResetToken = UUID()
             commentErrorMessage = ExploreErrorFormatter.message(for: error)
             HapticManager.shared.triggerErrorThump()
         }
