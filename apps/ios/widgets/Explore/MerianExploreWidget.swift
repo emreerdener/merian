@@ -106,21 +106,34 @@ struct ExploreImageWidgetView: View {
                         if let item = entry.item {
                             if let commonName = item.speciesCommonName, !commonName.isEmpty {
                                 Text(commonName)
-                                    .font(.system(.title2, design: .rounded))
+                                    .font(.system(.title2))
                                     .fontWeight(.bold)
                                     .foregroundColor(.primary)
                                     .multilineTextAlignment(.center)
                                     .lineLimit(3)
                                     .minimumScaleFactor(0.7)
                             }
+                            
+                            if let scientificName = item.speciesScientificName,
+                               !scientificName.isEmpty,
+                               scientificName.lowercased() != item.speciesCommonName?.lowercased(),
+                               scientificName != "Taxonomy unavailable" {
+                                Text(scientificName)
+                                    .font(.system(.footnote))
+                                    .italic()
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
                         } else {
                             Text("Explore Merian")
-                                .font(.system(.headline, design: .rounded))
+                                .font(.system(.headline))
                                 .fontWeight(.bold)
                                 .foregroundColor(.primary)
                                 .multilineTextAlignment(.center)
                             Text("No discoveries yet")
-                                .font(.system(.footnote, design: .rounded))
+                                .font(.system(.footnote))
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                         }
@@ -146,10 +159,21 @@ struct ExploreImageWidgetView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             if let commonName = item.speciesCommonName, !commonName.isEmpty {
                                 Text(commonName)
-                                    .font(.system(.title3, design: .rounded))
+                                    .font(.system(.title3))
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
                                     .lineLimit(2)
+                            }
+                            
+                            if let scientificName = item.speciesScientificName,
+                               !scientificName.isEmpty,
+                               scientificName.lowercased() != item.speciesCommonName?.lowercased(),
+                               scientificName != "Taxonomy Unavailable" {
+                                Text(scientificName)
+                                    .font(.system(.footnote))
+                                    .italic()
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .lineLimit(1)
                             }
                         }
                         .padding(.all, 16)

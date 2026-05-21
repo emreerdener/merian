@@ -4,7 +4,7 @@ import UIKit
 struct ExploreProBadge: View {
     var body: some View {
         Text("PRO")
-            .font(.system(size: 9, weight: .black, design: .rounded))
+            .font(.system(size: 9, weight: .black))
             .tracking(0.5)
             .foregroundStyle(Color(uiColor: .systemBackground))
             .padding(.horizontal, 5)

@@ -176,7 +176,7 @@ struct PackageCardButton: View {
                             
                         if package.packageType == .annual {
                             Text("BEST VALUE")
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.green)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)

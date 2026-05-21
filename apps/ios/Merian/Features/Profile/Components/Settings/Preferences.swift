@@ -270,7 +270,7 @@ private struct ProSettingsBanner: View {
 private struct ProSectionHeader: View {
     var body: some View {
             Text("PRO")
-                .font(.system(size: 11, weight: .black, design: .rounded))
+                .font(.system(size: 11, weight: .black))
                 .foregroundStyle(ProSettingsStyle.accent)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)

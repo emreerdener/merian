@@ -141,7 +141,7 @@ struct ZoomSliderView: View {
 
             if showText {
                 Text(zoomLabel(for: camera.zoomFactor))
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.black)
                     .contentTransition(.numericText())
                     .scaleEffect(x: appSettings.zoomSideLeft ? -1 : 1, y: 1)
