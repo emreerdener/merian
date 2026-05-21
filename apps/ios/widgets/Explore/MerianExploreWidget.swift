@@ -74,23 +74,121 @@ struct ExploreImageTimelineProvider: TimelineProvider {
 
 struct ExploreImageWidgetView: View {
     let entry: ExploreImageEntry
+    @Environment(\.widgetFamily) var family
 
     var body: some View {
-        ZStack {
-            if let image = entry.item.flatMap(loadImage) {
-                fullBleedImage(image)
-            } else {
-                fallbackImage
+        Group {
+            switch family {
+            case .systemSmall:
+                ZStack {
+                    if let image = entry.item.flatMap(loadImage) {
+                        fullBleedImage(image)
+                    } else {
+                        fallbackImage
+                    }
+                }
+                
+            case .systemMedium:
+                HStack(spacing: 0) {
+                    ZStack {
+                        if let image = entry.item.flatMap(loadImage) {
+                            fullBleedImage(image)
+                        } else {
+                            fallbackImage
+                        }
+                    }
+                    .aspectRatio(1, contentMode: .fill)
+                    .frame(maxHeight: .infinity)
+                    .clipped()
+                    
+                    VStack(alignment: .center, spacing: 4) {
+                        Spacer()
+                        if let item = entry.item {
+                            if let commonName = item.speciesCommonName, !commonName.isEmpty {
+                                Text(commonName)
+                                    .font(.system(.title2, design: .rounded))
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.primary)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(3)
+                                    .minimumScaleFactor(0.7)
+                            }
+                        } else {
+                            Text("Explore Merian")
+                                .font(.system(.headline, design: .rounded))
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.center)
+                            Text("No discoveries yet")
+                                .font(.system(.footnote, design: .rounded))
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        Spacer()
+                    }
+                    .padding(.all, 14)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .background(Color(.systemBackground))
+                }
+                
+            case .systemLarge:
+                ZStack(alignment: .bottomLeading) {
+                    ZStack {
+                        if let image = entry.item.flatMap(loadImage) {
+                            fullBleedImage(image)
+                        } else {
+                            fallbackImage
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    
+                    if let item = entry.item {
+                        VStack(alignment: .leading, spacing: 4) {
+                            if let commonName = item.speciesCommonName, !commonName.isEmpty {
+                                Text(commonName)
+                                    .font(.system(.title3, design: .rounded))
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(.all, 16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            LinearGradient(
+                                colors: [.black.opacity(0.85), .black.opacity(0.4), .clear],
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
+                    }
+                }
+                
+            default:
+                ZStack {
+                    if let image = entry.item.flatMap(loadImage) {
+                        fullBleedImage(image)
+                    } else {
+                        fallbackImage
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .unredacted()
         .containerBackground(for: .widget) {
-            if let image = entry.item.flatMap(loadImage) {
-                fullBleedImage(image)
-            } else {
-                fallbackImage
+            switch family {
+            case .systemSmall, .systemLarge:
+                if let image = entry.item.flatMap(loadImage) {
+                    fullBleedImage(image)
+                } else {
+                    fallbackImage
+                }
+            case .systemMedium:
+                Color(.systemBackground)
+            default:
+                Color(.systemBackground)
             }
         }
         .widgetURL(entry.item.flatMap { ExploreWidgetConstants.deepLinkURL(postId: $0.postId) })
@@ -163,7 +261,7 @@ struct ExploreImageWidget: Widget {
         }
         .configurationDisplayName("Explore")
         .description("Cycles through recent Explore discoveries.")
-        .supportedFamilies([.systemSmall])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
     }
 }

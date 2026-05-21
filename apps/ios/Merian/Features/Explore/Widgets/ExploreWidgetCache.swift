@@ -50,6 +50,8 @@ struct ExploreWidgetItem: Codable, Equatable, Hashable, Identifiable, Sendable {
     let postId: String
     let imageFilename: String
     let sharedAt: String
+    let speciesCommonName: String?
+    let speciesScientificName: String?
 
     var id: String { postId }
 }

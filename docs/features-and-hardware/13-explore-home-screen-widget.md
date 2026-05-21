@@ -4,8 +4,11 @@ Merian ships a small iOS Home Screen widget that behaves like an image carousel 
 
 ## Product Contract
 
-- Supported family: `WidgetFamily.systemSmall` only.
-- Surface: full-fill image, edge to edge, clipped to the system widget square.
+- Supported families: `WidgetFamily.systemSmall`, `WidgetFamily.systemMedium`, and `WidgetFamily.systemLarge`.
+- Surfaces:
+  - **Small Widget (`.systemSmall`):** full-fill image, edge to edge, clipped to the system widget square. Kept entirely text-free to respect the original design contract.
+  - **Medium Widget (`.systemMedium`):** horizontal card displaying a 1:1 square photo of the discovery on the left, and an elegant description panel on the right displaying the species' common name. Blends seamlessly with system Light & Dark modes.
+  - **Large Widget (`.systemLarge`):** full-fill image, edge to edge, featuring a beautiful bottom-anchored dark gradient overlay containing the species' common name.
 - Content source: Recent Explore feed, not Following, Trending, or Nearby.
 - Tap behavior: `merian://explore/post/{postId}` opens `ExploreView` and routes to `ExplorePostDetailView`.
 - Carousel behavior: WidgetKit timeline entries rotate through cached images. This is not a swipeable carousel; iOS controls when timeline snapshots actually advance.
@@ -36,11 +39,13 @@ Shared types live in `apps/ios/Merian/Features/Explore/Widgets/ExploreWidgetCach
 - Empty-state refresh interval: `60 minutes`
 - Bundled fallback asset: `ExploreWidgetPlaceholder` in the widget extension asset catalog, sourced from `apps/ios/Merian/Assets.xcassets/Widget/widget-flower.imageset/widget-flower.jpg`. The same photo is also copied into `apps/ios/widgets/Explore/Resources/ExploreWidgetPlaceholder.jpg` as a direct bundle fallback for WidgetKit gallery rendering. Keep the widget extension copies downsampled for WidgetKit memory limits; the current bundled copies are `1024x1024`.
 
-Each `ExploreWidgetItem` stores only:
+Each `ExploreWidgetItem` stores:
 
 - `postId`
 - `imageFilename`
 - `sharedAt`
+- `speciesCommonName` (optional)
+- `speciesScientificName` (optional)
 
 Do not add user-private scan metadata, exact coordinates, auth tokens, comments, field notes, or profile data to this cache. The widget should remain a public-image launch surface.
 
@@ -103,7 +108,7 @@ The app target embeds `MerianExploreWidget`; the widget target also directly com
 
 - The widget is populated opportunistically by the app. If the user never opens Explore, the widget remains in the empty state.
 - Avoid network work in the widget extension unless there is a strong product reason. Widget refresh budgets are limited, and authenticated Supabase work belongs in the app.
-- Keep the widget view text-free. Widget gallery display name and description are allowed because they are system configuration metadata, not in-widget UI.
+- Keep the `.systemSmall` widget view text-free. The larger `.systemMedium` and `.systemLarge` sizes display species metadata under an elegant protective overlay or split layout.
 - When touching widget tap routing, keep `CaptureWorkspaceViewModel`'s external-route timeout suppression covered by tests. The expected behavior is: a fresh widget route survives an immediate `.appDidResumeAfterTimeout`, while an ordinary stale Explore sheet still clears on timeout.
 - Keep widget custom-scheme routing and public web share routing aligned. Both should resolve the same post id shape, but only the HTTPS route should be used in user-to-user share text.
 - If the visual design changes, preserve `.contentMarginsDisabled()`, `.scaledToFill()`, and the iOS 18+ `.widgetAccentedRenderingMode(.fullColor)` image modifier so the image remains full-bleed and full-color.
