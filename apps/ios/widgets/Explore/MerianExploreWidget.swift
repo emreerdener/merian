@@ -164,7 +164,7 @@ struct ExploreImageWidgetView: View {
                     }
                 }
                 
-            default:
+            case .systemExtraLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline:
                 ZStack {
                     if let image = entry.item.flatMap(loadImage) {
                         fullBleedImage(image)
@@ -172,6 +172,8 @@ struct ExploreImageWidgetView: View {
                         fallbackImage
                     }
                 }
+            @unknown default:
+                fallbackImage
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -185,9 +187,9 @@ struct ExploreImageWidgetView: View {
                 } else {
                     fallbackImage
                 }
-            case .systemMedium:
+            case .systemMedium, .systemExtraLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline:
                 Color(.systemBackground)
-            default:
+            @unknown default:
                 Color(.systemBackground)
             }
         }
