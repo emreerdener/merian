@@ -81,9 +81,10 @@ struct ExploreCommentsSheet: View {
                 if viewModel.isLoadingMoreComments {
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .padding(.vertical, 8)
+                    .padding(.vertical, 8)
                 }
             }
+            .id(viewModel.replyStateVersion)
             .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 12)

@@ -30,6 +30,7 @@ struct ExplorePostDetailView: View {
     @State private var postToUnpublish: ExplorePost?
     @State private var commentsSectionMinY: CGFloat = .infinity
     @State private var viewportHeight: CGFloat = 0
+    @State private var didFocusTargetComment = false
 
     private var isComposerSticky: Bool {
         commentsSectionMinY <= viewportHeight - 150
@@ -147,6 +148,8 @@ struct ExplorePostDetailView: View {
                                 viewModel: viewModel,
                                 post: post,
                                 composerId: commentsComposerId,
+                                targetCommentId: targetCommentId,
+                                targetReplyParentCommentId: targetReplyParentCommentId,
                                 isComposerFocused: $isComposerFocused,
                                 onDismissComposer: dismissCommentComposer,
                                 isComposerSticky: false,
@@ -176,6 +179,8 @@ struct ExplorePostDetailView: View {
                                 viewModel: viewModel,
                                 post: post,
                                 composerId: commentsComposerId,
+                                targetCommentId: targetCommentId,
+                                targetReplyParentCommentId: targetReplyParentCommentId,
                                 isComposerFocused: $isComposerFocused,
                                 onDismissComposer: dismissCommentComposer,
                                 isComposerSticky: true
@@ -418,24 +423,53 @@ struct ExplorePostDetailView: View {
     }
 
     private func focusTargetCommentIfNeeded(using scrollProxy: ScrollViewProxy) async {
-        guard let targetCommentId else { return }
+        guard let targetCommentId, !didFocusTargetComment else { return }
 
         if let targetReplyParentCommentId {
-            await viewModel.expandReplyThread(parentCommentId: targetReplyParentCommentId, targetReplyId: targetCommentId)
+            let targetReplyId = targetReplyParentCommentId == targetCommentId ? nil : targetCommentId
+            await viewModel.expandReplyThread(parentCommentId: targetReplyParentCommentId, targetReplyId: targetReplyId)
         } else {
             await viewModel.loadCommentsUntilCommentIfNeeded(commentId: targetCommentId)
         }
 
-        try? await Task.sleep(nanoseconds: 150_000_000)
-        guard !Task.isCancelled else { return }
+        await performTargetCommentScroll(using: scrollProxy, targetCommentId: targetCommentId)
+    }
 
-        let scrollId = targetReplyParentCommentId == nil
+    @MainActor
+    private func performTargetCommentScroll(using scrollProxy: ScrollViewProxy, targetCommentId: String) async {
+        let isTargetingReply = targetReplyParentCommentId != nil && targetReplyParentCommentId != targetCommentId
+        let scrollId = !isTargetingReply
             ? ExploreCommentScrollTarget.comment(targetCommentId).id
             : ExploreCommentScrollTarget.reply(targetCommentId).id
 
-        withAnimation(.easeInOut(duration: 0.24)) {
-            scrollProxy.scrollTo(scrollId, anchor: .center)
+        let parentScrollId = isTargetingReply ? targetReplyParentCommentId.map {
+            ExploreCommentScrollTarget.comment($0).id
+        } : nil
+
+        for attempt in 0..<5 {
+            if attempt > 0 {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            } else {
+                await Task.yield()
+            }
+            guard !Task.isCancelled else { return }
+
+            scrollProxy.scrollTo(commentsSectionId, anchor: .top)
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard !Task.isCancelled else { return }
+
+            if let parentScrollId {
+                scrollProxy.scrollTo(parentScrollId, anchor: .center)
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                guard !Task.isCancelled else { return }
+            }
+
+            withAnimation(.easeInOut(duration: 0.24)) {
+                scrollProxy.scrollTo(scrollId, anchor: .center)
+            }
         }
+
+        didFocusTargetComment = true
     }
 
     private func dismissCommentComposer() {

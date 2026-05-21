@@ -178,6 +178,7 @@ final class ExploreFeedViewModel {
     var expandedReplyCommentIds: Set<String> = []
     var loadingReplyCommentIds: Set<String> = []
     var loadingMoreReplyCommentIds: Set<String> = []
+    var replyStateVersion: UInt64 = 0
 
     var posts: [ExplorePost] {
         store.feedPosts

@@ -195,6 +195,7 @@ extension ExploreFeedViewModel {
         guard !expandedReplyCommentIds.contains(comment.id) else { return }
 
         expandedReplyCommentIds.insert(comment.id)
+        markReplyStateChanged()
         guard !hasLoadedRepliesByCommentId.contains(comment.id) else { return }
 
         Task { await loadReplies(for: comment) }
@@ -210,27 +211,54 @@ extension ExploreFeedViewModel {
         }
 
         loadingReplyCommentIds.insert(comment.id)
-        defer { loadingReplyCommentIds.remove(comment.id) }
+        markReplyStateChanged()
+        defer {
+            loadingReplyCommentIds.remove(comment.id)
+            markReplyStateChanged()
+        }
 
         do {
             let replies = try await MerianNetworkClient.shared.getExploreCommentReplies(
                 parentCommentId: comment.id,
                 limit: 1
             )
+            guard !hasLoadedRepliesByCommentId.contains(comment.id) else { return }
             repliesByCommentId[comment.id] = replies
             hasLoadedReplyPreviewByCommentId.insert(comment.id)
             updateReplyCursor(parentCommentId: comment.id, using: replies)
+            markReplyStateChanged()
+        } catch is CancellationError {
+            // The collapsed preview can disappear when a reply thread expands.
+        } catch let error as URLError where error.code == .cancelled {
+            // Absorb URLSession cancellation while switching from preview to full replies.
         } catch {
             commentErrorMessage = ExploreErrorFormatter.message(for: error)
         }
     }
 
     func loadReplies(for comment: ExploreComment) async {
-        guard !loadingReplyCommentIds.contains(comment.id) else { return }
+        if loadingReplyCommentIds.contains(comment.id) {
+            await waitForReplyInitialLoad(parentCommentId: comment.id)
+        }
+
+        if loadingReplyCommentIds.contains(comment.id),
+           !hasLoadedRepliesByCommentId.contains(comment.id) {
+            loadingReplyCommentIds.remove(comment.id)
+            markReplyStateChanged()
+        }
+
+        guard !hasLoadedRepliesByCommentId.contains(comment.id),
+              !loadingReplyCommentIds.contains(comment.id) else {
+            return
+        }
 
         loadingReplyCommentIds.insert(comment.id)
+        markReplyStateChanged()
         commentErrorMessage = nil
-        defer { loadingReplyCommentIds.remove(comment.id) }
+        defer {
+            loadingReplyCommentIds.remove(comment.id)
+            markReplyStateChanged()
+        }
 
         do {
             let replies = try await MerianNetworkClient.shared.getExploreCommentReplies(
@@ -246,9 +274,21 @@ extension ExploreFeedViewModel {
                 hasReachedEndOfRepliesByCommentId.remove(comment.id)
             }
             updateReplyCursor(parentCommentId: comment.id, using: replies)
+            markReplyStateChanged()
+        } catch is CancellationError {
+            // Absorb cancellation while the comments view is being torn down.
+        } catch let error as URLError where error.code == .cancelled {
+            // Absorb URLSession cancellation.
         } catch {
             commentErrorMessage = ExploreErrorFormatter.message(for: error)
             HapticManager.shared.triggerErrorThump()
+        }
+    }
+
+    private func waitForReplyInitialLoad(parentCommentId: String) async {
+        for _ in 0..<20 where loadingReplyCommentIds.contains(parentCommentId) {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard !Task.isCancelled else { return }
         }
     }
 
@@ -266,11 +306,16 @@ extension ExploreFeedViewModel {
         guard currentIndex >= triggerIndex else { return }
         guard let cursor = replyCursorsByCommentId[parentComment.id] else {
             hasReachedEndOfRepliesByCommentId.insert(parentComment.id)
+            markReplyStateChanged()
             return
         }
 
         loadingMoreReplyCommentIds.insert(parentComment.id)
-        defer { loadingMoreReplyCommentIds.remove(parentComment.id) }
+        markReplyStateChanged()
+        defer {
+            loadingMoreReplyCommentIds.remove(parentComment.id)
+            markReplyStateChanged()
+        }
 
         do {
             let nextPage = try await MerianNetworkClient.shared.getExploreCommentReplies(
@@ -282,6 +327,7 @@ extension ExploreFeedViewModel {
             appendUniqueReplies(nextPage, parentCommentId: parentComment.id)
             if nextPage.count < repliesPageSize {
                 hasReachedEndOfRepliesByCommentId.insert(parentComment.id)
+                markReplyStateChanged()
             }
             updateReplyCursor(parentCommentId: parentComment.id, using: nextPage)
         } catch {
@@ -296,9 +342,12 @@ extension ExploreFeedViewModel {
     func expandPendingReplyThreadIfNeeded() async {
         guard let parentCommentId = pendingExpandedReplyParentCommentId else { return }
         await loadCommentsUntilCommentIfNeeded(commentId: parentCommentId)
-        guard let parentComment = comments.first(where: { $0.id == parentCommentId }) else { return }
+        guard let parentComment = comments.first(where: { $0.id == parentCommentId }) else {
+            return
+        }
         pendingExpandedReplyParentCommentId = nil
         expandedReplyCommentIds.insert(parentCommentId)
+        markReplyStateChanged()
         if !hasLoadedRepliesByCommentId.contains(parentCommentId) {
             await loadReplies(for: parentComment)
         }
@@ -306,10 +355,13 @@ extension ExploreFeedViewModel {
 
     func expandReplyThread(parentCommentId: String, targetReplyId: String? = nil) async {
         await loadCommentsUntilCommentIfNeeded(commentId: parentCommentId)
-        guard let parentComment = comments.first(where: { $0.id == parentCommentId }) else { return }
+        guard let parentComment = comments.first(where: { $0.id == parentCommentId }) else {
+            return
+        }
 
         pendingExpandedReplyParentCommentId = nil
         expandedReplyCommentIds.insert(parentCommentId)
+        markReplyStateChanged()
 
         if !hasLoadedRepliesByCommentId.contains(parentCommentId) {
             await loadReplies(for: parentComment)
@@ -372,6 +424,7 @@ extension ExploreFeedViewModel {
               !hasReachedEndOfRepliesByCommentId.contains(parentComment.id),
               let cursor = replyCursorsByCommentId[parentComment.id] {
             loadingMoreReplyCommentIds.insert(parentComment.id)
+            markReplyStateChanged()
 
             do {
                 let nextPage = try await MerianNetworkClient.shared.getExploreCommentReplies(
@@ -383,11 +436,14 @@ extension ExploreFeedViewModel {
                 appendUniqueReplies(nextPage, parentCommentId: parentComment.id)
                 if nextPage.count < repliesPageSize {
                     hasReachedEndOfRepliesByCommentId.insert(parentComment.id)
+                    markReplyStateChanged()
                 }
                 updateReplyCursor(parentCommentId: parentComment.id, using: nextPage)
                 loadingMoreReplyCommentIds.remove(parentComment.id)
+                markReplyStateChanged()
             } catch {
                 loadingMoreReplyCommentIds.remove(parentComment.id)
+                markReplyStateChanged()
                 commentErrorMessage = ExploreErrorFormatter.message(for: error)
                 return
             }
@@ -445,6 +501,7 @@ extension ExploreFeedViewModel {
             comments[index].replyCount = (comments[index].replyCount ?? 0) + 1
         }
         updateReplyCursor(parentCommentId: parentCommentId, using: replies)
+        markReplyStateChanged()
     }
 
     private func appendUniqueReplies(_ nextPage: [ExploreComment], parentCommentId: String) {
@@ -453,6 +510,7 @@ extension ExploreFeedViewModel {
         let existingReplies = repliesByCommentId[parentCommentId] ?? []
         let existingIds = Set(existingReplies.map(\.id))
         repliesByCommentId[parentCommentId] = existingReplies + nextPage.filter { existingIds.contains($0.id) == false }
+        markReplyStateChanged()
     }
 
     private func updateReplyCursor(parentCommentId: String, using page: [ExploreComment]) {
@@ -469,6 +527,7 @@ extension ExploreFeedViewModel {
             if let index = comments.firstIndex(where: { $0.id == parentCommentId }) {
                 comments[index].replyCount = max((comments[index].replyCount ?? 1) - 1, 0)
             }
+            markReplyStateChanged()
             return
         }
 
@@ -479,6 +538,7 @@ extension ExploreFeedViewModel {
         hasLoadedReplyPreviewByCommentId.remove(comment.id)
         hasReachedEndOfRepliesByCommentId.remove(comment.id)
         replyCursorsByCommentId[comment.id] = nil
+        markReplyStateChanged()
     }
 
     private func resetReplyState(keepingPendingExpansion: Bool = false) {
@@ -494,6 +554,7 @@ extension ExploreFeedViewModel {
         if !keepingPendingExpansion {
             pendingExpandedReplyParentCommentId = nil
         }
+        markReplyStateChanged()
     }
 
     func toggleReaction(for comment: ExploreComment, emoji: String) {
@@ -505,6 +566,7 @@ extension ExploreFeedViewModel {
            let index = replies.firstIndex(where: { $0.id == updatedComment.id }) {
             replies[index] = updatedComment
             repliesByCommentId[parentCommentId] = replies
+            markReplyStateChanged()
         } else if let index = comments.firstIndex(where: { $0.id == updatedComment.id }) {
             comments[index] = updatedComment
         }
@@ -543,5 +605,9 @@ extension ExploreFeedViewModel {
 
         updatedComment.reactions = updatedReactions
         return updatedComment
+    }
+
+    private func markReplyStateChanged() {
+        replyStateVersion &+= 1
     }
 }

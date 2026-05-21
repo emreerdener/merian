@@ -328,15 +328,21 @@ struct ExploreView: View {
         do {
             let post = try await viewModel.preparePostForNavigation(postId: postId)
             viewModel.dismissNotifications()
-            if notification.type == .commentReply {
-                viewModel.prepareToExpandReplyThread(parentCommentId: notification.parentCommentId)
+            let targetReplyParentCommentId = notification.parentCommentId
+                ?? (notification.type == .commentReply ? notification.commentId : nil)
+            let targetCommentId = targetReplyParentCommentId == notification.commentId
+                ? nil
+                : notification.commentId
+
+            if targetReplyParentCommentId != nil {
+                viewModel.prepareToExpandReplyThread(parentCommentId: targetReplyParentCommentId)
             }
             try? await Task.sleep(nanoseconds: 150_000_000)
             openPostDetail(
                 for: post,
-                focusCommentComposer: notification.type == .comment,
-                targetCommentId: notification.type == .commentReply ? notification.commentId : nil,
-                targetReplyParentCommentId: notification.type == .commentReply ? notification.parentCommentId : nil
+                focusCommentComposer: notification.type == .comment && targetCommentId == nil,
+                targetCommentId: targetCommentId ?? targetReplyParentCommentId,
+                targetReplyParentCommentId: targetReplyParentCommentId
             )
         } catch {
             MerianLog.network.error(

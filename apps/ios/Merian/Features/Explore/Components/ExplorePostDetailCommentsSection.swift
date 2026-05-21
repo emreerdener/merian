@@ -18,6 +18,8 @@ struct ExplorePostDetailCommentsSection: View {
     @Bindable var viewModel: ExploreFeedViewModel
     let post: ExplorePost
     let composerId: String
+    let targetCommentId: String?
+    let targetReplyParentCommentId: String?
     let isComposerFocused: FocusState<Bool>.Binding
     let onDismissComposer: () -> Void
     let isComposerSticky: Bool
@@ -103,11 +105,7 @@ struct ExplorePostDetailCommentsSection: View {
     private var commentsList: some View {
         LazyVStack(spacing: 14) {
             ForEach(viewModel.comments) { comment in
-                commentThread(comment)
-                    .id(ExploreCommentScrollTarget.comment(comment.id).id)
-                    .onAppear {
-                        Task { await viewModel.loadMoreCommentsIfNeeded(currentComment: comment) }
-                    }
+                commentThreadWithScrollAnchors(comment)
             }
 
             if viewModel.isLoadingMoreComments {
@@ -115,6 +113,22 @@ struct ExplorePostDetailCommentsSection: View {
                     .progressViewStyle(.circular)
                     .padding(.vertical, 8)
             }
+        }
+        .id(viewModel.replyStateVersion)
+    }
+
+    @ViewBuilder
+    private func commentThreadWithScrollAnchors(_ comment: ExploreComment) -> some View {
+        let thread = commentThread(comment)
+            .id(ExploreCommentScrollTarget.comment(comment.id).id)
+            .onAppear {
+                Task { await viewModel.loadMoreCommentsIfNeeded(currentComment: comment) }
+            }
+
+        if let fallbackReplyScrollId = fallbackReplyScrollId(for: comment) {
+            thread.id(fallbackReplyScrollId)
+        } else {
+            thread
         }
     }
 
@@ -365,6 +379,9 @@ struct ExplorePostDetailCommentsSection: View {
                 .padding(.leading, 48)
             }
         }
+        .task(id: comment.id) {
+            await viewModel.loadReplies(for: comment)
+        }
     }
 
     private func replyRow(_ reply: ExploreComment, topExtension: CGFloat, connectsToNext: Bool) -> some View {
@@ -381,9 +398,24 @@ struct ExplorePostDetailCommentsSection: View {
                 .accessibilityHidden(true)
 
             commentRow(reply, allowsReply: false)
-                .id(ExploreCommentScrollTarget.reply(reply.id).id)
         }
+        .id(ExploreCommentScrollTarget.reply(reply.id).id)
         .padding(.leading, 18)
+    }
+
+    private func fallbackReplyScrollId(for comment: ExploreComment) -> String? {
+        guard targetReplyParentCommentId == comment.id, let targetCommentId else {
+            return nil
+        }
+        guard targetCommentId != comment.id else {
+            return nil
+        }
+
+        guard viewModel.repliesByCommentId[comment.id]?.contains(where: { $0.id == targetCommentId }) != true else {
+            return nil
+        }
+
+        return ExploreCommentScrollTarget.reply(targetCommentId).id
     }
 
     private struct ReplyThreadConnector: Shape {
