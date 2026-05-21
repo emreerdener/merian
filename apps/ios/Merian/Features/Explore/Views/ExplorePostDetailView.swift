@@ -28,6 +28,12 @@ struct ExplorePostDetailView: View {
     @State private var didAutoOpenInsight = false
     @State private var isCommonNameScrolledPast = false
     @State private var postToUnpublish: ExplorePost?
+    @State private var commentsSectionMinY: CGFloat = .infinity
+    @State private var viewportHeight: CGFloat = 0
+
+    private var isComposerSticky: Bool {
+        commentsSectionMinY <= viewportHeight - 150
+    }
 
     private let commentsSectionId = "explore-comments-section"
     private let commentsComposerId = "explore-comments-composer"
@@ -137,20 +143,50 @@ struct ExplorePostDetailView: View {
                             .padding(.top, 16)
                             .padding(.bottom, 16)
 
-                            ExplorePostDetailCommentsSection(
+                             ExplorePostDetailCommentsSection(
                                 viewModel: viewModel,
                                 post: post,
                                 composerId: commentsComposerId,
                                 isComposerFocused: $isComposerFocused,
-                                onDismissComposer: dismissCommentComposer
+                                onDismissComposer: dismissCommentComposer,
+                                isComposerSticky: false,
+                                hideInlineComposer: isComposerSticky
                             )
                                 .padding(.horizontal, 16)
                                 .padding(.top, 20)
                                 .padding(.bottom, 24)
                                 .id(commentsSectionId)
+                                .background(
+                                    GeometryReader { geo in
+                                        Color.clear
+                                            .onChange(
+                                                of: geo.frame(in: .named("ExplorePostDetailScrollSpace")).minY,
+                                                initial: true
+                                            ) { _, newMinY in
+                                                commentsSectionMinY = newMinY
+                                            }
+                                    }
+                                )
                         }
                     }
                     .coordinateSpace(name: "ExplorePostDetailScrollSpace")
+                    .safeAreaInset(edge: .bottom) {
+                        if isComposerSticky {
+                            ExplorePostDetailCommentsSection(
+                                viewModel: viewModel,
+                                post: post,
+                                composerId: commentsComposerId,
+                                isComposerFocused: $isComposerFocused,
+                                onDismissComposer: dismissCommentComposer,
+                                isComposerSticky: true
+                            )
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isComposerSticky)
+                    .onChange(of: isComposerSticky) { _, _ in
+                        HapticManager.shared.triggerLightImpact(intensity: 0.8)
+                    }
                     .scrollDismissesKeyboard(.interactively)
                     .background(
                         ExploreKeyboardDismissTapRecognizer(
@@ -327,6 +363,14 @@ struct ExplorePostDetailView: View {
         } message: {
             Text("This will remove the post from Explore. Your original scan will remain safely in your library.")
         }
+        .background(
+            GeometryReader { outerGeo in
+                Color.clear
+                    .onChange(of: outerGeo.size.height, initial: true) { _, newHeight in
+                        viewportHeight = newHeight
+                    }
+            }
+        )
     }
 
     private func evaluateCommonNameScrollOffset(maxY: CGFloat) {
@@ -357,7 +401,7 @@ struct ExplorePostDetailView: View {
 
     private func focusComments(using scrollProxy: ScrollViewProxy, animated: Bool = true) {
         let scrollBlock = {
-            scrollProxy.scrollTo(commentsComposerId, anchor: .bottom)
+            scrollProxy.scrollTo(commentsSectionId, anchor: .top)
         }
 
         if animated {

@@ -133,8 +133,9 @@ struct ExploreCommentsSheet: View {
 
                     Button(action: { viewModel.cancelReply() }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(.secondary)
+                            .padding(4)
                     }
                     .buttonStyle(.plain)
                 }
@@ -245,7 +246,7 @@ struct ExploreCommentsSheet: View {
     }
 
     private func replyCountLabel(_ replyCount: Int, for comment: ExploreComment) -> some View {
-        Button(action: { viewModel.toggleReplies(for: comment) }) {
+        Button(action: { viewModel.expandReplies(for: comment) }) {
             Text("\(replyCount) \(replyCount == 1 ? "reply" : "replies")")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
@@ -281,7 +282,7 @@ struct ExploreCommentsSheet: View {
                 replyRow(firstReply, topExtension: replyThreadParentExtension, connectsToNext: false)
 
                 if replyCount > 1 {
-                    Button(action: { viewModel.toggleReplies(for: comment) }) {
+                    Button(action: { viewModel.expandReplies(for: comment) }) {
                         Text(showMoreRepliesTitle(for: replyCount))
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(.secondary)

@@ -146,7 +146,7 @@ extension ExploreFeedViewModel {
             }
 
             updateCommentCount(postId: activeCommentsPostId, commentCount: response.commentCount)
-            HapticManager.shared.triggerSelectionPulse()
+            HapticManager.shared.triggerSuccessPulse()
         } catch {
             commentDraft = previousDraft
             composerResetToken = UUID()
@@ -182,17 +182,17 @@ extension ExploreFeedViewModel {
     func beginReply(to comment: ExploreComment) {
         replyingToComment = comment
         commentErrorMessage = nil
+        HapticManager.shared.triggerSelectionPulse()
     }
 
     func cancelReply() {
         replyingToComment = nil
+        HapticManager.shared.triggerSelectionPulse()
     }
 
-    func toggleReplies(for comment: ExploreComment) {
-        if expandedReplyCommentIds.contains(comment.id) {
-            expandedReplyCommentIds.remove(comment.id)
-            return
-        }
+    func expandReplies(for comment: ExploreComment) {
+        HapticManager.shared.triggerSheetSpring()
+        guard !expandedReplyCommentIds.contains(comment.id) else { return }
 
         expandedReplyCommentIds.insert(comment.id)
         guard !hasLoadedRepliesByCommentId.contains(comment.id) else { return }
@@ -498,7 +498,7 @@ extension ExploreFeedViewModel {
 
     func toggleReaction(for comment: ExploreComment, emoji: String) {
         guard let updatedComment = commentWithUpdatedReaction(comment, emoji: emoji) else { return }
-        HapticManager.shared.triggerSelectionPulse()
+        HapticManager.shared.triggerMediumPulse()
 
         if let parentCommentId = updatedComment.parentCommentId,
            var replies = repliesByCommentId[parentCommentId],

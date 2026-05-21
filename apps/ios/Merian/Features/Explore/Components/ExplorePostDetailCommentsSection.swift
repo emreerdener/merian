@@ -20,29 +20,43 @@ struct ExplorePostDetailCommentsSection: View {
     let composerId: String
     let isComposerFocused: FocusState<Bool>.Binding
     let onDismissComposer: () -> Void
+    let isComposerSticky: Bool
+    var hideInlineComposer: Bool = false
 
     @State private var reactingCommentId: String?
 
     private let availableEmojis = ["\u{2764}\u{FE0F}", "\u{1F44D}", "\u{1F602}", "\u{1F389}", "\u{1F632}", "\u{1F33F}"]
-    private let replyThreadParentExtension: CGFloat = 40
+    private let replyThreadParentExtension: CGFloat = 36
     private let replyThreadRowSpacing: CGFloat = 10
     private let replyThreadLineColor = Color(uiColor: .systemGray4)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            header
-
-            if viewModel.isCommentsLoading && viewModel.comments.isEmpty {
-                loadingState
-            } else if viewModel.comments.isEmpty {
-                emptyState
-            } else {
-                commentsList
-            }
-
+        if isComposerSticky {
             composer
-                .padding(.top, 8)
-                .id(composerId)
+                .padding(.horizontal, 16)
+                .background(
+                    Color(uiColor: .systemBackground)
+                        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: -3)
+                        .ignoresSafeArea(edges: .bottom)
+                )
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+
+                if viewModel.isCommentsLoading && viewModel.comments.isEmpty {
+                    loadingState
+                } else if viewModel.comments.isEmpty {
+                    emptyState
+                } else {
+                    commentsList
+                }
+
+                if !hideInlineComposer {
+                    composer
+                        .padding(.top, 8)
+                        .id(composerId)
+                }
+            }
         }
     }
 
@@ -127,8 +141,9 @@ struct ExplorePostDetailCommentsSection: View {
 
                     Button(action: { viewModel.cancelReply() }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(.secondary)
+                            .padding(4)
                     }
                     .buttonStyle(.plain)
                 }
@@ -240,7 +255,7 @@ struct ExplorePostDetailCommentsSection: View {
     }
 
     private func replyCountLabel(_ replyCount: Int, for comment: ExploreComment) -> some View {
-        Button(action: { viewModel.toggleReplies(for: comment) }) {
+        Button(action: { viewModel.expandReplies(for: comment) }) {
             Text("\(replyCount) \(replyCount == 1 ? "reply" : "replies")")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
@@ -276,7 +291,7 @@ struct ExplorePostDetailCommentsSection: View {
                 replyRow(firstReply, topExtension: replyThreadParentExtension, connectsToNext: false)
 
                 if replyCount > 1 {
-                    Button(action: { viewModel.toggleReplies(for: comment) }) {
+                    Button(action: { viewModel.expandReplies(for: comment) }) {
                         Text(showMoreRepliesTitle(for: replyCount))
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(.secondary)
