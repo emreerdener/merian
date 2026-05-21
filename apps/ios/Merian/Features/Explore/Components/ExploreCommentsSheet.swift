@@ -247,9 +247,17 @@ struct ExploreCommentsSheet: View {
 
     private func replyCountLabel(_ replyCount: Int, for comment: ExploreComment) -> some View {
         Button(action: { viewModel.expandReplies(for: comment) }) {
-            Text("\(replyCount) \(replyCount == 1 ? "reply" : "replies")")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text("\(replyCount) \(replyCount == 1 ? "reply" : "replies")")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                
+                if viewModel.loadingReplyCommentIds.contains(comment.id) {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .controlSize(.mini)
+                }
+            }
         }
         .buttonStyle(.plain)
         .padding(.leading, 48)
@@ -283,9 +291,17 @@ struct ExploreCommentsSheet: View {
 
                 if replyCount > 1 {
                     Button(action: { viewModel.expandReplies(for: comment) }) {
-                        Text(showMoreRepliesTitle(for: replyCount))
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            Text(showMoreRepliesTitle(for: replyCount))
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            
+                            if viewModel.loadingReplyCommentIds.contains(comment.id) {
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                                    .controlSize(.mini)
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                     .padding(.leading, 48)
@@ -305,7 +321,7 @@ struct ExploreCommentsSheet: View {
     @ViewBuilder
     private func repliesList(for comment: ExploreComment) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            if viewModel.loadingReplyCommentIds.contains(comment.id) {
+            if viewModel.loadingReplyCommentIds.contains(comment.id) && (viewModel.repliesByCommentId[comment.id]?.isEmpty ?? true) {
                 ProgressView()
                     .progressViewStyle(.circular)
                     .padding(.leading, 48)
