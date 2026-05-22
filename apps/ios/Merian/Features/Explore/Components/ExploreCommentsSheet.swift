@@ -84,7 +84,6 @@ struct ExploreCommentsSheet: View {
                     .padding(.vertical, 8)
                 }
             }
-            .id(viewModel.replyStateVersion)
             .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 12)
@@ -254,6 +253,13 @@ struct ExploreCommentsSheet: View {
         }
         .buttonStyle(.plain)
         .padding(.leading, 48)
+        .task {
+            print("[UIRepliesDebug] replyCountLabel task started for comment \(comment.id)")
+            defer {
+                print("[UIRepliesDebug] replyCountLabel task ended for comment \(comment.id) - isCancelled: \(Task.isCancelled)")
+            }
+            await viewModel.loadReplyPreviewIfNeeded(for: comment)
+        }
     }
 
     private func threadReplyButton(for comment: ExploreComment) -> some View {
@@ -272,7 +278,7 @@ struct ExploreCommentsSheet: View {
     @ViewBuilder
     private func replyPreview(for comment: ExploreComment, replyCount: Int) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            if viewModel.loadingReplyCommentIds.contains(comment.id),
+            if viewModel.loadingReplyPreviewCommentIds.contains(comment.id),
                viewModel.repliesByCommentId[comment.id]?.isEmpty ?? true {
                 ProgressView()
                     .progressViewStyle(.circular)
@@ -293,9 +299,6 @@ struct ExploreCommentsSheet: View {
                 }
             }
         }
-        .task {
-            await viewModel.loadReplyPreviewIfNeeded(for: comment)
-        }
     }
 
     private func showMoreRepliesTitle(for replyCount: Int) -> String {
@@ -306,10 +309,25 @@ struct ExploreCommentsSheet: View {
     @ViewBuilder
     private func repliesList(for comment: ExploreComment) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            if viewModel.loadingReplyCommentIds.contains(comment.id) && (viewModel.repliesByCommentId[comment.id]?.isEmpty ?? true) {
-                ProgressView()
-                    .progressViewStyle(.circular)
+            if !viewModel.hasLoadedRepliesByCommentId.contains(comment.id) {
+                if viewModel.failedReplyCommentIds.contains(comment.id) {
+                    Button(action: {
+                        Task { await viewModel.loadReplies(for: comment) }
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Retry loading replies")
+                        }
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
                     .padding(.leading, 48)
+                } else {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .padding(.leading, 48)
+                }
             }
 
             ForEach(Array((viewModel.repliesByCommentId[comment.id] ?? []).enumerated()), id: \.element.id) { index, reply in
@@ -342,6 +360,10 @@ struct ExploreCommentsSheet: View {
             }
         }
         .task {
+            print("[UIRepliesDebug] repliesList task started for comment \(comment.id)")
+            defer {
+                print("[UIRepliesDebug] repliesList task ended for comment \(comment.id) - isCancelled: \(Task.isCancelled)")
+            }
             await viewModel.loadReplies(for: comment)
         }
     }

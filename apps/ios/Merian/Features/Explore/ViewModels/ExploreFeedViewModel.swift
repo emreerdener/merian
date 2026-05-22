@@ -179,6 +179,7 @@ final class ExploreFeedViewModel {
     var loadingReplyCommentIds: Set<String> = []
     var loadingReplyPreviewCommentIds: Set<String> = []
     var loadingMoreReplyCommentIds: Set<String> = []
+    var failedReplyCommentIds: Set<String> = []
     var replyStateVersion: UInt64 = 0
 
     var posts: [ExplorePost] {
