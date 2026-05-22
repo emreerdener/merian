@@ -196,24 +196,21 @@ extension ExploreFeedViewModel {
 
         expandedReplyCommentIds.insert(comment.id)
         markReplyStateChanged()
-        guard !hasLoadedRepliesByCommentId.contains(comment.id) else { return }
-
-        Task { await loadReplies(for: comment) }
     }
 
     func loadReplyPreviewIfNeeded(for comment: ExploreComment) async {
         guard (comment.replyCount ?? 0) > 0,
               !hasLoadedReplyPreviewByCommentId.contains(comment.id),
               !hasLoadedRepliesByCommentId.contains(comment.id),
-              !loadingReplyCommentIds.contains(comment.id),
+              !loadingReplyPreviewCommentIds.contains(comment.id),
               repliesByCommentId[comment.id]?.isEmpty ?? true else {
             return
         }
 
-        loadingReplyCommentIds.insert(comment.id)
+        loadingReplyPreviewCommentIds.insert(comment.id)
         markReplyStateChanged()
         defer {
-            loadingReplyCommentIds.remove(comment.id)
+            loadingReplyPreviewCommentIds.remove(comment.id)
             markReplyStateChanged()
         }
 
@@ -530,6 +527,7 @@ extension ExploreFeedViewModel {
         repliesByCommentId = [:]
         expandedReplyCommentIds = []
         loadingReplyCommentIds = []
+        loadingReplyPreviewCommentIds = []
         loadingMoreReplyCommentIds = []
         replyCursorsByCommentId = [:]
         hasLoadedReplyPreviewByCommentId = []

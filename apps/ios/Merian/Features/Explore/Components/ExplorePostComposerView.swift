@@ -296,8 +296,6 @@ struct ExplorePostComposerView: View {
         }
     }
 
-
-
     private var normalizedHashtags: [String] {
         var tags: [String] = []
         var seen = Set<String>()

@@ -341,6 +341,9 @@ struct ExploreCommentsSheet: View {
                 .padding(.leading, 48)
             }
         }
+        .task {
+            await viewModel.loadReplies(for: comment)
+        }
     }
 
     private func replyRow(_ reply: ExploreComment, topExtension: CGFloat, connectsToNext: Bool) -> some View {
