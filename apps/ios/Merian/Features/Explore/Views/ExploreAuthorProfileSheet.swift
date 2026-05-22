@@ -143,7 +143,12 @@ struct ExploreAuthorProfileSheet: View {
             guard let profile else { return "Profile" }
             return authorTierTitle(for: profile)
         case .library:
-            return "Published scans"
+            if route.authorUserId.lowercased() == SupabaseManager.shared.currentUser?.id.uuidString.lowercased() {
+                return "Your published scans"
+            }
+            let name = route.authorFirstName
+            let possessiveName = name.hasSuffix("s") ? "\(name)’" : "\(name)’s"
+            return "\(possessiveName) scans"
         }
     }
 
@@ -344,6 +349,7 @@ struct ExploreAuthorProfileSheet: View {
                     )
                 } else {
                     profileGrid(posts: Array(profile.previewPosts.prefix(previewLimit)))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
 
             if profile.publishedPostCount > previewLimit {
@@ -390,6 +396,7 @@ struct ExploreAuthorProfileSheet: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.top, 4)
+                .padding(.horizontal, 16)
 
                 if libraryPosts.isEmpty && isLoadingLibrary {
                     ProgressView()
@@ -402,6 +409,7 @@ struct ExploreAuthorProfileSheet: View {
                         message: "Published scans that are visible to you will appear here."
                     )
                     .frame(minHeight: 360)
+                    .padding(.horizontal, 16)
                 } else {
                     profileGrid(posts: libraryPosts, shouldPaginate: true)
                 }
@@ -412,7 +420,6 @@ struct ExploreAuthorProfileSheet: View {
                         .padding(.vertical, 16)
                 }
             }
-            .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 32)
         }
@@ -449,7 +456,6 @@ struct ExploreAuthorProfileSheet: View {
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     @ViewBuilder

@@ -33,9 +33,14 @@ struct ExplorePostDetailView: View {
     @State private var commentsSectionMinY: CGFloat = .infinity
     @State private var viewportHeight: CGFloat = 0
     @State private var didFocusTargetComment = false
+    @State private var focusedComposerIsSticky: Bool?
 
     private var isComposerSticky: Bool {
         commentsSectionMinY <= viewportHeight - 150
+    }
+
+    private var presentedComposerIsSticky: Bool {
+        focusedComposerIsSticky ?? isComposerSticky
     }
 
     private let commentsSectionId = "explore-comments-section"
@@ -159,7 +164,7 @@ struct ExplorePostDetailView: View {
                                 isComposerFocused: $isComposerFocused,
                                 onDismissComposer: dismissCommentComposer,
                                 isComposerSticky: false,
-                                hideInlineComposer: isComposerSticky
+                                hideInlineComposer: presentedComposerIsSticky
                             )
                                 .padding(.horizontal, 16)
                                 .padding(.top, 20)
@@ -180,7 +185,7 @@ struct ExplorePostDetailView: View {
                     }
                     .coordinateSpace(name: "ExplorePostDetailScrollSpace")
                     .safeAreaInset(edge: .bottom) {
-                        if isComposerSticky {
+                        if presentedComposerIsSticky {
                             ExplorePostDetailCommentsSection(
                                 viewModel: viewModel,
                                 post: post,
@@ -194,9 +199,21 @@ struct ExplorePostDetailView: View {
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isComposerSticky)
-                    .onChange(of: isComposerSticky) { _, _ in
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: presentedComposerIsSticky)
+                    .onChange(of: presentedComposerIsSticky) { _, _ in
                         HapticManager.shared.triggerLightImpact(intensity: 0.8)
+                    }
+                    .onChange(of: isComposerFocused) { _, newValue in
+                        if newValue {
+                            let composerWasSticky = isComposerSticky
+                            focusedComposerIsSticky = composerWasSticky
+                            scrollFocusedInlineComposerIntoViewIfNeeded(
+                                using: scrollProxy,
+                                composerWasSticky: composerWasSticky
+                            )
+                        } else {
+                            focusedComposerIsSticky = nil
+                        }
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .background(
@@ -473,6 +490,22 @@ struct ExplorePostDetailView: View {
             try? await Task.sleep(nanoseconds: 250_000_000)
             guard !Task.isCancelled else { return }
             isComposerFocused = true
+        }
+    }
+
+    private func scrollFocusedInlineComposerIntoViewIfNeeded(
+        using scrollProxy: ScrollViewProxy,
+        composerWasSticky: Bool
+    ) {
+        guard !composerWasSticky else { return }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled, isComposerFocused, focusedComposerIsSticky == false else { return }
+
+            withAnimation(.easeInOut(duration: 0.18)) {
+                scrollProxy.scrollTo(commentsComposerId, anchor: .bottom)
+            }
         }
     }
 

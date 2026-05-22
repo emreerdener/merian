@@ -348,15 +348,18 @@ private struct ProfilePublishedScansLibraryView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                    .padding(.horizontal, 16)
 
                 if posts.isEmpty && isLoading {
                     loadingGrid(count: 12)
                 } else if didFail && posts.isEmpty {
                     Text("Published scans unavailable right now.")
                         .profileExploreStateStyle()
+                        .padding(.horizontal, 16)
                 } else if posts.isEmpty {
                     Text("No published scans yet.")
                         .profileExploreStateStyle()
+                        .padding(.horizontal, 16)
                 } else {
                     libraryGrid
                 }
@@ -365,12 +368,11 @@ private struct ProfilePublishedScansLibraryView: View {
                     loadingGrid(count: 6)
                 }
             }
-            .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 32)
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("Published scans")
+        .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: authorUserId) {
             await reloadPosts()
@@ -409,6 +411,10 @@ private struct ProfilePublishedScansLibraryView: View {
                 )
             }
         }
+    }
+
+    private var navigationTitle: String {
+        "Your published scans"
     }
 
     private var publishedPostCount: Int? {
@@ -505,7 +511,6 @@ private struct ProfilePublishedScansLibraryView: View {
                 }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func loadingGrid(count: Int) -> some View {
@@ -516,7 +521,6 @@ private struct ProfilePublishedScansLibraryView: View {
                     .aspectRatio(1, contentMode: .fit)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityHidden(true)
     }
 
