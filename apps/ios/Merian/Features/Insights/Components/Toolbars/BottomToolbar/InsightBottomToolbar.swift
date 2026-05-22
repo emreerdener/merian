@@ -33,7 +33,7 @@ struct InsightBottomToolbar: ToolbarContent {
                     isUpdatingExploreFieldNotes: isUpdatingExploreFieldNotes,
                     speciesName: speciesData.commonName,
                     scientificName: speciesData.scientificName,
-                    heroImageUrl: nil,
+                    heroImageUrl: activeLocalRecord?.coverImagePath ?? inferenceEngine.activeMedia.imagePathsForUpload.first,
                     publicLocationLabel: ExploreLocationPrivacy.displayLabel(from: speciesData.locationName),
                     fieldNotesPreview: fieldNotesPreview,
                     sharedExploreHashtags: sharedExploreHashtags,

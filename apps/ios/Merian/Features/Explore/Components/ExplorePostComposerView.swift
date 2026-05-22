@@ -86,6 +86,7 @@ struct ExplorePostComposerView: View {
     @State private var fieldNotesArePublic: Bool
     @State private var hashtagsText: String
     @State private var locationSharing = ExplorePostLocationSharing.obscured
+    @State private var loadedImage: UIImage?
 
     init(
         mode: ExplorePostComposerMode,
@@ -121,7 +122,6 @@ struct ExplorePostComposerView: View {
                     discoveryPreview
                     fieldNotesEditor
                     hashtagsEditor
-                    locationSharingPicker
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
@@ -149,6 +149,7 @@ struct ExplorePostComposerView: View {
                                 .fontWeight(.semibold)
                         }
                     }
+                    .tint(.accentColor)
                     .disabled(isSaving)
                 }
 
@@ -167,13 +168,12 @@ struct ExplorePostComposerView: View {
 
     private var discoveryPreview: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: heroImageUrl.flatMap(URL.init(string:))) { phase in
-                switch phase {
-                case .success(let image):
-                    image
+            Group {
+                if let image = loadedImage {
+                    Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
-                default:
+                } else {
                     Color(uiColor: .tertiarySystemFill)
                         .overlay {
                             Image(systemName: "leaf")
@@ -201,6 +201,10 @@ struct ExplorePostComposerView: View {
         }
         .padding(12)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .task(id: heroImageUrl) {
+            guard let heroImageUrl else { return }
+            loadedImage = await LocalImageLoader.shared.loadImage(fromPath: heroImageUrl, fallbackUrl: nil, maxDimension: 124)
+        }
     }
 
     private var fieldNotesEditor: some View {
@@ -292,32 +296,7 @@ struct ExplorePostComposerView: View {
         }
     }
 
-    private var locationSharingPicker: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Location sharing", systemImage: "location")
-                .font(.headline)
 
-            if let publicLocationLabel, !publicLocationLabel.isEmpty {
-                Text(publicLocationLabel)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-
-            Picker("Location sharing", selection: $locationSharing) {
-                ForEach(ExplorePostLocationSharing.allCases) { option in
-                    Text(option.title).tag(option)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Label(locationSharing.detail, systemImage: locationSharing.systemImage)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(12)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
 
     private var normalizedHashtags: [String] {
         var tags: [String] = []
