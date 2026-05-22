@@ -248,17 +248,9 @@ struct ExploreCommentsSheet: View {
 
     private func replyCountLabel(_ replyCount: Int, for comment: ExploreComment) -> some View {
         Button(action: { viewModel.expandReplies(for: comment) }) {
-            HStack(spacing: 6) {
-                Text("\(replyCount) \(replyCount == 1 ? "reply" : "replies")")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                
-                if viewModel.loadingReplyCommentIds.contains(comment.id) {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .controlSize(.mini)
-                }
-            }
+            Text("\(replyCount) \(replyCount == 1 ? "reply" : "replies")")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
         .padding(.leading, 48)
@@ -292,17 +284,9 @@ struct ExploreCommentsSheet: View {
 
                 if replyCount > 1 {
                     Button(action: { viewModel.expandReplies(for: comment) }) {
-                        HStack(spacing: 6) {
-                            Text(showMoreRepliesTitle(for: replyCount))
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            
-                            if viewModel.loadingReplyCommentIds.contains(comment.id) {
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                                    .controlSize(.mini)
-                            }
-                        }
+                        Text(showMoreRepliesTitle(for: replyCount))
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
                     .padding(.leading, 48)

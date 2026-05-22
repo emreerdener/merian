@@ -237,16 +237,6 @@ extension ExploreFeedViewModel {
     }
 
     func loadReplies(for comment: ExploreComment) async {
-        if loadingReplyCommentIds.contains(comment.id) {
-            await waitForReplyInitialLoad(parentCommentId: comment.id)
-        }
-
-        if loadingReplyCommentIds.contains(comment.id),
-           !hasLoadedRepliesByCommentId.contains(comment.id) {
-            loadingReplyCommentIds.remove(comment.id)
-            markReplyStateChanged()
-        }
-
         guard !hasLoadedRepliesByCommentId.contains(comment.id),
               !loadingReplyCommentIds.contains(comment.id) else {
             return
@@ -285,12 +275,6 @@ extension ExploreFeedViewModel {
         }
     }
 
-    private func waitForReplyInitialLoad(parentCommentId: String) async {
-        for _ in 0..<20 where loadingReplyCommentIds.contains(parentCommentId) {
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            guard !Task.isCancelled else { return }
-        }
-    }
 
     func loadMoreRepliesIfNeeded(parentComment: ExploreComment, currentReply: ExploreComment) async {
         guard hasLoadedRepliesByCommentId.contains(parentComment.id),
