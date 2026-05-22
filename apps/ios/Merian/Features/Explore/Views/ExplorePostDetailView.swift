@@ -21,6 +21,8 @@ struct ExplorePostDetailView: View {
     @State private var isUpdatingFieldNotesVisibility = false
     @State private var showHideFieldNotesConfirmation = false
     @State private var showFieldNotesEditor = false
+    @State private var showPostComposer = false
+    @State private var isSavingPostContent = false
     @State private var localFieldNotes: String?
     @State private var selectedInsightRecord: LocalScanRecord?
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
@@ -222,6 +224,7 @@ struct ExplorePostDetailView: View {
                                 fieldNotesArePublic: fieldNotesArePublicOnExplore,
                                 isUpdatingFieldNotesVisibility: isUpdatingFieldNotesVisibility,
                                 onOpenInsight: { openInsight(for: post) },
+                                onEditPost: { openPostComposer(for: post) },
                                 onEditFieldNotes: { openFieldNotesEditor(for: post) },
                                 onToggleFieldNotesVisibility: { showFieldNotesVisibilityConfirmation() },
                                 onUnpublish: { postToUnpublish = post },
@@ -339,14 +342,6 @@ struct ExplorePostDetailView: View {
         .sheet(item: $selectedAuthorProfileRoute) { route in
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
         }
-        .navigationDestination(for: ExploreHashtagRoute.self) { route in
-            ExploreHashtagPostsView(
-                viewModel: viewModel,
-                route: route,
-                allowsInsightPresentation: allowsInsightPresentation,
-                allowsAuthorProfilePresentation: allowsAuthorProfilePresentation
-            )
-        }
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
             Task {
                 if let post = currentPost {
@@ -363,6 +358,23 @@ struct ExplorePostDetailView: View {
                 ),
                 promptContext: .resolved(subjectId: nil)
             )
+        }
+        .sheet(isPresented: $showPostComposer) {
+            if let post = currentPost {
+                ExplorePostComposerView(
+                    mode: .edit,
+                    speciesName: viewModel.resolvedSpeciesCommonName(for: post),
+                    scientificName: post.speciesScientificName,
+                    heroImageUrl: post.heroImageUrl,
+                    publicLocationLabel: post.publicDisplayLocationLabel,
+                    initialFieldNotes: detail?.trimmedFieldNotes ?? localFieldNotes,
+                    initialHashtags: detail?.hashtags ?? post.hashtags ?? [],
+                    isSaving: isSavingPostContent,
+                    onSubmit: { draft in
+                        Task { await savePostContent(draft, for: post) }
+                    }
+                )
+            }
         }
         .alert(
             "Unpublish Post?",
@@ -421,7 +433,14 @@ struct ExplorePostDetailView: View {
         if let hashtags = detail?.hashtags, !hashtags.isEmpty {
             FlowLayout(spacing: 8, lineAlignment: .center) {
                 ForEach(hashtags, id: \.self) { hashtag in
-                    NavigationLink(value: ExploreHashtagRoute(hashtag: hashtag)) {
+                    NavigationLink {
+                        ExploreHashtagPostsView(
+                            viewModel: viewModel,
+                            route: ExploreHashtagRoute(hashtag: hashtag),
+                            allowsInsightPresentation: allowsInsightPresentation,
+                            allowsAuthorProfilePresentation: allowsAuthorProfilePresentation
+                        )
+                    } label: {
                         Text("#\(hashtag)")
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(.tint)
@@ -607,6 +626,43 @@ struct ExplorePostDetailView: View {
 
         HapticManager.shared.triggerSelectionPulse()
         showFieldNotesEditor = true
+    }
+
+    private func openPostComposer(for post: ExplorePost) {
+        guard isOwnedByCurrentUser(post) else { return }
+        syncLocalFieldNotes(for: post)
+        HapticManager.shared.triggerSelectionPulse()
+        showPostComposer = true
+    }
+
+    private func savePostContent(_ draft: ExplorePostComposerDraft, for post: ExplorePost) async {
+        guard isOwnedByCurrentUser(post), !isSavingPostContent else { return }
+
+        isSavingPostContent = true
+        defer { isSavingPostContent = false }
+
+        do {
+            let response = try await MerianNetworkClient.shared.updateExplorePostContent(
+                postId: post.id,
+                fieldNotes: draft.fieldNotes,
+                hashtags: draft.hashtags,
+                locationSharing: draft.locationSharing
+            )
+            detail?.fieldNotes = response.fieldNotes
+            updateLocalFieldNotes(draft.fieldNotes ?? "")
+            showPostComposer = false
+            await viewModel.refreshPost(postId: post.id)
+            await loadPostDetail()
+            HapticManager.shared.triggerSuccessPulse()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                viewModel.toastMessage = "Explore post updated"
+            }
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+            }
+        }
     }
 
     private func updateLocalFieldNotes(_ notes: String) {

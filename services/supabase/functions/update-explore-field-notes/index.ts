@@ -2,7 +2,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
-import { requireUuid } from "../_shared/explore.ts";
+import { normalizeExploreHashtag, requireUuid } from "../_shared/explore.ts";
 import { updateExploreFieldNotes } from "./db.ts";
 
 function makeHttpError(status: number, message: string): Error & { status: number } {
@@ -29,6 +29,27 @@ function normalizeFieldNotes(value: unknown): string | null {
   return trimmed;
 }
 
+function normalizeHashtags(value: unknown): string[] | undefined {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) {
+    throw makeHttpError(400, "hashtags must be an array.");
+  }
+
+  const tags = value.map((entry) => {
+    if (typeof entry !== "string") {
+      throw makeHttpError(400, "hashtags must only contain strings.");
+    }
+
+    return normalizeExploreHashtag(entry, "hashtags");
+  });
+  const uniqueTags = [...new Set(tags)];
+  if (uniqueTags.length > 5) {
+    throw makeHttpError(400, "hashtags cannot contain more than 5 items.");
+  }
+
+  return uniqueTags;
+}
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
@@ -40,12 +61,14 @@ serve((req: Request) =>
 
     const postId = requireUuid(body.post_id, "post_id");
     const fieldNotes = normalizeFieldNotes(body.field_notes);
-    const row = await updateExploreFieldNotes(postId, user.id, fieldNotes, supabaseAdmin);
+    const hashtags = normalizeHashtags(body.hashtags);
+    const row = await updateExploreFieldNotes(postId, user.id, fieldNotes, hashtags, supabaseAdmin);
 
     return jsonResponse({
       success: true,
       post_id: row.id,
       field_notes: row.field_notes,
+      hashtags: row.hashtags,
     });
   }),
 );

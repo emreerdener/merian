@@ -383,6 +383,7 @@
 		D4C6CF49F2E9C26D6F2494D6 /* OriginalCaptureExpandedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 557876BCB778FE31E037CB43 /* OriginalCaptureExpandedView.swift */; };
 		D61A5D3CBD2AE59B054518A0 /* ScanQueueState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A46A82CE53DBDA65D792F1 /* ScanQueueState.swift */; };
 		D646B4ECBF6B6508B0347B5D /* ExploreDetailActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 594F7EF262209AE7BC108D23 /* ExploreDetailActionButton.swift */; };
+		D66E56788A7ACCD4EAF4D6D1 /* ExplorePostComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35D8624E63C25CA29741A81 /* ExplorePostComposerView.swift */; };
 		D696B7AC823300E35B824591 /* AnalyzingContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59BCD91B24D5D1DF5B542FB0 /* AnalyzingContentView.swift */; };
 		D6D758F94BE67E39AC077AA0 /* ShareImportSharedSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBF497003F380A74EBFC249E /* ShareImportSharedSettingsStore.swift */; };
 		D73DBC6608F0313E6A12C87E /* CollectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EF4E6E4D2EF9069B637A10B /* CollectionsView.swift */; };
@@ -924,6 +925,7 @@
 		F13CAB2B25E8595BDBBF211C /* SchemaV27.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV27.swift; sourceTree = "<group>"; };
 		F30493281596DD34890CEFF2 /* ScansToolbarModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansToolbarModifier.swift; sourceTree = "<group>"; };
 		F340CAB78931C951CAD0AF0F /* GamificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamificationManager.swift; sourceTree = "<group>"; };
+		F35D8624E63C25CA29741A81 /* ExplorePostComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorePostComposerView.swift; sourceTree = "<group>"; };
 		F42B367C0EDB61254AF5188E /* SimilarSpeciesGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimilarSpeciesGallery.swift; sourceTree = "<group>"; };
 		F451958EFCF13B67FEABBC65 /* MerianSystemFeedbackModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianSystemFeedbackModifier.swift; sourceTree = "<group>"; };
 		F4E4FBC2C7271D30F989490D /* ProfileViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModelTests.swift; sourceTree = "<group>"; };
@@ -1948,6 +1950,7 @@
 				14C1C2E8CB6A2289A5E1E7F8 /* ExploreKeyboardDismissTapRecognizer.swift */,
 				AFC2E509F0B672C5ECBC9D7B /* ExploreOnboardingPrompt.swift */,
 				056F08C17A989D93141D0CFD /* ExplorePostCard.swift */,
+				F35D8624E63C25CA29741A81 /* ExplorePostComposerView.swift */,
 				4C60819E504A8E804757DFF6 /* ExplorePostDetailActions.swift */,
 				C9570977DF2C085D2FE4F386 /* ExplorePostDetailCommentsSection.swift */,
 				E2A7FC80FF62754982088811 /* ExplorePostDetailTopSection.swift */,
@@ -2979,6 +2982,7 @@
 				7D4BB57EC68DDA401A69D607 /* ExploreOverviewCard.swift in Sources */,
 				9C48509CD1421E1A08F23EB4 /* ExplorePost+Formatting.swift in Sources */,
 				9C26D9C856B59453B7E4D6DB /* ExplorePostCard.swift in Sources */,
+				D66E56788A7ACCD4EAF4D6D1 /* ExplorePostComposerView.swift in Sources */,
 				9A4B8531D1247A26299957D0 /* ExplorePostDetailActions.swift in Sources */,
 				392EFD65B02B9F1F74A6B5BA /* ExplorePostDetailCommentsSection.swift in Sources */,
 				25FCD71B2B4B335351B06F57 /* ExplorePostDetailInsightSection.swift in Sources */,

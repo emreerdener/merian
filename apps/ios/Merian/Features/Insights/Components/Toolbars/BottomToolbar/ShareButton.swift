@@ -17,15 +17,23 @@ enum FieldNotesVisibilityUpdateFeedback {
 struct ShareButton: View {
     private enum PendingAction {
         case externalShare
-        case shareToExplore(includeFieldNotes: Bool, hashtags: [String])
+        case composeExplorePost
+        case editExplorePost
         case viewInExplore
     }
 
     let shareExternally: () -> Void
-    let onShareToExplore: ((Bool, [String]) -> Void)?
+    let onShareToExplore: ((ExplorePostComposerDraft) -> Void)?
+    let onEditExplorePost: ((ExplorePostComposerDraft) -> Void)?
     let isSharingToExplore: Bool
+    let isUpdatingExplorePostContent: Bool
     let isUpdatingExploreFieldNotes: Bool
+    let speciesName: String
+    let scientificName: String
+    var heroImageUrl: String?
+    var publicLocationLabel: String?
     var fieldNotesPreview: String?
+    var sharedExploreHashtags: [String]
     var sharedExplorePostId: String?
     var fieldNotesArePublicOnExplore: Bool
     var onViewInExplore: (() -> Void)?
@@ -33,13 +41,12 @@ struct ShareButton: View {
     
     @Environment(\.colorScheme) private var colorScheme
     @State private var showingOptions = false
+    @State private var showingExploreComposer = false
     @State private var pendingAction: PendingAction?
-    @State private var includeFieldNotesInExplore = false
-    @State private var exploreHashtagsText = ""
     @State private var fieldNotesVisibilityFeedback: FieldNotesVisibilityUpdateFeedback?
 
     private var showsExploreAction: Bool {
-        onShareToExplore != nil || onViewInExplore != nil
+        onShareToExplore != nil || onEditExplorePost != nil || onViewInExplore != nil
     }
 
     private var hasFieldNotesToShare: Bool {
@@ -59,29 +66,6 @@ struct ShareButton: View {
         return String(preview.prefix(157)) + "..."
     }
 
-    private var exploreHashtags: [String] {
-        var seen = Set<String>()
-        var hashtags: [String] = []
-        let rawTokens = exploreHashtagsText.components(
-            separatedBy: CharacterSet.whitespacesAndNewlines
-                .union(CharacterSet(charactersIn: ","))
-        )
-
-        for rawTag in rawTokens {
-            let normalized = rawTag
-                .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-                .lowercased()
-            guard !normalized.isEmpty, seen.insert(normalized).inserted else { continue }
-
-            hashtags.append(normalized)
-            if hashtags.count == 5 {
-                break
-            }
-        }
-
-        return hashtags
-    }
-
     private var exploreHeadline: String {
         sharedExplorePostId != nil ? "Published" : "Share with community"
     }
@@ -89,10 +73,6 @@ struct ShareButton: View {
     // BUTTONS TEXT
     private var exploreActionTitle: String {
         sharedExplorePostId != nil ? "View post" : "Share discovery"
-    }
-
-    private var showsExplorePanelActionButton: Bool {
-        sharedExplorePostId == nil || onViewInExplore != nil
     }
 
     private var exploreDescription: String {
@@ -132,16 +112,30 @@ struct ShareButton: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(primaryBlue)
-        .onChange(of: showingOptions) { _, isPresented in
-            if isPresented {
-                includeFieldNotesInExplore = false
-                exploreHashtagsText = ""
-            }
-        }
         .sheet(isPresented: $showingOptions, onDismiss: handlePendingAction) {
             shareOptionsSheet
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingExploreComposer) {
+            ExplorePostComposerView(
+                mode: sharedExplorePostId == nil ? .create : .edit,
+                speciesName: speciesName,
+                scientificName: scientificName,
+                heroImageUrl: heroImageUrl,
+                publicLocationLabel: publicLocationLabel,
+                initialFieldNotes: fieldNotesPreview,
+                initialHashtags: sharedExplorePostId == nil ? [] : sharedExploreHashtags,
+                isSaving: sharedExplorePostId == nil ? isSharingToExplore : isUpdatingExplorePostContent,
+                onSubmit: { draft in
+                    if sharedExplorePostId == nil {
+                        onShareToExplore?(draft)
+                    } else {
+                        onEditExplorePost?(draft)
+                    }
+                    showingExploreComposer = false
+                }
+            )
         }
         .task(id: fieldNotesVisibilityFeedback?.message) {
             guard fieldNotesVisibilityFeedback != nil else { return }
@@ -264,60 +258,6 @@ struct ShareButton: View {
                 }
             }
 
-            if sharedExplorePostId == nil, hasFieldNotesToShare {
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle(isOn: $includeFieldNotesInExplore) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Include field notes")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
-
-                            Text("Keep them private unless you choose to publish them with this Explore post.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .toggleStyle(.switch)
-
-                    if includeFieldNotesInExplore, let fieldNotesExcerpt {
-                        Text(fieldNotesExcerpt)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(4)
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(Color.primary.opacity(0.04))
-                            )
-                    }
-                }
-            }
-
-            if sharedExplorePostId == nil {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Hashtags")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-
-                    TextField("#citybioblitz", text: $exploreHashtagsText)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .submitLabel(.done)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.primary.opacity(0.04))
-                        )
-
-                    Text("Separate up to five hashtags with spaces or commas.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
             if sharedExplorePostId != nil, hasFieldNotesToShare {
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle(
@@ -355,22 +295,17 @@ struct ShareButton: View {
                 }
             }
 
-            if showsExplorePanelActionButton {
+            if sharedExplorePostId == nil {
                 Button {
-                    pendingAction = sharedExplorePostId != nil
-                        ? .viewInExplore
-                        : .shareToExplore(
-                            includeFieldNotes: includeFieldNotesInExplore,
-                            hashtags: exploreHashtags
-                        )
+                    pendingAction = .composeExplorePost
                     showingOptions = false
                 } label: {
                     HStack(alignment: .center) {
                         Label(
-                            isSharingToExplore && sharedExplorePostId == nil
+                            isSharingToExplore
                                 ? "Sharing..."
                                 : exploreActionTitle,
-                            systemImage: sharedExplorePostId != nil ? "eye" : "safari"
+                            systemImage: "safari"
                         )
                         .font(.headline)
                     }
@@ -384,7 +319,31 @@ struct ShareButton: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(exploreActionForegroundColor)
-                .disabled(isSharingToExplore && sharedExplorePostId == nil)
+                .disabled(isSharingToExplore)
+            } else {
+                HStack(spacing: 10) {
+                    if onEditExplorePost != nil {
+                        exploreSecondaryActionButton(
+                            title: isUpdatingExplorePostContent ? "Saving..." : "Edit post",
+                            systemImage: "square.and.pencil",
+                            isDisabled: isUpdatingExplorePostContent
+                        ) {
+                            pendingAction = .editExplorePost
+                            showingOptions = false
+                        }
+                    }
+
+                    if onViewInExplore != nil {
+                        exploreSecondaryActionButton(
+                            title: "View post",
+                            systemImage: "eye",
+                            isDisabled: false
+                        ) {
+                            pendingAction = .viewInExplore
+                            showingOptions = false
+                        }
+                    }
+                }
             }
         }
         .padding(16)
@@ -412,11 +371,35 @@ struct ShareButton: View {
         switch pendingAction {
         case .externalShare:
             shareExternally()
-        case .shareToExplore(let includeFieldNotes, let hashtags):
-            onShareToExplore?(includeFieldNotes, hashtags)
+        case .composeExplorePost:
+            showingExploreComposer = true
+        case .editExplorePost:
+            showingExploreComposer = true
         case .viewInExplore:
             onViewInExplore?()
         }
+    }
+
+    private func exploreSecondaryActionButton(
+        title: String,
+        systemImage: String,
+        isDisabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 11)
+                .frame(maxWidth: .infinity)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(primaryBlue.opacity(systemImage == "eye" ? 1 : 0.14))
+                )
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(systemImage == "eye" ? .white : primaryBlue)
+        .disabled(isDisabled)
     }
 
     private func updateFieldNotesVisibility(isPublic: Bool) {

@@ -335,17 +335,28 @@ private extension InsightSheetView {
             },
             showNewCollectionAlert: $viewModel.state.showNewCollectionAlert,
             shareExternally: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) },
-            onShareToExplore: viewModel.canShareToExplore ? { includeFieldNotes, hashtags in
+            onShareToExplore: viewModel.canShareToExplore ? { draft in
                 Task {
                     await viewModel.shareToExplore(
-                        includeFieldNotes: includeFieldNotes,
-                        hashtags: hashtags
+                        fieldNotes: draft.fieldNotes,
+                        hashtags: draft.hashtags,
+                        locationSharing: draft.locationSharing
+                    )
+                }
+            } : nil,
+            onEditExplorePost: viewModel.state.sharedExplorePostId != nil ? { draft in
+                Task {
+                    await viewModel.updateExplorePostContent(
+                        draft,
+                        modelContext: modelContext
                     )
                 }
             } : nil,
             isSharingToExplore: viewModel.state.isSharingToExplore,
+            isUpdatingExplorePostContent: viewModel.state.isUpdatingExplorePostContent,
             isUpdatingExploreFieldNotes: viewModel.state.isUpdatingExploreFieldNotes,
             fieldNotesPreview: viewModel.shareableFieldNotes,
+            sharedExploreHashtags: viewModel.state.sharedExploreHashtags,
             sharedExplorePostId: viewModel.state.sharedExplorePostId,
             fieldNotesArePublicOnExplore: viewModel.state.exploreFieldNotesArePublic,
             onViewInExplore: allowsExplorePresentation ? {

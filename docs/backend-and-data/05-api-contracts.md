@@ -999,6 +999,7 @@ Current response shape:
       "author_user_id": "uuid",
       "author_name": "Emre E.",
       "author_avatar_url": "https://lh3.googleusercontent.com/...",
+      "hashtags": ["citybioblitz", "springcount"],
       "species_common_name": "Monarch Butterfly",
       "species_scientific_name": "Danaus plexippus",
       "public_location_label": "Austin, TX",
@@ -1019,7 +1020,10 @@ Current response shape:
 `author_avatar_url` is a copied public projection stored on
 `public.users.public_avatar_url`. It is never read directly from `auth.users` on
 the client. `ranking_value` is populated for `trending` rows and omitted or
-`null` for `recent`, `following`, and `nearby`.
+`null` for `recent`, `following`, and `nearby`. Feed-card hashtag hydration is a
+batched lookup over the page's `post_id` values. `hashtags` is returned by the
+updated feed function as normalized public tag text without leading `#`; it is
+`[]` for untagged posts.
 
 ### `/get-explore-post`
 
@@ -1053,6 +1057,7 @@ Current response shape:
     "author_user_id": "uuid",
     "author_name": "Emre E.",
     "author_avatar_url": "https://lh3.googleusercontent.com/...",
+    "hashtags": ["citybioblitz", "springcount"],
     "species_common_name": "Monarch Butterfly",
     "species_scientific_name": "Danaus plexippus",
     "public_location_label": "Austin, TX",
@@ -1098,6 +1103,7 @@ Current response shape:
 {
   "data": {
     "post_id": "uuid",
+    "hashtags": ["citybioblitz", "springcount"],
     "species_dictionary_id": "uuid",
     "alternative_common_names": ["Milkweed Butterfly", "Common Tiger"],
     "taxonomy_kingdom": "Animalia",
@@ -1129,6 +1135,10 @@ Current response shape:
 
 This endpoint exists so Explore can render public species cards on the detail
 page without loading private scan state or the Insight `InferenceEngine`.
+
+`hashtags` uses the same normalized public tag edge table as feed cards. Detail
+renders tags as centered wrapping chips; tag taps route into the tagged-post
+collection rather than querying field notes, comments, or private scan state.
 
 `schema_version = 1` uses the same public species contract marker as
 `/species-dictionary`. Older clients can continue decoding the `data` field and
@@ -1323,6 +1333,50 @@ Validation and pagination rules:
 - The endpoint filters unshared posts, tombstoned scans, scans with no image
   media, private-geoprivacy scans, scans without a species key, shadowbanned
   authors, and both directions of user blocking.
+- The card projection includes batched `hashtags` arrays just like the feed.
+
+### `/get-explore-hashtag-posts`
+
+Returns a paginated grid collection of currently visible Explore posts tagged
+with one normalized public hashtag. iOS opens this collection when the viewer
+taps a hashtag chip on a feed card or post detail page. The response shape is the
+same card projection used by `/get-explore-feed`, with `ranking_value = null`
+and a `hashtags` array hydrated for each row.
+
+First page request:
+
+```json
+{
+  "hashtag": "#CityBioBlitz",
+  "limit": 30
+}
+```
+
+Follow-up page request:
+
+```json
+{
+  "hashtag": "citybioblitz",
+  "limit": 30,
+  "before_shared_at": "2026-05-12T12:00:00.000Z",
+  "before_post_id": "uuid"
+}
+```
+
+Rules:
+
+- `hashtag` is required. Display input may include leading `#`; the Edge
+  function trims it, lowercases it, and requires 2 to 40 letters, digits, or
+  underscores.
+- `limit` is optional, defaults to `30`, and is capped at `100`.
+- `before_shared_at` and `before_post_id` must be omitted together or supplied
+  together.
+- Pagination is stable on `(shared_at DESC, post_id DESC)`.
+- The endpoint applies the same unshared, tombstoned, missing-media,
+  private-geoprivacy, missing-species, shadowban, and mutual-block filters as the
+  Explore feed.
+- The backing RPC is `public.get_explore_hashtag_posts(...)`, which reads the
+  normalized `(tag, post_id)` edge index from `public.explore_post_hashtags`.
 
 ### `/get-explore-map-points`
 
@@ -1499,6 +1553,11 @@ Follow-up page requests send:
   `unshared_at` without deleting the underlying scan.
 - `field_notes` is optional and capped at 1000 characters. It is a public copy
   controlled by the user, not the private local source of truth.
+- `hashtags` is optional. The share endpoint accepts at most five hashtag
+  strings, strips leading `#`, lowercases them, deduplicates them, and requires
+  each tag to be 2 to 40 letters, digits, or underscores. Resharing replaces the
+  post's public hashtag edges with the submitted normalized set; omitted hashtags
+  clear the set for that share request.
 - Unsharing also purges any Explore notifications tied to that post so the
   activity feed cannot route into hidden content.
 - The current Explore map reads privacy-safe coordinates from the backing
@@ -1878,6 +1937,7 @@ The Explore client decodes these endpoints via:
 - `apps/ios/Merian/Features/Explore/Models/ExploreNotification.swift`
 - `apps/ios/Merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
 - `apps/ios/Merian/Features/Explore/Views/ExploreMapView.swift`
+- `apps/ios/Merian/Features/Explore/Views/ExploreView.swift`
 
 The current feed UI uses only a subset of the payload for visible card
 rendering:
@@ -1890,6 +1950,7 @@ rendering:
   `UserSpeciesPreference`)
 - `species_scientific_name`
 - `hero_image_url`
+- `hashtags`
 - `like_count`
 - `comment_count`
 - `viewer_has_liked`
@@ -1899,6 +1960,8 @@ The Explore detail page additionally uses:
 - `/get-explore-post` for notification-driven navigation into posts that are not
   already loaded in the current feed page
 - `/get-explore-post-detail` for taxonomy and habitat/distribution data
+- `/get-explore-hashtag-posts` when a feed or detail hashtag chip opens its
+  visible tagged-post collection
 - `time_of_day` + `current_month` to derive broad public observation context
   such as `Morning • April`
 - `weather_condition` + `weather_temperature_f` for optional public weather

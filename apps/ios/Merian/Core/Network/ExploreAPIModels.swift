@@ -793,4 +793,5 @@ struct ExploreUpdateFieldNotesResponse: Decodable {
     let success: Bool
     let postId: String
     let fieldNotes: String?
+    let hashtags: [String]?
 }

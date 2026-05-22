@@ -73,9 +73,11 @@ final class InsightSheetViewModel {
         var selectedWikiURL: URL?
         var isSavingPhotos = false
         var isSharingToExplore = false
+        var isUpdatingExplorePostContent = false
         var isUpdatingExploreFieldNotes = false
         var showExploreOnboarding = false
         var sharedExplorePostId: String?
+        var sharedExploreHashtags: [String] = []
         var exploreFieldNotesArePublic = false
         var showExploreSheet = false
         var fieldNotesText = ""
@@ -443,21 +445,29 @@ final class InsightSheetViewModel {
         )
     }
 
-    func shareToExplore(includeFieldNotes: Bool = false, hashtags: [String] = []) async {
+    func shareToExplore(
+        includeFieldNotes: Bool = false,
+        fieldNotes: String? = nil,
+        hashtags: [String] = [],
+        locationSharing: ExplorePostLocationSharing = .obscured
+    ) async {
         guard canShareToExplore, let record = activeLocalRecord, !state.isSharingToExplore else { return }
 
         state.isSharingToExplore = true
         defer { state.isSharingToExplore = false }
 
         do {
+            let notesForPost = fieldNotes ?? (includeFieldNotes ? shareableFieldNotes : nil)
             let response = try await MerianNetworkClient.shared.shareScanToExplore(
                 scan: record,
-                fieldNotes: includeFieldNotes ? shareableFieldNotes : nil,
-                hashtags: hashtags
+                fieldNotes: notesForPost,
+                hashtags: hashtags,
+                locationSharing: locationSharing
             )
             appSettings.hasUnseenExplorePost = true
             cacheSharedExplorePostId(response.postId, for: record.id)
-            state.exploreFieldNotesArePublic = includeFieldNotes && shareableFieldNotes != nil
+            state.sharedExploreHashtags = hashtags
+            state.exploreFieldNotesArePublic = notesForPost != nil
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = "Shared to Explore"
@@ -505,6 +515,43 @@ final class InsightSheetViewModel {
         } catch {
             HapticManager.shared.triggerErrorThump()
             return .failure(ExploreErrorFormatter.message(for: error))
+        }
+    }
+
+    func updateExplorePostContent(
+        _ draft: ExplorePostComposerDraft,
+        modelContext: ModelContext
+    ) async {
+        guard let postId = state.sharedExplorePostId, !state.isUpdatingExplorePostContent else { return }
+
+        state.isUpdatingExplorePostContent = true
+        defer { state.isUpdatingExplorePostContent = false }
+
+        do {
+            let response = try await MerianNetworkClient.shared.updateExplorePostContent(
+                postId: postId,
+                fieldNotes: draft.fieldNotes,
+                hashtags: draft.hashtags,
+                locationSharing: draft.locationSharing
+            )
+            state.sharedExploreHashtags = response.hashtags ?? draft.hashtags
+            state.exploreFieldNotesArePublic = response.fieldNotes?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty == false
+
+            let draftNotes = draft.fieldNotes ?? ""
+            state.fieldNotesText = draftNotes
+            _ = persistFieldNotes(draftNotes, modelContext: modelContext)
+
+            HapticManager.shared.triggerSuccessPulse()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                state.toastMessage = "Explore post updated"
+            }
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                state.toastMessage = ExploreErrorFormatter.message(for: error)
+            }
         }
     }
 
@@ -734,11 +781,13 @@ final class InsightSheetViewModel {
     ) async {
         guard let postId else {
             state.exploreFieldNotesArePublic = false
+            state.sharedExploreHashtags = []
             return
         }
 
         do {
             let detail = try await MerianNetworkClient.shared.getExplorePostDetail(postId: postId)
+            state.sharedExploreHashtags = detail.hashtags ?? []
             if let fieldNotes = detail.trimmedFieldNotes {
                 state.exploreFieldNotesArePublic = true
                 if let modelContext {

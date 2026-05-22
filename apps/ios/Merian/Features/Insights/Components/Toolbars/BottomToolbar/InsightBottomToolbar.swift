@@ -9,10 +9,13 @@ struct InsightBottomToolbar: ToolbarContent {
     let toggleScanInCollection: (ScanCollection) -> Void
     @Binding var showNewCollectionAlert: Bool
     let shareExternally: () -> Void
-    let onShareToExplore: ((Bool, [String]) -> Void)?
+    let onShareToExplore: ((ExplorePostComposerDraft) -> Void)?
+    let onEditExplorePost: ((ExplorePostComposerDraft) -> Void)?
     let isSharingToExplore: Bool
+    let isUpdatingExplorePostContent: Bool
     let isUpdatingExploreFieldNotes: Bool
     var fieldNotesPreview: String?
+    var sharedExploreHashtags: [String]
     var sharedExplorePostId: String?
     var fieldNotesArePublicOnExplore: Bool
     var onViewInExplore: (() -> Void)?
@@ -24,9 +27,16 @@ struct InsightBottomToolbar: ToolbarContent {
                 ShareButton(
                     shareExternally: shareExternally,
                     onShareToExplore: onShareToExplore,
+                    onEditExplorePost: onEditExplorePost,
                     isSharingToExplore: isSharingToExplore,
+                    isUpdatingExplorePostContent: isUpdatingExplorePostContent,
                     isUpdatingExploreFieldNotes: isUpdatingExploreFieldNotes,
+                    speciesName: speciesData.commonName,
+                    scientificName: speciesData.scientificName,
+                    heroImageUrl: nil,
+                    publicLocationLabel: ExploreLocationPrivacy.displayLabel(from: speciesData.locationName),
                     fieldNotesPreview: fieldNotesPreview,
+                    sharedExploreHashtags: sharedExploreHashtags,
                     sharedExplorePostId: sharedExplorePostId,
                     fieldNotesArePublicOnExplore: fieldNotesArePublicOnExplore,
                     onViewInExplore: onViewInExplore,

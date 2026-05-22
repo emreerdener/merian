@@ -56,6 +56,20 @@ Nearby:
 - Cursor fields must be omitted for the first page.
 - `nearby` requires both `latitude` and `longitude`.
 
+## Response Hashtags
+
+Every returned card row is hydrated with:
+
+```json
+{
+  "hashtags": ["citybioblitz", "springcount"]
+}
+```
+
+Untagged posts return `[]`. The Edge function performs one batched lookup over
+the page's `post_id` values in `public.explore_post_hashtags`; feed cards must
+not fetch post detail only to render hashtag chips.
+
 ## Visibility Rules
 
 Every mode excludes:

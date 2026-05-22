@@ -44,6 +44,7 @@ The response is the same card-shaped Explore post projection used by the feed:
       "author_user_id": "uuid",
       "author_name": "River W.",
       "author_avatar_url": "https://...",
+      "hashtags": ["citybioblitz", "springcount"],
       "species_common_name": "River Birch",
       "species_scientific_name": "Betula nigra",
       "public_location_label": "Austin, TX",
@@ -62,6 +63,8 @@ The response is the same card-shaped Explore post projection used by the feed:
 ```
 
 The backing RPC is `public.get_explore_author_posts(self_id, target_author_user_id, max_limit, before_shared_at, before_post_id)`.
+The Edge function then batches `public.explore_post_hashtags` by the returned
+post IDs so library cards keep the same `hashtags` array as feed cards.
 
 ## Pagination
 

@@ -10,8 +10,9 @@ export async function updateExploreFieldNotes(
   postId: string,
   userId: string,
   fieldNotes: string | null,
+  hashtags: string[] | undefined,
   supabaseAdmin: SupabaseClient,
-): Promise<{ id: string; field_notes: string | null }> {
+): Promise<{ id: string; field_notes: string | null; hashtags?: string[] }> {
   const { data, error } = await supabaseAdmin
     .from("explore_posts")
     .update({ field_notes: fieldNotes })
@@ -25,5 +26,26 @@ export async function updateExploreFieldNotes(
     throw makeHttpError(404, "Explore post not found.");
   }
 
-  return data as { id: string; field_notes: string | null };
+  if (hashtags !== undefined) {
+    const { error: deleteError } = await supabaseAdmin
+      .from("explore_post_hashtags")
+      .delete()
+      .eq("post_id", postId);
+
+    if (deleteError) {
+      throw new Error(`Failed to clear Explore post hashtags: ${deleteError.message}`);
+    }
+
+    if (hashtags.length > 0) {
+      const { error: insertError } = await supabaseAdmin
+        .from("explore_post_hashtags")
+        .insert(hashtags.map((tag) => ({ post_id: postId, tag })));
+
+      if (insertError) {
+        throw new Error(`Failed to save Explore post hashtags: ${insertError.message}`);
+      }
+    }
+  }
+
+  return { ...(data as { id: string; field_notes: string | null }), hashtags };
 }

@@ -7,6 +7,7 @@ struct ExplorePostDetailMenuButton: View {
     let fieldNotesArePublic: Bool
     let isUpdatingFieldNotesVisibility: Bool
     let onOpenInsight: () -> Void
+    let onEditPost: () -> Void
     let onEditFieldNotes: () -> Void
     let onToggleFieldNotesVisibility: () -> Void
     let onUnpublish: () -> Void
@@ -32,6 +33,10 @@ struct ExplorePostDetailMenuButton: View {
             Button(action: onOpenInsight) {
                 Label("Open insight", systemImage: "sparkles")
             }
+        }
+
+        Button(action: onEditPost) {
+            Label("Edit post", systemImage: "square.and.pencil")
         }
 
         if canManageFieldNotes {

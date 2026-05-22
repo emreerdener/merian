@@ -31,8 +31,8 @@ multiple functions need the same behavior and the ownership boundary is clear.
 - **`posthog.ts`**: Best-effort PostHog HTTP capture helpers.
 - **`tierCache.ts`**: Short-lived user-tier cache to avoid repeated Supabase
   lookups inside hot Edge paths.
-- **`explore.ts`**: Explore UUID validation, public author identity sync, and
-  shared social-surface helpers.
+- **`explore.ts`**: Explore UUID/hashtag validation, public author identity sync,
+  feed-card hashtag/pro-badge hydration, and shared social-surface helpers.
 - **`publicSpeciesProjection.ts`**: Public species projection sanitizer that
   prevents private scan/user fields from leaking into dictionary and Explore
   responses.

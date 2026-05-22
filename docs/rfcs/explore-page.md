@@ -13,22 +13,28 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 - Explore includes a privacy-scoped public author profile sheet reachable from feed/detail author headers.
 - The author profile sheet can transition sideways into the author's full published Explore scan library.
 - The feed now ships four user-facing filters: `Recent`, `Following`, `Trending`, and `Nearby`.
+- Explore posts may carry up to five normalized public hashtags. Hashtag chips
+  open currently visible tagged-post collections; event and BioBlitz
+  auto-submission remains later scope.
 - Feed cards may show:
   - Hero image
   - Species common name and scientific name
   - Author label
   - General location only, at city or state level
   - Author avatar for authenticated users when a public avatar URL is available
+  - Hashtag chips when the post is tagged
   - Like, comment, and external share actions
 - The current V1 card layout is:
   - Author row above the image
   - Full-width square image
   - Species common/scientific name plaque over the bottom-left of the image
-  - Action row below the image
+  - Optional one-line scrolling hashtag chip row below the image
+  - Action row below the tags or image
 - The current V1 detail layout is:
   - Author row
   - Full-width hero image
   - Like, comment, and share actions
+  - Optional centered wrapping hashtag chips
   - Species section
   - Public species insight cards
   - Privacy-safe telemetry cards
@@ -47,7 +53,7 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 ## Non-Goals
 
 - Audio posts
-- Captions, hashtags, DMs, private sharing, mutual friend requests, or standalone social profile pages beyond the privacy-scoped author sheet
+- Captions, DMs, private sharing, mutual friend requests, or standalone social profile pages beyond the privacy-scoped author sheet
 - Heavy personalization, editorial curation, or ranking beyond the shipped `Recent` / `Following` / `Trending` / `Nearby` modes
 - Public species pages in this scope
 
@@ -121,6 +127,26 @@ The follow write path is `/set-user-follow`. Follow requests require a visible E
 
 Blocking removes follow rows in both directions. Ghost-account merge reparents follow rows from the ghost public user to the authenticated public user and dedupes conflicts.
 
+## Hashtag Extension (2026-05-22)
+
+Explore hashtags are normalized public metadata on an Explore post, not parsed
+caption text. The publishing flow accepts up to five display hashtags and stores
+lowercase tag text without the leading `#` in `explore_post_hashtags`.
+
+The shipped browse behavior is:
+
+- feed-card post projections include `hashtags` arrays from a batched post-page
+  lookup and render a one-line horizontally scrolling chip row
+- detail payloads include the same tags and render centered wrapping chips
+- tapping a chip opens `ExploreHashtagPostsView`, a paginated image grid backed by
+  `get-explore-hashtag-posts` and `public.get_explore_hashtag_posts(...)`
+- hashtag collections apply the same visible-post filters as feed and author
+  library reads, then page by `(shared_at DESC, post_id DESC)`
+
+The `(tag, post_id)` index keeps event or BioBlitz matching server-side. This
+extension does not yet define event configuration, submission state, or
+moderation rules for automatically attaching a tagged Explore post to an event.
+
 ## Recommended Product Model
 
 Explore should be treated as a publishing layer on top of scans, not as a direct view over every public scan.
@@ -173,6 +199,7 @@ Each Explore card should contain:
 - Author label
 - Optional author avatar
 - General location label
+- Optional public hashtag chips
 - Like count
 - Comment count
 - Like button
@@ -183,6 +210,7 @@ Each Explore card should contain:
 V1 card behavior:
 
 - Tapping the card body pushes a dedicated Explore post detail page inside the Explore navigation stack.
+- Tapping a hashtag chip opens the visible post collection for that tag.
 - Tapping comments from the feed opens a bottom-sheet comment view for that post.
 - Tapping the overflow menu exposes actions, not navigation.
 - The Explore sheet header includes a bell button with an unread badge that opens the in-app notifications/activity view.
@@ -196,6 +224,7 @@ It should contain:
 - The same privacy-safe author identity used on the feed
 - A full-width hero image
 - Like, comment, and external share actions
+- Optional public hashtag chips that wrap and route to tagged-post collections
 - Common and scientific names
 - Public species insight cards backed by `species_dictionary`
 - Privacy-safe telemetry such as general location, broad time context, weather, and shared date
@@ -284,6 +313,17 @@ Suggested constraints:
 
 - Unique active share per scan in V1
 - Query only rows where `unshared_at IS NULL`
+
+### `explore_post_hashtags`
+
+Shipped normalized tag edges:
+
+- `post_id UUID NOT NULL REFERENCES public.explore_posts(id) ON DELETE CASCADE`
+- `tag TEXT NOT NULL` containing lowercase text without leading `#`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`
+- `PRIMARY KEY (post_id, tag)`
+- `(tag, post_id)` lookup index for tagged-post browsing and future event or
+  BioBlitz matching
 
 Current shipped note:
 

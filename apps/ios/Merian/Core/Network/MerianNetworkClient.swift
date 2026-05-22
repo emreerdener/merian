@@ -1379,13 +1379,15 @@ final class MerianNetworkClient {
         scanId: String,
         restoredObjectKeys: [String]? = nil,
         fieldNotes: String? = nil,
-        hashtags: [String] = []
+        hashtags: [String] = [],
+        locationSharing: ExplorePostLocationSharing = .obscured
     ) async throws -> ExploreShareResponse {
         let functionUrl = try endpointURL("share-scan-to-explore")
         var payload: [String: Any] = [
             "scan_id": scanId,
             "field_notes": fieldNotes ?? NSNull(),
-            "hashtags": hashtags
+            "hashtags": hashtags,
+            "location_sharing": locationSharing.rawValue
         ]
         if let restoredObjectKeys, !restoredObjectKeys.isEmpty {
             payload["restored_object_keys"] = restoredObjectKeys
@@ -1398,10 +1400,16 @@ final class MerianNetworkClient {
     func shareScanToExplore(
         scan: LocalScanRecord,
         fieldNotes: String? = nil,
-        hashtags: [String] = []
+        hashtags: [String] = [],
+        locationSharing: ExplorePostLocationSharing = .obscured
     ) async throws -> ExploreShareResponse {
         do {
-            return try await shareScanToExplore(scanId: scan.id, fieldNotes: fieldNotes, hashtags: hashtags)
+            return try await shareScanToExplore(
+                scanId: scan.id,
+                fieldNotes: fieldNotes,
+                hashtags: hashtags,
+                locationSharing: locationSharing
+            )
         } catch {
             guard shouldAttemptExploreMediaRestore(after: error) else {
                 throw error
@@ -1416,7 +1424,8 @@ final class MerianNetworkClient {
                 scanId: scan.id,
                 restoredObjectKeys: restoredObjectKeys,
                 fieldNotes: fieldNotes,
-                hashtags: hashtags
+                hashtags: hashtags,
+                locationSharing: locationSharing
             )
         }
     }
@@ -1432,6 +1441,24 @@ final class MerianNetworkClient {
         let payload: [String: Any] = [
             "post_id": postId,
             "field_notes": fieldNotes ?? NSNull()
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreUpdateFieldNotesResponse.self, from: data)
+    }
+
+    func updateExplorePostContent(
+        postId: String,
+        fieldNotes: String?,
+        hashtags: [String],
+        locationSharing: ExplorePostLocationSharing
+    ) async throws -> ExploreUpdateFieldNotesResponse {
+        let functionUrl = try endpointURL("update-explore-field-notes")
+        let payload: [String: Any] = [
+            "post_id": postId,
+            "field_notes": fieldNotes ?? NSNull(),
+            "hashtags": hashtags,
+            "location_sharing": locationSharing.rawValue
         ]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
