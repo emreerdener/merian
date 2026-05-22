@@ -443,7 +443,7 @@ final class InsightSheetViewModel {
         )
     }
 
-    func shareToExplore(includeFieldNotes: Bool = false) async {
+    func shareToExplore(includeFieldNotes: Bool = false, hashtags: [String] = []) async {
         guard canShareToExplore, let record = activeLocalRecord, !state.isSharingToExplore else { return }
 
         state.isSharingToExplore = true
@@ -452,7 +452,8 @@ final class InsightSheetViewModel {
         do {
             let response = try await MerianNetworkClient.shared.shareScanToExplore(
                 scan: record,
-                fieldNotes: includeFieldNotes ? shareableFieldNotes : nil
+                fieldNotes: includeFieldNotes ? shareableFieldNotes : nil,
+                hashtags: hashtags
             )
             appSettings.hasUnseenExplorePost = true
             cacheSharedExplorePostId(response.postId, for: record.id)

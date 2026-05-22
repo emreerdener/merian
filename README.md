@@ -47,7 +47,7 @@ Merian is a field-ready biological identification app built around zero-friction
 
 ### Explore
 - Public feed, following feed, trending, nearby, and map views backed by Supabase RPCs and Edge Functions.
-- Share/unshare scans to Explore, like posts, comment, react to comments, follow authors, and receive Explore notifications.
+- Share/unshare scans to Explore with optional public hashtags, browse hashtag post collections, like posts, comment, react to comments, follow authors, and receive Explore notifications.
 - Author profile sheets expose privacy-scoped public stats and non-opening public achievements.
 - Home Screen widget caches image-only Explore snapshots through the shared App Group.
 - Public Explore share pages render at `https://merian.earth/explore/post/{postId}` through the Next.js web app.

@@ -56,6 +56,7 @@ struct ExploreView: View {
                         viewModel: viewModel,
                         onOpenPostDetail: { openPostDetail(for: $0) },
                         onOpenAuthorProfile: { openAuthorProfile(for: $0) },
+                        onOpenHashtag: openHashtag,
                         onOpenInsight: allowsInsightPresentation ? { openInsight(for: $0) } : nil
                     )
                     .id(ExploreTab.feed)
@@ -94,6 +95,13 @@ struct ExploreView: View {
                     speciesId: route.speciesId,
                     entryPoint: route.entryPoint,
                     showsCloseButton: false
+                )
+            }
+            .navigationDestination(for: ExploreHashtagRoute.self) { route in
+                ExploreHashtagPostsView(
+                    viewModel: viewModel,
+                    route: route,
+                    allowsInsightPresentation: allowsInsightPresentation
                 )
             }
             .toolbar { exploreToolbar }
@@ -253,6 +261,11 @@ struct ExploreView: View {
         selectedAuthorProfileRoute = ExploreAuthorProfileRoute(post: post)
     }
 
+    private func openHashtag(_ hashtag: String) {
+        HapticManager.shared.triggerSelectionPulse()
+        navigationPath.append(ExploreHashtagRoute(hashtag: hashtag))
+    }
+
     private func openInsight(for post: ExplorePost) {
         guard allowsInsightPresentation else { return }
         guard isOwnedByCurrentUser(post) else { return }
@@ -363,6 +376,7 @@ private struct ExploreFeedTabContent: View {
     @State private var isResolvingNearbyLocation = false
     let onOpenPostDetail: (ExplorePost) -> Void
     let onOpenAuthorProfile: (ExplorePost) -> Void
+    let onOpenHashtag: (String) -> Void
     let onOpenInsight: ((ExplorePost) -> Void)?
 
     var body: some View {
@@ -413,6 +427,7 @@ private struct ExploreFeedTabContent: View {
                             onShare: { viewModel.share(post) },
                             onOpenDetail: { onOpenPostDetail(post) },
                             onOpenAuthorProfile: { onOpenAuthorProfile(post) },
+                            onOpenHashtag: onOpenHashtag,
                             onOpenInsight: onOpenInsight.map { callback in
                                 { callback(post) }
                             },
@@ -613,4 +628,221 @@ struct ExplorePostRoute: Hashable {
     let shouldOpenInsight: Bool
     let targetCommentId: String?
     let targetReplyParentCommentId: String?
+}
+
+struct ExploreHashtagRoute: Hashable {
+    let hashtag: String
+}
+
+struct ExploreHashtagPostsView: View {
+    @Bindable var viewModel: ExploreFeedViewModel
+    let route: ExploreHashtagRoute
+    let allowsInsightPresentation: Bool
+    var allowsAuthorProfilePresentation = true
+
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var posts: [ExplorePost] = []
+    @State private var cursor = ExploreHashtagPostCursor.empty
+    @State private var isLoadingInitialPage = true
+    @State private var isLoadingMore = false
+    @State private var hasReachedEnd = false
+    @State private var errorMessage: String?
+    @State private var selectedPostRoute: ExplorePostRoute?
+
+    private let pageSize = 30
+
+    var body: some View {
+        Group {
+            if isLoadingInitialPage && posts.isEmpty {
+                loadingState
+            } else if let errorMessage, posts.isEmpty {
+                errorState(message: errorMessage)
+            } else if posts.isEmpty {
+                emptyState
+            } else {
+                postsGrid
+            }
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("#\(route.hashtag)")
+        .navigationDestination(
+            isPresented: Binding(
+                get: { selectedPostRoute != nil },
+                set: { if !$0 { selectedPostRoute = nil } }
+            )
+        ) {
+            if let selectedPostRoute {
+                ExplorePostDetailView(
+                    viewModel: viewModel,
+                    postId: selectedPostRoute.postId,
+                    shouldFocusCommentComposer: selectedPostRoute.shouldFocusCommentComposer,
+                    shouldOpenInsight: selectedPostRoute.shouldOpenInsight,
+                    targetCommentId: selectedPostRoute.targetCommentId,
+                    targetReplyParentCommentId: selectedPostRoute.targetReplyParentCommentId,
+                    allowsInsightPresentation: allowsInsightPresentation,
+                    allowsAuthorProfilePresentation: allowsAuthorProfilePresentation
+                )
+            }
+        }
+        .task(id: route.hashtag) {
+            await reloadPosts()
+        }
+    }
+
+    private var postsGrid: some View {
+        ScrollView(showsIndicators: false) {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 3),
+                spacing: 2
+            ) {
+                ForEach(posts) { post in
+                    Button {
+                        openPost(post)
+                    } label: {
+                        ExploreHeroImageView(
+                            imageUrl: post.heroImageUrl,
+                            reloadGeneration: viewModel.mediaReloadGeneration,
+                            maxDimension: 360
+                        )
+                        .aspectRatio(1, contentMode: .fill)
+                        .clipped()
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(viewModel.resolvedSpeciesCommonName(for: post)), tagged #\(route.hashtag)")
+                    .onAppear {
+                        guard post.id == posts.last?.id else { return }
+                        Task { await loadMorePostsIfNeeded() }
+                    }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 32)
+
+            if isLoadingMore {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 24)
+            }
+        }
+        .refreshable {
+            await reloadPosts()
+        }
+    }
+
+    private var loadingState: some View {
+        VStack(spacing: 14) {
+            ProgressView()
+            Text("Loading tagged posts...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var emptyState: some View {
+        EmptyStateView(
+            iconName: "number",
+            title: "No tagged posts",
+            message: "Visible Explore posts tagged #\(route.hashtag) will appear here."
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func errorState(message: String) -> some View {
+        EmptyStateView(
+            iconName: "exclamationmark.triangle",
+            title: "Couldn’t load hashtag",
+            message: message
+        ) {
+            Button {
+                Task { await reloadPosts() }
+            } label: {
+                Text("Try again")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @MainActor
+    private func reloadPosts() async {
+        posts = []
+        cursor = .empty
+        hasReachedEnd = false
+        errorMessage = nil
+        isLoadingInitialPage = true
+        await loadMorePostsIfNeeded()
+        isLoadingInitialPage = false
+    }
+
+    @MainActor
+    private func loadMorePostsIfNeeded() async {
+        guard !isLoadingMore, !hasReachedEnd else { return }
+
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+
+        do {
+            let page = try await MerianNetworkClient.shared.getExploreHashtagPosts(
+                hashtag: route.hashtag,
+                limit: pageSize,
+                cursor: cursor.isEmpty ? nil : cursor
+            )
+            guard !Task.isCancelled else { return }
+
+            appendUniquePosts(page)
+            registerPosts(page)
+
+            if let lastPost = posts.last {
+                cursor = ExploreHashtagPostCursor(
+                    beforeSharedAt: lastPost.sharedAt,
+                    beforePostId: lastPost.id
+                )
+            }
+
+            hasReachedEnd = page.count < pageSize
+            errorMessage = nil
+        } catch {
+            guard !Task.isCancelled else { return }
+            if posts.isEmpty {
+                errorMessage = ExploreErrorFormatter.message(for: error)
+            } else {
+                viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+            }
+        }
+    }
+
+    @MainActor
+    private func appendUniquePosts(_ nextPosts: [ExplorePost]) {
+        let existingIds = Set(posts.map(\.id))
+        posts.append(contentsOf: nextPosts.filter { !existingIds.contains($0.id) })
+    }
+
+    @MainActor
+    private func registerPosts(_ page: [ExplorePost]) {
+        for post in page {
+            viewModel.upsertPost(post)
+        }
+        viewModel.refreshPreferredSpeciesNames(
+            for: page.map(\.speciesScientificName),
+            modelContext: modelContext
+        )
+    }
+
+    @MainActor
+    private func openPost(_ post: ExplorePost) {
+        viewModel.upsertPost(post)
+        selectedPostRoute = ExplorePostRoute(
+            postId: post.id,
+            shouldFocusCommentComposer: false,
+            shouldOpenInsight: false,
+            targetCommentId: nil,
+            targetReplyParentCommentId: nil
+        )
+    }
 }

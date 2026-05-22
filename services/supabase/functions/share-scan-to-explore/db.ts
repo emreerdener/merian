@@ -113,3 +113,30 @@ export async function upsertExplorePost(
 
   return data as { id: string; shared_at: string };
 }
+
+export async function replaceExplorePostHashtags(
+  postId: string,
+  hashtags: string[],
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { error: deleteError } = await supabaseAdmin
+    .from("explore_post_hashtags")
+    .delete()
+    .eq("post_id", postId);
+
+  if (deleteError) {
+    throw new Error(`Failed to clear Explore post hashtags: ${deleteError.message}`);
+  }
+
+  if (hashtags.length === 0) {
+    return;
+  }
+
+  const { error: insertError } = await supabaseAdmin
+    .from("explore_post_hashtags")
+    .insert(hashtags.map((tag) => ({ post_id: postId, tag })));
+
+  if (insertError) {
+    throw new Error(`Failed to save Explore post hashtags: ${insertError.message}`);
+  }
+}

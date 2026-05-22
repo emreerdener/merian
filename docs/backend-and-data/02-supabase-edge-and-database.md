@@ -509,6 +509,7 @@ the identify pipeline. The current shipped surface includes:
 - feed + detail reads: `get-explore-feed`, `get-explore-post`,
   `get-explore-post-detail`, `get-explore-comments`
 - author profile reads: `get-explore-author-profile`, `get-explore-author-posts`
+- hashtag reads: `get-explore-hashtag-posts`
 - map reads: `get-explore-map-points`
 - mutations: `share-scan-to-explore`, `unshare-explore-post`,
   `update-explore-field-notes`, `set-explore-post-like`, `set-user-follow`,
@@ -564,6 +565,19 @@ contract:
   `public.get_explore_feed_nearby(...)`, requiring viewer coordinates, reusing
   the same privacy-safe public coordinate rules as the Explore map, filtering to
   a roughly 50-mile radius, and then sorting the resulting posts by recency
+
+Explore hashtags are normalized public metadata, not parsed captions. Publishing
+through `share-scan-to-explore` replaces up to five
+`public.explore_post_hashtags` edges for the post with lowercase tag text that
+omits the leading `#`. Feed-card projections returned by `get-explore-feed`,
+`get-explore-post`, `get-explore-author-posts`, and
+`get-explore-hashtag-posts` hydrate `hashtags` with one batched lookup over each
+returned post page. The detail RPC includes the same tags directly for
+`ExplorePostDetailView`. `get-explore-hashtag-posts` queries
+`public.get_explore_hashtag_posts(...)` with the standard visible-post rules and
+stable `(shared_at, post_id)` pagination for the iOS tagged-post grid. The
+`(tag, post_id)` edge index is also the intended base for future event and
+BioBlitz submission matching.
 
 `set-user-follow` is the only write path for `public.user_follows`. It validates
 no self-follow, no mutual block, a non-shadowbanned target, and a visible

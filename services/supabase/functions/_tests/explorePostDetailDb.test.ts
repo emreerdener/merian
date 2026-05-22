@@ -15,6 +15,7 @@ import { publicSpeciesProjectionForbiddenKeys } from "../_shared/publicSpeciesPr
 type ExplorePostDetailRow = {
   post_id: string;
   field_notes: string | null;
+  hashtags: string[];
   alternative_common_names: string[];
   ai_reasoning: string | null;
   gbif_taxon_key: number | null;
@@ -174,11 +175,20 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
         fieldNotes: "Found near the shaded edge of the trail after rain.",
       });
 
+      await client.queryArray(
+        `
+        INSERT INTO public.explore_post_hashtags (post_id, tag)
+        VALUES ($1, 'springcount'), ($1, 'citybioblitz')
+      `,
+        [postId],
+      );
+
       const result = await client.queryObject<ExplorePostDetailRow>(
         `
         SELECT
           post_id,
           field_notes,
+          hashtags,
           alternative_common_names,
           ai_reasoning,
           gbif_taxon_key,
@@ -198,6 +208,7 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
         row.field_notes,
         "Found near the shaded edge of the trail after rain.",
       );
+      assertEquals(row.hashtags, ["citybioblitz", "springcount"]);
       assertEquals(
         row.ai_reasoning,
         "Petal shape and thorn spacing match Rosa galeria.",

@@ -9,7 +9,7 @@ struct InsightBottomToolbar: ToolbarContent {
     let toggleScanInCollection: (ScanCollection) -> Void
     @Binding var showNewCollectionAlert: Bool
     let shareExternally: () -> Void
-    let onShareToExplore: ((Bool) -> Void)?
+    let onShareToExplore: ((Bool, [String]) -> Void)?
     let isSharingToExplore: Bool
     let isUpdatingExploreFieldNotes: Bool
     var fieldNotesPreview: String?

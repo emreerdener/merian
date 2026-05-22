@@ -11,6 +11,7 @@ import {
   refreshExploreAuthorStateBestEffort,
   requireUuid,
   withExploreAuthorProBadges,
+  withExplorePostHashtags,
 } from "../_shared/explore.ts";
 import { fetchExploreFeed } from "./db.ts";
 
@@ -90,20 +91,23 @@ serve((req: Request) =>
       "get-explore-feed",
     );
 
-    const data = await withExploreAuthorProBadges(
-      await fetchExploreFeed(
-        user.id,
-        limit,
-        filter,
-        {
-          beforeSharedAt,
-          beforePostId,
-          beforeRankingValue,
-        },
-        {
-          latitude,
-          longitude,
-        },
+    const data = await withExplorePostHashtags(
+      await withExploreAuthorProBadges(
+        await fetchExploreFeed(
+          user.id,
+          limit,
+          filter,
+          {
+            beforeSharedAt,
+            beforePostId,
+            beforeRankingValue,
+          },
+          {
+            latitude,
+            longitude,
+          },
+          supabaseAdmin,
+        ),
         supabaseAdmin,
       ),
       supabaseAdmin,

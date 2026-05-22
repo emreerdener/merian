@@ -1,6 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-export interface ExploreAuthorPostRow {
+export interface ExploreHashtagPostRow {
   post_id: string;
   scan_id: string;
   hero_image_url: string;
@@ -24,25 +24,25 @@ export interface ExploreAuthorPostRow {
   ranking_value?: number | null;
 }
 
-export async function fetchExploreAuthorPosts(
+export async function fetchExploreHashtagPosts(
   userId: string,
-  authorUserId: string,
+  hashtag: string,
   limit: number,
   beforeSharedAt: string | null,
   beforePostId: string | null,
   supabaseAdmin: SupabaseClient,
-): Promise<ExploreAuthorPostRow[]> {
-  const { data, error } = await supabaseAdmin.rpc("get_explore_author_posts", {
+): Promise<ExploreHashtagPostRow[]> {
+  const { data, error } = await supabaseAdmin.rpc("get_explore_hashtag_posts", {
     self_id: userId,
-    target_author_user_id: authorUserId,
+    target_tag: hashtag,
     max_limit: limit,
     before_shared_at: beforeSharedAt,
     before_post_id: beforePostId,
   });
 
   if (error) {
-    throw new Error(`Failed to fetch Explore author posts: ${error.message}`);
+    throw new Error(`Failed to fetch Explore hashtag posts: ${error.message}`);
   }
 
-  return (data ?? []) as ExploreAuthorPostRow[];
+  return (data ?? []) as ExploreHashtagPostRow[];
 }

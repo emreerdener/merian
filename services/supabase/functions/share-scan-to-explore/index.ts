@@ -2,8 +2,12 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
-import { requireUuid, syncPublicAuthorIdentity } from "../_shared/explore.ts";
-import { fetchShareEligibleScan, upsertExplorePost } from "./db.ts";
+import {
+  normalizeExploreHashtag,
+  requireUuid,
+  syncPublicAuthorIdentity,
+} from "../_shared/explore.ts";
+import { fetchShareEligibleScan, replaceExplorePostHashtags, upsertExplorePost } from "./db.ts";
 
 function makeHttpError(status: number, message: string): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
@@ -54,6 +58,28 @@ function normalizeFieldNotes(value: unknown): string | null {
   return trimmed;
 }
 
+function normalizeHashtags(value: unknown): string[] {
+  if (value == null) return [];
+  if (!Array.isArray(value)) {
+    throw makeHttpError(400, "hashtags must be an array.");
+  }
+
+  const tags = value.map((entry) => {
+    if (typeof entry !== "string") {
+      throw makeHttpError(400, "hashtags must only contain strings.");
+    }
+
+    return normalizeExploreHashtag(entry, "hashtags");
+  });
+
+  const uniqueTags = [...new Set(tags)];
+  if (uniqueTags.length > 5) {
+    throw makeHttpError(400, "hashtags cannot contain more than 5 items.");
+  }
+
+  return uniqueTags;
+}
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
@@ -66,10 +92,12 @@ serve((req: Request) =>
     const scanId = requireUuid(body.scan_id, "scan_id");
     const restoredObjectKeys = normalizeRestoredObjectKeys(body.restored_object_keys, user.id);
     const fieldNotes = normalizeFieldNotes(body.field_notes);
+    const hashtags = normalizeHashtags(body.hashtags);
 
     await fetchShareEligibleScan(scanId, user.id, restoredObjectKeys, supabaseAdmin);
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
     const post = await upsertExplorePost(scanId, user.id, fieldNotes, supabaseAdmin);
+    await replaceExplorePostHashtags(post.id, hashtags, supabaseAdmin);
 
     return jsonResponse({
       success: true,

@@ -10,6 +10,7 @@ import {
   refreshExploreAuthorStateBestEffort,
   requireUuid,
   withExploreAuthorProBadges,
+  withExplorePostHashtags,
 } from "../_shared/explore.ts";
 import { fetchExplorePost } from "./db.ts";
 
@@ -40,7 +41,10 @@ serve((req: Request) =>
         supabaseAdmin,
       );
       data = fetchedPost
-        ? (await withExploreAuthorProBadges([fetchedPost], supabaseAdmin))[0]
+        ? (await withExplorePostHashtags(
+          await withExploreAuthorProBadges([fetchedPost], supabaseAdmin),
+          supabaseAdmin,
+        ))[0]
         : null;
     } catch (error) {
       logStructuredError("explore_notification_open_fetch_failed", {

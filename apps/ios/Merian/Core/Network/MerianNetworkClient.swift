@@ -1303,6 +1303,29 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreAuthorPostsResponse.self, from: data).data
     }
 
+    func getExploreHashtagPosts(
+        hashtag: String,
+        limit: Int = 30,
+        cursor: ExploreHashtagPostCursor? = nil
+    ) async throws -> [ExplorePost] {
+        let functionUrl = try endpointURL("get-explore-hashtag-posts")
+        var payload: [String: Any] = [
+            "hashtag": hashtag,
+            "limit": limit
+        ]
+
+        if let cursor,
+           let beforeSharedAt = cursor.beforeSharedAt,
+           let beforePostId = cursor.beforePostId {
+            payload["before_shared_at"] = beforeSharedAt
+            payload["before_post_id"] = beforePostId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreHashtagPostsResponse.self, from: data).data
+    }
+
     func getExploreShareState(scanId: String) async throws -> ExploreScanShareState {
         let functionUrl = try endpointURL("get-scan-explore-share-state")
         let bodyData = try JSONSerialization.data(withJSONObject: ["scan_id": scanId])
@@ -1355,12 +1378,14 @@ final class MerianNetworkClient {
     func shareScanToExplore(
         scanId: String,
         restoredObjectKeys: [String]? = nil,
-        fieldNotes: String? = nil
+        fieldNotes: String? = nil,
+        hashtags: [String] = []
     ) async throws -> ExploreShareResponse {
         let functionUrl = try endpointURL("share-scan-to-explore")
         var payload: [String: Any] = [
             "scan_id": scanId,
-            "field_notes": fieldNotes ?? NSNull()
+            "field_notes": fieldNotes ?? NSNull(),
+            "hashtags": hashtags
         ]
         if let restoredObjectKeys, !restoredObjectKeys.isEmpty {
             payload["restored_object_keys"] = restoredObjectKeys
@@ -1370,9 +1395,13 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreShareResponse.self, from: data)
     }
 
-    func shareScanToExplore(scan: LocalScanRecord, fieldNotes: String? = nil) async throws -> ExploreShareResponse {
+    func shareScanToExplore(
+        scan: LocalScanRecord,
+        fieldNotes: String? = nil,
+        hashtags: [String] = []
+    ) async throws -> ExploreShareResponse {
         do {
-            return try await shareScanToExplore(scanId: scan.id, fieldNotes: fieldNotes)
+            return try await shareScanToExplore(scanId: scan.id, fieldNotes: fieldNotes, hashtags: hashtags)
         } catch {
             guard shouldAttemptExploreMediaRestore(after: error) else {
                 throw error
@@ -1386,7 +1415,8 @@ final class MerianNetworkClient {
             return try await shareScanToExplore(
                 scanId: scan.id,
                 restoredObjectKeys: restoredObjectKeys,
-                fieldNotes: fieldNotes
+                fieldNotes: fieldNotes,
+                hashtags: hashtags
             )
         }
     }

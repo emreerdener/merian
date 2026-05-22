@@ -114,6 +114,10 @@ struct ExplorePostDetailView: View {
                                 .padding(.top, 14)
                                 .padding(.bottom, 12)
 
+                            hashtagRow
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 4)
+
                             VStack(spacing: 24) {
                                 ExplorePostDetailSpeciesSummary(
                                     scientificName: post.speciesScientificName,
@@ -335,6 +339,14 @@ struct ExplorePostDetailView: View {
         .sheet(item: $selectedAuthorProfileRoute) { route in
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
         }
+        .navigationDestination(for: ExploreHashtagRoute.self) { route in
+            ExploreHashtagPostsView(
+                viewModel: viewModel,
+                route: route,
+                allowsInsightPresentation: allowsInsightPresentation,
+                allowsAuthorProfilePresentation: allowsAuthorProfilePresentation
+            )
+        }
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
             Task {
                 if let post = currentPost {
@@ -401,6 +413,29 @@ struct ExplorePostDetailView: View {
                 onEdit: { openFieldNotesEditor(for: post) },
                 onToggleVisibility: showFieldNotesVisibilityConfirmation
             )
+        }
+    }
+
+    @ViewBuilder
+    private var hashtagRow: some View {
+        if let hashtags = detail?.hashtags, !hashtags.isEmpty {
+            FlowLayout(spacing: 8, lineAlignment: .center) {
+                ForEach(hashtags, id: \.self) { hashtag in
+                    NavigationLink(value: ExploreHashtagRoute(hashtag: hashtag)) {
+                        Text("#\(hashtag)")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tint)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(Color.accentColor.opacity(0.12))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 2)
         }
     }
 

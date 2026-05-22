@@ -26,6 +26,7 @@ struct ExplorePostCard: View {
     let onShare: () -> Void
     let onOpenDetail: () -> Void
     let onOpenAuthorProfile: () -> Void
+    let onOpenHashtag: ((String) -> Void)?
     let onOpenInsight: (() -> Void)?
     let onUnshare: () -> Void
     let onBlock: () -> Void
@@ -46,9 +47,13 @@ struct ExplorePostCard: View {
 
             mediaView
 
+            hashtagRow
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+
             actionRow
                 .padding(.horizontal, 16)
-                .padding(.top, 12)
+                .padding(.top, post.hashtags?.isEmpty == false ? 8 : 12)
                 .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -242,6 +247,34 @@ struct ExplorePostCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Share post")
+        }
+    }
+
+    @ViewBuilder
+    private var hashtagRow: some View {
+        if let hashtags = post.hashtags, !hashtags.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(hashtags, id: \.self) { hashtag in
+                        Button(action: { onOpenHashtag?(hashtag) }) {
+                            Text("#\(hashtag)")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tint)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color.accentColor.opacity(0.12))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(onOpenHashtag == nil)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
         }
     }
 

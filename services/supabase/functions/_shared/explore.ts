@@ -72,6 +72,29 @@ export function normalizeCursorTimestamp(
   return rawValue;
 }
 
+export function normalizeExploreHashtag(
+  rawValue: unknown,
+  fieldName: string,
+): string {
+  if (typeof rawValue !== "string") {
+    throw makeHttpError(400, `${fieldName} must be a hashtag.`);
+  }
+
+  const normalized = rawValue
+    .trim()
+    .replace(/^#+/, "")
+    .toLowerCase();
+
+  if (!/^[a-z0-9][a-z0-9_]{1,39}$/.test(normalized)) {
+    throw makeHttpError(
+      400,
+      `${fieldName} must be 2 to 40 letters, numbers, or underscores.`,
+    );
+  }
+
+  return normalized;
+}
+
 export function normalizeExploreFeedFilter(
   rawValue: unknown,
 ): ExploreFeedFilter {
@@ -243,6 +266,11 @@ export interface ExploreAuthorProBadgeProjection {
   author_is_pro?: boolean;
 }
 
+export interface ExplorePostHashtagProjection {
+  post_id: string;
+  hashtags?: string[];
+}
+
 interface ExploreAuthorProfileProBadgeProjection {
   author_user_id: string;
   author_is_pro?: boolean;
@@ -252,6 +280,53 @@ interface ExploreAuthorProfileProBadgeProjection {
 interface AuthorSubscriptionTierRow {
   id: string;
   subscription_tier: string | null;
+}
+
+interface ExplorePostHashtagRow {
+  post_id: string;
+  tag: string;
+}
+
+export async function withExplorePostHashtags<
+  T extends ExplorePostHashtagProjection,
+>(
+  rows: T[],
+  supabaseAdmin: SupabaseClient,
+): Promise<Array<T & { hashtags: string[] }>> {
+  const postIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.post_id?.toLowerCase())
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+
+  if (postIds.length === 0) {
+    return rows.map((row) => ({ ...row, hashtags: [] }));
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("explore_post_hashtags")
+    .select("post_id,tag")
+    .in("post_id", postIds)
+    .order("tag", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to fetch Explore post hashtags: ${error.message}`);
+  }
+
+  const hashtagsByPostId = new Map<string, string[]>();
+  for (const row of (data ?? []) as ExplorePostHashtagRow[]) {
+    const normalizedPostId = row.post_id.toLowerCase();
+    const tags = hashtagsByPostId.get(normalizedPostId) ?? [];
+    tags.push(row.tag);
+    hashtagsByPostId.set(normalizedPostId, tags);
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    hashtags: hashtagsByPostId.get(row.post_id.toLowerCase()) ?? [],
+  }));
 }
 
 export async function withExploreAuthorProBadges<

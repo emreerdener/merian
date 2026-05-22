@@ -719,6 +719,22 @@ Manual-share public feed wrapper around `scans`. Added in migration
 If the scan is tombstoned, private, or later loses all image URLs, the Explore
 post disappears from the public feed automatically.
 
+### `explore_post_hashtags`
+
+Normalized public tag edges for Explore posts. Added in migration
+`20260521190000_add_explore_post_hashtags.sql`.
+
+- `post_id` (UUID FK -> `explore_posts.id`, CASCADE DELETE): The tagged post.
+- `tag` (TEXT): Lowercase hashtag text without the leading `#`. Two to forty
+  letters, digits, or underscores. `share-scan-to-explore` accepts display input
+  with or without `#` and persists only this normalized text.
+- `created_at` (TIMESTAMPTZ): Edge creation time.
+- Composite primary key: `(post_id, tag)` keeps post tags idempotent.
+
+The `(tag, post_id)` lookup index powers `public.get_explore_hashtag_posts(...)`
+for the in-app tagged-post collection and is also intended for future event and
+BioBlitz matching without extracting tags from field notes or comments.
+
 **Current map-coordinate note**: The shipped Explore map does not currently
 persist public coordinates on `explore_posts`. Spatial reads project from the
 backing `scans.gps_lat_public` / `gps_long_public` fields through

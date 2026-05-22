@@ -17,6 +17,10 @@ struct ExploreAuthorPostsResponse: Decodable {
     let data: [ExplorePost]
 }
 
+struct ExploreHashtagPostsResponse: Decodable {
+    let data: [ExplorePost]
+}
+
 struct ExploreFollowState: Decodable, Equatable {
     let success: Bool
     let authorUserId: String
@@ -34,6 +38,7 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     let authorName: String
     let authorAvatarUrl: String?
     let authorIsPro: Bool?
+    let hashtags: [String]?
     let speciesCommonName: String
     let speciesScientificName: String
     let publicLocationLabel: String?
@@ -308,6 +313,20 @@ struct ExploreAuthorPostCursor: Equatable {
     }
 }
 
+struct ExploreHashtagPostCursor: Equatable {
+    let beforeSharedAt: String?
+    let beforePostId: String?
+
+    static let empty = ExploreHashtagPostCursor(
+        beforeSharedAt: nil,
+        beforePostId: nil
+    )
+
+    var isEmpty: Bool {
+        beforeSharedAt == nil && beforePostId == nil
+    }
+}
+
 struct ExploreAuthorProfile: Decodable, Equatable {
     let authorUserId: String
     let authorName: String
@@ -473,6 +492,7 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
             authorName: authorName,
             authorAvatarUrl: authorAvatarUrl,
             authorIsPro: authorIsPro,
+            hashtags: nil,
             speciesCommonName: speciesCommonName,
             speciesScientificName: speciesScientificName,
             publicLocationLabel: publicLocationLabel,
@@ -520,6 +540,7 @@ struct ExploreMarkNotificationsReadResponse: Decodable {
 struct ExplorePostDetail: Decodable {
     let postId: String
     var fieldNotes: String?
+    let hashtags: [String]?
     let speciesDictionaryId: String?
     let alternativeCommonNames: [String]?
     let taxonomyKingdom: String?

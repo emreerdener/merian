@@ -17,12 +17,12 @@ enum FieldNotesVisibilityUpdateFeedback {
 struct ShareButton: View {
     private enum PendingAction {
         case externalShare
-        case shareToExplore(includeFieldNotes: Bool)
+        case shareToExplore(includeFieldNotes: Bool, hashtags: [String])
         case viewInExplore
     }
 
     let shareExternally: () -> Void
-    let onShareToExplore: ((Bool) -> Void)?
+    let onShareToExplore: ((Bool, [String]) -> Void)?
     let isSharingToExplore: Bool
     let isUpdatingExploreFieldNotes: Bool
     var fieldNotesPreview: String?
@@ -35,6 +35,7 @@ struct ShareButton: View {
     @State private var showingOptions = false
     @State private var pendingAction: PendingAction?
     @State private var includeFieldNotesInExplore = false
+    @State private var exploreHashtagsText = ""
     @State private var fieldNotesVisibilityFeedback: FieldNotesVisibilityUpdateFeedback?
 
     private var showsExploreAction: Bool {
@@ -56,6 +57,29 @@ struct ShareButton: View {
         }
 
         return String(preview.prefix(157)) + "..."
+    }
+
+    private var exploreHashtags: [String] {
+        var seen = Set<String>()
+        var hashtags: [String] = []
+        let rawTokens = exploreHashtagsText.components(
+            separatedBy: CharacterSet.whitespacesAndNewlines
+                .union(CharacterSet(charactersIn: ","))
+        )
+
+        for rawTag in rawTokens {
+            let normalized = rawTag
+                .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+                .lowercased()
+            guard !normalized.isEmpty, seen.insert(normalized).inserted else { continue }
+
+            hashtags.append(normalized)
+            if hashtags.count == 5 {
+                break
+            }
+        }
+
+        return hashtags
     }
 
     private var exploreHeadline: String {
@@ -111,6 +135,7 @@ struct ShareButton: View {
         .onChange(of: showingOptions) { _, isPresented in
             if isPresented {
                 includeFieldNotesInExplore = false
+                exploreHashtagsText = ""
             }
         }
         .sheet(isPresented: $showingOptions, onDismiss: handlePendingAction) {
@@ -270,6 +295,29 @@ struct ShareButton: View {
                 }
             }
 
+            if sharedExplorePostId == nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Hashtags")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    TextField("#citybioblitz", text: $exploreHashtagsText)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.primary.opacity(0.04))
+                        )
+
+                    Text("Separate up to five hashtags with spaces or commas.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             if sharedExplorePostId != nil, hasFieldNotesToShare {
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle(
@@ -311,7 +359,10 @@ struct ShareButton: View {
                 Button {
                     pendingAction = sharedExplorePostId != nil
                         ? .viewInExplore
-                        : .shareToExplore(includeFieldNotes: includeFieldNotesInExplore)
+                        : .shareToExplore(
+                            includeFieldNotes: includeFieldNotesInExplore,
+                            hashtags: exploreHashtags
+                        )
                     showingOptions = false
                 } label: {
                     HStack(alignment: .center) {
@@ -361,8 +412,8 @@ struct ShareButton: View {
         switch pendingAction {
         case .externalShare:
             shareExternally()
-        case .shareToExplore(let includeFieldNotes):
-            onShareToExplore?(includeFieldNotes)
+        case .shareToExplore(let includeFieldNotes, let hashtags):
+            onShareToExplore?(includeFieldNotes, hashtags)
         case .viewInExplore:
             onViewInExplore?()
         }

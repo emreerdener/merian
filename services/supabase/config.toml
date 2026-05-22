@@ -511,6 +511,9 @@ verify_jwt = false
 [functions.get-explore-author-posts]
 verify_jwt = false
 
+[functions.get-explore-hashtag-posts]
+verify_jwt = false
+
 [functions.get-scan-explore-share-state]
 verify_jwt = false
 

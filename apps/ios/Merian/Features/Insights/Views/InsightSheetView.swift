@@ -335,8 +335,13 @@ private extension InsightSheetView {
             },
             showNewCollectionAlert: $viewModel.state.showNewCollectionAlert,
             shareExternally: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) },
-            onShareToExplore: viewModel.canShareToExplore ? { includeFieldNotes in
-                Task { await viewModel.shareToExplore(includeFieldNotes: includeFieldNotes) }
+            onShareToExplore: viewModel.canShareToExplore ? { includeFieldNotes, hashtags in
+                Task {
+                    await viewModel.shareToExplore(
+                        includeFieldNotes: includeFieldNotes,
+                        hashtags: hashtags
+                    )
+                }
             } : nil,
             isSharingToExplore: viewModel.state.isSharingToExplore,
             isUpdatingExploreFieldNotes: viewModel.state.isUpdatingExploreFieldNotes,

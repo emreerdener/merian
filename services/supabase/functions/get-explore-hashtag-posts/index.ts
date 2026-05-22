@@ -3,13 +3,14 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import {
   normalizeCursorTimestamp,
+  normalizeExploreHashtag,
   normalizeLimit,
   refreshExploreAuthorStateBestEffort,
   requireUuid,
   withExploreAuthorProBadges,
   withExplorePostHashtags,
 } from "../_shared/explore.ts";
-import { fetchExploreAuthorPosts } from "./db.ts";
+import { fetchExploreHashtagPosts } from "./db.ts";
 
 function makeHttpError(
   status: number,
@@ -29,7 +30,7 @@ serve((req: Request) =>
       // Body is optional.
     }
 
-    const authorUserId = requireUuid(body.author_user_id, "author_user_id");
+    const hashtag = normalizeExploreHashtag(body.hashtag, "hashtag");
     const limit = normalizeLimit(body.limit, 30, 100);
     const beforeSharedAt = normalizeCursorTimestamp(
       body.before_shared_at,
@@ -49,14 +50,14 @@ serve((req: Request) =>
     await refreshExploreAuthorStateBestEffort(
       user.id,
       supabaseAdmin,
-      "get-explore-author-posts",
+      "get-explore-hashtag-posts",
     );
 
     const data = await withExplorePostHashtags(
       await withExploreAuthorProBadges(
-        await fetchExploreAuthorPosts(
+        await fetchExploreHashtagPosts(
           user.id,
-          authorUserId,
+          hashtag,
           limit,
           beforeSharedAt,
           beforePostId,
