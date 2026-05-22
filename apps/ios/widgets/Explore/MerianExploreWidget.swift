@@ -97,7 +97,7 @@ struct ExploreImageWidgetView: View {
                             fallbackImage
                         }
                     }
-                    .aspectRatio(1, contentMode: .fill)
+                    .aspectRatio(1, contentMode: .fit)
                     .frame(maxHeight: .infinity)
                     .clipped()
                     
