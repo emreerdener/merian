@@ -530,7 +530,7 @@ final class InsightSheetViewModel {
         do {
             let response = try await MerianNetworkClient.shared.updateExplorePostContent(
                 postId: postId,
-                fieldNotes: draft.fieldNotes,
+                fieldNotes: draft.publicFieldNotes,
                 hashtags: draft.hashtags,
                 locationSharing: draft.locationSharing
             )

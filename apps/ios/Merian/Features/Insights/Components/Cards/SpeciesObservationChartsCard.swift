@@ -12,7 +12,7 @@ struct SpeciesObservationChartsCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center) {
                 InsightCardHeader(systemImage: "chart.xyaxis.line", title: "Observation patterns")
 
                 Spacer(minLength: 12)

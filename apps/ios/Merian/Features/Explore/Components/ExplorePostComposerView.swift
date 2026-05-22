@@ -59,8 +59,13 @@ enum ExplorePostLocationSharing: String, CaseIterable, Identifiable {
 
 struct ExplorePostComposerDraft {
     let fieldNotes: String?
+    let fieldNotesArePublic: Bool
     let hashtags: [String]
     let locationSharing: ExplorePostLocationSharing
+
+    var publicFieldNotes: String? {
+        fieldNotesArePublic ? fieldNotes : nil
+    }
 }
 
 struct ExplorePostComposerView: View {
@@ -70,6 +75,7 @@ struct ExplorePostComposerView: View {
     let heroImageUrl: String?
     let publicLocationLabel: String?
     let initialFieldNotes: String?
+    let initialFieldNotesArePublic: Bool
     let initialHashtags: [String]
     let isSaving: Bool
     let onSubmit: (ExplorePostComposerDraft) -> Void
@@ -77,6 +83,7 @@ struct ExplorePostComposerView: View {
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isNotesFocused: Bool
     @State private var fieldNotesText: String
+    @State private var fieldNotesArePublic: Bool
     @State private var hashtagsText: String
     @State private var locationSharing = ExplorePostLocationSharing.obscured
 
@@ -87,6 +94,7 @@ struct ExplorePostComposerView: View {
         heroImageUrl: String?,
         publicLocationLabel: String?,
         initialFieldNotes: String?,
+        initialFieldNotesArePublic: Bool = true,
         initialHashtags: [String],
         isSaving: Bool,
         onSubmit: @escaping (ExplorePostComposerDraft) -> Void
@@ -97,10 +105,12 @@ struct ExplorePostComposerView: View {
         self.heroImageUrl = heroImageUrl
         self.publicLocationLabel = publicLocationLabel
         self.initialFieldNotes = initialFieldNotes
+        self.initialFieldNotesArePublic = initialFieldNotesArePublic
         self.initialHashtags = initialHashtags
         self.isSaving = isSaving
         self.onSubmit = onSubmit
         _fieldNotesText = State(initialValue: initialFieldNotes ?? "")
+        _fieldNotesArePublic = State(initialValue: initialFieldNotesArePublic)
         _hashtagsText = State(initialValue: initialHashtags.map { "#\($0)" }.joined(separator: " "))
     }
 
@@ -231,6 +241,31 @@ struct ExplorePostComposerView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .trailing)
+
+            if mode == .edit {
+                Toggle(isOn: $fieldNotesArePublic) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Show on Explore")
+                            .font(.subheadline.weight(.semibold))
+
+                        Text(fieldNotesArePublic
+                            ? "Field notes appear on this post."
+                            : "Keep these field notes off this post.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(12)
+                .background(
+                    Color(uiColor: .secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+            }
         }
     }
 
@@ -306,6 +341,7 @@ struct ExplorePostComposerView: View {
         onSubmit(
             ExplorePostComposerDraft(
                 fieldNotes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+                fieldNotesArePublic: fieldNotesArePublic,
                 hashtags: normalizedHashtags,
                 locationSharing: locationSharing
             )

@@ -125,6 +125,7 @@ struct ShareButton: View {
                 heroImageUrl: heroImageUrl,
                 publicLocationLabel: publicLocationLabel,
                 initialFieldNotes: fieldNotesPreview,
+                initialFieldNotesArePublic: sharedExplorePostId == nil ? true : fieldNotesArePublicOnExplore,
                 initialHashtags: sharedExplorePostId == nil ? [] : sharedExploreHashtags,
                 isSaving: sharedExplorePostId == nil ? isSharingToExplore : isUpdatingExplorePostContent,
                 onSubmit: { draft in

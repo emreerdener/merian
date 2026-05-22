@@ -338,7 +338,7 @@ private extension InsightSheetView {
             onShareToExplore: viewModel.canShareToExplore ? { draft in
                 Task {
                     await viewModel.shareToExplore(
-                        fieldNotes: draft.fieldNotes,
+                        fieldNotes: draft.publicFieldNotes,
                         hashtags: draft.hashtags,
                         locationSharing: draft.locationSharing
                     )

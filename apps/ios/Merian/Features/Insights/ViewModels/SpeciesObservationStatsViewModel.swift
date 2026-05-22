@@ -27,6 +27,7 @@ final class SpeciesObservationStatsViewModel {
     private(set) var localStats = SpeciesObservationLocalStats.empty()
     private(set) var publicStats: SpeciesObservationStatsEntry?
     private(set) var publicErrorMessage: String?
+    private var activeLoadId: UUID?
 
     var hasAnyData: Bool {
         localStats.totalObservations > 0 ||
@@ -52,26 +53,42 @@ final class SpeciesObservationStatsViewModel {
             return
         }
 
+        let loadId = UUID()
+        activeLoadId = loadId
         isLoading = true
+        defer {
+            if activeLoadId == loadId {
+                isLoading = false
+            }
+        }
         publicErrorMessage = nil
-        localStats = Self.fetchLocalStats(
+        let local = Self.fetchLocalStats(
             scientificName: normalizedName,
             speciesId: speciesId,
             modelContext: modelContext,
             now: now
         )
+        if activeLoadId == loadId {
+            localStats = local
+        }
 
         do {
-            publicStats = try await MerianNetworkClient.shared.getSpeciesObservationStats(
+            let stats = try await MerianNetworkClient.shared.getSpeciesObservationStats(
                 speciesId: speciesId,
                 scientificName: normalizedName
             )
+            if activeLoadId == loadId {
+                publicStats = stats
+            }
+        } catch is CancellationError {
+            // Task was cancelled, ignore.
+            return
         } catch {
-            publicStats = nil
-            publicErrorMessage = error.localizedDescription
+            if activeLoadId == loadId {
+                publicStats = nil
+                publicErrorMessage = error.localizedDescription
+            }
         }
-
-        isLoading = false
     }
 
     static func fetchLocalStats(

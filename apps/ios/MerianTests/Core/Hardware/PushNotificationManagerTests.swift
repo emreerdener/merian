@@ -78,7 +78,7 @@ struct PushNotificationManagerTests {
             try? await Task.sleep(for: .milliseconds(10))
         }
 
-        guard case .appDidEnterActivePhaseWithExplorePost(let postId)? = receivedEvent else {
+        guard case .appDidEnterActivePhaseWithExplorePost(let postId, _, _)? = receivedEvent else {
             Issue.record("Expected an Explore deep-link event from the push tap handler.")
             return
         }

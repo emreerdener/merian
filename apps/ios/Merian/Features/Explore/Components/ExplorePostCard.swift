@@ -28,6 +28,7 @@ struct ExplorePostCard: View {
     let onOpenAuthorProfile: () -> Void
     let onOpenHashtag: ((String) -> Void)?
     let onOpenInsight: (() -> Void)?
+    let onEditPost: () -> Void
     let onUnshare: () -> Void
     let onBlock: () -> Void
     let onReport: () -> Void
@@ -285,6 +286,10 @@ struct ExplorePostCard: View {
                     Button(action: onOpenInsight) {
                         Label("Open insight", systemImage: "sparkles")
                     }
+                }
+
+                Button(action: onEditPost) {
+                    Label("Edit post", systemImage: "square.and.pencil")
                 }
 
                 Button(role: .destructive, action: { showUnpublishConfirmation = true }) {

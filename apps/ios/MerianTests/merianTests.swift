@@ -287,7 +287,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
             prewarmHeadersOnInit: false
         )
 
-        AppEventPublisher.shared.send(.appDidEnterActivePhaseWithExplorePost(postId: postId))
+        AppEventPublisher.shared.send(.appDidEnterActivePhaseWithExplorePost(postId: postId, targetCommentId: nil, targetReplyParentCommentId: nil))
         try await waitUntil {
             viewModel.activeSheet == .explore && viewModel.pendingExplorePostId == postId
         }

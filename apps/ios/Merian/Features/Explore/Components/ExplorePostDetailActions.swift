@@ -3,13 +3,8 @@ import SwiftUI
 struct ExplorePostDetailMenuButton: View {
     let isOwnedByCurrentUser: Bool
     let allowsInsightPresentation: Bool
-    let canManageFieldNotes: Bool
-    let fieldNotesArePublic: Bool
-    let isUpdatingFieldNotesVisibility: Bool
     let onOpenInsight: () -> Void
     let onEditPost: () -> Void
-    let onEditFieldNotes: () -> Void
-    let onToggleFieldNotesVisibility: () -> Void
     let onUnpublish: () -> Void
     let onBlockAuthor: () -> Void
     let onReportPost: () -> Void
@@ -37,20 +32,6 @@ struct ExplorePostDetailMenuButton: View {
 
         Button(action: onEditPost) {
             Label("Edit post", systemImage: "square.and.pencil")
-        }
-
-        if canManageFieldNotes {
-            Button(action: onEditFieldNotes) {
-                Label("Edit field notes", systemImage: "pencil")
-            }
-
-            Button(action: onToggleFieldNotesVisibility) {
-                Label(
-                    fieldNotesArePublic ? "Hide field notes" : "Show field notes",
-                    systemImage: fieldNotesArePublic ? "eye.slash" : "eye"
-                )
-            }
-            .disabled(isUpdatingFieldNotesVisibility)
         }
 
         Button(role: .destructive, action: onUnpublish) {

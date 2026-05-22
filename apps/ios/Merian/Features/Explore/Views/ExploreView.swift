@@ -371,9 +371,14 @@ struct ExploreView: View {
 private struct ExploreFeedTabContent: View {
     @Bindable var viewModel: ExploreFeedViewModel
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
     @State private var isLocationSettingsAlertPresented = false
     @State private var isResolvingNearbyLocation = false
+    @State private var editingPost: ExplorePost?
+    @State private var editingPostDetail: ExplorePostDetail?
+    @State private var editingPostLocalFieldNotes: String?
+    @State private var isSavingEditedPost = false
     let onOpenPostDetail: (ExplorePost) -> Void
     let onOpenAuthorProfile: (ExplorePost) -> Void
     let onOpenHashtag: (String) -> Void
@@ -409,6 +414,22 @@ private struct ExploreFeedTabContent: View {
         } message: {
             Text("Nearby uses your current location to show discoveries shared within \(ExploreFeedFilter.nearbyRadiusMiles) miles.")
         }
+        .sheet(item: $editingPost, onDismiss: clearPostEditor) { post in
+            ExplorePostComposerView(
+                mode: .edit,
+                speciesName: viewModel.resolvedSpeciesCommonName(for: post),
+                scientificName: post.speciesScientificName,
+                heroImageUrl: post.heroImageUrl,
+                publicLocationLabel: post.publicDisplayLocationLabel,
+                initialFieldNotes: editingPostDetail?.trimmedFieldNotes ?? editingPostLocalFieldNotes,
+                initialFieldNotesArePublic: editingPostDetail?.trimmedFieldNotes != nil,
+                initialHashtags: editingPostDetail?.hashtags ?? post.hashtags ?? [],
+                isSaving: isSavingEditedPost,
+                onSubmit: { draft in
+                    Task { await saveEditedPost(draft, for: post) }
+                }
+            )
+        }
     }
 
     private var feedScrollView: some View {
@@ -431,6 +452,7 @@ private struct ExploreFeedTabContent: View {
                             onOpenInsight: onOpenInsight.map { callback in
                                 { callback(post) }
                             },
+                            onEditPost: { Task { await openPostEditor(for: post) } },
                             onUnshare: { Task { await viewModel.unshare(post) } },
                             onBlock: { Task { await viewModel.blockAuthor(of: post) } },
                             onReport: { Task { await viewModel.report(post) } }
@@ -561,6 +583,73 @@ private struct ExploreFeedTabContent: View {
         }
 
         await activateNearbyFeedSelection(isRefresh: true)
+    }
+
+    @MainActor
+    private func openPostEditor(for post: ExplorePost) async {
+        guard post.isOwnedByViewer else { return }
+
+        editingPostLocalFieldNotes = FieldNotesRepository.fieldNotes(
+            for: post.scanId,
+            modelContext: modelContext
+        )
+
+        do {
+            editingPostDetail = try await MerianNetworkClient.shared.getExplorePostDetail(postId: post.id)
+        } catch {
+            editingPostDetail = nil
+            viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+            return
+        }
+
+        HapticManager.shared.triggerSelectionPulse()
+        editingPost = post
+    }
+
+    @MainActor
+    private func saveEditedPost(_ draft: ExplorePostComposerDraft, for post: ExplorePost) async {
+        guard post.isOwnedByViewer, !isSavingEditedPost else { return }
+
+        isSavingEditedPost = true
+        defer { isSavingEditedPost = false }
+
+        do {
+            let response = try await MerianNetworkClient.shared.updateExplorePostContent(
+                postId: post.id,
+                fieldNotes: draft.publicFieldNotes,
+                hashtags: draft.hashtags,
+                locationSharing: draft.locationSharing
+            )
+            updateLocalFieldNotes(draft.fieldNotes ?? "", for: post)
+            editingPostDetail?.fieldNotes = response.fieldNotes
+            editingPost = nil
+            await viewModel.refreshPost(postId: post.id)
+            HapticManager.shared.triggerSuccessPulse()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                viewModel.toastMessage = "Explore post updated"
+            }
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+            }
+        }
+    }
+
+    @MainActor
+    private func updateLocalFieldNotes(_ notes: String, for post: ExplorePost) {
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        _ = FieldNotesRepository.setFieldNotes(
+            notes,
+            for: post.scanId,
+            modelContext: modelContext
+        )
+        editingPostLocalFieldNotes = trimmed.isEmpty ? nil : notes
+    }
+
+    private func clearPostEditor() {
+        editingPostDetail = nil
+        editingPostLocalFieldNotes = nil
     }
 
     private func activateNearbyFeedSelection(isRefresh: Bool = false) async {

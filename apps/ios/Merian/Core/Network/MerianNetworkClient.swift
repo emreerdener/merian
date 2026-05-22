@@ -1037,7 +1037,7 @@ final class MerianNetworkClient {
         }
 
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 10.0)
         let entry = try makeExploreDecoder().decode(SpeciesObservationStatsResponse.self, from: data).data
         cacheSpeciesObservationStatsEntry(
             entry,

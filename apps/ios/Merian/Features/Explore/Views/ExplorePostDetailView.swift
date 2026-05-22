@@ -74,11 +74,6 @@ struct ExplorePostDetailView: View {
         detail?.trimmedFieldNotes != nil
     }
 
-    private var canManageFieldNotes: Bool {
-        detail?.trimmedFieldNotes != nil
-            || localFieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-    }
-
     var body: some View {
         Group {
             if let post = currentPost {
@@ -237,13 +232,8 @@ struct ExplorePostDetailView: View {
                             ExplorePostDetailMenuButton(
                                 isOwnedByCurrentUser: isOwnedByCurrentUser(post),
                                 allowsInsightPresentation: allowsInsightPresentation,
-                                canManageFieldNotes: canManageFieldNotes,
-                                fieldNotesArePublic: fieldNotesArePublicOnExplore,
-                                isUpdatingFieldNotesVisibility: isUpdatingFieldNotesVisibility,
                                 onOpenInsight: { openInsight(for: post) },
                                 onEditPost: { openPostComposer(for: post) },
-                                onEditFieldNotes: { openFieldNotesEditor(for: post) },
-                                onToggleFieldNotesVisibility: { showFieldNotesVisibilityConfirmation() },
                                 onUnpublish: { postToUnpublish = post },
                                 onBlockAuthor: {
                                     Task { await viewModel.blockAuthor(of: post) }
@@ -385,6 +375,7 @@ struct ExplorePostDetailView: View {
                     heroImageUrl: post.heroImageUrl,
                     publicLocationLabel: post.publicDisplayLocationLabel,
                     initialFieldNotes: detail?.trimmedFieldNotes ?? localFieldNotes,
+                    initialFieldNotesArePublic: fieldNotesArePublicOnExplore,
                     initialHashtags: detail?.hashtags ?? post.hashtags ?? [],
                     isSaving: isSavingPostContent,
                     onSubmit: { draft in
@@ -677,7 +668,7 @@ struct ExplorePostDetailView: View {
         do {
             let response = try await MerianNetworkClient.shared.updateExplorePostContent(
                 postId: post.id,
-                fieldNotes: draft.fieldNotes,
+                fieldNotes: draft.publicFieldNotes,
                 hashtags: draft.hashtags,
                 locationSharing: draft.locationSharing
             )
