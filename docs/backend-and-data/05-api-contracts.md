@@ -2951,9 +2951,9 @@ No JSON body is required. The cron trigger issues an empty POST request.
    `timestamp < 30 days ago`.
 2. Employs `.limit(500)` memory pagination barriers to prevent container timeout
    triggers.
-3. Aggregates all R2 `image_storage_urls` across the 500 scans and executes a
-   single, massive batch `.deleteR2Objects([])` command natively against the
-   Cloudflare API to minimize HTTP overhead.
+3. Aggregates all R2 `image_storage_urls` across the 500 scans and passes them
+   to `.deleteR2Objects([])`, which caps Cloudflare delete requests at 16
+   in-flight operations per Edge isolate.
 4. Executes the discrete `.delete().in("id", [...])` cascade against PostgreSQL
    only after successfully purging the R2 remote hashes, preventing orphan
    binaries.
@@ -2985,11 +2985,13 @@ No JSON body is required. The cron trigger issues an empty POST request.
    `users.subscription_tier == "free"`.
 2. Queries scans where `ecology_type == 'domesticated'` and
    `timestamp < 90 days ago` with `.limit(500)`.
-3. Aggregates R2 `image_storage_urls` and batches the AWS `DeleteObjects`
-   evaluation in chunks of 500 directly via `deleteR2Objects`, honoring the
-   strict Cloudflare 1,000 Key limit natively.
+3. Aggregates R2 `image_storage_urls` and batches the evaluation in chunks of
+   500 directly via `deleteR2Objects`; the shared helper caps in-flight
+   Cloudflare delete requests at 16 per Edge isolate.
 4. Safely executes `.update({ image_storage_urls: [] })` across the 500 scans to
    synchronize PostgreSQL natively without destroying the row telemetry context!
+5. Uses the partial index `idx_scans_domesticated_purge` for the timestamp scan
+   over domesticated rows that still have image URLs.
 
 ---
 

@@ -16,7 +16,8 @@ multiple functions need the same behavior and the ownership boundary is clear.
   JSON-body parsing, body-size checks, and constant-time comparison helpers.
 - **`auth.ts`**: Supabase user/session validation helpers.
 - **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object fetch, and
-  batch deletion helpers.
+  batch deletion helpers. `deleteR2Objects` uses `mapWithConcurrencyLimit`
+  internally so lifecycle workers do not run unbounded delete fanout.
 - **`mediaBudgets.ts`**: Shared media byte ceilings, allowed staging content
   types, inline/staged audio and image validation, clip-count limits, and
   `Content-Length` prechecks. Request and response bodies that may be chunked

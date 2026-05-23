@@ -93,9 +93,11 @@ extension CaptureWorkspaceViewModel {
                 do {
                     // 3. Hardware Interfacing
                     // Securing the optical frame and geographical context precisely at shutter click
-                    let instantLocation = diContainer.environmentContextManager.cachedLocation
+                    async let shutterLocation = diContainer.environmentContextManager.requestCurrentLocation()
                     let composingCenter = composingZoneVerticalCenter
                     let captureData = try await diContainer.cameraManager.captureImage()
+                    let resolvedShutterLocation = await shutterLocation
+                    let instantLocation = resolvedShutterLocation ?? diContainer.environmentContextManager.lastKnownLocation
                     
                     // Actively push the original 12MP buffer down natively into the user's Camera Roll securely without blocking UI sweeps natively
                     Task {

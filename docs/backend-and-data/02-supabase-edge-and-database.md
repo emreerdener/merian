@@ -89,9 +89,12 @@ Several utilities are shared across all Edge Functions via
   `revenuecat-webhook` after tier change).
 - **`aws.ts`**: Exports native `S3/R2` Cloudflare mappings utilizing
   `aws4fetch`. Exposes array batch tools (`deleteR2Objects`, `copyR2Object`)
-  used for purging storage footprints. `generatePresignedPutUrl` accepts an
-  explicit Content-Type so image and audio staging uploads can be signed with
-  the same header the iOS background upload task will send.
+  used for purging storage footprints. `deleteR2Objects` is bounded through
+  `_shared/concurrency.ts` at 16 in-flight deletes so purge jobs cannot open an
+  unbounded Cloudflare socket storm from one V8 isolate.
+  `generatePresignedPutUrl` accepts an explicit Content-Type so image and audio
+  staging uploads can be signed with the same header the iOS background upload
+  task will send.
 - **`mediaBudgets.ts`**: Centralizes Edge media limits and reusable validation
   helpers for endpoint JSON body byte ceilings, image count/raw bytes, inline
   audio base64 length, raw audio bytes, audio clip count, staged R2 key
@@ -844,11 +847,13 @@ The `auto-purge-domesticated` Edge Function reclaims heavy storage costs by
 purging 90-day-old `domesticated` ecology scans from Free tier users without
 touching valuable `wild` and `invasive` specimens. To safely avoid Deno's
 wall-clock timeouts when issuing hundreds of network API calls to Cloudflare,
-the R2 `deleteObjects` requests are batched and executed concurrently using
-`Promise.all` in chunks of 50. This perfectly balances the V8 event loop against
-R2's concurrency rate limits. It zeroes out the `image_storage_urls` array
-rather than dropping the row, ensuring the user's localized text record safely
-remains in their app gallery.
+the worker chunks candidate URL arrays and delegates each chunk to
+`deleteR2Objects`, whose internal concurrency is capped at 16. The query is
+supported by `idx_scans_domesticated_purge` on `(timestamp)` where
+`ecology_type = 'domesticated'` and `image_storage_urls <> '{}'`, narrowing the
+scan to rows whose media can actually be reclaimed. It zeroes out the
+`image_storage_urls` array rather than dropping the row, ensuring the user's
+localized text record safely remains in their app gallery.
 
 ## Token Cost Analytics (`services/supabase/analytics/`)
 

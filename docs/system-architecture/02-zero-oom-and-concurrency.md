@@ -426,6 +426,23 @@ Invoking `CLGeocoder().reverseGeocodeLocation` on every historical index directl
 ### Deferred Location Timeouts (`EnvironmentContextManager`)
 Unconditionally calling `timeoutTask?.cancel()` in debounced functions like `requestSingleLocation()` caused starvation. If the user tapped the shutter rapidly, the timeout task was deferred indefinitely, growing the `activeContinuations` array and permanently hanging the camera shutter pipeline. Merian resolves this: the timeout task is now instantiated only if one is not already running, allowing existing tasks to fire and flush. Active continuations are cancelled inside `locationManager(_:didUpdateLocations:)` and `didFailWithError`, enforcing limits on resolution latency.
 
+### Battery-Bounded Location Accuracy (`EnvironmentContextManager`)
+The camera viewport no longer keeps CoreLocation pinned at
+`kCLLocationAccuracyBest` while the user is composing. Live tracking uses
+`kCLLocationAccuracyHundredMeters`, a 100 m distance filter, and automatic
+pausing so the device can maintain a macro-region fallback without continuously
+driving GPS at full power. `startUpdatingHeading()` is not called because
+compass heading was removed from the inference telemetry payload.
+
+When the shutter fires, `CaptureWorkspaceViewModel.executeCapture` starts
+`requestCurrentLocation()` concurrently with `CameraManager.captureImage()`.
+That one-shot request temporarily raises `desiredAccuracy` to
+`kCLLocationAccuracyBest`, calls `requestLocation()`, and then restores the
+coarse composing profile after all pending continuations resolve. The resolved
+shutter fix is used for Camera Roll EXIF and deferred WeatherKit/geocode
+context; if it times out, `lastKnownLocation` still provides the latest coarse
+fallback.
+
 ### Synchronous SQLite on the Launch Path (`ScanRepository`)
 `ScanRepository.configure(with:)` was called synchronously during app setup and performed a `FetchDescriptor<ScanCollection>()` fetch — loading every `ScanCollection` record with every stored property — to check whether a "Favorites" collection existed. On large libraries with many collections, this blocked the main thread before the first frame rendered.
 

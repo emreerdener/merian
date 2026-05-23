@@ -16,6 +16,8 @@ import WeatherKit
     // MARK: - Hardware
     private let locationManager = CLLocationManager()
     private let weatherService = WeatherService.shared
+    private let composingLocationAccuracy = kCLLocationAccuracyHundredMeters
+    private let shutterLocationAccuracy = kCLLocationAccuracyBest
 
     // MARK: - State
     var isAuthorized: Bool = false
@@ -25,6 +27,7 @@ import WeatherKit
     private var activeContinuations: [UUID: CheckedContinuation<CLLocation?, Never>] = [:]
     private var authorizationContinuations: [UUID: CheckedContinuation<CLAuthorizationStatus, Never>] = [:]
     private var timeoutTask: Task<Void, Never>?
+    private var isLiveLocationTracking = false
     private(set) var cachedLocation: CLLocation?
     private(set) var fallbackInaccurateLocation: CLLocation?
 
@@ -42,7 +45,9 @@ import WeatherKit
     private override init() {
         super.init()
         locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.desiredAccuracy = composingLocationAccuracy
+        locationManager.distanceFilter = 100
+        locationManager.pausesLocationUpdatesAutomatically = true
         locationAuthorizationStatus = locationManager.authorizationStatus
         checkAuthorization()
     }
@@ -103,14 +108,16 @@ import WeatherKit
     // MARK: - Live Location Tracking
 
     func startLiveLocationTracking() {
+        isLiveLocationTracking = true
         guard isAuthorized else { return }
-        locationManager.startUpdatingLocation()
-        locationManager.startUpdatingHeading()
+        startComposingLocationUpdates()
     }
 
     func stopLiveLocationTracking() {
+        isLiveLocationTracking = false
         locationManager.stopUpdatingLocation()
-        locationManager.stopUpdatingHeading()
+        locationManager.desiredAccuracy = composingLocationAccuracy
+        locationManager.distanceFilter = 100
     }
 
     // MARK: - Deferred Context Fetch
@@ -241,6 +248,8 @@ import WeatherKit
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 self.activeContinuations[taskID] = continuation
+                self.locationManager.desiredAccuracy = self.shutterLocationAccuracy
+                self.locationManager.distanceFilter = kCLDistanceFilterNone
                 self.locationManager.requestLocation()
 
                 // Timeout: force-resume after 2 seconds if the hardware fails to lock satellites.
@@ -265,6 +274,7 @@ import WeatherKit
                 if self.activeContinuations.isEmpty {
                     self.timeoutTask?.cancel()
                     self.timeoutTask = nil
+                    self.restoreComposingLocationAccuracyIfNeeded()
                 }
             }
         }
@@ -279,6 +289,12 @@ import WeatherKit
 
             if manager.authorizationStatus != .notDetermined {
                 self.resolvePendingAuthorizationContinuations(with: manager.authorizationStatus)
+            }
+
+            if self.isAuthorized, self.isLiveLocationTracking {
+                self.startComposingLocationUpdates()
+            } else if !self.isAuthorized {
+                self.locationManager.stopUpdatingLocation()
             }
         }
     }
@@ -314,12 +330,25 @@ import WeatherKit
 
         let pending = Array(self.activeContinuations.values)
         self.activeContinuations.removeAll()
+        restoreComposingLocationAccuracyIfNeeded()
 
         for continuation in pending {
             continuation.resume(returning: location)
         }
 
         return !pending.isEmpty
+    }
+
+    private func restoreComposingLocationAccuracyIfNeeded() {
+        guard activeContinuations.isEmpty else { return }
+        locationManager.desiredAccuracy = composingLocationAccuracy
+        locationManager.distanceFilter = isLiveLocationTracking ? 100 : kCLDistanceFilterNone
+    }
+
+    private func startComposingLocationUpdates() {
+        locationManager.desiredAccuracy = composingLocationAccuracy
+        locationManager.distanceFilter = 100
+        locationManager.startUpdatingLocation()
     }
 
     private func resolvePendingAuthorizationContinuations(with status: CLAuthorizationStatus) {
