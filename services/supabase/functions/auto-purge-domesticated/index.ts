@@ -64,7 +64,7 @@ serve(async (req: Request) => {
 
     // 4. Delete all aggregated R2 images via Cloudflare AWS protocol natively
     if (mediaToWipe.length > 0) {
-      // Chunking by 500 URLs natively to protect AWS 'DeleteObjects' bounds 
+      // Chunking by 500 URLs natively to protect AWS 'DeleteObjects' bounds
       // which strictly limits to 1000 keys per HTTP execution frame.
       const urlChunkSize = 500;
       for (let i = 0; i < mediaToWipe.length; i += urlChunkSize) {

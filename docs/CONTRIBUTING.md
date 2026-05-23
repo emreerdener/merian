@@ -23,7 +23,7 @@ Before contributing, please review our core architectural tenets. Refactoring co
     ```
     Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your personal Apple Developer Team ID. Do not hardcode a real team ID into `project.yml` or the shared `Signing.xcconfig`.
 4.  **Client Config**: App-facing runtime values live in `Config.xcconfig`. These values ship in the app bundle and are not backend-only secrets. Backend secrets, including Gemini and service-role keys, belong only in Supabase Edge Function secrets.
-5.  **Backend Operations**: From the repo root, use the Makefile shortcuts so Supabase commands resolve the nested `services/supabase` project correctly:
+5.  **Backend Operations**: Production Supabase deploys run through GitHub Actions using token-based CLI auth, not a developer's interactive local login. See [`docs/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md) for the CI path, required secrets, and smoke checks. From the repo root, the local emergency fallback remains:
     ```bash
     make db-push
     make functions-deploy

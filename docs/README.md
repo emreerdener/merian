@@ -33,6 +33,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)** — SwiftData actor model: `BackgroundDatabaseActor`, `HistoricalDatabaseActor`, and `FileIOActor`.
 - **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)** — Physical table maps for PostgreSQL and the SwiftData persistent schemas, including the V41 `CapturedMediaEntry` mixed-media model, V42 field-notes columns, and V43 sex observation metadata.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, parked `/share-import-scan`, `/species-dictionary`, `/species-observation-stats`, Explore detail similar species, and internal cron workers such as Merian reference-image refresh.
+- **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)** — CI-first Supabase deployment path, required GitHub secrets, local emergency fallback, and post-deploy smoke checks.
 
 ### Features & Hardware
 

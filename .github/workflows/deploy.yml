@@ -6,6 +6,10 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: supabase-production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -25,12 +29,56 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@v1
         with:
-          deno-version: v1.x
+          deno-version: v2.x
 
-      - name: Link Supabase Project
+      - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: latest
+
+      - name: Validate deployment secrets
+        run: |
+          : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN GitHub secret}"
+          : "${PROJECT_ID:?Missing PROJECT_ID GitHub secret}"
+          : "${DB_PASSWORD:?Missing DB_PASSWORD GitHub secret}"
+
+      - name: Validate Edge Function formatting
+        run: |
+          deno fmt --check \
+            supabase/functions/_shared/aws.ts \
+            supabase/functions/_shared/aws_test.ts \
+            supabase/functions/_shared/concurrency.ts \
+            supabase/functions/_shared/concurrency_test.ts \
+            supabase/functions/auto-purge-nonbio/index.ts \
+            supabase/functions/auto-purge-domesticated/index.ts
+
+      - name: Validate Edge Function lint
+        run: |
+          deno lint --config supabase/functions/deno.json \
+            supabase/functions/_shared/aws.ts \
+            supabase/functions/_shared/aws_test.ts \
+            supabase/functions/_shared/concurrency.ts \
+            supabase/functions/_shared/concurrency_test.ts \
+            supabase/functions/auto-purge-nonbio/index.ts \
+            supabase/functions/auto-purge-domesticated/index.ts \
+            supabase/functions/delete-scan/index.ts
+
+      - name: Validate shared Edge runtime checks
+        run: |
+          deno check \
+            supabase/functions/_shared/aws.ts \
+            supabase/functions/_shared/aws_test.ts \
+            supabase/functions/_shared/concurrency.ts \
+            supabase/functions/_shared/concurrency_test.ts \
+            supabase/functions/auto-purge-nonbio/index.ts \
+            supabase/functions/auto-purge-domesticated/index.ts \
+            supabase/functions/delete-scan/index.ts
+
+      - name: Test shared Edge helpers
+        run: |
+          deno test \
+            supabase/functions/_shared/aws_test.ts \
+            supabase/functions/_shared/concurrency_test.ts
 
       - name: Link Project to CLI
         run: supabase link --project-ref $PROJECT_ID --password $DB_PASSWORD
@@ -38,32 +86,5 @@ jobs:
       - name: Push Database Migrations
         run: supabase db push --password $DB_PASSWORD
 
-      - name: Deploy Edge Function - Identify
-        run: supabase functions deploy identify --project-ref $PROJECT_ID
-
-      - name: Deploy Edge Function - Identify Multimodal
-        run: supabase functions deploy identify-multimodal --project-ref $PROJECT_ID
-
-      - name: Deploy Edge Function - Identify Describe
-        run: supabase functions deploy identify-describe --project-ref $PROJECT_ID
-
-      - name: Deploy Edge Function - Audio Spec
-        run: supabase functions deploy audio-spec --project-ref $PROJECT_ID
-
-      - name: Deploy Edge Function - Auto Purge Nonbio
-        run: supabase functions deploy auto-purge-nonbio --project-ref $PROJECT_ID --no-verify-jwt
-
-      - name: Deploy Edge Function - Generate Upload URLs
-        run: supabase functions deploy generate-upload-urls --project-ref $PROJECT_ID
-
-      - name: Deploy Edge Function - Export DwCA
-        run: supabase functions deploy export-dwca --project-ref $PROJECT_ID
-
-      - name: Deploy Edge Function - Safe Delete
-        run: supabase functions deploy safe-delete --project-ref $PROJECT_ID --no-verify-jwt
-
-      - name: Deploy Edge Function - Get Filtered Discovery Feed
-        run: supabase functions deploy get-filtered-discovery-feed --project-ref $PROJECT_ID
-
-      - name: Deploy Edge Function - Delete Scan
-        run: supabase functions deploy delete-scan --project-ref $PROJECT_ID --no-verify-jwt
+      - name: Deploy Edge Functions
+        run: supabase functions deploy --project-ref $PROJECT_ID
