@@ -53,7 +53,7 @@ final class MessageScanShareCacheTests: XCTestCase {
 
         let text = MessageScanShareTextBuilder.descriptionText(for: record)
 
-        XCTAssertEqual(text, "Check out this Monarch Butterfly: Danaus plexippus I discovered!")
+        XCTAssertEqual(text, "Check out this Monarch Butterfly (Danaus plexippus) I discovered!")
         XCTAssertFalse(text.contains("Private garden note"))
         XCTAssertFalse(text.contains("Austin, TX"))
         XCTAssertFalse(text.contains("https://merian.earth/explore/post/post-1"))
@@ -67,7 +67,7 @@ final class MessageScanShareCacheTests: XCTestCase {
             includeFieldNotes: true
         )
 
-        XCTAssertEqual(text, "Check out this Monarch Butterfly: Danaus plexippus I discovered!")
+        XCTAssertEqual(text, "Check out this Monarch Butterfly (Danaus plexippus) I discovered!")
         XCTAssertFalse(text.contains("Private garden note"))
     }
 

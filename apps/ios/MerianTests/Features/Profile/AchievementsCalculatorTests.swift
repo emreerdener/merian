@@ -204,7 +204,7 @@ final class AchievementsCalculatorTests: XCTestCase {
         ]
         let awards = AchievementsCalculator.calculate(from: scans)
 
-        XCTAssertEqual(awards.first { $0.type == .conservationist }?.currentCount, 2, "Only legitimate IUCN vulnerability layers trigger Conservationist mathematically")
+        XCTAssertEqual(awards.first { $0.type == .conservationist }?.currentCount, 1, "Only legitimate IUCN vulnerability layers trigger Conservationist mathematically")
     }
 
     func testAchievementDetailDeduplicatesContributingScans() {

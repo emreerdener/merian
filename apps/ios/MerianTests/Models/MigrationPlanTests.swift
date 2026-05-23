@@ -23,7 +23,7 @@ struct MigrationPlanTests {
 
     private func schemaVersionsSource() throws -> String {
         let sourceURL = repositoryRoot
-            .appendingPathComponent("merian")
+            .appendingPathComponent("Merian")
             .appendingPathComponent("Models")
             .appendingPathComponent("SchemaVersions.swift")
         return try String(contentsOf: sourceURL, encoding: .utf8)

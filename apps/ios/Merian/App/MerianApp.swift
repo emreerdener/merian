@@ -199,6 +199,7 @@ enum UITestSeedCoordinator {
             do {
                 try context.save()
                 OfflineQueueManager.shared.unsyncedItemsCount = 0
+                ScanLibraryEvents.postLibraryDidUpdate()
                 MerianLog.general.debug("UITestSeedCoordinator completed queued audio handoff flow.")
             } catch {
                 MerianLog.general.error("UITestSeedCoordinator failed completing queued audio handoff flow: \(error.localizedDescription, privacy: .private)")

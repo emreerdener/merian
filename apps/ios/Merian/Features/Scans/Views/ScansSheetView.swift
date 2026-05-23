@@ -44,7 +44,7 @@ struct ScansSheetView: View {
     @Environment(\.scenePhase) private var scenePhase
     
     // MARK: - Navigation Control
-    @State private var selectedScanForInsight: LocalScanRecord?
+    @State private var navigationPath = NavigationPath()
     @State private var selectedQueuedScanForInsight: QueuedScanContext?
     @State private var activeTab: ScansTab = .library
     
@@ -111,7 +111,7 @@ struct ScansSheetView: View {
     }
 
     private var navigationStack: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             tabPager
             .modifier(ScansSheetModifiers(
                 searchManager: searchManager, activeTab: $activeTab, isSearchFocused: $isSearchFocused,
@@ -132,8 +132,16 @@ struct ScansSheetView: View {
                 )
             }
             .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .bottomBar)
-            .navigationDestination(item: $selectedScanForInsight) { record in
+            .navigationDestination(for: LocalScanRecord.self) { record in
                 localInsightDestination(for: record)
+            }
+            .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
+                SpeciesDictionaryPageContentView(
+                    scientificName: route.scientificName,
+                    speciesId: route.speciesId,
+                    entryPoint: route.entryPoint,
+                    showsCloseButton: false
+                )
             }
             .navigationDestination(isPresented: $isNonBiologicalScansPresented) {
                 NonBiologicalScansView()
@@ -149,7 +157,9 @@ struct ScansSheetView: View {
                     filterCategories: filterCategories,
                     queuedScans: queuedScans,
                     isSearchFocused: $isSearchFocused,
-                    selectedScanForInsight: $selectedScanForInsight,
+                    onScanSelected: { record in
+                        navigationPath.append(record)
+                    },
                     selectedQueuedScanForInsight: $selectedQueuedScanForInsight,
                     showSelectionLimitAlert: $showSelectionLimitAlert,
                     scanToDelete: $scanToDelete,
@@ -175,8 +185,14 @@ struct ScansSheetView: View {
     private func localInsightDestination(for record: LocalScanRecord) -> some View {
         InsightSheetView(
             isPresented: Binding(
-                get: { selectedScanForInsight != nil },
-                set: { if !$0 { selectedScanForInsight = nil } }
+                get: { true },
+                set: { isPresented in
+                    if !isPresented {
+                        if !navigationPath.isEmpty {
+                            navigationPath.removeLast()
+                        }
+                    }
+                }
             ),
             initialRecord: record,
             inferenceEngine: inferenceEngine,
@@ -460,7 +476,7 @@ private struct LibraryTabContent: View {
     let filterCategories: [String]
     let queuedScans: [QueuedScanSnapshot]
     @Binding var isSearchFocused: Bool
-    @Binding var selectedScanForInsight: LocalScanRecord?
+    let onScanSelected: (LocalScanRecord) -> Void
     @Binding var selectedQueuedScanForInsight: QueuedScanContext?
     @Binding var showSelectionLimitAlert: Bool
     @Binding var scanToDelete: LocalScanRecord?
@@ -485,7 +501,7 @@ private struct LibraryTabContent: View {
                 } else {
                     inferenceEngine.load(from: scan)
                     isSearchFocused = false
-                    selectedScanForInsight = scan
+                    onScanSelected(scan)
                 }
             },
             onDelete: { scan in

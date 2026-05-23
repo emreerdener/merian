@@ -643,6 +643,38 @@ FieldNotesRepository.setFieldNotes(
 
 The repository resolves SwiftData records before the legacy bridge, mirrors successful reads into the bridge, and promotes bridge-only values back into SwiftData. Writes must explicitly save SwiftData, roll back on failure, and update `FieldNotesStore` only after the database commit succeeds. Public Explore notes may only enter local storage through `promoteExternalFieldNotesIfLocalMissing(...)`, which refuses to overwrite existing local/private notes.
 
+---
+
+## 21. SwiftUI `.id(...)` Modifier on Lazy Containers Tearing Down Swift Concurrency Tasks
+
+When building dynamic feed lists or nested comments layouts, you must not use the `.id(...)` identity-forcing modifier to force updates on view container hierarchies (like a `LazyVStack` or `ScrollView`) driven by dynamic view model states.
+
+### The Vulnerability: The "Feedback Loop of Doom"
+If a container enclosing a list carries a dynamic identity modifier like `.id(viewModel.replyStateVersion)`, any modification of the inner state that increments that version will force SwiftUI to completely tear down and recreate the entire view tree.
+- When SwiftUI destroys the view container, it **immediately cancels** all running asynchronous `.task` operations inside its subviews.
+- Upon instantaneous recreation of the view container, those `.task` blocks re-initialize, dispatch new requests, modify states, increment the version tracker again, and immediately trigger a subsequent view tear down.
+- **The Result**: An infinite, highly destructive CPU-burning loop of task cancellation and view recreation, leaving the UI stuck in loading spinners and starving cooperative async queues.
+
+### ✅ The Recommended Pattern: Property-Level `@Observable` Redraws
+Under iOS 17's `@Observable` framework, SwiftUI automatically tracks property access down to the finest granular level. Let SwiftUI's diffing engine handle animatable row-level updates naturally. Never apply `.id(...)` to the enclosing collection or layout container for state synchronization.
+
+```swift
+// ❌ The Anti-Pattern: Tearing down containers on view model updates
+LazyVStack {
+    ForEach(viewModel.comments) { comment in
+        commentThread(comment)
+    }
+}
+.id(viewModel.replyStateVersion) // DANGER: Cancels concurrent Tasks inside subviews on every state write!
+
+// ✅ The Correct Pattern: Let @Observable handle fine-grained updates automatically
+LazyVStack {
+    ForEach(viewModel.comments) { comment in
+        commentThread(comment)
+    }
+}
+```
+
 ## 2026-04 Hardening Updates
 
 - Treat `ModelContainer` startup failures as data-loss-sensitive. Only corruption-class failures may trigger store recovery, and any recovery flow must quarantine `default.store`, `default.store-wal`, and `default.store-shm` before attempting recreation.

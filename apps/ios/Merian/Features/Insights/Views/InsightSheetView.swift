@@ -158,14 +158,7 @@ private extension InsightSheetView {
                         .frame(width: 0, height: 0)
                 }
             }
-            .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
-                SpeciesDictionaryPageContentView(
-                    scientificName: route.scientificName,
-                    speciesId: route.speciesId,
-                    entryPoint: route.entryPoint,
-                    showsCloseButton: false
-                )
-            }
+            .modifier(SpeciesDictionaryDestinationModifier(isEnabled: !presentationStyle.isEmbedded))
             .onAppear {
                 // Reset stale @State properties from previous presentations natively.
                 viewModel.reset()
@@ -552,6 +545,26 @@ private struct EmbeddedNavigationSwipeBackEnabler: UIViewControllerRepresentable
 
         deinit {
             restorePreviousDelegate()
+        }
+    }
+}
+
+private struct SpeciesDictionaryDestinationModifier: ViewModifier {
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
+                    SpeciesDictionaryPageContentView(
+                        scientificName: route.scientificName,
+                        speciesId: route.speciesId,
+                        entryPoint: route.entryPoint,
+                        showsCloseButton: false
+                    )
+                }
+        } else {
+            content
         }
     }
 }

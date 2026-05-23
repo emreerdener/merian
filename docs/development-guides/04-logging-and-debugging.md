@@ -148,3 +148,24 @@ CircuitBreakerManager: Circuit Reset. Resuming standard network requests.
 ```
 
 If you see the "Circuit Tripped" message, it means 2+ consecutive network failures occurred. The circuit auto-resets after 15 minutes. During the tripped period, all new captures route directly to the offline queue — no network attempts are made.
+
+---
+
+## Comment Replies Diagnostic Tracing (`[RepliesDebug]` & `[UIRepliesDebug]`)
+
+To troubleshoot thread hierarchies, race conditions, and network errors in the public comment replies ecosystem, we have integrated a structured double-layered tracing system that distinguishes between view model execution and SwiftUI view lifecycle triggers.
+
+### 1. View Model Tracing (`[RepliesDebug]`)
+These trace messages are emitted from the comments extension of `ExploreFeedViewModel` (`ExploreFeedViewModel+Comments.swift`) to capture network fetches, abort states, errors, and task cancellations.
+- **Start**: `[RepliesDebug] loadReplies started for comment <ID>`
+- **Abort Guard**: `[RepliesDebug] loadReplies aborted: already loading / loaded...`
+- **Success**: `[RepliesDebug] loadReplies fetch successful: fetched <Count> replies`
+- **Failure**: `[RepliesDebug] loadReplies failed with error: <Error>`
+- **Task Cancellation**: `[RepliesDebug] loadReplies URLSession cancelled / task cancelled`
+
+### 2. UI-Level Lifecycle Tracing (`[UIRepliesDebug]`)
+These trace messages are emitted from the `.task` modifiers inside [ExplorePostDetailCommentsSection.swift](file:///Users/emreerdener/Developer/merian/apps/ios/Merian/Features/Explore/Components/ExplorePostDetailCommentsSection.swift) and [ExploreCommentsSheet.swift](file:///Users/emreerdener/Developer/merian/apps/ios/Merian/Features/Explore/Components/ExploreCommentsSheet.swift).
+- **Task Start**: `[UIRepliesDebug] replyCountLabel task started for comment <ID>`
+- **Task End (via `defer` block)**: `[UIRepliesDebug] replyCountLabel task ended for comment <ID> - isCancelled: <true/false>`
+
+When debugging comments in Xcode's Console or the unified system Console.app, filter by `[RepliesDebug]` or `[UIRepliesDebug]` to observe real-time interaction logs. If any task prints `isCancelled: true` in an endless loop, it indicates that parent identity changes are forcing SwiftUI to tear down the view tree destructively.
