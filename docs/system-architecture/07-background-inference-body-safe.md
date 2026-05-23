@@ -9,6 +9,11 @@ This document captures the current background inference body contract after the 
 - Live foreground audio remains inline as `audioBase64s`, but `MerianNetworkClient` preflights file byte size before reading or base64-encoding the WAV. Oversized audio fails with `MerianError.payloadTooLarge` before any large body is built.
 - `identify-multimodal` accepts both inline `audioBase64s` and staged `audioR2ObjectKeys`. It validates clip count, base64 length, raw byte length, IDOR ownership, and path traversal before decoding or fetching. Staged audio is cleaned up after successful ingestion.
 - `audio-spec` has matching inline/R2 byte-budget checks before decode and before/after R2 download.
+- Media-bearing Edge request JSON is parsed with
+  `readRequestJsonWithinBudget`, not raw `req.json()`. R2 and HTTP media
+  responses are read with `readResponseArrayBufferWithinBudget`. Declared
+  `Content-Length` remains a fast reject, but the streaming reader is the
+  authoritative guard for chunked or missing-length bodies.
 
 ## Why This Is Body-Safe
 
@@ -31,6 +36,10 @@ Live audio still uses inline base64 because it is a foreground request and avoid
 
 - Do not reintroduce inline audio bodies for queued replay.
 - Do not build inference JSON bodies by hand in new call sites. Route `/identify` and `/identify-multimodal` request assembly through `MerianNetworkClient`'s shared inference payload builder so body-size checks happen before large inline base64 payloads are serialized.
+- Do not parse media-bearing Edge JSON with raw `req.json()`, and do not call
+  `response.arrayBuffer()` on staged media. Use the capped stream helpers from
+  `_shared/mediaBudgets.ts` so the 256 MB V8 isolate heap is protected even
+  when upstream omits `Content-Length`.
 - Keep `audioR2ObjectKeys` separate from image `r2ObjectKeys`; image moderation/publication still runs only on visual media.
 - Any longer recording mode must lower concurrency or raise budgets deliberately on both client and edge. Never let the edge decode base64 before checking length.
 - R2 staging keys must stay under `staging/{userId}/` and must reject `..` path traversal before fetch. Edge code should call `_shared/mediaBudgets.ts` for this check instead of duplicating string-prefix logic.
@@ -41,7 +50,10 @@ Live audio still uses inline base64 because it is a foreground request and avoid
 ## Regression Coverage
 
 - Swift tests cover `buildMultiModalRequestBody` emitting `audioR2ObjectKeys` without inline `audioBase64s`, visual inline bodies using the same camelCase payload contract, oversized inline image payloads failing before network dispatch, and `MerianNetworkClient.validateInlineAudioFileBudget(fileURLs:)` rejecting oversized WAV files before `Data(contentsOf:)` or base64 allocation.
-- Deno tests cover `_shared/mediaBudgets.ts` directly, plus endpoint-level uses in `identify-multimodal`, `audio-spec`, and `generate-upload-urls`.
+- Deno tests cover `_shared/mediaBudgets.ts` directly, including oversized
+  chunked streams, capped response streams, valid JSON parsing, and malformed
+  JSON rejection, plus endpoint-level uses in `identify-multimodal`,
+  `audio-spec`, and `generate-upload-urls`.
 - Queue tests assert audio-bearing nonvisual captures enter `.pending` for R2 staging, while description-only queued captures remain `.staged`. `MediaStagingContract` tests cover sanitized mixed-media keys, underscore-safe upload task descriptions, and staged-audio byte rejection before upload dispatch.
 - Capture workspace tests assert offline visual and audio queued-only submissions do not call `InferenceEngine.prepareForNewScan()` or open the live insight sheet.
 - Edge tests mirror the staged-audio budget contract for `identify-multimodal` and `audio-spec`: clip count, inline base64 length, missing source, and R2 path traversal are rejected before decode/fetch.

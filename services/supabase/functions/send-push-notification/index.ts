@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { importPKCS8, SignJWT } from "https://esm.sh/jose@5.9.6";
+import { mapWithConcurrencyLimit } from "../_shared/concurrency.ts";
 import { logStructuredError } from "../_shared/edgeHandler.ts";
 import { requireUuid } from "../_shared/explore.ts";
 import { corsHeaders, jsonResponse, requireParams, timingSafeCompare } from "../_shared/http.ts";
@@ -26,6 +27,7 @@ interface ApnsFailure {
   reason: string;
 }
 
+const APNS_DELIVERY_CONCURRENCY = 8;
 let cachedApnsBearerToken: { token: string; expiresAtMs: number } | null = null;
 
 function normalizePrivateKey(rawValue: string): string {
@@ -274,7 +276,7 @@ serve(async (req: Request) => {
   let delivered = 0;
   const failures: Array<{ deviceId: string; reason: string; status: number }> = [];
 
-  await Promise.all(devices.map(async (device) => {
+  await mapWithConcurrencyLimit(devices, APNS_DELIVERY_CONCURRENCY, async (device) => {
     try {
       const failure = await sendApnsPush(
         device,
@@ -328,7 +330,7 @@ serve(async (req: Request) => {
         reason,
       });
     }
-  }));
+  });
 
   return jsonResponse({
     success: true,

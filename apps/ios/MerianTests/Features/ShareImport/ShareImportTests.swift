@@ -13,6 +13,28 @@ final class ShareImportTests: XCTestCase {
         XCTAssertFalse(ShareImportItemProviderResolver.supportsImage(textProvider))
     }
 
+    func testOversizedItemProviderFileIsRejectedBeforePreparation() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("jpg")
+        FileManager.default.createFile(atPath: url.path, contents: Data([0xFF, 0xD8, 0xFF]))
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.truncate(atOffset: UInt64(ShareImportSharedConstants.sourceImageMaxBytes + 1))
+        try handle.close()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let provider = try XCTUnwrap(NSItemProvider(contentsOf: url))
+
+        do {
+            _ = try await ShareImportItemProviderResolver.loadImageFile(from: provider)
+            XCTFail("Oversized shared images must be rejected before decode/downsample.")
+        } catch ShareImportItemProviderError.fileTooLarge {
+            // Expected.
+        } catch {
+            XCTFail("Expected fileTooLarge, got \(error)")
+        }
+    }
+
     func testImagePreparationExtractsExifDateAndGPS() throws {
         let url = try makeJPEGFixture()
         defer { try? FileManager.default.removeItem(at: url) }

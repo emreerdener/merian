@@ -30,9 +30,6 @@ struct AudioPlaybackCarouselPage: View {
     @State private var previousSessionCategory: AVAudioSession.Category?
     @State private var previousSessionCategoryOptions: AVAudioSession.CategoryOptions?
     
-    // 60FPS precision playhead
-    let timer = Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()
-
     private var accessibilityIdentifier: String {
         "AudioPlaybackCarouselPage_\(URL(fileURLWithPath: filePath).lastPathComponent)"
     }
@@ -106,9 +103,13 @@ struct AudioPlaybackCarouselPage: View {
         .task {
             await decodeAudio()
         }
-        .onReceive(timer) { _ in
-            guard let player = player, player.isPlaying, player.duration > 0 else { return }
-            playbackProgress = player.currentTime / player.duration
+        .task(id: isPlaying) {
+            guard isPlaying else { return }
+            while !Task.isCancelled {
+                guard let player, player.isPlaying, player.duration > 0 else { return }
+                playbackProgress = player.currentTime / player.duration
+                try? await Task.sleep(for: .milliseconds(100))
+            }
         }
     }
     

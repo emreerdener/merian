@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 enum ShareImportItemProviderError: LocalizedError {
     case noImage
     case loadFailed
+    case fileTooLarge
 
     var errorDescription: String? {
         switch self {
@@ -11,6 +12,8 @@ enum ShareImportItemProviderError: LocalizedError {
             return "Choose one image to identify with Merian."
         case .loadFailed:
             return "Merian could not load that shared image."
+        case .fileTooLarge:
+            return "Choose an image smaller than 50 MB."
         }
     }
 }
@@ -38,14 +41,24 @@ enum ShareImportItemProviderResolver {
 
     static func loadImageFile(from provider: NSItemProvider) async throws -> URL {
         for typeIdentifier in supportedTypeIdentifiers where provider.hasItemConformingToTypeIdentifier(typeIdentifier) {
-            if let url = try? await loadFileRepresentation(from: provider, typeIdentifier: typeIdentifier) {
+            do {
+                let url = try await loadFileRepresentation(from: provider, typeIdentifier: typeIdentifier)
                 return url
+            } catch ShareImportItemProviderError.fileTooLarge {
+                throw ShareImportItemProviderError.fileTooLarge
+            } catch {
+                continue
             }
         }
 
         for typeIdentifier in supportedTypeIdentifiers where provider.hasItemConformingToTypeIdentifier(typeIdentifier) {
-            if let url = try? await loadDataRepresentation(from: provider, typeIdentifier: typeIdentifier) {
+            do {
+                let url = try await loadInPlaceFileRepresentation(from: provider, typeIdentifier: typeIdentifier)
                 return url
+            } catch ShareImportItemProviderError.fileTooLarge {
+                throw ShareImportItemProviderError.fileTooLarge
+            } catch {
+                continue
             }
         }
 
@@ -68,6 +81,7 @@ enum ShareImportItemProviderResolver {
                 }
 
                 do {
+                    try validateSourceImageSize(url)
                     let destination = FileManager.default.temporaryDirectory
                         .appendingPathComponent(UUID().uuidString)
                         .appendingPathExtension(url.pathExtension.isEmpty ? "img" : url.pathExtension)
@@ -83,32 +97,44 @@ enum ShareImportItemProviderResolver {
         }
     }
 
-    private static func loadDataRepresentation(
+    private static func loadInPlaceFileRepresentation(
         from provider: NSItemProvider,
         typeIdentifier: String
     ) async throws -> URL {
         try await withCheckedThrowingContinuation { continuation in
-            provider.loadDataRepresentation(forTypeIdentifier: typeIdentifier) { data, error in
+            provider.loadInPlaceFileRepresentation(forTypeIdentifier: typeIdentifier) { url, _, error in
                 if let error {
                     continuation.resume(throwing: error)
                     return
                 }
-                guard let data else {
+                guard let url else {
                     continuation.resume(throwing: ShareImportItemProviderError.loadFailed)
                     return
                 }
 
                 do {
+                    try validateSourceImageSize(url)
                     let preferredExtension = UTType(typeIdentifier)?.preferredFilenameExtension ?? "img"
                     let destination = FileManager.default.temporaryDirectory
                         .appendingPathComponent(UUID().uuidString)
                         .appendingPathExtension(preferredExtension)
-                    try data.write(to: destination, options: [.atomic])
+                    if FileManager.default.fileExists(atPath: destination.path) {
+                        try FileManager.default.removeItem(at: destination)
+                    }
+                    try FileManager.default.copyItem(at: url, to: destination)
                     continuation.resume(returning: destination)
                 } catch {
                     continuation.resume(throwing: error)
                 }
             }
+        }
+    }
+
+    private static func validateSourceImageSize(_ url: URL) throws {
+        let values = try url.resourceValues(forKeys: [.fileSizeKey])
+        guard let fileSize = values.fileSize,
+              fileSize <= ShareImportSharedConstants.sourceImageMaxBytes else {
+            throw ShareImportItemProviderError.fileTooLarge
         }
     }
 }

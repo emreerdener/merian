@@ -249,6 +249,13 @@ This ensures the spectrogram clears the `MediaModeToggle` toolbar above and the 
 
 **Review state — playhead**: A vertical scrub line overlays the spectrogram during review. It is visible only when `isPlaying || isScrubbing || playbackProgress > 0`. This means it appears only once the user has started playback or manually scrubbed — not by default when the recording first enters review. If the user scrubs the playhead away from the start position and stops, the playhead remains visible at the parked position. On full-clip playback completion, `playbackProgress` resets to 0 and the playhead disappears. A `DragGesture` on the spectrogram canvas drives `seekPlayback(to:)`, enabling scrub-to-any-position with live playhead tracking.
 
+**Insight carousel playback**: Persisted audio pages use
+`AudioPlaybackCarouselPage`. The page does not mount a 60 Hz Combine timer.
+Progress updates run inside `.task(id: isPlaying)` only while the
+`AVAudioPlayer` is actively playing, polling every 100 ms and stopping when
+playback stops, completes, or the page disappears. This keeps idle insight
+carousels from burning battery just because an audio page is visible.
+
 The countdown ring uses `Circle.trim(from: 0, to: recordingProgress)` with `.animation(.linear(duration: 0.15))` matching the 150 ms tick interval of the `recordingTask`.
 
 ### `SpectrogramView`

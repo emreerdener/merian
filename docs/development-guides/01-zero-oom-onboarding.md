@@ -15,6 +15,9 @@ To maintain strict bounds against the 2GB iPhone memory ceiling, **you may never
 | BANNED API / PATTERN | MERIAN APPROVED ALTERNATIVE | WHY IT'S FATAL |
 | :--- | :--- | :--- |
 | `UIImage(data:)` | `ImageDownsampler.downsample(data:maxSize:)` | `UIImage` initialization decompresses the entire 12MP payload into raw RAM (often 50MB–100MB per image). Four frames loaded sequentially will crash the host process. |
+| `NSItemProvider.loadDataRepresentation` for image imports | `loadFileRepresentation` / `loadInPlaceFileRepresentation` + file-size validation | Share extensions have tiny memory ceilings. Materializing an arbitrary HEIC/PNG/TIFF into extension RAM can terminate the extension before downsampling starts. |
+| Edge `req.json()` / `response.arrayBuffer()` on media-bearing bodies | `_shared/mediaBudgets.ts` capped readers | `Content-Length` can be absent or forged by chunked transfer. Stream-count bytes first, cancel on overflow, then assemble the bounded buffer. |
+| Unbounded Edge `Promise.all(...)` over user-scaled rows | `_shared/concurrency.ts` `mapWithConcurrencyLimit` | Fanout over devices, R2 objects, or DB writes can spike sockets, V8 heap, provider throttles, and Postgres load from one isolate. |
 | `@EnvironmentObject` | `AppDIContainer.shared` + `@Observable` | Massive environment objects cause entire view graphs to recompute uncontrollably ("View Graph Tearing") when state mutates. We isolate dependencies using iOS 17's macro. |
 | SQLite `FileManager` I/O | `Task { await FileIOActor.shared }` | Synchronously deleting files from a `ModelContext` lock causes the SwiftData Persistence Store to deadlock, interrupting camera feed logic. Always use `FileIOActor`. |
 | `.sheet(isPresented:)` without `@MainActor` delays | `DispatchQueue.main.async { activeSheet = ... }` | Emitting UIKit-backed modals concurrently while `AVCaptureSession` tears down locks the hardware GPU thread and produces black screens. |
@@ -71,7 +74,14 @@ If you suspect an issue:
 - Camera shutter ImageIO work must run through `DetachedWork.value(category: .imagePreparation)`. `Task {}` inside a `@MainActor` view model is orchestration only; it must not synchronously downsample, crop, or encode 12MP buffers.
 - Offline queued-only submissions must not call `InferenceEngine.prepareForNewScan()`. Prepare the live engine only after online live inference is confirmed, otherwise `isProcessing` can stay true with no active request.
 - Queued audio must stage through R2 and replay as `audioR2ObjectKeys`; only live foreground audio may use inline `audioBase64s`, and only after byte-size preflight.
+- Media-bearing Edge requests must use `readRequestJsonWithinBudget`; R2/media
+  responses must use `readResponseArrayBufferWithinBudget` or
+  `readStreamArrayBufferWithinBudget`. `Content-Length` is a pre-check only.
 - Never build collection UI from `ScanCollection.scans` on the main thread. Use scan-side membership projections (`LocalScanRecord.collections` → `CollectionMembershipSnapshot`) so large libraries do not fault full relationship graphs into memory.
+- Species observation chart overlays must use
+  `SpeciesObservationStatsDatabaseActor` with filtered predicates and
+  `propertiesToFetch`; do not fetch the entire biological corpus on
+  `@MainActor` for local chart stats.
 - Explore restore media uploads must stay file-backed with `URLSession.upload(for:fromFile:)` and bounded concurrency. Reading each image into `Data` and then assigning `httpBody` is a zero-OOM violation.
 - Remote export media must pass exact-host allowlisting through `URLComponents` and `https` enforcement before any download begins. The approved host is `media.merian.app`.
 - Settings-heavy SwiftUI surfaces should bind through `AppSettings`, not scattered `@AppStorage("...")` literals. The view layer should express intent (`appSettings.themeMode`, `appSettings.gridColumns`), not storage keys.

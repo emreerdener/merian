@@ -57,23 +57,21 @@ npm audit --audit-level=moderate
 
 ## Share URL Shape
 
-Use this public URL in iOS share payloads once the route is deployed:
+Use this public URL in iOS share payloads:
 
 ```text
 https://merian.earth/explore/post/{postId}
 ```
 
-When Universal Links are added, the same URL should open the native app when
-installed and fall back to this web page otherwise.
+Universal Links are active, meaning the HTTPS URL opens the native iOS app when installed, and gracefully falls back to the public web preview otherwise.
 
-The web page may include an explicit native-app CTA using:
+The web page includes a native-app CTA using:
 
 ```text
 merian://explore/post/{postId}
 ```
 
-Keep the HTTPS URL as the primary shared link so recipients without the app still
-get a real page and rich preview.
+Keep the HTTPS URL as the primary shared link so recipients without the app still get a real page and a rich Open Graph preview.
 
 ## Theme Preference Bridge
 
@@ -93,6 +91,7 @@ omit this parameter so recipients see their own browser/system preference.
 
 - `/` — lightweight Merian public home.
 - `/explore/post/[postId]` — public Explore share page.
+- `/apple-app-site-association` and `/.well-known/apple-app-site-association` — served Apple App Site Association file for iOS deep linking capabilities.
 - `/privacy` — App Store privacy policy URL.
 - `/privacy-choices` — optional App Store privacy choices URL and data deletion help.
 - `/terms` — Terms of Service.

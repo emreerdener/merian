@@ -89,6 +89,9 @@ Merian is a field-ready biological identification app built around zero-friction
 - 48MP ProRAW library imports route through `ImageIO` with explicit bounds, blocking RAM cache inflation that causes JetSam kills.
 - Image pipeline produces a 1024px JPEG for inference and a 2048px JPEG for display in a single pass.
 - Search index uses O(1) delta updates — only added/removed scans are reprocessed, never the full library.
+- Edge media handlers use capped stream readers for request JSON and R2
+  responses, so missing `Content-Length` and chunked bodies cannot allocate
+  beyond the Deno isolate budget before rejection.
 
 ### Identity & Monetization
 - Anonymous IDFV-backed Ghost Sessions (zero-friction, no sign-up required at launch).

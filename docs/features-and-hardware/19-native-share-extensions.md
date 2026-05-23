@@ -148,7 +148,10 @@ audio, and multi-select imports are out of scope.
 
 1. Photos invokes `ShareViewController`.
 2. `ShareImportItemProviderResolver` finds the first supported image
-   `NSItemProvider` and materializes it as a temporary local file.
+   `NSItemProvider` and materializes it as a temporary local file. The resolver
+   intentionally uses file-backed provider APIs (`loadFileRepresentation` or
+   `loadInPlaceFileRepresentation`) and rejects providers that can only vend
+   full in-memory `Data`.
 3. `ShareImportImagePreparer` downscales the image, encodes WebP with JPEG
    fallback, and extracts EXIF timestamp/GPS/elevation when present.
 4. The extension reads `ShareImportSharedSettingsStore` from the App Group:
@@ -163,6 +166,22 @@ audio, and multi-select imports are out of scope.
    `share-import-receipts.json` in the App Group and the extension completes.
 
 The extension returns after queueing. It does not wait for the AI result.
+
+### Extension Memory Contract
+
+Share extensions run under a much smaller memory ceiling than the containing
+app. The parked implementation therefore treats source images as file-backed
+inputs only:
+
+- `ShareImportSharedConstants.sourceImageMaxBytes` is 50 MB.
+- `ShareImportItemProviderResolver` validates the provider file size before
+  copying into the extension's temporary directory.
+- `loadDataRepresentation` is intentionally not used for images; loading an
+  arbitrary HEIC/PNG/TIFF into extension RAM can terminate the extension before
+  `ShareImportImagePreparer` has a chance to downsample.
+- `ShareImportItemProviderError.fileTooLarge` is the user-facing rejection for
+  providers above the source-image cap or providers whose file size cannot be
+  established.
 
 ### Shared Auth
 

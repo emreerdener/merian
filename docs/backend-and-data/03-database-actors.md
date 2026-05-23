@@ -146,6 +146,39 @@ await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifica
 
 ---
 
+### `SpeciesObservationStatsDatabaseActor` (`Features/Insights/ViewModels/SpeciesObservationStatsViewModel.swift`)
+
+**Declaration**: `@ModelActor actor SpeciesObservationStatsDatabaseActor`
+
+**Responsibilities:**
+- `fetchLocalStats(scientificName:speciesId:now:)` — computes private local
+  chart overlays for the Species Observation Charts card without blocking
+  `@MainActor`.
+- Fetches biological candidate rows with filtered `#Predicate` descriptors:
+  one descriptor for `speciesId` / `confirmedSpeciesId` when a dictionary
+  species UUID exists, and one descriptor for exact `scientificName` /
+  `userIdentificationOverride` fallback.
+- Merges candidates by `LocalScanRecord.id`, sorts deterministically by
+  timestamp/id, then delegates to the shared reducer so seasonality, history,
+  life-stage filtering, and effective-name matching remain identical to the
+  previous behavior.
+- Uses a narrow `propertiesToFetch` projection containing only reducer fields,
+  avoiding full `LocalScanRecord` materialization for large local libraries.
+
+**When to create**: Ad-hoc per chart load from the current `ModelContainer`.
+Do not fetch the user's entire biological library from
+`SpeciesObservationStatsViewModel` on the main actor.
+
+```swift
+let actor = SpeciesObservationStatsDatabaseActor(modelContainer: modelContext.container)
+let localStats = await actor.fetchLocalStats(
+    scientificName: normalizedName,
+    speciesId: speciesId
+)
+```
+
+---
+
 ### `SearchDatabaseActor` (`Features/Scans/ViewModels/ScansManager.swift`)
 
 **Declaration**: `@ModelActor actor SearchDatabaseActor`

@@ -210,12 +210,14 @@ Deno.test("syncMembershipDelta returns early when ownedIds is empty", async () =
 });
 
 // ---------------------------------------------------------------------------
-// upsertCollectionsAndFetchMemberships — paginated membership fetch
+// upsertCollectionsAndFetchMemberships — batched paginated membership fetch
 // ---------------------------------------------------------------------------
 
-Deno.test("upsertCollectionsAndFetchMemberships paginates memberships per collection", async () => {
-  const collectionId = crypto.randomUUID();
+Deno.test("upsertCollectionsAndFetchMemberships paginates memberships across owned collections in one query", async () => {
+  const collectionIdA = crypto.randomUUID();
+  const collectionIdB = crypto.randomUUID();
   const rangesRequested: Array<[number, number]> = [];
+  const collectionFilters: string[][] = [];
   let upsertCallCount = 0;
 
   const client = {
@@ -232,32 +234,44 @@ Deno.test("upsertCollectionsAndFetchMemberships paginates memberships per collec
       if (table === "collection_scans") {
         return {
           select: (..._args: unknown[]) => ({
-            eq: (_column: string, value: string) => ({
+            in: (_column: string, values: string[]) => {
+              collectionFilters.push(values);
+              return {
+                order: (..._orderArgs: unknown[]) => ({
+                  order: (..._secondOrderArgs: unknown[]) => ({
+                    range: (from: number, to: number) => ({
+                      returns: (..._rangeArgs: unknown[]) => {
+                        rangesRequested.push([from, to]);
+                        if (from === 0) {
+                          return Promise.resolve({
+                            data: Array.from({ length: 1000 }, (_, index) => ({
+                              collection_id: index % 2 === 0 ? collectionIdA : collectionIdB,
+                              scan_id: `scan-${index}`,
+                            })),
+                            error: null,
+                          });
+                        }
+                        if (from === 1000) {
+                          return Promise.resolve({
+                            data: [{
+                              collection_id: collectionIdB,
+                              scan_id: "scan-1000",
+                            }],
+                            error: null,
+                          });
+                        }
+                        return Promise.resolve({ data: [], error: null });
+                      },
+                    }),
+                  }),
+                }),
+              };
+            },
+            eq: (_column: string, _value: string) => ({
               order: (..._orderArgs: unknown[]) => ({
                 range: (from: number, to: number) => ({
                   returns: (..._rangeArgs: unknown[]) => {
                     rangesRequested.push([from, to]);
-                    if (value !== collectionId) {
-                      return Promise.resolve({ data: [], error: null });
-                    }
-                    if (from === 0) {
-                      return Promise.resolve({
-                        data: Array.from({ length: 1000 }, (_, index) => ({
-                          collection_id: collectionId,
-                          scan_id: `scan-${index}`,
-                        })),
-                        error: null,
-                      });
-                    }
-                    if (from === 1000) {
-                      return Promise.resolve({
-                        data: [{
-                          collection_id: collectionId,
-                          scan_id: "scan-1000",
-                        }],
-                        error: null,
-                      });
-                    }
                     return Promise.resolve({ data: [], error: null });
                   },
                 }),
@@ -274,18 +288,25 @@ Deno.test("upsertCollectionsAndFetchMemberships paginates memberships per collec
   const memberships = await upsertCollectionsAndFetchMemberships(
     "user-1",
     [{
-      id: collectionId,
+      id: collectionIdA,
       name: "Paged Collection",
       created_at: new Date().toISOString(),
       is_deleted: false,
       scan_ids: [],
+    }, {
+      id: collectionIdB,
+      name: "Second Paged Collection",
+      created_at: new Date().toISOString(),
+      is_deleted: false,
+      scan_ids: [],
     }],
-    [collectionId],
+    [collectionIdA, collectionIdB],
     // deno-lint-ignore no-explicit-any
     client as any,
   );
 
   assertEquals(upsertCallCount, 1);
   assertEquals(memberships.length, 1001);
+  assertEquals(collectionFilters, [[collectionIdA, collectionIdB], [collectionIdA, collectionIdB]]);
   assertEquals(rangesRequested, [[0, 999], [1000, 1999]]);
 });

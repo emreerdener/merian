@@ -126,27 +126,36 @@ Do not append this parameter to public Explore share payloads. Recipient-facing
 links should stay neutral and render with the recipient browser's stored or
 system preference.
 
-## Universal Links Roadmap
+## Universal Links Configuration
 
-When the public site is deployed and the Apple association file is ready, promote the same HTTPS route into a Universal Link:
+Universal Links are fully configured for `merian.earth`, allowing shared explore posts to open seamlessly in the native iOS app when installed, and falling back to the web preview for everyone else.
 
-1. Add the Associated Domains entitlement to the app:
+### Implementation Details
 
+1. **Associated Domains Entitlement**:
+   The iOS app is configured with the Associated Domains capability:
    ```text
    applinks:merian.earth
    ```
+   This is declared in the target entitlements (`apps/ios/Merian/Configuration/Merian.entitlements`) and defined within the XcodeGen spec `project.yml`.
 
-2. Serve the Apple App Site Association file at:
-
+2. **Apple App Site Association (AASA)**:
+   The Next.js application hosts the AASA file dynamically via a route handler. It is served with the required `application/json` content-type header at:
    ```text
    https://merian.earth/.well-known/apple-app-site-association
+   https://merian.earth/apple-app-site-association
    ```
+   Both locations are routed using Next.js config rewrites mapping directly to the route handler.
 
-3. Include the `/explore/post/*` path in the AASA details.
-4. Route incoming `NSUserActivityTypeBrowsingWeb` links through the same native Explore post router that currently handles `merian://explore/post/{postId}`.
-5. Keep the web page as the fallback for users without Merian installed.
+3. **Active Path Mapping**:
+   The AASA details are configured to route `/explore/post/*` path patterns directly to the app:
+   - App ID: `TA8S64ST9W.app.merian.Merian`
+   - Paths: `["/explore/post/*"]`
 
-After Universal Links are live, the app should still tolerate the custom scheme because widgets, push actions, or older shared links may continue to use it.
+4. **Deep Linking Route Handler**:
+   Incoming `NSUserActivityTypeBrowsingWeb` web links route through the same native Explore post router that currently handles `merian://explore/post/{postId}`.
+
+The iOS app continues to support both the custom scheme (`merian://`) and HTTPS Universal Links to handle older shared payloads, widgets, and push actions.
 
 ## Local Development
 

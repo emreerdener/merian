@@ -21,7 +21,15 @@ struct OriginalCaptureExpandedView: View {
                         ProgressView().tint(.white)
                             .task {
                                 let img = await Task.detached(priority: .userInitiated) {
-                                    autoreleasepool { UIImage(data: imageData) }
+                                    autoreleasepool { () -> UIImage? in
+                                        guard let cgImage = ImageDownsampler.downsample(
+                                            data: imageData,
+                                            maxSize: MerianConfig.displayImageMaxSize
+                                        ) else {
+                                            return nil
+                                        }
+                                        return UIImage(cgImage: cgImage)
+                                    }
                                 }.value
                                 decodedImage = img
                             }

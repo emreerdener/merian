@@ -58,7 +58,7 @@ enum SpeciesObservationStatsStatus: Decodable, Equatable {
     }
 }
 
-struct SpeciesObservationMonthCount: Decodable, Equatable, Identifiable {
+struct SpeciesObservationMonthCount: Decodable, Equatable, Identifiable, Sendable {
     let month: Int
     let count: Int
 
@@ -66,7 +66,7 @@ struct SpeciesObservationMonthCount: Decodable, Equatable, Identifiable {
     var hasObservations: Bool { count.signum() == 1 }
 }
 
-struct SpeciesObservationHistoryCount: Decodable, Equatable, Identifiable {
+struct SpeciesObservationHistoryCount: Decodable, Equatable, Identifiable, Sendable {
     let year: Int
     let month: Int
     let count: Int
@@ -85,7 +85,7 @@ struct SpeciesObservationHistoryCount: Decodable, Equatable, Identifiable {
     }
 }
 
-struct SpeciesObservationCategorySeries: Decodable, Equatable, Identifiable {
+struct SpeciesObservationCategorySeries: Decodable, Equatable, Identifiable, Sendable {
     let key: String
     let label: String
     let values: [SpeciesObservationMonthCount]

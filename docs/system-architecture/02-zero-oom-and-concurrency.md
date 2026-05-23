@@ -14,6 +14,23 @@ When performing bulk downsampling with CoreGraphics (`ImageDownsampler.downsampl
 
 This identical RAM ceiling violation exists during Apple Vision AI inferences, detached image decoding, manual cropping, and metadata scrubbing. Executing `VNImageRequestHandler` classifications (e.g., `InferenceEngine.swift` and `SizeEstimator.swift`), uncompressing raw blobs via `UIImage(data:)` off the main thread (`ImagesCarousel.swift` and `CropSheetModifier.swift`), or actively parsing EXIF properties during GPS stripping (`PhotoLibraryManager.swift`'s `executePhotoLibraryWrite`) inside detached closures leaves enormous multi-megabyte allocations cached until the CPU rotates out the `Task.detached` context. Merian enforces `autoreleasepool { ... }` wrappers around these entire isolated blocks and explicitly deprecates raw `UIImage(data:)` inflations in favor of constrained `ImageDownsampler.downsample(data:maxSize:)` extractions. This guarantees that unmanaged ImageIO formats immediately relinquish memory back to the system, dropping transient spikes completely and averting JetSam OOM kills during rapid captures, exports, or swipes.
 
+The candidate-review "original capture" expansion follows the same rule.
+`OriginalCaptureExpandedView` must not call `UIImage(data:)` on
+`activeMedia.liveImageData`; it downscales through
+`ImageDownsampler.downsample(data:maxSize: MerianConfig.displayImageMaxSize)`
+inside a detached `autoreleasepool` and only publishes the bounded `UIImage`
+back to SwiftUI. Full-resolution originals are never inflated just to support
+pinch-to-zoom.
+
+Share extensions have an even smaller memory ceiling than the app process.
+`ShareImportItemProviderResolver` is file-backed only for image providers:
+`loadFileRepresentation` and `loadInPlaceFileRepresentation` are allowed,
+`loadDataRepresentation` is intentionally banned, and
+`ShareImportSharedConstants.sourceImageMaxBytes` caps accepted source files at
+50 MB before they are copied into the extension temp directory. Providers that
+cannot expose a file size are rejected with `fileTooLarge` rather than risking
+extension termination before downsampling starts.
+
 ### LocalImageLoader Unbounded ImageIO Execution
 While pre-fetching bounds concurrent image downloads, unbounded programmatic calls to `LocalImageLoader.loadLocal` and `fetchRemote` historically spawned dozens of unbounded `Task.detached` blocks on the global concurrent executor, driving immediate ImageIO over-subscription JetSam crashes during grid scrolling. The zero-OOM architecture resolves this by inserting a `private static let decodeSemaphore = DispatchSemaphore(value: 4)` directly inside the loader. All detached calls pass through `.wait()` and `.signal()`, acting as a global thread-safe valve against ImageIO concurrency thrash. The remote loader's dedicated `mediaSession` is now also capped to `httpMaximumConnectionsPerHost = 4` with `urlCache = nil`, aligning network fan-out with decode capacity and preventing the shared URL cache from ballooning with thumbnail responses.
 
@@ -35,6 +52,34 @@ Search no longer linearly scans every `SearchableScan` on each keystroke. `Scans
 The same principle applies to `BackgroundDatabaseActor.pushCollectionsToEdge()`, which previously fetched every `ScanCollection` unconditionally including Favorites (which is never synced). The fetch now uses a `#Predicate { $0.name != "Favorites" }` to exclude Favorites at the SQLite layer. `propertiesToFetch` is intentionally absent: `ScanCollection` has only three stored attributes (`id`, `name`, `createdAt`) so there is nothing to skip, and partial-attribute mode can prevent the `scans` relationship fault from firing correctly, causing `scan_ids` to be serialised as `[]`.
 
 `pushCollectionsToEdge()` no longer reads `ScanCollection.scans` at all. It builds collection membership from bounded batches of `LocalScanRecord.collections`, keeping relationship faulting under a fixed page size. The same bounded inverse-side strategy is used during historical collection sync, and stale lookalike cache clearing now loops with a biological/cache-present predicate plus `fetchLimit` instead of fetching the whole library.
+
+Species Observation Charts also obey the "no full library fetch on
+`@MainActor`" rule. `SpeciesObservationStatsViewModel` creates
+`SpeciesObservationStatsDatabaseActor` and awaits filtered candidate fetches for
+`speciesId` / `confirmedSpeciesId` plus exact scientific-name fallback. The
+actor projects only the fields needed by the reducer, merges candidates by
+record ID, and returns a `Sendable` aggregate to the main actor. Chart rendering
+must not call `modelContext.fetch` for every biological `LocalScanRecord` from
+the view model.
+
+### Deno Edge Stream Caps
+
+Supabase Edge Functions run inside a constrained V8 isolate. Declared
+`Content-Length` guards are useful for fast rejection, but they are never
+authoritative because chunked transfer encoding and missing-length R2 responses
+can still allocate past the heap before a post-read check runs. Media-bearing
+handlers must parse request JSON through
+`readRequestJsonWithinBudget(...)` and response bodies through
+`readResponseArrayBufferWithinBudget(...)` /
+`readStreamArrayBufferWithinBudget(...)`. These helpers increment the byte
+counter per chunk, cancel the reader on overflow, and only concatenate chunks
+after the stream has stayed under budget.
+
+Edge fanout must also be bounded. Use
+`mapWithConcurrencyLimit(items, width, fn)` for outbound work that could scale
+with user-controlled rows. `send-push-notification` uses width `8` for APNs
+delivery and device-state writes, preventing one notification from opening a
+socket/write storm inside a single isolate.
 
 ### Photo Picker and Refinement Staging Unification (`CaptureWorkspaceViewModel`)
 The gallery import path previously bounced back to `@MainActor` on every selected item to clear picker state, re-check the staged-image cap, re-check the paywall gate, and append each decoded image individually. The refinement path had the opposite problem: it eagerly loaded the full on-disk image into `Data`, then potentially decoded it again into `UIImage`, creating unnecessary byte copies for a path that is supposed to be latency-sensitive and zero-OOM safe.

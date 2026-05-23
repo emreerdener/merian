@@ -95,9 +95,16 @@ Several utilities are shared across all Edge Functions via
 - **`mediaBudgets.ts`**: Centralizes Edge media limits and reusable validation
   helpers for endpoint JSON body byte ceilings, image count/raw bytes, inline
   audio base64 length, raw audio bytes, audio clip count, staged R2 key
-  ownership, path traversal, and `Content-Length` prechecks. `identify`,
+  ownership, path traversal, and `Content-Length` prechecks. The exported
+  capped readers (`readRequestJsonWithinBudget`,
+  `readResponseArrayBufferWithinBudget`, and
+  `readStreamArrayBufferWithinBudget`) are mandatory for media-bearing request
+  and response bodies because missing/chunked lengths are common. `identify`,
   `identify-multimodal`, `audio-spec`, and `generate-upload-urls` must import
   these helpers rather than redefining byte limits locally.
+- **`concurrency.ts`**: Provides `mapWithConcurrencyLimit`, an ordered bounded
+  fanout primitive for Edge paths that would otherwise launch unbounded
+  `Promise.all(...)` work. The APNs delivery function uses it with width `8`.
 - **`identify/media.ts`**: Shared inference-media resolver for `identify`,
   `identify-multimodal`, and `audio-spec`. It validates image R2 keys, resolves
   image payloads serially, validates inline image budgets, resolves
@@ -165,22 +172,21 @@ The `/identify` Edge Function acts as the inference proxy:
    `verify_jwt` Edge Middleware is disabled in `services/supabase/config.toml`
    (`verify_jwt = false`). Auth is handled manually via the Supabase SDK.
 2. **Direct Base64 Transfer**: If the iOS client sends `imageBase64s`, the Edge
-   Function validates the request `Content-Length` and aggregate base64
-   character budget before passing the strings as Gemini `inlineData`. It does
-   not decode inline images into a second full buffer on the Edge path.
+   Function validates declared request `Content-Length`, then parses the JSON
+   through `readRequestJsonWithinBudget` so chunked or missing-length bodies are
+   counted while streaming. Aggregate base64 character budgets are checked
+   before the strings are passed as Gemini `inlineData`. It does not decode
+   inline images into a second full buffer on the Edge path.
 3. **Legacy AWS Fallback (`_shared/aws.ts`)**: If inline images are absent
    (e.g., during background `URLSession` uploads where the image was already
    staged to R2), the function falls back to fetching from R2 through
-   `_shared/identify/media.ts`. Responses are processed serially: each response
-   body is consumed via `arrayBuffer()` and the running `totalBytes` counter is
-   incremented by `arrayBuffer.byteLength` (the actual byte count after body
-   consumption). If the accumulated total exceeds 5 MB, the function immediately
-   returns HTTP 413. The `Content-Length` header is used as a per-image
-   pre-check to reject oversized images _before_ allocating the ArrayBuffer, but
-   is not the authoritative guard — chunked transfer encoding makes this header
-   absent on some R2 responses, so the post-allocation cumulative byte count
-   (`totalBytes`) remains the enforced limit and is always checked after body
-   consumption regardless of whether the header was present.
+   `_shared/identify/media.ts`. Responses are processed serially through
+   `readResponseArrayBufferWithinBudget`, which reads chunks, increments the
+   running byte counter before retaining each chunk, cancels the stream on
+   overflow, and returns HTTP 413 if the accumulated total exceeds the media
+   budget. The `Content-Length` header is used as a per-image pre-check to
+   reject oversized images early, but is not the authoritative guard — chunked
+   transfer encoding makes this header absent on some R2 responses.
 4. **Google Gemini Model Selection**: Pro users use `gemini-2.5-pro` for maximum
    identification depth (rare species, fossils, subspecies). Free users use
    `gemini-2.5-flash` for 2–3× lower latency. The model is chosen immediately
@@ -464,10 +470,12 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    `audioBase64s`, staged `audioR2ObjectKeys`, and `observation_contexts`
    arrays.
 2. **WAV Preprocessing**: Audio data is preflighted before decode/fetch. The
-   endpoint rejects oversized request `Content-Length` headers before
-   `req.json()`, then delegates inline base64 length, raw byte size, clip count,
-   staged-key ownership, R2 `Content-Length`, and `..` traversal checks to
-   `_shared/identify/media.ts`. Audio buffers are processed serially via
+   endpoint rejects oversized declared request `Content-Length` headers before
+   body parsing, then uses `readRequestJsonWithinBudget` as the authoritative
+   JSON cap for missing-length and chunked bodies. Inline base64 length, raw
+   byte size, clip count, staged-key ownership, R2 stream byte caps, and `..`
+   traversal checks are delegated to `_shared/identify/media.ts`. Audio buffers
+   are processed serially via
    `processWAV` (mono mix, silence trim, 16kHz resample) to keep V8 heap
    pressure predictable.
 3. **Dynamic Dispatch Logic**: Generates inference payload based on the
@@ -606,7 +614,9 @@ stores them in `public.user_push_devices`, and a Postgres trigger on
 `send-push-notification` whenever a visible post-backed notification row is
 inserted or a like/comment-reaction aggregate count increases. Follow
 notifications are postless, informational, and intentionally skipped by the push
-trigger.
+trigger. Delivery fanout is bounded with `mapWithConcurrencyLimit(devices, 8,
+...)` so one notification row cannot launch unbounded APNs requests and device
+state writes from a single V8 isolate.
 
 ## The Webhook Node (`revenuecat-webhook`)
 
@@ -1039,10 +1049,14 @@ and applies a diff-based delta against the server. Key bounds and IDOR guards:
   validation, membership inserts, membership deletes) throw on error rather than
   swallowing via `console.error` — the controller propagates a `500` so the iOS
   client retries rather than treating a partial failure as confirmed.
-- **`collection_scans` SELECT cap**: The membership hydration query is capped at
-  `.limit(10000)` to bound V8 heap exposure. The theoretical maximum (200
-  collections × 5000 scan IDs = 1M rows) would be unsafe to load in a single
-  query; a per-collection streaming refactor remains the long-term solution.
+- **`collection_scans` membership hydration**: Existing memberships for all
+  owned incoming collections are fetched through one paginated
+  `.in("collection_id", ownedIds)` query ordered by `(collection_id, scan_id)`.
+  Pages are bounded with `.range(...)`, avoiding the previous N+1 membership
+  latency stack while still preventing the theoretical maximum
+  (200 collections × 5000 scan IDs = 1M rows) from loading into one isolate
+  allocation. The existing `PRIMARY KEY (collection_id, scan_id)` supports this
+  access pattern.
 
 ## Species Preferred Name Sync
 

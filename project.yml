@@ -48,6 +48,7 @@ targets:
         com.apple.security.application-groups: ["group.app.merian.shared"]
         keychain-access-groups: ["$(AppIdentifierPrefix)app.merian.shared"]
         com.apple.developer.weatherkit: true
+        com.apple.developer.associated-domains: ["applinks:merian.earth"]
     configFiles:
       Debug: Config.xcconfig
       Release: Config.xcconfig

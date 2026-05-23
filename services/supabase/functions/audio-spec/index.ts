@@ -28,7 +28,7 @@ import {
 } from "../_shared/identify/context.ts";
 import {
   MEDIA_BUDGETS,
-  validateRequestContentLength,
+  readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
 
 import {
@@ -115,18 +115,18 @@ const audioSchema: Record<string, unknown> = {
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
-    const bodySizeError = validateRequestContentLength(
+    const bodyReadResult = await readRequestJsonWithinBudget<Record<string, any>>(
       req,
       MEDIA_BUDGETS.maxAudioJsonBodyBytes,
     );
-    if (bodySizeError) {
+    if (bodyReadResult.error || !bodyReadResult.value) {
       return jsonResponse(
-        { error: bodySizeError.message },
-        bodySizeError.status,
+        { error: bodyReadResult.error?.message ?? "Invalid JSON body" },
+        bodyReadResult.error?.status ?? 400,
       );
     }
 
-    const rawBody: Record<string, unknown> = await req.json();
+    const rawBody = bodyReadResult.value;
 
     const paramError = requireParams(rawBody, ["user_id"]);
     if (paramError) return paramError;

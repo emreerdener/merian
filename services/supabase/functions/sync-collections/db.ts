@@ -84,21 +84,21 @@ export async function upsertCollectionsAndFetchMemberships(
 
   const existingMemberships: MembershipRow[] = [];
   const pageSize = 1000;
-  for (const collectionId of ownedIds) {
+
+  if (ownedIds.length > 0) {
     let from = 0;
     while (true) {
       const { data, error } = await supabaseAdmin
         .from("collection_scans")
         .select("collection_id, scan_id")
-        .eq("collection_id", collectionId)
+        .in("collection_id", ownedIds)
+        .order("collection_id", { ascending: true })
         .order("scan_id", { ascending: true })
         .range(from, from + pageSize - 1)
         .returns<MembershipRow[]>();
 
       if (error) {
-        throw new Error(
-          `Membership fetch failed for collection ${collectionId}: ${error.message}`,
-        );
+        throw new Error(`Membership fetch failed: ${error.message}`);
       }
       if (!data?.length) {
         break;

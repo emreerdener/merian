@@ -52,7 +52,7 @@ import {
 } from "../_shared/identify/media.ts";
 import {
   MEDIA_BUDGETS,
-  validateRequestContentLength,
+  readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
 import { sanitizeScientificName } from "./sanitize.ts";
 import {
@@ -137,18 +137,18 @@ const modelConfigs = {
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
-    const bodySizeError = validateRequestContentLength(
+    const bodyReadResult = await readRequestJsonWithinBudget<Record<string, any>>(
       req,
       MEDIA_BUDGETS.maxIdentifyJsonBodyBytes,
     );
-    if (bodySizeError) {
+    if (bodyReadResult.error || !bodyReadResult.value) {
       return jsonResponse(
-        { error: bodySizeError.message },
-        bodySizeError.status,
+        { error: bodyReadResult.error?.message ?? "Invalid JSON body" },
+        bodyReadResult.error?.status ?? 400,
       );
     }
 
-    const body = await req.json();
+    const body = bodyReadResult.value;
 
     const paramError = requireParams(body, ["user_id"]);
     if (paramError) return paramError;

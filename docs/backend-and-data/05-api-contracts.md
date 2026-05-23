@@ -163,11 +163,14 @@ When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server
 enforces that all paths within `r2ObjectKeys` begin with `staging/${user.id}/`
 and rejects `../` traversal attempts with `HTTP 400`.
 
-The endpoint rejects media JSON requests whose `Content-Length` exceeds the
-shared `/identify` body ceiling before parsing the body. Inline `imageBase64s`
-are then validated against the shared aggregate base64 budget in
-`_shared/mediaBudgets.ts`; staged `r2ObjectKeys` are validated through
-`_shared/identify/media.ts` before any R2 body is allocated.
+The endpoint rejects media JSON requests whose declared `Content-Length`
+exceeds the shared `/identify` body ceiling before parsing the body. The body
+is then parsed through `_shared/mediaBudgets.ts` using
+`readRequestJsonWithinBudget`, making the streaming byte counter authoritative
+for chunked or missing-length requests. Inline `imageBase64s` are validated
+against the shared aggregate base64 budget; staged `r2ObjectKeys` are validated
+through `_shared/identify/media.ts` and R2 bytes are consumed with capped stream
+readers before any full response buffer is assembled.
 
 > **Important IDOR Constraint:** The `user.id` resolved by the Deno Edge
 > Function from the Supabase JWT is always a **lowercase** Postgres UUID format.
@@ -2065,10 +2068,11 @@ ordered compositions of images, audio, and descriptive context.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; live foreground audio uses
-  size-preflighted inline `audioBase64s`. The edge rejects oversized media JSON
-  `Content-Length` before body parsing, then validates clip count, byte budgets,
-  IDOR ownership, and path traversal through `_shared/identify/media.ts` before
-  decode/fetch.
+  size-preflighted inline `audioBase64s`. The edge rejects oversized declared
+  media JSON `Content-Length` before body parsing, then parses through
+  `readRequestJsonWithinBudget` so missing-length/chunked bodies are still
+  capped. Clip count, byte budgets, IDOR ownership, and path traversal are
+  validated through `_shared/identify/media.ts` before decode/fetch.
 - The canonical request contract is camelCase telemetry (`gpsLatitude`,
   `semanticLocation`, `deviceTimeZone`, etc.) plus
   `observation_contexts: [{ freeText, addedAt? }]`, matching
@@ -2436,6 +2440,11 @@ and `collection_scans` schemas, handling diffing and missing FK references.
    mapping intelligently bypasses that specific missing scan natively. The
    pending relationship rests securely offline on the user's iPhone until the
    next sync pulse.
+   Existing memberships are hydrated for all owned collections with one
+   paginated `.in("collection_id", ownedIds)` query ordered by
+   `(collection_id, scan_id)`, rather than one pagination loop per collection.
+   This keeps latency sublinear for users with many collections while bounding
+   each page in V8 memory.
 6. **Array-Bound Diffing Deletes**: Identifies obsolete collections by running
    `.select()` across the user's DB rows, building a `toDelete` array in memory
    and passing it to `.delete().in("id", toDelete)`. This avoids

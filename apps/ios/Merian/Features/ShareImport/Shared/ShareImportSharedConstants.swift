@@ -12,5 +12,6 @@ enum ShareImportSharedConstants {
 
     static let imageMaxDimension: CGFloat = 1_024
     static let imageCompressionQuality = 0.85
+    static let sourceImageMaxBytes = 50 * 1024 * 1024
     static let authExpiryRefreshMargin: TimeInterval = 30
 }

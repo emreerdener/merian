@@ -19,7 +19,15 @@ multiple functions need the same behavior and the ownership boundary is clear.
   batch deletion helpers.
 - **`mediaBudgets.ts`**: Shared media byte ceilings, allowed staging content
   types, inline/staged audio and image validation, clip-count limits, and
-  `Content-Length` prechecks.
+  `Content-Length` prechecks. Request and response bodies that may be chunked
+  or omit `Content-Length` must be consumed through
+  `readRequestJsonWithinBudget`, `readResponseArrayBufferWithinBudget`, or
+  `readStreamArrayBufferWithinBudget` so the byte counter rejects oversized
+  streams before V8 can allocate past the Edge heap budget.
+- **`concurrency.ts`**: Ordered promise mapping with a fixed worker width.
+  Use `mapWithConcurrencyLimit` for fanout work such as APNs delivery or
+  remote object operations where unbounded `Promise.all(...)` could spike
+  sockets, heap, provider throttles, or Postgres writes.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
   by `audio-spec` and `identify-multimodal`.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,

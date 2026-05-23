@@ -2,7 +2,7 @@ import {
   assert,
   assertEquals,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
-import mediaStagingContract from "../../../docs/contracts/media-staging-upload-manifest.json" with {
+import mediaStagingContract from "../../../../docs/contracts/media-staging-upload-manifest.json" with {
   type: "json",
 };
 
@@ -10,7 +10,9 @@ import {
   decodeInlineAudioBase64,
   MEDIA_BUDGET_ERRORS,
   MEDIA_BUDGETS,
+  readRequestJsonWithinBudget,
   readResponseArrayBufferWithinBudget,
+  readStreamArrayBufferWithinBudget,
   STAGING_ALLOWED_CONTENT_TYPES,
   validateAudioClipCount,
   validateRequestContentLength,
@@ -79,6 +81,75 @@ Deno.test("readResponseArrayBufferWithinBudget rejects Content-Length before all
   assertEquals(result.error, {
     status: 413,
     message: MEDIA_BUDGET_ERRORS.audioTooLarge,
+  });
+});
+
+Deno.test("readStreamArrayBufferWithinBudget rejects chunked bodies before full allocation", async () => {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(6));
+      controller.enqueue(new Uint8Array(6));
+      controller.close();
+    },
+  });
+
+  const result = await readStreamArrayBufferWithinBudget(
+    stream,
+    10,
+    MEDIA_BUDGET_ERRORS.requestBodyTooLarge,
+  );
+
+  assertEquals(result.error, {
+    status: 413,
+    message: MEDIA_BUDGET_ERRORS.requestBodyTooLarge,
+  });
+});
+
+Deno.test("readResponseArrayBufferWithinBudget caps responses without Content-Length", async () => {
+  const response = new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(8));
+        controller.enqueue(new Uint8Array(8));
+        controller.close();
+      },
+    }),
+  );
+
+  const result = await readResponseArrayBufferWithinBudget(
+    response,
+    12,
+    MEDIA_BUDGET_ERRORS.audioTooLarge,
+  );
+
+  assertEquals(result.error, {
+    status: 413,
+    message: MEDIA_BUDGET_ERRORS.audioTooLarge,
+  });
+});
+
+Deno.test("readRequestJsonWithinBudget parses valid JSON and rejects malformed JSON", async () => {
+  const valid = await readRequestJsonWithinBudget<{ ok: boolean }>(
+    new Request("https://example.test/identify", {
+      method: "POST",
+      body: JSON.stringify({ ok: true }),
+    }),
+    MEDIA_BUDGETS.maxIdentifyJsonBodyBytes,
+  );
+
+  assertEquals(valid.value, { ok: true });
+
+  const invalid = await readRequestJsonWithinBudget(
+    new Request("https://example.test/identify", {
+      method: "POST",
+      body: "{not-json",
+    }),
+    MEDIA_BUDGETS.maxIdentifyJsonBodyBytes,
+  );
+
+  assertEquals(invalid.error, {
+    status: 400,
+    message: "Invalid JSON body",
   });
 });
 

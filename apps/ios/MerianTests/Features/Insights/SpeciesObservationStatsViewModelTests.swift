@@ -13,7 +13,7 @@ struct SpeciesObservationStatsViewModelTests {
         return ModelContext(container)
     }
 
-    @Test func testLocalAggregationMatchesSpeciesAndBucketsByMonth() throws {
+    @Test func testLocalAggregationMatchesSpeciesAndBucketsByMonth() async throws {
         let context = try createIsolatedContext()
         let speciesId = "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
         let now = date(year: 2026, month: 5, day: 17)
@@ -70,10 +70,10 @@ struct SpeciesObservationStatsViewModelTests {
         ))
         try context.save()
 
-        let stats = SpeciesObservationStatsViewModel.fetchLocalStats(
+        let actor = SpeciesObservationStatsDatabaseActor(modelContainer: context.container)
+        let stats = await actor.fetchLocalStats(
             scientificName: "  Danaus   plexippus ",
             speciesId: speciesId,
-            modelContext: context,
             now: now
         )
 
@@ -89,7 +89,7 @@ struct SpeciesObservationStatsViewModelTests {
         #expect(stats.lifeStage.first(where: { $0.key == "larva" })?.values.first(where: { $0.month == 8 })?.count == 1)
     }
 
-    @Test func testLocalHistoryUsesRollingSevenYearsThroughCurrentMonth() throws {
+    @Test func testLocalHistoryUsesRollingSevenYearsThroughCurrentMonth() async throws {
         let context = try createIsolatedContext()
         let now = date(year: 2026, month: 5, day: 17)
         context.insert(LocalScanRecord(
@@ -108,10 +108,10 @@ struct SpeciesObservationStatsViewModelTests {
         ))
         try context.save()
 
-        let stats = SpeciesObservationStatsViewModel.fetchLocalStats(
+        let actor = SpeciesObservationStatsDatabaseActor(modelContainer: context.container)
+        let stats = await actor.fetchLocalStats(
             scientificName: "Danaus plexippus",
             speciesId: nil,
-            modelContext: context,
             now: now
         )
 

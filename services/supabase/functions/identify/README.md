@@ -13,7 +13,7 @@ The monolith has been broken down strictly by domain responsibility. If you need
 - **`types.ts`**
   The structural contracts. Contains `MerianIdentification` and `ClientPayload` to ensure Swift client expectations remain strictly synchronized with Edge function output.
 - **`media.ts`**
-  The payload resolver. Houses `resolveImagePayloads()`, which safely handles `R2` Base64 buffer loading in serial increments to ensure edge heap limits (RAM) are never exhausted by giant user image permutations.
+  The payload resolver. Houses `resolveImagePayloads()`, which safely handles `R2` Base64 buffer loading in serial increments through `_shared/mediaBudgets.ts` capped stream readers. Declared `Content-Length` is a fast reject only; chunked and missing-length R2 bodies are counted while streaming so edge heap limits are enforced before full buffers are assembled.
 - **`db.ts`**
   The Postgres transaction wrapper. Isolates heavy, multi-line Supabase interactions (like ghost user upserts) to keep the core orchestrator perfectly clean.
 

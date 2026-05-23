@@ -154,10 +154,75 @@ export async function readResponseArrayBufferWithinBudget(
   );
   if (headerError) return { error: headerError };
 
-  const buffer = await response.arrayBuffer();
-  return buffer.byteLength > maxBytes
-    ? { error: budgetError(413, message) }
-    : { buffer };
+  return await readStreamArrayBufferWithinBudget(
+    response.body,
+    maxBytes,
+    message,
+  );
+}
+
+export async function readStreamArrayBufferWithinBudget(
+  stream: ReadableStream<Uint8Array> | null,
+  maxBytes: number,
+  message: string,
+): Promise<{ buffer?: ArrayBuffer; error?: MediaBudgetError }> {
+  if (!stream) return { buffer: new ArrayBuffer(0) };
+
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value || value.byteLength === 0) continue;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel();
+        return { error: budgetError(413, message) };
+      }
+
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return { buffer: exactArrayBuffer(bytes) };
+}
+
+export async function readRequestJsonWithinBudget<T>(
+  request: Request,
+  maxBytes: number,
+  message = MEDIA_BUDGET_ERRORS.requestBodyTooLarge,
+): Promise<{ value?: T; error?: MediaBudgetError }> {
+  const headerError = validateRequestContentLength(request, maxBytes, message);
+  if (headerError) return { error: headerError };
+
+  const readResult = await readStreamArrayBufferWithinBudget(
+    request.body,
+    maxBytes,
+    message,
+  );
+  if (readResult.error || !readResult.buffer) {
+    return { error: readResult.error ?? budgetError(400, "Invalid JSON body") };
+  }
+
+  try {
+    const raw = new TextDecoder().decode(readResult.buffer);
+    return { value: JSON.parse(raw) as T };
+  } catch {
+    return { error: budgetError(400, "Invalid JSON body") };
+  }
 }
 
 export function validateStagingObjectKey(

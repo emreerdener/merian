@@ -44,10 +44,12 @@ Primary files:
 - `apps/ios/Merian/Features/Insights/Views/Content/BiologicalView.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Views/SpeciesDictionaryPageView.swift`
 
-`SpeciesObservationStatsViewModel` is `@Observable @MainActor`. It loads local
-SwiftData aggregates immediately, then requests the public baseline through
-`MerianNetworkClient.shared.getSpeciesObservationStats(...)`. If the network
-request fails, the card still renders the local data.
+`SpeciesObservationStatsViewModel` is `@Observable @MainActor`, but local
+SwiftData aggregation is delegated to `@ModelActor`
+`SpeciesObservationStatsDatabaseActor`. The view model creates the actor from
+`modelContext.container`, awaits the local result, then requests the public
+baseline through `MerianNetworkClient.shared.getSpeciesObservationStats(...)`.
+If the network request fails, the card still renders the local data.
 
 `SpeciesObservationChartsCard` owns the selected tab and renders Swift Charts
 for:
@@ -74,6 +76,21 @@ Matching rules:
   `userIdentificationOverride` wins over `scientificName`.
 - Scientific names are trimmed, whitespace-collapsed, and compared
   case-insensitively.
+
+Fetch rules:
+
+- Species-id candidates and scientific-name candidates are fetched with
+  separate `#Predicate` descriptors so SQLite narrows the row set before Swift
+  reduction.
+- Candidate rows are merged by `LocalScanRecord.id`, then sorted by
+  `(timestamp, id)` for deterministic reducer input.
+- `propertiesToFetch` is limited to the reducer projection:
+  `id`, `speciesId`, `scientificName`, `userIdentificationOverride`,
+  `confirmedSpeciesId`, `captureDate`, `timestamp`, `lifeStage`, and
+  `isBiological`.
+- The legacy full-fetch reducer remains only as a compatibility helper for
+  isolated tests; production chart loads must use
+  `SpeciesObservationStatsDatabaseActor`.
 
 Date rules:
 
@@ -245,6 +262,6 @@ deno test services/supabase/functions/species-observation-stats/db.test.ts
 iOS:
 
 ```sh
-xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/merian-dd-species-observation-stats CODE_SIGNING_ALLOWED=NO build
+xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/merian-dd-species-observation-stats CODE_SIGNING_ALLOWED=NO build-for-testing
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.0' -derivedDataPath /tmp/merian-dd-species-observation-stats CODE_SIGNING_ALLOWED=NO test -only-testing:merianTests/SpeciesObservationStatsViewModelTests -only-testing:merianTests/SpeciesDictionaryTests
 ```

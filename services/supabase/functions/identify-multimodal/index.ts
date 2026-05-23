@@ -43,7 +43,7 @@ import {
 import { evaluateAndProcessPayload } from "../_shared/identify/moderation.ts";
 import {
   MEDIA_BUDGETS,
-  validateRequestContentLength,
+  readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
 import {
   buildContextText,
@@ -101,18 +101,18 @@ You are an expert encyclopedic field-guide biologist and taxonomist with special
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
-    const bodySizeError = validateRequestContentLength(
+    const bodyReadResult = await readRequestJsonWithinBudget<Record<string, any>>(
       req,
       MEDIA_BUDGETS.maxMultimodalJsonBodyBytes,
     );
-    if (bodySizeError) {
+    if (bodyReadResult.error || !bodyReadResult.value) {
       return jsonResponse(
-        { error: bodySizeError.message },
-        bodySizeError.status,
+        { error: bodyReadResult.error?.message ?? "Invalid JSON body" },
+        bodyReadResult.error?.status ?? 400,
       );
     }
 
-    const rawBody: Record<string, unknown> = await req.json();
+    const rawBody = bodyReadResult.value;
 
     const paramError = requireParams(rawBody, ["user_id"]);
     if (paramError) return paramError;

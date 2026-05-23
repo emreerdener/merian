@@ -16,6 +16,11 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Hardened Edge media request/response handling so chunked or missing-length
+  bodies are capped while streaming before V8 heap allocation can run away.
+- Reduced share-import, expanded-original-image, local species-chart, APNs
+  fanout, collection-sync, and audio-carousel resource usage to prevent OOMs,
+  main-thread stalls, and idle battery drain.
 - Fixed capture bottom controls getting hidden by stale keyboard state after leaving Describe or canceling staged input.
 - Fixed field notes dictation startup and kept the loading spinner from shifting the button label.
 - Fixed Explore map count text so exactly one visible item says "1 discovery in view."
