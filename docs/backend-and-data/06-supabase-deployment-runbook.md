@@ -32,13 +32,13 @@ production on mixed helper versions.
 Set these in the repository's GitHub Actions secrets:
 
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
-- `DB_PASSWORD` — database password used by `supabase link` and
+- `SUPABASE_DB_PASSWORD` — database password used by `supabase link` and
   `supabase db push`.
 
 The production Supabase project ref is intentionally stored in the workflow as
 `qlarqavoqhkuwzmevrmf`. Project refs are routing identifiers, not credentials;
 the deployment authority still comes from `SUPABASE_ACCESS_TOKEN` and
-`DB_PASSWORD`.
+`SUPABASE_DB_PASSWORD`.
 
 The workflow also inherits normal Supabase project Edge secrets at runtime.
 Those live in Supabase, not GitHub Actions, and are documented in
@@ -86,8 +86,8 @@ If `make db-push` reports a missing access token, authenticate the local CLI:
 supabase login
 ```
 
-For non-interactive local environments, export `SUPABASE_ACCESS_TOKEN` instead
-of relying on a browser login.
+For non-interactive local environments, export `SUPABASE_ACCESS_TOKEN` and
+`SUPABASE_DB_PASSWORD` instead of relying on a browser login or password prompt.
 
 ## Post-Deploy Smoke Checks
 
