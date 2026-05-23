@@ -185,9 +185,6 @@ extension OfflineQueueManager {
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.scanStateRaw == failedRaw }
         )
-        // Only fetch the fields needed for disk cleanup and deletion — avoids loading all
-        // telemetry columns into memory for potentially large backlogs of failed scans.
-        descriptor.propertiesToFetch = [\.capturedMediaJSON, \.id]
         descriptor.fetchLimit = 500
 
         do {

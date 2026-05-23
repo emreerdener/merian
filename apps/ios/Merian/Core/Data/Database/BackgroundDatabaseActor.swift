@@ -34,7 +34,6 @@ actor BackgroundDatabaseActor {
         )
         descriptor.sortBy = [SortDescriptor(\.timestamp)]
         descriptor.fetchLimit = limit
-        descriptor.propertiesToFetch = [\.id, \.capturedMediaJSON]
 
         let pending: [OfflineQueuedScan]
         do {
@@ -795,7 +794,6 @@ actor BackgroundDatabaseActor {
     func updateScanWithWikipedia(scanId: String, extract: String?, url: String?, imageUrl: String?) {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
-        descriptor.propertiesToFetch = [\.wikipediaOverview, \.wikipediaUrl, \.referenceImageUrl]
         let record: LocalScanRecord?
         do {
             record = try modelContext.fetch(descriptor).first

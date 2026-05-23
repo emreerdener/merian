@@ -682,3 +682,45 @@ LazyVStack {
 - Background actor delete paths must use `rollback()` on save failure rather than `try? save()`. Silent save failure is architecture drift, not acceptable resilience.
 - `MerianMigrationPlan` custom stages must use the shared migration save helper rather than `try? context.save()` or bare `try context.save()`. If a backfill cannot be committed, rollback and throw; opening the upgraded store without the backfilled fields is worse than surfacing a migration failure. Stage fetches must also use the concrete source/target schema type, never active global models or `CurrentSchema`, to avoid SwiftData casting traps during historical migrations. Relationship targets created during a custom migration must be schema-scoped snapshots too; active relationship models can still carry active-owner metadata.
 - Lookalike cache invalidation must stay batched and biological-only. `BackgroundDatabaseActor.clearAllLocalLookalikesCache()` is regression-tested with more than one batch of biological records plus a non-biological control record so a future unbounded fetch or predicate drift is caught.
+
+---
+
+## 22. SwiftData `propertiesToFetch` Assertion Crash on Optional Attributes
+
+When querying records using a `FetchDescriptor` and limiting the columns loaded via `propertiesToFetch`, you must be extremely careful not to include any optional primitive properties (such as `String?`, `Double?`, or `[String]?`). 
+
+### The Vulnerability
+
+Using optional properties inside the `propertiesToFetch` keypath array compiles successfully but causes an immediate **`EXC_BREAKPOINT (SIGTRAP)`** crash at runtime during query compilation inside `modelContext.fetch(descriptor)`:
+
+```
+Thread 4 Crashed::  Dispatch queue: NSManagedObjectContext 0x600003904b60
+0   libswiftCore.dylib            	_assertionFailure(_:_:file:line:flags:) + 244
+1   SwiftData                     	[Internal serialization helper]
+2   SwiftData                     	[Query compiler entrypoint]
+3   SwiftData                     	[FetchDescriptor serialization]
+4   libswiftCore.dylib            	_KeyedEncodingContainerBox.encodeNil<A>(forKey:) + 184
+5   libswiftCore.dylib            	KeyedEncodingContainer.encodeNil(forKey:) + 36
+```
+
+* **Why it happens**: When converting the `FetchDescriptor`'s keypaths into a Core Data properties-to-fetch representation, SwiftData's custom query encoder attempts to serialize the schema properties. Since the target property is optional, it tries to encode its nil-ability, calling `encodeNil(forKey:)` on the query encoder. 
+* **The Trap**: SwiftData's internal query encoder leaves `encodeNil(forKey:)` unimplemented. When called, it hits an explicit `_assertionFailure()` and traps the process with a `SIGTRAP` crash.
+
+This makes using `propertiesToFetch` on columns like `capturedMediaJSON: String?`, `coverImagePath: String?`, or `wikipediaOverview: String?` extremely dangerous.
+
+### ✅ The Pattern: Remove Projections for Optional Fields
+
+To bypass this framework bug safely, **completely omit the `propertiesToFetch` projection** from `FetchDescriptor`s whenever any of the requested properties are optional:
+
+```swift
+// ❌ The Anti-Pattern: Triggers KeyedEncodingContainer.encodeNil assertion failure
+var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.scanStateRaw == pendingRaw })
+descriptor.propertiesToFetch = [\.id, \.capturedMediaJSON] // capturedMediaJSON is optional String?
+let pending = try modelContext.fetch(descriptor)
+
+// ✅ The Correct Pattern: Omit propertiesToFetch projection completely
+var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.scanStateRaw == pendingRaw })
+let pending = try modelContext.fetch(descriptor) // Fetches the full lightweight object safely
+```
+
+Because these metadata models (`OfflineQueuedScan` and `LocalScanRecord`) are highly compact and database operations occur asynchronously on a dedicated `@ModelActor` queue, fetching the full record carries negligible overhead and is 100% crash-free.

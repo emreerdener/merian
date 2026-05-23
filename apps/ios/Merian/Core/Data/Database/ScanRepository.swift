@@ -848,7 +848,6 @@ actor HistoricalDatabaseActor {
             )
             descriptor.fetchLimit = batchSize
             descriptor.fetchOffset = offset
-            descriptor.propertiesToFetch = [\.id, \.coverImagePath]
             descriptor.relationshipKeyPathsForPrefetching = [\.collections]
 
             guard let batch = try? modelContext.fetch(descriptor), !batch.isEmpty else {
