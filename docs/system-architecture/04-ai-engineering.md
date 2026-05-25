@@ -1,227 +1,936 @@
 # 17. AI Engineering & LLMOps
 
-Merian's inference engine uses `gemini-2.5-flash` (free tier) and `gemini-2.5-pro` (Pro tier) running inside serverless Deno Edge functions to protect API keys and enforce structured output.
+Merian's inference engine uses `gemini-2.5-flash` (free tier) and
+`gemini-2.5-pro` (Pro tier) running inside serverless Deno Edge functions to
+protect API keys and enforce structured output.
 
 ## Inference Layer Structure
 
-The AI inference layer is split across three files under `apps/ios/Merian/Core/AI/`:
+The AI inference layer is split across three files under
+`apps/ios/Merian/Core/AI/`:
 
-- **`InferenceEngine.swift`**: The main engine. Coordinates upload confirmation, triggers the Edge function, and delivers results to `CaptureWorkspaceViewModel`. Key `@ObservationIgnored` properties that track in-flight state: `inferenceTask: Task<Void, Never>?` (the live `analyze` task), `activeScanId: String?` (set to the `scanId` at the start of `analyze(scanId:...)` and cleared to `nil` in `prepareForNewScan()`). `activeScanId` is read by `OfflineQueueManager.processInferenceDownloadResult` to detect when the background URLSession path has completed for the same scan the live engine is still processing — see the [offline pipeline InferenceEngine hydration note](../backend-and-data/01-offline-sync-pipeline.md). The `analyze` progression is mapped across 5 strict functional checkpoints enforcing UI hydration, image translation, and network payload dispatch gracefully. **`defer` race guard**: The `defer` block inside `analyze()`'s `inferenceTask` captures `ownedScanId = scanId` before the task body runs. The state reset (`isProcessing = false`, `activeScanId = nil`) is conditional: `guard self.activeScanId == ownedScanId else { return }`. Without this guard, a cancelled task's `defer` could race against a new scan that already called `prepareForNewScan()` + `analyze()`, overwriting the new scan's in-flight state. **Live-success helpers**: The visual and nonvisual success paths now share private `@MainActor` helpers for new-discovery marking, achievement refresh, completion notifications, queued-scan cleanup, reference URL normalization, and post-inference hydration scheduling. These helpers do not merge modality-specific request construction or media display setup. **`targetEradicationRecord` (reanalysis path)**: `analyze(targetEradicationRecord: LocalScanRecord?)` and `analyzeNonVisual(targetEradicationRecord:)` accept an optional reference to the old `LocalScanRecord` being replaced in the reanalysis flow. After `InferenceProcessingActor.parseAndSave()` successfully persists the new scan, `transferReplacementMetadataIfNeeded(...)` fetches the new `LocalScanRecord` by `mappedData.scanId` and copies `customTags`, collections, and field notes from the old record — preserving user-generated metadata across the replacement. Review state (`userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`) is intentionally not transferred because this is a fresh analysis. `ScanRepository.eradicateScan(record:modelContext:)` is then called, atomically deleting the old record and queuing cloud deletion. This ordering guarantees the new record inherits metadata before the old record is destroyed. **Stale enrichment/lookalikes guard** (`capturedScanId`): `fetchAndApplyEnrichment` captures `let capturedScanId = scanId` before the async `enrich-scan` network call. Both write sites — the enrichment scope write (`speciesData.habitatDescription`, taxonomy) and the lookalikes scope write (`speciesData.similarSpecies`) — gate on `self.speciesData?.scanId == capturedScanId` before mutating state. Without this guard, a slow enrichment Task started for scan A that completes after the user has already moved to scan B would overwrite scan B's `speciesData` with scan A's habitat description and lookalikes. **Tracked background write tasks** (`executeTrackedBackgroundTask`): Cloud-sync and DB write tasks spawned after identification review actions (confirm, override, flag, unflag, reset), as well as Wikipedia and GBIF hydration DB writes (`updateScanWithWikipedia`), are dispatched via `executeTrackedBackgroundTask { }`. This method assigns each task a `UUID` key in `backgroundWriteTasks: [UUID: Task<Void, Never>]` and removes it on completion via `defer { removeValue(forKey: id) }`. A `backgroundWriteTaskCap = 8` guard prevents unbounded accumulation: if `backgroundWriteTasks` already holds 8 entries when a new write is attempted, the write is appended to `pendingBackgroundTasks: [@Sendable () async -> Void]` instead of dropped. When any tracked task completes, `drainPendingBackgroundTasks()` (called on `@MainActor`) dequeues and starts the next pending write — ensuring no work is silently lost while still bounding live concurrent `BackgroundDatabaseActor` / `ModelContext` instances. The entire dictionary is cancelled and cleared in both `cancelActiveRequest()` and `prepareForNewScan()`, ensuring that a write task from a previous scan's review action cannot commit stale data after the next scan has started.
-- **`CaptureTelemetry` abstraction (`Analysis.swift`)**: Telemetry context creation is strictly abstracted away from UI controllers. Instead of view-layers writing inline logic trees to calculate and map GPS/Weather metrics manually, structural instantiation strictly defers to the `.resolveForActiveScan()` static wrapper. This strictly ensures that `Float` to `Double` numeric conversions for depth estimations map cleanly to payload schemas without risking memory bounding loops or precision errors crossing into the network interface.
-- **`InferenceProcessingActor.swift`**: An off-main-thread actor responsible for base64 encoding image data, parsing Edge responses, and routing results to the correct `BackgroundDatabaseActor` save path. Its `parseAndSave(...)` parameters thread the ordered media timeline, structured observation contexts, and optional audio file paths through to both `saveLiveScanRecord` and `saveNonVisualRecord`.
-- **`InferenceEdgeDTOs.swift`**: Codable DTOs used for Edge communication: `APIError`, `EdgeResponseWrapper`, and `EdgeResponse`.
-- **`InferenceEdgeDTOs.swift`** also declares `EnrichScanResponse` — the `Codable` DTO for the `enrich-scan` Edge Function response, with nested `EnrichData` (maps `habitat_description`, `gbif_taxon_key`, `taxonomy`, and `similar_species: [SimilarSpeciesEntry]?`) and `SimilarSpeciesEntry` (maps `scientific_name`, `common_name`, `reference_image_url`, `iucn_red_list_status`) structs.
+- **`InferenceEngine.swift`**: The main engine. Coordinates upload confirmation,
+  triggers the Edge function, and delivers results to
+  `CaptureWorkspaceViewModel`. Key `@ObservationIgnored` properties that track
+  in-flight state: `inferenceTask: Task<Void, Never>?` (the live `analyze`
+  task), `activeScanId: String?` (set to the `scanId` at the start of
+  `analyze(scanId:...)` and cleared to `nil` in `prepareForNewScan()`).
+  `activeScanId` is read by `OfflineQueueManager.processInferenceDownloadResult`
+  to detect when the background URLSession path has completed for the same scan
+  the live engine is still processing — see the
+  [offline pipeline InferenceEngine hydration note](../backend-and-data/01-offline-sync-pipeline.md).
+  The `analyze` progression is mapped across 5 strict functional checkpoints
+  enforcing UI hydration, image translation, and network payload dispatch
+  gracefully. **`defer` race guard**: The `defer` block inside `analyze()`'s
+  `inferenceTask` captures `ownedScanId = scanId` before the task body runs. The
+  state reset (`isProcessing = false`, `activeScanId = nil`) is conditional:
+  `guard self.activeScanId == ownedScanId else { return }`. Without this guard,
+  a cancelled task's `defer` could race against a new scan that already called
+  `prepareForNewScan()` + `analyze()`, overwriting the new scan's in-flight
+  state. **Live-success helpers**: The visual and nonvisual success paths now
+  share private `@MainActor` helpers for new-discovery marking, achievement
+  refresh, completion notifications, queued-scan cleanup, reference URL
+  normalization, and post-inference hydration scheduling. These helpers do not
+  merge modality-specific request construction or media display setup.
+  **`targetEradicationRecord` (reanalysis path)**:
+  `analyze(targetEradicationRecord: LocalScanRecord?)` and
+  `analyzeNonVisual(targetEradicationRecord:)` accept an optional reference to
+  the old `LocalScanRecord` being replaced in the reanalysis flow. After
+  `InferenceProcessingActor.parseAndSave()` successfully persists the new scan,
+  `transferReplacementMetadataIfNeeded(...)` fetches the new `LocalScanRecord`
+  by `mappedData.scanId` and copies `customTags`, collections, and field notes
+  from the old record — preserving user-generated metadata across the
+  replacement. Review state (`userIdentificationOverride`,
+  `userConfirmedIdentification`, `isFlagged`) is intentionally not transferred
+  because this is a fresh analysis.
+  `ScanRepository.eradicateScan(record:modelContext:)` is then called,
+  atomically deleting the old record and queuing cloud deletion. This ordering
+  guarantees the new record inherits metadata before the old record is
+  destroyed. **Stale enrichment/lookalikes guard** (`capturedScanId`):
+  `fetchAndApplyEnrichment` captures `let capturedScanId = scanId` before the
+  async `enrich-scan` network call. Both write sites — the enrichment scope
+  write (`speciesData.habitatDescription`, taxonomy) and the lookalikes scope
+  write (`speciesData.similarSpecies`) — gate on
+  `self.speciesData?.scanId == capturedScanId` before mutating state. Without
+  this guard, a slow enrichment Task started for scan A that completes after the
+  user has already moved to scan B would overwrite scan B's `speciesData` with
+  scan A's habitat description and lookalikes. **Tracked background write
+  tasks** (`executeTrackedBackgroundTask`): Cloud-sync and DB write tasks
+  spawned after identification review actions (confirm, override, flag, unflag,
+  reset), as well as Wikipedia and GBIF hydration DB writes
+  (`updateScanWithWikipedia`), are dispatched via
+  `executeTrackedBackgroundTask { }`. This method assigns each task a `UUID` key
+  in `backgroundWriteTasks: [UUID: Task<Void, Never>]` and removes it on
+  completion via `defer { removeValue(forKey: id) }`. A
+  `backgroundWriteTaskCap = 8` guard prevents unbounded accumulation: if
+  `backgroundWriteTasks` already holds 8 entries when a new write is attempted,
+  the write is appended to
+  `pendingBackgroundTasks: [@Sendable () async -> Void]` instead of dropped.
+  When any tracked task completes, `drainPendingBackgroundTasks()` (called on
+  `@MainActor`) dequeues and starts the next pending write — ensuring no work is
+  silently lost while still bounding live concurrent `BackgroundDatabaseActor` /
+  `ModelContext` instances. The entire dictionary is cancelled and cleared in
+  both `cancelActiveRequest()` and `prepareForNewScan()`, ensuring that a write
+  task from a previous scan's review action cannot commit stale data after the
+  next scan has started.
+- **`CaptureTelemetry` abstraction (`Analysis.swift`)**: Telemetry context
+  creation is strictly abstracted away from UI controllers. Instead of
+  view-layers writing inline logic trees to calculate and map GPS/Weather
+  metrics manually, structural instantiation strictly defers to the
+  `.resolveForActiveScan()` static wrapper. This strictly ensures that `Float`
+  to `Double` numeric conversions for depth estimations map cleanly to payload
+  schemas without risking memory bounding loops or precision errors crossing
+  into the network interface.
+- **`InferenceProcessingActor.swift`**: An off-main-thread actor responsible for
+  base64 encoding image data, parsing Edge responses, and routing results to the
+  correct `BackgroundDatabaseActor` save path. Its `parseAndSave(...)`
+  parameters thread the ordered media timeline, structured observation contexts,
+  and optional audio file paths through to both `saveLiveScanRecord` and
+  `saveNonVisualRecord`.
+- **`InferenceEdgeDTOs.swift`**: Codable DTOs used for Edge communication:
+  `APIError`, `EdgeResponseWrapper`, and `EdgeResponse`.
+- **`InferenceEdgeDTOs.swift`** also declares `EnrichScanResponse` — the
+  `Codable` DTO for the `enrich-scan` Edge Function response, with nested
+  `EnrichData` (maps `habitat_description`, `gbif_taxon_key`, `taxonomy`, and
+  `similar_species: [SimilarSpeciesEntry]?`) and `SimilarSpeciesEntry` (maps
+  `scientific_name`, `common_name`, `reference_image_url`,
+  `iucn_red_list_status`) structs.
 
 ## Edge Function Architecture (`/identify-multimodal` + `_shared/identify`)
 
-The active inference path is `/identify-multimodal`, with shared logic extracted into `services/supabase/functions/_shared/identify/` so the live path, `/identify`, and the legacy describe flow reuse the same schema, thresholds, DB helpers, media validation, and moderation logic:
+The active inference path is `/identify-multimodal`, with shared logic extracted
+into `services/supabase/functions/_shared/identify/` so the live path,
+`/identify`, and the legacy describe flow reuse the same schema, thresholds, DB
+helpers, media validation, and moderation logic:
 
-- **`identify-multimodal/index.ts`**: The main active orchestrator. Executes the critical path (image/audio resolution, Gemini invocation, cache checks) and safely spins off follow-on enrichment into background work.
-- **`_shared/identify/schema.ts`**: The semantic logic. Contains the strongly-typed `merianResponseSchema`, the vision `systemInstruction`, and the schema cache used by the shared identification stack.
-- **`_shared/identify/types.ts`**: The API contracts. Exports `MerianIdentification` and `ClientPayload` (iOS DTO mapping), plus `CachedSpeciesRow` and `StaticSpeciesData`.
-- **`_shared/identify/clientPayload.ts`**: Shared payload hydration for cache-hit species responses. Ensures `/identify` and `/identify-multimodal` project the same cached taxonomy, IUCN, hazard, habitat, GBIF key, group tags, and synonym fields back to iOS.
-- **`_shared/identify/media.ts`**: Safely handles chunked sequential R2/Base64 image resolution to protect Deno's V8 heap under multi-image payloads.
-- **`_shared/identify/db.ts`**: Encapsulates PostgreSQL operations as typed, error-throwing helpers: `fetchCachedSpecies`, `fetchCandidateCommonNames`, `upsertSpeciesDictionary`, `insertScan`, `updateGroupTags`, and `upsertGhostUserIfMissing`.
-- **`../_shared/` Micro-Agents**: Auxiliary generation tools like `fetchExternalEnrichment` (Wikipedia/GBIF REST API polling in `external.ts`), `fetchGroupTags` (Flash AI), and `fetchStaticEncyclopedicData` are aggregated directly inside the generic `biology.ts` taxonomic node, making them globally accessible to both the `identify` and `enrich-scan` edge environments. `fetchSimilarSpecies` in `biology.ts` enforces **same taxonomic order as Rule 1** in its system instruction — lookalikes must share the primary species' order, must exhibit genuine field visual similarity, and padding the array with unrelated species is explicitly forbidden. Before prompting, `biology.ts` normalizes placeholder taxonomy strings like `"Unknown"` / blank values to `null` so the model is never grounded on fake taxonomy. `external.ts` now additionally fetches GBIF vernacular names (`GET /v1/species/{key}/vernacularNames?language=eng&limit=30`) in parallel with occurrence imagery, returning `alternativeCommonNames: string[]` — these are written to `species_dictionary.alternative_common_names` on Cache Miss and served to the iOS client as `alternative_common_names` on Cache Hit.
+- **`identify-multimodal/index.ts`**: The main active orchestrator. Executes the
+  critical path (image/audio resolution, Gemini invocation, cache checks) and
+  safely spins off follow-on enrichment into background work.
+- **`_shared/identify/schema.ts`**: The semantic logic. Contains the
+  strongly-typed `merianResponseSchema`, the vision `systemInstruction`, and the
+  schema cache used by the shared identification stack.
+- **`_shared/identify/types.ts`**: The API contracts. Exports
+  `MerianIdentification` and `ClientPayload` (iOS DTO mapping), plus
+  `CachedSpeciesRow` and `StaticSpeciesData`.
+- **`_shared/identify/clientPayload.ts`**: Shared payload hydration for
+  cache-hit species responses. Ensures `/identify` and `/identify-multimodal`
+  project the same cached taxonomy, IUCN, hazard, habitat, GBIF key, group tags,
+  and synonym fields back to iOS.
+- **`_shared/identify/media.ts`**: Safely handles chunked sequential R2/Base64
+  image resolution to protect Deno's V8 heap under multi-image payloads.
+- **`_shared/identify/db.ts`**: Encapsulates PostgreSQL operations as typed,
+  error-throwing helpers: `fetchCachedSpecies`, `fetchCandidateCommonNames`,
+  `upsertSpeciesDictionary`, `insertScan`, `updateGroupTags`, and
+  `upsertGhostUserIfMissing`.
+- **`../_shared/` Micro-Agents**: Auxiliary generation tools like
+  `fetchExternalEnrichment` (Wikipedia/GBIF REST API polling in `external.ts`),
+  `fetchGroupTags` (Flash AI), and `fetchStaticEncyclopedicData` are aggregated
+  directly inside the generic `biology.ts` taxonomic node, making them globally
+  accessible to both the `identify` and `enrich-scan` edge environments.
+  `fetchSimilarSpecies` in `biology.ts` enforces **same taxonomic order as Rule
+  1** in its system instruction — lookalikes must share the primary species'
+  order, must exhibit genuine field visual similarity, and padding the array
+  with unrelated species is explicitly forbidden. Before prompting, `biology.ts`
+  normalizes placeholder taxonomy strings like `"Unknown"` / blank values to
+  `null` so the model is never grounded on fake taxonomy. `external.ts` now
+  additionally fetches GBIF vernacular names
+  (`GET /v1/species/{key}/vernacularNames?language=eng&limit=30`) in parallel
+  with occurrence imagery, returning `alternativeCommonNames: string[]` — these
+  are written to `species_dictionary.alternative_common_names` on Cache Miss and
+  served to the iOS client as `alternative_common_names` on Cache Hit.
 
 ## Edge Function Architecture (`/enrich-scan`)
 
-The `/enrich-scan` Supabase Edge Function handles on-demand encyclopedic lookup (habitat, taxonomy, and similar species lookalikes) for legacy scans lacking full metadata.
+The `/enrich-scan` Supabase Edge Function handles on-demand encyclopedic lookup
+(habitat, taxonomy, and similar species lookalikes) for legacy scans lacking
+full metadata.
 
-- **`index.ts`**: The main orchestrator. Re-routes data fetched by the shared micro-agents, handling the concurrent `Promise.all` logic based on what Postgres data is currently missing. Unifies the output via `formatEnrichmentPayload` to strictly guarantee uniform JSON contracts back to Swift.
-- **`types.ts`**: Strict TypeScript interfaces tracking the shape of `CachedSpeciesData` returned from Postgres. Removing these inline types from the orchestrator eliminates dangerous semantic type-casting across asynchronous LLM results. `CachedSpeciesData` includes `alternative_common_names: string[] | null`.
-- **`db.ts`**: Encapsulates all Postgres operations: `getCachedSpecies` (dictionary lookup with `id` field), `fetchLookalikesFromJoinTable` (embedded join hydration from `species_lookalikes`; additionally selects `order` and `family` from the joined `species_dictionary` row, returned as `_order` / `_family` on the internal interface for stale-cache detection in the orchestrator), `resolveLookalikesToJoinTable` (maps Gemini-generated scientific names to join-table rows, back-fills `common_names`, and only persists entries that resolve to real `species_dictionary` rows with matching taxonomy), `clearLookalikesForSpecies(speciesId, supabase)` (deletes all `species_lookalikes` join table rows for a species, used for stale-cache invalidation), and `updateSpeciesEnrichment` (UPSERT patching). Lookalike thumbnail URLs prefer `species_reference_images` and fall back to the legacy comma-separated dictionary cache. `resolveLookalikesToJoinTable` now requires a real primary `kingdom` plus either `order` or `family`, then rejects any candidate lacking a matching real `kingdom` and matching `order` or fallback `family`. Candidates with missing taxonomy or no dictionary row are dropped rather than returned as provisional Flash stubs. **Stale cache detection** (`index.ts`): after fetching from the join table, if the primary species has a known `order` and all cached lookalikes carry a different known order, or if order is unavailable but family is known and all cached lookalikes carry a different known family, `clearLookalikesForSpecies` is called, `lookalikes_flash_attempted` and `similar_species` are reset to `false`/`null`, and the flow falls through to a fresh validated attempt. Internal `_order` / `_family` fields are stripped before serving to the iOS client.
+- **`index.ts`**: The main orchestrator. Re-routes data fetched by the shared
+  micro-agents, handling the concurrent `Promise.all` logic based on what
+  Postgres data is currently missing. Unifies the output via
+  `formatEnrichmentPayload` to strictly guarantee uniform JSON contracts back to
+  Swift.
+- **`types.ts`**: Strict TypeScript interfaces tracking the shape of
+  `CachedSpeciesData` returned from Postgres. Removing these inline types from
+  the orchestrator eliminates dangerous semantic type-casting across
+  asynchronous LLM results. `CachedSpeciesData` includes
+  `alternative_common_names: string[] | null`.
+- **`db.ts`**: Encapsulates all Postgres operations: `getCachedSpecies`
+  (dictionary lookup with `id` field), `fetchLookalikesFromJoinTable` (embedded
+  join hydration from `species_lookalikes`; additionally selects `order` and
+  `family` from the joined `species_dictionary` row, returned as `_order` /
+  `_family` on the internal interface for stale-cache detection in the
+  orchestrator), `resolveLookalikesToJoinTable` (maps Gemini-generated
+  scientific names to join-table rows, back-fills `common_names`, and only
+  persists entries that resolve to real `species_dictionary` rows with matching
+  taxonomy), `clearLookalikesForSpecies(speciesId, supabase)` (deletes all
+  `species_lookalikes` join table rows for a species, used for stale-cache
+  invalidation), and `updateSpeciesEnrichment` (UPSERT patching). Lookalike
+  thumbnail URLs prefer `species_reference_images` and fall back to the legacy
+  comma-separated dictionary cache. `resolveLookalikesToJoinTable` now requires
+  a real primary `kingdom` plus either `order` or `family`, then rejects any
+  candidate lacking a matching real `kingdom` and matching `order` or fallback
+  `family`. Candidates with missing taxonomy or no dictionary row are dropped
+  rather than returned as provisional Flash stubs. **Stale cache detection**
+  (`index.ts`): after fetching from the join table, if the primary species has a
+  known `order` and all cached lookalikes carry a different known order, or if
+  order is unavailable but family is known and all cached lookalikes carry a
+  different known family, `clearLookalikesForSpecies` is called,
+  `lookalikes_flash_attempted` and `similar_species` are reset to
+  `false`/`null`, and the flow falls through to a fresh validated attempt.
+  Internal `_order` / `_family` fields are stripped before serving to the iOS
+  client.
 
 ### Enrichment Pipeline (`isEnrichmentLoading` / `fetchAndApplyEnrichment`)
 
-After a successful biological scan, `InferenceEngine` automatically fires `fetchAndApplyEnrichment(modelContext:)` for all users:
+After a successful biological scan, `InferenceEngine` automatically fires
+`fetchAndApplyEnrichment(modelContext:)` for all users:
 
-1. Sets `isEnrichmentLoading = true` — `HabitatAndDistributionCard` observes this via `@Environment(InferenceEngine.self)` and shows an animated loading skeleton.
-2. Calls `MerianNetworkClient.shared.fetchEnrichment(scanId:scientificName:)` → POST `/enrich-scan`.
-3. On success, collects all mutations into a local `var updated = speciesData` copy, then assigns `self.speciesData = updated` in a single write on `@MainActor`. This guarantees `@Observable` change notifications fire and `HabitatAndDistributionCard` updates live without reopening the sheet. Individual optional-chain mutations (`speciesData?.field = value`) do not reliably trigger observation for struct value types — a full-value replacement is the only guaranteed trigger. Fields patched: `habitatDescription`, `gbifTaxonKey` (when non-nil), and `taxonomy`.
-4. Maps `data.similar_species` (a `[SimilarSpeciesEntry]` array, including `species_id` when the entry is dictionary-backed) to a local `mappedEntries` array, assigns it to `updated.similarSpecies = SimilarSpecies(entries: mappedEntries)`, then commits with `self.speciesData = updated` — same single-write pattern — triggering a live `SimilarSpeciesGallery` UI update. No confidence threshold gate — enrichment always sets the data, and the gallery renders validated entries with the stable "Similar species" label. Lookalikes are sourced from the validated `species_lookalikes` / `species_dictionary` path when available, with legacy local string fallback handled only during historical scan hydration.
-   - **Client-side filtering:** `SimilarSpeciesGallery` removes entries whose scientific name matches the active species and deduplicates repeated scientific names before rendering. If a remaining lookalike shares the active species' common name, the card suppresses the duplicate common-name label so the scientific name remains the primary differentiator.
+1. Sets `isEnrichmentLoading = true` — `HabitatAndDistributionCard` observes
+   this via `@Environment(InferenceEngine.self)` and shows an animated loading
+   skeleton.
+2. Calls `MerianNetworkClient.shared.fetchEnrichment(scanId:scientificName:)` →
+   POST `/enrich-scan`.
+3. On success, collects all mutations into a local `var updated = speciesData`
+   copy, then assigns `self.speciesData = updated` in a single write on
+   `@MainActor`. This guarantees `@Observable` change notifications fire and
+   `HabitatAndDistributionCard` updates live without reopening the sheet.
+   Individual optional-chain mutations (`speciesData?.field = value`) do not
+   reliably trigger observation for struct value types — a full-value
+   replacement is the only guaranteed trigger. Fields patched:
+   `habitatDescription`, `gbifTaxonKey` (when non-nil), and `taxonomy`.
+4. Maps `data.similar_species` (a `[SimilarSpeciesEntry]` array, including
+   `species_id` when the entry is dictionary-backed) to a local `mappedEntries`
+   array, assigns it to
+   `updated.similarSpecies = SimilarSpecies(entries: mappedEntries)`, then
+   commits with `self.speciesData = updated` — same single-write pattern —
+   triggering a live `SimilarSpeciesGallery` UI update. No confidence threshold
+   gate — enrichment always sets the data, and the gallery renders validated
+   entries with the stable "Similar species" label. Lookalikes are sourced from
+   the validated `species_lookalikes` / `species_dictionary` path when
+   available, with legacy local string fallback handled only during historical
+   scan hydration.
+   - **Client-side filtering:** `SimilarSpeciesGallery` removes entries whose
+     scientific name matches the active species and deduplicates repeated
+     scientific names before rendering. If a remaining lookalike shares the
+     active species' common name, the card suppresses the duplicate common-name
+     label so the scientific name remains the primary differentiator.
 
    **Common name resolution for lookalike species — three-tier priority:**
-   - **Tier 1 (dictionary):** `fetchLookalikesFromJoinTable` reads `species_dictionary.common_names["en"]` via the embedded PostgREST join. This is the fast, zero-Flash path for all species that have been scanned at least once.
-   - **Tier 2 (Flash + back-fill):** If the `"en"` key is absent (species in dictionary but `common_names` is `NULL`, `{}`, or only has non-English keys), `resolveLookalikesToJoinTable` calls the `merge_common_name_en` Postgres RPC to merge the Flash-generated name as `{"en": "..."}` without overwriting existing locale keys. Implemented via a JSONB `||` merge operator: `COALESCE(common_names, '{}') || jsonb_build_object('en', p_en_name)` with a `NOT (common_names ? 'en')` guard so it is always a safe no-op for species that already have English.
-   - **Tier 3 (drop-on-miss):** If the lookalike species is not yet in `species_dictionary` at all, or if its taxonomy cannot validate against the primary species, the entry is dropped. The long-term fix deliberately prefers "no card yet" over provisional unrelated cards.
+   - **Tier 1 (dictionary):** `fetchLookalikesFromJoinTable` reads
+     `species_dictionary.common_names["en"]` via the embedded PostgREST join.
+     This is the fast, zero-Flash path for all species that have been scanned at
+     least once.
+   - **Tier 2 (Flash + back-fill):** If the `"en"` key is absent (species in
+     dictionary but `common_names` is `NULL`, `{}`, or only has non-English
+     keys), `resolveLookalikesToJoinTable` calls the `merge_common_name_en`
+     Postgres RPC to merge the Flash-generated name as `{"en": "..."}` without
+     overwriting existing locale keys. Implemented via a JSONB `||` merge
+     operator:
+     `COALESCE(common_names, '{}') || jsonb_build_object('en', p_en_name)` with
+     a `NOT (common_names ? 'en')` guard so it is always a safe no-op for
+     species that already have English.
+   - **Tier 3 (drop-on-miss):** If the lookalike species is not yet in
+     `species_dictionary` at all, or if its taxonomy cannot validate against the
+     primary species, the entry is dropped. The long-term fix deliberately
+     prefers "no card yet" over provisional unrelated cards.
 
-   **`lookalikes_flash_attempted` flag** (`species_dictionary.lookalikes_flash_attempted BOOLEAN NOT NULL DEFAULT false`, migration `20260330160000`): Set to `true` in `enrich-scan/index.ts` after a Flash-sourced `resolveLookalikesToJoinTable` call completes — **only when `resolveResult.persisted === true`** (i.e. rows were actually written to the `species_lookalikes` join table). The flag is NOT set when the function returned early without writing (for example, missing usable primary taxonomy or all-failed validation). This is a critical guard: locking the flag when the join table was skipped would permanently prevent future enrichment retries for species whose taxonomy had not yet been enriched.
+   **`lookalikes_flash_attempted` flag**
+   (`species_dictionary.lookalikes_flash_attempted BOOLEAN NOT NULL DEFAULT false`,
+   migration `20260330160000`): Set to `true` in `enrich-scan/index.ts` after a
+   Flash-sourced `resolveLookalikesToJoinTable` call completes — **only when
+   `resolveResult.persisted === true`** (i.e. rows were actually written to the
+   `species_lookalikes` join table). The flag is NOT set when the function
+   returned early without writing (for example, missing usable primary taxonomy
+   or all-failed validation). This is a critical guard: locking the flag when
+   the join table was skipped would permanently prevent future enrichment
+   retries for species whose taxonomy had not yet been enriched.
    ```typescript
-   const hasLookalikes =
-     lookalikes.some((l) => l.common_name !== null) ||
+   const hasLookalikes = lookalikes.some((l) => l.common_name !== null) ||
      cachedSpecies?.lookalikes_flash_attempted === true;
    ```
-   Without the flag, species whose lookalikes are all legitimately obscure (no widely-recognised English common name) would cause Flash to re-run on every `enrich-scan` invocation indefinitely, since `.some(l => l.common_name !== null)` would never become true. The flag is **not** set by the legacy TEXT[] migration path so those species still trigger Flash once.
+   Without the flag, species whose lookalikes are all legitimately obscure (no
+   widely-recognised English common name) would cause Flash to re-run on every
+   `enrich-scan` invocation indefinitely, since
+   `.some(l => l.common_name !== null)` would never become true. The flag is
+   **not** set by the legacy TEXT[] migration path so those species still
+   trigger Flash once.
 
-   **Recovery query for species incorrectly flagged before this guard was added** (covers both the empty-array case and the null-kingdom early-exit):
+   **Recovery query for species incorrectly flagged before this guard was
+   added** (covers both the empty-array case and the null-kingdom early-exit):
    ```sql
    UPDATE species_dictionary
    SET lookalikes_flash_attempted = false
    WHERE lookalikes_flash_attempted = true
      AND id NOT IN (SELECT DISTINCT species_id FROM species_lookalikes);
    ```
-5. JSON-encodes `speciesData.similarSpecies?.entries` via `JSONEncoder` into a `Data` blob. Encode failures are logged via `MerianLog.general.debug` and result in `nil` — the field is never written with corrupt data. Persists all fields to `LocalScanRecord` via `BackgroundDatabaseActor.updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:)` on a background `Task` whose handle is stored in `enrichmentWriteTask` (`@ObservationIgnored private var enrichmentWriteTask: Task<Void, Never>?`). The handle is cancelled in `prepareForNewScan()`, `analyze()` (reset block), and `cancelActiveRequest()`, preventing a stale enrichment write from landing on the wrong `LocalScanRecord` when the user rapidly navigates between scans. The blob lands in `LocalScanRecord.lookalikesData` (`MerianSchemaV27`). The backend now only persists this blob for validated lookalikes; raw Flash names are never cached locally.
+5. JSON-encodes `speciesData.similarSpecies?.entries` via `JSONEncoder` into a
+   `Data` blob. Encode failures are logged via `MerianLog.general.debug` and
+   result in `nil` — the field is never written with corrupt data. Persists all
+   fields to `LocalScanRecord` via
+   `BackgroundDatabaseActor.updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:)`
+   on a background `Task` whose handle is stored in `enrichmentWriteTask`
+   (`@ObservationIgnored private var enrichmentWriteTask: Task<Void, Never>?`).
+   The handle is cancelled in `prepareForNewScan()`, `analyze()` (reset block),
+   and `cancelActiveRequest()`, preventing a stale enrichment write from landing
+   on the wrong `LocalScanRecord` when the user rapidly navigates between scans.
+   The blob lands in `LocalScanRecord.lookalikesData` (`MerianSchemaV27`). The
+   backend now only persists this blob for validated lookalikes; raw Flash names
+   are never cached locally.
 6. Sets `isEnrichmentLoading = false` (via `defer`).
 
-`InferenceEngine.fetchAndApplyEnrichment(...)` also has a one-time retry path for lookalikes. If metadata and lookalikes are requested together, the first lookalikes call can legitimately return `null` because the species still lacks usable taxonomy. Once the metadata scope lands and taxonomy becomes usable, the engine retries the lookalikes scope exactly once within the same session.
+`InferenceEngine.fetchAndApplyEnrichment(...)` also has a one-time retry path
+for lookalikes. If metadata and lookalikes are requested together, the first
+lookalikes call can legitimately return `null` because the species still lacks
+usable taxonomy. Once the metadata scope lands and taxonomy becomes usable, the
+engine retries the lookalikes scope exactly once within the same session.
 
-`InferenceEngine.load(from:)` triggers enrichment for historical records that are missing `habitatDescription`, `gbifTaxonKey`, both `lookalikesData` and `similarSpecies`, where `lookalikesData` decodes to entries that are all `commonName == nil` (indicating the join table was populated before the common-name back-fill pipeline existed), or where the stored taxonomy itself is not yet usable for validated lookalikes. Metadata scope remains species-cache-aware, but the lookalikes scope still fires whenever the record lacks rich local lookalike data. The `lookalikesData` blob is decoded once on `@MainActor` for the gate check and the resulting `SimilarSpecies` value is passed directly into the `historicHydrationTask` — no second `JSONDecoder` pass on the same data.
+`InferenceEngine.load(from:)` triggers enrichment for historical records that
+are missing `habitatDescription`, `gbifTaxonKey`, both `lookalikesData` and
+`similarSpecies`, where `lookalikesData` decodes to entries that are all
+`commonName == nil` (indicating the join table was populated before the
+common-name back-fill pipeline existed), or where the stored taxonomy itself is
+not yet usable for validated lookalikes. Metadata scope remains
+species-cache-aware, but the lookalikes scope still fires whenever the record
+lacks rich local lookalike data. The `lookalikesData` blob is decoded once on
+`@MainActor` for the gate check and the resulting `SimilarSpecies` value is
+passed directly into the `historicHydrationTask` — no second `JSONDecoder` pass
+on the same data.
 
-Additionally, `load(from:)` now records `recordScientificName` in `enrichedSpeciesTimestamps` after a successful enrichment call, matching the behaviour of the live inference path. This prevents a redundant `enrich-scan` Edge call when the user opens two different scan records of the same species within 24 hours. **Conditional insert guard**: the timestamp is only written when `speciesData?.habitatDescription != nil` — a transient enrichment failure that returns without populating `habitatDescription` does not add the species to `enrichedSpeciesTimestamps`, ensuring the 24h TTL deduplication dictionary does not permanently block future enrichment retries for species whose prior call failed transiently.
+Additionally, `load(from:)` now records `recordScientificName` in
+`enrichedSpeciesTimestamps` after a successful enrichment call, matching the
+behaviour of the live inference path. This prevents a redundant `enrich-scan`
+Edge call when the user opens two different scan records of the same species
+within 24 hours. **Conditional insert guard**: the timestamp is only written
+when `speciesData?.habitatDescription != nil` — a transient enrichment failure
+that returns without populating `habitatDescription` does not add the species to
+`enrichedSpeciesTimestamps`, ensuring the 24h TTL deduplication dictionary does
+not permanently block future enrichment retries for species whose prior call
+failed transiently.
 
-**Historical record load path** (`load(from:)`): When opening a scan from the library, `InferenceEngine.load(from:)` reconstructs `speciesData.similarSpecies` via a two-layer decode:
-1. **Rich path** (preferred): If `LocalScanRecord.lookalikesData` is non-nil, `JSONDecoder` decodes it as `[SimilarSpeciesEntry]` and wraps the array in `SimilarSpecies(entries:)`. All four fields (`scientificName`, `commonName`, `referenceImageUrl`, `iucnRedListStatus`) are available — `SimilarSpeciesGallery` renders thumbnail images directly from `referenceImageUrl`.
-2. **Legacy flat path** (fallback for pre-V27 records): If `lookalikesData` is nil, each string in `LocalScanRecord.similarSpecies: [String]?` is wrapped into a `SimilarSpeciesEntry(scientificName:, commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)`. `SimilarSpeciesGallery` falls back to `SimilarSpeciesImageFetcher` (Wikipedia / iNaturalist REST) for thumbnail images when `referenceImageUrl == nil`.
+**Historical record load path** (`load(from:)`): When opening a scan from the
+library, `InferenceEngine.load(from:)` reconstructs `speciesData.similarSpecies`
+via a two-layer decode:
 
-To heal previously poisoned local rich blobs, the client also carries a one-time `localLookalikesCacheResetVersion`. When that version bumps, `load(from:)` temporarily ignores stored `lookalikesData` / `similarSpecies`, schedules a background wipe of those fields across local `LocalScanRecord`s, and lets validated enrichment repopulate them.
+1. **Rich path** (preferred): If `LocalScanRecord.lookalikesData` is non-nil,
+   `JSONDecoder` decodes it as `[SimilarSpeciesEntry]` and wraps the array in
+   `SimilarSpecies(entries:)`. All four fields (`scientificName`, `commonName`,
+   `referenceImageUrl`, `iucnRedListStatus`) are available —
+   `SimilarSpeciesGallery` renders thumbnail images directly from
+   `referenceImageUrl`.
+2. **Legacy flat path** (fallback for pre-V27 records): If `lookalikesData` is
+   nil, each string in `LocalScanRecord.similarSpecies: [String]?` is wrapped
+   into a
+   `SimilarSpeciesEntry(scientificName:, commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)`.
+   `SimilarSpeciesGallery` falls back to `SimilarSpeciesImageFetcher` (Wikipedia
+   / iNaturalist REST) for thumbnail images when `referenceImageUrl == nil`.
+
+To heal previously poisoned local rich blobs, the client also carries a one-time
+`localLookalikesCacheResetVersion`. When that version bumps, `load(from:)`
+temporarily ignores stored `lookalikesData` / `similarSpecies`, schedules a
+background wipe of those fields across local `LocalScanRecord`s, and lets
+validated enrichment repopulate them.
 
 ## Multi-Modal Combined Image + Description Path
 
-When a user stages an `ObservationContext` alongside a camera capture (or a gallery image), `InferenceEngine.analyze()` runs a **multi-modal combined path** that sends both the image and a structured text description to the edge function:
+When a user stages an `ObservationContext` alongside a camera capture (or a
+gallery image), `InferenceEngine.analyze()` runs a **multi-modal combined path**
+that sends both the image and a structured text description to the edge
+function:
 
-1. **Media timeline build**: Before calling `identifyMultiModal(...)`, `analyze()` builds one ordered mixed-media timeline containing the current images plus any staged `ObservationContext` items. The text prompt sent to Gemini and the JSON persisted locally are both derived from that single source.
+1. **Media timeline build**: Before calling `identifyMultiModal(...)`,
+   `analyze()` builds one ordered mixed-media timeline containing the current
+   images plus any staged `ObservationContext` items. The text prompt sent to
+   Gemini and the JSON persisted locally are both derived from that single
+   source.
 
-2. **Network layer**: `MerianNetworkClient.buildMultiModalRequestBody(...)` and `buildMultiModalRequest(...)` deserialize that JSON into `observation_contexts` objects alongside camelCase telemetry (`gpsLatitude`, `deviceTimeZone`, `currentMonth`, etc.). This is the canonical live request contract.
+2. **Network layer**: `MerianNetworkClient.buildMultiModalRequestBody(...)` and
+   `buildMultiModalRequest(...)` deserialize that JSON into
+   `observation_contexts` objects alongside camelCase telemetry (`gpsLatitude`,
+   `deviceTimeZone`, `currentMonth`, etc.). This is the canonical live request
+   contract.
 
-3. **Edge function**: `/identify-multimodal` merges `observation_contexts` into the Gemini context preamble while forwarding the structured value to `insertScan(... user_observation_context: ...)`.
+3. **Edge function**: `/identify-multimodal` merges `observation_contexts` into
+   the Gemini context preamble while forwarding the structured value to
+   `insertScan(... user_observation_context: ...)`.
 
-4. **Persistence**: `InferenceProcessingActor.parseAndSave(...)` → `BackgroundDatabaseActor.saveLiveScanRecord(... mediaTimeline: ...)` → scalar `LocalScanRecord.capturedMediaJSON` + V41 `capturedMediaEntries` mirror. The first structured observation context still persists to `public.scans.user_observation_context` on the cloud side.
+4. **Persistence**: `InferenceProcessingActor.parseAndSave(...)` →
+   `BackgroundDatabaseActor.saveLiveScanRecord(... mediaTimeline: ...)` → scalar
+   `LocalScanRecord.capturedMediaJSON` + V41 `capturedMediaEntries` mirror. The
+   first structured observation context still persists to
+   `public.scans.user_observation_context` on the cloud side.
 
-**Offline resilience**: the queue stores the same ordered media timeline at enqueue time. `buildExtractedScanData` snapshots `capturedMediaItems`, and every downstream derivation — prompt text, `observation_contexts`, local image paths, audio paths, cleanup paths, and result hydration — is rebuilt from that one source.
+**Offline resilience**: the queue stores the same ordered media timeline at
+enqueue time. `buildExtractedScanData` snapshots `capturedMediaItems`, and every
+downstream derivation — prompt text, `observation_contexts`, local image paths,
+audio paths, cleanup paths, and result hydration — is rebuilt from that one
+source.
 
 ## Text-Only Describe Path
 
-A text-only identification logs a past observation via `ObservationContext` alone. The current app routes this through `/identify-multimodal` with no images or audio attached:
+A text-only identification logs a past observation via `ObservationContext`
+alone. The current app routes this through `/identify-multimodal` with no images
+or audio attached:
 
-1. **No image**: `InferenceEngine.analyzeNonVisual(...)` never calls `FileIOActor` or `InferenceProcessingActor.encodeImages` for description-only submissions. The edge function receives structured observation context only — no `r2ObjectKeys`, `imageBase64s`, or `audioBase64s`.
+1. **No image**: `InferenceEngine.analyzeNonVisual(...)` never calls
+   `FileIOActor` or `InferenceProcessingActor.encodeImages` for description-only
+   submissions. The edge function receives structured observation context only —
+   no `r2ObjectKeys`, `imageBase64s`, or `audioBase64s`.
 
-2. **Unified edge function** (`/identify-multimodal`): The handler builds a text-only Gemini prompt from `observation_contexts`, takes the `DESCRIBE_SYSTEM_INSTRUCTION` branch, and returns the same response shape as the other inference modes. The legacy `/identify-describe` endpoint remains deployed for compatibility but is not the primary client path.
+2. **Unified edge function** (`/identify-multimodal`): The handler builds a
+   text-only Gemini prompt from `observation_contexts`, takes the
+   `DESCRIBE_SYSTEM_INSTRUCTION` branch, and returns the same response shape as
+   the other inference modes. The legacy `/identify-describe` endpoint remains
+   deployed for compatibility but is not the primary client path.
 
-3. **`ObservationContext.isEmpty` guard**: The iOS client checks `observationContext.isEmpty` before enabling the submit button. An empty context is rejected at the UI layer.
+3. **`ObservationContext.isEmpty` guard**: The iOS client checks
+   `observationContext.isEmpty` before enabling the submit button. An empty
+   context is rejected at the UI layer.
 
-4. **Persistence path**: `InferenceEngine.analyzeNonVisual` forwards the ordered `mediaTimeline`, then `InferenceProcessingActor.parseAndSave(...)` routes through `BackgroundDatabaseActor.saveNonVisualRecord(...)` and persists the same timeline into scalar `LocalScanRecord.capturedMediaJSON` plus the V41 `capturedMediaEntries` mirror.
+4. **Persistence path**: `InferenceEngine.analyzeNonVisual` forwards the ordered
+   `mediaTimeline`, then `InferenceProcessingActor.parseAndSave(...)` routes
+   through `BackgroundDatabaseActor.saveNonVisualRecord(...)` and persists the
+   same timeline into scalar `LocalScanRecord.capturedMediaJSON` plus the V41
+   `capturedMediaEntries` mirror.
 
 ---
 
 ## Generation Configuration Guardrails
 
-- **Edge Native Router**: The shared identification stack powers `/identify-multimodal` first, with `/identify` reusing the same `_shared/identify` modules for schema, moderation, and DB writes. On the vision path it immediately checks the `species_dictionary` table before deciding whether enrichment is needed.
-   - **Cache Hit**: If the species already exists in the dictionary with a valid `kingdom`, the function skips all generation loops and splices the stored data directly into the response.
-   - **Cache Miss**: If this is the first time the species is discovered globally, the active inference path performs only lightweight enrichment on the immediate response path: it fetches Wikipedia/GBIF reference metadata via `fetchExternalEnrichment` and keeps IUCN / habitat / hazard fields deferred until later cache hits or `enrich-scan`. The same external helper now returns GBIF match taxonomy so the scheduled `refresh-species-content` worker can repair stale taxonomy without a model call.
-   - **Gap-fill condition**: If a species exists in `species_dictionary` but is missing `habitat_description`, the background task fires a Flash text call to fill the field. This covers species stored before the enrichment pipeline was introduced.
-   - **Scheduled public-content refresh**: `refresh-species-content` is not part of the live inference path. It consumes `species_content_provenance` hourly and refreshes only GBIF/Wikipedia-backed public fields, leaving model-heavy fields (`habitat_description`, lookalikes, group tags, IUCN status, and hazard type) for explicit enrichment or future curation tooling.
-- **Flat Object Schema (Non-Biological Bounds)**: `getMerianResponseSchema()` in `services/supabase/functions/_shared/identify/schema.ts` returns a single flat `OBJECT` schema — not a top-level `anyOf` with discriminated branches. All biology-specific fields (`ecology_type`, `is_invasive`, `life_stage`, `reproductive_condition`, `sex`, `sex_confidence`, `sex_evidence`, `individual_count`, `ecological_interactions`) are declared with `nullable: true` and are absent from the `required` array. `scientific_name` and `common_name` are likewise `nullable: true` to support identifiable geological subjects (rocks, minerals) while permitting omission for generic debris.
-- **Two-Call Identification Architecture (Optimised TTFM)**: Every scan follows a two-stage pipeline designed for absolute lowest "Time-To-First-Meaning" (latency from shutter to first UI render):
-  1. **Vision call** (`identify-multimodal` for active app traffic): Routes to `gemini-2.5-pro` (Pro) or `gemini-2.5-flash` (free). This is the fastest, initial pass. It evaluates core identity (`scientific_name`, `common_name`, `confidence_score`, `inference_tier`, `is_biological_subject`) and instance-specific photo dependencies (`ai_reasoning`, `extracted_visual_traits`, `life_stage`, `reproductive_condition`, `sex`, `sex_confidence`, `sex_evidence`, `individual_count`, `ecology_type`, `ecological_interactions`). The model executes a "Micro-CoT" (Chain of Thought) by generating exactly 3 `extracted_visual_traits` *before* attempting classification. This ordering is strictly guaranteed by anchoring `extracted_visual_traits` and `ai_reasoning` at the top of the V8 JSON Schema object, preventing the model from committing a classification until textual evidence is written. The `is_invasive` check also securely remains here because outputting a boolean costs exactly 1 token (~10ms latency), pulling natively from the user's GPS; forcing this to a secondary text payload would incur a sequential ~500ms network penalty. Heavy structure-agnostic generation fields (`hazard_type`, `colors`, `blur_score`) were explicitly **stripped** from the Vision schema properties and prompt omissions to boost inference speed.
-     - **Structured Markdown Directives & Darwin Core Dictionary**: `getSystemInstruction()` in `services/supabase/functions/_shared/identify/schema.ts` defines instructions natively in Markdown. This serves two purposes: (1) grouping rules semantically improves LLM instruction-following versus dense paragraphs; (2) appending an extensive `Darwin Core Semantics Dictionary` block pushes the system instruction above the 1,024-token implicit caching threshold for `gemini-2.5-flash` while enforcing machine-exact semantics for DwC-A export. Key constraints include: `scientificName` must omit author citations/hybrid markers; exact phenotype boundaries for `lifeStage` (e.g. `larva` vs `nymph`), `reproductiveCondition` (e.g. `sporing`, `gravid`), and `sex` (including conservative `cannot_determine` handling); and treating fossils/preserved specimens as valid biological ID targets with `is_live_capture = false`.
-     - **Disambiguation & Confidence Calibration**: Disambiguation prefers the species with the highest documented observation frequency in the region/season at the tiebreaker level, while expressly prohibiting the inflation of `confidence_score` just because a species is seasonally expected. Explicit calibration anchors (≥0.95 = unambiguous diagnostic features visible; 0.80–0.94 = confident but similar species can't be ruled out; 0.60–0.79 = probable; <0.60 = insufficient diagnostic detail) are embedded in the `confidence_score` field description of `getMerianResponseSchema()` so the model encounters them during structured output.
-     - **`common_name` schema contract**: Defined in `services/supabase/functions/_shared/identify/schema.ts` inside the flat `OBJECT` schema as `SchemaType.STRING` with description *"Most specific, commonly recognised English name in Title Case."* It is **not** in the `required` array — it is declared `nullable: true` so the model may omit it for non-biological subjects such as generic debris, while still populating it for identifiable geological subjects (rocks, minerals). `common_name` is not persisted to `public.scans` — it is stored only in `species_dictionary.common_names` as a locale-keyed JSONB object (`{"en": "..."}`) and always sourced fresh from the vision model response on every scan. The DB value is locale storage only; the live Gemini output is always the authoritative display value.
-  2. **Enrichment Text pass** (`enrich-scan`, plus follow-up cache warming): Generates the bulky metadata. `fetchStaticEncyclopedicData` is a text-only, image-free Flash prompt used by enrichment flows to deduce `hazard_type`, generalised `colors`, `taxonomy`, `habitat_description`, and `iucn_red_list_status` without slowing the first response from `/identify-multimodal`. `gbif_taxon_key` is fetched natively from GBIF APIs and then served back on later cache hits.
-- **Tier-Based Model Selection**: The `merianResponseSchema` is applied to all requests regardless of tier. Model selection is tier-based: Pro users use `gemini-2.5-pro` for maximum identification depth (rare species, fossils, subspecies, cultivars); free users use `gemini-2.5-flash` for 2–3× lower latency. Tier is resolved via `getTierForUser()` from `_shared/tierCache.ts` (5-minute TTL worker-level cache); ghost-user upsert stays in the background task.
-- **Fossil, Geological & Non-Biological Handling**: The system instruction explicitly distinguishes liveness from biological identity. Fossils, pressed plants, museum specimens, and dried organisms are `is_biological_subject = true` with `is_live_capture = false` — they are identified to species level (e.g. "Devil's Toenail" for *Gryphaea arcuata*). Geological objects (rocks, minerals) are evaluated as `is_biological_subject = false`, but Gemini is explicitly instructed to populate their `scientific_name` and `common_name`. This "soft expansion" allows the iOS app to neatly label geological items in the UI while safely bypassing Linnean-dependent species hydration, caching, and taxonomy enrichment. Only generic non-natural debris (buildings, food, shadows) sets `is_biological_subject = false` with omitted identification names.
-- **`blur_score` Field**: Gemini's image sharpness diagnostic metric, surfaced as a `Double` in the range 0 (sharp) to 1 (very blurry). Extracted linearly from the formal required `image_quality.sharpness` encyclopedic schema matrix and mathematically derived natively within V8 inside the main edge orchestrator to bypass LLM latency loops. Mapped to `EdgeResponse.blur_score` in `InferenceEdgeDTOs.swift` and carried through to `SpeciesData.blurScore`. Populated from live inference only — `nil` for scans loaded from the local SwiftData library since it is not persisted to `LocalScanRecord`. Surfaced in `ScanScoreCallout` inside `ConfidenceExplanationSheet` as a blur advisory when the score exceeds 0.5.
-- **`image_quality` Object**: Gemini evaluates the photographic quality of each submitted image as a structured sub-object in the shared response schema (`services/supabase/functions/_shared/identify/schema.ts`). The object contains three sub-scores (each 1–10): `sharpness` (optical clarity), `framing` (subject positioning and composition), and `diagnostic_utility` (how useful the photo is for species identification), plus an `overall_score` (0–100) aggregating all three. All four fields are required in the Gemini response schema. The TypeScript interface is `ImageQuality` in `services/supabase/functions/_shared/identify/types.ts`; the Swift counterpart is the `ImageQuality` struct in `InferenceEdgeDTOs.swift` (`image_quality: ImageQuality?` on `EdgeResponse`). Only `overall_score` is persisted — to `public.scans.image_quality_score` (SMALLINT, migration `20260330150000_add_image_quality_score_to_scans.sql`) and to `LocalScanRecord.imageQualityScore` (`MerianSchemaV30`).
-- **Implicit Context Caching (Flash tier)**: Gemini 2.5 models support implicit context caching — when repeated requests share an identical prompt prefix (system instruction), Google's backend automatically serves those prefix tokens from cache at a 75% token discount with zero SDK configuration. The minimum cacheable prefix for `gemini-2.5-flash` is **1,024 tokens**. The original system instruction in `services/supabase/functions/_shared/identify/schema.ts` measured ~550 tokens, below this threshold. The expansive Markdown-formatted `Darwin Core Semantics Dictionary` block and disambiguation rules push the system prefix safely above the 1,024-token floor (~1,464–1,673 tokens post-expansion), unlocking implicit caching on every Flash scan.
-- **Token Budget (`maxOutputTokens: 2000`)**: All production Edge bindings enforce `maxOutputTokens: 2000` for the vision call. The 2000 token ceiling accommodates the flat structured JSON output while preventing runaway generation from exhausting Edge execution time limits. Raised from 1000 in the `@google/genai@1.0.0` migration after production data showed complex biological responses regularly approaching the old ceiling.
-- **Token Telemetry Tracking**: To measure AI inference costs accurately, Edge functions intercept Gemini `UsageMetadata`. The immediate identification path records the primary vision call and any synchronous group-tag work that actually runs inside that request lifecycle; deeper encyclopedic and similar-species enrichment is tracked separately by `EnrichmentCostAnalyzed` and the biology micro-agent events. All token telemetry includes the `tier` parameter to distinguish `gemini-2.5-pro` (Pro) vs `gemini-2.5-flash` (free) burn rates. The `/identify` `ScanCompleted` event also includes `llm_cached_tokens` (from `usageMetadata.cachedContentTokenCount`) to track implicit cache hit volume — a non-zero value means Google served those prefix tokens from cache at the 75% discount rate.
-- **Dynamic Diagnostic Thresholds**: The dynamic presentation of diagnostic data (e.g., lookalikes, confidence hooks, and identification candidates) is gated by the tier-specific `diagnosticTrigger`. **Canonical source of truth**: `services/supabase/functions/_shared/identify/thresholds.ts` — exports `FLASH_STRONG = 0.95`, `FLASH_POSSIBLE = 0.75`, `FLASH_DIAGNOSTIC_TRIGGER = 0.99`, `PRO_STRONG = 0.85`, `PRO_POSSIBLE = 0.65`, `PRO_DIAGNOSTIC_TRIGGER = 0.99`, and `diagnosticTriggerForTier(tier)`. The iOS client mirrors the strong/possible thresholds in `MerianConfig.flashConfidence` and `MerianConfig.proConfidence`. The diagnostic trigger (0.99 for both tiers) is intentionally above the `strong` threshold — candidates are stripped only when the model is effectively certain, ensuring every Strong, Possible, and Weak match scan reaches the client with the full candidate list as an escape hatch.
-  - **Similar species**: The enrichment path fetches or generates `similar_species` when validated lookalikes are not already cached in the database. The Swift client renders those entries with the stable "Similar species" gallery label in Insight and Explore detail. Confidence-specific uncertainty UX lives in `CandidatesCard`, not in the similar-species gallery.
-  - **Identification candidates**: `candidates` is a **required field** in `merianResponseSchema` (`schema.ts`) — Gemini always generates exactly 2 alternative species regardless of its confidence level. The `identify` `index.ts` server-side strips this array to `null` if `confidence_score >= diagnosticTrigger` *before* sending the response and before `insertScan`. This server gate is the sole enforcement mechanism; the model is not asked to conditionally self-suppress (which was unreliable). Candidates are persisted per-scan to `public.scans.candidates` (JSONB) and on-device to `LocalScanRecord.candidatesData` (Data blob, `MerianSchemaV28`). `CandidatesCard` renders the list in `BiologicalView` when `candidates.count >= 2`.
-  - **User identification review** (`MerianSchemaV29`): Users can confirm or override the AI's identification from `CandidatesCard`. The card has two distinct pending-state layouts depending on whether the model produced candidates:
-    - **With candidates** (`candidates.count >= 2`): Two buttons — **"Yes, correct"** (confirms AI result) and **"Not sure"** (expands the candidate list). After expanding, the user taps a candidate to trigger a confirmation dialog, then `applyIdentificationOverride`. An "Actually, the AI is correct" fallback button collapses the list and confirms.
-    - **Without candidates** (`candidates.isEmpty`, card shown because `hasLowConfidence`): Two buttons — **"Yes, correct"** (confirms AI result) and **"No, incorrect"** (routes directly to the flag/report sheet via the `onFlagIssue` callback wired in `BiologicalView`). This path exists because there are no alternatives to offer; the flag flow is the appropriate escape hatch so the user can indicate what they think the correct identification is.
-    - `onFlagIssue: (() -> Void)?` is an optional callback on `CandidatesCard`. `BiologicalView` sets it to `{ viewModel.isFlagIssuePresented = true }`. The parameter is optional so `CandidatesCard` can be placed in other contexts without requiring a flag route.
+- **Edge Native Router**: The shared identification stack powers
+  `/identify-multimodal` first, with `/identify` reusing the same
+  `_shared/identify` modules for schema, moderation, and DB writes. On the
+  vision path it immediately checks the `species_dictionary` table before
+  deciding whether enrichment is needed.
+  - **Cache Hit**: If the species already exists in the dictionary with a valid
+    `kingdom`, the function skips all generation loops and splices the stored
+    data directly into the response.
+  - **Cache Miss**: If this is the first time the species is discovered
+    globally, the active inference path performs only lightweight enrichment on
+    the immediate response path: it fetches Wikipedia/GBIF reference metadata
+    via `fetchExternalEnrichment` and keeps IUCN / habitat / hazard fields
+    deferred until later cache hits or `enrich-scan`. The same external helper
+    now returns GBIF match taxonomy so the scheduled `refresh-species-content`
+    worker can repair stale taxonomy without a model call.
+  - **Gap-fill condition**: If a species exists in `species_dictionary` but is
+    missing `habitat_description`, the background task fires a Flash text call
+    to fill the field. This covers species stored before the enrichment pipeline
+    was introduced.
+  - **Scheduled public-content refresh**: `refresh-species-content` is not part
+    of the live inference path. It consumes `species_content_provenance` hourly
+    and refreshes only GBIF/Wikipedia-backed public fields, leaving model-heavy
+    fields (`habitat_description`, lookalikes, group tags, IUCN status, and
+    hazard type) for explicit enrichment or future curation tooling.
+- **Flat Object Schema (Non-Biological Bounds)**: `getMerianResponseSchema()` in
+  `services/supabase/functions/_shared/identify/schema.ts` returns a single flat
+  `OBJECT` schema — not a top-level `anyOf` with discriminated branches. All
+  biology-specific fields (`ecology_type`, `is_invasive`, `life_stage`,
+  `reproductive_condition`, `sex`, `sex_confidence`, `sex_evidence`,
+  `individual_count`, `ecological_interactions`) are declared with
+  `nullable: true` and are absent from the `required` array. `scientific_name`
+  and `common_name` are likewise `nullable: true` to support identifiable
+  geological subjects (rocks, minerals) while permitting omission for generic
+  debris.
+- **Two-Call Identification Architecture (Optimised TTFM)**: Every scan follows
+  a two-stage pipeline designed for absolute lowest "Time-To-First-Meaning"
+  (latency from shutter to first UI render):
+  1. **Vision call** (`identify-multimodal` for active app traffic): Routes to
+     `gemini-2.5-pro` (Pro) or `gemini-2.5-flash` (free). This is the fastest,
+     initial pass. It evaluates core identity (`scientific_name`, `common_name`,
+     `confidence_score`, `inference_tier`, `is_biological_subject`) and
+     instance-specific photo dependencies (`ai_reasoning`,
+     `extracted_visual_traits`, `life_stage`, `reproductive_condition`, `sex`,
+     `sex_confidence`, `sex_evidence`, `individual_count`, `ecology_type`,
+     `ecological_interactions`). The model executes a "Micro-CoT" (Chain of
+     Thought) by generating exactly 3 `extracted_visual_traits` _before_
+     attempting classification. This ordering is strictly guaranteed by
+     anchoring `extracted_visual_traits` and `ai_reasoning` at the top of the V8
+     JSON Schema object, preventing the model from committing a classification
+     until textual evidence is written. The `is_invasive` check also securely
+     remains here because outputting a boolean costs exactly 1 token (~10ms
+     latency), pulling natively from the user's GPS; forcing this to a secondary
+     text payload would incur a sequential ~500ms network penalty. Heavy
+     structure-agnostic generation fields (`hazard_type`, `colors`,
+     `blur_score`) were explicitly **stripped** from the Vision schema
+     properties and prompt omissions to boost inference speed.
+     - **Structured Markdown Directives & Darwin Core Dictionary**:
+       `getSystemInstruction()` in
+       `services/supabase/functions/_shared/identify/schema.ts` defines
+       instructions natively in Markdown. This serves two purposes: (1) grouping
+       rules semantically improves LLM instruction-following versus dense
+       paragraphs; (2) appending an extensive `Darwin Core Semantics Dictionary`
+       block pushes the system instruction above the 1,024-token implicit
+       caching threshold for `gemini-2.5-flash` while enforcing machine-exact
+       semantics for DwC-A export. Key constraints include: `scientificName`
+       must omit author citations/hybrid markers; exact phenotype boundaries for
+       `lifeStage` (e.g. `larva` vs `nymph`), `reproductiveCondition` (e.g.
+       `sporing`, `gravid`), and `sex` (including conservative
+       `cannot_determine` handling); and treating fossils/preserved specimens as
+       valid biological ID targets with `is_live_capture = false`.
+     - **Disambiguation & Confidence Calibration**: Disambiguation prefers the
+       species with the highest documented observation frequency in the
+       region/season at the tiebreaker level, while expressly prohibiting the
+       inflation of `confidence_score` just because a species is seasonally
+       expected. Explicit calibration anchors (≥0.95 = unambiguous diagnostic
+       features visible; 0.80–0.94 = confident but similar species can't be
+       ruled out; 0.60–0.79 = probable; <0.60 = insufficient diagnostic detail)
+       are embedded in the `confidence_score` field description of
+       `getMerianResponseSchema()` so the model encounters them during
+       structured output.
+     - **`common_name` schema contract**: Defined in
+       `services/supabase/functions/_shared/identify/schema.ts` inside the flat
+       `OBJECT` schema as `SchemaType.STRING` with description _"Most specific,
+       commonly recognised English name in Title Case."_ It is **not** in the
+       `required` array — it is declared `nullable: true` so the model may omit
+       it for non-biological subjects such as generic debris, while still
+       populating it for identifiable geological subjects (rocks, minerals).
+       `common_name` is not persisted to `public.scans` — it is stored only in
+       `species_dictionary.common_names` as a locale-keyed JSONB object
+       (`{"en": "..."}`) and always sourced fresh from the vision model response
+       on every scan. The DB value is locale storage only; the live Gemini
+       output is always the authoritative display value.
+  2. **Enrichment Text pass** (`enrich-scan`, plus follow-up cache warming):
+     Generates the bulky metadata. `fetchStaticEncyclopedicData` is a text-only,
+     image-free Flash prompt used by enrichment flows to deduce `hazard_type`,
+     generalised `colors`, `taxonomy`, `habitat_description`, and
+     `iucn_red_list_status` without slowing the first response from
+     `/identify-multimodal`. `gbif_taxon_key` is fetched natively from GBIF APIs
+     and then served back on later cache hits.
+- **Tier-Based Model Selection**: The `merianResponseSchema` is applied to all
+  requests regardless of tier. Model selection is tier-based: effective Pro
+  users use `gemini-2.5-pro` for maximum identification depth (rare species,
+  fossils, subspecies, cultivars); effective free users use `gemini-2.5-flash`
+  for 2–3× lower latency. Tier is resolved via `resolveTierForUser()` from
+  `_shared/tierCache.ts` (5-minute TTL worker-level cache). This resolver
+  separates model choice from paid storage: paid subscribers return
+  `plan = "pro_paid"`, dynamic 7-day trial users return `plan = "pro_trial"`
+  while usually keeping raw `subscription_tier = "free"`, and expired free users
+  return `plan = "free"`.
+- **Fossil, Geological & Non-Biological Handling**: The system instruction
+  explicitly distinguishes liveness from biological identity. Fossils, pressed
+  plants, museum specimens, and dried organisms are
+  `is_biological_subject = true` with `is_live_capture = false` — they are
+  identified to species level (e.g. "Devil's Toenail" for _Gryphaea arcuata_).
+  Geological objects (rocks, minerals) are evaluated as
+  `is_biological_subject = false`, but Gemini is explicitly instructed to
+  populate their `scientific_name` and `common_name`. This "soft expansion"
+  allows the iOS app to neatly label geological items in the UI while safely
+  bypassing Linnean-dependent species hydration, caching, and taxonomy
+  enrichment. Only generic non-natural debris (buildings, food, shadows) sets
+  `is_biological_subject = false` with omitted identification names.
+- **`blur_score` Field**: Gemini's image sharpness diagnostic metric, surfaced
+  as a `Double` in the range 0 (sharp) to 1 (very blurry). Extracted linearly
+  from the formal required `image_quality.sharpness` encyclopedic schema matrix
+  and mathematically derived natively within V8 inside the main edge
+  orchestrator to bypass LLM latency loops. Mapped to `EdgeResponse.blur_score`
+  in `InferenceEdgeDTOs.swift` and carried through to `SpeciesData.blurScore`.
+  Populated from live inference only — `nil` for scans loaded from the local
+  SwiftData library since it is not persisted to `LocalScanRecord`. Surfaced in
+  `ScanScoreCallout` inside `ConfidenceExplanationSheet` as a blur advisory when
+  the score exceeds 0.5.
+- **`image_quality` Object**: Gemini evaluates the photographic quality of each
+  submitted image as a structured sub-object in the shared response schema
+  (`services/supabase/functions/_shared/identify/schema.ts`). The object
+  contains three sub-scores (each 1–10): `sharpness` (optical clarity),
+  `framing` (subject positioning and composition), and `diagnostic_utility` (how
+  useful the photo is for species identification), plus an `overall_score`
+  (0–100) aggregating all three. All four fields are required in the Gemini
+  response schema. The TypeScript interface is `ImageQuality` in
+  `services/supabase/functions/_shared/identify/types.ts`; the Swift counterpart
+  is the `ImageQuality` struct in `InferenceEdgeDTOs.swift`
+  (`image_quality: ImageQuality?` on `EdgeResponse`). Only `overall_score` is
+  persisted — to `public.scans.image_quality_score` (SMALLINT, migration
+  `20260330150000_add_image_quality_score_to_scans.sql`) and to
+  `LocalScanRecord.imageQualityScore` (`MerianSchemaV30`).
+- **Implicit Context Caching (Flash tier)**: Gemini 2.5 models support implicit
+  context caching — when repeated requests share an identical prompt prefix
+  (system instruction), Google's backend automatically serves those prefix
+  tokens from cache at a 75% token discount with zero SDK configuration. The
+  minimum cacheable prefix for `gemini-2.5-flash` is **1,024 tokens**. The
+  original system instruction in
+  `services/supabase/functions/_shared/identify/schema.ts` measured ~550 tokens,
+  below this threshold. The expansive Markdown-formatted
+  `Darwin Core Semantics Dictionary` block and disambiguation rules push the
+  system prefix safely above the 1,024-token floor (~1,464–1,673 tokens
+  post-expansion), unlocking implicit caching on every Flash scan.
+- **Token Budget (`maxOutputTokens: 2000`)**: All production Edge bindings
+  enforce `maxOutputTokens: 2000` for the vision call. The 2000 token ceiling
+  accommodates the flat structured JSON output while preventing runaway
+  generation from exhausting Edge execution time limits. Raised from 1000 in the
+  `@google/genai@1.0.0` migration after production data showed complex
+  biological responses regularly approaching the old ceiling.
+- **Token Telemetry Tracking**: To measure AI inference costs accurately, Edge
+  functions intercept Gemini `UsageMetadata`. The immediate identification path
+  records the primary vision call and any synchronous group-tag work that
+  actually runs inside that request lifecycle; deeper encyclopedic and
+  similar-species enrichment is tracked separately by `EnrichmentCostAnalyzed`
+  and the biology micro-agent events. Scan token telemetry includes
+  backward-compatible `tier` plus explicit `effective_tier`, `plan`,
+  `subscription_tier`, `trial_active`, and `llm_model` fields so
+  `gemini-2.5-pro` spend can be split between paid Pro and trial Pro. The
+  `/identify` `ScanCompleted` event also includes `llm_cached_tokens` (from
+  `usageMetadata.cachedContentTokenCount`) to track implicit cache hit volume —
+  a non-zero value means Google served those prefix tokens from cache at the 75%
+  discount rate.
+- **Dynamic Diagnostic Thresholds**: The dynamic presentation of diagnostic data
+  (e.g., lookalikes, confidence hooks, and identification candidates) is gated
+  by the tier-specific `diagnosticTrigger`. **Canonical source of truth**:
+  `services/supabase/functions/_shared/identify/thresholds.ts` — exports
+  `FLASH_STRONG = 0.95`, `FLASH_POSSIBLE = 0.75`,
+  `FLASH_DIAGNOSTIC_TRIGGER = 0.99`, `PRO_STRONG = 0.85`, `PRO_POSSIBLE = 0.65`,
+  `PRO_DIAGNOSTIC_TRIGGER = 0.99`, and `diagnosticTriggerForTier(tier)`. The iOS
+  client mirrors the strong/possible thresholds in
+  `MerianConfig.flashConfidence` and `MerianConfig.proConfidence`. The
+  diagnostic trigger (0.99 for both tiers) is intentionally above the `strong`
+  threshold — candidates are stripped only when the model is effectively
+  certain, ensuring every Strong, Possible, and Weak match scan reaches the
+  client with the full candidate list as an escape hatch.
+  - **Similar species**: The enrichment path fetches or generates
+    `similar_species` when validated lookalikes are not already cached in the
+    database. The Swift client renders those entries with the stable "Similar
+    species" gallery label in Insight and Explore detail. Confidence-specific
+    uncertainty UX lives in `CandidatesCard`, not in the similar-species
+    gallery.
+  - **Identification candidates**: `candidates` is a **required field** in
+    `merianResponseSchema` (`schema.ts`) — Gemini always generates exactly 2
+    alternative species regardless of its confidence level. The `identify`
+    `index.ts` server-side strips this array to `null` if
+    `confidence_score >= diagnosticTrigger` _before_ sending the response and
+    before `insertScan`. This server gate is the sole enforcement mechanism; the
+    model is not asked to conditionally self-suppress (which was unreliable).
+    Candidates are persisted per-scan to `public.scans.candidates` (JSONB) and
+    on-device to `LocalScanRecord.candidatesData` (Data blob,
+    `MerianSchemaV28`). `CandidatesCard` renders the list in `BiologicalView`
+    when `candidates.count >= 2`.
+  - **User identification review** (`MerianSchemaV29`): Users can confirm or
+    override the AI's identification from `CandidatesCard`. The card has two
+    distinct pending-state layouts depending on whether the model produced
+    candidates:
+    - **With candidates** (`candidates.count >= 2`): Two buttons — **"Yes,
+      correct"** (confirms AI result) and **"Not sure"** (expands the candidate
+      list). After expanding, the user taps a candidate to trigger a
+      confirmation dialog, then `applyIdentificationOverride`. An "Actually, the
+      AI is correct" fallback button collapses the list and confirms.
+    - **Without candidates** (`candidates.isEmpty`, card shown because
+      `hasLowConfidence`): Two buttons — **"Yes, correct"** (confirms AI result)
+      and **"No, incorrect"** (routes directly to the flag/report sheet via the
+      `onFlagIssue` callback wired in `BiologicalView`). This path exists
+      because there are no alternatives to offer; the flag flow is the
+      appropriate escape hatch so the user can indicate what they think the
+      correct identification is.
+    - `onFlagIssue: (() -> Void)?` is an optional callback on `CandidatesCard`.
+      `BiologicalView` sets it to `{ viewModel.isFlagIssuePresented = true }`.
+      The parameter is optional so `CandidatesCard` can be placed in other
+      contexts without requiring a flag route.
     - `InferenceEngine` exposes three methods for this flow:
-    - `applyIdentificationOverride(scientificName:modelContext:)`: Immediately wipes all stale contextual fields (`wikipediaOverview`, `referenceImageUrl`, `habitatDescription`, `gbifTaxonKey`, `similarSpecies`, etc.) and sets `userIdentificationOverride` and `scientificName` to the chosen species name in a **single full-value replacement** (`speciesData = updated`) to guarantee `@Observable` fires exactly once for the entire wipe. **Resolves the confirmed UUID asynchronously via `fetchAndPatchOverrideData` first**, then persists to `LocalScanRecord` via `BackgroundDatabaseActor.updateScanWithOverride(scanId:override:confirmed:newConfirmedSpeciesId:userReviewState:)` (passing `.userOverridden`), and syncs to `public.scans` via `syncIdentificationReviewToCloud`.
-    - `confirmAIIdentification(modelContext:)`: Sets `speciesData.userConfirmedIdentification = true`. Securely fetches the immutable native UUID from SwiftData via a localized `FetchDescriptor`, avoiding corrupted view states. Persists to `LocalScanRecord` via `updateScanWithOverride` (passing `.aiConfirmed`), and syncs all three review variables to `public.scans` via `syncIdentificationReviewToCloud`.
-    - `resetIdentificationReview(modelContext:)`: Clears both `userIdentificationOverride` and `userConfirmedIdentification`, reverts `speciesData.scientificName` to `aiScientificName`, persists locally (passing `.unreviewed`), zeros both cloud columns via `syncIdentificationReviewToCloud`, and re-hydrates the AI's original species data via `fetchAndPatchOverrideData`. Called by both Undo (from `.overridden`) and Change (from `.confirmed`).
-    - `fetchAndPatchOverrideData(scientificName:scanId:modelContext:restoringAiReasoning:)`: Queries `species_dictionary` via a PostgREST array select with `.limit(1)` and takes `.first` (the Supabase Swift SDK does not provide a `.maybeSingle()` method). On cache hit, collects all field updates — `commonName`, `insightData` (hazard type + aiReasoning), `taxonomy`, `iucnRedListStatus`, `habitatDescription`, `gbifTaxonKey`, `referenceImageUrl`, `wikipediaOverview`, `wikipediaUrl` — into a local `var updated = speciesData` copy, then commits with a single `speciesData = updated` assignment on `@MainActor`. This full-value replacement guarantees `@Observable` fires once for the entire patch; individual optional-chain mutations (`speciesData?.field = x`) do not reliably trigger observation for struct value types (see Gotcha §11 in `docs/development-guides/11-swiftdata-and-api-gotchas.md`). Also persists the same fields to `LocalScanRecord` via `BackgroundDatabaseActor.updateScanWithOverrideSpeciesData` so the data survives sheet dismissal and reopen without requiring a network call. `scientificName` is intentionally excluded from this write — `record.scientificName` is preserved as the original-AI identifier and reused as `aiScientificName`. `commonName` is resolved with locale preference matching `ScanRepository.ingestScans`: `names["en"].flatMap { $0 } ?? names.compactMap { $0.value }.first ?? scientificName`. The `restoringAiReasoning` parameter controls the `aiReasoning` field in `InsightData`: pass `nil` (default) when calling from `applyIdentificationOverride` to wipe the AI reasoning (it was written for the rejected species); pass `record.aiReasoning` when calling from `resetIdentificationReview` so the original reasoning reappears after undo. On cache miss, persists the scientific name as a `commonName` placeholder (minimum viable reopen state) and calls `fetchAndApplyEnrichment` (which uses the already-mutated `speciesData.scientificName` as the lookup key to enrich the override species).
-    - `syncIdentificationReviewToCloud(scanId:override:confirmed:confirmedSpeciesId:userReviewState:)`: Private IDOR-guarded PATCH that sends `user_identification_override`, `user_confirmed_identification`, `confirmed_species_id`, and `user_review_state` together within a single `ReviewSyncPayload` Encodable struct. Accepts nil properties (encodes as JSON null → SQL NULL). Called by `applyIdentificationOverride`, `confirmAIIdentification`, and `resetIdentificationReview`.
-  - `InferenceEngine.load(from:)` restores review state from `LocalScanRecord` on historical opens. When `userIdentificationOverride` is non-nil, two rules apply: (1) `speciesData.scientificName` is set to `userIdentificationOverride` (the override name) rather than `record.scientificName` (the original AI name), making the correct species title immediately visible without waiting for any async step; (2) `InsightData.aiReasoning` is suppressed, since the AI's vision reasoning was written for the original species and is misleading under the override name. `record.scientificName` is always used as `aiScientificName` — it is never overwritten — so `resetIdentificationReview` can recover the original name across any number of reopens. `historicHydrationTask` Step 3 still fires `fetchAndPatchOverrideData` asynchronously as a freshness refresh (re-patching the same species data from the network), but display correctness no longer depends on this call completing.
-- **Telemetry Pruning**: Legacy ephemeral fields (`cameraPitchDegrees`, `compassHeading`, `relativeHumidity`, `uvIndex`, `isFlashFired`) have been removed from the `CaptureTelemetry` JSON payload, saving hundreds of tokens per request. Schema nodes like `key_differentiators` and descriptive enum schemas inside Deno are compressed into flat string arrays. **Active telemetry fields** sent as a context string prefix to the vision prompt: `GPS` (lat/lon, range-validated), `Elev` (meters), `Depth` (scale text), `Zoom` (factor, only when >1), `Size` (subject size in cm from `estimated_size_cm` — a primary morphological discriminator for species pairs that differ primarily by size), `Loc` (semantic location name), `Wx` (weather condition), `Temp` (°F), `Locale` (device locale), `TZ` (IANA timezone), `Region` (ISO country code), `Month`, and `Time` (time of day). `estimated_size_cm` is validated as positive and finite before inclusion; the DB-level 50,000 cm cap is enforced separately at write time.
-- **Deterministic Sampling (`temperature: 0.1`, `seed: 42`, `topK: 40`)**: Both `modelConfigs.flash` and `modelConfigs.pro` set `temperature: 0.1` (very low randomness), `seed: 42` (fixed random sampler state — identical inputs produce the same token sequence across runs), and `topK: 40` (caps the candidate-token pool, narrowing the sampling distribution for borderline identifications). Together these three parameters ensure that repeated scans of the same subject converge on the same identification rather than drifting across runs due to sampling noise. Genuine uncertainty is still expressed correctly through a lower `confidence_score` and populated `candidates` array — the determinism parameters eliminate noise, not signal.
-- **Multi-Capture Context Fusion**: The `identify` Edge function accepts an array of `r2ObjectKeys: string[]`. Deno fetches R2 presigned URLs and encodes them to base64 in a single serial `for…of` loop. Each response body is consumed through `_shared/mediaBudgets.ts` capped stream readers: declared `Content-Length` is checked first, then chunks are counted as they arrive, the stream is cancelled on overflow, and the buffer is assembled only after the body stays within the aggregate 5 MB budget. The two-loop pattern previously used (a first pass checking `Content-Length` headers, a second pass consuming bodies) was eliminated because chunked transfer encoding makes `Content-Length` absent on R2 responses, allowing arbitrarily large payloads to exhaust the 256 MB Deno V8 heap before any guard fired. Serial body consumption also prevents back-pressure across V8's I/O loop when multiple bodies resolve simultaneously. The resulting base64 strings are injected as distinct `inlineData` MIME parts into the Gemini prompt, supporting macro shots alongside wider environmental images.
-- **Base64 Payload Guard**: Before the R2 fetch loop, the Edge function validates that the incoming `imageBase64s` array has no more than 5 entries and that the total base64 byte length does not exceed 7 MB (≈ 5 MB raw). Requests violating either bound are rejected with `HTTP 400` / `HTTP 413` before any I/O runs, protecting Deno memory and Gemini quota.
-- **Background Ingestion Dead-Letter Logging**: The `runBackground` task that handles moderation, enrichment, and Postgres UPSERTs wraps its work in a structured `try/catch`. On failure, a JSON-structured log line is emitted via `console.error` including `event`, `user_id`, `scan_id`, `error`, and `ts` fields. This replaces the previous silent swallow of background errors and makes failures observable in Supabase Edge Function logs without exposing internals to the client.
-- **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client (from `@google/genai@1.0.0`) is instantiated once at module scope (`_genAI`) in `_shared/gemini.ts` and imported by `identify`, `enrich-scan`, and `_shared/diagnostic.ts`. Deno reuses the same V8 isolate across warm invocations, so a module-scope singleton avoids re-creating the SDK object and its internal HTTP pool on every request. `createFlashModel(systemInstruction, maxOutputTokens)` is a shared factory for all Flash-only background calls (encyclopedic data, group tags, diagnostic comparison, enrichment); it returns the **native `@google/genai` `GenerateContentResponse`** directly — callers access `result.text` and `result.usageMetadata` without any `.response` wrapper. The old compatibility shim that normalised to `{ response: { text: () => string, usageMetadata } }` has been removed now that all callers (`biology.ts`) are updated to the native SDK shape. Generation config is passed as `config:` (not `generationConfig:`). `extractJson<T>(text)` centralises the `indexOf`/`lastIndexOf` JSON extraction pattern that Gemini occasionally requires even with `responseMimeType: "application/json"`.
-- **Vision Model Safety Settings**: Both `modelConfigs.flash` and `modelConfigs.pro` in `identify/index.ts` include a shared `BIOLOGICAL_SAFETY_SETTINGS` array that relaxes two harm categories to `BLOCK_ONLY_HIGH`: `HARM_CATEGORY_DANGEROUS_CONTENT` (venomous animals, dead specimens, parasites, wounds trigger false positives at the default `BLOCK_MEDIUM_AND_ABOVE`) and `HARM_CATEGORY_SEXUALLY_EXPLICIT` (mating behaviour, reproductive organs, fruiting bodies). `HARM_CATEGORY_HARASSMENT` and `HARM_CATEGORY_HATE_SPEECH` remain at defaults — they are not relevant to biological photography. `BLOCK_ONLY_HIGH` passes all legitimate field-biology content while still blocking unambiguously harmful material.
+    - `applyIdentificationOverride(scientificName:modelContext:)`: Immediately
+      wipes all stale contextual fields (`wikipediaOverview`,
+      `referenceImageUrl`, `habitatDescription`, `gbifTaxonKey`,
+      `similarSpecies`, etc.) and sets `userIdentificationOverride` and
+      `scientificName` to the chosen species name in a **single full-value
+      replacement** (`speciesData = updated`) to guarantee `@Observable` fires
+      exactly once for the entire wipe. **Resolves the confirmed UUID
+      asynchronously via `fetchAndPatchOverrideData` first**, then persists to
+      `LocalScanRecord` via
+      `BackgroundDatabaseActor.updateScanWithOverride(scanId:override:confirmed:newConfirmedSpeciesId:userReviewState:)`
+      (passing `.userOverridden`), and syncs to `public.scans` via
+      `syncIdentificationReviewToCloud`.
+    - `confirmAIIdentification(modelContext:)`: Sets
+      `speciesData.userConfirmedIdentification = true`. Securely fetches the
+      immutable native UUID from SwiftData via a localized `FetchDescriptor`,
+      avoiding corrupted view states. Persists to `LocalScanRecord` via
+      `updateScanWithOverride` (passing `.aiConfirmed`), and syncs all three
+      review variables to `public.scans` via `syncIdentificationReviewToCloud`.
+    - `resetIdentificationReview(modelContext:)`: Clears both
+      `userIdentificationOverride` and `userConfirmedIdentification`, reverts
+      `speciesData.scientificName` to `aiScientificName`, persists locally
+      (passing `.unreviewed`), zeros both cloud columns via
+      `syncIdentificationReviewToCloud`, and re-hydrates the AI's original
+      species data via `fetchAndPatchOverrideData`. Called by both Undo (from
+      `.overridden`) and Change (from `.confirmed`).
+    - `fetchAndPatchOverrideData(scientificName:scanId:modelContext:restoringAiReasoning:)`:
+      Queries `species_dictionary` via a PostgREST array select with `.limit(1)`
+      and takes `.first` (the Supabase Swift SDK does not provide a
+      `.maybeSingle()` method). On cache hit, collects all field updates —
+      `commonName`, `insightData` (hazard type + aiReasoning), `taxonomy`,
+      `iucnRedListStatus`, `habitatDescription`, `gbifTaxonKey`,
+      `referenceImageUrl`, `wikipediaOverview`, `wikipediaUrl` — into a local
+      `var updated = speciesData` copy, then commits with a single
+      `speciesData = updated` assignment on `@MainActor`. This full-value
+      replacement guarantees `@Observable` fires once for the entire patch;
+      individual optional-chain mutations (`speciesData?.field = x`) do not
+      reliably trigger observation for struct value types (see Gotcha §11 in
+      `docs/development-guides/11-swiftdata-and-api-gotchas.md`). Also persists
+      the same fields to `LocalScanRecord` via
+      `BackgroundDatabaseActor.updateScanWithOverrideSpeciesData` so the data
+      survives sheet dismissal and reopen without requiring a network call.
+      `scientificName` is intentionally excluded from this write —
+      `record.scientificName` is preserved as the original-AI identifier and
+      reused as `aiScientificName`. `commonName` is resolved with locale
+      preference matching `ScanRepository.ingestScans`:
+      `names["en"].flatMap { $0 } ?? names.compactMap { $0.value }.first ?? scientificName`.
+      The `restoringAiReasoning` parameter controls the `aiReasoning` field in
+      `InsightData`: pass `nil` (default) when calling from
+      `applyIdentificationOverride` to wipe the AI reasoning (it was written for
+      the rejected species); pass `record.aiReasoning` when calling from
+      `resetIdentificationReview` so the original reasoning reappears after
+      undo. On cache miss, persists the scientific name as a `commonName`
+      placeholder (minimum viable reopen state) and calls
+      `fetchAndApplyEnrichment` (which uses the already-mutated
+      `speciesData.scientificName` as the lookup key to enrich the override
+      species).
+    - `syncIdentificationReviewToCloud(scanId:override:confirmed:confirmedSpeciesId:userReviewState:)`:
+      Private IDOR-guarded PATCH that sends `user_identification_override`,
+      `user_confirmed_identification`, `confirmed_species_id`, and
+      `user_review_state` together within a single `ReviewSyncPayload` Encodable
+      struct. Accepts nil properties (encodes as JSON null → SQL NULL). Called
+      by `applyIdentificationOverride`, `confirmAIIdentification`, and
+      `resetIdentificationReview`.
+  - `InferenceEngine.load(from:)` restores review state from `LocalScanRecord`
+    on historical opens. When `userIdentificationOverride` is non-nil, two rules
+    apply: (1) `speciesData.scientificName` is set to
+    `userIdentificationOverride` (the override name) rather than
+    `record.scientificName` (the original AI name), making the correct species
+    title immediately visible without waiting for any async step; (2)
+    `InsightData.aiReasoning` is suppressed, since the AI's vision reasoning was
+    written for the original species and is misleading under the override name.
+    `record.scientificName` is always used as `aiScientificName` — it is never
+    overwritten — so `resetIdentificationReview` can recover the original name
+    across any number of reopens. `historicHydrationTask` Step 3 still fires
+    `fetchAndPatchOverrideData` asynchronously as a freshness refresh
+    (re-patching the same species data from the network), but display
+    correctness no longer depends on this call completing.
+- **Telemetry Pruning**: Legacy ephemeral fields (`cameraPitchDegrees`,
+  `compassHeading`, `relativeHumidity`, `uvIndex`, `isFlashFired`) have been
+  removed from the `CaptureTelemetry` JSON payload, saving hundreds of tokens
+  per request. Schema nodes like `key_differentiators` and descriptive enum
+  schemas inside Deno are compressed into flat string arrays. **Active telemetry
+  fields** sent as a context string prefix to the vision prompt: `GPS` (lat/lon,
+  range-validated), `Elev` (meters), `Depth` (scale text), `Zoom` (factor, only
+  when >1), `Size` (subject size in cm from `estimated_size_cm` — a primary
+  morphological discriminator for species pairs that differ primarily by size),
+  `Loc` (semantic location name), `Wx` (weather condition), `Temp` (°F),
+  `Locale` (device locale), `TZ` (IANA timezone), `Region` (ISO country code),
+  `Month`, and `Time` (time of day). `estimated_size_cm` is validated as
+  positive and finite before inclusion; the DB-level 50,000 cm cap is enforced
+  separately at write time.
+- **Deterministic Sampling (`temperature: 0.1`, `seed: 42`, `topK: 40`)**: Both
+  `modelConfigs.flash` and `modelConfigs.pro` set `temperature: 0.1` (very low
+  randomness), `seed: 42` (fixed random sampler state — identical inputs produce
+  the same token sequence across runs), and `topK: 40` (caps the candidate-token
+  pool, narrowing the sampling distribution for borderline identifications).
+  Together these three parameters ensure that repeated scans of the same subject
+  converge on the same identification rather than drifting across runs due to
+  sampling noise. Genuine uncertainty is still expressed correctly through a
+  lower `confidence_score` and populated `candidates` array — the determinism
+  parameters eliminate noise, not signal.
+- **Multi-Capture Context Fusion**: The `identify` Edge function accepts an
+  array of `r2ObjectKeys: string[]`. Deno fetches R2 presigned URLs and encodes
+  them to base64 in a single serial `for…of` loop. Each response body is
+  consumed through `_shared/mediaBudgets.ts` capped stream readers: declared
+  `Content-Length` is checked first, then chunks are counted as they arrive, the
+  stream is cancelled on overflow, and the buffer is assembled only after the
+  body stays within the aggregate 5 MB budget. The two-loop pattern previously
+  used (a first pass checking `Content-Length` headers, a second pass consuming
+  bodies) was eliminated because chunked transfer encoding makes
+  `Content-Length` absent on R2 responses, allowing arbitrarily large payloads
+  to exhaust the 256 MB Deno V8 heap before any guard fired. Serial body
+  consumption also prevents back-pressure across V8's I/O loop when multiple
+  bodies resolve simultaneously. The resulting base64 strings are injected as
+  distinct `inlineData` MIME parts into the Gemini prompt, supporting macro
+  shots alongside wider environmental images.
+- **Base64 Payload Guard**: Before the R2 fetch loop, the Edge function
+  validates that the incoming `imageBase64s` array has no more than 5 entries
+  and that the total base64 byte length does not exceed 7 MB (≈ 5 MB raw).
+  Requests violating either bound are rejected with `HTTP 400` / `HTTP 413`
+  before any I/O runs, protecting Deno memory and Gemini quota.
+- **Background Ingestion Dead-Letter Logging**: The `runBackground` task that
+  handles moderation, enrichment, and Postgres UPSERTs wraps its work in a
+  structured `try/catch`. On failure, a JSON-structured log line is emitted via
+  `console.error` including `event`, `user_id`, `scan_id`, `error`, and `ts`
+  fields. This replaces the previous silent swallow of background errors and
+  makes failures observable in Supabase Edge Function logs without exposing
+  internals to the client.
+- **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client
+  (from `@google/genai@1.0.0`) is instantiated once at module scope (`_genAI`)
+  in `_shared/gemini.ts` and imported by `identify`, `enrich-scan`, and
+  `_shared/diagnostic.ts`. Deno reuses the same V8 isolate across warm
+  invocations, so a module-scope singleton avoids re-creating the SDK object and
+  its internal HTTP pool on every request.
+  `createFlashModel(systemInstruction, maxOutputTokens)` is a shared factory for
+  all Flash-only background calls (encyclopedic data, group tags, diagnostic
+  comparison, enrichment); it returns the **native `@google/genai`
+  `GenerateContentResponse`** directly — callers access `result.text` and
+  `result.usageMetadata` without any `.response` wrapper. The old compatibility
+  shim that normalised to `{ response: { text: () => string, usageMetadata } }`
+  has been removed now that all callers (`biology.ts`) are updated to the native
+  SDK shape. Generation config is passed as `config:` (not `generationConfig:`).
+  `extractJson<T>(text)` centralises the `indexOf`/`lastIndexOf` JSON extraction
+  pattern that Gemini occasionally requires even with
+  `responseMimeType: "application/json"`.
+- **Vision Model Safety Settings**: Both `modelConfigs.flash` and
+  `modelConfigs.pro` in `identify/index.ts` include a shared
+  `BIOLOGICAL_SAFETY_SETTINGS` array that relaxes two harm categories to
+  `BLOCK_ONLY_HIGH`: `HARM_CATEGORY_DANGEROUS_CONTENT` (venomous animals, dead
+  specimens, parasites, wounds trigger false positives at the default
+  `BLOCK_MEDIUM_AND_ABOVE`) and `HARM_CATEGORY_SEXUALLY_EXPLICIT` (mating
+  behaviour, reproductive organs, fruiting bodies). `HARM_CATEGORY_HARASSMENT`
+  and `HARM_CATEGORY_HATE_SPEECH` remain at defaults — they are not relevant to
+  biological photography. `BLOCK_ONLY_HIGH` passes all legitimate field-biology
+  content while still blocking unambiguously harmful material.
 
 ## On-Device Pre-Classification & Scanning Phase UX
 
-While the Edge inference round-trip runs, `InferenceEngine` runs a lightweight on-device Vision pre-classification pass to drive `scanningPhaseText` in `AnalyzingContentView`.
+While the Edge inference round-trip runs, `InferenceEngine` runs a lightweight
+on-device Vision pre-classification pass to drive `scanningPhaseText` in
+`AnalyzingContentView`.
 
 ### Current Pipeline
 
-`classifySubjectLocally(from:)` is owned by a tracked `localClassificationTask` tied to the current `activeScanId`:
+`classifySubjectLocally(from:)` is owned by a tracked `localClassificationTask`
+tied to the current `activeScanId`:
 
-1. Start a generic fallback phrase rotation immediately so the badge is never empty.
+1. Start a generic fallback phrase rotation immediately so the badge is never
+   empty.
 2. Fire a light-impact haptic when local classification begins.
-3. Run a detached `VNClassifyImageRequest` against a 512 px downsampled `CGImage`.
-4. If the top observation clears both the confidence and margin thresholds, swap the badge to a subject-specific phrase series for the same scan.
-5. If the scan changed or was cancelled before Vision completed, discard the result instead of mutating the next scan’s UI.
+3. Run a detached `VNClassifyImageRequest` against a 512 px downsampled
+   `CGImage`.
+4. If the top observation clears both the confidence and margin thresholds, swap
+   the badge to a subject-specific phrase series for the same scan.
+5. If the scan changed or was cancelled before Vision completed, discard the
+   result instead of mutating the next scan’s UI.
 
 ### Subject-Specific Series Qualification
 
 A specific phrase series is only activated if all three conditions are met:
 
-1. **Confidence threshold** — the top `VNClassificationObservation` must score ≥ 0.65 (`MerianConfig.visionConfidenceThreshold`)
-2. **Margin guard** — the top observation must lead the second-best by ≥ 0.15 (`MerianConfig.visionMarginThreshold`); split/ambiguous results stay on the generic series
-3. **Identity guard** — `activeScanId` must still match the scan that launched the Vision task when the result returns
+1. **Confidence threshold** — the top `VNClassificationObservation` must score ≥
+   0.65 (`MerianConfig.visionConfidenceThreshold`)
+2. **Margin guard** — the top observation must lead the second-best by ≥ 0.15
+   (`MerianConfig.visionMarginThreshold`); split/ambiguous results stay on the
+   generic series
+3. **Identity guard** — `activeScanId` must still match the scan that launched
+   the Vision task when the result returns
 
 ### Phrase Format
 
-All phrases use a verb-prefix format to describe active analysis: openers ("Arthropod detected") and closers ("Confirming species...") are kept as-is; all middle phrases use "Analyzing …" for morphological examination (e.g. "Analyzing wing venation", "Analyzing skin texture") and "Checking …" for record/database lookups (e.g. "Checking eBird records", "Checking herpetology records"). `ConfidenceBadge` auto-appends `...` to any phrase not already ending with one.
+All phrases use a verb-prefix format to describe active analysis: openers
+("Arthropod detected") and closers ("Confirming species...") are kept as-is; all
+middle phrases use "Analyzing …" for morphological examination (e.g. "Analyzing
+wing venation", "Analyzing skin texture") and "Checking …" for record/database
+lookups (e.g. "Checking eBird records", "Checking herpetology records").
+`ConfidenceBadge` auto-appends `...` to any phrase not already ending with one.
 
 ### Phrase Cycling & Freshness
 
-`startPhaseRotation` owns a cancellable `phaseRotationTask`. Generic phrases are shuffled on each scan (with "Scanning subject..." anchored first) so frequent users do not memorise the sequence, and subject-specific phrases take over only when Vision produced a confident category.
+`startPhaseRotation` owns a cancellable `phaseRotationTask`. Generic phrases are
+shuffled on each scan (with "Scanning subject..." anchored first) so frequent
+users do not memorise the sequence, and subject-specific phrases take over only
+when Vision produced a confident category.
 
 ### Haptics & Debug Simulation
 
 - Local classification start fires `triggerLightImpact(intensity: 0.3)`.
 - Phrase rotation remains cancellable with scan lifecycle changes.
-- `simulateAnalyzing()` now seeds only the phrase rotation, not a separate Vision analysis paragraph.
+- `simulateAnalyzing()` now seeds only the phrase rotation, not a separate
+  Vision analysis paragraph.
 
 ### Supported Categories
 
-Subject-specific series exist for: birds, insects/arthropods, arachnids, fungi/lichen, flowering plants, trees/conifers, cacti/succulents, general plants, reptiles, amphibians, fish, and mammals. Each series is 8 phrases long. Unrecognised or low-confidence subjects fall through to the generic series.
+Subject-specific series exist for: birds, insects/arthropods, arachnids,
+fungi/lichen, flowering plants, trees/conifers, cacti/succulents, general
+plants, reptiles, amphibians, fish, and mammals. Each series is 8 phrases long.
+Unrecognised or low-confidence subjects fall through to the generic series.
 
 ---
 
 ## Inference Latency Optimisations
 
-The following changes were made to minimise the time between shutter press and insight sheet display.
+The following changes were made to minimise the time between shutter press and
+insight sheet display.
 
 ### iOS Critical Path
 
-- **Connection + auth pre-warm** (`CaptureWorkspaceViewModel.init`): A background task calls `SupabaseManager.shared.getValidAuthHeaders()` the moment `CaptureWorkspaceViewModel` is initialised — before the user composes a shot. This opens the persistent HTTPS connection to Supabase and refreshes the JWT if near expiry, eliminating TCP/TLS handshake latency (~200–400ms) and token refresh latency from the scan submission path.
-- **Redundant `MainActor.run` removal** (`InferenceEngine.swift`): Post-inference state commits (gamification, awards, image paths, `speciesData`, push notification check) previously had three separate `await MainActor.run` suspension points. Since `inferenceTask` is created on `@MainActor` and returns there after each off-actor `await`, those closures already execute on main — the explicit hops were no-ops that introduced unnecessary task suspension points. All post-inference work is now inlined.
-- **base64 encoding priority** (`InferenceProcessingActor`): Multi-image base64 encoding uses `withTaskGroup` at `.userInitiated` priority so the CPU-bound work is not deprioritized behind background system tasks on a loaded device.
-- **Inference request timeout 90s** (`MerianNetworkClient.identifyMultiModal` / `buildMultiModalRequest(...)`): The `URLRequest.timeoutInterval` for inference calls was raised from 30s (the shared default) to 90s, matching `timeoutIntervalForResource`. `gemini-2.5-pro` responses can reach 25–30s on slow connections; the previous 30s idle-timeout margin was too thin.
-- **5xx retry** (`MerianNetworkClient`): A single retry after a 2s pause on HTTP 5xx responses absorbs transient Edge Function cold-start failures and momentary Deno isolate errors that would otherwise surface to the user as "Network Timeout".
-- **Tier-conditional inference resolution** (`MerianConfig.inferenceImageMaxSize(isProActive:)`): Flash/free-tier captures are downsampled to **768 px** (single Gemini vision tile, ~258 input tokens); Pro captures are downsampled to **1024 px** (four tiles, ~1032 tokens). This reduces vision input-token cost by ~75% for free users with negligible accuracy impact for common-species macro-feature identification. Pro resolution is preserved to support the fine morphological detail required for subspecies and cultivar discrimination. `diContainer.revenueCatManager.isProActive` is evaluated at the capture boundary — before encoding — in both `Capture.swift` (camera shutter) and `CaptureWorkspaceViewModel.swift` (gallery picker), so the image is already correctly sized before the Edge function receives it.
-- **Image compression quality 0.85** (`MerianConfig.imageCompressionQuality`): Raised from 0.80 to preserve fine morphological detail (feather barbs, insect wing venation, leaf margins) that influences AI identification accuracy. File size increase is ~10–15%, well within the 5 MB payload limit.
+- **Connection + auth pre-warm** (`CaptureWorkspaceViewModel.init`): A
+  background task calls `SupabaseManager.shared.getValidAuthHeaders()` the
+  moment `CaptureWorkspaceViewModel` is initialised — before the user composes a
+  shot. This opens the persistent HTTPS connection to Supabase and refreshes the
+  JWT if near expiry, eliminating TCP/TLS handshake latency (~200–400ms) and
+  token refresh latency from the scan submission path.
+- **Redundant `MainActor.run` removal** (`InferenceEngine.swift`):
+  Post-inference state commits (gamification, awards, image paths,
+  `speciesData`, push notification check) previously had three separate
+  `await MainActor.run` suspension points. Since `inferenceTask` is created on
+  `@MainActor` and returns there after each off-actor `await`, those closures
+  already execute on main — the explicit hops were no-ops that introduced
+  unnecessary task suspension points. All post-inference work is now inlined.
+- **base64 encoding priority** (`InferenceProcessingActor`): Multi-image base64
+  encoding uses `withTaskGroup` at `.userInitiated` priority so the CPU-bound
+  work is not deprioritized behind background system tasks on a loaded device.
+- **Inference request timeout 90s** (`MerianNetworkClient.identifyMultiModal` /
+  `buildMultiModalRequest(...)`): The `URLRequest.timeoutInterval` for inference
+  calls was raised from 30s (the shared default) to 90s, matching
+  `timeoutIntervalForResource`. `gemini-2.5-pro` responses can reach 25–30s on
+  slow connections; the previous 30s idle-timeout margin was too thin.
+- **5xx retry** (`MerianNetworkClient`): A single retry after a 2s pause on HTTP
+  5xx responses absorbs transient Edge Function cold-start failures and
+  momentary Deno isolate errors that would otherwise surface to the user as
+  "Network Timeout".
+- **Tier-conditional inference resolution**
+  (`MerianConfig.inferenceImageMaxSize(isProActive:)`): Flash/free-tier captures
+  are downsampled to **768 px** (single Gemini vision tile, ~258 input tokens);
+  Pro captures are downsampled to **1024 px** (four tiles, ~1032 tokens). This
+  reduces vision input-token cost by ~75% for free users with negligible
+  accuracy impact for common-species macro-feature identification. Pro
+  resolution is preserved to support the fine morphological detail required for
+  subspecies and cultivar discrimination.
+  `diContainer.revenueCatManager.isProActive` is evaluated at the capture
+  boundary — before encoding — in both `Capture.swift` (camera shutter) and
+  `CaptureWorkspaceViewModel.swift` (gallery picker), so the image is already
+  correctly sized before the Edge function receives it.
+- **Image compression quality 0.85** (`MerianConfig.imageCompressionQuality`):
+  Raised from 0.80 to preserve fine morphological detail (feather barbs, insect
+  wing venation, leaf margins) that influences AI identification accuracy. File
+  size increase is ~10–15%, well within the 5 MB payload limit.
 
 ### Edge Function Critical Path
 
-- **Lightweight critical-path tier SELECT**: A single `SELECT subscription_tier` runs before the Gemini call to determine which model to use (Pro → `gemini-2.5-pro`, free → `gemini-2.5-flash`). Ghost-user upsert stays in the background task. The SELECT is skipped on cache hit.
-- **Worker-level tier cache** (`_shared/tierCache.ts`): A module-scope `Map<userId, { tier, ts }>` with a 5-minute TTL persists across warm Deno isolate re-use via `getTierForUser()`. Cache hits are near-instant on both the critical path and the background task. Ghost users are intentionally not cached by `getTierForUser` so that `hasTierCached()` returns `false` in the background task, triggering the `users` table upsert before the `scans` FK insert. After the upsert, `setTierCache()` writes the entry explicitly.
-- **System instruction structured via Markdown**: The instruction was migrated from a dense single paragraph to structured hierarchical Markdown headers (`# Subject Liveness & Status`, `# Identification Rules`, etc.). This dramatically improves instruction-following and TTFM alignment natively within Gemini's attention mechanisms.
+- **Lightweight critical-path tier SELECT**: A single
+  `SELECT subscription_tier, created_at` runs before the Gemini call when the
+  warm-isolate cache misses. It determines the effective model (Pro →
+  `gemini-2.5-pro`, free → `gemini-2.5-flash`) and the telemetry plan
+  (`pro_paid`, `pro_trial`, or `free`). Ghost-user upsert stays in the
+  background task. The SELECT is skipped on cache hit.
+- **Worker-level tier cache** (`_shared/tierCache.ts`): A module-scope
+  `Map<userId, { resolution, ts }>` with a 5-minute TTL persists across warm
+  Deno isolate re-use via `resolveTierForUser()`. Cache hits are near-instant on
+  both the critical path and the background task. Ghost users are cached as
+  trial Pro with `user_exists = false`, then the background upsert creates the
+  raw free user row and rewrites the cache to a normal trial resolution. This
+  avoids first-scan ghosts being downgraded to cached free while keeping paid
+  `subscription_tier` changes owned by RevenueCat webhook events.
+- **System instruction structured via Markdown**: The instruction was migrated
+  from a dense single paragraph to structured hierarchical Markdown headers
+  (`# Subject Liveness & Status`, `# Identification Rules`, etc.). This
+  dramatically improves instruction-following and TTFM alignment natively within
+  Gemini's attention mechanisms.
 
 ### Benchmark Timing
 
 `[⏱ BENCH]` timing markers are emitted at each stage:
 
-**iOS (`MerianLog.general.debug`)** — visible in Xcode console (filter: `⏱ BENCH`) and Console.app:
+**iOS (`MerianLog.general.debug`)** — visible in Xcode console (filter:
+`⏱ BENCH`) and Console.app:
+
 ```
 [⏱ BENCH] Pre-flight (encode+auth): 0.052s
 [⏱ BENCH] Post-flight (parse+save+state): 0.087s
 [⏱ BENCH] Total pipeline: 4.123s
 ```
 
-**Edge Function (`console.log`)** — visible in Supabase Dashboard → Edge Functions → identify → Logs:
+**Edge Function (`console.log`)** — visible in Supabase Dashboard → Edge
+Functions → identify → Logs:
+
 ```
 [⏱ BENCH] payload_resolved: 12ms
 [⏱ BENCH] pre_gemini: 14ms
@@ -229,4 +938,6 @@ The following changes were made to minimise the time between shutter press and i
 [⏱ BENCH] total_to_response: 4218ms
 ```
 
-Tier resolution now emits no separate bench log — on a cache hit it is effectively free; on a cache miss the SELECT completes before `pre_gemini` fires and its latency is absorbed into the `payload_resolved → pre_gemini` gap.
+Tier resolution now emits no separate bench log — on a cache hit it is
+effectively free; on a cache miss the SELECT completes before `pre_gemini` fires
+and its latency is absorbed into the `payload_resolved → pre_gemini` gap.

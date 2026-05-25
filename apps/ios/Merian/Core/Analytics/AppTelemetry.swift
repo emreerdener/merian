@@ -34,8 +34,23 @@ enum AppTelemetry {
     // MARK: - Scan Events
 
     /// Records a completed scan.
-    static func trackScan(isPro: Bool) {
-        send("ScanCompleted", with: ["tier": isPro ? "Pro" : "Free"])
+    static func trackScan(isPro: Bool, isSubscribed: Bool, inferenceTier: String? = nil) {
+        send("ScanCompleted", with: scanTelemetryParameters(
+            isPro: isPro,
+            isSubscribed: isSubscribed,
+            inferenceTier: inferenceTier
+        ))
+    }
+
+    static func scanTelemetryParameters(isPro: Bool, isSubscribed: Bool, inferenceTier: String? = nil) -> [String: String] {
+        let normalizedInferenceTier = inferenceTier?.lowercased()
+        let usedProModel = normalizedInferenceTier == "pro" || (normalizedInferenceTier == nil && isPro)
+        let plan = usedProModel ? (isSubscribed ? "pro_paid" : "pro_trial") : "free"
+        return [
+            "tier": usedProModel ? "Pro" : "Free",
+            "plan": plan,
+            "inferenceTier": normalizedInferenceTier ?? (usedProModel ? "pro" : "flash")
+        ]
     }
 
     /// Records a new species discovery.

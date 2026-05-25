@@ -11,8 +11,9 @@ final class AppTelemetryTests: XCTestCase {
     }
 
     func testAllTrackMethodsDoNotCrash() {
-        AppTelemetry.trackScan(isPro: true)
-        AppTelemetry.trackScan(isPro: false)
+        AppTelemetry.trackScan(isPro: true, isSubscribed: true, inferenceTier: "pro")
+        AppTelemetry.trackScan(isPro: true, isSubscribed: false, inferenceTier: "pro")
+        AppTelemetry.trackScan(isPro: false, isSubscribed: false, inferenceTier: "flash")
         AppTelemetry.trackNewDiscovery(isPro: true)
         AppTelemetry.trackNewDiscovery(isPro: false)
         AppTelemetry.trackPaywallImpression()
@@ -33,5 +34,20 @@ final class AppTelemetryTests: XCTestCase {
 
     func testIsInitializedAfterSetUp() {
         XCTAssertTrue(AppTelemetry.isInitialized, "setUp() must call initialize() so track methods are not silently no-oped")
+    }
+
+    func testScanTelemetryParametersDistinguishPaidTrialAndFree() {
+        XCTAssertEqual(
+            AppTelemetry.scanTelemetryParameters(isPro: true, isSubscribed: true, inferenceTier: "pro"),
+            ["tier": "Pro", "plan": "pro_paid", "inferenceTier": "pro"]
+        )
+        XCTAssertEqual(
+            AppTelemetry.scanTelemetryParameters(isPro: true, isSubscribed: false, inferenceTier: "pro"),
+            ["tier": "Pro", "plan": "pro_trial", "inferenceTier": "pro"]
+        )
+        XCTAssertEqual(
+            AppTelemetry.scanTelemetryParameters(isPro: true, isSubscribed: true, inferenceTier: "flash"),
+            ["tier": "Free", "plan": "free", "inferenceTier": "flash"]
+        )
     }
 }

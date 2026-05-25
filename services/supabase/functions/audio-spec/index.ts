@@ -8,7 +8,10 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
-import { getTierForUser } from "../_shared/tierCache.ts";
+import {
+  resolveTierForUser,
+  tierTelemetryProperties,
+} from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
@@ -115,7 +118,9 @@ const audioSchema: Record<string, unknown> = {
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
-    const bodyReadResult = await readRequestJsonWithinBudget<Record<string, any>>(
+    const bodyReadResult = await readRequestJsonWithinBudget<
+      Record<string, any>
+    >(
       req,
       MEDIA_BUDGETS.maxAudioJsonBodyBytes,
     );
@@ -215,7 +220,8 @@ serve((req: Request) =>
     }
 
     // 4. Resolve user tier for PostHog tracking (non-blocking, cached after first scan)
-    const userTier = await getTierForUser(user.id, supabaseAdmin);
+    const tierResolution = await resolveTierForUser(user.id, supabaseAdmin);
+    const userTier = tierResolution.effective_tier;
 
     // 5. Call Gemini with audio inline data
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
@@ -606,6 +612,7 @@ serve((req: Request) =>
         trackPostHogEvent(user, "AudioScanCompleted", {
           is_biological_subject: parsedData.is_biological_subject,
           tier: userTier,
+          ...tierTelemetryProperties(tierResolution),
           llm_model: "gemini-2.5-flash",
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,

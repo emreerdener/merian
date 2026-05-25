@@ -10,8 +10,33 @@
 // Since we cannot control Date.now() from outside the module, these tests
 // focus on the capacity-eviction path (pass 2) where all entries are fresh.
 
-import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { setTierCache, hasTierCached } from "./tierCache.ts";
+import {
+  assert,
+  assertEquals,
+} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import {
+  getCachedTierResolution,
+  getTierForUser,
+  hasTierCached,
+  resolveTierForUser,
+  setTierCache,
+} from "./tierCache.ts";
+
+function mockSupabase(row: Record<string, unknown> | null) {
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => Promise.resolve({ data: row }),
+        }),
+      }),
+    }),
+  };
+}
+
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
 
 // ---------------------------------------------------------------------------
 // Basic set / get contract
@@ -20,12 +45,20 @@ import { setTierCache, hasTierCached } from "./tierCache.ts";
 Deno.test("setTierCache + hasTierCached: entry is present immediately after set", () => {
   const userId = `tier_test_basic_${crypto.randomUUID()}`;
   setTierCache(userId, "pro");
-  assertEquals(hasTierCached(userId), true, "Entry must be present immediately after setTierCache");
+  assertEquals(
+    hasTierCached(userId),
+    true,
+    "Entry must be present immediately after setTierCache",
+  );
 });
 
 Deno.test("hasTierCached returns false for unknown user", () => {
   const userId = `tier_test_unknown_${crypto.randomUUID()}`;
-  assertEquals(hasTierCached(userId), false, "Unknown user must not be in cache");
+  assertEquals(
+    hasTierCached(userId),
+    false,
+    "Unknown user must not be in cache",
+  );
 });
 
 Deno.test("setTierCache can overwrite an existing entry", () => {
@@ -34,6 +67,79 @@ Deno.test("setTierCache can overwrite an existing entry", () => {
   setTierCache(userId, "pro");
   // Still in cache after overwrite
   assertEquals(hasTierCached(userId), true, "Entry must survive an overwrite");
+});
+
+Deno.test("resolveTierForUser: paid pro resolves pro_paid", async () => {
+  const userId = `tier_test_paid_${crypto.randomUUID()}`;
+  const resolution = await resolveTierForUser(
+    userId,
+    mockSupabase({
+      subscription_tier: "pro",
+      created_at: isoDaysAgo(20),
+    }) as never,
+  );
+  assertEquals(resolution.effective_tier, "pro");
+  assertEquals(resolution.plan, "pro_paid");
+  assertEquals(resolution.subscription_tier, "pro");
+  assertEquals(resolution.trial_active, false);
+});
+
+Deno.test("resolveTierForUser: recent free user resolves pro_trial", async () => {
+  const userId = `tier_test_trial_${crypto.randomUUID()}`;
+  const resolution = await resolveTierForUser(
+    userId,
+    mockSupabase({
+      subscription_tier: "free",
+      created_at: isoDaysAgo(2),
+    }) as never,
+  );
+  assertEquals(resolution.effective_tier, "pro");
+  assertEquals(resolution.plan, "pro_trial");
+  assertEquals(resolution.subscription_tier, "free");
+  assertEquals(resolution.trial_active, true);
+});
+
+Deno.test("resolveTierForUser: expired free trial resolves free", async () => {
+  const userId = `tier_test_free_${crypto.randomUUID()}`;
+  const resolution = await resolveTierForUser(
+    userId,
+    mockSupabase({
+      subscription_tier: "free",
+      created_at: isoDaysAgo(8),
+    }) as never,
+  );
+  assertEquals(resolution.effective_tier, "free");
+  assertEquals(resolution.plan, "free");
+  assertEquals(resolution.subscription_tier, "free");
+  assertEquals(resolution.trial_active, false);
+});
+
+Deno.test("resolveTierForUser: ghost user resolves and caches trial pro", async () => {
+  const userId = `tier_test_ghost_${crypto.randomUUID()}`;
+  const resolution = await resolveTierForUser(
+    userId,
+    mockSupabase(null) as never,
+  );
+  assertEquals(resolution.effective_tier, "pro");
+  assertEquals(resolution.plan, "pro_trial");
+  assertEquals(resolution.subscription_tier, null);
+  assertEquals(resolution.trial_active, true);
+  assertEquals(resolution.user_exists, false);
+  assertEquals(hasTierCached(userId), true);
+  assertEquals(getCachedTierResolution(userId)?.effective_tier, "pro");
+
+  const cachedTier = await getTierForUser(
+    userId,
+    mockSupabase({
+      subscription_tier: "free",
+      created_at: isoDaysAgo(30),
+    }) as never,
+  );
+  assertEquals(
+    cachedTier,
+    "pro",
+    "Cached ghost trial tier must remain effective pro",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -67,7 +173,11 @@ Deno.test("capacity eviction: oldest entries are evicted when cache exceeds max"
   setTierCache(triggerKey, "pro");
 
   // The triggering entry must always be present
-  assertEquals(hasTierCached(triggerKey), true, "The entry that triggered eviction must be in cache");
+  assertEquals(
+    hasTierCached(triggerKey),
+    true,
+    "The entry that triggered eviction must be in cache",
+  );
 
   // After pass 2 eviction (no expired entries → oldest-25% sweep):
   //   - 250 of the first 1000 entries are removed (insertion-order, oldest first)
@@ -83,8 +193,14 @@ Deno.test("capacity eviction: oldest entries are evicted when cache exceeds max"
   );
 
   // Entries near the tail of the original 1000 must still be present
-  assert(hasTierCached(`${prefix}750`), "Entry 750 must survive eviction (inserted after the eviction window)");
-  assert(hasTierCached(`${prefix}999`), "Entry 999 must survive eviction (most recently inserted before trigger)");
+  assert(
+    hasTierCached(`${prefix}750`),
+    "Entry 750 must survive eviction (inserted after the eviction window)",
+  );
+  assert(
+    hasTierCached(`${prefix}999`),
+    "Entry 999 must survive eviction (most recently inserted before trigger)",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -106,5 +222,8 @@ Deno.test("capacity eviction: updating an existing key at capacity does not trig
 
   // All 1000 entries (including the updated one) should still be present.
   assert(hasTierCached(`${prefix}0`), "Updated entry must remain in cache");
-  assert(hasTierCached(`${prefix}999`), "Unchanged entries must remain when key already existed");
+  assert(
+    hasTierCached(`${prefix}999`),
+    "Unchanged entries must remain when key already existed",
+  );
 });

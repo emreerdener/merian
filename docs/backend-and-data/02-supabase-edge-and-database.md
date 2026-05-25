@@ -75,18 +75,21 @@ Several utilities are shared across all Edge Functions via
   asynchronous `node-fetch` style queries to log per-scan events to PostHog for
   behavioral analytics (conversion funnel, scan frequency, species discovery
   rate). LLM token cost analytics are NOT owned by PostHog — they are owned by
-  Supabase SQL queries in `services/supabase/analytics/` (see below), which query the
-  `scans` table directly as the authoritative source.
-- **`tierCache.ts`**: Worker-level `_tierCache` Map storing subscription tiers
+  Supabase SQL queries in `services/supabase/analytics/` (see below), which
+  query the `scans` table directly as the authoritative source.
+- **`tierCache.ts`**: Worker-level `_tierCache` Map storing tier resolutions
   with a 5-minute TTL to eliminate DB round-trips on warm isolate reuse.
   **Bounded at 1000 entries**: on overflow, expired entries are swept first
   (pass 1); if the map is still ≥ 75% full after the sweep, the oldest 25% of
   remaining entries are evicted (pass 2). All writes go through `_cacheSet()` —
-  both `getTierForUser` and `setTierCache` use this helper. Exported functions:
-  `getTierForUser(userId, supabaseAdmin)`, `hasTierCached(userId)` (used by the
-  `identify` background task to detect ghost users),
-  `setTierCache(userId, tier)` (called after ghost-user upsert and by
-  `revenuecat-webhook` after tier change).
+  `resolveTierForUser`, `getTierForUser`, and `setTierCache` use this helper.
+  Exported functions include `resolveTierForUser(userId, supabaseAdmin)`, which
+  returns `effective_tier`, `plan`, `subscription_tier`, `trial_active`, and
+  `user_exists`; the compatibility `getTierForUser(userId, supabaseAdmin)`,
+  which returns only `effective_tier`; `hasTierCached(userId)`; and
+  `setTierCache(userId, tier)` / `setTierResolutionCache(userId, resolution)`.
+  Trial users usually remain raw `subscription_tier = "free"` but resolve to
+  `effective_tier = "pro"` and `plan = "pro_trial"` inside the 7-day window.
 - **`aws.ts`**: Exports native `S3/R2` Cloudflare mappings utilizing
   `aws4fetch`. Exposes array batch tools (`deleteR2Objects`, `copyR2Object`)
   used for purging storage footprints. `deleteR2Objects` is bounded through
@@ -98,13 +101,12 @@ Several utilities are shared across all Edge Functions via
 - **`mediaBudgets.ts`**: Centralizes Edge media limits and reusable validation
   helpers for endpoint JSON body byte ceilings, image count/raw bytes, inline
   audio base64 length, raw audio bytes, audio clip count, staged R2 key
-  ownership, path traversal, and `Content-Length` prechecks. The exported
-  capped readers (`readRequestJsonWithinBudget`,
-  `readResponseArrayBufferWithinBudget`, and
-  `readStreamArrayBufferWithinBudget`) are mandatory for media-bearing request
-  and response bodies because missing/chunked lengths are common. `identify`,
-  `identify-multimodal`, `audio-spec`, and `generate-upload-urls` must import
-  these helpers rather than redefining byte limits locally.
+  ownership, path traversal, and `Content-Length` prechecks. The exported capped
+  readers (`readRequestJsonWithinBudget`, `readResponseArrayBufferWithinBudget`,
+  and `readStreamArrayBufferWithinBudget`) are mandatory for media-bearing
+  request and response bodies because missing/chunked lengths are common.
+  `identify`, `identify-multimodal`, `audio-spec`, and `generate-upload-urls`
+  must import these helpers rather than redefining byte limits locally.
 - **`concurrency.ts`**: Provides `mapWithConcurrencyLimit`, an ordered bounded
   fanout primitive for Edge paths that would otherwise launch unbounded
   `Promise.all(...)` work. The APNs delivery function uses it with width `8`.
@@ -130,24 +132,23 @@ built by `MediaStagingContract` for the app queue. The parked
 `ShareImportNetworkClient` for the paused Photos share extension uses the same
 manifest shape for future rebuild work, but current app builds do not embed that
 extension. Each entry includes `fileName`, `mediaKind`, `contentType`, and
-`sizeBytes`. The Edge parser rejects unsanitized names,
-media-kind/content-type mismatches, over-budget audio or image files, batches
-above five files, and batches above two audio files before calling
-`generatePresignedPutUrl()`. Legacy `fileNames` remains accepted for older
-clients only; it is compatibility-only because it cannot express byte budgets.
-The limit and content-type contract is pinned in
-`docs/contracts/media-staging-upload-manifest.json` and loaded by both Swift and
-Deno tests.
+`sizeBytes`. The Edge parser rejects unsanitized names, media-kind/content-type
+mismatches, over-budget audio or image files, batches above five files, and
+batches above two audio files before calling `generatePresignedPutUrl()`. Legacy
+`fileNames` remains accepted for older clients only; it is compatibility-only
+because it cannot express byte budgets. The limit and content-type contract is
+pinned in `docs/contracts/media-staging-upload-manifest.json` and loaded by both
+Swift and Deno tests.
 
 ## The Photos Share Import Queue Node (`share-import-scan`)
 
 The `/share-import-scan` Edge Function is the parked fast-return queue endpoint
 for the paused native Photos share extension. Current iOS app builds do not
-embed `MerianShareExtension`, so this endpoint should not receive production
-iOS client traffic from the app. The retained extension prototype first
-requests a signed image URL from `/generate-upload-urls`, performs the R2
-`PUT`, then calls `/share-import-scan` with the resulting staged object key and
-EXIF-derived telemetry.
+embed `MerianShareExtension`, so this endpoint should not receive production iOS
+client traffic from the app. The retained extension prototype first requests a
+signed image URL from `/generate-upload-urls`, performs the R2 `PUT`, then calls
+`/share-import-scan` with the resulting staged object key and EXIF-derived
+telemetry.
 
 The function validates:
 
@@ -197,8 +198,8 @@ The `/identify` Edge Function acts as the inference proxy:
    correct model. Generation uses `temperature: 0.1` for rigid JSON output. The
    schema explicitly instructs Gemini to extract Data-as-a-Service (DaaS)
    parameters: phenology (`life_stage`, `reproductive_condition`), sex
-   annotation (`sex`, `sex_confidence`, `sex_evidence`), population
-   counts (`individual_count`), and cross-species relationships
+   annotation (`sex`, `sex_confidence`, `sex_evidence`), population counts
+   (`individual_count`), and cross-species relationships
    (`ecological_interactions`) synchronously within this zero-OOM primary pass.
 5. **Asynchronous Edge Decoupling**: Heavy background work (the moderation
    pipeline, GBIF scrape, Wikipedia enrichment, and PostgreSQL UPSERTs) is
@@ -276,18 +277,19 @@ The `/identify` Edge Function acts as the inference proxy:
     always preserved. Only `common_names` is unconditionally merged, as it is an
     intentionally keyed dictionary.
 11. **Tier Resolution + Ghost Upsert (split critical path / background)**: Tier
-    resolution is split: `getTierForUser(userId, supabaseAdmin)` from
+    resolution is split: `resolveTierForUser(userId, supabaseAdmin)` from
     `_shared/tierCache.ts` runs on the critical path (before the Gemini call) to
-    choose the model — it hits the 5-minute TTL worker-level cache or falls back
-    to a single lightweight `SELECT subscription_tier`. Ghost users (no row in
-    `users`) default to `"free"` but are intentionally NOT cached, so the
-    background task can call `hasTierCached(userId)` to detect the missing row
-    and issue the `users` upsert
-    (`{ onConflict: "id", ignoreDuplicates: true }`) before the `scans` FK
-    insert. After upserting, the background task calls
-    `setTierCache(userId, "free")` so subsequent warm-isolate requests skip the
-    DB round-trip. `ignoreDuplicates: true` ensures an existing user's
-    `subscription_tier` is never overwritten by the ghost-user path.
+    choose the model and emit telemetry — it hits the 5-minute TTL worker-level
+    cache or falls back to a lightweight `SELECT subscription_tier, created_at`.
+    Paid users resolve to `plan = "pro_paid"`. Raw free users inside the 7-day
+    trial window resolve to `effective_tier = "pro"` and `plan = "pro_trial"`;
+    expired free users resolve to `plan = "free"`. Ghost users (no row in
+    `users`) are treated as trial Pro for their first scan and cached with
+    `user_exists = false`, so the background task can upsert the `users` row as
+    raw `subscription_tier = "free"` before the `scans` FK insert and then
+    rewrite the cache to the created trial resolution. This prevents first-scan
+    trial users from being cached as free while still ensuring an existing
+    user's `subscription_tier` is never overwritten by the ghost-user path.
 12. **Scan Insert**: Calls `supabaseAdmin.from('scans').insert()` using the
     service role key, binding the scan to the authenticated `user.id`. All
     environmental telemetry (time of day, month, locale, semantic location,
@@ -369,10 +371,10 @@ contract and iOS surface.
 
 ## The Public Species Observation Stats Node (`species-observation-stats`)
 
-The `/species-observation-stats` Edge Function returns global public
-iNaturalist aggregates for reusable species observation charts. It powers the
-Insight Sheet and Species Dictionary chart cards, while local Merian logs are
-aggregated entirely on-device by iOS.
+The `/species-observation-stats` Edge Function returns global public iNaturalist
+aggregates for reusable species observation charts. It powers the Insight Sheet
+and Species Dictionary chart cards, while local Merian logs are aggregated
+entirely on-device by iOS.
 
 Key rules:
 
@@ -449,8 +451,8 @@ Key rules:
   every hour with
   `{ "quality_threshold": 90, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
 - Selection happens transactionally in
-  `public.refresh_merian_reference_images(...)`: visible Explore posts only,
-  all non-empty image URLs from qualifying scans, `image_quality_score >= 90`,
+  `public.refresh_merian_reference_images(...)`: visible Explore posts only, all
+  non-empty image URLs from qualifying scans, `image_quality_score >= 90`,
   `ai_confidence_score >= 0.95` unless `confirmed_species_id` is present,
   species resolution through `COALESCE(confirmed_species_id, species_id)`, and
   up to 8 promoted images per species.
@@ -460,8 +462,8 @@ Key rules:
   `species_reference_image_merian_sources` table along with the private
   confidence/provenance snapshot used for promotion.
 - If an Explore post is unshared, media is cleared, geoprivacy becomes private,
-  the scan is tombstoned, or the author is shadowbanned, the next refresh removes
-  the corresponding Merian public reference image.
+  the scan is tombstoned, or the author is shadowbanned, the next refresh
+  removes the corresponding Merian public reference image.
 
 ## The Unified Multi-Modal Inference Node (`identify-multimodal`)
 
@@ -478,9 +480,8 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    JSON cap for missing-length and chunked bodies. Inline base64 length, raw
    byte size, clip count, staged-key ownership, R2 stream byte caps, and `..`
    traversal checks are delegated to `_shared/identify/media.ts`. Audio buffers
-   are processed serially via
-   `processWAV` (mono mix, silence trim, 16kHz resample) to keep V8 heap
-   pressure predictable.
+   are processed serially via `processWAV` (mono mix, silence trim, 16kHz
+   resample) to keep V8 heap pressure predictable.
 3. **Dynamic Dispatch Logic**: Generates inference payload based on the
    submitted modalities:
    - **Combined Text, Audio & Vision**: Uses
@@ -581,14 +582,13 @@ Explore hashtags are normalized public metadata, not parsed captions. Publishing
 through `share-scan-to-explore` replaces up to five
 `public.explore_post_hashtags` edges for the post with lowercase tag text that
 omits the leading `#`. Feed-card projections returned by `get-explore-feed`,
-`get-explore-post`, `get-explore-author-posts`, and
-`get-explore-hashtag-posts` hydrate `hashtags` with one batched lookup over each
-returned post page. The detail RPC includes the same tags directly for
-`ExplorePostDetailView`. `get-explore-hashtag-posts` queries
-`public.get_explore_hashtag_posts(...)` with the standard visible-post rules and
-stable `(shared_at, post_id)` pagination for the iOS tagged-post grid. The
-`(tag, post_id)` edge index is also the intended base for future event and
-BioBlitz submission matching.
+`get-explore-post`, `get-explore-author-posts`, and `get-explore-hashtag-posts`
+hydrate `hashtags` with one batched lookup over each returned post page. The
+detail RPC includes the same tags directly for `ExplorePostDetailView`.
+`get-explore-hashtag-posts` queries `public.get_explore_hashtag_posts(...)` with
+the standard visible-post rules and stable `(shared_at, post_id)` pagination for
+the iOS tagged-post grid. The `(tag, post_id)` edge index is also the intended
+base for future event and BioBlitz submission matching.
 
 `set-user-follow` is the only write path for `public.user_follows`. It validates
 no self-follow, no mutual block, a non-shadowbanned target, and a visible
@@ -617,9 +617,10 @@ stores them in `public.user_push_devices`, and a Postgres trigger on
 `send-push-notification` whenever a visible post-backed notification row is
 inserted or a like/comment-reaction aggregate count increases. Follow
 notifications are postless, informational, and intentionally skipped by the push
-trigger. Delivery fanout is bounded with `mapWithConcurrencyLimit(devices, 8,
-...)` so one notification row cannot launch unbounded APNs requests and device
-state writes from a single V8 isolate.
+trigger. Delivery fanout is bounded with
+`mapWithConcurrencyLimit(devices, 8,
+...)` so one notification row cannot launch
+unbounded APNs requests and device state writes from a single V8 isolate.
 
 ## The Webhook Node (`revenuecat-webhook`)
 
@@ -696,8 +697,8 @@ architecture that completely bypasses Edge HTTP timeout constraints:
      accessing the underlying Supabase token. Exact GPS coordinates are scrubbed
      for any user data apart from the requesting user.
    - **DaaS Standardization**: Natively maps `life_stage`,
-     `reproductive_condition`, `sex`, `individual_count`, `estimated_size_cm`, and
-     `ecological_interactions` directly into standard GBIF DwC-A headers
+     `reproductive_condition`, `sex`, `individual_count`, `estimated_size_cm`,
+     and `ecological_interactions` directly into standard GBIF DwC-A headers
      (`lifeStage`, `reproductiveCondition`, `sex`, `individualCount`, etc.).
    - **Asynchronous Delivery**: Once the ZIP reaches R2, it fetches the user's
      `auth.users` database email and dispatches a secure Resend email containing
@@ -763,8 +764,8 @@ that operate on anonymous IDFV boundaries:
     invoke the worker, then enforces the service-role bearer header inside Deno
     with `timingSafeCompare`.
 - **Rule for new Edge Functions**: Every new function directory under
-  `services/supabase/functions/` MUST have a corresponding `[functions.<name>]` entry in
-  `config.toml` before deployment. Use `verify_jwt = false` for
+  `services/supabase/functions/` MUST have a corresponding `[functions.<name>]`
+  entry in `config.toml` before deployment. Use `verify_jwt = false` for
   anonymous-compatible app routes, deliberately public routes, and `pg_net`
   workers that perform their own service-role secret check; use
   `verify_jwt = true` only for explicitly authenticated-only routes with no
@@ -857,8 +858,8 @@ localized text record safely remains in their app gallery.
 
 ## Token Cost Analytics (`services/supabase/analytics/`)
 
-`services/supabase/analytics/` contains version-controlled SQL queries for LLM cost
-observability. These are the authoritative source for API spend analysis —
+`services/supabase/analytics/` contains version-controlled SQL queries for LLM
+cost observability. These are the authoritative source for API spend analysis —
 PostHog owns behavioral metrics (funnel, session, conversion); Supabase SQL owns
 cost metrics (token counts are persisted directly to `public.scans` and are
 queryable at the row level without any sampling or event pipeline delay).
@@ -1058,10 +1059,9 @@ and applies a diff-based delta against the server. Key bounds and IDOR guards:
   owned incoming collections are fetched through one paginated
   `.in("collection_id", ownedIds)` query ordered by `(collection_id, scan_id)`.
   Pages are bounded with `.range(...)`, avoiding the previous N+1 membership
-  latency stack while still preventing the theoretical maximum
-  (200 collections × 5000 scan IDs = 1M rows) from loading into one isolate
-  allocation. The existing `PRIMARY KEY (collection_id, scan_id)` supports this
-  access pattern.
+  latency stack while still preventing the theoretical maximum (200 collections
+  × 5000 scan IDs = 1M rows) from loading into one isolate allocation. The
+  existing `PRIMARY KEY (collection_id, scan_id)` supports this access pattern.
 
 ## Species Preferred Name Sync
 

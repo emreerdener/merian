@@ -43,13 +43,12 @@ parked Photos share extension prototype builds its one-image manifest through
 builds. Both paths must apply the same filename sanitization as the Edge
 function before upload URL generation. The Edge parser rejects unsanitized
 filenames, invalid `mediaKind` values, content-type/kind mismatches, and
-oversized media before signing. Structured
-manifests require `sizeBytes`; the legacy `fileNames` array remains accepted for
-older clients but is compatibility-only and cannot express byte budgets.
-Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours).
-This extended window gives iOS `BackgroundTasks` flexibility to transmit
-overnight, subject to OS memory, thermal, and Wi-Fi conditions, without hitting
-403 errors.
+oversized media before signing. Structured manifests require `sizeBytes`; the
+legacy `fileNames` array remains accepted for older clients but is
+compatibility-only and cannot express byte budgets. Pre-signed `PUT` URLs
+include an `X-Amz-Expires=86400` parameter (24 hours). This extended window
+gives iOS `BackgroundTasks` flexibility to transmit overnight, subject to OS
+memory, thermal, and Wi-Fi conditions, without hitting 403 errors.
 
 The Edge function uses the `fileName` parameter from the JSON body (after
 applying basic sanitization to prevent path traversal vectors) rather than
@@ -163,14 +162,14 @@ When `NWPathMonitor` goes green, iOS POSTs this payload to Supabase. The server
 enforces that all paths within `r2ObjectKeys` begin with `staging/${user.id}/`
 and rejects `../` traversal attempts with `HTTP 400`.
 
-The endpoint rejects media JSON requests whose declared `Content-Length`
-exceeds the shared `/identify` body ceiling before parsing the body. The body
-is then parsed through `_shared/mediaBudgets.ts` using
-`readRequestJsonWithinBudget`, making the streaming byte counter authoritative
-for chunked or missing-length requests. Inline `imageBase64s` are validated
-against the shared aggregate base64 budget; staged `r2ObjectKeys` are validated
-through `_shared/identify/media.ts` and R2 bytes are consumed with capped stream
-readers before any full response buffer is assembled.
+The endpoint rejects media JSON requests whose declared `Content-Length` exceeds
+the shared `/identify` body ceiling before parsing the body. The body is then
+parsed through `_shared/mediaBudgets.ts` using `readRequestJsonWithinBudget`,
+making the streaming byte counter authoritative for chunked or missing-length
+requests. Inline `imageBase64s` are validated against the shared aggregate
+base64 budget; staged `r2ObjectKeys` are validated through
+`_shared/identify/media.ts` and R2 bytes are consumed with capped stream readers
+before any full response buffer is assembled.
 
 > **Important IDOR Constraint:** The `user.id` resolved by the Deno Edge
 > Function from the Supabase JWT is always a **lowercase** Postgres UUID format.
@@ -255,16 +254,20 @@ without requiring location permission. `deviceTimeZone` is also persisted to
 
 To optimize API expenditures, the `identify` Deno Edge node uses two strategies:
 
-- **Model Routing**: The vision identification call routes Pro-tier subscribers
+- **Model Routing**: The vision identification call routes effective Pro users
   to `gemini-2.5-pro` (maximum depth for rare species, fossils, subspecies, and
-  cultivars) and free-tier users to `gemini-2.5-flash` (2–3× lower latency). All
-  text-only calls — `fetchStaticEncyclopedicData`, `fetchDiagnosticComparison`,
-  and all `enrich-scan` generation — always use `gemini-2.5-flash` regardless of
-  tier. `gemini-2.5-pro` is exclusively for the multimodal vision identification
-  step. Tier is resolved via a single lightweight `SELECT subscription_tier` on
-  the critical path, with a module-scope `_tierCache` (5-minute TTL) that
-  eliminates the DB round-trip on repeat scans within a warm isolate. Both tiers
-  use the `merianResponseSchema` constraint to protect SQLite UI logic.
+  cultivars) and effective free users to `gemini-2.5-flash` (2–3× lower
+  latency). Effective Pro includes paid subscribers and dynamic 7-day trial
+  users. All text-only calls — `fetchStaticEncyclopedicData`,
+  `fetchDiagnosticComparison`, and all `enrich-scan` generation — always use
+  `gemini-2.5-flash` regardless of tier. `gemini-2.5-pro` is exclusively for the
+  multimodal vision identification step. Tier is resolved via
+  `resolveTierForUser`, which performs a lightweight
+  `SELECT subscription_tier, created_at` on cache miss and returns
+  `effective_tier`, `plan`, `subscription_tier`, and `trial_active` for
+  telemetry. A module-scope `_tierCache` (5-minute TTL) eliminates the DB
+  round-trip on repeat scans within a warm isolate. Both tiers use the
+  `merianResponseSchema` constraint to protect SQLite UI logic.
 - **Dynamic Token Truncation (Non-biological targets)**: When processing
   non-biological subjects, the Deno node removes `taxonomy`, `insight_data`, and
   `ecology_type` from the `required: []` array and passes
@@ -377,21 +380,20 @@ constraint in the Deno schema.
 > optimised strictly for identification and ecosystem measurement.
 > Data-as-a-Service fields (`estimated_size_cm`, `life_stage`,
 > `reproductive_condition`, `sex`, `sex_confidence`, `sex_evidence`,
-> `individual_count`, `ecological_interactions`) are
-> fully generated on the primary pass avoiding secondary inference loops.
-> `extracted_visual_traits` executes a Micro-CoT pass before taxonomic grouping
-> to anchor the model to reality and avoid visual pareidolia.
-> `insight_data.ai_reasoning` is always present for biological subjects because
-> it is the Gemini vision model's per-scan reasoning about the specific photo
-> submitted. LLM field caps are enforced in `index.ts` after scientific name
-> sanitization: `colors`, `extracted_visual_traits`, and
-> `ecological_interactions` are each capped at 10 items; `ai_reasoning` is
-> truncated to 2000 characters; `individual_count` is validated as a positive
-> integer <= 99999; client-supplied `estimated_size_cm` is validated as a
-> positive finite number <= 50000; and `candidates` is capped at 5 items before
-> `payloadReadyForClient` is built. GPS coordinates are range-checked and
-> out-of-range values are sanitized to `null` rather than aborting
-> identification. `taxonomy`, `iucn_red_list_status`, `gbif_taxon_key`,
+> `individual_count`, `ecological_interactions`) are fully generated on the
+> primary pass avoiding secondary inference loops. `extracted_visual_traits`
+> executes a Micro-CoT pass before taxonomic grouping to anchor the model to
+> reality and avoid visual pareidolia. `insight_data.ai_reasoning` is always
+> present for biological subjects because it is the Gemini vision model's
+> per-scan reasoning about the specific photo submitted. LLM field caps are
+> enforced in `index.ts` after scientific name sanitization: `colors`,
+> `extracted_visual_traits`, and `ecological_interactions` are each capped at 10
+> items; `ai_reasoning` is truncated to 2000 characters; `individual_count` is
+> validated as a positive integer <= 99999; client-supplied `estimated_size_cm`
+> is validated as a positive finite number <= 50000; and `candidates` is capped
+> at 5 items before `payloadReadyForClient` is built. GPS coordinates are
+> range-checked and out-of-range values are sanitized to `null` rather than
+> aborting identification. `taxonomy`, `iucn_red_list_status`, `gbif_taxon_key`,
 > `species_insights`, and `alternative_common_names` are species-dictionary
 > cache fields, not scan-specific model output. `similar_species` is never
 > included in the `identify` response; it is generated asynchronously by
@@ -535,17 +537,17 @@ from both the Insight scan and Explore post-detail contracts:
 - Species dictionary data includes only canonical dictionary fields and
   reference imagery.
 
-The function has `verify_jwt = false` in `services/supabase/config.toml` and does not
-call `requireAuth`. It may receive normal app auth headers from
+The function has `verify_jwt = false` in `services/supabase/config.toml` and
+does not call `requireAuth`. It may receive normal app auth headers from
 `MerianNetworkClient`, but identity is not read and must not affect the
 response.
 
 The response is built through the shared public species projection in
-`services/supabase/functions/_shared/publicSpeciesProjection.ts`. That module owns
-common-name fallback, alternate-name dedupe, normalized/legacy reference-image
-mapping, nullable taxonomy shape, and contract tests for private-field leaks.
-SQL-only Explore detail lookalikes use matching database helpers so the same
-species DTO rules apply outside Deno.
+`services/supabase/functions/_shared/publicSpeciesProjection.ts`. That module
+owns common-name fallback, alternate-name dedupe, normalized/legacy
+reference-image mapping, nullable taxonomy shape, and contract tests for
+private-field leaks. SQL-only Explore detail lookalikes use matching database
+helpers so the same species DTO rules apply outside Deno.
 
 ### `/species-dictionary`
 
@@ -818,9 +820,9 @@ Current response shape:
 }
 ```
 
-`schema_version = 1` marks the current public observation-stats contract.
-Within this version, new response keys must be additive, existing nullable
-fields may remain `null`, and clients should ignore unknown keys.
+`schema_version = 1` marks the current public observation-stats contract. Within
+this version, new response keys must be additive, existing nullable fields may
+remain `null`, and clients should ignore unknown keys.
 
 Status values:
 
@@ -847,11 +849,9 @@ iNaturalist mapping:
 - If absent, Deno resolves an exact `scientific_name` through `/v1/taxa`.
 - If no exact taxon ID is found, Deno falls back to iNaturalist `taxon_name`.
 - Observation totals and latest dates use `/v1/observations`.
-- Seasonality, history, life stage, and sex use
-  `/v1/observations/histogram`.
+- Seasonality, history, life stage, and sex use `/v1/observations/histogram`.
 - Life Stage annotation IDs use `term_id = 1` with values Adult `2`, Teneral
-  `3`, Pupa `4`, Nymph `5`, Larva `6`, Egg `7`, Juvenile `8`, and Subimago
-  `16`.
+  `3`, Pupa `4`, Nymph `5`, Larva `6`, Egg `7`, Juvenile `8`, and Subimago `16`.
 - Sex annotation IDs use `term_id = 9` with values Female `10`, Male `11`, and
   Cannot determine `20`.
 
@@ -878,12 +878,12 @@ Privacy:
 
 Error responses:
 
-| Status | Body                                                   | Meaning                                      |
-| ------ | ------------------------------------------------------ | -------------------------------------------- |
-| `400`  | `{ "error": "Missing required parameter: scientific_name" }` | Missing, non-string, or blank name     |
-| `400`  | `{ "error": "species_id must be a valid UUID." }`      | Invalid species ID                           |
-| `400`  | `{ "error": "scientific_name is too long." }`          | Scientific name exceeds the request bound    |
-| `500`  | `{ "error": "Internal Server Error" }`                 | Database or unexpected function failure      |
+| Status | Body                                                         | Meaning                                   |
+| ------ | ------------------------------------------------------------ | ----------------------------------------- |
+| `400`  | `{ "error": "Missing required parameter: scientific_name" }` | Missing, non-string, or blank name        |
+| `400`  | `{ "error": "species_id must be a valid UUID." }`            | Invalid species ID                        |
+| `400`  | `{ "error": "scientific_name is too long." }`                | Scientific name exceeds the request bound |
+| `500`  | `{ "error": "Internal Server Error" }`                       | Database or unexpected function failure   |
 
 Swift mapping:
 
@@ -893,11 +893,11 @@ MerianNetworkClient.shared.getSpeciesObservationStats(
 )
 ```
 
-decodes into `SpeciesObservationStatsResponse` /
-`SpeciesObservationStatsEntry` in `SpeciesObservationStatsAPIModels.swift`.
-`SpeciesObservationStatsViewModel` combines that public baseline with local
-SwiftData aggregates for `SpeciesObservationChartsCard`, which currently renders
-seasonality, history, and life-stage series.
+decodes into `SpeciesObservationStatsResponse` / `SpeciesObservationStatsEntry`
+in `SpeciesObservationStatsAPIModels.swift`. `SpeciesObservationStatsViewModel`
+combines that public baseline with local SwiftData aggregates for
+`SpeciesObservationChartsCard`, which currently renders seasonality, history,
+and life-stage series.
 
 ---
 
@@ -1342,9 +1342,9 @@ Validation and pagination rules:
 
 Returns a paginated grid collection of currently visible Explore posts tagged
 with one normalized public hashtag. iOS opens this collection when the viewer
-taps a hashtag chip on a feed card or post detail page. The response shape is the
-same card projection used by `/get-explore-feed`, with `ranking_value = null`
-and a `hashtags` array hydrated for each row.
+taps a hashtag chip on a feed card or post detail page. The response shape is
+the same card projection used by `/get-explore-feed`, with
+`ranking_value = null` and a `hashtags` array hydrated for each row.
 
 First page request:
 
@@ -1376,8 +1376,8 @@ Rules:
   together.
 - Pagination is stable on `(shared_at DESC, post_id DESC)`.
 - The endpoint applies the same unshared, tombstoned, missing-media,
-  private-geoprivacy, missing-species, shadowban, and mutual-block filters as the
-  Explore feed.
+  private-geoprivacy, missing-species, shadowban, and mutual-block filters as
+  the Explore feed.
 - The backing RPC is `public.get_explore_hashtag_posts(...)`, which reads the
   normalized `(tag, post_id)` edge index from `public.explore_post_hashtags`.
 
@@ -1404,8 +1404,9 @@ request body is:
 - `limit` is optional and capped at `500`.
 
 The Edge Function reads `public.get_explore_map_posts(...)` and then applies
-zoom-aware clustering in `services/supabase/functions/get-explore-map-points/cluster.ts`.
-The shipped behavior is:
+zoom-aware clustering in
+`services/supabase/functions/get-explore-map-points/cluster.ts`. The shipped
+behavior is:
 
 - when the visible result set is small, return `mode: "posts"`
 - when the viewport is broad or dense, return `mode: "clusters"`
@@ -1559,8 +1560,8 @@ Follow-up page requests send:
 - `hashtags` is optional. The share endpoint accepts at most five hashtag
   strings, strips leading `#`, lowercases them, deduplicates them, and requires
   each tag to be 2 to 40 letters, digits, or underscores. Resharing replaces the
-  post's public hashtag edges with the submitted normalized set; omitted hashtags
-  clear the set for that share request.
+  post's public hashtag edges with the submitted normalized set; omitted
+  hashtags clear the set for that share request.
 - Unsharing also purges any Explore notifications tied to that post so the
   activity feed cannot route into hidden content.
 - The current Explore map reads privacy-safe coordinates from the backing
@@ -2367,11 +2368,12 @@ the hardened backend validation path. `SimilarSpeciesGallery` always labels
 validated entries as "Similar species"; identification uncertainty is handled by
 the separate candidates/review surface.
 
-**Per-user daily rate limit**: Free-tier users are throttled after 50
+**Per-user daily rate limit**: Effective free users are throttled after 50
 `enrich-scan` requests per day (proxy for LLM budget). The tier is resolved via
-`getTierForUser` from `_shared/tierCache.ts`. When the limit is exceeded the
-function returns `429 Too Many Requests` before any Gemini call is made. Pro
-users are exempt.
+`getTierForUser` from `_shared/tierCache.ts`, which returns the effective tier
+from the paid/trial/free resolver. When the limit is exceeded the function
+returns `429 Too Many Requests` before any Gemini call is made. Effective Pro
+users, including active trial users, are exempt.
 
 ### Error Responses
 
@@ -2439,9 +2441,8 @@ and `collection_scans` schemas, handling diffing and missing FK references.
    while fully offline and the physical cloud `scans` row hasn't populated yet,
    mapping intelligently bypasses that specific missing scan natively. The
    pending relationship rests securely offline on the user's iPhone until the
-   next sync pulse.
-   Existing memberships are hydrated for all owned collections with one
-   paginated `.in("collection_id", ownedIds)` query ordered by
+   next sync pulse. Existing memberships are hydrated for all owned collections
+   with one paginated `.in("collection_id", ownedIds)` query ordered by
    `(collection_id, scan_id)`, rather than one pagination loop per collection.
    This keeps latency sublinear for users with many collections while bounding
    each page in V8 memory.
@@ -2467,8 +2468,8 @@ and `collection_scans` schemas, handling diffing and missing FK references.
 
 **Critical Kong API Gateway Requirement**: To allow `sync-collections` to
 manually parse and extract the JWT using Deno `.headers.get("Authorization")`,
-the edge function must be explicitly exposed in `services/supabase/config.toml` with
-`verify_jwt = false`. If not disabled, Kong dynamically strips the
+the edge function must be explicitly exposed in `services/supabase/config.toml`
+with `verify_jwt = false`. If not disabled, Kong dynamically strips the
 `Authorization` header before it reaches Deno to prevent replay attacks, causing
 a `401 Unauthorized: Missing Authorization header` response from the Edge
 Runtime.

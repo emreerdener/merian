@@ -8,7 +8,10 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
-import { getTierForUser } from "../_shared/tierCache.ts";
+import {
+  resolveTierForUser,
+  tierTelemetryProperties,
+} from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
@@ -48,9 +51,9 @@ import {
 import {
   buildContextText,
   normalizeCurrentMonth,
+  sanitizeLifeStage,
   sanitizeObservationConfidence,
   sanitizeObservationEvidence,
-  sanitizeLifeStage,
   sanitizeReproductiveCondition,
   sanitizeSex,
 } from "../_shared/identify/context.ts";
@@ -101,7 +104,9 @@ You are an expert encyclopedic field-guide biologist and taxonomist with special
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
-    const bodyReadResult = await readRequestJsonWithinBudget<Record<string, any>>(
+    const bodyReadResult = await readRequestJsonWithinBudget<
+      Record<string, any>
+    >(
       req,
       MEDIA_BUDGETS.maxMultimodalJsonBodyBytes,
     );
@@ -218,10 +223,13 @@ serve((req: Request) =>
     }
 
     // 2. Dispatch Rule
-    const userTier = await getTierForUser(user.id, supabaseAdmin);
-    const diagnosticTrigger = diagnosticTriggerForTier(
-      userTier as "pro" | "flash",
-    );
+    const tierResolution = await resolveTierForUser(user.id, supabaseAdmin);
+    const userTier = tierResolution.effective_tier;
+    const inferenceTier = userTier === "pro" ? "pro" : "flash";
+    const targetModel = userTier === "pro"
+      ? "gemini-2.5-pro"
+      : "gemini-2.5-flash";
+    const diagnosticTrigger = diagnosticTriggerForTier(inferenceTier);
 
     let instructionToUse = "";
     if (resolvedImageBase64s.length > 0 && processedAudios.length > 0) {
@@ -305,7 +313,7 @@ serve((req: Request) =>
 
     try {
       const result = await _genAI.models.generateContent({
-        model: userTier === "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash",
+        model: targetModel,
         contents: [{ role: "user", parts: partsArray }],
         config: {
           systemInstruction: instructionToUse,
@@ -487,7 +495,7 @@ serve((req: Request) =>
       sex: parsedData.sex,
       sex_confidence: parsedData.sex_confidence,
       sex_evidence: parsedData.sex_evidence,
-      inference_tier: userTier === "pro" ? "pro" : "flash",
+      inference_tier: inferenceTier,
       candidates: parsedData.candidates,
       image_quality: parsedData.image_quality,
       ai_reasoning: parsedData.ai_reasoning,
@@ -712,7 +720,7 @@ serve((req: Request) =>
                   estimatedSizeCm > 0)
                 ? Math.min(estimatedSizeCm, 50000)
                 : null,
-            inference_tier: userTier === "pro" ? "pro" : "flash",
+            inference_tier: inferenceTier,
             candidates: payloadReadyForClient.candidates ?? null,
             image_quality_score: parsedData.image_quality?.overall_score ??
               null,
@@ -805,7 +813,14 @@ serve((req: Request) =>
 
         trackPostHogEvent(user.id, "scan_completed", {
           scan_id: generatedScanId,
-          inference_tier: userTier === "pro" ? "pro" : "flash",
+          inference_tier: inferenceTier,
+          tier: userTier,
+          ...tierTelemetryProperties(tierResolution),
+          llm_model: targetModel,
+          llm_prompt_tokens: llmPromptTokens,
+          llm_candidate_tokens: llmCandidateTokens,
+          llm_thinking_tokens: llmThinkingTokens,
+          llm_total_tokens: llmTotalTokens,
           is_identified: isIdentifiedBio,
           species_name: parsedData.scientific_name || null,
           gemini_latency_ms: Date.now() - geminiStart,

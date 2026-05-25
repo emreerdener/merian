@@ -1,5 +1,12 @@
 // services/supabase/functions/identify-describe/index.test.ts
-import { assert, assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import {
+  assert,
+  assertEquals,
+} from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import {
+  type TierResolution,
+  tierTelemetryProperties,
+} from "../_shared/tierCache.ts";
 
 // ---------------------------------------------------------------------------
 // buildObservationPrompt — mirrors the function in index.ts.
@@ -25,11 +32,14 @@ function buildObservationPrompt(
 ): string {
   const contextItems = [
     telemetry.safeGpsLat != null && telemetry.safeGpsLon != null
-      ? `GPS:${telemetry.safeGpsLat},${telemetry.safeGpsLon}` : null,
+      ? `GPS:${telemetry.safeGpsLat},${telemetry.safeGpsLon}`
+      : null,
     telemetry.gpsElevation != null ? `Elev:${telemetry.gpsElevation}m` : null,
     telemetry.semanticLocation ? `Loc:${telemetry.semanticLocation}` : null,
     telemetry.weatherCondition ? `Wx:${telemetry.weatherCondition}` : null,
-    telemetry.weatherTemperatureF != null ? `Temp:${telemetry.weatherTemperatureF}F` : null,
+    telemetry.weatherTemperatureF != null
+      ? `Temp:${telemetry.weatherTemperatureF}F`
+      : null,
     telemetry.deviceLocale ? `Locale:${telemetry.deviceLocale}` : null,
     telemetry.deviceTimeZone ? `TZ:${telemetry.deviceTimeZone}` : null,
     telemetry.deviceRegion ? `Region:${telemetry.deviceRegion}` : null,
@@ -91,6 +101,29 @@ Deno.test("Describe response contract — blur_score is always 0 (no image to as
   assert(blur_score >= 0, "blur_score must never be negative");
 });
 
+Deno.test("Describe ScanCompleted telemetry includes pro trial plan and Pro model", () => {
+  const resolution: TierResolution = {
+    effective_tier: "pro",
+    plan: "pro_trial",
+    subscription_tier: "free",
+    trial_active: true,
+    user_exists: true,
+  };
+  const properties: Record<string, unknown> = {
+    tier: resolution.effective_tier,
+    ...tierTelemetryProperties(resolution),
+    llm_model: resolution.effective_tier === "pro"
+      ? "gemini-2.5-pro"
+      : "gemini-2.5-flash",
+  };
+  assertEquals(properties.tier, "pro");
+  assertEquals(properties.plan, "pro_trial");
+  assertEquals(properties.effective_tier, "pro");
+  assertEquals(properties.subscription_tier, "free");
+  assertEquals(properties.trial_active, true);
+  assertEquals(properties.llm_model, "gemini-2.5-pro");
+});
+
 // ---------------------------------------------------------------------------
 // buildObservationPrompt — structure and content tests
 // ---------------------------------------------------------------------------
@@ -109,7 +142,10 @@ Deno.test("buildObservationPrompt — empty telemetry produces no context block"
     safeGpsLat: null,
     safeGpsLon: null,
   });
-  assert(!output.includes("Context:"), "Context: block must be absent when all telemetry is null/undefined");
+  assert(
+    !output.includes("Context:"),
+    "Context: block must be absent when all telemetry is null/undefined",
+  );
   assert(output.startsWith("Observation Description:"));
 });
 
@@ -118,16 +154,31 @@ Deno.test("buildObservationPrompt — GPS coordinates appear when both are valid
     safeGpsLat: 51.5074,
     safeGpsLon: -0.1278,
   });
-  assert(output.includes("GPS:51.5074,-0.1278"), "GPS coordinates must appear in context block");
+  assert(
+    output.includes("GPS:51.5074,-0.1278"),
+    "GPS coordinates must appear in context block",
+  );
   assert(output.includes("Context:"));
 });
 
 Deno.test("buildObservationPrompt — GPS omitted when only one coordinate is present", () => {
-  const latOnly = buildObservationPrompt("Moth", { safeGpsLat: 40.0, safeGpsLon: null });
-  assert(!latOnly.includes("GPS:"), "GPS line must be absent when longitude is null");
+  const latOnly = buildObservationPrompt("Moth", {
+    safeGpsLat: 40.0,
+    safeGpsLon: null,
+  });
+  assert(
+    !latOnly.includes("GPS:"),
+    "GPS line must be absent when longitude is null",
+  );
 
-  const lonOnly = buildObservationPrompt("Moth", { safeGpsLat: null, safeGpsLon: -74.0 });
-  assert(!lonOnly.includes("GPS:"), "GPS line must be absent when latitude is null");
+  const lonOnly = buildObservationPrompt("Moth", {
+    safeGpsLat: null,
+    safeGpsLon: -74.0,
+  });
+  assert(
+    !lonOnly.includes("GPS:"),
+    "GPS line must be absent when latitude is null",
+  );
 });
 
 Deno.test("buildObservationPrompt — elevation included when provided", () => {
@@ -199,7 +250,10 @@ Deno.test("buildObservationPrompt — full telemetry context prefix appears befo
   const contextIndex = output.indexOf("Context:");
   const descIndex = output.indexOf("Observation Description:");
   assert(contextIndex !== -1, "Context: block must be present");
-  assert(contextIndex < descIndex, "Context block must precede the description");
+  assert(
+    contextIndex < descIndex,
+    "Context block must precede the description",
+  );
 });
 
 Deno.test("buildObservationPrompt — context items are comma-separated", () => {
@@ -210,9 +264,12 @@ Deno.test("buildObservationPrompt — context items are comma-separated", () => 
     timeOfDay: "morning",
   });
   // All three context items must appear on the same Context: line, comma-separated
-  assert(output.includes("GPS:48.8566,2.3522, Month:7, Time:morning") ||
-    output.includes("GPS:") && output.includes("Month:") && output.includes("Time:"),
-    "Context items must be comma-separated on a single line");
+  assert(
+    output.includes("GPS:48.8566,2.3522, Month:7, Time:morning") ||
+      output.includes("GPS:") && output.includes("Month:") &&
+        output.includes("Time:"),
+    "Context items must be comma-separated on a single line",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -298,11 +355,15 @@ Deno.test("scanId resolution — two null calls produce distinct UUIDs", () => {
 
 function safeGpsLat(v: unknown): number | null {
   return v != null && typeof v === "number" && Number.isFinite(v) &&
-    v >= -90 && v <= 90 ? v : null;
+      v >= -90 && v <= 90
+    ? v
+    : null;
 }
 function safeGpsLon(v: unknown): number | null {
   return v != null && typeof v === "number" && Number.isFinite(v) &&
-    v >= -180 && v <= 180 ? v : null;
+      v >= -180 && v <= 180
+    ? v
+    : null;
 }
 
 Deno.test("GPS — describe path: valid coordinates pass through", () => {

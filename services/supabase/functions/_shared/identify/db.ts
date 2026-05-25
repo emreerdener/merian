@@ -9,21 +9,67 @@ import {
   buildSpeciesDictionaryProvenanceRows,
   recordSpeciesContentProvenance,
 } from "../speciesContentProvenance.ts";
-import { hasTierCached, setTierCache } from "../tierCache.ts";
+import {
+  getCachedTierResolution,
+  hasTierCached,
+  setTierResolutionCache,
+} from "../tierCache.ts";
 import { CachedSpeciesRow, IdentificationCandidate } from "./types.ts";
 
 export async function upsertGhostUserIfMissing(
   userId: string,
   supabaseAdmin: SupabaseClient,
 ) {
+  const cachedResolution = getCachedTierResolution(userId);
+  if (cachedResolution?.user_exists === false) {
+    await supabaseAdmin
+      .from("users")
+      .upsert(
+        { id: userId, subscription_tier: "free" },
+        { onConflict: "id", ignoreDuplicates: true },
+      );
+    setTierResolutionCache(userId, {
+      effective_tier: "pro",
+      plan: "pro_trial",
+      subscription_tier: "free",
+      trial_active: true,
+      user_exists: true,
+    });
+    return;
+  }
+
   if (!hasTierCached(userId)) {
     const { data: existingUser } = await supabaseAdmin
       .from("users")
-      .select("subscription_tier")
+      .select("subscription_tier, created_at")
       .eq("id", userId)
       .maybeSingle();
     if (existingUser) {
-      setTierCache(userId, existingUser.subscription_tier as string);
+      const createdAtDate = existingUser.created_at
+        ? new Date(existingUser.created_at)
+        : null;
+      const diffMs = createdAtDate
+        ? Date.now() - createdAtDate.getTime()
+        : Infinity;
+      const trialActive = Number.isFinite(diffMs) &&
+        diffMs / (1000 * 60 * 60 * 24) <= 7;
+      setTierResolutionCache(userId, {
+        effective_tier: existingUser.subscription_tier === "pro" || trialActive
+          ? "pro"
+          : "free",
+        plan: existingUser.subscription_tier === "pro"
+          ? "pro_paid"
+          : trialActive
+          ? "pro_trial"
+          : "free",
+        subscription_tier: existingUser.subscription_tier === "pro"
+          ? "pro"
+          : "free",
+        trial_active: existingUser.subscription_tier === "pro"
+          ? false
+          : trialActive,
+        user_exists: true,
+      });
     } else {
       await supabaseAdmin
         .from("users")
@@ -31,7 +77,13 @@ export async function upsertGhostUserIfMissing(
           { id: userId, subscription_tier: "free" },
           { onConflict: "id", ignoreDuplicates: true },
         );
-      setTierCache(userId, "free");
+      setTierResolutionCache(userId, {
+        effective_tier: "pro",
+        plan: "pro_trial",
+        subscription_tier: "free",
+        trial_active: true,
+        user_exists: true,
+      });
     }
   }
 }

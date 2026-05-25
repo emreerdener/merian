@@ -15,7 +15,10 @@ import {
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
-import { getTierForUser } from "../_shared/tierCache.ts";
+import {
+  resolveTierForUser,
+  tierTelemetryProperties,
+} from "../_shared/tierCache.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import {
@@ -25,9 +28,9 @@ import {
 import {
   buildContextText,
   normalizeCurrentMonth,
+  sanitizeLifeStage,
   sanitizeObservationConfidence,
   sanitizeObservationEvidence,
-  sanitizeLifeStage,
   sanitizeReproductiveCondition,
   sanitizeSex,
 } from "../_shared/identify/context.ts";
@@ -137,7 +140,9 @@ const modelConfigs = {
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
-    const bodyReadResult = await readRequestJsonWithinBudget<Record<string, any>>(
+    const bodyReadResult = await readRequestJsonWithinBudget<
+      Record<string, any>
+    >(
       req,
       MEDIA_BUDGETS.maxIdentifyJsonBodyBytes,
     );
@@ -236,7 +241,8 @@ serve((req: Request) =>
     // Resolve tier for model selection. Cache hit (common case after first scan within a
     // 5-minute window) is near-instant. On miss: one lightweight SELECT — no upsert on the
     // critical path (ghost-user creation stays in the background task).
-    const userTier = await getTierForUser(user.id, supabaseAdmin);
+    const tierResolution = await resolveTierForUser(user.id, supabaseAdmin);
+    const userTier = tierResolution.effective_tier;
 
     // Pro users get gemini-2.5-pro for maximum identification depth (rare species, fossils,
     // subspecies, cultivars). Free users use gemini-2.5-flash for 2–3× lower latency.
@@ -925,6 +931,7 @@ serve((req: Request) =>
         trackPostHogEvent(user, "ScanCompleted", {
           is_biological_subject: parsedData.is_biological_subject,
           tier: userTier,
+          ...tierTelemetryProperties(tierResolution),
           llm_model: targetModel,
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,

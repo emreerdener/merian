@@ -710,7 +710,11 @@ private struct GBIFMedia: Decodable {
                     )
 
                     CircuitBreakerManager.shared.recordSuccess()
-                    AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
+                    AppTelemetry.trackScan(
+                        isPro: RevenueCatManager.shared.isProActive,
+                        isSubscribed: RevenueCatManager.shared.isSubscribed,
+                        inferenceTier: mappedData.inferenceTier
+                    )
                     if self.activeScanId == ownedScanId {
                         HapticManager.shared.triggerHeavyImpact()
                         self.activeMedia.items = self.mediaItems(
@@ -880,7 +884,11 @@ private struct GBIFMedia: Decodable {
                     )
 
                     CircuitBreakerManager.shared.recordSuccess()
-                    AppTelemetry.trackScan(isPro: RevenueCatManager.shared.isProActive)
+                    AppTelemetry.trackScan(
+                        isPro: RevenueCatManager.shared.isProActive,
+                        isSubscribed: RevenueCatManager.shared.isSubscribed,
+                        inferenceTier: mappedData.inferenceTier
+                    )
 
                     if self.activeScanId == ownedScanId {
                         HapticManager.shared.triggerHeavyImpact()

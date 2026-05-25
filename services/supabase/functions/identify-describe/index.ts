@@ -8,14 +8,18 @@ import {
 import { fetchGroupTags } from "../_shared/biology.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
-import { getTierForUser } from "../_shared/tierCache.ts";
+import {
+  resolveTierForUser,
+  tierTelemetryProperties,
+} from "../_shared/tierCache.ts";
+import { trackPostHogEvent } from "../_shared/posthog.ts";
 import { requireParams } from "../_shared/http.ts";
 import {
   buildObservationPrompt,
   normalizeCurrentMonth,
+  sanitizeLifeStage,
   sanitizeObservationConfidence,
   sanitizeObservationEvidence,
-  sanitizeLifeStage,
   sanitizeReproductiveCondition,
   sanitizeSex,
 } from "../_shared/identify/context.ts";
@@ -121,7 +125,8 @@ serve((req: Request) =>
 
     console.log(`[⏱ BENCH] payload_parsed: ${Date.now() - fnStart}ms`);
 
-    const userTier = await getTierForUser(user.id, supabaseAdmin);
+    const tierResolution = await resolveTierForUser(user.id, supabaseAdmin);
+    const userTier = tierResolution.effective_tier;
     const targetModel = userTier === "pro"
       ? "gemini-2.5-pro"
       : "gemini-2.5-flash";
@@ -565,6 +570,25 @@ serve((req: Request) =>
             }),
           );
         }
+
+        const totalTokens = (llmTotalTokens ?? 0) +
+          (resolvedGroupTags?.usage?.totalTokenCount ?? 0);
+        trackPostHogEvent(user, "ScanCompleted", {
+          is_biological_subject: parsedData.is_biological_subject,
+          tier: userTier,
+          ...tierTelemetryProperties(tierResolution),
+          llm_model: targetModel,
+          llm_prompt_tokens: llmPromptTokens,
+          llm_candidate_tokens: llmCandidateTokens,
+          llm_thinking_tokens: llmThinkingTokens,
+          llm_cached_tokens: llmCachedTokens,
+          llm_total_tokens: llmTotalTokens,
+          encyclopedic_tokens: 0,
+          similar_species_tokens: 0,
+          group_tags_tokens: resolvedGroupTags?.usage?.totalTokenCount ?? 0,
+          cumulative_scan_tokens: totalTokens,
+          scientific_name: parsedData.scientific_name,
+        }).catch((e) => console.error("PostHog tracking failed:", e));
       } catch (bgError) {
         logStructuredError("identify-describe/background_ingestion_failed", {
           user_id: user.id,
