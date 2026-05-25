@@ -84,74 +84,72 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
   const appStoreUrl = process.env.NEXT_PUBLIC_APP_STORE_URL;
 
   return (
-    <main>
-      <Container size="lg" py={{ base: 20, sm: 48 }}>
-        <Paper radius="lg" shadow="md" withBorder p={{ base: "md", sm: "xl" }}>
-          <Stack gap="xl">
-            <Stack gap="xs">
-              <Text fw={700} c="dimmed" tt="uppercase" size="sm">
-                Merian Explore
-              </Text>
-              <Title order={1}>{title}</Title>
-              <Text size="lg" c="dimmed">
-                {speciesLabel}
-              </Text>
-            </Stack>
-
-            <Image
-              src={post.heroImageUrl}
-              alt={title}
-              radius="md"
-              fit="cover"
-              mah={620}
-              fallbackSrc="/image-placeholder.svg"
-            />
-
-            <Group justify="space-between" align="center" gap="md">
-              <Group gap="sm">
-                <Avatar src={post.authorAvatarUrl} alt={post.authorName} radius="xl" />
-                <Stack gap={0}>
-                  <Text fw={700}>{post.authorName}</Text>
-                  <Text size="sm" c="dimmed">
-                    Shared on Merian
-                  </Text>
-                </Stack>
-              </Group>
-
-              <Group gap="xs">
-                <Badge leftSection={<IconHeart size={13} />} variant="light">
-                  {post.likeCount}
-                </Badge>
-                <Badge leftSection={<IconMessageCircle size={13} />} variant="light" color="gray">
-                  {post.commentCount}
-                </Badge>
-              </Group>
-            </Group>
-
-            <Group>
-              <Button
-                component="a"
-                href={nativeExplorePostUrl(post.postId)}
-                rightSection={<IconArrowUpRight size={18} />}
-              >
-                Open in Merian
-              </Button>
-              {appStoreUrl ? (
-                <Button component="a" href={appStoreUrl} variant="light">
-                  Get the app
-                </Button>
-              ) : null}
-            </Group>
-
-            <Text size="sm" c="dimmed">
-              Public locations are privacy-filtered by Merian.{" "}
-              <Anchor href="/" fw={600}>
-                Learn more about Merian
-              </Anchor>
+    <Container size="lg" py={{ base: 20, sm: 48 }}>
+      <Paper radius="lg" shadow="md" withBorder p={{ base: "md", sm: "xl" }}>
+        <Stack gap="xl">
+          <Stack gap="xs">
+            <Text fw={700} c="dimmed" tt="uppercase" size="sm">
+              Merian Explore
+            </Text>
+            <Title order={1}>{title}</Title>
+            <Text size="lg" c="dimmed">
+              {speciesLabel}
             </Text>
           </Stack>
-        </Paper>
-      </Container>
-    </main>
+
+          <Image
+            src={post.heroImageUrl}
+            alt={title}
+            radius="md"
+            fit="cover"
+            mah={620}
+            fallbackSrc="/image-placeholder.svg"
+          />
+
+          <Group justify="space-between" align="center" gap="md">
+            <Group gap="sm">
+              <Avatar src={post.authorAvatarUrl} alt={post.authorName} radius="xl" />
+              <Stack gap={0}>
+                <Text fw={700}>{post.authorName}</Text>
+                <Text size="sm" c="dimmed">
+                  Shared on Merian
+                </Text>
+              </Stack>
+            </Group>
+
+            <Group gap="xs">
+              <Badge leftSection={<IconHeart size={13} />} variant="light">
+                {post.likeCount}
+              </Badge>
+              <Badge leftSection={<IconMessageCircle size={13} />} variant="light" color="gray">
+                {post.commentCount}
+              </Badge>
+            </Group>
+          </Group>
+
+          <Group>
+            <Button
+              component="a"
+              href={nativeExplorePostUrl(post.postId)}
+              rightSection={<IconArrowUpRight size={18} />}
+            >
+              Open in Merian
+            </Button>
+            {appStoreUrl ? (
+              <Button component="a" href={appStoreUrl} variant="light">
+                Get the app
+              </Button>
+            ) : null}
+          </Group>
+
+          <Text size="sm" c="dimmed">
+            Public locations are privacy-filtered by Merian.{" "}
+            <Anchor href="/" fw={600}>
+              Learn more about Merian
+            </Anchor>
+          </Text>
+        </Stack>
+      </Paper>
+    </Container>
   );
 }

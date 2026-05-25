@@ -9,13 +9,32 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mantine/core": "latest",
-    "@mantine/hooks": "latest",
+    "@mantine/carousel": "^9.2.1",
+    "@mantine/charts": "^9.2.1",
+    "@mantine/code-highlight": "^9.2.1",
+    "@mantine/core": "^9.2.1",
+    "@mantine/dates": "^9.2.1",
+    "@mantine/dropzone": "^9.2.1",
+    "@mantine/form": "^9.2.1",
+    "@mantine/hooks": "^9.2.1",
+    "@mantine/modals": "^9.2.1",
+    "@mantine/notifications": "^9.2.1",
+    "@mantine/nprogress": "^9.2.1",
+    "@mantine/spotlight": "^9.2.1",
+    "@mantine/tiptap": "^9.2.1",
     "@supabase/supabase-js": "latest",
     "@tabler/icons-react": "latest",
+    "@tiptap/extension-link": "^3.23.6",
+    "@tiptap/pm": "^3.23.6",
+    "@tiptap/react": "^3.23.6",
+    "@tiptap/starter-kit": "^3.23.6",
+    "dayjs": "^1.11.20",
+    "embla-carousel": "^8.6.0",
+    "embla-carousel-react": "^8.6.0",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "recharts": "^3.8.1"
   },
   "overrides": {
     "postcss": "^8.5.10"
@@ -24,6 +43,9 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "postcss": "^8.5.15",
+    "postcss-preset-mantine": "^1.18.0",
+    "postcss-simple-vars": "^7.0.1",
     "typescript": "latest"
   }
 }
