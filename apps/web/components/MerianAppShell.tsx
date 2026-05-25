@@ -33,15 +33,13 @@ const footerLinks = [
 
 export function MerianAppShell({ children }: MerianAppShellProps) {
   const [opened, { close, toggle }] = useDisclosure();
+  const primaryCtaHref = siteConfig.appStoreUrl ?? "/#waitlist";
+  const primaryCtaLabel = siteConfig.appStoreUrl
+    ? "Download the app"
+    : "Join beta";
 
   return (
-    <AppShell
-      header={{ height: 60 }}
-      navbar={{ width: 300, breakpoint: "sm", collapsed: { mobile: !opened } }}
-      footer={{ height: { base: 174, sm: 118 } }}
-      padding="md"
-      className="merian-app-shell"
-    >
+    <AppShell header={{ height: 60 }} padding="md" className="merian-app-shell">
       <AppShellHeader className="merian-app-shell__header">
         <Container size="lg" h="100%">
           <Group h="100%" justify="space-between" wrap="nowrap">
@@ -61,12 +59,12 @@ export function MerianAppShell({ children }: MerianAppShellProps) {
               </Button>
               <Button
                 component="a"
-                href={siteConfig.appStoreUrl ?? "#"}
+                href={primaryCtaHref}
                 size="sm"
                 rightSection={<IconArrowUpRight size={16} />}
                 visibleFrom="xs"
               >
-                Download the app
+                {primaryCtaLabel}
               </Button>
               <Burger
                 opened={opened}
@@ -80,53 +78,7 @@ export function MerianAppShell({ children }: MerianAppShellProps) {
         </Container>
       </AppShellHeader>
 
-      <AppShellNavbar p="md" hiddenFrom="sm">
-        <Stack gap="sm">
-          <Button
-            component="a"
-            href="/login"
-            variant="default"
-            onClick={close}
-          >
-            Log in
-          </Button>
-          <Button
-            component="a"
-            href={siteConfig.appStoreUrl ?? "#"}
-            rightSection={<IconArrowUpRight size={16} />}
-            onClick={close}
-          >
-            Download the app
-          </Button>
-        </Stack>
-      </AppShellNavbar>
-
       <AppShellMain>{children}</AppShellMain>
-
-      <AppShellFooter className="merian-app-shell__footer">
-        <Container size="lg" py="md">
-          <Stack gap="xs">
-            <Group justify="space-between" align="center" gap="md">
-              <Anchor href="/" fw={700}>
-                Merian
-              </Anchor>
-              <Group gap="md">
-                {footerLinks.map((link) => (
-                  <Anchor key={link.href} href={link.href} size="sm" c="dimmed">
-                    {link.label}
-                  </Anchor>
-                ))}
-              </Group>
-            </Group>
-
-            <Text size="xs" c="dimmed">
-              Merian helps people discover and document nature. It is not a
-              substitute for professional medical, veterinary, safety, or
-              ecological advice.
-            </Text>
-          </Stack>
-        </Container>
-      </AppShellFooter>
     </AppShell>
   );
 }
