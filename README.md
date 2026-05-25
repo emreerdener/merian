@@ -177,6 +177,10 @@ The initial web routes include `/explore/post/[postId]`, a server-rendered publi
 
 See `apps/web/README.md` and `docs/features-and-hardware/17-public-web-share-pages.md` for the web env contract, share URL strategy, and Universal Links roadmap.
 
+For Vercel production, configure the project Root Directory as `apps/web` and
+attach both `merian.earth` and `www.merian.earth` to that project. A plain Vercel
+`404: NOT_FOUND` response means the request has not reached the Next.js app.
+
 ### Local Backend
 
 From the repo root, point the Supabase CLI at the backend service directory:

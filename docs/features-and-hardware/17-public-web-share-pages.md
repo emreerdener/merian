@@ -174,6 +174,28 @@ npm run build
 npm audit --audit-level=moderate
 ```
 
+## Vercel Deployment
+
+The Vercel project for `merian.earth` must be configured as a monorepo app with:
+
+- Root Directory: `apps/web`
+- Framework Preset: Next.js
+- Build Command: `npm run build`
+- Install Command: `npm install`
+- Production domains: `merian.earth` and `www.merian.earth`
+
+A Vercel platform response body of:
+
+```text
+404: NOT_FOUND
+Code: NOT_FOUND
+```
+
+is not the app-level Explore not-found state. The app-level 404 renders
+`apps/web/app/not-found.tsx` with Merian styling. The plain Vercel response
+indicates the domain is not attached to a valid production deployment or the
+project is building the wrong directory.
+
 ## Public Policy Pages
 
 The public web app includes App Store-ready policy/support routes:

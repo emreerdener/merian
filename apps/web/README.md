@@ -46,6 +46,28 @@ Optional server/public fallback variables:
 The service role key must stay server-side only. Do not prefix it with
 `NEXT_PUBLIC_`.
 
+## Vercel Deployment
+
+Configure the Vercel project as a monorepo app:
+
+- **Root Directory**: `apps/web`
+- **Framework Preset**: Next.js
+- **Build Command**: `npm run build`
+- **Install Command**: `npm install`
+- **Production domains**: `merian.earth` and `www.merian.earth`
+
+Both `merian.earth` aliases must point at the same Vercel project that builds
+from `apps/web`. A plain Vercel response like:
+
+```text
+404: NOT_FOUND
+Code: NOT_FOUND
+```
+
+means the request is not reaching this Next.js app. Check the Vercel project
+Root Directory, production deployment status, and domain assignment before
+debugging app routes.
+
 ## Scripts
 
 ```bash
