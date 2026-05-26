@@ -143,7 +143,7 @@ struct ExploreAuthorProfileSheet: View {
         switch mode {
         case .profile:
             guard let profile else { return "Profile" }
-            return authorTierTitle(for: profile)
+            return profile.publicUsernameDisplayName ?? profile.publicAuthorDisplayName
         case .library:
             if route.authorUserId.lowercased() == SupabaseManager.shared.currentUser?.id.uuidString.lowercased() {
                 return "Your published scans"
@@ -243,14 +243,6 @@ struct ExploreAuthorProfileSheet: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .accessibilityAddTraits(.isHeader)
-
-                if let username = profile.publicUsernameDisplayName,
-                   username != profile.publicAuthorDisplayName {
-                    Text(username)
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
 
                 Text(UserPersona(speciesCount: profile.speciesCount).title)
                     .font(.body.weight(.semibold))
@@ -520,12 +512,6 @@ struct ExploreAuthorProfileSheet: View {
 
     private func isCurrentUserProfile(_ profile: ExploreAuthorProfile) -> Bool {
         SupabaseManager.shared.currentUser?.id.uuidString.lowercased() == profile.authorUserId.lowercased()
-    }
-
-    private func authorTierTitle(for profile: ExploreAuthorProfile) -> String {
-        let isPro = profile.authorIsPro == true
-            || (isCurrentUserProfile(profile) && RevenueCatManager.shared.isProActive)
-        return isPro ? "Pro" : "Free"
     }
 
     @MainActor
