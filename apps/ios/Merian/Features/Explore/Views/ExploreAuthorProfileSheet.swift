@@ -143,7 +143,7 @@ struct ExploreAuthorProfileSheet: View {
         switch mode {
         case .profile:
             guard let profile else { return "Profile" }
-            return profile.publicUsernameDisplayName ?? profile.publicAuthorDisplayName
+            return UserPersona(speciesCount: profile.speciesCount).title
         case .library:
             if route.authorUserId.lowercased() == SupabaseManager.shared.currentUser?.id.uuidString.lowercased() {
                 return "Your published scans"
@@ -236,22 +236,26 @@ struct ExploreAuthorProfileSheet: View {
         VStack(spacing: 12) {
             authorAvatar(url: profile.authorAvatarURL, size: 112)
 
-            VStack(spacing: 6) {
-                Text(profile.profileTitle)
-                    .font(.system(.largeTitle, design: .serif).weight(.bold))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityAddTraits(.isHeader)
+            VStack(spacing: 16) {
+                VStack(spacing: 6) {
+                    Text(profile.profileTitle)
+                        .font(.system(.largeTitle, design: .serif).weight(.bold))
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityAddTraits(.isHeader)
 
-                Text(UserPersona(speciesCount: profile.speciesCount).title)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
+                    if let username = profile.publicUsernameDisplayName,
+                       username != profile.profileTitle {
+                        Text(username)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                profileSummaryCountsRow(profile)
             }
-
-            profileSummaryCountsRow(profile)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
@@ -391,7 +395,7 @@ struct ExploreAuthorProfileSheet: View {
                             .lineLimit(1)
 
                         if let username = profile.publicUsernameDisplayName,
-                           username != profile.publicAuthorDisplayName {
+                           username != profile.profileTitle {
                             Text(username)
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(.secondary)
