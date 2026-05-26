@@ -484,6 +484,43 @@ final class InsightSheetViewModel {
         }
     }
 
+    func shareToExplore(
+        _ draft: ExplorePostComposerDraft,
+        modelContext: ModelContext
+    ) async {
+        guard canShareToExplore, let record = activeLocalRecord, !state.isSharingToExplore else { return }
+
+        state.isSharingToExplore = true
+        defer { state.isSharingToExplore = false }
+
+        do {
+            let response = try await MerianNetworkClient.shared.shareScanToExplore(
+                scan: record,
+                fieldNotes: draft.publicFieldNotes,
+                hashtags: draft.hashtags,
+                locationSharing: draft.locationSharing
+            )
+            appSettings.hasUnseenExplorePost = true
+            cacheSharedExplorePostId(response.postId, for: record.id)
+            state.sharedExploreHashtags = draft.hashtags
+            state.exploreFieldNotesArePublic = draft.publicFieldNotes != nil
+            syncComposerFieldNotes(draft.fieldNotes, modelContext: modelContext)
+            HapticManager.shared.triggerSuccessPulse()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                state.toastMessage = "Shared to Explore"
+                toastActionTitle = "View"
+                toastAction = { [weak self] in
+                    self?.state.showExploreSheet = true
+                }
+            }
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                state.toastMessage = ExploreErrorFormatter.message(for: error)
+            }
+        }
+    }
+
     func updateExploreFieldNotesVisibility(
         isPublic: Bool,
         modelContext: ModelContext
@@ -539,9 +576,7 @@ final class InsightSheetViewModel {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty == false
 
-            let draftNotes = draft.fieldNotes ?? ""
-            state.fieldNotesText = draftNotes
-            _ = persistFieldNotes(draftNotes, modelContext: modelContext)
+            syncComposerFieldNotes(draft.fieldNotes, modelContext: modelContext)
 
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -895,6 +930,15 @@ final class InsightSheetViewModel {
             modelContext: modelContext,
             activeRecord: activeLocalRecord
         )
+    }
+
+    func syncComposerFieldNotes(_ notes: String?, modelContext: ModelContext) {
+        let draftNotes = notes ?? ""
+        state.fieldNotesText = draftNotes
+        if !draftNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            state.dismissedFieldNotesCardScanId = nil
+        }
+        _ = persistFieldNotes(draftNotes, modelContext: modelContext)
     }
 
     private func persistedFieldNotes(for scanId: String, modelContext: ModelContext) -> String? {

@@ -1119,6 +1119,7 @@ Current response shape:
     "habitat_description": "Often found in open meadows, milkweed patches, and migration corridors.",
     "gbif_taxon_key": 5130978,
     "iucn_red_list_status": "least_concern",
+    "hazard_type": "poisonous",
     "wikipedia_url": "https://en.wikipedia.org/wiki/Monarch_butterfly",
     "reference_image_url": "https://upload.wikimedia.org/.../Monarch.jpg,https://inaturalist-open-data.s3.amazonaws.com/photos/123/original.jpg",
     "wikipedia_overview": "The monarch butterfly is a milkweed butterfly in the family Nymphalidae...",

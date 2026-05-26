@@ -77,6 +77,7 @@ struct ExplorePostComposerView: View {
     let initialFieldNotes: String?
     let initialFieldNotesArePublic: Bool
     let initialHashtags: [String]
+    let hashtagSuggestionContext: ExploreHashtagSuggestionContext
     let isSaving: Bool
     let onSubmit: (ExplorePostComposerDraft) -> Void
 
@@ -97,6 +98,7 @@ struct ExplorePostComposerView: View {
         initialFieldNotes: String?,
         initialFieldNotesArePublic: Bool = true,
         initialHashtags: [String],
+        hashtagSuggestionContext: ExploreHashtagSuggestionContext? = nil,
         isSaving: Bool,
         onSubmit: @escaping (ExplorePostComposerDraft) -> Void
     ) {
@@ -108,6 +110,12 @@ struct ExplorePostComposerView: View {
         self.initialFieldNotes = initialFieldNotes
         self.initialFieldNotesArePublic = initialFieldNotesArePublic
         self.initialHashtags = initialHashtags
+        self.hashtagSuggestionContext = hashtagSuggestionContext ?? ExploreHashtagSuggestionContext(
+            speciesName: speciesName,
+            scientificName: scientificName,
+            publicLocationLabel: publicLocationLabel,
+            fieldNotes: initialFieldNotes
+        )
         self.isSaving = isSaving
         self.onSubmit = onSubmit
         _fieldNotesText = State(initialValue: initialFieldNotes ?? "")
@@ -144,12 +152,22 @@ struct ExplorePostComposerView: View {
                         if isSaving {
                             ProgressView()
                                 .controlSize(.small)
+                                .tint(.white)
                         } else {
                             Text(mode.actionTitle)
                                 .fontWeight(.semibold)
                         }
                     }
-                    .tint(.accentColor)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color(uiColor: .systemBlue))
+                    )
+                    .opacity(isSaving ? 0.7 : 1)
+                    .buttonStyle(.plain)
                     .disabled(isSaving)
                 }
 
@@ -290,27 +308,71 @@ struct ExplorePostComposerView: View {
                         .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
 
+            suggestedHashtagChips
+
             Text("Use up to five hashtags separated by spaces or commas.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
     }
 
-    private var normalizedHashtags: [String] {
-        var tags: [String] = []
-        var seen = Set<String>()
-        let separators = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ","))
+    @ViewBuilder
+    private var suggestedHashtagChips: some View {
+        let suggestions = currentHashtagSuggestions
+        if !suggestions.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("AI suggestions", systemImage: "sparkles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
 
-        for token in hashtagsText.components(separatedBy: separators) {
-            let cleaned = token
-                .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-                .lowercased()
-            guard !cleaned.isEmpty, seen.insert(cleaned).inserted else { continue }
-            tags.append(cleaned)
-            if tags.count == 5 { break }
+                FlowLayout(spacing: 8) {
+                    ForEach(suggestions, id: \.self) { hashtag in
+                        Button {
+                            addSuggestedHashtag(hashtag)
+                        } label: {
+                            Text("#\(hashtag)")
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color.accentColor.opacity(0.12))
+                                )
+                                .overlay(
+                                    Capsule(style: .continuous)
+                                        .stroke(Color.accentColor.opacity(0.22), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityLabel("Add hashtag \(hashtag)")
+                    }
+                }
+            }
+            .padding(.top, 2)
         }
+    }
 
-        return tags
+    private var currentHashtagSuggestions: [String] {
+        ExploreHashtagSuggestionEngine.suggestions(
+            for: hashtagSuggestionContext.updating(fieldNotes: fieldNotesText),
+            selectedHashtags: normalizedHashtags
+        )
+    }
+
+    private var normalizedHashtags: [String] {
+        ExploreHashtagSuggestionEngine.normalizedInputTags(from: hashtagsText)
+    }
+
+    private func addSuggestedHashtag(_ hashtag: String) {
+        guard let normalized = ExploreHashtagSuggestionEngine.normalizedTag(from: hashtag),
+              normalizedHashtags.count < 5,
+              !normalizedHashtags.contains(normalized) else { return }
+
+        let trimmedText = hashtagsText.trimmingCharacters(in: .whitespacesAndNewlines)
+        hashtagsText = trimmedText.isEmpty ? "#\(normalized)" : "\(trimmedText) #\(normalized)"
+        HapticManager.shared.triggerSelectionPulse()
     }
 
     private func submit() {

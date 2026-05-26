@@ -376,6 +376,10 @@ Tests are organized under `apps/ios/MerianTests/Core` and `apps/ios/MerianTests/
 - **`MessageScanShareCacheTests.swift`**: Verifies the Messages App Group cache,
   generated description text, field-notes opt-in behavior, public Explore URL
   inclusion, and `merian://scan/{id}` / `merian://scans` deep-link parsing.
+- **`ExploreHashtagSuggestionTests.swift`**: Covers the share composer's
+  AI-assisted hashtag suggestions, including species/taxonomy/location/field-note
+  ranking, selected-tag exclusion, five-tag slot handling, and normalization of
+  typed hashtag input before publishing.
 - **`ScansManagerTests.swift`**: Verifies search-index construction,
   incremental reindexing, sort behavior, and selection limits for the Scans
   library.

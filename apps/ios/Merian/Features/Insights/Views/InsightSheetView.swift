@@ -330,11 +330,7 @@ private extension InsightSheetView {
             shareExternally: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) },
             onShareToExplore: viewModel.canShareToExplore ? { draft in
                 Task {
-                    await viewModel.shareToExplore(
-                        fieldNotes: draft.publicFieldNotes,
-                        hashtags: draft.hashtags,
-                        locationSharing: draft.locationSharing
-                    )
+                    await viewModel.shareToExplore(draft, modelContext: modelContext)
                 }
             } : nil,
             onEditExplorePost: viewModel.state.sharedExplorePostId != nil ? { draft in

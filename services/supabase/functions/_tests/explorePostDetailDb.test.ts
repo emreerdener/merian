@@ -19,6 +19,7 @@ type ExplorePostDetailRow = {
   alternative_common_names: string[];
   ai_reasoning: string | null;
   gbif_taxon_key: number | null;
+  hazard_type: string | null;
   wikipedia_url: string | null;
   reference_image_url: string | null;
   wikipedia_overview: string | null;
@@ -76,7 +77,8 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
           reference_image_url = $3,
           wikipedia_overview = $4,
           gbif_taxon_key = $5,
-          alternative_common_names = $6
+          alternative_common_names = $6,
+          hazard_type = $7
         WHERE id = $1
       `,
         [
@@ -86,6 +88,7 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
           "Rosa galeria is a test species used to validate Explore detail payload enrichment.",
           424242,
           ["Garden Rose", "Meadow Rose"],
+          "poisonous",
         ],
       );
 
@@ -192,6 +195,7 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
           alternative_common_names,
           ai_reasoning,
           gbif_taxon_key,
+          hazard_type,
           wikipedia_url,
           reference_image_url,
           wikipedia_overview,
@@ -215,6 +219,7 @@ Deno.test("Explore post detail DB - returns cached reference imagery with the pu
       );
       assertEquals(row.alternative_common_names, ["Garden Rose", "Meadow Rose"]);
       assertEquals(row.gbif_taxon_key, 424242);
+      assertEquals(row.hazard_type, "poisonous");
       assertEquals(row.wikipedia_url, wikipediaUrl);
       assertEquals(row.reference_image_url, normalizedReferenceImageUrl);
       assertEquals(

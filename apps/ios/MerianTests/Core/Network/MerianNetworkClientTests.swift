@@ -1,5 +1,5 @@
-import Testing
 import Foundation
+import Testing
 @testable import Merian
 
 /// Intercepts network requests for MerianNetworkClient testing
@@ -255,7 +255,7 @@ struct MerianNetworkClientTests {
     }
 
     @Test func testExplorePostDetailDecodesSimilarSpecies() throws {
-        let data = """
+        let data = Data("""
         {
             "schema_version": 1,
             "data": {
@@ -273,6 +273,7 @@ struct MerianNetworkClientTests {
                 "habitat_description": "Open meadows and garden edges.",
                 "gbif_taxon_key": 42,
                 "iucn_red_list_status": "least_concern",
+                "hazard_type": "poisonous",
                 "wikipedia_url": "https://en.wikipedia.org/wiki/Rosa_galeria",
                 "reference_image_url": "https://media.merian.app/public_uploads/pro/rosa.webp,https://upload.wikimedia.org/rosa.jpg",
                 "wikipedia_overview": "Rosa galeria is a test species with enough overview copy for Explore.",
@@ -294,7 +295,7 @@ struct MerianNetworkClientTests {
                 ]
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -303,6 +304,7 @@ struct MerianNetworkClientTests {
 
         #expect(response.effectiveSchemaVersion == 1)
         #expect(response.data.alternativeCommonNames == ["Garden Rose", "Meadow Rose"])
+        #expect(response.data.hazardType == "poisonous")
         #expect(response.data.referenceGalleryImages.map(\.source) == [.merian, .wikipedia])
         #expect(response.data.referenceGalleryImages.first?.source.label == "Merian")
         #expect(similar.entries.count == 1)

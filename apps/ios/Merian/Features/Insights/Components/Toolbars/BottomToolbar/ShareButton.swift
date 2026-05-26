@@ -33,6 +33,7 @@ struct ShareButton: View {
     var heroImageUrl: String?
     var publicLocationLabel: String?
     var fieldNotesPreview: String?
+    var hashtagSuggestionContext: ExploreHashtagSuggestionContext
     var sharedExploreHashtags: [String]
     var sharedExplorePostId: String?
     var fieldNotesArePublicOnExplore: Bool
@@ -127,6 +128,7 @@ struct ShareButton: View {
                 initialFieldNotes: fieldNotesPreview,
                 initialFieldNotesArePublic: sharedExplorePostId == nil ? true : fieldNotesArePublicOnExplore,
                 initialHashtags: sharedExplorePostId == nil ? [] : sharedExploreHashtags,
+                hashtagSuggestionContext: hashtagSuggestionContext.updating(fieldNotes: fieldNotesPreview),
                 isSaving: sharedExplorePostId == nil ? isSharingToExplore : isUpdatingExplorePostContent,
                 onSubmit: { draft in
                     if sharedExplorePostId == nil {

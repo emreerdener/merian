@@ -1,6 +1,7 @@
-import Testing
-import SwiftData
 import Foundation
+import SwiftData
+import Testing
+
 @testable import Merian
 
 @MainActor
@@ -184,6 +185,32 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.fieldNotesText == "Private local note")
         #expect(record.fieldNotes == "Private local note")
         #expect(FieldNotesStore.fieldNotes(for: record.id) == "Private local note")
+    }
+
+    @Test func testShareComposerFieldNotesSyncImmediatelyIntoInsightState() async throws {
+        let ctx = try createIsolatedContext()
+        let viewModel = InsightSheetViewModel()
+        let record = LocalScanRecord(
+            speciesId: "share_composer_field_notes_species",
+            scientificName: "Cyprinella lutrensis",
+            commonName: "Red Shiner"
+        )
+        let notes = "Schooling in a shallow creek after rain."
+
+        ctx.insert(record)
+        try ctx.save()
+        FieldNotesStore.setFieldNotes(nil, for: record.id)
+        defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
+
+        viewModel.bindPresentedRecord(record, modelContext: ctx)
+        viewModel.state.dismissedFieldNotesCardScanId = record.id
+
+        viewModel.syncComposerFieldNotes(notes, modelContext: ctx)
+
+        #expect(viewModel.fieldNotesText == notes)
+        #expect(record.fieldNotes == notes)
+        #expect(FieldNotesStore.fieldNotes(for: record.id) == notes)
+        #expect(viewModel.state.dismissedFieldNotesCardScanId == nil)
     }
 
     @Test func testFieldNotesRepositoryPromotesLegacyStoreIntoLocalRecord() async throws {

@@ -33,6 +33,10 @@ struct ExplorePostDetailInsightSection: View {
         if isLoading && detail == nil {
             ExploreLoadingInsightCard()
         } else {
+            if let hazardType = detail?.hazardType {
+                ToxicityBanner(hazardType: hazardType)
+            }
+
             if let detail, detail.hasOverviewContent {
                 ExploreOverviewCard(
                     scientificName: scientificName,

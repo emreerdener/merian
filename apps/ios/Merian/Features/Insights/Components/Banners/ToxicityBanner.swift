@@ -3,8 +3,16 @@ import SwiftUI
 struct ToxicityBanner: View {
     @Environment(InferenceEngine.self) var inferenceEngine
 
+    private let explicitHazardType: String?
+
+    init(hazardType: String? = nil) {
+        self.explicitHazardType = hazardType
+    }
+
     private var hazardType: String {
-        inferenceEngine.speciesData?.insightData.hazardType ?? "none"
+        (explicitHazardType ?? inferenceEngine.speciesData?.insightData.hazardType ?? "none")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 
     private var bannerTitle: String {

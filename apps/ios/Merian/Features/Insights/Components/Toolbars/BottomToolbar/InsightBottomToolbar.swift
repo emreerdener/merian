@@ -24,6 +24,8 @@ struct InsightBottomToolbar: ToolbarContent {
     var body: some ToolbarContent {
         if showBottomBarTools, let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
             ToolbarItemGroup(placement: .bottomBar) {
+                let publicLocationLabel = ExploreLocationPrivacy.displayLabel(from: speciesData.locationName)
+
                 ShareButton(
                     shareExternally: shareExternally,
                     onShareToExplore: onShareToExplore,
@@ -34,8 +36,29 @@ struct InsightBottomToolbar: ToolbarContent {
                     speciesName: speciesData.commonName,
                     scientificName: speciesData.scientificName,
                     heroImageUrl: activeLocalRecord?.coverImagePath ?? inferenceEngine.activeMedia.imagePathsForUpload.first,
-                    publicLocationLabel: ExploreLocationPrivacy.displayLabel(from: speciesData.locationName),
+                    publicLocationLabel: publicLocationLabel,
                     fieldNotesPreview: fieldNotesPreview,
+                    hashtagSuggestionContext: ExploreHashtagSuggestionContext(
+                        speciesName: speciesData.commonName,
+                        scientificName: speciesData.scientificName,
+                        publicLocationLabel: publicLocationLabel,
+                        fieldNotes: fieldNotesPreview,
+                        ecologyType: speciesData.ecologyType,
+                        taxonomyKingdom: speciesData.taxonomy?.kingdom ?? activeLocalRecord?.taxonomyKingdom,
+                        taxonomyClass: speciesData.taxonomy?.className ?? activeLocalRecord?.taxonomyClass,
+                        taxonomyOrder: speciesData.taxonomy?.order ?? activeLocalRecord?.taxonomyOrder,
+                        taxonomyFamily: speciesData.taxonomy?.family ?? activeLocalRecord?.taxonomyFamily,
+                        habitatDescription: speciesData.habitatDescription ?? activeLocalRecord?.habitatDescription,
+                        weatherCondition: speciesData.weatherCondition ?? activeLocalRecord?.weatherCondition,
+                        colors: speciesData.colors ?? [],
+                        groupTags: speciesData.groupTags ?? [],
+                        semanticTags: activeLocalRecord?.semanticTags ?? [],
+                        isInvasive: speciesData.isInvasive,
+                        imageQualityScore: speciesData.imageQualityScore ?? activeLocalRecord?.imageQualityScore,
+                        lifeStage: speciesData.lifeStage,
+                        reproductiveCondition: speciesData.reproductiveCondition,
+                        ecologicalInteractions: speciesData.ecologicalInteractions ?? []
+                    ),
                     sharedExploreHashtags: sharedExploreHashtags,
                     sharedExplorePostId: sharedExplorePostId,
                     fieldNotesArePublicOnExplore: fieldNotesArePublicOnExplore,

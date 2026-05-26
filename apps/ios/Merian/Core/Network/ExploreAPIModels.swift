@@ -553,6 +553,7 @@ struct ExplorePostDetail: Decodable {
     let habitatDescription: String?
     let gbifTaxonKey: Int?
     let iucnRedListStatus: String?
+    let hazardType: String?
     let wikipediaUrl: String?
     let referenceImageUrl: String?
     let wikipediaOverview: String?
