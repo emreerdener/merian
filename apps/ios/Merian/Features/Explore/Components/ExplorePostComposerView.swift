@@ -7,16 +7,16 @@ enum ExplorePostComposerMode {
     var title: String {
         switch self {
         case .create:
-            return "Share discovery"
+            return "Share"
         case .edit:
-            return "Edit post"
+            return "Edit"
         }
     }
 
     var actionTitle: String {
         switch self {
         case .create:
-            return "Share"
+            return "Share discovery"
         case .edit:
             return "Save"
         }
@@ -141,33 +141,10 @@ struct ExplorePostComposerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
                     }
-                    .disabled(isSaving)
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: submit) {
-                        if isSaving {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(.white)
-                        } else {
-                            Text(mode.actionTitle)
-                                .fontWeight(.semibold)
-                        }
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color(uiColor: .systemBlue))
-                    )
-                    .opacity(isSaving ? 0.7 : 1)
-                    .buttonStyle(.plain)
                     .disabled(isSaving)
                 }
 
@@ -179,9 +156,43 @@ struct ExplorePostComposerView: View {
                     .fontWeight(.semibold)
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 0) {
+                    Divider()
+                    
+                    Button(action: submit) {
+                        HStack(spacing: 8) {
+                            if isSaving {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(.white)
+                            }
+                            Text(mode.actionTitle)
+                                .font(.headline)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .foregroundStyle(.white)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color(uiColor: .systemBlue))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSaving)
+                    .opacity(isSaving ? 0.7 : 1.0)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
+                }
+                .background(
+                    Color(uiColor: .secondarySystemGroupedBackground)
+                        .ignoresSafeArea(edges: .bottom)
+                )
+            }
         }
         .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
+        .presentationDragIndicator(.hidden)
     }
 
     private var discoveryPreview: some View {
@@ -308,11 +319,11 @@ struct ExplorePostComposerView: View {
                         .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
 
-            suggestedHashtagChips
-
             Text("Use up to five hashtags separated by spaces or commas.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+
+            suggestedHashtagChips
         }
     }
 
@@ -320,37 +331,34 @@ struct ExplorePostComposerView: View {
     private var suggestedHashtagChips: some View {
         let suggestions = currentHashtagSuggestions
         if !suggestions.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("AI suggestions", systemImage: "sparkles")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                FlowLayout(spacing: 8) {
-                    ForEach(suggestions, id: \.self) { hashtag in
-                        Button {
-                            addSuggestedHashtag(hashtag)
-                        } label: {
-                            Text("#\(hashtag)")
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(Color.accentColor.opacity(0.12))
-                                )
-                                .overlay(
-                                    Capsule(style: .continuous)
-                                        .stroke(Color.accentColor.opacity(0.22), lineWidth: 1)
-                                )
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(suggestions, id: \.self) { hashtag in
+                            Button {
+                                addSuggestedHashtag(hashtag)
+                            } label: {
+                                Text("#\(hashtag)")
+                                    .font(.subheadline.weight(.semibold))
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        Capsule(style: .continuous)
+                                            .fill(Color.accentColor.opacity(0.12))
+                                    )
+                                    .overlay(
+                                        Capsule(style: .continuous)
+                                            .stroke(Color.accentColor.opacity(0.22), lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.accentColor)
+                            .accessibilityLabel("Add hashtag \(hashtag)")
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityLabel("Add hashtag \(hashtag)")
                     }
+                    .padding(.horizontal, 16)
                 }
-            }
-            .padding(.top, 2)
+                .padding(.horizontal, -16)
         }
     }
 
