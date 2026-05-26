@@ -35,12 +35,14 @@ final class InsightMediaExportManager {
     
     // MARK: - Single Item Export
     func saveUserPhotos(liveData: Data?, validPaths: [String], referenceImageUrl: String?, completion: @escaping (Int) -> Void) {
-        let approvedRemoteURLs = ApprovedRemoteMedia.urls(from: referenceImageUrl)
+        let approvedRemoteURLs = validPaths.flatMap { ApprovedRemoteMedia.urls(from: $0) }
+            + ApprovedRemoteMedia.urls(from: referenceImageUrl)
+        let localPaths = validPaths.filter { ApprovedRemoteMedia.firstURL(from: $0) == nil }
         
         Task {
             let photosSaved = await ExportProcessingActor.shared.saveUserPhotos(
                 liveData: liveData,
-                validPaths: validPaths,
+                validPaths: localPaths,
                 remoteURLs: approvedRemoteURLs
             )
             completion(photosSaved)
@@ -52,21 +54,25 @@ final class InsightMediaExportManager {
         var items: [Any] = [
             "Check out this \(commonName) (\(scientificName)) I discovered using Merian!"
         ]
-        let safeCloudURL = ApprovedRemoteMedia.firstURL(from: referenceImageUrl)
+        let historicRemoteURLs = ApprovedRemoteMedia.urls(from: historicPath)
+        let historicLocalPath = historicRemoteURLs.isEmpty ? historicPath : nil
+        let safeCloudURLs = historicRemoteURLs + ApprovedRemoteMedia.urls(from: referenceImageUrl)
         
         Task {
-            let extractedImage = await ExportProcessingActor.shared.extractImage(liveData: liveData, historicPath: historicPath)
+            let extractedImage = await ExportProcessingActor.shared.extractImage(liveData: liveData, historicPath: historicLocalPath)
             
             if let image = extractedImage {
                 items.insert(image, at: 0)
-                await MainActor.run { presentShareSheet(items) }
-            } else if let safeCloudURL,
-                      let remoteImage = await ExportProcessingActor.shared.extractRemoteImage(from: safeCloudURL, maxSize: 2048) {
-                items.insert(remoteImage, at: 0)
-                await MainActor.run { presentShareSheet(items) }
             } else {
-                await MainActor.run { presentShareSheet(items) }
+                for safeCloudURL in safeCloudURLs {
+                    if let remoteImage = await ExportProcessingActor.shared.extractRemoteImage(from: safeCloudURL, maxSize: 2048) {
+                        items.insert(remoteImage, at: 0)
+                        break
+                    }
+                }
             }
+
+            await MainActor.run { presentShareSheet(items) }
         }
     }
 

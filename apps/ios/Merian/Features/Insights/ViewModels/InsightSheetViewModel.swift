@@ -144,7 +144,20 @@ final class InsightSheetViewModel {
         if queuedContext != nil {
             return cachedActiveMedia ?? ActiveScanMedia()
         }
-        return inferenceEngine?.activeMedia ?? ActiveScanMedia()
+
+        let engineMedia = inferenceEngine?.activeMedia ?? ActiveScanMedia()
+        if engineMedia.hasUserImage {
+            return engineMedia
+        }
+
+        guard var cachedMedia = cachedActiveMedia else {
+            return engineMedia
+        }
+
+        if cachedMedia.referenceState == .empty {
+            cachedMedia.referenceState = engineMedia.referenceState
+        }
+        return cachedMedia
     }
 
     var observationContext: ObservationContext? {
@@ -409,8 +422,9 @@ final class InsightSheetViewModel {
         guard !state.isSavingPhotos else { return }
         state.isSavingPhotos = true
 
-        let liveData = inferenceEngine.activeMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
-        let validPaths = inferenceEngine.activeMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
+        let exportMedia = activeMedia
+        let liveData = exportMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
+        let validPaths = exportMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
         let refUrls = inferenceEngine.speciesData?.referenceImageUrl
 
         InsightMediaExportManager.shared.saveUserPhotos(
@@ -429,8 +443,10 @@ final class InsightSheetViewModel {
     func shareDiscovery(inferenceEngine: InferenceEngine) {
         let commonName = inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
         let scientificName = inferenceEngine.speciesData?.scientificName ?? "Awaiting taxonomy"
-        let liveData = inferenceEngine.activeMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
-        let historicPath = inferenceEngine.activeMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }.first
+        let exportMedia = activeMedia
+        let liveData = exportMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
+        let historicPath = exportMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }.first
+            ?? activeLocalRecord?.coverImagePath
         let refUrls = inferenceEngine.speciesData?.referenceImageUrl
 
         InsightMediaExportManager.shared.shareDiscovery(

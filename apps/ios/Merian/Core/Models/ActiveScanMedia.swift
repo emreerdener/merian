@@ -48,6 +48,10 @@ struct ActiveScanMedia: Equatable {
         return items.isEmpty && referenceState == .empty
     }
 
+    var hasUserImage: Bool {
+        liveImageData != nil || !imagePathsForUpload.isEmpty
+    }
+
     var liveImageData: Data? {
         for item in items {
             if case .liveImage(let data) = item { return data }
