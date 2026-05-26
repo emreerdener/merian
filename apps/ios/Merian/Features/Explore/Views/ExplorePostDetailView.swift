@@ -134,6 +134,8 @@ struct ExplorePostDetailView: View {
                                     }
                                 )
 
+                                toxicityBanner
+
                                 fieldNotesSection(for: post)
 
                                 ExplorePostDetailInsightSection(
@@ -433,6 +435,13 @@ struct ExplorePostDetailView: View {
                 onEdit: { openFieldNotesEditor(for: post) },
                 onToggleVisibility: showFieldNotesVisibilityConfirmation
             )
+        }
+    }
+
+    @ViewBuilder
+    private var toxicityBanner: some View {
+        if let hazardType = detail?.hazardType {
+            ToxicityBanner(hazardType: hazardType)
         }
     }
 
