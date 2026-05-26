@@ -147,7 +147,7 @@ struct UserProfile: View {
                 .foregroundStyle(.primary)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Guest")
+                Text("Explorer")
                     .font(.headline)
                     .foregroundStyle(.primary)
                 Text(profileViewModel.publicUsernameDisplayName ?? "Loading username")

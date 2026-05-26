@@ -237,7 +237,7 @@ struct ExploreAuthorProfileSheet: View {
             authorAvatar(url: profile.authorAvatarURL, size: 112)
 
             VStack(spacing: 6) {
-                Text(profile.authorFirstName)
+                Text(profile.profileTitle)
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
@@ -386,7 +386,7 @@ struct ExploreAuthorProfileSheet: View {
                     authorAvatar(url: profile.authorAvatarURL, size: 44)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(profile.authorFirstName)
+                        Text(profile.profileTitle)
                             .font(.headline)
                             .lineLimit(1)
 
@@ -706,5 +706,12 @@ private extension ExploreAuthorProfile {
 
     var authorFirstName: String {
         publicAuthorDisplayName
+    }
+
+    var profileTitle: String {
+        if publicAuthorDisplayName == publicUsernameDisplayName {
+            return "Explorer"
+        }
+        return publicAuthorDisplayName
     }
 }
