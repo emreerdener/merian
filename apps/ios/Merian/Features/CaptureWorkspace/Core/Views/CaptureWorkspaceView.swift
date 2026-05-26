@@ -245,7 +245,7 @@ struct CaptureWorkspaceView: View {
                                     viewModel.diContainer.inferenceEngine.load(from: record)
                                     viewModel.activeSheet = .insight
                                 }
-                                viewModel.stagedCapture.clearAll()
+                                viewModel.clearStagedCaptureAndCropState()
                                 viewModel.cancelRefinementStaging()
                                 if isCancelingRefinement {
                                     observationContext = ObservationContext()
@@ -324,7 +324,11 @@ struct CaptureWorkspaceView: View {
                 get: { viewModel.imageToCrop != nil },
                 set: { if !$0 { viewModel.imageToCrop = nil } }
             ),
-            viewModel: viewModel
+            viewModel: viewModel,
+            onRequiredCropReadyForSubmit: {
+                viewModel.submitStagedCapture(modelContext: modelContext)
+                cameraManager.resetZoom()
+            }
         ))
         .onAppear {
             viewModel.updateNotificationSuppression()
@@ -354,21 +358,8 @@ struct CaptureWorkspaceView: View {
             viewModel.handlePhotoPickerSelection(newItems: newItems, modelContext: modelContext)
         }
         .onChange(of: viewModel.stagedCapture.images.count) { _, count in
-            // If the user explicitly wants to confirm all submissions, never auto-submit
-            guard !appSettings.requiresScanConfirmation else { return }
-
-            // If we are in multi-capture or refinement mode, NEVER auto-submit.
-            // The user must manually tap "Identify" in the ActiveScanToolbar.
-            let isMultiCapture = appSettings.isMultiCaptureEnabled || viewModel.baseRefinementRecord != nil
-            guard !isMultiCapture else { return }
-
-            // If there were already other modalities staged (audio or describe), do not auto-submit.
-            // The user is explicitly composing a scan in the ActiveScanToolbar.
-            let hasOtherModalities = !viewModel.stagedCapture.observationContexts.isEmpty || !viewModel.stagedCapture.audios.isEmpty
-            guard !hasOtherModalities else { return }
-
-            // For single-capture mode, auto-submit when we have exactly 1 image
             guard count == 1 else { return }
+            guard viewModel.shouldAutoSubmitStagedCapture else { return }
 
             viewModel.submitStagedCapture(modelContext: modelContext)
             cameraManager.resetZoom()

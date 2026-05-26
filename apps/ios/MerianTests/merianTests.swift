@@ -75,6 +75,15 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         }
     }
 
+    private func makePreparedStagedImage(color: UIColor = .systemTeal) -> PreparedStagedImage {
+        PreparedStagedImage(
+            compressedData: makePNGData(color: color),
+            displayData: makePNGData(color: .systemBlue),
+            historicalContext: nil,
+            previewCGImage: SendableCGImage(image: makePreviewCGImage(color: color))
+        )
+    }
+
     private func waitUntil(
         timeoutNanoseconds: UInt64 = 1_000_000_000,
         pollingIntervalNanoseconds: UInt64 = 10_000_000,
@@ -277,6 +286,81 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         XCTAssertFalse(viewModel.hasAvailableStagedCaptureSlot)
         XCTAssertFalse(viewModel.shouldShowMediaModeToggle)
+    }
+
+    func testPhotoLibraryPreparedImageRequiresCropAndPresentsCropSheet() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+
+        viewModel.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: true)
+
+        let stagedImage = viewModel.stagedCapture.images.first
+        XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
+        XCTAssertTrue(viewModel.hasPendingRequiredGalleryCrop)
+        XCTAssertEqual(viewModel.imageToCrop?.id, stagedImage?.original.id)
+        XCTAssertTrue(viewModel.isRequiredGalleryCrop(stagedImage?.original.id ?? UUID()))
+    }
+
+    func testPreparedImageWithoutRequiredCropDoesNotPresentCropSheet() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+
+        viewModel.commitPreparedStagedImages([makePreparedStagedImage()])
+
+        XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
+        XCTAssertFalse(viewModel.hasPendingRequiredGalleryCrop)
+        XCTAssertNil(viewModel.imageToCrop)
+    }
+
+    func testCancelingRequiredGalleryCropRemovesImageAndClearsCropState() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        viewModel.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: true)
+        let imageId = try! XCTUnwrap(viewModel.stagedCapture.images.first?.original.id)
+
+        viewModel.cancelRequiredGalleryCrop(for: imageId)
+
+        XCTAssertTrue(viewModel.stagedCapture.images.isEmpty)
+        XCTAssertFalse(viewModel.hasPendingRequiredGalleryCrop)
+        XCTAssertNil(viewModel.imageToCrop)
+        XCTAssertNil(viewModel.editingCropIndex)
+    }
+
+    func testCompletingRequiredGalleryCropAllowsAutoSubmitOnlyWhenExistingRulesAllow() {
+        let autoSubmitContainer = AppDIContainer.preview
+        autoSubmitContainer.appSettings.requiresScanConfirmation = false
+        autoSubmitContainer.appSettings.isMultiCaptureEnabled = false
+        let autoSubmitViewModel = CaptureWorkspaceViewModel(
+            diContainer: autoSubmitContainer,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        autoSubmitViewModel.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: true)
+        let autoSubmitImageId = try! XCTUnwrap(autoSubmitViewModel.stagedCapture.images.first?.original.id)
+
+        XCTAssertTrue(autoSubmitViewModel.completeRequiredGalleryCrop(for: autoSubmitImageId))
+
+        let confirmationContainer = AppDIContainer.preview
+        confirmationContainer.appSettings.requiresScanConfirmation = true
+        confirmationContainer.appSettings.isMultiCaptureEnabled = false
+        let confirmationViewModel = CaptureWorkspaceViewModel(
+            diContainer: confirmationContainer,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        confirmationViewModel.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: true)
+        let confirmationImageId = try! XCTUnwrap(confirmationViewModel.stagedCapture.images.first?.original.id)
+
+        XCTAssertFalse(confirmationViewModel.completeRequiredGalleryCrop(for: confirmationImageId))
     }
 
     func testExploreDeepLinkSurvivesImmediateSessionTimeoutReset() async throws {

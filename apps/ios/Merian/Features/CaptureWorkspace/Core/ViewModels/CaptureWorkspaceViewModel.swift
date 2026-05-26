@@ -106,6 +106,7 @@ final class CaptureWorkspaceViewModel {
     var offlineToastMessage: String?
     var imageToCrop: IdentifiableImage?
     var editingCropIndex: Int?
+    @ObservationIgnored private var requiredGalleryCropImageIds: [UUID] = []
     /// All content staged for the next combined submission — images, optional audio (reserved),
     /// and optional describe description. Replaces the previous four parallel image arrays.
     var stagedCapture = StagedCapture()
@@ -318,7 +319,7 @@ final class CaptureWorkspaceViewModel {
 
         // Only wipe staged content if no active workflow should survive the background transition.
         if !shouldPreserveStagingOnBackground {
-            stagedCapture.clearAll()
+            clearStagedCaptureAndCropState()
             selectedPhotoItems.removeAll()
             cancelRefinementStaging()
         }
@@ -405,7 +406,7 @@ final class CaptureWorkspaceViewModel {
             }
 
             guard !Task.isCancelled, !preparedImports.isEmpty else { return }
-            await self.commitPreparedStagedImages(preparedImports)
+            await self.commitPreparedStagedImages(preparedImports, requiresCrop: true)
         }
     }
 
@@ -437,7 +438,7 @@ final class CaptureWorkspaceViewModel {
         return nil
     }
 
-    private func commitPreparedStagedImages(_ preparedImports: [PreparedStagedImage]) {
+    func commitPreparedStagedImages(_ preparedImports: [PreparedStagedImage], requiresCrop: Bool = false) {
         let availableSlots = availableStagedCaptureSlots
         guard availableSlots > 0 else { return }
 
@@ -449,6 +450,9 @@ final class CaptureWorkspaceViewModel {
                 environmentContext: preparedImport.historicalContext?.makeEnvironmentContext(),
                 isFromGallery: true
             )
+            if requiresCrop {
+                requiredGalleryCropImageIds.append(identifiable.id)
+            }
             stagedCapture.images.append(StagedImage(
                 compressedData: preparedImport.compressedData,
                 displayData: preparedImport.displayData,
@@ -456,15 +460,82 @@ final class CaptureWorkspaceViewModel {
                 original: identifiable
             ))
         }
+
+        if requiresCrop {
+            presentNextRequiredGalleryCrop()
+        }
     }
     
     // MARK: - Manual Crop Routing
     @ObservationIgnored var activeCropTask: Task<Void, Never>?
 
+    var hasPendingRequiredGalleryCrop: Bool {
+        requiredGalleryCropImageIds.contains { imageId in
+            stagedCapture.images.contains { $0.original.id == imageId }
+        }
+    }
+
+    var shouldAutoSubmitStagedCapture: Bool {
+        guard !diContainer.appSettings.requiresScanConfirmation else { return false }
+
+        let isMultiCapture = diContainer.appSettings.isMultiCaptureEnabled || baseRefinementRecord != nil
+        guard !isMultiCapture else { return false }
+
+        let hasOtherModalities = !stagedCapture.observationContexts.isEmpty || !stagedCapture.audios.isEmpty
+        guard !hasOtherModalities else { return false }
+
+        return stagedCapture.images.count == 1 && !hasPendingRequiredGalleryCrop
+    }
+
+    func isRequiredGalleryCrop(_ imageID: UUID) -> Bool {
+        requiredGalleryCropImageIds.contains(imageID)
+    }
+
+    @discardableResult
+    func completeRequiredGalleryCrop(for imageID: UUID) -> Bool {
+        requiredGalleryCropImageIds.removeAll { $0 == imageID }
+
+        if hasPendingRequiredGalleryCrop {
+            presentNextRequiredGalleryCrop()
+            return false
+        }
+
+        return shouldAutoSubmitStagedCapture
+    }
+
+    func cancelRequiredGalleryCrop(for imageID: UUID) {
+        activeCropTask?.cancel()
+        requiredGalleryCropImageIds.removeAll { $0 == imageID }
+        if let editIndex = stagedCapture.images.firstIndex(where: { $0.original.id == imageID }) {
+            stagedCapture.images.remove(at: editIndex)
+        }
+        editingCropIndex = nil
+        imageToCrop = nil
+        presentNextRequiredGalleryCrop()
+    }
+
+    func clearStagedCaptureAndCropState() {
+        activeCropTask?.cancel()
+        requiredGalleryCropImageIds.removeAll()
+        stagedCapture.clearAll()
+        editingCropIndex = nil
+        imageToCrop = nil
+    }
+
     func presentCrop(for index: Int) {
         guard index < stagedCapture.images.count else { return }
         self.editingCropIndex = index
         self.imageToCrop = stagedCapture.images[index].original
+    }
+
+    func presentNextRequiredGalleryCrop() {
+        while let nextImageId = requiredGalleryCropImageIds.first {
+            if let nextIndex = stagedCapture.images.firstIndex(where: { $0.original.id == nextImageId }) {
+                presentCrop(for: nextIndex)
+                return
+            }
+            requiredGalleryCropImageIds.removeFirst()
+        }
     }
     
     func startRefinementScan(from record: LocalScanRecord, initialDescription: String? = nil) {

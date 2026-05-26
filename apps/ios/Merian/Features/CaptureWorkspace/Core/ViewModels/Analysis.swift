@@ -36,7 +36,7 @@ extension CaptureWorkspaceViewModel {
                 modelContext: modelContext,
                 targetEradicationRecord: baseRefinementRecord
             )
-            stagedCapture.clearAll()
+            clearStagedCaptureAndCropState()
             baseRefinementRecord = nil
             refinementSubjectId = nil
             return
@@ -59,7 +59,7 @@ extension CaptureWorkspaceViewModel {
         let primaryImageIsGalleryPhoto = capturedImages.first?.original.isFromGallery == true
 
         // 3. Clear the staging buffers immediately so the UI resets behind the overlay.
-        stagedCapture.clearAll()
+        clearStagedCaptureAndCropState()
         baseRefinementRecord = nil
         refinementSubjectId = nil
         preFetchTask = nil

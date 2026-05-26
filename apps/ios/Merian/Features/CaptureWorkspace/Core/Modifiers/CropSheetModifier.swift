@@ -3,6 +3,7 @@ import SwiftUI
 struct CropSheetModifier: ViewModifier {
     @Binding var isPresented: Bool
     @Bindable var viewModel: CaptureWorkspaceViewModel
+    var onRequiredCropReadyForSubmit: () -> Void = {}
 
     func body(content: Content) -> some View {
         content.fullScreenCover(isPresented: $isPresented) {
@@ -13,6 +14,7 @@ struct CropSheetModifier: ViewModifier {
                     initialOffset: identItem.lastCropOffset,
                     onCrop: { croppedData, finalScale, finalOffset, displaySize in
                         let targetId = identItem.id
+                        let isRequiredGalleryCrop = viewModel.isRequiredGalleryCrop(targetId)
                         if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
 
                             let existing = viewModel.stagedCapture.images[editIndex]
@@ -64,32 +66,56 @@ struct CropSheetModifier: ViewModifier {
                                         maxPixelSize: nil
                                     )
                                 }.value
-                                guard !Task.isCancelled, !displayCropped.isEmpty,
-                                      let resolvedIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) else { return }
-                                let current = viewModel.stagedCapture.images[resolvedIndex]
-                                viewModel.stagedCapture.images[resolvedIndex] = StagedImage(
-                                    compressedData: current.compressedData,
-                                    displayData: displayCropped,
-                                    uiImage: current.uiImage,
-                                    original: current.original
-                                )
+                                guard !Task.isCancelled else { return }
+                                if let resolvedIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
+                                    let current = viewModel.stagedCapture.images[resolvedIndex]
+                                    let resolvedDisplayData = displayCropped.isEmpty ? croppedData : displayCropped
+                                    viewModel.stagedCapture.images[resolvedIndex] = StagedImage(
+                                        compressedData: current.compressedData,
+                                        displayData: resolvedDisplayData,
+                                        uiImage: current.uiImage,
+                                        original: current.original
+                                    )
+                                }
+
+                                if isRequiredGalleryCrop {
+                                    viewModel.editingCropIndex = nil
+                                    viewModel.imageToCrop = nil
+                                    if viewModel.completeRequiredGalleryCrop(for: targetId) {
+                                        onRequiredCropReadyForSubmit()
+                                    }
+                                }
                             }
+                        } else if isRequiredGalleryCrop {
+                            viewModel.cancelRequiredGalleryCrop(for: targetId)
                         }
-                        viewModel.editingCropIndex = nil
-                        viewModel.imageToCrop = nil
+
+                        if !isRequiredGalleryCrop {
+                            viewModel.editingCropIndex = nil
+                            viewModel.imageToCrop = nil
+                        }
                     },
                     onCancel: {
-                        viewModel.editingCropIndex = nil
-                        viewModel.imageToCrop = nil
+                        let targetId = identItem.id
+                        if viewModel.isRequiredGalleryCrop(targetId) {
+                            viewModel.cancelRequiredGalleryCrop(for: targetId)
+                        } else {
+                            viewModel.editingCropIndex = nil
+                            viewModel.imageToCrop = nil
+                        }
                     },
                     onDelete: {
                         let targetId = identItem.id
-                        viewModel.activeCropTask?.cancel()
-                        if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
-                            viewModel.stagedCapture.images.remove(at: editIndex)
+                        if viewModel.isRequiredGalleryCrop(targetId) {
+                            viewModel.cancelRequiredGalleryCrop(for: targetId)
+                        } else {
+                            viewModel.activeCropTask?.cancel()
+                            if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
+                                viewModel.stagedCapture.images.remove(at: editIndex)
+                            }
+                            viewModel.editingCropIndex = nil
+                            viewModel.imageToCrop = nil
                         }
-                        viewModel.editingCropIndex = nil
-                        viewModel.imageToCrop = nil
                     }
                 )
             }
