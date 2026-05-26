@@ -87,4 +87,18 @@ jobs:
         run: supabase db push
 
       - name: Deploy Edge Functions
-        run: supabase functions deploy --project-ref $PROJECT_ID
+        run: |
+          for attempt in 1 2 3; do
+            if supabase functions deploy --project-ref "$PROJECT_ID"; then
+              exit 0
+            fi
+
+            if [ "$attempt" = "3" ]; then
+              echo "Supabase Edge Function deploy failed after $attempt attempts."
+              exit 1
+            fi
+
+            sleep_seconds=$((attempt * 20))
+            echo "Supabase Edge Function deploy failed; retrying in ${sleep_seconds}s..."
+            sleep "$sleep_seconds"
+          done
