@@ -22,6 +22,7 @@ Returns a privacy-scoped public profile for an Explore author. This endpoint pow
   "data": {
     "author_user_id": "uuid",
     "author_name": "River W.",
+    "author_username": "river_w",
     "author_avatar_url": "https://...",
     "species_count": 42,
     "current_streak": 5,
@@ -48,6 +49,10 @@ Returns a privacy-scoped public profile for an Explore author. This endpoint pow
 ```
 
 The backing RPC is `public.get_explore_author_profile(self_id, target_author_user_id, preview_limit)`.
+
+`author_name` is the primary public display label. `author_username` is the
+stable handle stored without `@`; iOS renders it beneath the display name as
+`@river_w` and uses it for default/ghost author labels.
 
 `follower_count` and `following_count` are public aggregate counts for visible profiles only. They are not list affordances. `viewer_is_following` is specific to the requesting viewer and drives the iOS `Follow` / `Following` button.
 

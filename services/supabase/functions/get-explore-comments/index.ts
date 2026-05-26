@@ -7,6 +7,7 @@ import {
   normalizeLimit,
   refreshExploreAuthorStateBestEffort,
   requireUuid,
+  withExploreAuthorUsernames,
 } from "../_shared/explore.ts";
 import { fetchExploreComments } from "./db.ts";
 
@@ -54,14 +55,17 @@ serve((req: Request) =>
       "get-explore-comments",
     );
 
-    const data = await fetchExploreComments(
-      user.id,
-      postId,
-      limit,
-      {
-        afterCreatedAt,
-        afterCommentId,
-      },
+    const data = await withExploreAuthorUsernames(
+      await fetchExploreComments(
+        user.id,
+        postId,
+        limit,
+        {
+          afterCreatedAt,
+          afterCommentId,
+        },
+        supabaseAdmin,
+      ),
       supabaseAdmin,
     );
     return jsonResponse({ data }, 200);

@@ -74,7 +74,8 @@ The web page may render only data already intended for the public Explore projec
 - public species common/scientific name
 - privacy-filtered location label
 - coarse public telemetry such as time of day, month, weather condition, and temperature
-- public author display name/avatar
+- public author display name/avatar, plus canonical username handle only if the
+  public projection supplies it
 - public like/comment counts
 
 The web page must not render:

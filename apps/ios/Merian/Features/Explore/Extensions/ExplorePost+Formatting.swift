@@ -47,15 +47,20 @@ extension ExplorePost {
     }
 
     var publicAuthorDisplayName: String {
-        Self.publicAuthorDisplayName(from: authorName)
+        Self.publicAuthorDisplayName(from: authorName, username: authorUsername)
     }
 
-    static func publicAuthorDisplayName(from rawName: String) -> String {
+    static func publicAuthorDisplayName(from rawName: String, username: String? = nil) -> String {
         let normalizedName = rawName
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
+
+        if let displayUsername = publicUsernameDisplayValue(username),
+           normalizedName.isEmpty || normalizedName == username {
+            return displayUsername
+        }
 
         guard !normalizedName.isEmpty else { return rawName }
 
@@ -69,6 +74,13 @@ extension ExplorePost {
 
         parts.removeLast()
         return parts.isEmpty ? normalizedName : parts.joined(separator: " ")
+    }
+
+    static func publicUsernameDisplayValue(_ rawUsername: String?) -> String? {
+        guard let rawUsername else { return nil }
+        let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !username.isEmpty else { return nil }
+        return "@\(username)"
     }
 
     var publicWeatherLabel: String? {
@@ -96,6 +108,6 @@ extension ExplorePost {
 
 extension ExploreComment {
     var displayAuthorName: String {
-        ExplorePost.publicAuthorDisplayName(from: authorName)
+        ExplorePost.publicAuthorDisplayName(from: authorName, username: authorUsername)
     }
 }

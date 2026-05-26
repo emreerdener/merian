@@ -47,10 +47,30 @@ The `Persona` UI component cross-references this enum against the user's live pr
 `ProfileViewModel` handles **only** cloud-network operations:
 
 - `fetchGeoprivacy()` — reads `default_geoprivacy` from the Supabase `users` table
+- `fetchPublicIdentity()` — reads the public display/handle projection
+  (`public_author_name`, `public_username`) from the Supabase `users` table
+- `updatePublicUsername(_:)` — calls `/update-public-username`, refreshes the
+  local handle, and publishes `.publicAuthorIdentityChanged` so Explore/Profile
+  surfaces can update
 - `signInWithApple()`, `signInWithGoogle()`, `signOut()` — delegates to `SupabaseManager`
-- Auth state computed properties (`isGuestUser`, `userName`, `userEmail`, `userAvatarURL`)
+- Auth state computed properties (`isGuestUser`, `userName`, `userEmail`,
+  `userAvatarURL`, `publicUsernameDisplayName`)
 
 Heavy data operations (fetching all scan records for stats, computing awards) are **firewalled** out of `ProfileViewModel` and into `ProfileDatabaseActor` to avoid locking the `@MainActor`.
+
+## Public Username UX
+
+The Profile account card shows the user's public handle (`@public_username`) in
+place of the private email line. The handle is available to anonymous and
+authenticated sessions and is the future-safe tag/mention identity.
+
+The edit sheet accepts pasted values with or without `@`, shows the normalized
+preview inline, and submits through `MerianNetworkClient.updatePublicUsername`.
+Logged-in Explore posts continue to render `public_author_name` when the user
+has a provider-derived display label; default/ghost identities render
+`@public_username`. See
+[`21-public-usernames.md`](./21-public-usernames.md) for the full backend and
+display contract.
 
 ---
 

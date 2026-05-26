@@ -4,6 +4,7 @@ import SwiftUI
 /// and dynamically rendering high-fidelity Auth provider payloads seamlessly.
 struct UserProfile: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
+    @State private var isShowingUsernameEditor = false
     var totalScans: Int = 0
     var completedAchievements: Int = 0
     
@@ -12,6 +13,8 @@ struct UserProfile: View {
             if profileViewModel.isGuestUser {
                 // Ghost Mode: Sign In Flow
                 VStack(spacing: 16) {
+                    usernameSummaryRow
+
                     Button(action: {
                         Task {
                             await profileViewModel.signInWithApple()
@@ -72,11 +75,11 @@ struct UserProfile: View {
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(profileViewModel.userName ?? "Explorer")
+                            Text(profileViewModel.userName ?? profileViewModel.publicAuthorName ?? "Explorer")
                                 .font(.title3)
                                 .fontWeight(.semibold)
 
-                            Text(profileViewModel.userEmail ?? "Connected account")
+                            Text(profileViewModel.publicUsernameDisplayName ?? "Loading username")
                                 .font(.footnote)
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
@@ -88,6 +91,12 @@ struct UserProfile: View {
                         // Uses Apple's native `Menu` popover rendering to dynamically bind
                         // a systemic "liquid glass" context menu perfectly blurring behind the options.
                         Menu {
+                            Button {
+                                isShowingUsernameEditor = true
+                            } label: {
+                                Label("Edit username", systemImage: "at")
+                            }
+
                             Button(role: .destructive) {
                                 Task {
                                     // Forces a clean physical JWT removal across the device securely
@@ -120,11 +129,57 @@ struct UserProfile: View {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .fill(Color(UIColor.secondarySystemGroupedBackground))
                 )
-                .task(id: profileViewModel.currentUserId) {
-                    await profileViewModel.fetchSocialStats()
-                }
             }
         }
+        .task(id: profileViewModel.currentUserId) {
+            await profileViewModel.fetchPublicIdentity()
+            await profileViewModel.fetchSocialStats()
+        }
+        .sheet(isPresented: $isShowingUsernameEditor) {
+            PublicUsernameEditSheet(viewModel: profileViewModel)
+        }
+    }
+
+    private var usernameSummaryRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.crop.circle")
+                .font(.system(size: 34, weight: .regular))
+                .foregroundStyle(.primary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Guest")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text(profileViewModel.publicUsernameDisplayName ?? "Loading username")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button {
+                isShowingUsernameEditor = true
+            } label: {
+                Image(systemName: "pencil")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .frame(width: 36, height: 36)
+                    .background(Color.secondary.opacity(0.15))
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Edit username")
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(UIColor.secondarySystemGroupedBackground))
+        )
     }
 
     private var summaryCountsRow: some View {
@@ -191,5 +246,91 @@ struct UserProfile: View {
 
     private func compactValue(_ count: Int) -> String {
         count.formatted(.number.notation(.compactName))
+    }
+}
+
+private struct PublicUsernameEditSheet: View {
+    let viewModel: ProfileViewModel
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: String
+    @State private var isSaving = false
+
+    init(viewModel: ProfileViewModel) {
+        self.viewModel = viewModel
+        _draft = State(initialValue: viewModel.publicUsernameDisplayName ?? "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Username", text: $draft)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.body.monospaced())
+
+                    if let preview = previewUsername {
+                        Text(preview)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let message = viewModel.usernameUpdateErrorMessage {
+                    Section {
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+            .navigationTitle("Username")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                viewModel.usernameUpdateErrorMessage = nil
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isSaving)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task { await save() }
+                    }
+                    .disabled(isSaving || normalizedDraft.isEmpty)
+                }
+            }
+        }
+    }
+
+    private var normalizedDraft: String {
+        draft
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #"^@+"#, with: "", options: .regularExpression)
+            .lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "_", options: .regularExpression)
+            .replacingOccurrences(of: #"_+"#, with: "_", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+    }
+
+    private var previewUsername: String? {
+        guard !normalizedDraft.isEmpty else { return nil }
+        return "@\(normalizedDraft)"
+    }
+
+    private func save() async {
+        guard !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
+
+        let didSave = await viewModel.updatePublicUsername(draft)
+        if didSave {
+            dismiss()
+        }
     }
 }

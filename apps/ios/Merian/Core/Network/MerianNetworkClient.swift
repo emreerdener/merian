@@ -1363,6 +1363,15 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreMarkNotificationsReadResponse.self, from: data).markedCount
     }
 
+    func updatePublicUsername(_ username: String) async throws -> PublicUsernameUpdateResponse {
+        let functionUrl = try endpointURL("update-public-username")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "username": username
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(PublicUsernameUpdateResponse.self, from: data)
+    }
+
     func registerPushDevice(deviceToken: String, environment: String, exploreEnabled: Bool) async throws {
         let functionUrl = try endpointURL("register-push-device")
         let payload: [String: Any] = [

@@ -41,6 +41,8 @@ All fields are optional:
   - `source = "merian"`
   - `license = "Used with permission via Merian"`
   - `attribution = users.public_author_name`
+    (`public_username` remains the handle and is not used as media attribution
+    unless the user's default/alias display label is the username)
 - Removes Merian public rows when their source post/media is no longer eligible.
 - Keeps source scan/post/user provenance in
   `species_reference_image_merian_sources`, which has no anon/authenticated RLS

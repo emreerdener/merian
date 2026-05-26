@@ -7,6 +7,7 @@ export interface ExploreHashtagPostRow {
   shared_at: string;
   author_user_id: string;
   author_name: string;
+  author_username?: string | null;
   author_avatar_url?: string | null;
   author_is_pro?: boolean;
   hashtags?: string[];

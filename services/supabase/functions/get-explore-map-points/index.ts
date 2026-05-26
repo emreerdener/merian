@@ -5,6 +5,7 @@ import {
   normalizeLimit,
   refreshExploreAuthorStateBestEffort,
   withExploreAuthorProBadges,
+  withExploreAuthorUsernames,
 } from "../_shared/explore.ts";
 import { fetchExploreMapPosts } from "./db.ts";
 import { buildExploreMapPayload } from "./cluster.ts";
@@ -88,14 +89,17 @@ serve((req: Request) =>
       "get-explore-map-points",
     );
 
-    const rows = await withExploreAuthorProBadges(
-      await fetchExploreMapPosts(
-        user.id,
-        northLatitude,
-        southLatitude,
-        eastLongitude,
-        westLongitude,
-        limit,
+    const rows = await withExploreAuthorUsernames(
+      await withExploreAuthorProBadges(
+        await fetchExploreMapPosts(
+          user.id,
+          northLatitude,
+          southLatitude,
+          eastLongitude,
+          westLongitude,
+          limit,
+          supabaseAdmin,
+        ),
         supabaseAdmin,
       ),
       supabaseAdmin,

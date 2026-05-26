@@ -18,6 +18,8 @@ Following does not affect `Recent`, `Trending`, `Nearby`, map results, the Home 
 - `Following` is reverse-chronological and contains only visible posts from authors the viewer follows.
 - The empty state tells viewers to follow authors from public profiles.
 - Author profile counts are informational only. They do not open lists in v1.
+- Author profile headers show the display name as the primary label and the
+  stable `@public_username` handle underneath when available.
 - The follow button is hidden on the viewer's own public author profile.
 - Follow taps are optimistic. The client applies the returned server state to correct counts after the request completes.
 - Follow notifications render in `ExploreNotificationsSheet`, contribute to unread badge counts, and are marked read through the same mark-read path as other Explore activity.

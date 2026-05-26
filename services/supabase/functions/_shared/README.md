@@ -43,8 +43,8 @@ multiple functions need the same behavior and the ownership boundary is clear.
   used by scan telemetry: `effective_tier`, `plan`, `subscription_tier`,
   `trial_active`, and `user_exists`.
 - **`explore.ts`**: Explore UUID/hashtag validation, public author identity
-  sync, feed-card hashtag/pro-badge hydration, and shared social-surface
-  helpers.
+  sync, feed-card hashtag/pro-badge/username hydration, and shared
+  social-surface helpers.
 - **`publicSpeciesProjection.ts`**: Public species projection sanitizer that
   prevents private scan/user fields from leaking into dictionary and Explore
   responses.

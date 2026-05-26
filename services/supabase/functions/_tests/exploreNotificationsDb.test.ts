@@ -4,7 +4,8 @@ import {
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
 
-const DEFAULT_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+const DEFAULT_DB_URL =
+  "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 const DB_URL = Deno.env.get("SUPABASE_DB_TEST_URL") ?? DEFAULT_DB_URL;
 
 async function withDbTest(
@@ -47,11 +48,16 @@ async function insertUser(
         id,
         email,
         public_author_name,
-        public_identity_source
+        public_identity_source,
+        public_username
       )
-      VALUES ($1, $2, $3, 'alias')
+      VALUES ($1, $2, $3, 'alias', public.build_default_public_username($1::uuid))
     `,
-    [id, `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`, publicName],
+    [
+      id,
+      `${publicName.toLowerCase().replaceAll(" ", "_")}@example.com`,
+      publicName,
+    ],
   );
 }
 
@@ -143,7 +149,12 @@ async function fetchLikeNotification(
 type NotificationFeedRow = {
   notification_id: string;
   post_id: string | null;
-  type: "like_aggregated" | "comment" | "comment_reaction" | "comment_reply" | "follow";
+  type:
+    | "like_aggregated"
+    | "comment"
+    | "comment_reaction"
+    | "comment_reply"
+    | "follow";
   comment_id: string | null;
   parent_comment_id: string | null;
   reaction_emoji: string | null;
@@ -172,7 +183,12 @@ type PushPayloadRow = {
 type NotificationCursorRow = {
   notification_id: string;
   updated_at: string;
-  type: "like_aggregated" | "comment" | "comment_reaction" | "comment_reply" | "follow";
+  type:
+    | "like_aggregated"
+    | "comment"
+    | "comment_reaction"
+    | "comment_reply"
+    | "follow";
 };
 
 type CommentReactionNotificationRow = {
@@ -269,7 +285,10 @@ Deno.test("Explore notifications DB - like aggregation, RPC fetch, mark read, an
       [ownerId],
     );
     assertEquals(feedResult.rows.length, 1);
-    assertEquals(feedResult.rows[0].recent_actor_names, ["Liker Two", "Liker One"]);
+    assertEquals(feedResult.rows[0].recent_actor_names, [
+      "Liker Two",
+      "Liker One",
+    ]);
     assertEquals(feedResult.rows[0].action_count, 2);
     assertEquals(feedResult.rows[0].triggering_user_name, "Liker Two");
     assertEquals(feedResult.rows[0].is_read, false);
@@ -285,7 +304,10 @@ Deno.test("Explore notifications DB - like aggregation, RPC fetch, mark read, an
     assertEquals(pushPayloadResult.rows[0].post_id, postId);
     assertEquals(pushPayloadResult.rows[0].action_count, 2);
     assertEquals(pushPayloadResult.rows[0].triggering_user_name, "Liker Two");
-    assertEquals(pushPayloadResult.rows[0].recent_actor_names, ["Liker Two", "Liker One"]);
+    assertEquals(pushPayloadResult.rows[0].recent_actor_names, [
+      "Liker Two",
+      "Liker One",
+    ]);
     assertEquals(pushPayloadResult.rows[0].unread_count, 1);
 
     const unreadCountResult = await client.queryObject<{ count: number }>(
@@ -450,7 +472,10 @@ Deno.test("Explore notifications DB - comment lifecycle suppresses self and recr
       [commentNotificationId],
     );
     assertEquals(pushPayloadResult.rows.length, 1);
-    assertEquals(pushPayloadResult.rows[0].triggering_user_name, "Helpful Commenter");
+    assertEquals(
+      pushPayloadResult.rows[0].triggering_user_name,
+      "Helpful Commenter",
+    );
     assertEquals(pushPayloadResult.rows[0].comment_body, "Beautiful find");
 
     await client.queryArray(
@@ -650,7 +675,10 @@ Deno.test("Explore notifications DB - comment replies notify parent author and d
     assertEquals(parentFeedResult.rows[0].comment_id, replyId);
     assertEquals(parentFeedResult.rows[0].parent_comment_id, parentCommentId);
     assertEquals(parentFeedResult.rows[0].triggering_user_name, "Reply Author");
-    assertEquals(parentFeedResult.rows[0].comment_body, "Agreed, this is lovely");
+    assertEquals(
+      parentFeedResult.rows[0].comment_body,
+      "Agreed, this is lovely",
+    );
     assertEquals(parentFeedResult.rows[0].is_reply_to_viewer_comment, true);
 
     const ownerFeedResult = await client.queryObject<NotificationFeedRow>(
@@ -675,7 +703,10 @@ Deno.test("Explore notifications DB - comment replies notify parent author and d
     );
     assertEquals(parentPushPayloadResult.rows.length, 1);
     assertEquals(parentPushPayloadResult.rows[0].type, "comment_reply");
-    assertEquals(parentPushPayloadResult.rows[0].is_reply_to_viewer_comment, true);
+    assertEquals(
+      parentPushPayloadResult.rows[0].is_reply_to_viewer_comment,
+      true,
+    );
 
     await client.queryArray(
       `
@@ -686,7 +717,9 @@ Deno.test("Explore notifications DB - comment replies notify parent author and d
       [parentCommentId],
     );
 
-    const hiddenParentFeedResult = await client.queryObject<NotificationFeedRow>(
+    const hiddenParentFeedResult = await client.queryObject<
+      NotificationFeedRow
+    >(
       `
         SELECT *
         FROM public.get_explore_notifications($1, 50, NULL, NULL)
@@ -732,7 +765,12 @@ Deno.test("Explore notifications DB - comment reactions notify comment authors, 
       [commentId, reactorOneId],
     );
 
-    let reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    let reactionNotification = await fetchCommentReactionNotification(
+      client,
+      commenterId,
+      commentId,
+      "🔥",
+    );
     assertExists(reactionNotification);
     assertEquals(reactionNotification.action_count, 1);
     assertEquals(reactionNotification.is_read, false);
@@ -752,7 +790,10 @@ Deno.test("Explore notifications DB - comment reactions notify comment authors, 
     assertEquals(feedResult.rows[0].reaction_emoji, "🔥");
     assertEquals(feedResult.rows[0].recent_actor_names, ["Reaction One"]);
     assertEquals(feedResult.rows[0].triggering_user_name, "Reaction One");
-    assertEquals(feedResult.rows[0].comment_body, "I saw one of these near the trail too");
+    assertEquals(
+      feedResult.rows[0].comment_body,
+      "I saw one of these near the trail too",
+    );
 
     let pushPayloadResult = await client.queryObject<PushPayloadRow>(
       `
@@ -764,7 +805,10 @@ Deno.test("Explore notifications DB - comment reactions notify comment authors, 
     assertEquals(pushPayloadResult.rows.length, 1);
     assertEquals(pushPayloadResult.rows[0].recipient_user_id, commenterId);
     assertEquals(pushPayloadResult.rows[0].reaction_emoji, "🔥");
-    assertEquals(pushPayloadResult.rows[0].triggering_user_name, "Reaction One");
+    assertEquals(
+      pushPayloadResult.rows[0].triggering_user_name,
+      "Reaction One",
+    );
 
     const markReadResult = await client.queryObject<{ count: number }>(
       `SELECT public.mark_explore_notifications_read($1) AS count`,
@@ -772,7 +816,12 @@ Deno.test("Explore notifications DB - comment reactions notify comment authors, 
     );
     assertEquals(markReadResult.rows[0]?.count, 1);
 
-    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    reactionNotification = await fetchCommentReactionNotification(
+      client,
+      commenterId,
+      commentId,
+      "🔥",
+    );
     assertExists(reactionNotification);
     assertEquals(reactionNotification.is_read, true);
 
@@ -784,7 +833,12 @@ Deno.test("Explore notifications DB - comment reactions notify comment authors, 
       [commentId, commenterId],
     );
 
-    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    reactionNotification = await fetchCommentReactionNotification(
+      client,
+      commenterId,
+      commentId,
+      "🔥",
+    );
     assertExists(reactionNotification);
     assertEquals(reactionNotification.action_count, 1);
     assertEquals(reactionNotification.is_read, true);
@@ -798,11 +852,19 @@ Deno.test("Explore notifications DB - comment reactions notify comment authors, 
       [commentId, reactorTwoId],
     );
 
-    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    reactionNotification = await fetchCommentReactionNotification(
+      client,
+      commenterId,
+      commentId,
+      "🔥",
+    );
     assertExists(reactionNotification);
     assertEquals(reactionNotification.action_count, 2);
     assertEquals(reactionNotification.is_read, false);
-    assertEquals(reactionNotification.recent_actor_ids, [reactorTwoId, reactorOneId]);
+    assertEquals(reactionNotification.recent_actor_ids, [
+      reactorTwoId,
+      reactorOneId,
+    ]);
     assertEquals(reactionNotification.triggering_user_id, reactorTwoId);
 
     await client.queryArray(
@@ -824,7 +886,12 @@ Deno.test("Explore notifications DB - comment reactions notify comment authors, 
       [commentId, reactorOneId],
     );
 
-    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    reactionNotification = await fetchCommentReactionNotification(
+      client,
+      commenterId,
+      commentId,
+      "🔥",
+    );
     assertExists(reactionNotification);
     assertEquals(reactionNotification.action_count, 1);
     assertEquals(reactionNotification.is_read, true);
@@ -867,7 +934,12 @@ Deno.test("Explore notifications DB - comment reactions notify comment authors, 
       [commentId],
     );
 
-    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    reactionNotification = await fetchCommentReactionNotification(
+      client,
+      commenterId,
+      commentId,
+      "🔥",
+    );
     assertExists(reactionNotification);
     assertEquals(reactionNotification.action_count, 1);
     assertEquals(reactionNotification.is_read, false);
@@ -882,7 +954,12 @@ Deno.test("Explore notifications DB - comment reactions notify comment authors, 
       [commentId, reactorTwoId],
     );
 
-    reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "🔥");
+    reactionNotification = await fetchCommentReactionNotification(
+      client,
+      commenterId,
+      commentId,
+      "🔥",
+    );
     assertEquals(reactionNotification, null);
 
     const ownerUnreadCountResult = await client.queryObject<{ count: number }>(
@@ -919,7 +996,12 @@ Deno.test("Explore notifications DB - blocked reaction actors are filtered out o
       [commentId, reactorId],
     );
 
-    const reactionNotification = await fetchCommentReactionNotification(client, commenterId, commentId, "👏");
+    const reactionNotification = await fetchCommentReactionNotification(
+      client,
+      commenterId,
+      commentId,
+      "👏",
+    );
     assertExists(reactionNotification);
 
     let unreadCountResult = await client.queryObject<{ count: number }>(
@@ -971,7 +1053,10 @@ Deno.test("Explore notifications DB - blocked reaction actors are filtered out o
 
 Deno.test("Explore notifications DB - cursor pagination preserves stable ordering across updated_at ties", async () => {
   await withDbTest(async (client) => {
-    const { ownerId, postId } = await seedVisibleExplorePost(client, "Cursor Owner");
+    const { ownerId, postId } = await seedVisibleExplorePost(
+      client,
+      "Cursor Owner",
+    );
     const actorOneId = crypto.randomUUID();
     const actorTwoId = crypto.randomUUID();
     const actorThreeId = crypto.randomUUID();

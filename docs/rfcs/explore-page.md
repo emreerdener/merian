@@ -166,19 +166,25 @@ Explore should render a dedicated public author label rather than relying on raw
 Recommended V1 shape on `public.users`:
 
 - `public_author_name TEXT NOT NULL`
+- `public_username TEXT NOT NULL`
 - `public_identity_source TEXT NOT NULL`
   - Allowed values: `alias`, `derived_name`, `display_name`
 - `public_avatar_url TEXT NULL`
 
 Rules:
 
-- Ghost users default to a stable alias.
+- Ghost users default to a stable alias that is also a valid username handle.
 - Authenticated users default to `First L.` derived from auth metadata when available.
 - If no safe first-name metadata exists, authenticated users also fall back to the stable alias.
 - If auth metadata includes a provider avatar (`avatar_url` or `picture`), Merian may copy it into `public_avatar_url` for Explore rendering.
 - Ghost users should leave `public_avatar_url` null.
-- If Merian later adds editable public names, that should update `public_author_name` and switch the source to `display_name`.
-- Feed and comments should only ever render `public_author_name`, and feed, map, profile, and comment surfaces may optionally render `public_avatar_url`.
+- Editable usernames update `public_username`. `public_author_name` remains the
+  Explore display label for logged-in/provider-derived identities.
+- Feed and comments should render `public_author_name` for logged-in display
+  labels and `@public_username` for default/ghost identities. Feed, map,
+  profile, and comment surfaces may optionally render `public_avatar_url`.
+- Future comment mentions should use `public_username`, not
+  `public_author_name`.
 - Email and raw auth metadata must never be exposed directly in Explore payloads. Public avatar access should happen only through the copied `public.users.public_avatar_url` field.
 
 This gives us the "show a user if logged in, otherwise show an alias" behavior without coupling Explore to private identity fields.
@@ -186,7 +192,9 @@ This gives us the "show a user if logged in, otherwise show an alias" behavior w
 Normalization rule:
 
 - Public author identity should remain normalized on `public.users`.
-- Feed, map, and comment payloads should join `public.users` at read time rather than copying `public_author_name` or `public_avatar_url` into `explore_posts`.
+- Feed, map, profile, and comment payloads should join `public.users` at read
+  time rather than copying `public_author_name`, `public_username`, or
+  `public_avatar_url` into `explore_posts`.
 - This allows public alias and avatar updates to flow through to historical Explore content automatically.
 
 ## Feed Card Anatomy
@@ -503,6 +511,7 @@ Recommended response fields:
 - `hero_image_url`
 - `shared_at`
 - `author_name`
+- `author_username`
 - `author_avatar_url`
 - `species_common_name` (displayed through the SwiftData-backed preferred-name cache when the viewer has a `UserSpeciesPreference`)
 - `species_scientific_name`
@@ -697,6 +706,7 @@ Response shape:
       "hero_image_url": "https://...",
       "author_user_id": "UUID",
       "author_name": "Nina P.",
+      "author_username": "nina_p",
       "author_avatar_url": "https://...",
       "species_common_name": "Monarch Butterfly",
       "species_scientific_name": "Danaus plexippus",
@@ -978,7 +988,7 @@ When the public species-page project exists:
 - A shared post appears in the public feed, with `Recent` as the default reverse-chronological mode plus shipped `Following`, `Trending`, and `Nearby` filters.
 - The feed shows privacy-safe author identity and general location.
 - Authenticated authors can show a public avatar when a provider avatar URL is available.
-- Ghost users can participate with stable aliases.
+- Ghost users can participate with stable `@username` handles.
 - Authenticated users show a safe public author label.
 - Feed and detail payloads never include coordinates; map payloads include only privacy-safe public coordinates.
 - Users can like and comment on posts.

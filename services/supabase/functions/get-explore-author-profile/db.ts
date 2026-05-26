@@ -3,6 +3,7 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 export interface ExploreAuthorProfileRow {
   author_user_id: string;
   author_name: string;
+  author_username?: string | null;
   author_avatar_url?: string | null;
   author_is_pro?: boolean;
   species_count: number;

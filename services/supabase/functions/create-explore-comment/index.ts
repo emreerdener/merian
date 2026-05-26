@@ -9,7 +9,11 @@ import {
   requireUuid,
   syncPublicAuthorIdentity,
 } from "../_shared/explore.ts";
-import { fetchExplorePostCommentCount, fetchReplyParent, insertExploreComment } from "./db.ts";
+import {
+  fetchExplorePostCommentCount,
+  fetchReplyParent,
+  insertExploreComment,
+} from "./db.ts";
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -29,21 +33,45 @@ serve((req: Request) =>
       return jsonResponse({ error: "body must be a non-empty string." }, 400);
     }
     if (rawBody.length > 500) {
-      return jsonResponse({ error: "body must be 500 characters or fewer." }, 400);
+      return jsonResponse(
+        { error: "body must be 500 characters or fewer." },
+        400,
+      );
     }
 
     await assertCanInteractWithExplorePost(postId, user.id, supabaseAdmin);
     if (parentCommentId != null) {
-      const parent = await fetchReplyParent(parentCommentId, postId, supabaseAdmin);
-      if (parent.user_id !== user.id && await hasMutualBlock(user.id, parent.user_id, supabaseAdmin)) {
-        return jsonResponse({ error: "You cannot reply to this Explore comment." }, 403);
+      const parent = await fetchReplyParent(
+        parentCommentId,
+        postId,
+        supabaseAdmin,
+      );
+      if (
+        parent.user_id !== user.id &&
+        await hasMutualBlock(user.id, parent.user_id, supabaseAdmin)
+      ) {
+        return jsonResponse({
+          error: "You cannot reply to this Explore comment.",
+        }, 403);
       }
     }
 
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
-    const inserted = await insertExploreComment(postId, user.id, rawBody, parentCommentId, supabaseAdmin);
-    const authorIdentity = await fetchPublicAuthorIdentity(user.id, supabaseAdmin);
-    const commentCount = await fetchExplorePostCommentCount(postId, supabaseAdmin);
+    const inserted = await insertExploreComment(
+      postId,
+      user.id,
+      rawBody,
+      parentCommentId,
+      supabaseAdmin,
+    );
+    const authorIdentity = await fetchPublicAuthorIdentity(
+      user.id,
+      supabaseAdmin,
+    );
+    const commentCount = await fetchExplorePostCommentCount(
+      postId,
+      supabaseAdmin,
+    );
 
     return jsonResponse({
       success: true,
@@ -53,6 +81,7 @@ serve((req: Request) =>
         parent_comment_id: inserted.parent_comment_id ?? null,
         author_user_id: user.id,
         author_name: authorIdentity.authorName,
+        author_username: authorIdentity.authorUsername,
         author_avatar_url: authorIdentity.authorAvatarUrl,
         body: rawBody,
         created_at: inserted.created_at,
@@ -64,5 +93,5 @@ serve((req: Request) =>
       },
       comment_count: commentCount,
     });
-  }),
+  })
 );

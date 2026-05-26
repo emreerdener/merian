@@ -7,6 +7,7 @@ import {
   refreshExploreAuthorStateBestEffort,
   requireUuid,
   withExploreAuthorProfileProBadge,
+  withExploreAuthorUsernames,
 } from "../_shared/explore.ts";
 import { fetchExploreAuthorProfile } from "./db.ts";
 
@@ -41,7 +42,25 @@ serve((req: Request) =>
       return jsonResponse({ error: "Explore author profile not found" }, 404);
     }
 
-    const data = await withExploreAuthorProfileProBadge(profile, supabaseAdmin);
+    const profileWithProBadge = await withExploreAuthorProfileProBadge(
+      profile,
+      supabaseAdmin,
+    );
+    const [authorWithUsername] = await withExploreAuthorUsernames(
+      [{ author_user_id: profileWithProBadge.author_user_id }],
+      supabaseAdmin,
+    );
+    const previewPosts = Array.isArray(profileWithProBadge.preview_posts)
+      ? await withExploreAuthorUsernames(
+        profileWithProBadge.preview_posts as Array<{ author_user_id: string }>,
+        supabaseAdmin,
+      )
+      : profileWithProBadge.preview_posts;
+    const data = {
+      ...profileWithProBadge,
+      author_username: authorWithUsername.author_username,
+      preview_posts: previewPosts,
+    };
 
     return jsonResponse({ data }, 200);
   })

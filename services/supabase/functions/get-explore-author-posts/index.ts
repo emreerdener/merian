@@ -7,6 +7,7 @@ import {
   refreshExploreAuthorStateBestEffort,
   requireUuid,
   withExploreAuthorProBadges,
+  withExploreAuthorUsernames,
   withExplorePostHashtags,
 } from "../_shared/explore.ts";
 import { fetchExploreAuthorPosts } from "./db.ts";
@@ -53,13 +54,16 @@ serve((req: Request) =>
     );
 
     const data = await withExplorePostHashtags(
-      await withExploreAuthorProBadges(
-        await fetchExploreAuthorPosts(
-          user.id,
-          authorUserId,
-          limit,
-          beforeSharedAt,
-          beforePostId,
+      await withExploreAuthorUsernames(
+        await withExploreAuthorProBadges(
+          await fetchExploreAuthorPosts(
+            user.id,
+            authorUserId,
+            limit,
+            beforeSharedAt,
+            beforePostId,
+            supabaseAdmin,
+          ),
           supabaseAdmin,
         ),
         supabaseAdmin,

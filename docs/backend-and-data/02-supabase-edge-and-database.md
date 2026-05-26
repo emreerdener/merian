@@ -19,7 +19,8 @@ are identified by a persistent Keychain-backed
   `inference_tier`, UUID references, and the `ecology_type_enum` for each scan,
   tied to the user's streak.
 - **`users`**: Binds the IDFV (or authenticated UUID) to the product schema,
-  tracking usage limits and subscription tier.
+  tracking usage limits, subscription tier, public Explore display identity,
+  avatar projection, and canonical `public_username` handle.
 - **`unified_species_count_sync`
   (`20260320132111_unified_species_count_trigger.sql`)**: A unified, idempotent
   Postgres `AFTER INSERT OR UPDATE OR DELETE ON public.scans` trigger that
@@ -458,7 +459,9 @@ Key rules:
   up to 8 promoted images per species.
 - Public rows store only `url`, `source = "merian"`,
   `license = "Used with permission via Merian"`, and the public author label in
-  `attribution`. Source scan/post/user IDs remain in the private
+  `attribution`. This uses `public_author_name`, not the username handle unless
+  the display label itself is the default username. Source scan/post/user IDs
+  remain in the private
   `species_reference_image_merian_sources` table along with the private
   confidence/provenance snapshot used for promotion.
 - If an Explore post is unshared, media is cleared, geoprivacy becomes private,

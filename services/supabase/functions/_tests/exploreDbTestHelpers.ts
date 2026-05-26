@@ -47,9 +47,10 @@ export async function insertUser(
         email,
         public_author_name,
         public_identity_source,
-        public_avatar_url
+        public_avatar_url,
+        public_username
       )
-      VALUES ($1, $2, $3, 'alias', $4)
+      VALUES ($1, $2, $3, 'alias', $4, public.build_default_public_username($1::uuid))
     `,
     [
       id,

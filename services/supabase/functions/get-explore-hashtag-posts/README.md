@@ -46,6 +46,7 @@ and hydrated hashtags:
       "shared_at": "2026-05-12T12:00:00.000Z",
       "author_user_id": "uuid",
       "author_name": "River W.",
+      "author_username": "river_w",
       "author_avatar_url": "https://...",
       "hashtags": ["citybioblitz", "springcount"],
       "species_common_name": "River Birch",
@@ -64,6 +65,10 @@ and hydrated hashtags:
 The backing RPC is `public.get_explore_hashtag_posts(...)`. The Edge function
 hydrates `hashtags` with one batch lookup after the RPC so a row can render the
 same chips as feed and author-library cards.
+
+`author_username` is additive beside `author_name` and is stored without `@`.
+Clients preserve `author_name` for logged-in display labels and render
+`@author_username` for handles/default identities.
 
 ## Visibility And Pagination
 

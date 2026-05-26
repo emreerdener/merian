@@ -239,10 +239,16 @@ export async function fetchPublicAuthorName(
 export async function fetchPublicAuthorIdentity(
   userId: string,
   supabaseAdmin: SupabaseClient,
-): Promise<{ authorName: string; authorAvatarUrl: string | null }> {
+): Promise<
+  {
+    authorName: string;
+    authorAvatarUrl: string | null;
+    authorUsername: string | null;
+  }
+> {
   const { data, error } = await supabaseAdmin
     .from("users")
-    .select("public_author_name,public_avatar_url")
+    .select("public_author_name,public_avatar_url,public_username")
     .eq("id", userId)
     .single();
 
@@ -258,12 +264,19 @@ export async function fetchPublicAuthorIdentity(
     authorName: data.public_author_name as string,
     authorAvatarUrl: (data.public_avatar_url as string | null | undefined) ??
       null,
+    authorUsername: (data.public_username as string | null | undefined) ??
+      null,
   };
 }
 
 export interface ExploreAuthorProBadgeProjection {
   author_user_id: string;
   author_is_pro?: boolean;
+}
+
+export interface ExploreAuthorUsernameProjection {
+  author_user_id: string;
+  author_username?: string | null;
 }
 
 export interface ExplorePostHashtagProjection {
@@ -282,9 +295,65 @@ interface AuthorSubscriptionTierRow {
   subscription_tier: string | null;
 }
 
+interface AuthorUsernameRow {
+  id: string;
+  public_username: string;
+}
+
 interface ExplorePostHashtagRow {
   post_id: string;
   tag: string;
+}
+
+export function displayUsername(
+  username: string | null | undefined,
+): string | null {
+  const normalized = typeof username === "string" ? username.trim() : "";
+  return normalized.length > 0 ? `@${normalized}` : null;
+}
+
+export async function withExploreAuthorUsernames<
+  T extends ExploreAuthorUsernameProjection,
+>(
+  rows: T[],
+  supabaseAdmin: SupabaseClient,
+): Promise<Array<T & { author_username: string | null }>> {
+  const authorIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.author_user_id?.toLowerCase())
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+
+  if (authorIds.length === 0) {
+    return rows.map((row) => ({ ...row, author_username: null }));
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("id,public_username")
+    .in("id", authorIds);
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Explore author usernames: ${error.message}`,
+    );
+  }
+
+  const usernamesByAuthorId = new Map(
+    ((data ?? []) as AuthorUsernameRow[]).map((row) => [
+      row.id.toLowerCase(),
+      row.public_username,
+    ]),
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    author_username:
+      usernamesByAuthorId.get(row.author_user_id.toLowerCase()) ??
+        null,
+  }));
 }
 
 export async function withExplorePostHashtags<

@@ -7,6 +7,7 @@ import {
   normalizeLimit,
   refreshExploreAuthorStateBestEffort,
   requireUuid,
+  withExploreAuthorUsernames,
 } from "../_shared/explore.ts";
 import { fetchExploreCommentReplies } from "./db.ts";
 
@@ -31,7 +32,10 @@ serve((req: Request) =>
     const paramErr = requireParams(body, ["parent_comment_id"]);
     if (paramErr) return paramErr;
 
-    const parentCommentId = requireUuid(body.parent_comment_id, "parent_comment_id");
+    const parentCommentId = requireUuid(
+      body.parent_comment_id,
+      "parent_comment_id",
+    );
     const limit = normalizeLimit(body.limit, 25, 100);
     const afterCreatedAt = normalizeCursorTimestamp(
       body.after_created_at,
@@ -54,14 +58,17 @@ serve((req: Request) =>
       "get-explore-comment-replies",
     );
 
-    const data = await fetchExploreCommentReplies(
-      user.id,
-      parentCommentId,
-      limit,
-      {
-        afterCreatedAt,
-        afterCommentId,
-      },
+    const data = await withExploreAuthorUsernames(
+      await fetchExploreCommentReplies(
+        user.id,
+        parentCommentId,
+        limit,
+        {
+          afterCreatedAt,
+          afterCommentId,
+        },
+        supabaseAdmin,
+      ),
       supabaseAdmin,
     );
     return jsonResponse({ data }, 200);

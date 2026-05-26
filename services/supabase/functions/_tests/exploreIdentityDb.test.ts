@@ -12,29 +12,55 @@ import {
   withExploreDbTest,
 } from "./exploreDbTestHelpers.ts";
 
-Deno.test("Explore identity DB - default public alias is human-readable and deterministic", async () => {
+Deno.test("Explore identity DB - default public username is tag-ready and deterministic", async () => {
   await withExploreDbTest("exploreIdentityDb.test", async (client: Client) => {
     const userId = "00000000-0000-0000-0000-00000000b7ea";
 
-    const firstResult = await client.queryObject<{ alias: string }>(
+    const firstResult = await client.queryObject<{ username: string }>(
       `
-        SELECT public.build_default_public_alias($1::uuid) AS alias
+        SELECT public.build_default_public_username($1::uuid) AS username
       `,
       [userId],
     );
 
-    const secondResult = await client.queryObject<{ alias: string }>(
+    const secondResult = await client.queryObject<{ username: string }>(
       `
-        SELECT public.build_default_public_alias($1::uuid) AS alias
+        SELECT public.build_default_public_username($1::uuid) AS username
       `,
       [userId],
     );
 
-    const alias = firstResult.rows[0]?.alias ?? "";
+    const username = firstResult.rows[0]?.username ?? "";
 
-    assertEquals(alias, secondResult.rows[0]?.alias ?? "");
-    assertMatch(alias, /^[A-Z][a-z]+ [A-Z][a-z]+ [1-9][0-9]$/);
-    assertNotMatch(alias, /^Explorer [A-F0-9]{6}$/);
+    assertEquals(username, secondResult.rows[0]?.username ?? "");
+    assertMatch(username, /^[a-z][a-z0-9_]{1,22}[a-z0-9]$/);
+    assertNotMatch(username, /[A-Z\s]/);
+    assertNotMatch(username, /^explorer_[a-f0-9]{6}$/);
+  });
+});
+
+Deno.test("Explore identity DB - public username normalization and validation", async () => {
+  await withExploreDbTest("exploreIdentityDb.test", async (client: Client) => {
+    const result = await client.queryObject<{
+      normalized: string;
+      valid_normalized: boolean;
+      reserved_valid: boolean;
+      repeated_underscore_valid: boolean;
+    }>(
+      `
+        SELECT
+          public.normalize_public_username('@Stone Glen 72') AS normalized,
+          public.is_valid_public_username(public.normalize_public_username('@Stone Glen 72')) AS valid_normalized,
+          public.is_valid_public_username('admin') AS reserved_valid,
+          public.is_valid_public_username('stone__glen') AS repeated_underscore_valid
+      `,
+    );
+
+    const row = result.rows[0];
+    assertEquals(row?.normalized, "stone_glen_72");
+    assertEquals(row?.valid_normalized, true);
+    assertEquals(row?.reserved_valid, false);
+    assertEquals(row?.repeated_underscore_valid, false);
   });
 });
 

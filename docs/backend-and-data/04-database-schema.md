@@ -37,8 +37,17 @@ Tracks the global state of the anonymous/authenticated user.
   — no scans are persisted. Not currently read by the iOS client.
 - `public_author_name` (TEXT, NOT NULL): Explore-facing public display label
   derived from auth metadata (`First L.`) when safe, otherwise from a stable
-  alias fallback (for example `Juniper Trail 27`). Added in migration
+  alias fallback. For alias-source identities this now matches
+  `public_username`, so default/ghost Explore authors render as handles such as
+  `@juniper_trail_27` while logged-in display-name authors can still render
+  labels such as `Emre E.`. Added in migration
   `20260425000000_add_explore_posts.sql`.
+- `public_username` (TEXT, NOT NULL): Canonical public handle stored without
+  `@`, unique across users, and intended for profile handles and future comment
+  mentions. Validation requires lowercase ASCII letters, numbers, and
+  underscores; 3 to 24 characters; a leading letter; a trailing letter or
+  number; no repeated underscores; and no reserved system names. Added in
+  migration `20260526090000_add_public_usernames.sql`.
 - `public_identity_source` (TEXT, NOT NULL): Source marker for the Explore
   author label. CHECK-constrained to `alias` | `derived_name` | `display_name`.
   Added in migration `20260425000000_add_explore_posts.sql`.
@@ -52,7 +61,11 @@ Tracks the global state of the anonymous/authenticated user.
 maintain the Explore-facing identity projection. These functions never expose
 raw auth metadata directly; they copy only the safe public fields
 (`public_author_name`, `public_identity_source`, `public_avatar_url`) onto
-`public.users`.
+`public.users`. Username helpers
+`normalize_public_username(...)`, `is_valid_public_username(...)`, and
+`build_unique_public_username(...)` keep `public_username` valid and
+collision-safe. `public_author_name` remains the display label; use
+`public_username` as the stable handle for profile surfaces and future mentions.
 
 ### `species_dictionary`
 
@@ -777,10 +790,10 @@ Comment table for Explore posts. Added in migration
 
 Only comments where both `deleted_at` and `moderated_at` are `NULL` are visible
 in Explore reads and counted in `explore_posts.comment_count`. Comment author
-names and avatars are not copied into `explore_post_comments`;
+names, usernames, and avatars are not copied into `explore_post_comments`;
 `get_explore_comments` joins `public.users` at read time and returns
-`public_author_name` plus `public_avatar_url` as `author_name` and
-`author_avatar_url`.
+`public_author_name`, `public_username`, and `public_avatar_url` as
+`author_name`, `author_username`, and `author_avatar_url`.
 
 ### `explore_comment_reactions`
 

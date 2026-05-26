@@ -908,6 +908,22 @@ client uses dedicated Edge Functions for feed reads and social interactions, all
 authenticated through the same Supabase session headers used elsewhere in the
 app.
 
+### Explore Public Identity Contract
+
+Explore payloads distinguish between the public display label and the canonical
+handle:
+
+- `author_name`: display label for Explore rows. Logged-in authors with safe
+  provider/account names keep labels such as `Emre E.`.
+- `author_username`: stable public username stored without `@`. Clients render
+  it as `@author_username` for profile handles and for default/ghost author
+  rows.
+- `author_avatar_url`: optional copied public avatar projection.
+
+`public_author_name` is not a future mention handle. Comment mentions and other
+handle-based features must use `public_username` / `author_username`. The field
+is additive and optional for rollout tolerance; older clients may ignore it.
+
 ### `/get-explore-feed`
 
 Returns public Explore feed cards for the shipped `recent`, `following`,
@@ -1001,6 +1017,7 @@ Current response shape:
       "shared_at": "2026-04-26T17:22:11.000Z",
       "author_user_id": "uuid",
       "author_name": "Emre E.",
+      "author_username": "emre_e",
       "author_avatar_url": "https://lh3.googleusercontent.com/...",
       "hashtags": ["citybioblitz", "springcount"],
       "species_common_name": "Monarch Butterfly",
@@ -1020,13 +1037,14 @@ Current response shape:
 }
 ```
 
-`author_avatar_url` is a copied public projection stored on
-`public.users.public_avatar_url`. It is never read directly from `auth.users` on
-the client. `ranking_value` is populated for `trending` rows and omitted or
-`null` for `recent`, `following`, and `nearby`. Feed-card hashtag hydration is a
-batched lookup over the page's `post_id` values. `hashtags` is returned by the
-updated feed function as normalized public tag text without leading `#`; it is
-`[]` for untagged posts.
+`author_username` is the copied public handle stored on
+`public.users.public_username` without `@`. `author_avatar_url` is a copied
+public projection stored on `public.users.public_avatar_url`. Neither field is
+read directly from `auth.users` on the client. `ranking_value` is populated for
+`trending` rows and omitted or `null` for `recent`, `following`, and `nearby`.
+Feed-card hashtag hydration is a batched lookup over the page's `post_id`
+values. `hashtags` is returned by the updated feed function as normalized public
+tag text without leading `#`; it is `[]` for untagged posts.
 
 ### `/get-explore-post`
 
@@ -1059,6 +1077,7 @@ Current response shape:
     "shared_at": "2026-04-26T17:22:11.000Z",
     "author_user_id": "uuid",
     "author_name": "Emre E.",
+    "author_username": "emre_e",
     "author_avatar_url": "https://lh3.googleusercontent.com/...",
     "hashtags": ["citybioblitz", "springcount"],
     "species_common_name": "Monarch Butterfly",
@@ -1235,6 +1254,7 @@ Current response shape:
   "data": {
     "author_user_id": "uuid",
     "author_name": "River W.",
+    "author_username": "river_w",
     "author_avatar_url": "https://...",
     "species_count": 42,
     "current_streak": 5,
@@ -1272,6 +1292,7 @@ Current response shape:
         "shared_at": "2026-05-03T12:00:00.000Z",
         "author_user_id": "uuid",
         "author_name": "River W.",
+        "author_username": "river_w",
         "author_avatar_url": "https://...",
         "species_common_name": "River Birch",
         "species_scientific_name": "Betula nigra",
@@ -1448,6 +1469,7 @@ Current response shapes:
       "shared_at": "2026-04-28T21:18:00.000Z",
       "author_user_id": "uuid",
       "author_name": "Nina P.",
+      "author_username": "nina_p",
       "author_avatar_url": "https://...",
       "species_common_name": "Monarch Butterfly",
       "species_scientific_name": "Danaus plexippus",
@@ -1482,8 +1504,8 @@ Privacy and filtering rules:
 
 Returns comment rows for a single Explore post. The read path enforces the same
 private-geoprivacy and mutual-block filters as the feed. Comment rows include
-the public author label, the optional public author avatar projection, and three
-viewer capability flags:
+the public author label, the stable author username handle, the optional public
+author avatar projection, and three viewer capability flags:
 
 - `viewer_can_delete`: The viewer authored this comment and may delete it.
 - `viewer_can_moderate`: The viewer owns the Explore post and may remove someone
@@ -1503,6 +1525,7 @@ Current response shape:
       "post_id": "uuid",
       "author_user_id": "uuid",
       "author_name": "Nick H.",
+      "author_username": "nick_h",
       "author_avatar_url": "https://lh3.googleusercontent.com/...",
       "body": "Oooh mucho gusto",
       "created_at": "2026-05-12T20:43:00.000Z",
@@ -1605,6 +1628,42 @@ Rules:
 - Non-empty notes are trimmed and capped at 1000 characters.
 - The update is scoped by `explore_posts.id`, `explore_posts.user_id`, and
   `unshared_at IS NULL`; non-owned or unshared posts return 404.
+
+### `/update-public-username`
+
+Updates the current user's canonical public username handle. Usernames are
+stored without `@`; clients should render them as `@username`.
+
+Request body:
+
+```json
+{
+  "username": "@Stone Glen 72"
+}
+```
+
+Response body:
+
+```json
+{
+  "username": "stone_glen_72"
+}
+```
+
+Rules:
+
+- Requires an authenticated user through `withEdgeHandler`.
+- Input may include a leading `@`; normalization strips it.
+- Whitespace and punctuation separators normalize to underscores.
+- The stored username must be lowercase ASCII letters, numbers, and
+  underscores; 3 to 24 characters; start with a letter; end with a letter or
+  number; and contain no repeated underscores.
+- Reserved names such as `admin`, `api`, `explore`, `merian`, `support`, and
+  `system` are rejected with `400`.
+- Duplicate normalized usernames return `409`.
+- Alias-source users also have `public_author_name` updated to the username so
+  ghost/default Explore rows render as `@username`. Derived/display-name users
+  keep their existing Explore display label.
 
 ### `/get-scan-explore-share-state`
 
@@ -1720,7 +1779,8 @@ Notification side effects:
 - Server-side body cap: 500 characters.
 - The response returns the updated `comment_count` so the feed can stay
   optimistic without a full reload.
-- The created comment response includes `author_avatar_url` from
+- The created comment response includes `author_username` from
+  `public.users.public_username` and `author_avatar_url` from
   `public.users.public_avatar_url` so the newly-appended row matches the
   subsequent `/get-explore-comments` read payload.
 - Comment notifications are created and removed server-side through triggers on
@@ -1948,6 +2008,7 @@ The current feed UI uses only a subset of the payload for visible card
 rendering:
 
 - `author_name`
+- `author_username`
 - `author_avatar_url`
 - `public_location_label`
 - `species_common_name` (displayed through `ExploreFeedViewModel`'s
@@ -1972,6 +2033,8 @@ The Explore detail page additionally uses:
 - `weather_condition` + `weather_temperature_f` for optional public weather
   telemetry
 - `/get-explore-comments` for the inline thread and composer state
+- `author_username` from post/profile/comment rows for stable handle display
+  and default/ghost author labels
 - `author_avatar_url` from comment rows for both `ExploreCommentsSheet` and
   `ExplorePostDetailView`
 - cursor-based comment pagination on `(created_at, comment_id)` so long threads
@@ -1983,6 +2046,7 @@ The Explore detail page additionally uses:
   notifications sheet does not skip or duplicate rows during active usage
 - `/set-user-follow` to apply public author Follow/Following state from
   `ExploreAuthorProfileSheet`
+- `/update-public-username` from the Profile account card username editor
 - `/register-push-device` to sync the APNs token plus the Explore-specific push
   preference
 
@@ -2907,7 +2971,9 @@ Manual service-role calls may also include:
    `(species_id, image_url)`, and promotes up to 8 images per species.
 4. Public rows use `source = "merian"`,
    `license = "Used with permission via Merian"`, and
-   `attribution = users.public_author_name`.
+   `attribution = users.public_author_name`. This intentionally preserves the
+   public display label rather than switching attribution to the username
+   handle.
 5. Provenance remains private in `species_reference_image_merian_sources`; no
    public species API exposes source scan, post, user IDs, confidence score, or
    confidence qualification source.

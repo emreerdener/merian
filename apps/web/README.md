@@ -126,9 +126,10 @@ omit this parameter so recipients see their own browser/system preference.
 
 The public page should consume only the privacy-safe Explore projection returned
 by `get_explore_post`: public image, species labels, public author identity,
-counts, shared timestamp, and privacy-filtered location/telemetry. Do not expose
-exact coordinates, private field notes, raw scan telemetry, auth data, or server
-credentials.
+counts, shared timestamp, and privacy-filtered location/telemetry. If the
+public projection later supplies `author_username`, render it only as a public
+handle. Do not expose exact coordinates, private field notes, raw scan
+telemetry, auth data, private email, or server credentials.
 
 See `../../docs/features-and-hardware/17-public-web-share-pages.md` for the full
 contract and Universal Links roadmap.

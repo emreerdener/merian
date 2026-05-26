@@ -7,6 +7,16 @@ struct ProfileSocialStats: Equatable {
     let publishedPostCount: Int
 }
 
+struct PublicProfileIdentity: Decodable, Equatable {
+    let publicUsername: String
+    let publicAuthorName: String
+
+    private enum CodingKeys: String, CodingKey {
+        case publicUsername = "public_username"
+        case publicAuthorName = "public_author_name"
+    }
+}
+
 /// An isolated ViewModel dedicated exclusively to managing asynchronous Cloud/Network boundaries (Supabase REST API).
 /// Note: Massive Offline hardware calculations (SwiftData/SQLite arrays) are deliberately FIREWALLED completely out of this class
 /// and routed into `@ModelActor` structs natively instead to avoid locking up `@MainActor` thread resources linearly!
@@ -18,6 +28,10 @@ final class ProfileViewModel {
     var defaultGeoprivacy = "open"
     var socialStats: ProfileSocialStats?
     var isLoadingSocialStats = false
+    var publicUsername: String?
+    var publicAuthorName: String?
+    var isLoadingPublicIdentity = false
+    var usernameUpdateErrorMessage: String?
     
     let supabase = SupabaseManager.shared
     
@@ -44,6 +58,11 @@ final class ProfileViewModel {
             return url
         }
         return nil
+    }
+
+    var publicUsernameDisplayName: String? {
+        guard let publicUsername, !publicUsername.isEmpty else { return nil }
+        return "@\(publicUsername)"
     }
     
     // MARK: - Auth Flow Actions
@@ -79,6 +98,60 @@ final class ProfileViewModel {
                     MerianLog.network.error("Failed to fetch geoprivacy preference: \(error, privacy: .private)")
                 }
             }
+        }
+    }
+
+    func fetchPublicIdentity() async {
+        guard let user = supabase.currentUser else {
+            publicUsername = nil
+            publicAuthorName = nil
+            isLoadingPublicIdentity = false
+            return
+        }
+
+        isLoadingPublicIdentity = true
+        defer { isLoadingPublicIdentity = false }
+
+        do {
+            let response: PublicProfileIdentity = try await supabase.client.from("users")
+                .select("public_username,public_author_name")
+                .eq("id", value: user.id)
+                .single()
+                .execute()
+                .value
+            guard !Task.isCancelled, supabase.currentUser?.id == user.id else { return }
+            publicUsername = response.publicUsername
+            publicAuthorName = response.publicAuthorName
+        } catch {
+            guard !Task.isCancelled else { return }
+            MerianLog.network.error("Failed to fetch public identity: \(error, privacy: .private)")
+        }
+    }
+
+    func updatePublicUsername(_ username: String) async -> Bool {
+        guard let userId = currentUserId else {
+            usernameUpdateErrorMessage = "Sign in or open a guest session first."
+            return false
+        }
+
+        usernameUpdateErrorMessage = nil
+
+        do {
+            let response = try await MerianNetworkClient.shared.updatePublicUsername(username)
+            guard currentUserId == userId else { return false }
+            publicUsername = response.username
+            if isGuestUser {
+                publicAuthorName = response.username
+            }
+            AppEventPublisher.shared.send(
+                .publicAuthorIdentityChanged(previousUserId: nil, currentUserId: userId)
+            )
+            return true
+        } catch {
+            guard !Task.isCancelled else { return false }
+            usernameUpdateErrorMessage = error.localizedDescription
+            MerianLog.network.error("Failed to update public username: \(error, privacy: .private)")
+            return false
         }
     }
 

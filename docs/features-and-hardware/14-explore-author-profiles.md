@@ -9,7 +9,8 @@ Explore author profiles are public, privacy-preserving profile sheets opened fro
 - Tapping the post media still opens `ExplorePostDetailView`; author-profile navigation is intentionally scoped to the header.
 - The user's own Profile tab shows an `Explore scans` preview for their currently visible Explore publications. It seeds from locally cached share state when available, then reconciles with the author-post endpoint.
 - The profile sheet shows:
-  - public avatar and centered serif author name
+  - public avatar and centered serif author display name
+  - `@public_username` underneath when available
   - persona derived from species discovered
   - follower and following counts
   - a `Follow` / `Following` button for non-self profiles
@@ -23,6 +24,9 @@ Explore author profiles are public, privacy-preserving profile sheets opened fro
 - Preview grids render image-only thumbnails. Species names remain available in Explore detail, but they are not overlaid on profile preview thumbnails.
 - Follow counts are display-only in v1. They do not open follower/following lists.
 - The follow button is asymmetric and does not create friend requests, mutual-only states, DMs, or access to private scans.
+- Logged-in/provider-derived authors keep display names such as `Emre E.` as
+  the primary profile/feed label. Default/ghost identities render as
+  `@public_username`.
 
 ## Privacy Model
 
@@ -86,12 +90,21 @@ New Edge Functions:
 - `services/supabase/functions/get-explore-author-profile`
 - `services/supabase/functions/get-explore-author-posts`
 - `services/supabase/functions/set-user-follow`
+- `services/supabase/functions/update-public-username`
 
 The author profile RPC computes species count from distinct biological species-backed scans using `COALESCE(confirmed_species_id, species_id)`. The heatmap and current streak are computed from all non-tombstoned scans and use the author's latest valid persisted `device_time_zone`, falling back to UTC. Current streak accepts today or yesterday as the anchor day, matching local profile grace behavior.
 
 The follow state RPC computes counts from `user_follows` while ignoring shadowbanned counterpart users. The viewer follow flag is computed for the requesting user only. The follow write endpoint requires the target profile to remain visible before inserting, but unfollow deletes the relationship even if visibility later changes.
 
 The author posts RPC returns the same card-shaped `ExplorePost` projection used by the feed, with stable cursor pagination on `(shared_at DESC, post_id DESC)`.
+
+Public username extension:
+
+- `20260526090000_add_public_usernames.sql` adds
+  `public.users.public_username` plus validation and backfill helpers.
+- Explore Edge DTOs include `author_username` beside `author_name`.
+- `author_name` remains the display label; `author_username` is the stable
+  handle for profile secondary text and future mentions.
 
 Ghost-account merge repair:
 
@@ -123,12 +136,16 @@ Important model types:
 - `ExploreAuthorProfileHeatmapDay`
 - `ExploreAuthorPostCursor`
 - `ExploreAuthorProfileRoute`
+- `PublicUsernameUpdateResponse`
 
 Conversion rules:
 
 - Remote heatmap weeks convert to existing `ProfileHeatmapData`.
 - Remote award progress converts to existing `AwardPayload`.
 - Remote library rows are registered with `ExploreFeedViewModel.upsertPost(_:)` so detail navigation reuses the shared Explore post store.
+- Remote author rows decode optional `authorUsername`. UI renders
+  `@authorUsername` under profile display names and uses it as the visible name
+  for default/ghost author rows.
 - Preferred species names are refreshed for preview/library posts after profile and page loads.
 - The local Profile tab preview reads the current Supabase user from the view environment, displays any locally cached published scans immediately, calls `getExploreAuthorPosts(authorUserId:limit:)`, shows a lightweight loading grid while fetching, and renders an empty state when no visible Explore publications are returned.
 - Share and unshare flows publish `exploreShareStateChanged` so an already-open Profile tab can refresh its local preview state.
@@ -151,6 +168,7 @@ The iOS client methods are:
 MerianNetworkClient.shared.getExploreAuthorProfile(authorUserId:previewLimit:)
 MerianNetworkClient.shared.getExploreAuthorPosts(authorUserId:limit:cursor:)
 MerianNetworkClient.shared.setUserFollow(authorUserId:isFollowing:)
+MerianNetworkClient.shared.updatePublicUsername(_:)
 ```
 
 ## Testing
@@ -158,7 +176,9 @@ MerianNetworkClient.shared.setUserFollow(authorUserId:isFollowing:)
 Backend:
 
 - `services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts`
+- `services/supabase/functions/_tests/updatePublicUsername.test.ts`
 - Covers aggregate privacy boundaries and cursor pagination.
+- Covers username normalization and validation.
 - Tests skip live assertions when the local Supabase DB is not running at `127.0.0.1:54322`.
 
 iOS:
@@ -170,10 +190,11 @@ iOS:
 Recommended verification:
 
 ```sh
-deno fmt --check services/supabase/functions/get-explore-author-profile services/supabase/functions/get-explore-author-posts services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
-deno lint services/supabase/functions/get-explore-author-profile services/supabase/functions/get-explore-author-posts services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
-deno check services/supabase/functions/get-explore-author-profile/index.ts services/supabase/functions/get-explore-author-posts/index.ts
+deno fmt --check services/supabase/functions/get-explore-author-profile services/supabase/functions/get-explore-author-posts services/supabase/functions/update-public-username services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts services/supabase/functions/_tests/updatePublicUsername.test.ts
+deno lint services/supabase/functions/get-explore-author-profile services/supabase/functions/get-explore-author-posts services/supabase/functions/update-public-username services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts services/supabase/functions/_tests/updatePublicUsername.test.ts
+deno check services/supabase/functions/get-explore-author-profile/index.ts services/supabase/functions/get-explore-author-posts/index.ts services/supabase/functions/update-public-username/index.ts
 deno test --allow-env --allow-net services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
+deno test services/supabase/functions/_tests/updatePublicUsername.test.ts
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
 ```

@@ -99,7 +99,9 @@ Read paths:
 
 - `get-explore-feed`, `get-explore-post`, and `get-explore-author-posts` return
   feed-card `hashtags` arrays by batching a lookup for each returned page of
-  `post_id` values.
+  `post_id` values. These card rows also include `author_username` beside
+  `author_name` so tagged collections preserve the same handle/display behavior
+  as the feed.
 - `get-explore-post-detail` returns `hashtags` from
   `public.get_explore_post_detail(...)`.
 - `get-explore-hashtag-posts` accepts one display or normalized hashtag and

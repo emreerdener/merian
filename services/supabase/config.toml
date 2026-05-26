@@ -475,6 +475,9 @@ verify_jwt = false
 [functions.update-explore-field-notes]
 verify_jwt = false
 
+[functions.update-public-username]
+verify_jwt = false
+
 [functions.get-explore-feed]
 verify_jwt = false
 

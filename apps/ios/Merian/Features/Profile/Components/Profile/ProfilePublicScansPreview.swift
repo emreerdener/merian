@@ -441,9 +441,16 @@ private struct ProfilePublishedScansLibraryView: View {
             authorAvatar(url: profileViewModel.userAvatarURL, size: 44)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(profileViewModel.userName ?? "Explorer")
+                Text(profileViewModel.userName ?? profileViewModel.publicAuthorName ?? "Explorer")
                     .font(.headline)
                     .lineLimit(1)
+
+                if let username = profileViewModel.publicUsernameDisplayName {
+                    Text(username)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
 
                 if let publishedCountSummary {
                     Text(publishedCountSummary)

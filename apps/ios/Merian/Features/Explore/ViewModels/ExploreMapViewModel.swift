@@ -159,6 +159,7 @@ final class ExploreMapViewModel {
                 sharedAt: canonical.sharedAt,
                 authorUserId: canonical.authorUserId,
                 authorName: canonical.authorName,
+                authorUsername: canonical.authorUsername,
                 authorAvatarUrl: canonical.authorAvatarUrl,
                 authorIsPro: canonical.authorIsPro,
                 speciesCommonName: canonical.speciesCommonName,

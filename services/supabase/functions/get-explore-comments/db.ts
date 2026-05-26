@@ -6,6 +6,7 @@ export interface ExploreCommentRow {
   parent_comment_id?: string | null;
   author_user_id: string;
   author_name: string;
+  author_username?: string | null;
   author_avatar_url?: string | null;
   body: string;
   created_at: string;

@@ -36,6 +36,7 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     let sharedAt: String
     let authorUserId: String
     let authorName: String
+    let authorUsername: String?
     let authorAvatarUrl: String?
     let authorIsPro: Bool?
     let hashtags: [String]?
@@ -330,6 +331,7 @@ struct ExploreHashtagPostCursor: Equatable {
 struct ExploreAuthorProfile: Decodable, Equatable {
     let authorUserId: String
     let authorName: String
+    let authorUsername: String?
     let authorIsPro: Bool?
     let authorAvatarUrl: String?
     let speciesCount: Int
@@ -345,6 +347,14 @@ struct ExploreAuthorProfile: Decodable, Equatable {
     var authorAvatarURL: URL? {
         guard let authorAvatarUrl else { return nil }
         return URL(string: authorAvatarUrl)
+    }
+
+    var publicAuthorDisplayName: String {
+        ExplorePost.publicAuthorDisplayName(from: authorName, username: authorUsername)
+    }
+
+    var publicUsernameDisplayName: String? {
+        ExplorePost.publicUsernameDisplayValue(authorUsername)
     }
 
     var profileHeatmapData: ProfileHeatmapData {
@@ -458,6 +468,7 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
     let sharedAt: String
     let authorUserId: String
     let authorName: String
+    let authorUsername: String?
     let authorAvatarUrl: String?
     let authorIsPro: Bool?
     let speciesCommonName: String
@@ -490,6 +501,7 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
             sharedAt: sharedAt,
             authorUserId: authorUserId,
             authorName: authorName,
+            authorUsername: authorUsername,
             authorAvatarUrl: authorAvatarUrl,
             authorIsPro: authorIsPro,
             hashtags: nil,
@@ -535,6 +547,10 @@ struct ExploreUnreadNotificationCountResponse: Decodable {
 struct ExploreMarkNotificationsReadResponse: Decodable {
     let success: Bool
     let markedCount: Int
+}
+
+struct PublicUsernameUpdateResponse: Decodable {
+    let username: String
 }
 
 struct ExplorePostDetail: Decodable {
@@ -716,6 +732,7 @@ struct ExploreComment: Decodable, Identifiable, Equatable {
     let parentCommentId: String?
     let authorUserId: String
     let authorName: String
+    let authorUsername: String?
     let authorAvatarUrl: String?
     let body: String
     let createdAt: String

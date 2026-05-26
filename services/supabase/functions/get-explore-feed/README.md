@@ -70,6 +70,22 @@ Untagged posts return `[]`. The Edge function performs one batched lookup over
 the page's `post_id` values in `public.explore_post_hashtags`; feed cards must
 not fetch post detail only to render hashtag chips.
 
+## Response Identity
+
+Every returned card row includes:
+
+```json
+{
+  "author_name": "Emre E.",
+  "author_username": "emre_e",
+  "author_avatar_url": "https://..."
+}
+```
+
+`author_name` is the Explore display label and must keep showing logged-in
+display names when present. `author_username` is stored without `@`; clients
+render it as `@emre_e` for profile handles and for default/ghost author rows.
+
 ## Visibility Rules
 
 Every mode excludes:

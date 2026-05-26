@@ -43,6 +43,7 @@ The response is the same card-shaped Explore post projection used by the feed:
       "shared_at": "2026-05-03T12:00:00.000Z",
       "author_user_id": "uuid",
       "author_name": "River W.",
+      "author_username": "river_w",
       "author_avatar_url": "https://...",
       "hashtags": ["citybioblitz", "springcount"],
       "species_common_name": "River Birch",
@@ -65,6 +66,10 @@ The response is the same card-shaped Explore post projection used by the feed:
 The backing RPC is `public.get_explore_author_posts(self_id, target_author_user_id, max_limit, before_shared_at, before_post_id)`.
 The Edge function then batches `public.explore_post_hashtags` by the returned
 post IDs so library cards keep the same `hashtags` array as feed cards.
+
+`author_name` remains the display label. `author_username` is the stable handle
+stored without `@` and should render as `@river_w` only where a handle is
+needed, or when a default/ghost identity has no separate display label.
 
 ## Pagination
 

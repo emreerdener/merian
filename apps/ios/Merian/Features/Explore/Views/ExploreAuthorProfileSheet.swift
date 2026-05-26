@@ -4,17 +4,19 @@ import SwiftUI
 struct ExploreAuthorProfileRoute: Identifiable, Equatable {
     let authorUserId: String
     let authorName: String
+    let authorUsername: String?
     let authorAvatarUrl: String?
 
     var id: String { authorUserId }
 
     var authorFirstName: String {
-        authorName.components(separatedBy: " ").first ?? authorName
+        ExplorePost.publicAuthorDisplayName(from: authorName, username: authorUsername)
     }
 
     init(post: ExplorePost) {
         self.authorUserId = post.authorUserId
         self.authorName = post.authorName
+        self.authorUsername = post.authorUsername
         self.authorAvatarUrl = post.authorAvatarUrl
     }
 }
@@ -242,6 +244,14 @@ struct ExploreAuthorProfileSheet: View {
                     .frame(maxWidth: .infinity)
                     .accessibilityAddTraits(.isHeader)
 
+                if let username = profile.publicUsernameDisplayName,
+                   username != profile.publicAuthorDisplayName {
+                    Text(username)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
                 Text(UserPersona(speciesCount: profile.speciesCount).title)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -387,6 +397,14 @@ struct ExploreAuthorProfileSheet: View {
                         Text(profile.authorFirstName)
                             .font(.headline)
                             .lineLimit(1)
+
+                        if let username = profile.publicUsernameDisplayName,
+                           username != profile.publicAuthorDisplayName {
+                            Text(username)
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
 
                         Text("\(profile.publishedPostCount.formatted(.number)) published scan\(profile.publishedPostCount == 1 ? "" : "s")")
                             .font(.footnote)
@@ -701,6 +719,6 @@ private extension ExploreAuthorProfile {
     }
 
     var authorFirstName: String {
-        authorName.components(separatedBy: " ").first ?? authorName
+        publicAuthorDisplayName
     }
 }
