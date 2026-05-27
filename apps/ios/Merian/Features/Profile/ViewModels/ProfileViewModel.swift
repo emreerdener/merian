@@ -17,6 +17,10 @@ struct PublicProfileIdentity: Decodable, Equatable {
     }
 }
 
+private struct PublicUsernameErrorResponse: Decodable {
+    let error: String
+}
+
 /// An isolated ViewModel dedicated exclusively to managing asynchronous Cloud/Network boundaries (Supabase REST API).
 /// Note: Massive Offline hardware calculations (SwiftData/SQLite arrays) are deliberately FIREWALLED completely out of this class
 /// and routed into `@ModelActor` structs natively instead to avoid locking up `@MainActor` thread resources linearly!
@@ -149,10 +153,23 @@ final class ProfileViewModel {
             return true
         } catch {
             guard !Task.isCancelled else { return false }
-            usernameUpdateErrorMessage = error.localizedDescription
+            usernameUpdateErrorMessage = publicUsernameErrorMessage(for: error)
             MerianLog.network.error("Failed to update public username: \(error, privacy: .private)")
             return false
         }
+    }
+
+    func checkPublicUsernameAvailability(_ username: String) async throws -> PublicUsernameAvailabilityResponse {
+        try await MerianNetworkClient.shared.checkPublicUsernameAvailability(username)
+    }
+
+    private func publicUsernameErrorMessage(for error: Error) -> String {
+        if case let MerianError.httpError(_, message) = error,
+           let data = message.data(using: .utf8),
+           let response = try? JSONDecoder().decode(PublicUsernameErrorResponse.self, from: data) {
+            return response.error
+        }
+        return error.localizedDescription
     }
 
     func fetchSocialStats() async {

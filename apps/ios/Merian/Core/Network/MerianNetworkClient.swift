@@ -1372,6 +1372,15 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(PublicUsernameUpdateResponse.self, from: data)
     }
 
+    func checkPublicUsernameAvailability(_ username: String) async throws -> PublicUsernameAvailabilityResponse {
+        let functionUrl = try endpointURL("check-public-username")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "username": username
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(PublicUsernameAvailabilityResponse.self, from: data)
+    }
+
     func registerPushDevice(deviceToken: String, environment: String, exploreEnabled: Bool) async throws {
         let functionUrl = try endpointURL("register-push-device")
         let payload: [String: Any] = [

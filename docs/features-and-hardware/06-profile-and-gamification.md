@@ -49,6 +49,8 @@ The `Persona` UI component cross-references this enum against the user's live pr
 - `fetchGeoprivacy()` — reads `default_geoprivacy` from the Supabase `users` table
 - `fetchPublicIdentity()` — reads the public display/handle projection
   (`public_author_name`, `public_username`) from the Supabase `users` table
+- `checkPublicUsernameAvailability(_:)` — calls `/check-public-username` for
+  inline username uniqueness validation in the edit sheet
 - `updatePublicUsername(_:)` — calls `/update-public-username`, refreshes the
   local handle, and publishes `.publicAuthorIdentityChanged` so Explore/Profile
   surfaces can update

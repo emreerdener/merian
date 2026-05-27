@@ -1665,6 +1665,33 @@ Rules:
   ghost/default Explore rows render as `@username`. Derived/display-name users
   keep their existing Explore display label.
 
+### `/check-public-username`
+
+Validates a candidate username for the current authenticated user without
+updating their profile. The endpoint uses the same normalization, reserved-name
+rules, and cross-user uniqueness check as `/update-public-username`.
+
+Request body:
+
+```json
+{
+  "username": "@Stone Glen 72"
+}
+```
+
+Response body:
+
+```json
+{
+  "available": true,
+  "username": "stone_glen_72",
+  "error": null
+}
+```
+
+Invalid or taken usernames return `200` with `available: false` and an `error`
+message for inline UI. The current user's own username is considered available.
+
 ### `/get-scan-explore-share-state`
 
 Returns the current viewer's authoritative Explore share mapping for one owned
@@ -2046,7 +2073,8 @@ The Explore detail page additionally uses:
   notifications sheet does not skip or duplicate rows during active usage
 - `/set-user-follow` to apply public author Follow/Following state from
   `ExploreAuthorProfileSheet`
-- `/update-public-username` from the Profile account card username editor
+- `/check-public-username` and `/update-public-username` from the Profile
+  account card username editor
 - `/register-push-device` to sync the APNs token plus the Explore-specific push
   preference
 

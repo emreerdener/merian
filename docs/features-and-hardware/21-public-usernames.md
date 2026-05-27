@@ -112,10 +112,14 @@ rows.
 
 - `ProfileViewModel.fetchPublicIdentity()` reads `public_username` and
   `public_author_name` from `public.users`.
+- `ProfileViewModel.checkPublicUsernameAvailability(_:)` calls
+  `check-public-username` so the editor validates uniqueness against existing
+  usernames before save.
 - `ProfileViewModel.updatePublicUsername(_:)` calls the Edge Function, refreshes
   local state, and publishes `.publicAuthorIdentityChanged`.
 - `UserProfile` shows `@publicUsername` in the account card and presents
-  `PublicUsernameEditSheet`.
+  `PublicUsernameEditSheet`; the editor uses a single username field, an X close
+  button, inline validation, and a primary save button below the input.
 - `ExplorePost.publicAuthorDisplayName(from:username:)` keeps logged-in display
   names and renders handles for default identities.
 - `ExploreAuthorProfileSheet` shows `@authorUsername` under the display name
@@ -126,6 +130,7 @@ rows.
 Recommended checks:
 
 ```sh
+deno check services/supabase/functions/check-public-username/index.ts
 deno check services/supabase/functions/update-public-username/index.ts
 deno test services/supabase/functions/_tests/updatePublicUsername.test.ts
 deno test --allow-env --allow-net services/supabase/functions/_tests/exploreIdentityDb.test.ts

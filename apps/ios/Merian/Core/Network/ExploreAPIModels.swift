@@ -553,6 +553,12 @@ struct PublicUsernameUpdateResponse: Decodable {
     let username: String
 }
 
+struct PublicUsernameAvailabilityResponse: Decodable {
+    let available: Bool
+    let username: String
+    let error: String?
+}
+
 struct ExplorePostDetail: Decodable {
     let postId: String
     var fieldNotes: String?

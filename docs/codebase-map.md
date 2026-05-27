@@ -178,6 +178,7 @@ Explore and social:
 - `unshare-explore-post`
 - `update-explore-field-notes`
 - `update-public-username`
+- `check-public-username`
 - `get-scan-explore-share-state`
 - `set-explore-post-like`
 - `set-user-follow`
