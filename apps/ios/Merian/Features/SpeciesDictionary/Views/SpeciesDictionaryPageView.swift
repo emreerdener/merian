@@ -113,7 +113,13 @@ struct SpeciesDictionaryPageContentView: View {
         case .loaded(let species):
             loadedView(species)
         case .notFound:
-            UnscannedSpeciesCallToActionView(scientificName: scientificName)
+            EmptyStateView(
+                iconName: "magnifyingglass",
+                title: "Species details unavailable",
+                message: "Public reference data is not available for this species yet."
+            ) {
+                retryButton
+            }
         case .error(let message):
             EmptyStateView(
                 iconName: "wifi.exclamationmark",
@@ -282,102 +288,6 @@ struct SpeciesDictionaryPageContentView: View {
             speciesId: entry.speciesId,
             entryPoint: .speciesDictionarySimilarSpecies
         )
-    }
-}
-
-private struct UnscannedSpeciesCallToActionView: View {
-    let scientificName: String
-
-    @State private var imageFetcher = SimilarSpeciesImageFetcher()
-
-    private var displayScientificName: String {
-        scientificName.trimmingCharacters(in: .whitespacesAndNewlines).trimmedNonEmpty ?? "This species"
-    }
-
-    var body: some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 0) {
-                heroImage
-
-                VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Undocumented in Merian")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-
-                        Text(displayScientificName)
-                            .font(.system(.largeTitle, design: .serif).weight(.bold))
-                            .italic()
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Text("No one has added this species to the community dictionary yet.")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    VStack(alignment: .leading, spacing: 14) {
-                        Label("Find it in the wild and scan it to help complete this page.", systemImage: "viewfinder")
-                        Label("A confirmed observation can add reference media, habitat context, and future lookalike links.", systemImage: "leaf")
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                    .labelStyle(.titleAndIcon)
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 28)
-            }
-        }
-        .background(Color(uiColor: .systemBackground))
-        .ignoresSafeArea(.container, edges: .top)
-        .task(id: displayScientificName) {
-            _ = await imageFetcher.fetchImage(for: displayScientificName)
-        }
-    }
-
-    @ViewBuilder
-    private var heroImage: some View {
-        ZStack {
-            Color(uiColor: .systemGray6)
-
-            if let image = imageFetcher.images.first {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else if imageFetcher.isLoading {
-                ProgressView()
-                    .progressViewStyle(.circular)
-            } else {
-                VStack(spacing: 10) {
-                    Image(systemName: "camera.macro")
-                        .font(.system(size: 42, weight: .regular))
-                    Text("Reference image pending")
-                        .font(.subheadline)
-                }
-                .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 360)
-        .clipped()
-        .overlay(alignment: .bottomLeading) {
-            if imageFetcher.images.first != nil {
-                Text("Public reference preview")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.black.opacity(0.45), in: Capsule(style: .continuous))
-                    .padding(16)
-            }
-        }
     }
 }
 

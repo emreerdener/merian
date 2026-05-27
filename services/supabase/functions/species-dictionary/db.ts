@@ -1,5 +1,10 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
+  type ExternalEnrichmentData,
+  fetchExternalEnrichment,
+} from "../_shared/external.ts";
+import type { SimilarSpeciesEntry } from "../_shared/biology.ts";
+import {
   buildPublicSpeciesDictionaryPayload,
   firstReferenceImageUrl,
   firstReferenceImageUrlsBySpeciesId,
@@ -139,7 +144,11 @@ export async function fetchSpeciesDictionary(
   }
 
   const row = ((speciesRows ?? []) as SpeciesDictionaryRow[])[0];
-  if (!row) return null;
+  if (!row) {
+    return normalizedLookup.scientificName
+      ? await fetchExternalSpeciesDictionary(normalizedLookup.scientificName)
+      : null;
+  }
 
   const similarSpecies = await fetchSimilarSpecies(row.id, supabaseAdmin);
   const referenceImages = await fetchReferenceImages(
@@ -149,6 +158,113 @@ export async function fetchSpeciesDictionary(
     supabaseAdmin,
   );
   return buildSpeciesDictionaryPayload(row, similarSpecies, referenceImages);
+}
+
+export async function fetchExternalSpeciesDictionary(
+  scientificName: string,
+): Promise<SpeciesDictionaryPayload> {
+  const normalizedScientificName = scientificName.trim().replace(/\s+/g, " ");
+  const externalData = await fetchExternalEnrichment(normalizedScientificName);
+  const taxonomy = externalData.gbifTaxonomy;
+  const { fetchSimilarSpecies: fetchModelSimilarSpecies } = await import(
+    "../_shared/biology.ts"
+  );
+  const similarResult = await fetchModelSimilarSpecies(
+    "species-dictionary-public",
+    normalizedScientificName,
+    taxonomy,
+  );
+  const similarSpecies = externalSimilarSpecies(
+    similarResult?.similar_species ?? [],
+  );
+
+  return buildExternalSpeciesDictionaryPayload(
+    normalizedScientificName,
+    externalData,
+    similarSpecies,
+  );
+}
+
+export function buildExternalSpeciesDictionaryPayload(
+  scientificName: string,
+  externalData: ExternalEnrichmentData,
+  similarSpecies: SpeciesDictionarySimilarSpecies[] = [],
+): SpeciesDictionaryPayload {
+  const normalizedScientificName = scientificName.trim().replace(/\s+/g, " ");
+  return buildSpeciesDictionaryPayload(
+    externalSpeciesRow(normalizedScientificName, externalData),
+    similarSpecies,
+  );
+}
+
+function externalSpeciesRow(
+  scientificName: string,
+  externalData: ExternalEnrichmentData,
+): SpeciesDictionaryRow {
+  const taxonomy = externalData.gbifTaxonomy;
+  const commonName = externalCommonName(scientificName, externalData);
+
+  return {
+    id: externalSpeciesId(scientificName),
+    scientific_name: scientificName,
+    common_names: commonName ? { en: commonName } : null,
+    alternative_common_names: externalData.alternativeCommonNames,
+    kingdom: taxonomy?.kingdom ?? null,
+    phylum: taxonomy?.phylum ?? null,
+    class: taxonomy?.class ?? null,
+    order: taxonomy?.order ?? null,
+    family: taxonomy?.family ?? null,
+    genus: taxonomy?.genus ?? null,
+    wikipedia_url: externalData.wikipediaUrl,
+    reference_image_url: externalData.referenceImageUrl,
+    wikipedia_overview: externalData.wikiExtract,
+    hazard_type: null,
+    iucn_red_list_status: null,
+    habitat_description: null,
+    gbif_taxon_key: externalData.gbifKey,
+    group_tags: [],
+  };
+}
+
+function externalSimilarSpecies(
+  entries: SimilarSpeciesEntry[],
+): SpeciesDictionarySimilarSpecies[] {
+  return entries.map((entry, index) => ({
+    scientific_name: entry.scientific_name,
+    common_name: entry.common_name,
+    reference_image_url: null,
+    iucn_red_list_status: null,
+    reason: stringValue(entry.reason),
+    visual_traits: Array.isArray(entry.visual_traits)
+      ? entry.visual_traits
+      : [],
+    confidence:
+      typeof entry.confidence === "number" && Number.isFinite(entry.confidence)
+        ? Math.max(0, Math.min(1, entry.confidence))
+        : null,
+    source: "model_enrichment",
+    review_status: "unreviewed",
+    is_bidirectional: false,
+    sort_order: index,
+  }));
+}
+
+function externalCommonName(
+  scientificName: string,
+  externalData: ExternalEnrichmentData,
+): string | null {
+  const wikiTitle = stringValue(externalData.wikiTitle)
+    ?.replace(/\s*\([^)]+\)$/, "")
+    .trim();
+  if (wikiTitle && wikiTitle.toLowerCase() !== scientificName.toLowerCase()) {
+    return wikiTitle;
+  }
+
+  return externalData.alternativeCommonNames[0] ?? null;
+}
+
+function externalSpeciesId(scientificName: string): string {
+  return `external:${encodeURIComponent(scientificName.toLowerCase())}`;
 }
 
 async function fetchReferenceImages(

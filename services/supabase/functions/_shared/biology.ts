@@ -178,7 +178,7 @@ export interface SpeciesTaxonomy {
 }
 
 export async function fetchSimilarSpecies(
-  user: User,
+  user: User | string,
   scientificName: string,
   taxonomy?: SpeciesTaxonomy | null,
 ): Promise<

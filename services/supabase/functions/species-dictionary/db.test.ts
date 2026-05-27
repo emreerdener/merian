@@ -1,5 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import {
+  buildExternalSpeciesDictionaryPayload,
   buildSpeciesDictionaryPayload,
   firstReferenceImageUrl,
   parseSpeciesDictionaryRequest,
@@ -173,6 +174,57 @@ Deno.test("species-dictionary helpers - build sparse payload with lookalikes", (
     "dark veins",
   ]);
   assertEquals(payload.similar_species[0].confidence, 0.82);
+});
+
+Deno.test("species-dictionary helpers - build external payload for unscanned species", () => {
+  const payload = buildExternalSpeciesDictionaryPayload(
+    "  Danaus   gilippus ",
+    {
+      wikipediaUrl: "https://en.wikipedia.org/wiki/Danaus_gilippus",
+      wikiExtract:
+        "The queen butterfly is a North and South American butterfly in the genus Danaus.",
+      gbifKey: 5139791,
+      referenceImageUrl:
+        "https://upload.wikimedia.org/queen.jpg,https://static.inaturalist.org/queen-observation.jpg",
+      alternativeCommonNames: ["Queen Butterfly", "Queen"],
+      wikiTitle: "Queen butterfly",
+      gbifTaxonomy: {
+        kingdom: "Animalia",
+        phylum: "Arthropoda",
+        class: "Insecta",
+        order: "Lepidoptera",
+        family: "Nymphalidae",
+        genus: "Danaus",
+      },
+    },
+    [
+      {
+        scientific_name: "Danaus plexippus",
+        common_name: "Monarch Butterfly",
+        reference_image_url: null,
+        iucn_red_list_status: null,
+        reason: "Similar orange wing pattern.",
+        visual_traits: ["orange wings"],
+        confidence: 0.8,
+        source: "model_enrichment",
+        review_status: "unreviewed",
+        is_bidirectional: false,
+        sort_order: 0,
+      },
+    ],
+  );
+
+  assertEquals(payload.id, "external:danaus%20gilippus");
+  assertEquals(payload.scientific_name, "Danaus gilippus");
+  assertEquals(payload.common_name, "Queen butterfly");
+  assertEquals(payload.alternative_common_names, ["Queen"]);
+  assertEquals(payload.taxonomy.family, "Nymphalidae");
+  assertEquals(payload.wikipedia_overview?.includes("queen butterfly"), true);
+  assertEquals(payload.gbif_taxon_key, 5139791);
+  assertEquals(payload.reference_images.length, 2);
+  assertEquals(payload.reference_images[0].source, "wikipedia");
+  assertEquals(payload.similar_species[0].species_id, undefined);
+  assertEquals(payload.similar_species[0].scientific_name, "Danaus plexippus");
 });
 
 Deno.test("species-dictionary helpers - validates request body", () => {

@@ -78,7 +78,7 @@ export interface PublicSpeciesDictionaryRow {
 }
 
 export interface PublicSimilarSpecies {
-  species_id: string;
+  species_id?: string | null;
   scientific_name: string;
   common_name: string | null;
   reference_image_url: string | null;
