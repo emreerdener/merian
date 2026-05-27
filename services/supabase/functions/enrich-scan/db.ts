@@ -195,9 +195,13 @@ export async function resolveLookalikesToJoinTable(
     order: string | null;
     family: string | null;
   }[];
+  const matchedNames = new Set(typed.map((m) => m.scientific_name));
+  const unmatchedStubs = entries
+    .filter((entry) => !matchedNames.has(entry.scientific_name))
+    .map((entry, index) => flashEntryToLookalikeSummary(entry, index));
 
   if (typed.length === 0) {
-    return { lookalikes: [], persisted: false };
+    return { lookalikes: unmatchedStubs, persisted: false };
   }
 
   // Reject any resolved species whose normalized taxonomy does not positively match the
@@ -234,9 +238,9 @@ export async function resolveLookalikesToJoinTable(
     console.warn(
       `[resolveLookalikesToJoinTable] All ${typed.length} resolved lookalikes failed taxonomy validation (kingdom: ${normalizedPrimaryKingdom}, order: ${
         normalizedPrimaryOrder ?? "any"
-      }, family: ${normalizedPrimaryFamily ?? "any"}). Returning empty.`,
+      }, family: ${normalizedPrimaryFamily ?? "any"}). Returning unmatched stubs only.`,
     );
-    return { lookalikes: [], persisted: false };
+    return { lookalikes: unmatchedStubs, persisted: false };
   }
 
   // One-directional insert only: "when observing speciesId, you might confuse it for m".
@@ -309,31 +313,52 @@ export async function resolveLookalikesToJoinTable(
     "resolveLookalikesToJoinTable",
   );
 
+  const validatedSummaries: LookalikeSummary[] = validated.map((m) => ({
+    scientific_name: m.scientific_name,
+    species_id: m.id,
+    // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
+    common_name: m.common_names?.en ??
+      entryByName.get(m.scientific_name)?.common_name ?? null,
+    reference_image_url: firstImageBySpeciesId.get(m.id) ??
+      firstReferenceImageUrl(m.reference_image_url),
+    iucn_red_list_status: m.iucn_red_list_status,
+    reason: sanitizeLookalikeReason(
+      entryByName.get(m.scientific_name)?.reason,
+    ),
+    visual_traits: sanitizeLookalikeVisualTraits(
+      entryByName.get(m.scientific_name)?.visual_traits,
+    ),
+    confidence: normalizePublicConfidence(
+      entryByName.get(m.scientific_name)?.confidence,
+    ) ?? 0.8,
+    source: "model_enrichment",
+    review_status: "unreviewed",
+    is_bidirectional: false,
+    sort_order: validated.findIndex((entry) => entry.id === m.id),
+  }));
+
   return {
-    lookalikes: validated.map((m) => ({
-      scientific_name: m.scientific_name,
-      species_id: m.id,
-      // Prefer the authoritative dictionary value; fall back to the Flash-generated name.
-      common_name: m.common_names?.en ??
-        entryByName.get(m.scientific_name)?.common_name ?? null,
-      reference_image_url: firstImageBySpeciesId.get(m.id) ??
-        firstReferenceImageUrl(m.reference_image_url),
-      iucn_red_list_status: m.iucn_red_list_status,
-      reason: sanitizeLookalikeReason(
-        entryByName.get(m.scientific_name)?.reason,
-      ),
-      visual_traits: sanitizeLookalikeVisualTraits(
-        entryByName.get(m.scientific_name)?.visual_traits,
-      ),
-      confidence: normalizePublicConfidence(
-        entryByName.get(m.scientific_name)?.confidence,
-      ) ?? 0.8,
-      source: "model_enrichment",
-      review_status: "unreviewed",
-      is_bidirectional: false,
-      sort_order: validated.findIndex((entry) => entry.id === m.id),
-    })),
+    lookalikes: [...validatedSummaries, ...unmatchedStubs],
     persisted: true,
+  };
+}
+
+function flashEntryToLookalikeSummary(
+  entry: SimilarSpeciesEntry,
+  sortOrder: number,
+): LookalikeSummary {
+  return {
+    scientific_name: entry.scientific_name,
+    common_name: entry.common_name ?? null,
+    reference_image_url: null,
+    iucn_red_list_status: null,
+    reason: sanitizeLookalikeReason(entry.reason),
+    visual_traits: sanitizeLookalikeVisualTraits(entry.visual_traits),
+    confidence: normalizePublicConfidence(entry.confidence) ?? 0.8,
+    source: "model_enrichment",
+    review_status: "unreviewed",
+    is_bidirectional: false,
+    sort_order: sortOrder,
   };
 }
 

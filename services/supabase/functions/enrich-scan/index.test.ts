@@ -4,6 +4,7 @@
 // Supabase client. All Postgres interactions are replaced with inline stubs.
 
 import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { resolveLookalikesToJoinTable } from "./db.ts";
 import { LookalikeSummary } from "./types.ts";
 import { SimilarSpeciesEntry } from "../_shared/biology.ts";
 
@@ -107,6 +108,45 @@ Deno.test("all species matched — unmatched stubs list is empty", () => {
   const matched = new Set(["Procyon lotor"]);
   const stubs = buildUnmatchedStubs(entries, matched);
   assertEquals(stubs.length, 0);
+});
+
+Deno.test("resolveLookalikesToJoinTable — returns Flash stubs when dictionary has no matches", async () => {
+  const entries: SimilarSpeciesEntry[] = [
+    { scientific_name: "Rare obscura", common_name: "Obscure Species" },
+  ];
+  const supabase = {
+    from(table: string) {
+      if (table !== "species_dictionary") throw new Error(`Unexpected table ${table}`);
+      return {
+        select() {
+          return {
+            in() {
+              return {
+                limit() {
+                  return Promise.resolve({ data: [], error: null });
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+
+  const result = await resolveLookalikesToJoinTable(
+    "primary-species-id",
+    entries,
+    supabase as never,
+    "Animalia",
+    "Carnivora",
+    null,
+  );
+
+  assertEquals(result.persisted, false);
+  assertEquals(result.lookalikes.length, 1);
+  assertEquals(result.lookalikes[0].scientific_name, "Rare obscura");
+  assertEquals(result.lookalikes[0].common_name, "Obscure Species");
+  assertEquals(result.lookalikes[0].reference_image_url, null);
 });
 
 // ---------------------------------------------------------------------------

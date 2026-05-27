@@ -365,8 +365,9 @@ serve((req: Request) =>
           );
           lookalikes = resolveResult.lookalikes;
           if (resolveResult.persisted && lookalikes.length > 0) {
+            const persistedLookalikes = lookalikes.filter((entry) => entry.species_id);
             validatedSimilarResult = {
-              similar_species: lookalikes.map((entry) => ({
+              similar_species: persistedLookalikes.map((entry) => ({
                 scientific_name: entry.scientific_name,
                 common_name: entry.common_name,
               })),
