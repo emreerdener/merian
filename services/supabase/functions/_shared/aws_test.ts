@@ -59,9 +59,9 @@ Deno.test("deleteScanMediaR2Objects skips durable avatar objects", async () => {
     bucketName: "media-bucket",
     endpoint: "https://account.r2.cloudflarestorage.com",
     s3Client: {
-      async fetch(url: string) {
+      fetch(url: string) {
         deletedUrls.push(url);
-        return new Response(null, { status: 204 });
+        return Promise.resolve(new Response(null, { status: 204 }));
       },
     },
   } as unknown as R2Config;
