@@ -26,6 +26,7 @@ struct ExplorePostDetailCommentsSection: View {
     var hideInlineComposer: Bool = false
 
     @State private var reactingCommentId: String?
+    @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
 
     private let availableEmojis = ["\u{2764}\u{FE0F}", "\u{1F44D}", "\u{1F602}", "\u{1F389}", "\u{1F632}", "\u{1F33F}"]
     private let replyThreadParentExtension: CGFloat = 36
@@ -58,6 +59,9 @@ struct ExplorePostDetailCommentsSection: View {
                         .padding(.top, 8)
                         .id(composerId)
                 }
+            }
+            .sheet(item: $selectedAuthorProfileRoute) { route in
+                ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
             }
         }
     }
@@ -453,18 +457,24 @@ struct ExplorePostDetailCommentsSection: View {
     private func commentRow(_ comment: ExploreComment, allowsReply: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
-                authorAvatarView(for: comment)
+                HStack(alignment: .top, spacing: 12) {
+                    authorAvatarView(for: comment)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(comment.displayAuthorName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(comment.displayAuthorName)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
 
-                    if let createdAtText = createdAtText(for: comment) {
-                        Text(createdAtText)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        if let createdAtText = createdAtText(for: comment) {
+                            Text(createdAtText)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    openAuthorProfile(for: comment)
                 }
 
                 Spacer()
@@ -527,6 +537,11 @@ struct ExplorePostDetailCommentsSection: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
+    }
+
+    private func openAuthorProfile(for comment: ExploreComment) {
+        HapticManager.shared.triggerSelectionPulse()
+        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(comment: comment)
     }
 
     private func createdAtText(for comment: ExploreComment) -> String? {

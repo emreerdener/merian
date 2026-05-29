@@ -19,6 +19,13 @@ struct ExploreAuthorProfileRoute: Identifiable, Equatable {
         self.authorUsername = post.authorUsername
         self.authorAvatarUrl = post.authorAvatarUrl
     }
+
+    init(comment: ExploreComment) {
+        self.authorUserId = comment.authorUserId
+        self.authorName = comment.authorName
+        self.authorUsername = comment.authorUsername
+        self.authorAvatarUrl = comment.authorAvatarUrl
+    }
 }
 
 struct ExploreAuthorProfileSheet: View {
