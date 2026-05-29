@@ -8,3 +8,12 @@ The client then uploads the multi-megabyte `Data` payloads natively to the Cloud
 
 - **`index.ts`**: The HTTP orchestrator. It safely catches `.json()` parse anomalies, accepts the structured `files` manifest (`fileName`, `mediaKind`, `contentType`, `sizeBytes`), keeps legacy `fileNames` compatibility, and blocks requests that exceed 5 media objects.
 - **`storage.ts`**: Validates media kind/content type/byte budgets before signing, enforces the `Promise.all` key generation mapping, injects the verified `userId` to strictly namespace objects dynamically, and executes regex sanitization against `fileName` to prevent `/../` directory traversal vulnerabilities on Cloudflare's staging bucket.
+
+## Avatar Uploads
+
+Profile pictures use this same staging signer. The iOS Profile tab sends a
+single structured `files` entry for a prepared square WebP or JPEG avatar,
+uploads it to `staging/{userId}/...`, then calls `update-public-avatar` with the
+returned `objectKey`. This function does not promote or persist avatars; it only
+signs the temporary staging upload. The durable object is created later under
+`avatars/{userId}/...`.

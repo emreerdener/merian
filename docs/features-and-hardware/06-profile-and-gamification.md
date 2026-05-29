@@ -11,6 +11,7 @@ This document covers the Profile tab architecture, how scan statistics are compu
 | `ProfileTabView`         | Root profile tab view                                                                                                     |
 | `SettingsTabView`        | Settings sub-tab                                                                                                          |
 | `ProfileViewModel`       | `@Observable @MainActor` — cloud preferences (geoprivacy), auth state, sign-in/out                                        |
+| `ProfileAvatarImagePreparer` | Downsamples, square-crops, and WebP/JPEG encodes selected public profile pictures before R2 staging                  |
 | `ProfileDatabaseActor`   | `@ModelActor` — builds compact SwiftData projections, computes profile stats, heatmap, and awards off-main                |
 | `AchievementsCalculator` | Pure `struct` with `static func calculate(from:) -> [AwardPayload]`                                                       |
 | `GamificationManager`    | `@MainActor @Observable` singleton — in-memory award cache, notification triggers                                         |
@@ -48,12 +49,16 @@ The `Persona` UI component cross-references this enum against the user's live pr
 
 - `fetchGeoprivacy()` — reads `default_geoprivacy` from the Supabase `users` table
 - `fetchPublicIdentity()` — reads the public display/handle projection
-  (`public_author_name`, `public_username`) from the Supabase `users` table
+  (`public_author_name`, `public_username`, `public_avatar_url`) from the
+  Supabase `users` table
 - `checkPublicUsernameAvailability(_:)` — calls `/check-public-username` for
   inline username uniqueness validation in the edit sheet
 - `updatePublicUsername(_:)` — calls `/update-public-username`, refreshes the
   local handle, and publishes `.publicAuthorIdentityChanged` so Explore/Profile
   surfaces can update
+- `updatePublicAvatar(_:)` — stages a prepared square profile picture in R2,
+  calls `/update-public-avatar`, refreshes `publicAvatarUrl`, and publishes
+  `.publicAuthorIdentityChanged`
 - `signInWithApple()`, `signInWithGoogle()`, `signOut()` — delegates to `SupabaseManager`
 - Auth state computed properties (`isGuestUser`, `userName`, `userEmail`,
   `userAvatarURL`, `publicUsernameDisplayName`)
@@ -73,6 +78,30 @@ has a provider-derived display label; default/ghost identities render
 `@public_username`. See
 [`21-public-usernames.md`](./21-public-usernames.md) for the full backend and
 display contract.
+
+---
+
+## Public Avatar UX
+
+The authenticated Profile card lets users choose a custom public profile
+picture with `PhotosPicker`. `UserProfile` loads the selected item as an
+`ImageFileWrapper`, then `ProfileAvatarImagePreparer` downsamples, square-crops,
+and encodes it as WebP with JPEG fallback. `ProfileViewModel` uploads the
+prepared bytes to R2 staging through the same `/generate-upload-urls` manifest
+used by scan media, then calls `MerianNetworkClient.updatePublicAvatar(...)`.
+
+The profile screen renders `public_avatar_url` from `public.users` first. If the
+user has not uploaded a custom avatar, it falls back to OAuth metadata
+(`avatar_url` or `picture`) from the Supabase session. Successful updates change
+the local profile avatar immediately and post `.publicAuthorIdentityChanged` so
+Explore cards, comments, author sheets, and profile previews can refresh their
+public author rows.
+
+Custom avatars are public by design and live under
+`https://media.merian.app/avatars/{userId}/...`. They are durable profile media,
+not scan media. Scan purge jobs must never delete them; only
+`/update-public-avatar` may delete a previous same-user avatar after a
+replacement has been promoted.
 
 ---
 

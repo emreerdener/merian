@@ -1,6 +1,6 @@
 // deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { deleteR2Objects, getR2Config } from "../_shared/aws.ts";
+import { deleteScanMediaR2Objects, getR2Config } from "../_shared/aws.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
 
@@ -54,7 +54,7 @@ serve((req: Request) =>
     // 3. Delete images from Cloudflare R2 native
     if (scan.image_storage_urls && Array.isArray(scan.image_storage_urls)) {
       const r2Config = getR2Config();
-      await deleteR2Objects(scan.image_storage_urls, r2Config);
+      await deleteScanMediaR2Objects(scan.image_storage_urls, r2Config);
     }
 
     // 4. Execute cascading scan database deletion

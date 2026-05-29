@@ -1144,6 +1144,39 @@ struct MerianNetworkClientTests {
         try MerianNetworkClient.validateMultiModalPayloadBudget(imageBase64s: [], audioBase64s: [])
     }
 
+    @Test func testUpdatePublicAvatarConstructsPayloadAndParsesResponse() async throws {
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/update-public-avatar"] = { request in
+            #expect(request.url?.path.hasSuffix("/update-public-avatar") == true)
+            #expect(request.httpMethod == "POST")
+
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["r2_object_key"] as? String == "staging/user/avatar.webp")
+            #expect(payload["mime_type"] as? String == "image/webp")
+
+            let data = """
+            {
+              "avatar_url": "https://media.merian.app/avatars/user/avatar.webp"
+            }
+            """.data(using: .utf8)!
+            return (mockResponse, data)
+        }
+
+        let response = try await MerianNetworkClient.shared.updatePublicAvatar(
+            r2ObjectKey: "staging/user/avatar.webp",
+            mimeType: "image/webp"
+        )
+
+        #expect(response.avatarUrl == "https://media.merian.app/avatars/user/avatar.webp")
+    }
+
     @Test func budgetValidationPassesAtExactLimit() throws {
         // 3_600_000 bytes total — boundary value (> 3_600_000 throws, == does not)
         let payload = String(repeating: "X", count: 3_600_000)

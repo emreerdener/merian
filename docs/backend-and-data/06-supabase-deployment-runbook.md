@@ -68,13 +68,15 @@ deno check \
   services/supabase/functions/_shared/aws_test.ts \
   services/supabase/functions/_shared/concurrency.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
+  services/supabase/functions/update-public-avatar/index.ts \
   services/supabase/functions/auto-purge-nonbio/index.ts \
   services/supabase/functions/auto-purge-domesticated/index.ts \
   services/supabase/functions/delete-scan/index.ts
 
 deno test \
   services/supabase/functions/_shared/aws_test.ts \
-  services/supabase/functions/_shared/concurrency_test.ts
+  services/supabase/functions/_shared/concurrency_test.ts \
+  services/supabase/functions/update-public-avatar/avatar_test.ts
 
 make db-push
 make functions-deploy
@@ -96,7 +98,13 @@ After deployment:
 - Confirm `supabase db push` applied the newest migration.
 - Confirm `auto-purge-nonbio`, `auto-purge-domesticated`, and `delete-scan`
   were deployed after any `_shared/aws.ts` change.
+- Confirm `update-public-avatar` was deployed after
+  `20260528120000_add_custom_public_avatars.sql`.
+- Inspect Cloudflare R2 lifecycle rules against `docs/r2-lifecycle.json` and
+  confirm there is no enabled expiration rule for `avatars/`.
 - Run one staging purge or safe delete and inspect Edge logs for bounded R2
   fanout, delete failures, duration spikes, and memory pressure.
+- Upload a custom avatar, then run/inspect scan purge flows and confirm the
+  `https://media.merian.app/avatars/{userId}/...` URL remains available.
 - Confirm cron-triggered purge endpoints still receive service-role
   authorization from Supabase Vault/pg_net.

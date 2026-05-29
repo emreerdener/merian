@@ -51,10 +51,21 @@ Tracks the global state of the anonymous/authenticated user.
 - `public_identity_source` (TEXT, NOT NULL): Source marker for the Explore
   author label. CHECK-constrained to `alias` | `derived_name` | `display_name`.
   Added in migration `20260425000000_add_explore_posts.sql`.
-- `public_avatar_url` (TEXT, nullable): Public Explore avatar URL copied from
-  auth metadata (`avatar_url` or `picture`) for authenticated users when
-  available. `NULL` for ghost users or accounts with no provider avatar. Added
-  in migration `20260426000000_add_public_author_avatar_to_explore.sql`.
+- `public_avatar_url` (TEXT, nullable): Public Explore avatar URL projected
+  onto all public author surfaces. It resolves to `custom_avatar_url` when the
+  user has uploaded a Merian profile picture; otherwise it falls back to auth
+  metadata (`avatar_url` or `picture`) for authenticated users when available.
+  `NULL` for ghost users or accounts with no avatar. Added in migration
+  `20260426000000_add_public_author_avatar_to_explore.sql`; custom-avatar
+  precedence was added in
+  `20260528120000_add_custom_public_avatars.sql`.
+- `custom_avatar_url` (TEXT, nullable): Public Cloudflare R2 URL for a user
+  uploaded profile picture under `https://media.merian.app/avatars/{userId}/...`.
+  This is durable profile media and must not be removed by scan purge jobs or
+  R2 lifecycle expiration rules. Added in
+  `20260528120000_add_custom_public_avatars.sql`.
+- `custom_avatar_updated_at` (TIMESTAMPTZ, nullable): Last successful custom
+  avatar promotion time. Updated by `/update-public-avatar`.
 
 **Public identity refresh helpers**:
 `refresh_public_author_identity(target_user_id)` and `handle_new_user()`
@@ -64,8 +75,11 @@ raw auth metadata directly; they copy only the safe public fields
 `public.users`. Username helpers
 `normalize_public_username(...)`, `is_valid_public_username(...)`, and
 `build_unique_public_username(...)` keep `public_username` valid and
-collision-safe. `public_author_name` remains the display label; use
-`public_username` as the stable handle for profile surfaces and future mentions.
+collision-safe. Avatar helpers keep uploaded profile pictures sticky across
+OAuth metadata refreshes: `resolve_public_avatar_url(custom_avatar_url, raw_meta)`
+returns the custom avatar first and only then falls back to provider metadata.
+`public_author_name` remains the display label; use `public_username` as the
+stable handle for profile surfaces and future mentions.
 
 ### `species_dictionary`
 

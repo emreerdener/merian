@@ -75,6 +75,47 @@ during subsequent offline inference triggers.
 
 ---
 
+## Deno `/update-public-avatar` Edge Node
+
+Promotes one user-owned staged R2 image into the durable public avatar prefix.
+The iOS Profile tab first requests a signed URL from `/generate-upload-urls`,
+uploads the prepared square avatar to `staging/{userId}/...`, then calls this
+endpoint.
+
+### Request Payload
+
+```json
+{
+  "r2_object_key": "staging/a1b2c3d4-e5f6-7890-abcd-ef1234567890/avatar_11111111-1111-4111-8111-111111111111.webp",
+  "mime_type": "image/webp"
+}
+```
+
+Rules:
+
+- `r2_object_key` must be a string owned by the authenticated user under
+  `staging/{user.id}/...`.
+- Path traversal is rejected with `400`.
+- Wrong-user staging keys are rejected with `403`.
+- `mime_type` must be `image/webp` or `image/jpeg`, and it must also be in the
+  staged image MIME allowlist.
+
+### Response Payload
+
+```json
+{
+  "avatar_url": "https://media.merian.app/avatars/a1b2c3d4-e5f6-7890-abcd-ef1234567890/22222222-2222-4222-8222-222222222222.webp"
+}
+```
+
+The function copies the staged object to `avatars/{userId}/{uuid}.webp` or
+`avatars/{userId}/{uuid}.jpg`, updates `users.custom_avatar_url`,
+`users.custom_avatar_updated_at`, and `users.public_avatar_url`, and deletes
+only the previous same-user custom avatar object. OAuth avatars remain fallback
+metadata when no custom avatar exists.
+
+---
+
 ## Deno `/share-import-scan` Edge Node
 
 Parked endpoint for queueing one image shared from the native iOS Photos share
@@ -3048,8 +3089,9 @@ No JSON body is required. The cron trigger issues an empty POST request.
 2. Employs `.limit(500)` memory pagination barriers to prevent container timeout
    triggers.
 3. Aggregates all R2 `image_storage_urls` across the 500 scans and passes them
-   to `.deleteR2Objects([])`, which caps Cloudflare delete requests at 16
-   in-flight operations per Edge isolate.
+   to `deleteScanMediaR2Objects([])`, which filters to
+   `public_uploads/free|pro/` before using the bounded R2 delete helper. Durable
+   `avatars/` profile images are skipped.
 4. Executes the discrete `.delete().in("id", [...])` cascade against PostgreSQL
    only after successfully purging the R2 remote hashes, preventing orphan
    binaries.
@@ -3082,8 +3124,10 @@ No JSON body is required. The cron trigger issues an empty POST request.
 2. Queries scans where `ecology_type == 'domesticated'` and
    `timestamp < 90 days ago` with `.limit(500)`.
 3. Aggregates R2 `image_storage_urls` and batches the evaluation in chunks of
-   500 directly via `deleteR2Objects`; the shared helper caps in-flight
-   Cloudflare delete requests at 16 per Edge isolate.
+   500 via `deleteScanMediaR2Objects`; the shared helper filters to
+   `public_uploads/free|pro/` before capping in-flight Cloudflare delete
+   requests at 16 per Edge isolate. Durable `avatars/` profile images are
+   skipped.
 4. Safely executes `.update({ image_storage_urls: [] })` across the 500 scans to
    synchronize PostgreSQL natively without destroying the row telemetry context!
 5. Uses the partial index `idx_scans_domesticated_purge` for the timestamp scan

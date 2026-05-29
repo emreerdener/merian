@@ -7,6 +7,12 @@ export interface R2Config {
   endpoint: string;
 }
 
+export const R2_MEDIA_PREFIXES = {
+  temporary: ["staging/", "quarantine/", "exports/"],
+  scanMedia: ["public_uploads/free/", "public_uploads/pro/"],
+  avatars: "avatars/",
+} as const;
+
 export function getS3Client(): AwsClient {
   return new AwsClient({
     accessKeyId: Deno.env.get("R2_ACCESS_KEY_ID") ?? "",
@@ -34,6 +40,42 @@ export function getInternalS3Url(publicUrl: string, config: R2Config): string {
   );
 }
 
+export function r2ObjectKeyFromPublicUrl(publicUrl: string): string | null {
+  try {
+    const parsedUrl = new URL(publicUrl);
+    if (parsedUrl.hostname !== "media.merian.app") return null;
+    return parsedUrl.pathname.replace(/^\/+/, "");
+  } catch {
+    return null;
+  }
+}
+
+export function publicR2UrlForKey(key: string): string {
+  return `https://media.merian.app/${key}`;
+}
+
+export function isScanMediaR2Url(publicUrl: string): boolean {
+  const key = r2ObjectKeyFromPublicUrl(publicUrl);
+  return key !== null &&
+    R2_MEDIA_PREFIXES.scanMedia.some((prefix) => key.startsWith(prefix));
+}
+
+export function isAvatarR2Key(key: string, userId?: string): boolean {
+  const prefix = userId
+    ? `${R2_MEDIA_PREFIXES.avatars}${userId}/`
+    : R2_MEDIA_PREFIXES.avatars;
+  return !key.includes("..") && key.startsWith(prefix);
+}
+
+export function avatarR2KeyFromPublicUrl(
+  publicUrl: string,
+  userId?: string,
+): string | null {
+  const key = r2ObjectKeyFromPublicUrl(publicUrl);
+  if (!key || !isAvatarR2Key(key, userId)) return null;
+  return key;
+}
+
 const R2_DELETE_CONCURRENCY = 16;
 
 export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
@@ -52,6 +94,30 @@ export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
     },
   );
 };
+
+export async function deleteScanMediaR2Objects(
+  urls: string[],
+  r2Config: R2Config,
+) {
+  const scanMediaUrls = urls.filter(isScanMediaR2Url);
+  const skippedCount = urls.length - scanMediaUrls.length;
+  if (skippedCount > 0) {
+    console.warn(
+      `Skipped ${skippedCount} non-scan R2 object(s) during scan media deletion.`,
+    );
+  }
+  await deleteR2Objects(scanMediaUrls, r2Config);
+}
+
+export async function deleteAvatarR2Object(
+  avatarUrl: string,
+  userId: string,
+  r2Config: R2Config,
+): Promise<Response | null> {
+  const avatarKey = avatarR2KeyFromPublicUrl(avatarUrl, userId);
+  if (!avatarKey) return null;
+  return await deleteR2Object(avatarKey, r2Config);
+}
 
 export async function copyR2Object(
   sourceKey: string,

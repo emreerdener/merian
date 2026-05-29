@@ -98,7 +98,13 @@ Several utilities are shared across all Edge Functions via
   unbounded Cloudflare socket storm from one V8 isolate.
   `generatePresignedPutUrl` accepts an explicit Content-Type so image and audio
   staging uploads can be signed with the same header the iOS background upload
-  task will send.
+  task will send. R2 prefix ownership is explicit here: `staging/`,
+  `quarantine/`, and `exports/` are temporary; `public_uploads/free/` and
+  `public_uploads/pro/` are scan media; `avatars/` is durable public profile
+  media. Scan cleanup code must call `deleteScanMediaR2Objects(...)` so it
+  filters to scan-media URLs only. Avatar replacement must call
+  `deleteAvatarR2Object(...)`, which accepts only `avatars/{sameUserId}/...`
+  URLs.
 - **`mediaBudgets.ts`**: Centralizes Edge media limits and reusable validation
   helpers for endpoint JSON body byte ceilings, image count/raw bytes, inline
   audio base64 length, raw audio bytes, audio clip count, staged R2 key
@@ -140,6 +146,54 @@ batches above two audio files before calling `generatePresignedPutUrl()`. Legacy
 because it cannot express byte budgets. The limit and content-type contract is
 pinned in `docs/contracts/media-staging-upload-manifest.json` and loaded by both
 Swift and Deno tests.
+
+Profile avatar uploads also use this signing path. The iOS client uploads a
+single prepared square WebP or JPEG to `staging/{userId}/...`, then calls
+`/update-public-avatar` to promote that object into the durable `avatars/`
+prefix. The signing endpoint stays generic; ownership and avatar MIME policy
+are enforced by the promotion endpoint.
+
+## The Public Avatar Promotion Node (`update-public-avatar`)
+
+The `/update-public-avatar` Edge Function promotes a staged, user-owned image
+into durable public profile media. It is app-facing and compatible with
+anonymous Supabase sessions: Supabase gateway JWT verification is disabled in
+`services/supabase/config.toml`, and the function resolves identity through
+`withEdgeHandler`.
+
+The request body is:
+
+```json
+{
+  "r2_object_key": "staging/a1b2c3d4-e5f6-7890-abcd-ef1234567890/avatar_11111111-1111-4111-8111-111111111111.webp",
+  "mime_type": "image/webp"
+}
+```
+
+`r2_object_key` must validate through the shared staging-key guard and begin
+with `staging/{authenticatedUserId}/`. Wrong-user keys return `403`; path
+traversal and unsupported MIME types return `400`. Supported avatar MIME types
+are `image/webp` and `image/jpeg`.
+
+On success the function:
+
+1. Copies the staged object to `avatars/{userId}/{uuid}.webp` or
+   `avatars/{userId}/{uuid}.jpg`.
+2. Updates `public.users.custom_avatar_url`,
+   `public.users.custom_avatar_updated_at`, and `public.users.public_avatar_url`.
+3. Deletes only the previous custom avatar when it is a
+   `https://media.merian.app/avatars/{sameUserId}/...` URL.
+4. Returns:
+
+```json
+{
+  "avatar_url": "https://media.merian.app/avatars/a1b2c3d4-e5f6-7890-abcd-ef1234567890/22222222-2222-4222-8222-222222222222.webp"
+}
+```
+
+OAuth/provider avatars remain the fallback. Database identity refresh helpers
+resolve public avatars as `custom_avatar_url` first, then provider metadata via
+`extract_public_avatar_url(...)`.
 
 ## The Photos Share Import Queue Node (`share-import-scan`)
 
@@ -843,7 +897,11 @@ age and prefix, not on the PostgreSQL `is_biological_subject = false` flag. A
 bare Postgres `DELETE` without R2 coordination would orphan stored objects. The
 Edge Function handles both the database deletion and the R2 object removal
 atomically. Webhook secret validation in this function uses
-`timingSafeCompare()` for constant-time comparison.
+`timingSafeCompare()` for constant-time comparison. The function must delete R2
+objects through `deleteScanMediaR2Objects(...)`, not raw `deleteR2Objects(...)`,
+so only `public_uploads/free/` and `public_uploads/pro/` URLs are eligible for
+scan purge deletion. `avatars/`, `staging/`, `quarantine/`, and `exports/` URLs
+are skipped even if a malformed scan row contains them.
 
 ### Targeted 90-Day Domesticated Purge
 
@@ -852,8 +910,9 @@ purging 90-day-old `domesticated` ecology scans from Free tier users without
 touching valuable `wild` and `invasive` specimens. To safely avoid Deno's
 wall-clock timeouts when issuing hundreds of network API calls to Cloudflare,
 the worker chunks candidate URL arrays and delegates each chunk to
-`deleteR2Objects`, whose internal concurrency is capped at 16. The query is
-supported by `idx_scans_domesticated_purge` on `(timestamp)` where
+`deleteScanMediaR2Objects`, which filters to scan-media prefixes before using
+the bounded delete fanout. The raw delete concurrency remains capped at 16. The
+query is supported by `idx_scans_domesticated_purge` on `(timestamp)` where
 `ecology_type = 'domesticated'` and `image_storage_urls <> '{}'`, narrowing the
 scan to rows whose media can actually be reclaimed. It zeroes out the
 `image_storage_urls` array rather than dropping the row, ensuring the user's
@@ -883,8 +942,9 @@ and reconciled with actual PostHog `ScanCompleted.llm_cached_tokens` totals.
 
 ### Cloudflare R2 Object Lifecycle Rules
 
-The following three Object Lifecycle Rules must be configured in the Cloudflare
-R2 Dashboard under **Settings → Object Lifecycle**:
+The following Object Lifecycle Rules must be configured in the Cloudflare R2
+Dashboard under **Settings -> Object Lifecycle** and mirrored in
+`docs/r2-lifecycle.json`:
 
 1. **Default Multipart Abort Rule**
    - **Prefix:** `--`
@@ -892,9 +952,18 @@ R2 Dashboard under **Settings → Object Lifecycle**:
 2. **Purge staging objects after 1 day**
    - **Prefix:** `staging/`
    - **Action:** Delete objects after `1` day
-3. **Quarantine Cleanup**
+3. **Purge quarantine objects after 1 day**
    - **Prefix:** `quarantine/`
    - **Action:** Delete objects after `1` day
+4. **Purge export objects after 1 day**
+   - **Prefix:** `exports/`
+   - **Action:** Delete objects after `1` day
+
+Do not add an expiration lifecycle rule for `avatars/`. User profile pictures
+are durable public media and are deleted only by the avatar replacement helper
+after a new same-user custom avatar has been promoted. Deno tests load
+`docs/r2-lifecycle.json` and fail if any enabled expiration rule targets the
+`avatars/` prefix.
 
 ## Customer Support & ML Feedback Loop (`flag-issue`)
 

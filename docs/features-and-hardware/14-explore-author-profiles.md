@@ -27,6 +27,8 @@ Explore author profiles are public, privacy-preserving profile sheets opened fro
 - Logged-in/provider-derived authors keep display names such as `Emre E.` as
   the primary profile/feed label. Default/ghost identities render as
   `@public_username`.
+- Author avatars read the resolved `public_avatar_url`. Custom Merian avatars
+  under `avatars/{userId}/...` take precedence over OAuth provider avatars.
 
 ## Privacy Model
 
@@ -91,6 +93,7 @@ New Edge Functions:
 - `services/supabase/functions/get-explore-author-posts`
 - `services/supabase/functions/set-user-follow`
 - `services/supabase/functions/update-public-username`
+- `services/supabase/functions/update-public-avatar`
 - `services/supabase/functions/check-public-username`
 
 The author profile RPC computes species count from distinct biological species-backed scans using `COALESCE(confirmed_species_id, species_id)`. The heatmap and current streak are computed from all non-tombstoned scans and use the author's latest valid persisted `device_time_zone`, falling back to UTC. Current streak accepts today or yesterday as the anchor day, matching local profile grace behavior.
@@ -106,6 +109,16 @@ Public username extension:
 - Explore Edge DTOs include `author_username` beside `author_name`.
 - `author_name` remains the display label; `author_username` is the stable
   handle for profile secondary text and future mentions.
+
+Public avatar extension:
+
+- `20260528120000_add_custom_public_avatars.sql` adds
+  `public.users.custom_avatar_url` and `custom_avatar_updated_at`.
+- `public.resolve_public_avatar_url(...)` preserves uploaded avatars across
+  provider metadata refreshes.
+- `update-public-avatar` promotes staged R2 images into
+  `avatars/{userId}/...`, updates `public_avatar_url`, and deletes only the
+  previous same-user custom avatar.
 
 Ghost-account merge repair:
 
@@ -147,6 +160,9 @@ Conversion rules:
 - Remote author rows decode optional `authorUsername`. UI renders
   `@authorUsername` under profile display names and uses it as the visible name
   for default/ghost author rows.
+- Remote author rows decode `authorAvatarUrl` from the public identity
+  projection; the Profile tab updates that projection when a user uploads a
+  custom avatar.
 - Preferred species names are refreshed for preview/library posts after profile and page loads.
 - The local Profile tab preview reads the current Supabase user from the view environment, displays any locally cached published scans immediately, calls `getExploreAuthorPosts(authorUserId:limit:)`, shows a lightweight loading grid while fetching, and renders an empty state when no visible Explore publications are returned.
 - Share and unshare flows publish `exploreShareStateChanged` so an already-open Profile tab can refresh its local preview state.
@@ -170,6 +186,7 @@ MerianNetworkClient.shared.getExploreAuthorProfile(authorUserId:previewLimit:)
 MerianNetworkClient.shared.getExploreAuthorPosts(authorUserId:limit:cursor:)
 MerianNetworkClient.shared.setUserFollow(authorUserId:isFollowing:)
 MerianNetworkClient.shared.updatePublicUsername(_:)
+MerianNetworkClient.shared.updatePublicAvatar(r2ObjectKey:mimeType:)
 ```
 
 ## Testing
@@ -180,6 +197,7 @@ Backend:
 - `services/supabase/functions/_tests/updatePublicUsername.test.ts`
 - Covers aggregate privacy boundaries and cursor pagination.
 - Covers username normalization and validation.
+- Covers custom-avatar precedence in the public identity DB test.
 - Tests skip live assertions when the local Supabase DB is not running at `127.0.0.1:54322`.
 
 iOS:
@@ -187,15 +205,18 @@ iOS:
 - `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
 - Covers profile decoding, award/heatmap conversion, and author-post cursor payload construction.
 - Covers follow-state decoding and `/set-user-follow` request payload construction.
+- Covers `/update-public-avatar` response decoding and request payload
+  construction.
 
 Recommended verification:
 
 ```sh
-deno fmt --check services/supabase/functions/get-explore-author-profile services/supabase/functions/get-explore-author-posts services/supabase/functions/update-public-username services/supabase/functions/check-public-username services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts services/supabase/functions/_tests/updatePublicUsername.test.ts
-deno lint services/supabase/functions/get-explore-author-profile services/supabase/functions/get-explore-author-posts services/supabase/functions/update-public-username services/supabase/functions/check-public-username services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts services/supabase/functions/_tests/updatePublicUsername.test.ts
-deno check services/supabase/functions/get-explore-author-profile/index.ts services/supabase/functions/get-explore-author-posts/index.ts services/supabase/functions/update-public-username/index.ts services/supabase/functions/check-public-username/index.ts
+deno fmt --check services/supabase/functions/get-explore-author-profile services/supabase/functions/get-explore-author-posts services/supabase/functions/update-public-username services/supabase/functions/update-public-avatar services/supabase/functions/check-public-username services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts services/supabase/functions/_tests/updatePublicUsername.test.ts
+deno lint services/supabase/functions/get-explore-author-profile services/supabase/functions/get-explore-author-posts services/supabase/functions/update-public-username services/supabase/functions/update-public-avatar services/supabase/functions/check-public-username services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts services/supabase/functions/_tests/updatePublicUsername.test.ts
+deno check services/supabase/functions/get-explore-author-profile/index.ts services/supabase/functions/get-explore-author-posts/index.ts services/supabase/functions/update-public-username/index.ts services/supabase/functions/update-public-avatar/index.ts services/supabase/functions/check-public-username/index.ts
 deno test --allow-env --allow-net services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
 deno test services/supabase/functions/_tests/updatePublicUsername.test.ts
+deno test services/supabase/functions/update-public-avatar/avatar_test.ts
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
 ```
@@ -205,3 +226,8 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic
 Deploy the migration before deploying the two new Edge Functions. The functions depend on the RPCs and on the `device_time_zone` column existing.
 
 All identify paths now persist `device_time_zone` when the client sends a valid IANA timezone. Existing scans without a timezone continue to compute public profile streaks and heatmaps in UTC.
+
+For custom avatars, deploy
+`20260528120000_add_custom_public_avatars.sql` before `update-public-avatar`.
+Confirm Cloudflare R2 lifecycle rules do not expire `avatars/`; only
+`staging/`, `quarantine/`, and `exports/` should have short expiration rules.

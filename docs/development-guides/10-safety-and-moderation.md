@@ -60,9 +60,15 @@ For safe scans, `moderation.ts` promotes images from temporary staging storage t
 |---|---|
 | Temporary staging (pre-moderation) | `staging/{userId}/{filename}.webp` |
 | Permanent public storage (post-moderation) | `public_uploads/{tier}/{userId}/{filename}.webp` |
+| Durable public profile avatars | `avatars/{userId}/{uuid}.webp|jpg` |
 | CDN base URL | `https://media.merian.app/` |
 
 `{tier}` is either `"pro"` or `"free"`, determined from `userTier` resolved on the critical path.
+
+`avatars/` is not part of the scan moderation pipeline. Custom profile pictures
+are promoted by `/update-public-avatar` after a user-owned staged upload and are
+deleted only by the avatar replacement helper for the same user. Scan purge,
+moderation rollback, and storage lifecycle jobs must not target `avatars/`.
 
 ### Two Promotion Paths
 

@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// Abstracted Profile identity component natively interpreting both Ghost mode states
@@ -5,6 +6,8 @@ import SwiftUI
 struct UserProfile: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
     @State private var isShowingUsernameEditor = false
+    @State private var selectedAvatarItem: PhotosPickerItem?
+    @State private var isShowingAvatarError = false
     var totalScans: Int = 0
     var completedAchievements: Int = 0
     
@@ -57,22 +60,7 @@ struct UserProfile: View {
                 VStack(spacing: 12) {
                     // Authenticated User Profile Card
                     HStack(spacing: 12) {
-                        if let avatarURL = profileViewModel.userAvatarURL {
-                            AsyncImage(url: avatarURL) { image in
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            } placeholder: {
-                                ProgressView()
-                            }
-                            .frame(width: 48, height: 48)
-                            .clipShape(Circle())
-                        } else {
-                            Image(systemName: "person.crop.circle.fill")
-                                .resizable()
-                                .frame(width: 48, height: 48)
-                                .foregroundColor(.gray)
-                        }
+                        avatarPicker
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(profileViewModel.userName ?? profileViewModel.publicAuthorName ?? "Explorer")
@@ -140,6 +128,109 @@ struct UserProfile: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Color(UIColor.systemGroupedBackground))
+        }
+        .onChange(of: selectedAvatarItem) { _, newItem in
+            handleAvatarSelection(newItem)
+        }
+        .alert("Profile picture update failed", isPresented: $isShowingAvatarError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(profileViewModel.avatarUpdateErrorMessage ?? "Merian could not update your profile picture.")
+        }
+    }
+
+    private var avatarPicker: some View {
+        PhotosPicker(
+            selection: $selectedAvatarItem,
+            matching: .images,
+            photoLibrary: .shared()
+        ) {
+            ZStack(alignment: .bottomTrailing) {
+                avatarImage(size: 48)
+
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 18, height: 18)
+                    .background(Color.accentColor, in: Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(Color(UIColor.secondarySystemGroupedBackground), lineWidth: 2)
+                    )
+
+                if profileViewModel.isUpdatingAvatar {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .frame(width: 48, height: 48)
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .frame(width: 56, height: 56)
+        }
+        .buttonStyle(.plain)
+        .disabled(profileViewModel.isUpdatingAvatar)
+        .accessibilityLabel("Change profile picture")
+    }
+
+    @ViewBuilder
+    private func avatarImage(size: CGFloat) -> some View {
+        if let avatarURL = profileViewModel.userAvatarURL {
+            AsyncImage(url: avatarURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    fallbackAvatar(size: size)
+                case .empty:
+                    Color(uiColor: .tertiarySystemFill)
+                @unknown default:
+                    fallbackAvatar(size: size)
+                }
+            }
+            .frame(width: size, height: size)
+            .clipShape(Circle())
+        } else {
+            fallbackAvatar(size: size)
+        }
+    }
+
+    private func fallbackAvatar(size: CGFloat) -> some View {
+        Image(systemName: "person.crop.circle.fill")
+            .font(.system(size: size, weight: .regular))
+            .foregroundStyle(.secondary)
+            .frame(width: size, height: size)
+    }
+
+    private func handleAvatarSelection(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        selectedAvatarItem = nil
+
+        Task {
+            do {
+                guard let wrapper = try await item.loadTransferable(type: ImageFileWrapper.self) else {
+                    profileViewModel.avatarUpdateErrorMessage = "Merian could not load that image."
+                    isShowingAvatarError = true
+                    return
+                }
+
+                let fileURL = wrapper.url
+                defer { try? FileManager.default.removeItem(at: fileURL) }
+
+                let avatar = try await Task.detached(priority: .userInitiated) {
+                    try ProfileAvatarImagePreparer.prepare(fileURL: fileURL)
+                }.value
+
+                let didUpdate = await profileViewModel.updatePublicAvatar(avatar)
+                if !didUpdate {
+                    isShowingAvatarError = true
+                }
+            } catch {
+                profileViewModel.avatarUpdateErrorMessage = error.localizedDescription
+                isShowingAvatarError = true
+            }
         }
     }
 

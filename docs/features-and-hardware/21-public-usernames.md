@@ -4,6 +4,10 @@ Public usernames are Merian's stable public handles for Explore identity and
 future comment mentions. They are stored without `@` and rendered as
 `@username` in UI.
 
+Public avatars are part of the same public identity projection. Custom uploaded
+avatars are documented here because feed/profile identity payloads carry
+`author_username`, `author_name`, and `author_avatar_url` together.
+
 ## Product Contract
 
 - Every `public.users` row has a canonical `public_username`.
@@ -18,6 +22,8 @@ future comment mentions. They are stored without `@` and rendered as
   Explore posts, such as `Emre E.`.
 - Ghost/default-alias users show the handle on Explore, such as `@stone_glen_72`.
 - Future comment tagging must use `public_username`, not `public_author_name`.
+- `public_avatar_url` resolves to a custom Merian avatar first and an OAuth
+  provider avatar second.
 
 ## Display Rules
 
@@ -26,10 +32,13 @@ to treat `author_name` as the public display label. When `author_name` is empty
 or equals `author_username`, clients render `@author_username` instead of a
 friendly full-name-style label.
 
-Profile and public author profile surfaces may show both identities:
+Profile and public author profile surfaces may show both identities and the
+resolved public avatar:
 
 - primary line: display/account name when available
 - secondary line: `@public_username`
+- avatar: `public_avatar_url` when present, falling back client-side only while
+  the profile projection is still loading
 
 The Profile user card replaces the private email line with the public handle.
 The username edit sheet is reachable from that card's profile menu.
@@ -59,7 +68,10 @@ collisions. Alias-source public author names are aligned to the chosen username
 so default identities display as handles in clients.
 
 `public_author_name` remains the display label. `public_username` is the stable
-handle.
+handle. `custom_avatar_url` and `custom_avatar_updated_at` were added later by
+`20260528120000_add_custom_public_avatars.sql`; identity refresh helpers now
+compute `public_avatar_url` with `custom_avatar_url` precedence so provider
+metadata updates cannot overwrite a user-uploaded profile picture.
 
 ## Edge Function
 
@@ -111,15 +123,21 @@ rows.
 ## iOS Touchpoints
 
 - `ProfileViewModel.fetchPublicIdentity()` reads `public_username` and
-  `public_author_name` from `public.users`.
+  `public_author_name` from `public.users`, plus `public_avatar_url` for the
+  resolved profile image.
 - `ProfileViewModel.checkPublicUsernameAvailability(_:)` calls
   `check-public-username` so the editor validates uniqueness against existing
   usernames before save.
 - `ProfileViewModel.updatePublicUsername(_:)` calls the Edge Function, refreshes
   local state, and publishes `.publicAuthorIdentityChanged`.
+- `ProfileViewModel.updatePublicAvatar(_:)` uploads a prepared square profile
+  image to R2 staging, calls `update-public-avatar`, and publishes
+  `.publicAuthorIdentityChanged`.
 - `UserProfile` shows `@publicUsername` in the account card and presents
-  `PublicUsernameEditSheet`; the editor uses a single username field, an X close
-  button, inline validation, and a primary save button below the input.
+  `PublicUsernameEditSheet`; it also wraps the authenticated avatar in a
+  `PhotosPicker` so users can choose a custom public profile picture. The
+  username editor uses a single username field, an X close button, inline
+  validation, and a primary save button below the input.
 - `ExplorePost.publicAuthorDisplayName(from:username:)` keeps logged-in display
   names and renders handles for default identities.
 - `ExploreAuthorProfileSheet` shows `@authorUsername` under the display name
@@ -132,6 +150,8 @@ Recommended checks:
 ```sh
 deno check services/supabase/functions/check-public-username/index.ts
 deno check services/supabase/functions/update-public-username/index.ts
+deno check services/supabase/functions/update-public-avatar/index.ts
+deno test services/supabase/functions/update-public-avatar/avatar_test.ts
 deno test services/supabase/functions/_tests/updatePublicUsername.test.ts
 deno test --allow-env --allow-net services/supabase/functions/_tests/exploreIdentityDb.test.ts
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build

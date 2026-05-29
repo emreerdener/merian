@@ -16,7 +16,11 @@ multiple functions need the same behavior and the ownership boundary is clear.
 - **`auth.ts`**: Supabase user/session validation helpers.
 - **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object fetch, and
   batch deletion helpers. `deleteR2Objects` uses `mapWithConcurrencyLimit`
-  internally so lifecycle workers do not run unbounded delete fanout.
+  internally so lifecycle workers do not run unbounded delete fanout. Prefix
+  helpers classify `staging/`, `quarantine/`, and `exports/` as temporary,
+  `public_uploads/free|pro/` as scan media, and `avatars/` as durable profile
+  media. Scan purge flows must use `deleteScanMediaR2Objects(...)`; avatar
+  replacement must use `deleteAvatarR2Object(...)` with the owning user ID.
 - **`mediaBudgets.ts`**: Shared media byte ceilings, allowed staging content
   types, inline/staged audio and image validation, clip-count limits, and
   `Content-Length` prechecks. Request and response bodies that may be chunked or

@@ -10,10 +10,12 @@ struct ProfileSocialStats: Equatable {
 struct PublicProfileIdentity: Decodable, Equatable {
     let publicUsername: String
     let publicAuthorName: String
+    let publicAvatarUrl: String?
 
     private enum CodingKeys: String, CodingKey {
         case publicUsername = "public_username"
         case publicAuthorName = "public_author_name"
+        case publicAvatarUrl = "public_avatar_url"
     }
 }
 
@@ -34,8 +36,11 @@ final class ProfileViewModel {
     var isLoadingSocialStats = false
     var publicUsername: String?
     var publicAuthorName: String?
+    var publicAvatarUrl: String?
     var isLoadingPublicIdentity = false
     var usernameUpdateErrorMessage: String?
+    var avatarUpdateErrorMessage: String?
+    var isUpdatingAvatar = false
     
     let supabase = SupabaseManager.shared
     
@@ -57,6 +62,10 @@ final class ProfileViewModel {
     }
     
     var userAvatarURL: URL? {
+        if let publicAvatarUrl,
+           let url = URL(string: publicAvatarUrl) {
+            return url
+        }
         if let avatarStr = supabase.currentUser?.userMetadata["avatar_url"]?.stringValue ?? supabase.currentUser?.userMetadata["picture"]?.stringValue,
            let url = URL(string: avatarStr) {
             return url
@@ -109,6 +118,7 @@ final class ProfileViewModel {
         guard let user = supabase.currentUser else {
             publicUsername = nil
             publicAuthorName = nil
+            publicAvatarUrl = nil
             isLoadingPublicIdentity = false
             return
         }
@@ -118,7 +128,7 @@ final class ProfileViewModel {
 
         do {
             let response: PublicProfileIdentity = try await supabase.client.from("users")
-                .select("public_username,public_author_name")
+                .select("public_username,public_author_name,public_avatar_url")
                 .eq("id", value: user.id)
                 .single()
                 .execute()
@@ -126,9 +136,67 @@ final class ProfileViewModel {
             guard !Task.isCancelled, supabase.currentUser?.id == user.id else { return }
             publicUsername = response.publicUsername
             publicAuthorName = response.publicAuthorName
+            publicAvatarUrl = response.publicAvatarUrl
         } catch {
             guard !Task.isCancelled else { return }
             MerianLog.network.error("Failed to fetch public identity: \(error, privacy: .private)")
+        }
+    }
+
+    func updatePublicAvatar(_ avatar: PreparedProfileAvatar) async -> Bool {
+        guard !isGuestUser, let userId = currentUserId else {
+            avatarUpdateErrorMessage = "Sign in before changing your profile picture."
+            return false
+        }
+
+        guard avatar.data.count <= MerianConfig.stagedImagePayloadMaxBytes else {
+            avatarUpdateErrorMessage = "Choose a smaller profile picture."
+            return false
+        }
+
+        avatarUpdateErrorMessage = nil
+        isUpdatingAvatar = true
+        defer { isUpdatingAvatar = false }
+
+        do {
+            let fileName = MediaStagingContract.sanitizedFileName(
+                "avatar_\(UUID().uuidString.lowercased()).\(avatar.fileExtension)"
+            )
+            let uploadFiles = [
+                StagingUploadFile(
+                    fileName: fileName,
+                    mediaKind: .image,
+                    contentType: avatar.contentType,
+                    sizeBytes: avatar.data.count
+                )
+            ]
+            let urls = try await MerianNetworkClient.shared.generateUploadURLs(uploadFiles: uploadFiles)
+            guard let presignedURL = urls.first else {
+                avatarUpdateErrorMessage = "Merian could not prepare that upload."
+                return false
+            }
+
+            try await MerianNetworkClient.shared.uploadToR2(
+                url: presignedURL.signedUrl,
+                data: avatar.data,
+                mimeType: avatar.contentType
+            )
+
+            let response = try await MerianNetworkClient.shared.updatePublicAvatar(
+                r2ObjectKey: presignedURL.objectKey,
+                mimeType: avatar.contentType
+            )
+            guard currentUserId == userId else { return false }
+            publicAvatarUrl = response.avatarUrl
+            AppEventPublisher.shared.send(
+                .publicAuthorIdentityChanged(previousUserId: nil, currentUserId: userId)
+            )
+            return true
+        } catch {
+            guard !Task.isCancelled else { return false }
+            avatarUpdateErrorMessage = error.localizedDescription
+            MerianLog.network.error("Failed to update public avatar: \(error, privacy: .private)")
+            return false
         }
     }
 

@@ -46,7 +46,7 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Merian saves new scan photos to your library when you turn on Save to camera roll.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Merian lets you choose photos from your library for identification.</string>
+	<string>Merian lets you choose photos from your library for identification and profile pictures.</string>
 	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
 	<true/>
 	<key>POSTHOG_API_KEY</key>

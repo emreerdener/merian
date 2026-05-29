@@ -481,6 +481,9 @@ verify_jwt = false
 [functions.check-public-username]
 verify_jwt = false
 
+[functions.update-public-avatar]
+verify_jwt = false
+
 [functions.get-explore-feed]
 verify_jwt = false
 

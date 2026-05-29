@@ -80,6 +80,42 @@ Deno.test("Explore identity DB - auth user updates refresh public author identit
   });
 });
 
+Deno.test("Explore identity DB - custom avatar wins over provider refresh", async () => {
+  await withExploreDbTest("exploreIdentityDb.test", async (client: Client) => {
+    const userId = "00000000-0000-0000-0000-00000000b8ea";
+    const providerAvatar = "https://accounts.google.com/avatar.jpg";
+    const customAvatar =
+      "https://media.merian.app/avatars/00000000-0000-0000-0000-00000000b8ea/avatar.webp";
+
+    await insertUser(client, userId, "Avatar User", providerAvatar);
+    await client.queryArray(
+      `
+        UPDATE public.users
+        SET custom_avatar_url = $2,
+            custom_avatar_updated_at = now()
+        WHERE id = $1
+      `,
+      [userId, customAvatar],
+    );
+
+    await client.queryArray(
+      "SELECT public.refresh_public_author_identity($1::uuid)",
+      [userId],
+    );
+
+    const result = await client.queryObject<{ public_avatar_url: string }>(
+      `
+        SELECT public_avatar_url
+        FROM public.users
+        WHERE id = $1
+      `,
+      [userId],
+    );
+
+    assertEquals(result.rows[0]?.public_avatar_url, customAvatar);
+  });
+});
+
 Deno.test("Explore identity DB - repair function aligns Explore post owner with scan owner", async () => {
   await withExploreDbTest("exploreIdentityDb.test", async (client: Client) => {
     const ghostId = "00000000-0000-0000-0000-00000000a001";
