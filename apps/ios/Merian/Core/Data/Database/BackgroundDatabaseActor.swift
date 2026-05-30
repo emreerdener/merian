@@ -6,6 +6,45 @@ import SwiftData
 
 // MARK: - Background Database Actor
 
+/// Serializes local persistence for a single scan id across independent SwiftData contexts.
+///
+/// Live inference and background URLSession inference can complete the same queued scan in
+/// parallel. Both write `LocalScanRecord.id`, and letting those saves race can force Core
+/// Data's unique-constraint merge policy to merge to-many relationships. Some SwiftData
+/// relationships in this schema intentionally have no inverse, so avoiding the conflict is
+/// safer than relying on merge-policy recovery.
+actor ScanFinalizationCoordinator {
+    static let shared = ScanFinalizationCoordinator()
+
+    private var activeScanIds: Set<String> = []
+    private var waitersByScanId: [String: [CheckedContinuation<Void, Never>]] = [:]
+
+    private init() {}
+
+    func acquire(scanId: String) async {
+        if !activeScanIds.contains(scanId) {
+            activeScanIds.insert(scanId)
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            waitersByScanId[scanId, default: []].append(continuation)
+        }
+    }
+
+    func release(scanId: String) {
+        guard var waiters = waitersByScanId[scanId], !waiters.isEmpty else {
+            activeScanIds.remove(scanId)
+            waitersByScanId[scanId] = nil
+            return
+        }
+
+        let next = waiters.removeFirst()
+        waitersByScanId[scanId] = waiters.isEmpty ? nil : waiters
+        next.resume()
+    }
+}
+
 /// Swift 6-safe actor that performs all SwiftData reads and writes off the main thread.
 ///
 /// Conforms to `@ModelActor`, which provides an isolated `modelContext` bound to this actor.
@@ -359,6 +398,7 @@ actor BackgroundDatabaseActor {
         var finalIsNewDiscovery = false
         var resultingScanId: String?
         var resultSpeciesData: SpeciesData?
+        var finalizationScanId: String?
 
         // --- Step 1: Decode Edge Response ---
         
@@ -389,30 +429,35 @@ actor BackgroundDatabaseActor {
                 inferenceFailed = false
                 resolvedSpeciesName = mappedData.commonName
 
+                let recordId = mappedData.scanId ?? scanId
+                await ScanFinalizationCoordinator.shared.acquire(scanId: recordId)
+                finalizationScanId = recordId
+
+                let shouldInsertRecord = fetchLocalScanRecord(id: recordId) == nil
                 let (activeSpeciesId, isNew) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
                 
-                if isNew {
+                if shouldInsertRecord && isNew {
                     mappedData.isNewDiscovery = true
                     finalIsNewDiscovery = true
                 }
 
                 // Capture mappedData (with isNewDiscovery set) to hydrate the live InferenceEngine.
                 resultSpeciesData = mappedData
-
-                let recordId = mappedData.scanId ?? scanId
                 
                 // --- Step 3: Atomic Record Insertion ---
-                await insertLocalScanRecordIfMissing(
-                    mappedData: mappedData,
-                    recordId: recordId,
-                    activeSpeciesId: activeSpeciesId,
-                    discoveryTimestamp: Date(),
-                    captureDate: originalTimestamp,
-                    originalImagePaths: originalImagePaths,
-                    observationContextsJSON: observationContextsJSON,
-                    audioFilePaths: audioFilePaths,
-                    capturedMediaJSON: capturedMediaJSON
-                )
+                if shouldInsertRecord {
+                    await insertLocalScanRecordIfMissing(
+                        mappedData: mappedData,
+                        recordId: recordId,
+                        activeSpeciesId: activeSpeciesId,
+                        discoveryTimestamp: Date(),
+                        captureDate: originalTimestamp,
+                        originalImagePaths: originalImagePaths,
+                        observationContextsJSON: observationContextsJSON,
+                        audioFilePaths: audioFilePaths,
+                        capturedMediaJSON: capturedMediaJSON
+                    )
+                }
                 
                 resultingScanId = recordId
             }
@@ -437,6 +482,9 @@ actor BackgroundDatabaseActor {
             resultingScanId = nil
             resultSpeciesData = nil
             commitSuccess = false
+        }
+        if let finalizationScanId {
+            await ScanFinalizationCoordinator.shared.release(scanId: finalizationScanId)
         }
 
         if commitSuccess && inferenceFailed {
@@ -706,6 +754,8 @@ actor BackgroundDatabaseActor {
             return false
         }
 
+        let recordId = mappedData.scanId ?? UUID().uuidString
+        await ScanFinalizationCoordinator.shared.acquire(scanId: recordId)
         let (activeSpeciesId, isNewDiscovery) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
 
         let capturedMediaJSON = await buildCapturedMediaJSON(
@@ -715,7 +765,6 @@ actor BackgroundDatabaseActor {
             mediaTimeline: mediaTimeline
         )
 
-        let recordId = mappedData.scanId ?? UUID().uuidString
         let preservedFieldNotes = resolvedFieldNotesText(for: recordId)
 
         // Prevent duplicate insertion collisions or silent drops from offline queue background races.
@@ -734,9 +783,11 @@ actor BackgroundDatabaseActor {
         )
         do {
             try modelContext.save()
+            await ScanFinalizationCoordinator.shared.release(scanId: recordId)
         } catch {
             modelContext.rollback()
             MerianLog.data.error("saveLiveScanRecord: save failed: \(error, privacy: .private)")
+            await ScanFinalizationCoordinator.shared.release(scanId: recordId)
             return false
         }
         return isNewDiscovery
@@ -757,6 +808,8 @@ actor BackgroundDatabaseActor {
     ) async -> Bool {
         guard mappedData.confidenceScore > 0.0 else { return false }
 
+        let recordId = mappedData.scanId ?? UUID().uuidString
+        await ScanFinalizationCoordinator.shared.acquire(scanId: recordId)
         let (activeSpeciesId, isNewDiscovery) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
 
         let capturedMediaJSON = await buildCapturedMediaJSON(
@@ -765,7 +818,6 @@ actor BackgroundDatabaseActor {
             mediaTimeline: mediaTimeline
         )
 
-        let recordId = mappedData.scanId ?? UUID().uuidString
         let preservedFieldNotes = resolvedFieldNotesText(for: recordId)
         insertReplacingLocalScanRecord(
             mappedData: mappedData,
@@ -780,9 +832,11 @@ actor BackgroundDatabaseActor {
         )
         do {
             try modelContext.save()
+            await ScanFinalizationCoordinator.shared.release(scanId: recordId)
         } catch {
             modelContext.rollback()
             MerianLog.data.error("saveNonVisualRecord: save failed: \(error, privacy: .private)")
+            await ScanFinalizationCoordinator.shared.release(scanId: recordId)
             return false
         }
         return isNewDiscovery

@@ -189,6 +189,74 @@ struct BackgroundDatabaseActorTests {
         #expect(record.captureDate == originalTimestamp, "captureDate must remain the original capture time")
     }
 
+    @Test func testOfflineFinalizationRechecksExistingRecordAfterWaitingForSameScanLock() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let scanId = "finalization_race_scan_001"
+
+        let resultData = Data(
+            """
+            {
+              "success": true,
+              "data": {
+                "scan_id": "\(scanId)",
+                "is_biological_subject": true,
+                "is_live_capture": true,
+                "ecology_type": "wild",
+                "is_invasive": false,
+                "scientific_name": "Danaus plexippus",
+                "common_name": "Monarch Butterfly",
+                "confidence_score": 0.98,
+                "insight_data": {
+                  "hazard_type": "none",
+                  "ai_reasoning": "Migratory butterfly with orange and black wings."
+                }
+              }
+            }
+            """.utf8
+        )
+
+        await ScanFinalizationCoordinator.shared.acquire(scanId: scanId)
+        let offlineTask = Task {
+            await actor.processAndCleanupOfflineScan(
+                resultData: resultData,
+                originalImagePaths: ["offline_race.webp"],
+                scanId: scanId,
+                originalTimestamp: Date(timeIntervalSince1970: 1_700_000_000)
+            )
+        }
+
+        context.insert(
+            LocalScanRecord(
+                id: scanId,
+                speciesId: "live-species-id",
+                scientificName: "Danaus plexippus",
+                commonName: "Live Monarch",
+                capturedMediaJSON: String(
+                    data: try JSONEncoder().encode([SerializedMediaItem.image("live_race.webp")]),
+                    encoding: .utf8
+                ),
+                coverImagePath: "live_race.webp",
+                isBiological: true,
+                isLiveCapture: true
+            )
+        )
+        try context.save()
+
+        await ScanFinalizationCoordinator.shared.release(scanId: scanId)
+        _ = await offlineTask.value
+
+        let verificationContext = ModelContext(container)
+        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+        let records = try verificationContext.fetch(descriptor)
+        let record = try #require(records.first)
+
+        #expect(records.count == 1, "Offline finalization must not insert a duplicate after another path saves the same scan id")
+        #expect(record.commonName == "Live Monarch")
+        #expect(record.coverImagePath == "live_race.webp")
+    }
+
     @Test func testSaveLiveScanRecordReplacesCollisionPreservingFieldNotesAndSpeciesId() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)

@@ -462,6 +462,12 @@ These helpers remain as parked implementation support for a future rebuild.
   - `.uploading(count: Int)` — image files are being PUT to R2 staging
   - `.inferencing` — the Gemini Edge function is running
   - `.finalizing` — writing `LocalScanRecord` and cleaning up queue entries
+- The `.finalizing` phase may represent a live/background dual-path race for
+  the same stable scan ID. Local persistence is serialized by
+  `ScanFinalizationCoordinator`, which is acquired by
+  `processAndCleanupOfflineScan`, `saveLiveScanRecord`, and
+  `saveNonVisualRecord` before writing `LocalScanRecord.id`. Do not bypass this
+  coordinator from new scan-finalization entry points.
 - Backward-compatible computed shims (`isSyncing`, `pendingUploadCount`) are
   preserved for existing consumers.
 - **Write API** — three completion methods with distinct semantics:
