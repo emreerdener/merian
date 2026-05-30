@@ -29,14 +29,14 @@ struct AppLifecycleManagerTests {
         let originalContext    = offlineManager.modelContext
         let originalOnline     = offlineManager.isOnline
         let originalReconciled = offlineManager.hasReconciledStartupState
-        let originalOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        let originalOnboarding = diContainer.appSettings.hasCompletedOnboarding
         defer {
             offlineManager.modelContext              = originalContext
             offlineManager.isOnline                  = originalOnline
             offlineManager.hasReconciledStartupState = originalReconciled
             offlineManager.uploadRetryCount.removeValue(forKey: stuck.id)
             offlineManager.replayedStagedScanCount   = 0
-            UserDefaults.standard.set(originalOnboarding, forKey: "hasCompletedOnboarding")
+            diContainer.appSettings.hasCompletedOnboarding = originalOnboarding
         }
 
         offlineManager.modelContext              = context
@@ -45,7 +45,7 @@ struct AppLifecycleManagerTests {
         offlineManager.hasReconciledStartupState = true
         // Reset debug counter so a prior test's replay doesn't interfere.
         offlineManager.replayedStagedScanCount   = 0
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        diContainer.appSettings.hasCompletedOnboarding = true
 
         manager.handleActivePhase()
 

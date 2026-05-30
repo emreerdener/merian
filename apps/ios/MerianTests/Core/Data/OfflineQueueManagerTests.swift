@@ -42,16 +42,20 @@ struct OfflineQueueManagerTests {
     }
 
     private func loadMediaStagingContract() throws -> MediaStagingUploadManifestContract {
-        var rootURL = URL(fileURLWithPath: #filePath)
-        for _ in 0..<4 {
-            rootURL.deleteLastPathComponent()
+        var searchURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        for _ in 0..<8 {
+            let contractURL = searchURL
+                .appendingPathComponent("docs")
+                .appendingPathComponent("contracts")
+                .appendingPathComponent("media-staging-upload-manifest.json")
+            if FileManager.default.fileExists(atPath: contractURL.path) {
+                let data = try Data(contentsOf: contractURL)
+                return try JSONDecoder().decode(MediaStagingUploadManifestContract.self, from: data)
+            }
+            searchURL.deleteLastPathComponent()
         }
-        let contractURL = rootURL
-            .appendingPathComponent("docs")
-            .appendingPathComponent("contracts")
-            .appendingPathComponent("media-staging-upload-manifest.json")
-        let data = try Data(contentsOf: contractURL)
-        return try JSONDecoder().decode(MediaStagingUploadManifestContract.self, from: data)
+
+        throw CocoaError(.fileNoSuchFile)
     }
 
     @MainActor
