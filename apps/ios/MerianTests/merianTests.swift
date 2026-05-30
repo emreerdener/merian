@@ -573,6 +573,7 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
             sharedAt: "2026-05-05T12:00:00Z",
             authorUserId: "author-\(id)",
             authorName: "Test Author",
+            authorUsername: nil,
             authorAvatarUrl: nil,
             authorIsPro: nil,
             speciesCommonName: "Monarch Butterfly",

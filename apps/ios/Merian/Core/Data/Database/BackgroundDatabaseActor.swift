@@ -21,15 +21,17 @@ actor ScanFinalizationCoordinator {
 
     private init() {}
 
-    func acquire(scanId: String) async {
+    @discardableResult
+    func acquire(scanId: String) async -> Bool {
         if !activeScanIds.contains(scanId) {
             activeScanIds.insert(scanId)
-            return
+            return false
         }
 
         await withCheckedContinuation { continuation in
             waitersByScanId[scanId, default: []].append(continuation)
         }
+        return true
     }
 
     func release(scanId: String) {
@@ -377,6 +379,15 @@ actor BackgroundDatabaseActor {
 
     // MARK: - Offline Scan Processing
 
+    private func acquireFinalizationLock(scanId: String, operation: String) async {
+        let waited = await ScanFinalizationCoordinator.shared.acquire(scanId: scanId)
+        if waited {
+            MerianLog.data.debug(
+                "Scan finalization waited for existing writer operation=\(operation, privacy: .public) scanId=\(scanId, privacy: .public)"
+            )
+        }
+    }
+
     /// Decodes edge inference results and persists a `LocalScanRecord` (when confidence > 0).
     ///
     /// The `OfflineQueuedScan` is intentionally **not** deleted here — that is delegated to
@@ -430,7 +441,7 @@ actor BackgroundDatabaseActor {
                 resolvedSpeciesName = mappedData.commonName
 
                 let recordId = mappedData.scanId ?? scanId
-                await ScanFinalizationCoordinator.shared.acquire(scanId: recordId)
+                await acquireFinalizationLock(scanId: recordId, operation: "offline")
                 finalizationScanId = recordId
 
                 let shouldInsertRecord = fetchLocalScanRecord(id: recordId) == nil
@@ -450,7 +461,7 @@ actor BackgroundDatabaseActor {
                         mappedData: mappedData,
                         recordId: recordId,
                         activeSpeciesId: activeSpeciesId,
-                        discoveryTimestamp: Date(),
+                        discoveryTimestamp: originalTimestamp,
                         captureDate: originalTimestamp,
                         originalImagePaths: originalImagePaths,
                         observationContextsJSON: observationContextsJSON,
@@ -755,7 +766,7 @@ actor BackgroundDatabaseActor {
         }
 
         let recordId = mappedData.scanId ?? UUID().uuidString
-        await ScanFinalizationCoordinator.shared.acquire(scanId: recordId)
+        await acquireFinalizationLock(scanId: recordId, operation: "live_visual")
         let (activeSpeciesId, isNewDiscovery) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
 
         let capturedMediaJSON = await buildCapturedMediaJSON(
@@ -809,7 +820,7 @@ actor BackgroundDatabaseActor {
         guard mappedData.confidenceScore > 0.0 else { return false }
 
         let recordId = mappedData.scanId ?? UUID().uuidString
-        await ScanFinalizationCoordinator.shared.acquire(scanId: recordId)
+        await acquireFinalizationLock(scanId: recordId, operation: "live_nonvisual")
         let (activeSpeciesId, isNewDiscovery) = resolveSpeciesIdAndDiscoveryStatus(for: mappedData.scientificName)
 
         let capturedMediaJSON = await buildCapturedMediaJSON(
