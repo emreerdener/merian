@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AddCollectionButton: View {
     let collections: [ScanCollection]
-    let activeLocalRecord: LocalScanRecord?
+    let selectedCollectionIds: Set<String>
     let toggleScanInCollection: (ScanCollection) -> Void
     @Binding var showNewCollectionAlert: Bool
     let hasScanId: Bool
@@ -10,7 +10,7 @@ struct AddCollectionButton: View {
     var body: some View {
         Menu {
             if let favorites = collections.first(where: { $0.name == "Favorites" && !$0.isDeleted }) {
-                let isFavorited = activeLocalRecord?.collections?.contains(where: { $0.id == favorites.id }) ?? false
+                let isFavorited = selectedCollectionIds.contains(favorites.id)
                 Button(action: { toggleScanInCollection(favorites) }) {
                     Label("Favorites", systemImage: isFavorited ? "heart.fill" : "heart")
                 }
@@ -18,7 +18,7 @@ struct AddCollectionButton: View {
             }
             
             ForEach(collections.filter { $0.name != "Favorites" && !$0.isDeleted }) { collection in
-                let isSelected = activeLocalRecord?.collections?.contains(where: { $0.id == collection.id }) ?? false
+                let isSelected = selectedCollectionIds.contains(collection.id)
                 Button(action: { toggleScanInCollection(collection) }) {
                     Label(collection.name, systemImage: isSelected ? "checkmark.circle.fill" : "folder")
                 }

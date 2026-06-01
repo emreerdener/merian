@@ -97,6 +97,10 @@ final class InsightSheetViewModel {
     // MARK: - SwiftData Status
     var activeLocalRecord: LocalScanRecord?
 
+    var toolbarRecordSnapshot: InsightToolbarRecordSnapshot? {
+        activeLocalRecord.map(InsightToolbarRecordSnapshot.init)
+    }
+
     // MARK: - Image Engine Dependencies
     var inferenceEngine: InferenceEngine?
 
@@ -618,6 +622,10 @@ final class InsightSheetViewModel {
 
         if let record = records.first {
             HapticManager.shared.triggerErrorThump()
+            activeLocalRecord = nil
+            state.showBottomBarTools = false
+            state.showDeleteConfirmation = false
+            state.showNewCollectionAlert = false
             ScanRepository.shared.eradicateScan(record: record, modelContext: modelContext)
             dismiss()
         }

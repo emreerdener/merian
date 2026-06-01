@@ -1,11 +1,39 @@
 import SwiftUI
 
+struct InsightToolbarRecordSnapshot: Equatable {
+    let scanId: String
+    let coverImagePath: String?
+    let taxonomyKingdom: String?
+    let taxonomyClass: String?
+    let taxonomyOrder: String?
+    let taxonomyFamily: String?
+    let habitatDescription: String?
+    let weatherCondition: String?
+    let semanticTags: [String]
+    let imageQualityScore: Int?
+    let collectionIds: Set<String>
+
+    init(record: LocalScanRecord) {
+        self.scanId = record.id
+        self.coverImagePath = record.coverImagePath
+        self.taxonomyKingdom = record.taxonomyKingdom
+        self.taxonomyClass = record.taxonomyClass
+        self.taxonomyOrder = record.taxonomyOrder
+        self.taxonomyFamily = record.taxonomyFamily
+        self.habitatDescription = record.habitatDescription
+        self.weatherCondition = record.weatherCondition
+        self.semanticTags = record.semanticTags
+        self.imageQualityScore = record.imageQualityScore
+        self.collectionIds = Set(record.collections?.map(\.id) ?? [])
+    }
+}
+
 struct InsightBottomToolbar: ToolbarContent {
     @Environment(InferenceEngine.self) var inferenceEngine
     
     let showBottomBarTools: Bool
     let collections: [ScanCollection]
-    let activeLocalRecord: LocalScanRecord?
+    let recordSnapshot: InsightToolbarRecordSnapshot?
     let toggleScanInCollection: (ScanCollection) -> Void
     @Binding var showNewCollectionAlert: Bool
     let shareExternally: () -> Void
@@ -35,7 +63,7 @@ struct InsightBottomToolbar: ToolbarContent {
                     isUpdatingExploreFieldNotes: isUpdatingExploreFieldNotes,
                     speciesName: speciesData.commonName,
                     scientificName: speciesData.scientificName,
-                    heroImageUrl: activeLocalRecord?.coverImagePath ?? inferenceEngine.activeMedia.imagePathsForUpload.first,
+                    heroImageUrl: recordSnapshot?.coverImagePath ?? inferenceEngine.activeMedia.imagePathsForUpload.first,
                     publicLocationLabel: publicLocationLabel,
                     fieldNotesPreview: fieldNotesPreview,
                     hashtagSuggestionContext: ExploreHashtagSuggestionContext(
@@ -44,17 +72,17 @@ struct InsightBottomToolbar: ToolbarContent {
                         publicLocationLabel: publicLocationLabel,
                         fieldNotes: fieldNotesPreview,
                         ecologyType: speciesData.ecologyType,
-                        taxonomyKingdom: speciesData.taxonomy?.kingdom ?? activeLocalRecord?.taxonomyKingdom,
-                        taxonomyClass: speciesData.taxonomy?.className ?? activeLocalRecord?.taxonomyClass,
-                        taxonomyOrder: speciesData.taxonomy?.order ?? activeLocalRecord?.taxonomyOrder,
-                        taxonomyFamily: speciesData.taxonomy?.family ?? activeLocalRecord?.taxonomyFamily,
-                        habitatDescription: speciesData.habitatDescription ?? activeLocalRecord?.habitatDescription,
-                        weatherCondition: speciesData.weatherCondition ?? activeLocalRecord?.weatherCondition,
+                        taxonomyKingdom: speciesData.taxonomy?.kingdom ?? recordSnapshot?.taxonomyKingdom,
+                        taxonomyClass: speciesData.taxonomy?.className ?? recordSnapshot?.taxonomyClass,
+                        taxonomyOrder: speciesData.taxonomy?.order ?? recordSnapshot?.taxonomyOrder,
+                        taxonomyFamily: speciesData.taxonomy?.family ?? recordSnapshot?.taxonomyFamily,
+                        habitatDescription: speciesData.habitatDescription ?? recordSnapshot?.habitatDescription,
+                        weatherCondition: speciesData.weatherCondition ?? recordSnapshot?.weatherCondition,
                         colors: speciesData.colors ?? [],
                         groupTags: speciesData.groupTags ?? [],
-                        semanticTags: activeLocalRecord?.semanticTags ?? [],
+                        semanticTags: recordSnapshot?.semanticTags ?? [],
                         isInvasive: speciesData.isInvasive,
-                        imageQualityScore: speciesData.imageQualityScore ?? activeLocalRecord?.imageQualityScore,
+                        imageQualityScore: speciesData.imageQualityScore ?? recordSnapshot?.imageQualityScore,
                         lifeStage: speciesData.lifeStage,
                         reproductiveCondition: speciesData.reproductiveCondition,
                         ecologicalInteractions: speciesData.ecologicalInteractions ?? []
@@ -70,10 +98,10 @@ struct InsightBottomToolbar: ToolbarContent {
 
                  AddCollectionButton(
                     collections: collections,
-                    activeLocalRecord: activeLocalRecord,
+                    selectedCollectionIds: recordSnapshot?.collectionIds ?? [],
                     toggleScanInCollection: toggleScanInCollection,
                     showNewCollectionAlert: $showNewCollectionAlert,
-                    hasScanId: speciesData.scanId != nil
+                    hasScanId: recordSnapshot != nil || speciesData.scanId != nil
                 )
             }
         }

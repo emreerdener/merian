@@ -140,7 +140,9 @@ struct UserProfile: View {
     }
 
     private var avatarPicker: some View {
-        PhotosPicker(
+        let isUpdatingAvatar = profileViewModel.isUpdatingAvatar
+
+        return PhotosPicker(
             selection: $selectedAvatarItem,
             matching: .images,
             photoLibrary: .shared()
@@ -158,7 +160,7 @@ struct UserProfile: View {
                             .stroke(Color(UIColor.secondarySystemGroupedBackground), lineWidth: 2)
                     )
 
-                if profileViewModel.isUpdatingAvatar {
+                if isUpdatingAvatar {
                     Circle()
                         .fill(.ultraThinMaterial)
                         .frame(width: 48, height: 48)
@@ -169,7 +171,7 @@ struct UserProfile: View {
             .frame(width: 56, height: 56)
         }
         .buttonStyle(.plain)
-        .disabled(profileViewModel.isUpdatingAvatar)
+        .disabled(isUpdatingAvatar)
         .accessibilityLabel("Change profile picture")
     }
 

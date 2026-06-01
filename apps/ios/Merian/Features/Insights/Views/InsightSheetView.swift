@@ -322,7 +322,7 @@ private extension InsightSheetView {
         InsightBottomToolbar(
             showBottomBarTools: viewModel.state.showBottomBarTools && !viewModel.isProcessing,
             collections: collections,
-            activeLocalRecord: viewModel.activeLocalRecord,
+            recordSnapshot: viewModel.toolbarRecordSnapshot,
             toggleScanInCollection: { collection in
                 viewModel.toggleScanInCollection(collection, modelContext: modelContext)
             },
