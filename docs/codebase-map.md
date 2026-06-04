@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-05-26.
+Last reviewed: 2026-06-04.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -96,7 +96,7 @@ V40 through V43 live in `SchemaVersions.swift` alongside the migration plan.
 | Explore | `apps/ios/Merian/Features/Explore/` | Public feed/map, post detail, hashtag publishing/suggestions and tagged-post collections, comments, notifications, author profiles, username-aware display labels, follow/like/comment/reaction actions, and widget snapshot writing. |
 | Messages sharing | `apps/ios/Merian/Features/Messages/`, `apps/ios/messages/MerianMessagesExtension/` | App Group scan-share cache, iMessage scan library UI, image/card/text insertion, and scan/library deep links. |
 | Photos share import | `apps/ios/Merian/Features/ShareImport/`, `apps/ios/share/MerianShareExtension/` | Paused and de-shipped as of 2026-05-19. Source, tests, backend queueing, shared auth/session migration, App Group settings/receipts, and reconciliation code remain parked for a future rebuild, but the app target does not embed `MerianShareExtension`. |
-| Profile | `apps/ios/Merian/Features/Profile/` | Profile tab, settings, public username editing, RevenueCat plan screens, geoprivacy, notifications, achievements, heatmap, export, danger-zone actions. |
+| Profile | `apps/ios/Merian/Features/Profile/` | Profile tab, settings, in-app changelog, public username editing, RevenueCat plan screens, geoprivacy, notifications, achievements, heatmap, export, danger-zone actions. |
 | Species Dictionary | `apps/ios/Merian/Features/SpeciesDictionary/` | Public species dictionary page, reference gallery, similar-species entry points, preferred common-name display, and species observation charts. |
 | Onboarding | `apps/ios/Merian/Features/Onboarding/` | Permission priming flow and `hasCompletedOnboarding` gate. |
 

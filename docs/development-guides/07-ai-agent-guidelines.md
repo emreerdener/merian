@@ -11,6 +11,7 @@ The `docs/` folder contains the master reference for the application:
 - Refer to `docs/backend-and-data/05-api-contracts.md` for all network request/response shapes.
 - Refer to `docs/backend-and-data/01-offline-sync-pipeline.md` for offline queue, sync state machine, and deletion architecture.
 - Refer to `docs/development-guides/02-app-lifecycle.md` for `AppLifecycleManager` phase contracts and trigger ordering.
+- Refer to `docs/development-guides/12-in-app-changelog.md` before adding release notes or user-facing changelog entries.
 - Refer to `docs/system-architecture/03-image-pipeline.md` for capture → disk → cache → display image flow.
 - Refer to `docs/features-and-hardware/17-public-web-share-pages.md` before changing `apps/web/`, `merian.earth` routes, Open Graph metadata, or Explore share URL behavior.
 
@@ -98,6 +99,8 @@ when changing web routes.
 
 ## 9. Documentation Maintenance
 - **ALWAYS create and update documentation accordingly.** Whenever you implement a new feature, modify a system's architecture, or alter an API contract, update the corresponding markdown file in the `docs/` folder to reflect reality. Do not wait to be asked. Maintain an accurate, synchronized documentation set that matches the codebase.
+- **User-facing changes must consider release notes.** For features, fixes, UX changes, or deployment notes that users or testers should see, update root `CHANGELOG.md` and, when appropriate, `apps/ios/Merian/Resources/Changelog/changelog.json`. Follow `docs/development-guides/12-in-app-changelog.md`.
+- **In-app changelog entries are curated.** Do not dump commit history into the app. Add concise user-facing entries only for releases or in-progress feature notes the team chooses to expose.
 
 ## 10. Agent Workflows
 Merian maintains reproducible, automated workflows inside the `.agents/workflows/` directory. AI Agents **MUST** execute these runbooks (e.g. via slash commands or manually reading and running) for critical operations instead of guessing:

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "2026-06-04-field-notes",
+      "version": "1.0",
+      "build": "199",
+      "date": "2026-06-04",
+      "title": "Field notes and sharing polish",
+      "status": "inProgress",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "A new Settings changelog collects selected release notes, feature notes, and in-progress work inside the app.",
+            "Native Messages and Photos share extension groundwork for sharing cached scan images, cards, descriptions, and queued image identification.",
+            "Custom public profile pictures with R2-backed avatar uploads and Explore/Profile identity refresh.",
+            "AI-derived sex observation metadata on scan records, the Overview card, Supabase persistence, and Darwin Core exports."
+          ]
+        },
+        {
+          "title": "Improved",
+          "items": [
+            "Field notes dictation startup feels steadier, and the loading spinner no longer shifts the button label.",
+            "Capture bottom controls stay visible after leaving Describe or canceling staged input.",
+            "Audio insight carousel swiping remains responsive when reference images load after the audio page is already visible."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-05-28-public-web",
+      "version": "1.0",
+      "date": "2026-05-28",
+      "title": "Public pages foundation",
+      "status": "released",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Initial web app scaffold for public Explore share pages.",
+            "Public Terms, Privacy Policy, Community Guidelines, Privacy Choices, Support, and Legal hub pages for merian.earth.",
+            "An iOS-to-web theme bridge so Merian-opened web pages can follow your app theme preference."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Explore map count text now says exactly one visible item is one discovery in view.",
+            "Scan purge jobs no longer risk deleting durable public avatar images."
+          ]
+        }
+      ]
+    }
+  ]
+}

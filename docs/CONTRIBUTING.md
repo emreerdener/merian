@@ -43,7 +43,8 @@ Before contributing, please review our core architectural tenets. Refactoring co
 1.  Fork the repository and create your feature branch: `git checkout -b feature/my-amazing-feature`.
 2.  Format your code. Swift code must naturally adhere to Apple's general styling limits. TypeScript should be linted natively before committing.
 3.  Commit your changes following standard imperative structures.
-4.  Push to the branch locally.
-5.  Open a Pull Request describing the changes, explicitly mentioning if you changed any core network layer boundaries or AVFoundation settings.
+4.  Update docs and release notes for user-facing work. Use `CHANGELOG.md` for TestFlight/App Store/support notes and `apps/ios/Merian/Resources/Changelog/changelog.json` for curated in-app Settings notes. See [`docs/development-guides/12-in-app-changelog.md`](./development-guides/12-in-app-changelog.md).
+5.  Push to the branch locally.
+6.  Open a Pull Request describing the changes, explicitly mentioning if you changed any core network layer boundaries or AVFoundation settings.
 
 We look forward to building this amazing open ecosystem with you!

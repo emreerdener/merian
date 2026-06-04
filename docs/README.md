@@ -76,6 +76,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/development-guides/09-core-managers.md`](./development-guides/09-core-managers.md)** — Deep dive into singleton instances across Merian (e.g. `HardwareOrchestrator`).
 - **[`/development-guides/10-safety-and-moderation.md`](./development-guides/10-safety-and-moderation.md)** — Gemini safety rating evaluation, abuse strike system, shadowban logic, and R2 media promotion pipeline.
 - **[`/development-guides/11-swiftdata-and-api-gotchas.md`](./development-guides/11-swiftdata-and-api-gotchas.md)** — SwiftData background synchronization drops, relationship fault boundaries, and API envelope parsing constraints.
+- **[`/development-guides/12-in-app-changelog.md`](./development-guides/12-in-app-changelog.md)** — Bundled Settings changelog schema, writing rules, asset handling, and update workflow.
 
 ## About Merian
 

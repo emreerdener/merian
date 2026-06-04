@@ -4,6 +4,7 @@ import SwiftUI
 struct Community: View {
     @Environment(AppSettings.self) private var appSettings
 
+    @Binding var changelogActive: Bool
     @Binding var safariUrl: URL?
     @Binding var showSafari: Bool
     
@@ -19,6 +20,9 @@ struct Community: View {
                     UIApplication.shared.open(url)
                 }
             }
+            Button("Changelog") {
+                changelogActive = true
+            }
             Button("Community guidelines") {
                 openWebPage(path: "/guidelines")
             }
@@ -26,7 +30,7 @@ struct Community: View {
                 openWebPage(path: "/legal")
             }
         } header: {
-            Text("Community")
+            Text("Resources")
         }
     }
 

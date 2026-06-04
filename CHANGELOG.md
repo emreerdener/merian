@@ -15,6 +15,8 @@ TestFlight, App Store, support, and QA.
 - Added native Messages and Photos share extensions: Messages can insert cached scan images/cards/descriptions, and Photos can queue one shared image for Merian identification.
 - Added custom public profile pictures with R2-backed avatar uploads, Profile
   picker support, and Explore/Profile identity refresh.
+- Added a bundled in-app changelog in Settings for selected release notes,
+  feature notes, and in-progress work.
 
 ### Fixed
 

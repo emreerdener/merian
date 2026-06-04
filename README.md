@@ -67,6 +67,7 @@ Merian is a field-ready biological identification app built around zero-friction
 **Preferences** — theme (system/light/dark), multi-image scans, expedition mode, system haptics, save to camera roll.
 **Geoprivacy** — open, obscured (~10km), or private; configurable per account and synced to Supabase.
 **Notifications** — species discovery alerts, achievement milestone alerts.
+**Changelog** — bundled feature notes, release notes, and selected in-progress work.
 **Export** — Darwin Core Archive (DwC-A) formatted data export for academic/research use.
 **Account** — Sign in with Apple or Google, anonymous Ghost Sessions, account deletion with full data wipe.
 
@@ -161,6 +162,15 @@ make xcodegen
 make db-push
 make functions-deploy
 ```
+
+### Release Notes & Changelog
+
+User-facing release notes live in two places:
+
+- `CHANGELOG.md` for TestFlight, App Store, QA, support, and human release planning.
+- `apps/ios/Merian/Resources/Changelog/changelog.json` for the bundled in-app Settings changelog.
+
+See `docs/development-guides/12-in-app-changelog.md` before adding in-app notes, images, or deployment summaries.
 
 ### Local Web
 

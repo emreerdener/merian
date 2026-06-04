@@ -15,6 +15,7 @@ struct SettingsTabView: View {
     @State private var showDeleteConfirmation = false
     @State private var managePlanActive = false
     @State private var notificationSettingsActive = false
+    @State private var changelogActive = false
     @State private var cameraSettingsActive = false
     @State private var audioRecordingSettingsActive = false
     @State private var captureModeOrderSettingsActive = false
@@ -49,6 +50,7 @@ struct SettingsTabView: View {
                 )
 
                 Community(
+                    changelogActive: $changelogActive,
                     safariUrl: $safariUrl,
                     showSafari: $showSafari
                 )
@@ -72,6 +74,9 @@ struct SettingsTabView: View {
             }
             .navigationDestination(isPresented: $notificationSettingsActive) {
                 NotificationSettingsView()
+            }
+            .navigationDestination(isPresented: $changelogActive) {
+                ChangelogView()
             }
             .navigationDestination(isPresented: $cameraSettingsActive) {
                 CameraSettingsView()
