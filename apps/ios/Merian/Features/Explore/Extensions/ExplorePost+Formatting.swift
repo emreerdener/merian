@@ -50,7 +50,23 @@ extension ExplorePost {
         Self.publicAuthorDisplayName(from: authorName, username: authorUsername)
     }
 
-    static func publicAuthorDisplayName(from rawName: String, username: String? = nil) -> String {
+    func authorDisplayName(preferUsername: Bool) -> String {
+        Self.publicAuthorDisplayName(
+            from: authorName,
+            username: authorUsername,
+            preferUsername: preferUsername
+        )
+    }
+
+    static func publicAuthorDisplayName(
+        from rawName: String,
+        username: String? = nil,
+        preferUsername: Bool = false
+    ) -> String {
+        if preferUsername, let displayUsername = publicUsernameDisplayValue(username) {
+            return displayUsername
+        }
+
         let normalizedName = rawName
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .components(separatedBy: .whitespacesAndNewlines)
@@ -78,7 +94,10 @@ extension ExplorePost {
 
     static func publicUsernameDisplayValue(_ rawUsername: String?) -> String? {
         guard let rawUsername else { return nil }
-        let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedUsername = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        let username = trimmedUsername.hasPrefix("@")
+            ? String(trimmedUsername.dropFirst())
+            : trimmedUsername
         guard !username.isEmpty else { return nil }
         return "@\(username)"
     }

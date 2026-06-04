@@ -102,7 +102,7 @@ struct ExplorePostCard: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .center, spacing: 6) {
-                        Text(post.publicAuthorDisplayName)
+                        Text(authorDisplayName)
                             .font(.headline)
                             .fontWeight(.semibold)
                             .foregroundStyle(.primary)
@@ -319,6 +319,10 @@ struct ExplorePostCard: View {
 
     private var locationText: String? {
         post.publicDisplayLocationLabel
+    }
+
+    private var authorDisplayName: String {
+        post.authorDisplayName(preferUsername: SupabaseManager.shared.isGuestUser)
     }
 
     private var shouldShowAuthorProBadge: Bool {

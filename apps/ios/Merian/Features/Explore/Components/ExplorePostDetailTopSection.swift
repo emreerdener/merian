@@ -13,7 +13,7 @@ struct ExplorePostDetailAuthorHeader: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .center, spacing: 6) {
-                    Text(post.publicAuthorDisplayName)
+                    Text(authorDisplayName)
                         .font(.headline)
                         .fontWeight(.semibold)
                         .foregroundStyle(.primary)
@@ -70,6 +70,10 @@ struct ExplorePostDetailAuthorHeader: View {
         Image(systemName: "person.crop.circle")
             .font(.system(size: 40, weight: .regular))
             .foregroundStyle(.primary)
+    }
+
+    private var authorDisplayName: String {
+        post.authorDisplayName(preferUsername: SupabaseManager.shared.isGuestUser)
     }
 
     private var shouldShowAuthorProBadge: Bool {

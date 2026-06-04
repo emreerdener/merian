@@ -559,6 +559,48 @@ final class ExploreAuthorDisplayNameTests: XCTestCase {
         XCTAssertEqual(ExplorePost.publicAuthorDisplayName(from: "Mary Jane W."), "Mary Jane")
         XCTAssertEqual(ExplorePost.publicAuthorDisplayName(from: "Moss Walker"), "Moss Walker")
     }
+
+    func testPreferUsernameUsesHandleWhenAvailable() {
+        XCTAssertEqual(
+            ExplorePost.publicAuthorDisplayName(
+                from: "River W.",
+                username: "river_w",
+                preferUsername: true
+            ),
+            "@river_w"
+        )
+    }
+
+    func testDefaultDisplayNameStillPrefersPublicName() {
+        XCTAssertEqual(
+            ExplorePost.publicAuthorDisplayName(from: "River W.", username: "river_w"),
+            "River"
+        )
+    }
+
+    func testPreferUsernameFallsBackToPublicNameWhenMissingOrBlank() {
+        XCTAssertEqual(
+            ExplorePost.publicAuthorDisplayName(
+                from: "River W.",
+                username: nil,
+                preferUsername: true
+            ),
+            "River"
+        )
+        XCTAssertEqual(
+            ExplorePost.publicAuthorDisplayName(
+                from: "River W.",
+                username: "   ",
+                preferUsername: true
+            ),
+            "River"
+        )
+    }
+
+    func testUsernameDisplayTrimsWhitespaceAndAddsAtPrefixOnce() {
+        XCTAssertEqual(ExplorePost.publicUsernameDisplayValue(" river_w "), "@river_w")
+        XCTAssertEqual(ExplorePost.publicUsernameDisplayValue("@river_w"), "@river_w")
+    }
 }
 
 @MainActor
