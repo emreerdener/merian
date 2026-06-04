@@ -8,8 +8,8 @@ struct NonBiologicalScansView: View {
     @Environment(\.modelContext) private var modelContext
     
     // MARK: - Interface State
-    @State private var scanToRescue: LocalScanRecord?
-    @State private var scanToDelete: LocalScanRecord?
+    @State private var scanToRescue: String?
+    @State private var scanToDelete: String?
     @State private var showDeleteConfirmation = false
     @State private var showClearAllConfirmation = false
     @State private var isClearingAll = false
@@ -45,9 +45,9 @@ struct NonBiologicalScansView: View {
                 .padding(.bottom, 8)
                 
                 ScansGrid(scans: nonBioRecords, onSelect: { scan in
-                    scanToRescue = scan
+                    scanToRescue = scan.id
                 }, onDelete: { scan in
-                    scanToDelete = scan
+                    scanToDelete = scan.id
                     showDeleteConfirmation = true
                 }) { scan in
                     Button {
@@ -117,8 +117,8 @@ struct NonBiologicalScansView: View {
         ) {
             Button("Cancel", role: .cancel) { }
             Button("Mark as biological") {
-                if let scan = scanToRescue {
-                    markAsBiological(scan)
+                if let scanId = scanToRescue {
+                    markAsBiological(scanId: scanId)
                 }
             }
         } message: {
@@ -126,7 +126,7 @@ struct NonBiologicalScansView: View {
         }
         .scanDeletionDialog(
             isPresented: $showDeleteConfirmation,
-            record: scanToDelete,
+            scanId: scanToDelete,
             modelContext: modelContext
         ) {
             scanToDelete = nil
@@ -182,8 +182,16 @@ struct NonBiologicalScansView: View {
     }
     
     private func markAsBiological(_ scan: LocalScanRecord) {
+        markAsBiological(scanId: scan.id)
+    }
+
+    private func markAsBiological(scanId: String) {
         // Local Optimistic UI - Re-fetch explicitly on the MainActor context to guarantee SwiftData UI observers fire!
-        guard let activeRecord = modelContext.model(for: scan.persistentModelID) as? LocalScanRecord else {
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let activeRecord = try? modelContext.fetch(descriptor).first else {
             MerianLog.data.error("Failed to re-fetch scan for mutation.")
             return
         }
@@ -200,7 +208,6 @@ struct NonBiologicalScansView: View {
             MerianLog.data.error("SwiftData save failed during biological rescue: \(error, privacy: .private)")
         }
         
-        let scanId = activeRecord.id
         // Remote synchronization belongs in the repository layer so the view only initiates intent.
         Task {
             await AppDIContainer.shared.scanRepository.syncBiologicalRescue(scanId: scanId)

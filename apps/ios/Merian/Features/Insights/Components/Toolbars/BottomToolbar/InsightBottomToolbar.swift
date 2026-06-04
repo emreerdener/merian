@@ -12,6 +12,10 @@ struct InsightToolbarRecordSnapshot: Equatable {
     let semanticTags: [String]
     let imageQualityScore: Int?
     let collectionIds: Set<String>
+    let captureDate: Date?
+    let timestamp: Date
+    let confirmedSpeciesId: String?
+    let imageCount: Int
 
     init(record: LocalScanRecord) {
         self.scanId = record.id
@@ -25,6 +29,10 @@ struct InsightToolbarRecordSnapshot: Equatable {
         self.semanticTags = record.semanticTags
         self.imageQualityScore = record.imageQualityScore
         self.collectionIds = Set(record.collections?.map(\.id) ?? [])
+        self.captureDate = record.captureDate
+        self.timestamp = record.timestamp
+        self.confirmedSpeciesId = record.confirmedSpeciesId
+        self.imageCount = record.capturedMediaSnapshot.imagePaths.count
     }
 }
 

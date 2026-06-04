@@ -151,6 +151,33 @@ struct InsightSheetViewModelTests {
         #expect(snapshot.collectionIds == Set([collectionId]))
     }
 
+    @Test func testFieldNotesRepositoryDoesNotTouchDeletedActiveRecord() async throws {
+        let ctx = try createIsolatedContext()
+        let record = LocalScanRecord(
+            speciesId: "deleted_field_notes_species",
+            scientificName: "Deleted specimen",
+            commonName: "Deleted scan",
+            fieldNotes: "Original note"
+        )
+
+        ctx.insert(record)
+        try ctx.save()
+
+        let recordId = record.id
+        let bridgedNote = "Recovered bridge note"
+        FieldNotesStore.setFieldNotes(bridgedNote, for: recordId)
+        defer { FieldNotesStore.setFieldNotes(nil, for: recordId) }
+
+        ScanRepository.shared.eradicateScan(record: record, modelContext: ctx)
+
+        let resolvedNotes = FieldNotesRepository.fieldNotes(
+            for: recordId,
+            modelContext: ctx
+        )
+
+        #expect(resolvedNotes == bridgedNote)
+    }
+
     @Test func testRefreshSharedExploreStateClearsMissingCache() async throws {
         let ctx = try createIsolatedContext()
         let viewModel = InsightSheetViewModel()
@@ -264,8 +291,7 @@ struct InsightSheetViewModelTests {
 
         let resolvedNotes = FieldNotesRepository.fieldNotes(
             for: record.id,
-            modelContext: ctx,
-            activeRecord: record
+            modelContext: ctx
         )
 
         #expect(resolvedNotes == legacyNotes)
@@ -290,8 +316,7 @@ struct InsightSheetViewModelTests {
         FieldNotesRepository.setFieldNotes(
             "   ",
             for: record.id,
-            modelContext: ctx,
-            activeRecord: record
+            modelContext: ctx
         )
 
         #expect(record.fieldNotes == nil)
@@ -315,8 +340,7 @@ struct InsightSheetViewModelTests {
         let changed = FieldNotesRepository.setFieldNotes(
             "Already saved locally",
             for: record.id,
-            modelContext: ctx,
-            activeRecord: record
+            modelContext: ctx
         )
 
         #expect(changed == false)

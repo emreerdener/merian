@@ -9,7 +9,7 @@ struct ScansSheetModifiers: ViewModifier {
     @Binding var showNewCollectionAlert: Bool
     @Binding var newCollectionName: String
     
-    @Binding var scanToDelete: LocalScanRecord?
+    @Binding var scanToDelete: String?
     @Binding var showDeleteConfirmation: Bool
     @Binding var showBatchDeleteConfirmation: Bool
     @Binding var showSelectionLimitAlert: Bool
@@ -49,7 +49,7 @@ struct ScansSheetModifiers: ViewModifier {
             )
             .scanDeletionDialog(
                 isPresented: $showDeleteConfirmation,
-                record: scanToDelete,
+                scanId: scanToDelete,
                 modelContext: modelContext
             ) {
                 scanToDelete = nil

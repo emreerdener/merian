@@ -113,14 +113,11 @@ struct InsightContentView: View {
                     onFlagIssue: { viewModel.state.isIdentificationFlagPresented = true },
                     onRefineScan: {
                         guard let scanIdStr = speciesData.scanId else { return }
-                        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
-                        if let record = try? modelContext.fetch(descriptor).first {
-                            HapticManager.shared.triggerSelectionPulse()
-                            AppEventPublisher.shared.send(.triggerRefinement(
-                                record: record,
-                                initialDescription: viewModel.shareableFieldNotes
-                            ))
-                        }
+                        HapticManager.shared.triggerSelectionPulse()
+                        AppEventPublisher.shared.send(.triggerRefinement(
+                            scanId: scanIdStr,
+                            initialDescription: viewModel.shareableFieldNotes
+                        ))
                     }
                 )
             }

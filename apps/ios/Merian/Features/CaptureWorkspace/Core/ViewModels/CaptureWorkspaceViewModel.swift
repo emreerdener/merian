@@ -67,6 +67,20 @@ struct PreparedStagedImage: Sendable {
     let previewCGImage: SendableCGImage
 }
 
+struct RefinementScanContext: Equatable {
+    let scanId: String
+    let subjectId: String?
+    let capturedMediaSnapshot: CapturedMediaSnapshot
+    let coverImagePath: String?
+
+    init(record: LocalScanRecord) {
+        self.scanId = record.id
+        self.subjectId = DescribeSubjectResolver.subjectId(for: record)
+        self.capturedMediaSnapshot = record.capturedMediaSnapshot
+        self.coverImagePath = record.coverImagePath
+    }
+}
+
 struct PreparedStagedImageRequest: Sendable, Equatable {
     let fileURL: URL
     let isPro: Bool
@@ -116,7 +130,7 @@ final class CaptureWorkspaceViewModel {
     // MARK: - Refinement Flow
     /// The historical scan actively chosen by the user to be appended with new photographic context.
     /// Drives the multi-image composition path in `submitActiveScan`.
-    var baseRefinementRecord: LocalScanRecord?
+    var baseRefinementContext: RefinementScanContext?
     var refinementInitialDescriptionDraft: String?
     var refinementSubjectId: String?
     var isStagingRefinement: Bool = false
@@ -146,7 +160,7 @@ final class CaptureWorkspaceViewModel {
     @ObservationIgnored var pendingAnalyzeScanId: String?
 
     var stagedCaptureLimit: Int {
-        (diContainer.appSettings.isMultiCaptureEnabled || baseRefinementRecord != nil) ? stagedCaptureCapacity : 1
+        (diContainer.appSettings.isMultiCaptureEnabled || baseRefinementContext != nil) ? stagedCaptureCapacity : 1
     }
 
     var availableStagedCaptureSlots: Int {
@@ -158,11 +172,11 @@ final class CaptureWorkspaceViewModel {
     }
 
     var shouldShowMediaModeToggle: Bool {
-        hasAvailableStagedCaptureSlot || baseRefinementRecord != nil
+        hasAvailableStagedCaptureSlot || baseRefinementContext != nil
     }
 
     var describePromptFlow: DescribePromptFlow {
-        if baseRefinementRecord != nil {
+        if baseRefinementContext != nil {
             return .reanalysis(subjectId: refinementSubjectId)
         }
         return .standard
@@ -230,8 +244,8 @@ final class CaptureWorkspaceViewModel {
                         targetCommentId: targetCommentId,
                         targetReplyParentCommentId: targetReplyParentCommentId
                     )
-                case .triggerRefinement(let record, let initialDescription):
-                    self?.startRefinementScan(from: record, initialDescription: initialDescription)
+                case .triggerRefinement(let scanId, let initialDescription):
+                    self?.startRefinementScan(scanId: scanId, initialDescription: initialDescription)
                 case .requestOpenNonBiologicalScansIntent:
                     self?.activeSheet = .scans
                 case .requestOpenScansLibraryIntent:
@@ -341,6 +355,15 @@ final class CaptureWorkspaceViewModel {
         } catch {
             MerianLog.general.error("Failed to route to scanId \(scanId, privacy: .private): \(error, privacy: .private)")
         }
+    }
+
+    func fetchLocalScan(scanId: String) -> LocalScanRecord? {
+        guard let context = diContainer.offlineQueueManager.modelContext else { return nil }
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
     }
 
     private func handleExploreDeepLinkRoute(
@@ -478,7 +501,7 @@ final class CaptureWorkspaceViewModel {
     var shouldAutoSubmitStagedCapture: Bool {
         guard !diContainer.appSettings.requiresScanConfirmation else { return false }
 
-        let isMultiCapture = diContainer.appSettings.isMultiCaptureEnabled || baseRefinementRecord != nil
+        let isMultiCapture = diContainer.appSettings.isMultiCaptureEnabled || baseRefinementContext != nil
         guard !isMultiCapture else { return false }
 
         let hasOtherModalities = !stagedCapture.observationContexts.isEmpty || !stagedCapture.audios.isEmpty
@@ -539,36 +562,43 @@ final class CaptureWorkspaceViewModel {
     }
     
     func startRefinementScan(from record: LocalScanRecord, initialDescription: String? = nil) {
-        self.refinementSubjectId = DescribeSubjectResolver.subjectId(for: record)
-        self.baseRefinementRecord = record
+        startRefinementScan(with: RefinementScanContext(record: record), initialDescription: initialDescription)
+    }
+
+    func startRefinementScan(scanId: String, initialDescription: String? = nil) {
+        guard let record = fetchLocalScan(scanId: scanId) else { return }
+        startRefinementScan(from: record, initialDescription: initialDescription)
+    }
+
+    private func startRefinementScan(with context: RefinementScanContext, initialDescription: String? = nil) {
+        self.refinementSubjectId = context.subjectId
+        self.baseRefinementContext = context
         let trimmedDescription = initialDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.refinementInitialDescriptionDraft = trimmedDescription?.isEmpty == false ? trimmedDescription : nil
         self.activeSheet = nil
         self.requestedCaptureMode = .describe
 
-        stageHistoricalMediaForRefinement(from: record)
+        stageHistoricalMediaForRefinement(from: context)
     }
 
-    private func stageHistoricalMediaForRefinement(from record: LocalScanRecord) {
-        let mediaSnapshot = record.capturedMediaSnapshot
-
-        for imageReference in mediaSnapshot.imageReferences
+    private func stageHistoricalMediaForRefinement(from context: RefinementScanContext) {
+        for imageReference in context.capturedMediaSnapshot.imageReferences
             where stageHistoricalImageForRefinement(imageReference) {
             return
         }
 
-        if let fallbackImagePath = record.coverImagePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+        if let fallbackImagePath = context.coverImagePath?.trimmingCharacters(in: .whitespacesAndNewlines),
            !fallbackImagePath.isEmpty,
            stageHistoricalImageForRefinement(StoredMediaReference(legacyPath: fallbackImagePath)) {
             return
         }
 
-        for audioReference in mediaSnapshot.audioReferences
+        for audioReference in context.capturedMediaSnapshot.audioReferences
             where stageHistoricalAudioForRefinement(audioReference) {
             return
         }
 
-        if let descriptionContext = mediaSnapshot.observationContexts.first(where: { !$0.isEmpty }),
+        if let descriptionContext = context.capturedMediaSnapshot.observationContexts.first(where: { !$0.isEmpty }),
            stageHistoricalDescriptionForRefinement(descriptionContext) {
             return
         }
@@ -684,7 +714,7 @@ final class CaptureWorkspaceViewModel {
     func cancelRefinementStaging() {
         refinementStagingTask?.cancel()
         isStagingRefinement = false
-        baseRefinementRecord = nil
+        baseRefinementContext = nil
         refinementInitialDescriptionDraft = nil
         refinementSubjectId = nil
     }

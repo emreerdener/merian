@@ -195,7 +195,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         viewModel.startRefinementScan(from: record)
         try await waitUntil { !viewModel.isStagingRefinement }
 
-        XCTAssertEqual(viewModel.baseRefinementRecord?.id, record.id)
+        XCTAssertEqual(viewModel.baseRefinementContext?.scanId, record.id)
         XCTAssertEqual(viewModel.requestedCaptureMode, CaptureMode.describe)
         XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
         XCTAssertEqual(viewModel.stagedCapture.images.first?.compressedData, expectedCompressedData)
@@ -239,7 +239,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         viewModel.startRefinementScan(from: record)
         try await waitUntil { !viewModel.isStagingRefinement }
 
-        XCTAssertEqual(viewModel.baseRefinementRecord?.id, record.id)
+        XCTAssertEqual(viewModel.baseRefinementContext?.scanId, record.id)
         XCTAssertTrue(viewModel.stagedCapture.images.isEmpty)
         XCTAssertEqual(viewModel.requestedCaptureMode, CaptureMode.describe)
     }
@@ -252,11 +252,12 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         )
         let uiImage = makeUIImage()
 
-        viewModel.baseRefinementRecord = LocalScanRecord(
+        let record = LocalScanRecord(
             speciesId: "species-3",
             scientificName: "Bubo virginianus",
             commonName: "Great Horned Owl"
         )
+        viewModel.baseRefinementContext = RefinementScanContext(record: record)
         viewModel.stagedCapture.images = [
             StagedImage(
                 compressedData: makePNGData(),

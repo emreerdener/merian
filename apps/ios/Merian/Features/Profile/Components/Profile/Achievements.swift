@@ -171,7 +171,7 @@ private struct AchievementDetailSheet: View {
 
     @State private var detail: AchievementDetailPayload?
     @State private var isLoading = true
-    @State private var selectedScanForInsight: LocalScanRecord?
+    @State private var selectedScanForInsight: ScanInsightRoute?
 
     private var resolvedAward: AwardPayload {
         detail?.award ?? award
@@ -225,13 +225,13 @@ private struct AchievementDetailSheet: View {
             }
         }
         .accessibilityIdentifier("AchievementDetailSheet_\(award.type.rawValue)")
-        .sheet(item: $selectedScanForInsight) { record in
+        .sheet(item: $selectedScanForInsight) { route in
             InsightSheetView(
                 isPresented: Binding(
                     get: { selectedScanForInsight != nil },
                     set: { if !$0 { selectedScanForInsight = nil } }
                 ),
-                initialRecord: record,
+                initialScanId: route.scanId,
                 inferenceEngine: inferenceEngine
             )
         }
@@ -310,7 +310,7 @@ private struct AchievementDetailSheet: View {
 
         AppTelemetry.trackAchievementContributionOpened(type: resolvedAward.type.rawValue)
         inferenceEngine.load(from: record)
-        selectedScanForInsight = record
+        selectedScanForInsight = ScanInsightRoute(scanId: record.id)
     }
 
     @MainActor

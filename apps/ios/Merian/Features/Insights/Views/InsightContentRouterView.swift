@@ -43,7 +43,7 @@ struct InsightContentRouterView: View {
                             viewModel: viewModel,
                             species: speciesData,
                             commonName: speciesData.commonName.capitalized,
-                            timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
+                            timestamp: viewModel.activeRecordTimestamp
                         )
                         .transition(.opacity)
                     }
@@ -52,7 +52,7 @@ struct InsightContentRouterView: View {
                         viewModel: viewModel,
                         isSafariPresented: $viewModel.state.isSafariPresented,
                         selectedWikiURL: $viewModel.state.selectedWikiURL,
-                        timestamp: viewModel.activeLocalRecord?.captureDate ?? viewModel.activeLocalRecord?.timestamp
+                        timestamp: viewModel.activeRecordTimestamp
                     )
                     .transition(.opacity)
                 }

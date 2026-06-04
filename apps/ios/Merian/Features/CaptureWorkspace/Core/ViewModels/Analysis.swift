@@ -34,10 +34,10 @@ extension CaptureWorkspaceViewModel {
                 observationContexts: capturedObservationContexts,
                 mediaTimeline: capturedMediaTimeline,
                 modelContext: modelContext,
-                targetEradicationRecord: baseRefinementRecord
+                targetEradicationScanId: baseRefinementContext?.scanId
             )
             clearStagedCaptureAndCropState()
-            baseRefinementRecord = nil
+            baseRefinementContext = nil
             refinementSubjectId = nil
             return
         }
@@ -53,14 +53,14 @@ extension CaptureWorkspaceViewModel {
         // 2. Capture the context needed for inference before clearing the staging buffers.
         let capturedImages             = stagedCapture.images
         let capturedPreFetchTask       = preFetchTask
-        let targetEradicationRecord    = baseRefinementRecord
+        let targetEradicationScanId    = baseRefinementContext?.scanId
         let capturedZoomFactor         = diContainer.cameraManager.zoomFactor
         let defaultZoomFactor          = diContainer.cameraManager.nativeZoomFactor
         let primaryImageIsGalleryPhoto = capturedImages.first?.original.isFromGallery == true
 
         // 3. Clear the staging buffers immediately so the UI resets behind the overlay.
         clearStagedCaptureAndCropState()
-        baseRefinementRecord = nil
+        baseRefinementContext = nil
         refinementSubjectId = nil
         preFetchTask = nil
         diContainer.cameraManager.resetZoom()
@@ -131,7 +131,7 @@ extension CaptureWorkspaceViewModel {
                     observationContexts: capturedObservationContexts,
                     mediaTimeline: capturedMediaTimeline,
                     modelContext: modelContext,
-                    targetEradicationRecord: targetEradicationRecord
+                    targetEradicationScanId: targetEradicationScanId
                 )
             }
         }

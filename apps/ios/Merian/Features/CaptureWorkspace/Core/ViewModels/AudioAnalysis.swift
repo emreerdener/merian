@@ -36,7 +36,7 @@ extension CaptureWorkspaceViewModel {
         observationContexts: [ObservationContext],
         mediaTimeline: [CaptureSubmissionMediaItem],
         modelContext: ModelContext,
-        targetEradicationRecord: LocalScanRecord? = nil
+        targetEradicationScanId: String? = nil
     ) {
         guard !mediaTimeline.isEmpty else { return }
 
@@ -107,7 +107,7 @@ extension CaptureWorkspaceViewModel {
                     mediaTimeline: mediaTimeline,
                     telemetry: telemetry,
                     modelContext: modelContext,
-                    targetEradicationRecord: targetEradicationRecord
+                    targetEradicationScanId: targetEradicationScanId
                 )
             }
         }

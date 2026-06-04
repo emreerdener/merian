@@ -16,7 +16,7 @@ struct CollectionActionAlertModifier: ViewModifier {
     
     var collection: ScanCollection?
     var modelContext: ModelContext
-    var relatedRecord: LocalScanRecord?
+    var relatedRecordId: String?
     
     var onActionComplete: ((ScanCollection?) -> Void)?
     var onDeleted: (() -> Void)?
@@ -99,7 +99,7 @@ struct CollectionActionAlertModifier: ViewModifier {
             
             modelContext.insert(newCollection)
             
-            if let record = relatedRecord {
+            if let record = resolveRelatedRecord() {
                 var updatedCollections = record.collections ?? []
                 updatedCollections.append(newCollection)
                 record.collections = updatedCollections
@@ -165,6 +165,15 @@ struct CollectionActionAlertModifier: ViewModifier {
 
         return resolvedName
     }
+
+    private func resolveRelatedRecord() -> LocalScanRecord? {
+        guard let relatedRecordId else { return nil }
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == relatedRecordId }
+        )
+        descriptor.fetchLimit = 1
+        return (try? modelContext.fetch(descriptor))?.first
+    }
 }
 
 // MARK: - ScanCollection Hashable
@@ -212,7 +221,7 @@ extension View {
         isPresented: Binding<Bool>,
         newCollectionName: Binding<String>,
         modelContext: ModelContext,
-        relatedRecord: LocalScanRecord? = nil,
+        relatedRecordId: String? = nil,
         onCreated: ((ScanCollection) -> Void)? = nil
     ) -> some View {
         modifier(CollectionActionAlertModifier(
@@ -220,7 +229,7 @@ extension View {
             isPresented: isPresented,
             collectionNameInputValue: newCollectionName,
             modelContext: modelContext,
-            relatedRecord: relatedRecord,
+            relatedRecordId: relatedRecordId,
             onActionComplete: { newCol in
                 if let newCol = newCol {
                     onCreated?(newCol)

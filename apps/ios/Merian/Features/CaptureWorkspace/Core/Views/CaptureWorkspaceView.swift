@@ -59,7 +59,7 @@ struct CaptureWorkspaceView: View {
     }
 
     private var describePageIdentity: String {
-        if viewModel.baseRefinementRecord != nil {
+        if viewModel.baseRefinementContext != nil {
             return "reanalysis-\(viewModel.refinementSubjectId ?? "unknown")"
         }
         return "standard"
@@ -225,7 +225,7 @@ struct CaptureWorkspaceView: View {
                 VStack {
                     Spacer()
 
-                    if viewModel.stagedCapture.isEmpty && viewModel.baseRefinementRecord == nil {
+                    if viewModel.stagedCapture.isEmpty && viewModel.baseRefinementContext == nil {
                         MainTabBar(
                             isExploreOpen: $viewModel.activeSheet.mapped(to: .explore),
                             isScansOpen: $viewModel.activeSheet.mapped(to: .scans),
@@ -236,12 +236,13 @@ struct CaptureWorkspaceView: View {
                     } else {
                         ActiveScanToolbar(
                             stagedCapture: viewModel.stagedCapture,
-                            isRefining: viewModel.baseRefinementRecord != nil,
+                            isRefining: viewModel.baseRefinementContext != nil,
                             selectedPhotoItems: $viewModel.selectedPhotoItems,
                             onThumbnailTap: { index in viewModel.presentCrop(for: index) },
                             onCancel: {
-                                let isCancelingRefinement = viewModel.baseRefinementRecord != nil
-                                if let record = viewModel.baseRefinementRecord {
+                                let isCancelingRefinement = viewModel.baseRefinementContext != nil
+                                if let scanId = viewModel.baseRefinementContext?.scanId,
+                                   let record = viewModel.fetchLocalScan(scanId: scanId) {
                                     viewModel.diContainer.inferenceEngine.load(from: record)
                                     viewModel.activeSheet = .insight
                                 }

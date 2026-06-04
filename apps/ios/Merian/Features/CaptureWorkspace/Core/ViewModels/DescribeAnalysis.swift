@@ -32,7 +32,7 @@ extension CaptureWorkspaceViewModel {
 
         let isMultiCaptureEnabled = diContainer.appSettings.isMultiCaptureEnabled
         let requiresScanConfirmation = diContainer.appSettings.requiresScanConfirmation
-        let isRefining = baseRefinementRecord != nil
+        let isRefining = baseRefinementContext != nil
 
         if isRefining {
             guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
@@ -54,10 +54,10 @@ extension CaptureWorkspaceViewModel {
                     // submitStagedCapture routes description-only back through submitDescribeSolo.
                     stagedCapture.observationContexts = [StagedObservationContext(context: stagedContext)]
                 } else {
-                    let targetEradicationRecord = baseRefinementRecord
-                    baseRefinementRecord = nil
+                    let targetEradicationScanId = baseRefinementContext?.scanId
+                    baseRefinementContext = nil
                     refinementSubjectId = nil
-                    submitDescribeSolo(observationContext: stagedContext, modelContext: modelContext, targetEradicationRecord: targetEradicationRecord)
+                    submitDescribeSolo(observationContext: stagedContext, modelContext: modelContext, targetEradicationScanId: targetEradicationScanId)
                 }
                 return true
             }
@@ -80,14 +80,14 @@ extension CaptureWorkspaceViewModel {
     /// 2. Enqueue via `OfflineQueueManager.enqueueNonVisualCapture` with cached GPS telemetry.
     ///    WeatherKit backfill is deferred to `dispatchInferenceDownloadTask` on retry.
     /// 3. Show "No network connection. Queued for upload." toast.
-    func submitDescribeSolo(observationContext: ObservationContext, modelContext: ModelContext, targetEradicationRecord: LocalScanRecord? = nil) {
+    func submitDescribeSolo(observationContext: ObservationContext, modelContext: ModelContext, targetEradicationScanId: String? = nil) {
         guard !observationContext.isEmpty else { return }
         submitNonVisualCapture(
             audioFileNames: [],
             observationContexts: [observationContext],
             mediaTimeline: [.description(observationContext)],
             modelContext: modelContext,
-            targetEradicationRecord: targetEradicationRecord
+            targetEradicationScanId: targetEradicationScanId
         )
     }
 }

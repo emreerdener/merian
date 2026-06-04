@@ -21,7 +21,7 @@ struct CaptureControlBar: View {
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.modelContext) private var modelContext
 
-    private var isRefining: Bool { viewModel.baseRefinementRecord != nil }
+    private var isRefining: Bool { viewModel.baseRefinementContext != nil }
     // Mirror the ActiveScanToolbar capacity logic — includes isRefining so reanalysis
     // flows get the same two-slot limit as multi-capture without enabling multi-capture.
     private var capacityLimit: Int { (appSettings.isMultiCaptureEnabled || isRefining) ? stagedCaptureCapacity : 1 }
@@ -79,7 +79,7 @@ struct CaptureControlBar: View {
                 let willStageOnly = !viewModel.stagedCapture.images.isEmpty
                     || !viewModel.stagedCapture.audios.isEmpty
                     || !viewModel.stagedCapture.observationContexts.isEmpty
-                    || viewModel.baseRefinementRecord != nil
+                    || viewModel.baseRefinementContext != nil
                     || appSettings.isMultiCaptureEnabled
                     || appSettings.requiresScanConfirmation
                 // All modes disabled when staging area is full — no new input can be added.

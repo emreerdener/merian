@@ -15,8 +15,8 @@ struct CollectionDetailView: View {
     
     // MARK: - Interface State
     @State private var memberScans: [LocalScanRecord] = []
-    @State private var scanToDelete: LocalScanRecord?
-    @State private var selectedScanForInsight: LocalScanRecord?
+    @State private var scanToDelete: String?
+    @State private var selectedScanForInsight: ScanInsightRoute?
     @State private var showScanSelection = false
     @State private var showDeleteConfirmation = false
     @State private var newCollectionName: String = ""
@@ -31,9 +31,9 @@ struct CollectionDetailView: View {
                 
                 ScansGrid(scans: memberScans, onSelect: { scan in
                     inferenceEngine.load(from: scan)
-                    selectedScanForInsight = scan
+                    selectedScanForInsight = ScanInsightRoute(scanId: scan.id)
                 }, onDelete: { scan in
-                    scanToDelete = scan
+                    scanToDelete = scan.id
                     showDeleteConfirmation = true
                 }, onAddScans: {
                     showScanSelection = true
@@ -67,13 +67,13 @@ struct CollectionDetailView: View {
         // MARK: - View Modifiers
         .navigationTitle(collection.name)
         .toolbar { trailingToolbar }
-        .navigationDestination(item: $selectedScanForInsight) { record in
+        .navigationDestination(item: $selectedScanForInsight) { route in
             InsightSheetView(
                 isPresented: Binding(
                     get: { selectedScanForInsight != nil },
                     set: { if !$0 { selectedScanForInsight = nil } }
                 ),
-                initialRecord: record,
+                initialScanId: route.scanId,
                 inferenceEngine: inferenceEngine,
                 presentationStyle: .embeddedInScansLibrary
             )
@@ -92,7 +92,7 @@ struct CollectionDetailView: View {
         }
         .scanDeletionDialog(
             isPresented: $showDeleteConfirmation,
-            record: scanToDelete,
+            scanId: scanToDelete,
             modelContext: modelContext
         ) {
             scanToDelete = nil

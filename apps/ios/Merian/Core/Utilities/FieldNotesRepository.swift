@@ -15,10 +15,9 @@ enum FieldNotesRepository {
 
     static func fieldNotes(
         for scanId: String,
-        modelContext: ModelContext,
-        activeRecord: LocalScanRecord? = nil
+        modelContext: ModelContext
     ) -> String? {
-        if let notes = nonEmptyText(localRecord(for: scanId, modelContext: modelContext, activeRecord: activeRecord)?.fieldNotes) {
+        if let notes = nonEmptyText(localRecord(for: scanId, modelContext: modelContext)?.fieldNotes) {
             FieldNotesStore.setFieldNotes(notes, for: scanId)
             return notes
         }
@@ -32,8 +31,7 @@ enum FieldNotesRepository {
             _ = setFieldNotes(
                 legacyNotes,
                 for: scanId,
-                modelContext: modelContext,
-                activeRecord: activeRecord
+                modelContext: modelContext
             )
             return legacyNotes
         }
@@ -45,12 +43,11 @@ enum FieldNotesRepository {
     static func setFieldNotes(
         _ fieldNotes: String?,
         for scanId: String,
-        modelContext: ModelContext,
-        activeRecord: LocalScanRecord? = nil
+        modelContext: ModelContext
     ) -> Bool {
         let persistedText = nonEmptyText(fieldNotes)
 
-        if let record = localRecord(for: scanId, modelContext: modelContext, activeRecord: activeRecord) {
+        if let record = localRecord(for: scanId, modelContext: modelContext) {
             guard !sameStoredValue(record.fieldNotes, persistedText) else {
                 FieldNotesStore.setFieldNotes(persistedText, for: scanId)
                 return false
@@ -79,13 +76,11 @@ enum FieldNotesRepository {
     static func promoteExternalFieldNotesIfLocalMissing(
         _ fieldNotes: String,
         for scanId: String,
-        modelContext: ModelContext,
-        activeRecord: LocalScanRecord? = nil
+        modelContext: ModelContext
     ) -> String? {
         if let existingNotes = self.fieldNotes(
             for: scanId,
-            modelContext: modelContext,
-            activeRecord: activeRecord
+            modelContext: modelContext
         ) {
             return existingNotes
         }
@@ -94,26 +89,24 @@ enum FieldNotesRepository {
         guard setFieldNotes(
             trimmedNotes,
             for: scanId,
-            modelContext: modelContext,
-            activeRecord: activeRecord
+            modelContext: modelContext
         ) else { return nil }
         return trimmedNotes
     }
 
     private static func localRecord(
         for scanId: String,
-        modelContext: ModelContext,
-        activeRecord: LocalScanRecord?
+        modelContext: ModelContext
     ) -> LocalScanRecord? {
-        if let activeRecord, activeRecord.id == scanId {
-            return activeRecord
-        }
-
         var descriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
-        return (try? modelContext.fetch(descriptor))?.first
+        if let fetchedRecord = (try? modelContext.fetch(descriptor))?.first {
+            return fetchedRecord
+        }
+
+        return nil
     }
 
     private static func queuedScan(for scanId: String, modelContext: ModelContext) -> OfflineQueuedScan? {

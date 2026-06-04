@@ -17,8 +17,9 @@ struct BiologicalView: View {
     private var refinementAction: (() -> Void)? {
         guard let scanIdStr = inferenceEngine.speciesData?.scanId else { return nil }
         return {
-            let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
-            guard let record = try? viewModel.activeLocalRecord?.modelContext?.fetch(descriptor).first ?? viewModel.activeLocalRecord else { return }
+            var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanIdStr })
+            descriptor.fetchLimit = 1
+            guard let record = try? modelContext.fetch(descriptor).first else { return }
             
             let mediaSnapshot = record.capturedMediaSnapshot
             let imagePaths = mediaSnapshot.imagePaths
@@ -28,7 +29,7 @@ struct BiologicalView: View {
             
             HapticManager.shared.triggerSelectionPulse()
             AppEventPublisher.shared.send(.triggerRefinement(
-                record: record,
+                scanId: record.id,
                 initialDescription: viewModel.shareableFieldNotes
             ))
             dismiss()
@@ -142,7 +143,7 @@ struct BiologicalView: View {
                    let scientificName = inferenceEngine.speciesData?.scientificName,
                    !scientificName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     SpeciesObservationChartsCard(
-                        speciesId: viewModel.activeLocalRecord?.confirmedSpeciesId,
+                        speciesId: viewModel.activeConfirmedSpeciesId,
                         scientificName: scientificName
                     )
                     .cardEntrance(index: 6)
@@ -181,7 +182,7 @@ struct BiologicalView: View {
                 ScanInformationCard(
                     speciesData: inferenceEngine.speciesData,
                     timestamp: timestamp,
-                    imageCount: max(1, viewModel.activeLocalRecord?.capturedMediaSnapshot.imagePaths.count ?? 0)
+                    imageCount: viewModel.activeImageCount
                 )
                 .cardEntrance(index: 9)
 

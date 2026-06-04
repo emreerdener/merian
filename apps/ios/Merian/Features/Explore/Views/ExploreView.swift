@@ -16,7 +16,7 @@ struct ExploreView: View {
     @State private var mapViewModel = ExploreMapViewModel()
     @State private var navigationPath = NavigationPath()
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
-    @State private var selectedInsightRecord: LocalScanRecord?
+    @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var activeTab: ExploreTab = .feed
 
     private let allowsInsightPresentation: Bool
@@ -161,17 +161,17 @@ struct ExploreView: View {
             )
         }
         .sheet(
-            item: $selectedInsightRecord,
+            item: $selectedInsightRoute,
             onDismiss: {
                 viewModel.refreshPreferredSpeciesNames(modelContext: modelContext)
             }
-        ) { record in
+        ) { route in
             InsightSheetView(
                 isPresented: Binding(
-                    get: { selectedInsightRecord != nil },
-                    set: { if !$0 { selectedInsightRecord = nil } }
+                    get: { selectedInsightRoute != nil },
+                    set: { if !$0 { selectedInsightRoute = nil } }
                 ),
-                initialRecord: record,
+                initialScanId: route.scanId,
                 inferenceEngine: inferenceEngine,
                 allowsExplorePresentation: false
             )
@@ -283,7 +283,7 @@ struct ExploreView: View {
 
         inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
-        selectedInsightRecord = record
+        selectedInsightRoute = ScanInsightRoute(scanId: record.id)
     }
 
     private func isOwnedByCurrentUser(_ post: ExplorePost) -> Bool {

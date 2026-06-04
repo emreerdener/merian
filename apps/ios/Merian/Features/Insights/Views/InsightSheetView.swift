@@ -11,6 +11,12 @@ enum InsightPresentationStyle {
     }
 }
 
+struct ScanInsightRoute: Identifiable, Hashable {
+    let scanId: String
+
+    var id: String { scanId }
+}
+
 /// The master state orchestrator routing biological inference metadata and hardware logic 
 /// safely down into the decoupled visual tree via the `InsightSheetViewModel`.
 struct InsightSheetView: View {
@@ -24,7 +30,7 @@ struct InsightSheetView: View {
 
     @Binding var isPresented: Bool
     var queuedScan: QueuedScanContext?
-    var initialRecord: LocalScanRecord?
+    var initialScanId: String?
     var allowsExplorePresentation: Bool
     var presentationStyle: InsightPresentationStyle
 
@@ -37,20 +43,19 @@ struct InsightSheetView: View {
     init(
         isPresented: Binding<Bool>,
         queuedScan: QueuedScanContext? = nil,
-        initialRecord: LocalScanRecord? = nil,
+        initialScanId: String? = nil,
         inferenceEngine: InferenceEngine? = nil,
         allowsExplorePresentation: Bool = true,
         presentationStyle: InsightPresentationStyle = .sheet
     ) {
         _isPresented = isPresented
         self.queuedScan = queuedScan
-        self.initialRecord = initialRecord
+        self.initialScanId = initialScanId
         self.allowsExplorePresentation = allowsExplorePresentation
         self.presentationStyle = presentationStyle
         _viewModel = State(
             initialValue: InsightSheetViewModel(
                 queuedContext: queuedScan,
-                initialRecord: initialRecord,
                 inferenceEngine: inferenceEngine
             )
         )
@@ -89,7 +94,7 @@ struct InsightSheetView: View {
             isPresented: $viewModel.state.showNewCollectionAlert,
             newCollectionName: $viewModel.state.newCollectionName,
             modelContext: modelContext,
-            relatedRecord: viewModel.activeLocalRecord,
+            relatedRecordId: viewModel.activeLocalRecordId,
             onCreated: { collection in
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                     viewModel.state.toastMessage = "Created \(collection.name) and added scan"
@@ -102,7 +107,12 @@ struct InsightSheetView: View {
         .sheet(isPresented: $viewModel.state.showExploreOnboarding) {
             ExploreOnboardingPrompt(
                 onShare: {
-                    Task { await viewModel.shareToExplore(includeFieldNotes: false) }
+                    Task {
+                        await viewModel.shareToExplore(
+                            includeFieldNotes: false,
+                            modelContext: modelContext
+                        )
+                    }
                     viewModel.state.showExploreOnboarding = false
                 },
                 onDismiss: {
@@ -168,8 +178,12 @@ private extension InsightSheetView {
                 viewModel.bindSettings(appSettings)
                 viewModel.inferenceEngine = inferenceEngine
                 viewModel.queuedContext = queuedScan
-                if let initialRecord {
-                    viewModel.bindPresentedRecord(initialRecord, modelContext: modelContext)
+                if let initialScanId {
+                    viewModel.bindPresentedScan(
+                        scanId: initialScanId,
+                        modelContext: modelContext,
+                        inferenceEngine: inferenceEngine
+                    )
                 }
                 viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
                 // Suppress foreground inference banners while the insight is visible —
@@ -300,7 +314,7 @@ private extension InsightSheetView {
                     if let record = viewModel.activeLocalRecord {
                         HapticManager.shared.triggerSelectionPulse()
                         AppEventPublisher.shared.send(.triggerRefinement(
-                            record: record,
+                            scanId: record.id,
                             initialDescription: viewModel.shareableFieldNotes
                         ))
                     }

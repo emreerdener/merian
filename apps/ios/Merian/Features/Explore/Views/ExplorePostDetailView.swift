@@ -24,7 +24,7 @@ struct ExplorePostDetailView: View {
     @State private var showPostComposer = false
     @State private var isSavingPostContent = false
     @State private var localFieldNotes: String?
-    @State private var selectedInsightRecord: LocalScanRecord?
+    @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
     @State private var isRefreshingAfterInsightDismiss = false
     @State private var didAutoOpenInsight = false
@@ -327,7 +327,7 @@ struct ExplorePostDetailView: View {
                 )
             }
         }
-        .sheet(item: $selectedInsightRecord, onDismiss: {
+        .sheet(item: $selectedInsightRoute, onDismiss: {
             isRefreshingAfterInsightDismiss = true
             Task {
                 if let post = currentPost {
@@ -337,13 +337,13 @@ struct ExplorePostDetailView: View {
                 }
                 isRefreshingAfterInsightDismiss = false
             }
-        }) { record in
+        }) { route in
             InsightSheetView(
                 isPresented: Binding(
-                    get: { selectedInsightRecord != nil },
-                    set: { if !$0 { selectedInsightRecord = nil } }
+                    get: { selectedInsightRoute != nil },
+                    set: { if !$0 { selectedInsightRoute = nil } }
                 ),
-                initialRecord: record,
+                initialScanId: route.scanId,
                 inferenceEngine: inferenceEngine,
                 allowsExplorePresentation: false
             )
@@ -760,9 +760,10 @@ struct ExplorePostDetailView: View {
         guard isOwnedByCurrentUser(post) else { return }
 
         let scanId = post.scanId
-        let descriptor = FetchDescriptor<LocalScanRecord>(
+        var descriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate { $0.id == scanId }
         )
+        descriptor.fetchLimit = 1
 
         guard let record = try? modelContext.fetch(descriptor).first else {
             HapticManager.shared.triggerErrorThump()
@@ -774,14 +775,13 @@ struct ExplorePostDetailView: View {
             localFieldNotes = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
                 fieldNotes,
                 for: scanId,
-                modelContext: modelContext,
-                activeRecord: record
+                modelContext: modelContext
             )
         }
 
         inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
-        selectedInsightRecord = record
+        selectedInsightRoute = ScanInsightRoute(scanId: record.id)
     }
 
     private func isOwnedByCurrentUser(_ post: ExplorePost) -> Bool {

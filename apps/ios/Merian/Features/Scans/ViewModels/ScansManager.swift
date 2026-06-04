@@ -453,11 +453,22 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    func shareToExplore(scan: LocalScanRecord) async {
+    func shareToExplore(scanId: String, modelContext: ModelContext) async {
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+
+        guard let scan = try? modelContext.fetch(descriptor).first else {
+            HapticManager.shared.triggerErrorThump()
+            showToast(message: "This scan is no longer available.")
+            return
+        }
+
         do {
             let response = try await MerianNetworkClient.shared.shareScanToExplore(scan: scan)
-            ExploreShareStateStore.setSharedPostId(response.postId, for: scan.id)
-            AppEventPublisher.shared.send(.exploreShareStateChanged(scanId: scan.id, postId: response.postId))
+            ExploreShareStateStore.setSharedPostId(response.postId, for: scanId)
+            AppEventPublisher.shared.send(.exploreShareStateChanged(scanId: scanId, postId: response.postId))
             appSettings.hasUnseenExplorePost = true
             HapticManager.shared.triggerSuccessPulse()
             showToast(message: "Shared to Explore")

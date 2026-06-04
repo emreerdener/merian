@@ -24,9 +24,9 @@ enum AppEvent {
     /// Dispatched by Siri/OS intents to immediately open the historical scans insight page.
     case requestRecallLastFindIntent
     
-    /// Dispatched to seamlessly jump the user from an ambiguous Insight Sheet back to the Camera, 
-    /// carrying the `LocalScanRecord` context forward into a supplementary multi-image generation sequence.
-    case triggerRefinement(record: LocalScanRecord, initialDescription: String? = nil)
+    /// Dispatched to seamlessly jump the user from an ambiguous Insight Sheet back to the Camera,
+    /// carrying the scan ID forward into a supplementary multi-image generation sequence.
+    case triggerRefinement(scanId: String, initialDescription: String? = nil)
 
     /// Dispatched to open the scans sheet and push the non-biological collection.
     case requestOpenNonBiologicalScansIntent

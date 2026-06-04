@@ -53,7 +53,7 @@ struct ScansSheetView: View {
     @State private var newCollectionName = ""
     @State private var newlyCreatedCollection: ScanCollection?
     
-    @State private var scanToDelete: LocalScanRecord?
+    @State private var scanToDelete: String?
     @State private var showDeleteConfirmation = false
     @State private var showBatchDeleteConfirmation = false
     @State private var showSelectionLimitAlert = false
@@ -132,8 +132,8 @@ struct ScansSheetView: View {
                 )
             }
             .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .bottomBar)
-            .navigationDestination(for: LocalScanRecord.self) { record in
-                localInsightDestination(for: record)
+            .navigationDestination(for: ScanInsightRoute.self) { route in
+                localInsightDestination(for: route)
             }
             .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
                 SpeciesDictionaryPageContentView(
@@ -158,7 +158,7 @@ struct ScansSheetView: View {
                     queuedScans: queuedScans,
                     isSearchFocused: $isSearchFocused,
                     onScanSelected: { record in
-                        navigationPath.append(record)
+                        navigationPath.append(ScanInsightRoute(scanId: record.id))
                     },
                     selectedQueuedScanForInsight: $selectedQueuedScanForInsight,
                     showSelectionLimitAlert: $showSelectionLimitAlert,
@@ -182,7 +182,7 @@ struct ScansSheetView: View {
         ))
     }
 
-    private func localInsightDestination(for record: LocalScanRecord) -> some View {
+    private func localInsightDestination(for route: ScanInsightRoute) -> some View {
         InsightSheetView(
             isPresented: Binding(
                 get: { true },
@@ -194,7 +194,7 @@ struct ScansSheetView: View {
                     }
                 }
             ),
-            initialRecord: record,
+            initialScanId: route.scanId,
             inferenceEngine: inferenceEngine,
             presentationStyle: .embeddedInScansLibrary
         )
@@ -304,12 +304,12 @@ struct ScansSheetView: View {
     }
 
     private func shareSelectedScans() {
-        let selectedScans = searchManager.getSelectedLocalRecords()
+        let selectedScans = selectedLocalRecordsFromStore()
         Task { await searchManager.batchShare(scans: selectedScans) }
     }
 
     private func downloadSelectedScans() {
-        let selectedScans = searchManager.getSelectedLocalRecords()
+        let selectedScans = selectedLocalRecordsFromStore()
         Task { await searchManager.batchSavePhotos(scans: selectedScans) }
     }
     
@@ -460,8 +460,20 @@ struct ScansSheetView: View {
 
     // MARK: - Action Handlers
 
+    private func selectedLocalRecordsFromStore() -> [LocalScanRecord] {
+        let selectedIds = Array(searchManager.selectedScans)
+        guard !selectedIds.isEmpty else { return [] }
+
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate<LocalScanRecord> { selectedIds.contains($0.id) },
+            sortBy: [SortDescriptor(\LocalScanRecord.timestamp, order: .reverse)]
+        )
+        descriptor.fetchLimit = min(selectedIds.count, searchManager.maxBatchSelectionLimit)
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
     private func handleBatchDelete() {
-        let itemsToDelete = searchManager.getSelectedLocalRecords()
+        let itemsToDelete = selectedLocalRecordsFromStore()
         for item in itemsToDelete {
             AppDIContainer.shared.scanRepository.eradicateScan(record: item, modelContext: modelContext)
         }
@@ -479,9 +491,10 @@ private struct LibraryTabContent: View {
     let onScanSelected: (LocalScanRecord) -> Void
     @Binding var selectedQueuedScanForInsight: QueuedScanContext?
     @Binding var showSelectionLimitAlert: Bool
-    @Binding var scanToDelete: LocalScanRecord?
+    @Binding var scanToDelete: String?
     @Binding var showDeleteConfirmation: Bool
     @Environment(InferenceEngine.self) var inferenceEngine
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         LibraryView(
@@ -505,11 +518,16 @@ private struct LibraryTabContent: View {
                 }
             },
             onDelete: { scan in
-                scanToDelete = scan
+                scanToDelete = scan.id
                 showDeleteConfirmation = true
             },
             onShareToExplore: { scan in
-                Task { await searchManager.shareToExplore(scan: scan) }
+                Task {
+                    await searchManager.shareToExplore(
+                        scanId: scan.id,
+                        modelContext: modelContext
+                    )
+                }
             },
             onQueuedInsight: { queuedContext in
                 MerianLog.data.debug(

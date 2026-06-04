@@ -9,21 +9,17 @@ final class InsightSheetViewModel {
 
     // MARK: - Init
 
-    /// Allows `InsightSheetView` to seed either a queued scan or a persisted record at
-    /// `@State` initialization time, preventing the first render from falling back to a
-    /// transient analyzing state while the sheet finishes wiring its dependencies.
+    /// Allows `InsightSheetView` to seed queued scan state at `@State`
+    /// initialization time before the sheet finishes wiring dependencies.
     init(
         queuedContext: QueuedScanContext? = nil,
-        initialRecord: LocalScanRecord? = nil,
         inferenceEngine: InferenceEngine? = nil,
         appSettings: AppSettings? = nil
     ) {
         self.queuedContext = queuedContext
-        self.activeLocalRecord = initialRecord
         self.inferenceEngine = inferenceEngine
         self.appSettings = appSettings ?? AppSettings.shared
         self.cachedActiveMedia = queuedContext?.capturedMediaSnapshot.activeScanMedia
-            ?? initialRecord?.capturedMediaSnapshot.activeScanMedia
     }
 
     var toastActionTitle: String?
@@ -38,6 +34,8 @@ final class InsightSheetViewModel {
         toastActionTitle = nil
         toastAction = nil
         activeLocalRecord = nil
+        activeLocalRecordId = nil
+        toolbarRecordSnapshot = nil
         queuedContext = nil
         cachedActiveMedia = nil
     }
@@ -96,9 +94,19 @@ final class InsightSheetViewModel {
 
     // MARK: - SwiftData Status
     var activeLocalRecord: LocalScanRecord?
+    var activeLocalRecordId: String?
+    var toolbarRecordSnapshot: InsightToolbarRecordSnapshot?
 
-    var toolbarRecordSnapshot: InsightToolbarRecordSnapshot? {
-        activeLocalRecord.map(InsightToolbarRecordSnapshot.init)
+    var activeRecordTimestamp: Date? {
+        toolbarRecordSnapshot?.captureDate ?? toolbarRecordSnapshot?.timestamp
+    }
+
+    var activeConfirmedSpeciesId: String? {
+        toolbarRecordSnapshot?.confirmedSpeciesId
+    }
+
+    var activeImageCount: Int {
+        max(1, toolbarRecordSnapshot?.imageCount ?? 0)
     }
 
     // MARK: - Image Engine Dependencies
@@ -128,7 +136,7 @@ final class InsightSheetViewModel {
     /// completed speciesData scan ID.
     var persistentScanId: String? {
         if let ctx = queuedContext { return ctx.id }
-        return activeLocalRecord?.id
+        return activeLocalRecordId
             ?? inferenceEngine?.activeScanId
             ?? inferenceEngine?.speciesData?.scanId
     }
@@ -173,7 +181,7 @@ final class InsightSheetViewModel {
 
     var currentFieldNotesScanId: String? {
         if let ctx = queuedContext { return ctx.id }
-        return activeLocalRecord?.id
+        return activeLocalRecordId
             ?? inferenceEngine?.activeScanId
             ?? inferenceEngine?.speciesData?.scanId
     }
@@ -226,7 +234,7 @@ final class InsightSheetViewModel {
 
     var canReanalyze: Bool {
         guard queuedContext == nil else { return false }
-        guard activeLocalRecord != nil else { return false }
+        guard activeLocalRecordId != nil else { return false }
         return true
     }
 
@@ -246,8 +254,7 @@ final class InsightSheetViewModel {
 
     var canShareToExplore: Bool {
         guard queuedContext == nil else { return false }
-        guard let record = activeLocalRecord else { return false }
-        return record.isBiological
+        return toolbarRecordSnapshot != nil && inferenceEngine?.speciesData?.isBiological == true
     }
 
     var isAlreadyFlagged: Bool {
@@ -450,7 +457,7 @@ final class InsightSheetViewModel {
         let exportMedia = activeMedia
         let liveData = exportMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
         let historicPath = exportMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }.first
-            ?? activeLocalRecord?.coverImagePath
+            ?? toolbarRecordSnapshot?.coverImagePath
         let refUrls = inferenceEngine.speciesData?.referenceImageUrl
 
         InsightMediaExportManager.shared.shareDiscovery(
@@ -469,14 +476,18 @@ final class InsightSheetViewModel {
         includeFieldNotes: Bool = false,
         fieldNotes: String? = nil,
         hashtags: [String] = [],
-        locationSharing: ExplorePostLocationSharing = .obscured
+        locationSharing: ExplorePostLocationSharing = .obscured,
+        modelContext: ModelContext
     ) async {
-        guard canShareToExplore, let record = activeLocalRecord, !state.isSharingToExplore else { return }
+        guard canShareToExplore,
+              let record = fetchActiveLocalRecord(modelContext: modelContext),
+              !state.isSharingToExplore else { return }
 
         state.isSharingToExplore = true
         defer { state.isSharingToExplore = false }
 
         do {
+            let scanId = record.id
             let notesForPost = fieldNotes ?? (includeFieldNotes ? shareableFieldNotes : nil)
             let response = try await MerianNetworkClient.shared.shareScanToExplore(
                 scan: record,
@@ -485,7 +496,7 @@ final class InsightSheetViewModel {
                 locationSharing: locationSharing
             )
             appSettings.hasUnseenExplorePost = true
-            cacheSharedExplorePostId(response.postId, for: record.id)
+            cacheSharedExplorePostId(response.postId, for: scanId)
             state.sharedExploreHashtags = hashtags
             state.exploreFieldNotesArePublic = notesForPost != nil
             HapticManager.shared.triggerSuccessPulse()
@@ -508,12 +519,15 @@ final class InsightSheetViewModel {
         _ draft: ExplorePostComposerDraft,
         modelContext: ModelContext
     ) async {
-        guard canShareToExplore, let record = activeLocalRecord, !state.isSharingToExplore else { return }
+        guard canShareToExplore,
+              let record = fetchActiveLocalRecord(modelContext: modelContext),
+              !state.isSharingToExplore else { return }
 
         state.isSharingToExplore = true
         defer { state.isSharingToExplore = false }
 
         do {
+            let scanId = record.id
             let response = try await MerianNetworkClient.shared.shareScanToExplore(
                 scan: record,
                 fieldNotes: draft.publicFieldNotes,
@@ -521,7 +535,7 @@ final class InsightSheetViewModel {
                 locationSharing: draft.locationSharing
             )
             appSettings.hasUnseenExplorePost = true
-            cacheSharedExplorePostId(response.postId, for: record.id)
+            cacheSharedExplorePostId(response.postId, for: scanId)
             state.sharedExploreHashtags = draft.hashtags
             state.exploreFieldNotesArePublic = draft.publicFieldNotes != nil
             syncComposerFieldNotes(draft.fieldNotes, modelContext: modelContext)
@@ -614,15 +628,27 @@ final class InsightSheetViewModel {
 
     // MARK: - SwiftData Operations
 
+    private func fetchActiveLocalRecord(modelContext: ModelContext) -> LocalScanRecord? {
+        guard let activeLocalRecordId else { return nil }
+        return fetchLocalRecord(scanId: activeLocalRecordId, modelContext: modelContext)
+    }
+
+    private func fetchLocalRecord(scanId: String, modelContext: ModelContext) -> LocalScanRecord? {
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        return (try? modelContext.fetch(descriptor))?.first
+    }
+
     func eradicateCurrentScan(modelContext: ModelContext, inferenceEngine: InferenceEngine, dismiss: DismissAction) {
         guard let targetId = inferenceEngine.speciesData?.scanId else { return }
 
-        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == targetId })
-        let records = (try? modelContext.fetch(descriptor)) ?? []
-
-        if let record = records.first {
+        if let record = fetchLocalRecord(scanId: targetId, modelContext: modelContext) {
             HapticManager.shared.triggerErrorThump()
             activeLocalRecord = nil
+            activeLocalRecordId = nil
+            toolbarRecordSnapshot = nil
             state.showBottomBarTools = false
             state.showDeleteConfirmation = false
             state.showNewCollectionAlert = false
@@ -632,7 +658,7 @@ final class InsightSheetViewModel {
     }
 
     func toggleScanInCollection(_ collection: ScanCollection, modelContext: ModelContext) {
-        guard let record = activeLocalRecord else { return }
+        guard let record = fetchActiveLocalRecord(modelContext: modelContext) else { return }
 
         var updatedCollections = record.collections ?? []
         let actionMessage: String
@@ -658,6 +684,8 @@ final class InsightSheetViewModel {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             state.toastMessage = actionMessage
         }
+        activeLocalRecord = record
+        toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record)
         OfflineQueueManager.shared.enqueueCollectionSync()
         HapticManager.shared.triggerSelectionPulse()
     }
@@ -686,15 +714,32 @@ final class InsightSheetViewModel {
 // Removed createNewCollection as this logic was extracted into NewCollectionAlertModifier
 
     func fetchLocalRecord(for scanId: String, modelContext: ModelContext) {
-        if activeLocalRecord?.id == scanId {
-            markRecordViewedIfAppropriate(modelContext: modelContext)
-            return
-        }
-        
-        let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        if let record = (try? modelContext.fetch(descriptor))?.first {
+        if let record = fetchLocalRecord(scanId: scanId, modelContext: modelContext) {
             bindPresentedRecord(record, modelContext: modelContext)
         }
+    }
+
+    @discardableResult
+    func bindPresentedScan(
+        scanId: String,
+        modelContext: ModelContext,
+        inferenceEngine: InferenceEngine
+    ) -> Bool {
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+
+        guard let record = (try? modelContext.fetch(descriptor))?.first else {
+            activeLocalRecord = nil
+            activeLocalRecordId = nil
+            toolbarRecordSnapshot = nil
+            return false
+        }
+
+        inferenceEngine.load(from: record)
+        bindPresentedRecord(record, modelContext: modelContext)
+        return true
     }
 
     @discardableResult
@@ -728,6 +773,8 @@ final class InsightSheetViewModel {
 
     func bindPresentedRecord(_ record: LocalScanRecord, modelContext: ModelContext) {
         activeLocalRecord = record
+        activeLocalRecordId = record.id
+        toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record)
         cachedActiveMedia = record.capturedMediaSnapshot.activeScanMedia
         refreshSharedExploreStateFromLocalCache(scanId: record.id)
         syncFieldNotesFromCurrentScan(modelContext: modelContext)
@@ -756,9 +803,8 @@ final class InsightSheetViewModel {
             guard let currentScanId else { return }
 
             let persistedFieldNotes = persistedFieldNotes(for: currentScanId, modelContext: modelContext) ?? ""
-            if let activeLocalRecord,
-               activeLocalRecord.id == currentScanId,
-               activeLocalRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            if let currentRecord = fetchLocalRecord(scanId: currentScanId, modelContext: modelContext),
+               currentRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
                 let promotableFieldNotes = existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? persistedFieldNotes
                     : existingDraft
@@ -801,7 +847,7 @@ final class InsightSheetViewModel {
     }
 
     func refreshSharedExploreStateFromLocalCache(scanId: String? = nil) {
-        let resolvedScanId = scanId ?? activeLocalRecord?.id ?? inferenceEngine?.speciesData?.scanId
+        let resolvedScanId = scanId ?? activeLocalRecordId ?? inferenceEngine?.speciesData?.scanId
         applySharedExplorePostId(
             resolvedScanId.flatMap { ExploreShareStateStore.sharedPostId(for: $0) },
             for: resolvedScanId,
@@ -810,7 +856,7 @@ final class InsightSheetViewModel {
     }
 
     func refreshSharedExploreStateFromServer(modelContext: ModelContext? = nil) async {
-        let scanId = activeLocalRecord?.id ?? inferenceEngine?.speciesData?.scanId
+        let scanId = activeLocalRecordId ?? inferenceEngine?.speciesData?.scanId
         guard let scanId, !scanId.isEmpty else { return }
 
         sharedExploreStateRequestToken &+= 1
@@ -864,15 +910,17 @@ final class InsightSheetViewModel {
     }
 
     func markRecordViewedIfAppropriate(modelContext: ModelContext) {
-        guard let record = activeLocalRecord else { return }
-        if !record.hasBeenViewed && (inferenceEngine?.isProcessing == false) {
-            record.hasBeenViewed = true
-            _ = saveInsightMutation(
-                modelContext,
-                failureMessage: nil,
-                logContext: "mark record viewed"
-            )
-        }
+        guard inferenceEngine?.isProcessing == false,
+              let record = fetchActiveLocalRecord(modelContext: modelContext),
+              !record.hasBeenViewed else { return }
+
+        record.hasBeenViewed = true
+        activeLocalRecord = record
+        _ = saveInsightMutation(
+            modelContext,
+            failureMessage: nil,
+            logContext: "mark record viewed"
+        )
     }
 
     // MARK: - Name Preference
@@ -951,8 +999,7 @@ final class InsightSheetViewModel {
         return FieldNotesRepository.setFieldNotes(
             text,
             for: scanId,
-            modelContext: modelContext,
-            activeRecord: activeLocalRecord
+            modelContext: modelContext
         )
     }
 
@@ -968,8 +1015,7 @@ final class InsightSheetViewModel {
     private func persistedFieldNotes(for scanId: String, modelContext: ModelContext) -> String? {
         FieldNotesRepository.fieldNotes(
             for: scanId,
-            modelContext: modelContext,
-            activeRecord: activeLocalRecord
+            modelContext: modelContext
         )
     }
 
@@ -982,8 +1028,7 @@ final class InsightSheetViewModel {
         if let resolvedNotes = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
             notes,
             for: scanId,
-            modelContext: modelContext,
-            activeRecord: activeLocalRecord
+            modelContext: modelContext
         ) {
             state.fieldNotesText = resolvedNotes
         }
@@ -1003,8 +1048,7 @@ final class InsightSheetViewModel {
         _ = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
             notes,
             for: scanId,
-            modelContext: modelContext,
-            activeRecord: activeLocalRecord
+            modelContext: modelContext
         )
     }
 

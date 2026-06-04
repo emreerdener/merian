@@ -360,15 +360,20 @@ private struct GBIFMedia: Decodable {
     }
 
     private func transferReplacementMetadataIfNeeded(
-        from oldRecord: LocalScanRecord?,
+        from oldScanId: String?,
         to newScanId: String?,
         modelContext: ModelContext?
     ) {
-        guard let oldRecord else { return }
+        guard let oldScanId else { return }
         guard let context = modelContext else {
-            assertionFailure("targetEradicationRecord provided but modelContext is nil")
+            assertionFailure("targetEradicationScanId provided but modelContext is nil")
             return
         }
+        var oldDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == oldScanId }
+        )
+        oldDescriptor.fetchLimit = 1
+        guard let oldRecord = try? context.fetch(oldDescriptor).first else { return }
 
         // Transfer user-generated metadata to the new scan before the old record is deleted.
         // Review state intentionally resets because this is a fresh analysis.
@@ -546,7 +551,7 @@ private struct GBIFMedia: Decodable {
     ///     Falls back to `imageDatas` when empty (e.g. offline-queue reprocessing path).
     ///   - telemetry: GPS, weather, and device context bundled at capture time.
     ///   - modelContext: The SwiftData context for persisting the parsed scan record locally.
-    ///   - targetEradicationRecord: An optional historic scan record instance passed exclusively when re-running a failed or queued scan, mutating the payload directly on disk.
+    ///   - targetEradicationScanId: An optional historic scan ID passed exclusively when replacing a scan with a fresh analysis.
     ///   - observationContexts: Structured descriptions staged alongside the capture.
     func analyze(
         scanId: String? = nil,
@@ -557,7 +562,7 @@ private struct GBIFMedia: Decodable {
         observationContexts: [ObservationContext] = [],
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         modelContext: ModelContext? = nil,
-        targetEradicationRecord: LocalScanRecord? = nil
+        targetEradicationScanId: String? = nil
     ) {
         guard !imageDatas.isEmpty else { return }
         self.inferenceTask?.cancel()
@@ -704,7 +709,7 @@ private struct GBIFMedia: Decodable {
                     applyNewDiscoveryIfNeeded(isNewDisc, to: &mappedData)
                     await refreshAchievementNotificationsIfPossible(modelContext: modelContext)
                     transferReplacementMetadataIfNeeded(
-                        from: targetEradicationRecord,
+                        from: targetEradicationScanId,
                         to: mappedData.scanId,
                         modelContext: modelContext
                     )
@@ -796,7 +801,7 @@ private struct GBIFMedia: Decodable {
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         telemetry: CaptureTelemetry,
         modelContext: ModelContext?,
-        targetEradicationRecord: LocalScanRecord? = nil
+        targetEradicationScanId: String? = nil
     ) {
         let filteredAudioFilePaths = (audioFilePaths ?? []).filter { !$0.isEmpty }
         let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
@@ -878,7 +883,7 @@ private struct GBIFMedia: Decodable {
                     applyNewDiscoveryIfNeeded(isNewDisc, to: &mappedData)
                     await refreshAchievementNotificationsIfPossible(modelContext: modelContext)
                     transferReplacementMetadataIfNeeded(
-                        from: targetEradicationRecord,
+                        from: targetEradicationScanId,
                         to: mappedData.scanId,
                         modelContext: modelContext
                     )

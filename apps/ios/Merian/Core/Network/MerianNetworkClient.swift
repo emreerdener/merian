@@ -32,6 +32,18 @@ private extension String {
     }
 }
 
+private struct ExploreShareMediaSnapshot {
+    let scanId: String
+    let imagePaths: [String]
+    let coverImagePath: String?
+
+    init(scan: LocalScanRecord) {
+        self.scanId = scan.id
+        self.imagePaths = scan.capturedMediaSnapshot.imagePaths
+        self.coverImagePath = scan.coverImagePath
+    }
+}
+
 private struct EdgeErrorPayload: Decodable {
     let code: String?
     let error: String?
@@ -1431,9 +1443,10 @@ final class MerianNetworkClient {
         hashtags: [String] = [],
         locationSharing: ExplorePostLocationSharing = .obscured
     ) async throws -> ExploreShareResponse {
+        let mediaSnapshot = ExploreShareMediaSnapshot(scan: scan)
         do {
             return try await shareScanToExplore(
-                scanId: scan.id,
+                scanId: mediaSnapshot.scanId,
                 fieldNotes: fieldNotes,
                 hashtags: hashtags,
                 locationSharing: locationSharing
@@ -1443,13 +1456,13 @@ final class MerianNetworkClient {
                 throw error
             }
 
-            let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: scan)
+            let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: mediaSnapshot)
             guard !restoredObjectKeys.isEmpty else {
                 throw error
             }
 
             return try await shareScanToExplore(
-                scanId: scan.id,
+                scanId: mediaSnapshot.scanId,
                 restoredObjectKeys: restoredObjectKeys,
                 fieldNotes: fieldNotes,
                 hashtags: hashtags,
@@ -1590,14 +1603,14 @@ final class MerianNetworkClient {
         return message.contains("This scan no longer has shareable image media.")
     }
 
-    private func restoreExploreMediaObjectKeys(for scan: LocalScanRecord) async throws -> [String] {
+    private func restoreExploreMediaObjectKeys(for scan: ExploreShareMediaSnapshot) async throws -> [String] {
         let localImagePaths = resolveRestorableImagePaths(for: scan)
         guard !localImagePaths.isEmpty else { return [] }
 
         let fileNames = localImagePaths.enumerated().map { index, path in
             let ext = URL(fileURLWithPath: path).pathExtension
             let normalizedExt = ext.isEmpty ? "webp" : ext
-            return MediaStagingContract.sanitizedFileName("\(scan.id)_explore_restore_\(index).\(normalizedExt)")
+            return MediaStagingContract.sanitizedFileName("\(scan.scanId)_explore_restore_\(index).\(normalizedExt)")
         }
 
         let uploadFiles = try zip(localImagePaths, fileNames).map { path, fileName in
@@ -1643,11 +1656,11 @@ final class MerianNetworkClient {
             }
         }
 
-        return uploadUrls.map(\.objectKey)
+        return uploadUrls.map { $0.objectKey }
     }
 
-    private func resolveRestorableImagePaths(for scan: LocalScanRecord) -> [String] {
-        var candidatePaths = scan.capturedMediaSnapshot.imagePaths
+    private func resolveRestorableImagePaths(for scan: ExploreShareMediaSnapshot) -> [String] {
+        var candidatePaths = scan.imagePaths
 
         if candidatePaths.isEmpty, let coverImagePath = scan.coverImagePath {
             candidatePaths.append(coverImagePath)

@@ -41,7 +41,7 @@ struct ConfidenceExplanationSheet: View {
             if RevenueCatManager.shared.isProActive {
                 HapticManager.shared.triggerSelectionPulse()
                 AppEventPublisher.shared.send(.triggerRefinement(
-                    record: record,
+                    scanId: record.id,
                     initialDescription: record.fieldNotes
                 ))
                 dismiss()
