@@ -322,7 +322,7 @@ struct ExplorePostCard: View {
     }
 
     private var authorDisplayName: String {
-        post.authorDisplayName(preferUsername: SupabaseManager.shared.isGuestUser)
+        post.authorDisplayName(preferUsername: true)
     }
 
     private var shouldShowAuthorProBadge: Bool {
