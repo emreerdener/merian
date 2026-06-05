@@ -1,7 +1,7 @@
 # In-App Changelog Workflow
 
 Merian ships a bundled, Settings-only changelog so users can see selected
-feature notes, improvements, and in-progress work without requiring a backend
+feature notes, improvements, and active development notes without requiring a backend
 feed. This file describes how to update it.
 
 ## Runtime Surface
@@ -30,7 +30,6 @@ Use schema version `1`:
       "build": "199",
       "date": "2026-06-04",
       "title": "Settings changelog",
-      "status": "inProgress",
       "imageAssetName": "optional_asset_name",
       "sections": [
         {
@@ -52,9 +51,8 @@ Field rules:
 - `build`: Optional build number. Include it when the note maps to a concrete build.
 - `date`: `YYYY-MM-DD`.
 - `title`: Short user-facing release title.
-- `status`: `released` or `inProgress`.
 - `imageAssetName`: Optional asset catalog image name. Omit it when no image is available.
-- `sections`: Grouped note lists such as `Added`, `Improved`, `Fixed`, or `Working on`.
+- `sections`: Grouped note lists such as `Added`, `Improved`, `Fixed`, or `Notes`.
 
 ## Update Steps
 
@@ -82,8 +80,6 @@ xcodebuild test-without-building -scheme Merian -project merian.xcodeproj -desti
 
 - Write for users, not commit history. Avoid internal class names, migrations, RPC names, or implementation details unless the user benefit is clear.
 - Keep bullets short and scannable.
-- Use `inProgress` for alpha/beta work users may see changing between builds.
-- Use `released` only when the note describes behavior that is shipped in the build.
 - Do not include secret URLs, private infrastructure names, or anything that implies unavailable App Store features.
 - Do not advertise parked or de-shipped surfaces, such as the paused Photos share-sheet import.
 

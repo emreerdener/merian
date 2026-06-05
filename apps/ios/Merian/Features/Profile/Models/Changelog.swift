@@ -28,7 +28,6 @@ struct ChangelogEntry: Codable, Equatable, Identifiable, Sendable {
     let build: String?
     let date: String
     let title: String
-    let status: ChangelogStatus
     let imageAssetName: String?
     let sections: [ChangelogSection]
 
@@ -64,20 +63,6 @@ struct ChangelogEntry: Codable, Equatable, Identifiable, Sendable {
         formatter.timeStyle = .none
         return formatter
     }()
-}
-
-enum ChangelogStatus: String, Codable, Equatable, Sendable {
-    case released
-    case inProgress
-
-    var displayName: String {
-        switch self {
-        case .released:
-            return "Released"
-        case .inProgress:
-            return "Working on"
-        }
-    }
 }
 
 struct ChangelogSection: Codable, Equatable, Identifiable, Sendable {

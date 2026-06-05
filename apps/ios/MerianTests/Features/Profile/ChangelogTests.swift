@@ -8,7 +8,6 @@ struct ChangelogTests {
 
         #expect(catalog.schemaVersion == 1)
         #expect(catalog.entries.count == 2)
-        #expect(catalog.entries[0].status == .released)
         #expect(catalog.entries[0].sections[0].items.count == 2)
     }
 
@@ -38,7 +37,6 @@ struct ChangelogTests {
                   "version": "1.0",
                   "date": "2026-05-01",
                   "title": "Older entry",
-                  "status": "released",
                   "sections": [
                     {
                       "title": "Added",
@@ -55,11 +53,10 @@ struct ChangelogTests {
                   "build": "200",
                   "date": "2026-06-04",
                   "title": "Newer entry",
-                  "status": "inProgress",
                   "imageAssetName": "missing_changelog_asset",
                   "sections": [
                     {
-                      "title": "Working on",
+                      "title": "Added",
                       "items": [
                         "A future-facing note."
                       ]

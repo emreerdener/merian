@@ -34,16 +34,10 @@ private struct ChangelogEntryRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(entry.title)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Spacer(minLength: 8)
-
-                    ChangelogStatusBadge(status: entry.status)
-                }
+                Text(entry.title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 8) {
                     Text(entry.versionLabel)
@@ -73,34 +67,6 @@ private struct ChangelogEntryRow: View {
             }
         }
         .accessibilityElement(children: .contain)
-    }
-}
-
-private struct ChangelogStatusBadge: View {
-    let status: ChangelogStatus
-
-    var body: some View {
-        Text(status.displayName)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(foregroundColor)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(backgroundColor, in: Capsule())
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-    }
-
-    private var foregroundColor: Color {
-        switch status {
-        case .released:
-            return .green
-        case .inProgress:
-            return .blue
-        }
-    }
-
-    private var backgroundColor: Color {
-        foregroundColor.opacity(0.14)
     }
 }
 
