@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-10-species-chart-loading",
+      "version": "1.0",
+      "date": "2026-06-10",
+      "title": "Species chart loading",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Species observation charts now show public totals, seasonality, and history more quickly on first load.",
+            "Detailed life-stage and sex buckets refresh in the background so slow public data does not block the whole chart."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-04-field-notes",
       "version": "1.0",
       "build": "199",

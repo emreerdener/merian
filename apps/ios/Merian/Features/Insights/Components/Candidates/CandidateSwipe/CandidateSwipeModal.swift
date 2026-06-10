@@ -25,12 +25,11 @@ struct CandidateSwipeModal: View {
 
     // MARK: - State
     
-    @State private var stack: [IdentificationCandidate]
+    @State private var session: CandidateSwipeSession
     @State private var isGridMode = true
     @State private var topCardOffset: CGSize = .zero
     @State private var topCardIsDragging = false
     @State private var isDismissing = false
-    @State private var confirmedCandidate: IdentificationCandidate?
     @State private var showPaywall = false
 
     // MARK: - Constants
@@ -47,7 +46,7 @@ struct CandidateSwipeModal: View {
         self.onConfirmOriginal = onConfirmOriginal
         self.onFlagIssue = onFlagIssue
         self.onRefineScan = onRefineScan
-        self._stack = State(initialValue: candidates)
+        self._session = State(initialValue: CandidateSwipeSession(candidates: candidates))
     }
 
     // MARK: - Computed Properties
@@ -67,9 +66,9 @@ struct CandidateSwipeModal: View {
             ZStack {
                 Color(.systemBackground).ignoresSafeArea()
 
-                if let confirmed = confirmedCandidate {
+                if let confirmed = session.confirmedCandidate {
                     confirmedStateContent(candidate: confirmed)
-                } else if stack.isEmpty && !isDismissing {
+                } else if session.isExhausted && !isDismissing {
                     exhaustedStateContent
                 } else if isGridMode {
                     gridContent
@@ -77,7 +76,7 @@ struct CandidateSwipeModal: View {
                     cardStackContent
                 }
             }
-            .navigationTitle(confirmedCandidate != nil ? "Success" : (stack.isEmpty ? "Alternatives" : "\(stack.count) alternative\(stack.count == 1 ? "" : "s")"))
+            .navigationTitle(session.confirmedCandidate != nil ? "Success" : (session.remainingCandidates.isEmpty ? "Alternatives" : "\(session.remainingCandidates.count) alternative\(session.remainingCandidates.count == 1 ? "" : "s")"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -89,7 +88,7 @@ struct CandidateSwipeModal: View {
                     }
                 }
                 
-                if stack.count > 1 {
+                if session.remainingCandidates.count > 1 {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             HapticManager.shared.triggerSelectionPulse()
@@ -102,12 +101,12 @@ struct CandidateSwipeModal: View {
                             Image(systemName: isGridMode ? "square.stack.3d.up.fill" : "rectangle.grid.1x2")
                         }
                     }
-                } else if stack.isEmpty && confirmedCandidate == nil && !isDismissing {
+                } else if session.isExhausted && !isDismissing {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Restart") {
                             HapticManager.shared.triggerLightImpact()
                             withAnimation(.spring(response: 0.35)) {
-                                stack = originalCandidates
+                                session.restart()
                                 topCardOffset = .zero
                                 topCardIsDragging = false
                             }
@@ -117,7 +116,7 @@ struct CandidateSwipeModal: View {
             }
         }
         .onDisappear {
-            if stack.isEmpty && !isDismissing && confirmedCandidate == nil {
+            if session.isExhausted && !isDismissing {
                 inferenceEngine.markAlternativesExhausted()
             }
         }
@@ -141,7 +140,7 @@ extension CandidateSwipeModal {
             // Card Stack
             ZStack {
                 ForEach(
-                    Array(stack.prefix(2).enumerated().reversed()),
+                    Array(session.remainingCandidates.prefix(2).enumerated().reversed()),
                     id: \.element.scientificName
                 ) { index, candidate in
                     let isTop = index == 0
@@ -179,7 +178,7 @@ extension CandidateSwipeModal {
             .padding(.horizontal, 20)
 
             // Skip Button
-            if stack.count > 1 {
+            if session.remainingCandidates.count > 1 {
                 Button(action: {
                     HapticManager.shared.triggerLightImpact()
                     skipTopCard()
@@ -209,13 +208,13 @@ extension CandidateSwipeModal {
     /// Displays all remaining candidates in a vertical grid layout for quick assessment.
     private var gridContent: some View {
         VStack(spacing: 20) {
-            ForEach(stack, id: \.scientificName) { candidate in
+            ForEach(session.remainingCandidates, id: \.scientificName) { candidate in
                 GridSwipeableCell(
                     candidate: candidate,
                     onConfirm: {
                         HapticManager.shared.triggerSuccessPulse()
                         withAnimation(.spring(response: 0.3)) {
-                            confirmedCandidate = candidate
+                            session.confirm(candidate)
                         }
                         Task {
                             // 1. Pause to show the success state natively
@@ -238,7 +237,7 @@ extension CandidateSwipeModal {
                     onReject: {
                         HapticManager.shared.triggerLightImpact()
                         withAnimation(.spring(response: 0.25)) {
-                            stack.removeAll { $0.scientificName == candidate.scientificName }
+                            session.reject(scientificName: candidate.scientificName)
                         }
                     }
                 )
@@ -425,11 +424,10 @@ extension CandidateSwipeModal {
     }
 
     private func confirmTopCard() {
-        guard let top = stack.first else { return }
+        guard let top = session.topCandidate else { return }
         let name = top.scientificName
         withAnimation(.spring(response: 0.3)) {
-            confirmedCandidate = top
-            stack.removeFirst()
+            session.confirm(top)
             topCardOffset = .zero
             topCardIsDragging = false
         }
@@ -453,24 +451,23 @@ extension CandidateSwipeModal {
     }
 
     private func rejectTopCard() {
-        guard !stack.isEmpty else { return }
+        guard session.topCandidate != nil else { return }
         withAnimation(.spring(response: 0.25)) {
-            stack.removeFirst()
+            session.rejectTopCandidate()
             topCardOffset = .zero
             topCardIsDragging = false
         }
     }
 
     private func skipTopCard() {
-        guard let top = stack.first, stack.count > 1 else { return }
+        guard session.remainingCandidates.count > 1 else { return }
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             topCardOffset = .zero
             topCardIsDragging = false
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation(.spring(response: 0.35)) {
-                stack.removeFirst()
-                stack.append(top)
+                session.skipTopCandidate()
             }
         }
     }

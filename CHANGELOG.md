@@ -20,6 +20,9 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed species observation charts timing out on first load by returning core
+  public stats quickly while detailed life-stage and sex buckets refresh in the
+  background.
 - Hardened Edge media request/response handling so chunked or missing-length
   bodies are capped while streaming before V8 heap allocation can run away.
 - Reduced share-import, expanded-original-image, local species-chart, APNs

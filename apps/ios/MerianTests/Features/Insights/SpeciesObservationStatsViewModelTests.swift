@@ -121,6 +121,13 @@ struct SpeciesObservationStatsViewModelTests {
         #expect(stats.seasonality.first(where: { $0.month == 12 })?.count == 1)
     }
 
+    @Test func testReducerNormalizationAndEmptyBuckets() {
+        #expect(SpeciesObservationStatsReducer.normalizedScientificName("  Danaus   plexippus ") == "Danaus plexippus")
+        #expect(SpeciesObservationStatsReducer.normalizedSpeciesId("  ABC-123 ") == "abc-123")
+        #expect(SpeciesObservationStatsReducer.emptyMonthCounts().count == 12)
+        #expect(SpeciesObservationStatsReducer.emptyHistoryCounts(now: date(year: 2026, month: 5, day: 17)).count == 77)
+    }
+
     private func date(year: Int, month: Int, day: Int) -> Date {
         var components = DateComponents()
         components.calendar = Calendar(identifier: .gregorian)

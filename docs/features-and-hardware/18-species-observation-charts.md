@@ -39,14 +39,17 @@ Primary files:
 
 - `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Features/Insights/Models/SpeciesObservationStatsReducer.swift`
 - `apps/ios/Merian/Features/Insights/ViewModels/SpeciesObservationStatsViewModel.swift`
 - `apps/ios/Merian/Features/Insights/Components/Cards/SpeciesObservationChartsCard.swift`
 - `apps/ios/Merian/Features/Insights/Views/Content/BiologicalView.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Views/SpeciesDictionaryPageView.swift`
 
 `SpeciesObservationStatsViewModel` is `@Observable @MainActor`, but local
-SwiftData aggregation is delegated to `@ModelActor`
-`SpeciesObservationStatsDatabaseActor`. The view model creates the actor from
+SwiftData fetching is delegated to `@ModelActor`
+`SpeciesObservationStatsDatabaseActor`. The actor fetches narrow local
+projections, then delegates normalization and bucket aggregation to
+`SpeciesObservationStatsReducer`. The view model creates the actor from
 `modelContext.container`, awaits the local result, then requests the public
 baseline through `MerianNetworkClient.shared.getSpeciesObservationStats(...)`.
 If the network request fails, the card still renders the local data.
@@ -110,13 +113,13 @@ Primary files:
 - `services/supabase/functions/species-observation-stats/db.test.ts`
 - `services/supabase/migrations/20260517190000_add_species_observation_stats.sql`
 
-The iOS client POSTs to:
+The iOS client uses an unauthenticated public GET:
 
 ```text
-/functions/v1/species-observation-stats
+/functions/v1/species-observation-stats?species_id=1cf79982-e5ee-4e3d-8d65-274527e6ae01&scientific_name=Danaus%20plexippus
 ```
 
-with:
+The Edge Function still accepts POST JSON for compatibility:
 
 ```json
 {
@@ -132,6 +135,11 @@ The Edge Function reads `species_dictionary`, uses
 `species_dictionary.inaturalist_taxon_id` when known, resolves exact scientific
 names through iNaturalist when needed, then caches the resulting public payload
 in `species_observation_stats_cache`.
+
+On cold cache misses, the response path fetches core totals, seasonality, and
+history, returns those as `status: "partial"`, and queues life-stage/sex
+annotation buckets through `runBackground`. Usable stale cache rows return
+immediately as `status: "stale"` while a full refresh runs in the background.
 
 ## Response Contract
 
@@ -182,8 +190,9 @@ Status values:
 
 - `fresh`: public provider fetch succeeded and data exists.
 - `no_data`: provider fetch succeeded but no observation buckets were found.
-- `partial`: some provider buckets failed, but useful data is still available.
-- `stale`: refresh failed and a stale cache payload was returned.
+- `partial`: some provider buckets failed, or cold-load annotation buckets are
+  still refreshing, but useful data is available.
+- `stale`: a stale cache payload was returned while refresh work is deferred.
 - `unavailable`: refresh failed and no usable cache payload existed.
 
 ## iNaturalist Mapping

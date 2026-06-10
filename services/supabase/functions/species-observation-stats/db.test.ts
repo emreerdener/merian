@@ -6,7 +6,9 @@ import {
   histogramCounts,
   normalizeMonthHistogram,
   normalizeRollingHistoryHistogram,
+  parseSpeciesObservationStatsQuery,
   parseSpeciesObservationStatsRequest,
+  type SpeciesObservationStatsPayload,
 } from "./db.ts";
 
 Deno.test("species-observation-stats validates request body", () => {
@@ -40,6 +42,30 @@ Deno.test("species-observation-stats validates request body", () => {
     }),
     {
       error: "species_id must be a valid UUID.",
+      status: 400,
+    },
+  );
+});
+
+Deno.test("species-observation-stats validates GET query parameters", () => {
+  assertEquals(
+    parseSpeciesObservationStatsQuery(
+      new URL(
+        "https://example.com/functions/v1/species-observation-stats?species_id=1cf79982-e5ee-4e3d-8d65-274527e6ae01&scientific_name=%20Danaus%20%20%20plexippus%20",
+      ),
+    ),
+    {
+      speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      scientificName: "Danaus plexippus",
+    },
+  );
+
+  assertEquals(
+    parseSpeciesObservationStatsQuery(
+      new URL("https://example.com/functions/v1/species-observation-stats"),
+    ),
+    {
+      error: "Missing required parameter: scientific_name",
       status: 400,
     },
   );
@@ -205,7 +231,57 @@ Deno.test("species-observation-stats returns fresh cache without provider calls"
   assertEquals(providerCalls, 0);
 });
 
-Deno.test("species-observation-stats falls back to stale cache on provider outage", async () => {
+Deno.test("species-observation-stats returns core stats and refreshes annotations in background", async () => {
+  const fakeSupabase = makeFakeSupabase({
+    speciesRows: [
+      {
+        id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+        scientific_name: "Danaus plexippus",
+        inaturalist_taxon_id: 48662,
+      },
+    ],
+    cacheRows: [],
+  });
+  const state = (fakeSupabase as unknown as {
+    state: { upserts: Array<Record<string, unknown>> };
+  }).state;
+  const backgroundTasks: Promise<void>[] = [];
+
+  const result = await fetchSpeciesObservationStats(
+    {
+      speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      scientificName: "Danaus plexippus",
+    },
+    fakeSupabase,
+    {
+      now: new Date("2026-05-17T12:00:00Z"),
+      delayMs: 0,
+      fetcher: mockInatFetcherWithAnnotations,
+      runBackground: (task) => backgroundTasks.push(task),
+    },
+  );
+
+  assertEquals(result.status, "partial");
+  assertEquals(result.total_observations, 12);
+  assertEquals(
+    result.life_stage[0].values.every((value) => value.count === 0),
+    true,
+  );
+  assertEquals(backgroundTasks.length, 1);
+
+  await backgroundTasks[0];
+
+  assertEquals(state.upserts.length, 1);
+  const cachedPayload = state.upserts[0]
+    .payload as SpeciesObservationStatsPayload;
+  assertEquals(cachedPayload.status, "fresh");
+  assertEquals(cachedPayload.life_stage[0].key, "adult");
+  assertEquals(cachedPayload.life_stage[0].values[5], { month: 6, count: 4 });
+  assertEquals(cachedPayload.sex[1].key, "male");
+  assertEquals(cachedPayload.sex[1].values[6], { month: 7, count: 2 });
+});
+
+Deno.test("species-observation-stats returns stale cache without blocking on refresh", async () => {
   const payload = {
     species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
     scientific_name: "Danaus plexippus",
@@ -264,7 +340,7 @@ Deno.test("species-observation-stats falls back to stale cache on provider outag
 
   assertEquals(result.status, "stale");
   assertEquals(result.total_observations, 10);
-  assertEquals(result.provider_errors.length > 0, true);
+  assertEquals(result.provider_errors.length, 0);
 });
 
 Deno.test("species-observation-stats marks partial provider failures", async () => {
@@ -327,6 +403,48 @@ function mockInatFetcherWithSeasonalityFailure(
 
   if (url.searchParams.get("interval") === "month") {
     return Promise.resolve(jsonResponse({ results: { "2026-05": 12 } }));
+  }
+
+  return Promise.resolve(jsonResponse({ results: {} }));
+}
+
+function mockInatFetcherWithAnnotations(
+  input: URL | Request | string,
+): Promise<Response> {
+  const url = input instanceof URL
+    ? input
+    : new URL(input instanceof Request ? input.url : String(input));
+
+  if (url.pathname.endsWith("/observations")) {
+    return Promise.resolve(jsonResponse({
+      total_results: 12,
+      results: [{ observed_on: "2026-05-16" }],
+    }));
+  }
+
+  if (url.searchParams.get("interval") === "month") {
+    return Promise.resolve(jsonResponse({ results: { "2026-05": 12 } }));
+  }
+
+  if (
+    url.searchParams.get("interval") === "month_of_year" &&
+    !url.searchParams.has("term_id")
+  ) {
+    return Promise.resolve(jsonResponse({ results: { "5": 12 } }));
+  }
+
+  if (
+    url.searchParams.get("term_id") === "1" &&
+    url.searchParams.get("term_value_id") === "2"
+  ) {
+    return Promise.resolve(jsonResponse({ results: { "6": 4 } }));
+  }
+
+  if (
+    url.searchParams.get("term_id") === "9" &&
+    url.searchParams.get("term_value_id") === "11"
+  ) {
+    return Promise.resolve(jsonResponse({ results: { "7": 2 } }));
   }
 
   return Promise.resolve(jsonResponse({ results: {} }));

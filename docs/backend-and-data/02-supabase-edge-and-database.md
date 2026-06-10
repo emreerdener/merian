@@ -446,8 +446,12 @@ Key rules:
 - Successful payloads are cached for seven days. If provider refresh fails, a
   usable stale cache payload can be returned for 30 more days with
   `status: "stale"`.
-- Partial provider failures return `status: "partial"` when enough buckets are
-  still available to render a useful chart.
+- Cold misses return core totals, seasonality, and history as
+  `status: "partial"` while life-stage and sex annotation buckets refresh via
+  `runBackground`. Usable stale rows return immediately and refresh in the
+  background.
+- Partial provider failures also return `status: "partial"` when enough buckets
+  are still available to render a useful chart.
 - The response must not include Merian scan IDs, user IDs, Explore post IDs,
   field notes, comments, locations, local media, local observation counts, or
   preferred-name overrides.

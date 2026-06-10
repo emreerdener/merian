@@ -7,6 +7,14 @@ persist a user's local Merian scan history.
 
 ## Request
 
+Preferred client transport is `GET` with query parameters:
+
+```text
+/functions/v1/species-observation-stats?species_id=1cf79982-e5ee-4e3d-8d65-274527e6ae01&scientific_name=Danaus%20plexippus
+```
+
+`POST` with a JSON body remains supported for compatibility:
+
 ```json
 {
   "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
@@ -72,9 +80,11 @@ ignore unknown keys.
 - `fresh`: provider fetch completed and data was found.
 - `no_data`: provider fetch completed but returned no observations.
 - `partial`: at least one provider bucket failed, but enough data was fetched to
-  show a useful result.
-- `stale`: provider refresh failed and the function returned a usable stale
-  cache payload.
+  show a useful result. Cold cache misses may also return core totals,
+  seasonality, and history with `partial` while annotation buckets refresh in
+  the background.
+- `stale`: a usable stale cache payload was returned while refresh work is
+  deferred off the response path.
 - `unavailable`: provider refresh failed and no usable cache existed.
 
 ## Data Sources
@@ -138,11 +148,25 @@ Successful public stats are cached in `species_observation_stats_cache` keyed by
 - Source is currently always `inaturalist`.
 - A resolved iNaturalist taxon ID is written back to
   `species_dictionary.inaturalist_taxon_id` for future stable lookup.
+- Cold cache misses fetch core stats synchronously, then use `runBackground` to
+  populate life-stage and sex annotation buckets in
+  `species_observation_stats_cache`.
+- Usable stale cache rows are returned immediately and refreshed in the
+  background. Duplicate in-flight refreshes for the same species are suppressed
+  per isolate.
 
-The Edge response also sends public cache headers:
+Fresh and `no_data` `200 OK` responses send:
 
 ```http
 Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800
+Vary: Accept-Encoding
+```
+
+Refreshing responses (`partial`, `stale`, and `unavailable`) use a shorter
+public cache window so a CDN does not pin incomplete data:
+
+```http
+Cache-Control: public, max-age=30, s-maxage=60, stale-while-revalidate=300
 Vary: Accept-Encoding
 ```
 

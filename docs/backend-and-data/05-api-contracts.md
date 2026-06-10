@@ -793,19 +793,26 @@ The `/species-observation-stats` Edge Function returns public, global
 iNaturalist observation aggregates for a species. It is deliberately separate
 from local Merian observation aggregation:
 
-- iOS aggregates local `LocalScanRecord` data on-device.
+- iOS aggregates local `LocalScanRecord` data on-device through
+  `SpeciesObservationStatsDatabaseActor` and `SpeciesObservationStatsReducer`.
 - The Edge Function receives only `species_id` and `scientific_name`.
 - The Edge Function returns only public iNaturalist-derived species aggregates
   and cache metadata.
 
 The function has `verify_jwt = false` in `services/supabase/config.toml` and
-does not call `requireAuth`. It may receive normal app auth headers from
-`MerianNetworkClient`, but identity is not read and must not affect the
-response.
+does not call `requireAuth`. The iOS client uses an unauthenticated public GET;
+legacy POST callers may still send normal app auth headers, but identity is not
+read and must not affect the response.
 
 ### `/species-observation-stats`
 
-Request body:
+Preferred request:
+
+```text
+GET /functions/v1/species-observation-stats?species_id=1cf79982-e5ee-4e3d-8d65-274527e6ae01&scientific_name=Danaus%20plexippus
+```
+
+Compatibility request body:
 
 ```json
 {
@@ -870,8 +877,10 @@ Status values:
 - `fresh`: provider fetch completed and data exists.
 - `no_data`: provider fetch completed but no observation buckets were found.
 - `partial`: one or more provider buckets failed, but useful data is still
-  available.
-- `stale`: provider refresh failed and a stale cache payload was returned.
+  available. On cold cache misses, core stats may be returned as `partial`
+  while life-stage and sex annotation buckets refresh in the background.
+- `stale`: a usable stale cache payload was returned while refresh work is
+  deferred off the response path.
 - `unavailable`: provider refresh failed and no usable cache existed.
 
 Series shapes:
@@ -904,8 +913,17 @@ Caching:
 - Scope: `global`.
 - Fresh TTL: 7 days.
 - Stale fallback window: 30 additional days.
-- `200 OK` responses include
+- Cold misses fetch taxon lookup, observation summary, seasonality, and history
+  synchronously, then queue life-stage and sex annotation refresh via
+  `runBackground`.
+- Usable stale cache rows return immediately and queue a full refresh in the
+  background. Duplicate in-flight refreshes for the same species are suppressed
+  per isolate.
+- Fresh and `no_data` `200 OK` responses include
   `Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800`
+  and `Vary: Accept-Encoding`.
+- `partial`, `stale`, and `unavailable` `200 OK` responses use
+  `Cache-Control: public, max-age=30, s-maxage=60, stale-while-revalidate=300`
   and `Vary: Accept-Encoding`.
 - iOS adds a 5-minute, 64-key in-memory memo cache in `MerianNetworkClient`,
   keyed by normalized `species_id` and scientific name.

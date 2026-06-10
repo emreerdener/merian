@@ -218,6 +218,12 @@ Tests are organized under `apps/ios/MerianTests/Core` and `apps/ios/MerianTests/
   across queued/analyzing/result states, including mixed media. The key
   regression is that an audio page present during analysis remains present, with
   the same ordering, after `speciesData` arrives.
+- **Insights focused model tests**: `CandidateSwipeSessionTests.swift` covers
+  skip/reject/confirm/restart/exhausted transitions without SwiftUI animation
+  state. `SpeciesObservationStatsViewModelTests.swift` covers actor/reducer
+  aggregation plus reducer normalization and empty-bucket behavior.
+  `UserTagsMutationControllerTests.swift` verifies tag saves commit locally
+  before external cloud/search side effects can run.
 - **`CaptureTelemetryTests.swift`**: Directly validates that offline/historic
   captures explicitly decouple live sensor leakage (like LiDAR distance vectors
   or view-finder zoom scopes) away from EXIF bounds.

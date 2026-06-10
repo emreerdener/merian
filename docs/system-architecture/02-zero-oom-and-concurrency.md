@@ -60,9 +60,10 @@ Species Observation Charts also obey the "no full library fetch on
 `SpeciesObservationStatsDatabaseActor` and awaits filtered candidate fetches for
 `speciesId` / `confirmedSpeciesId` plus exact scientific-name fallback. The
 actor projects only the fields needed by the reducer, merges candidates by
-record ID, and returns a `Sendable` aggregate to the main actor. Chart rendering
-must not call `modelContext.fetch` for every biological `LocalScanRecord` from
-the view model.
+record ID, and delegates normalization/bucketing to
+`SpeciesObservationStatsReducer`. It returns a `Sendable` aggregate to the main
+actor. Chart rendering must not call `modelContext.fetch` for every biological
+`LocalScanRecord` from the view model.
 
 ### Deno Edge Stream Caps
 

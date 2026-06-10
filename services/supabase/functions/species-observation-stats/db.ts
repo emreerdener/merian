@@ -72,6 +72,11 @@ export interface SpeciesObservationStatsFetchOptions {
   fetcher?: typeof fetch;
   now?: Date;
   delayMs?: number;
+  runBackground?: (task: Promise<void>) => void;
+  onBackgroundRefreshError?: (
+    error: unknown,
+    context: { speciesId: string; scientificName: string },
+  ) => void;
 }
 
 interface InaturalistLookup {
@@ -84,6 +89,15 @@ interface InaturalistLookup {
 interface ObservationSummary {
   total: number;
   lastObservedOn: string | null;
+}
+
+interface CoreStatsResult {
+  lookup: InaturalistLookup;
+  providerErrors: string[];
+  summary: ObservationSummary;
+  seasonality: SpeciesObservationMonthCount[];
+  history: SpeciesObservationHistoryCount[];
+  payload: SpeciesObservationStatsPayload;
 }
 
 interface AnnotationValue {
@@ -156,6 +170,25 @@ export function parseSpeciesObservationStatsRequest(
   return { speciesId, scientificName };
 }
 
+export function parseSpeciesObservationStatsQuery(
+  url: URL,
+): SpeciesObservationStatsRequestResult {
+  const body: Record<string, unknown> = {};
+  const scientificName = url.searchParams.get("scientific_name");
+  const speciesId = url.searchParams.get("species_id");
+
+  if (scientificName !== null) {
+    body.scientific_name = scientificName;
+  }
+  if (speciesId !== null) {
+    body.species_id = speciesId;
+  }
+
+  return parseSpeciesObservationStatsRequest(body);
+}
+
+const backgroundRefreshKeys = new Set<string>();
+
 export async function fetchSpeciesObservationStats(
   request: { speciesId?: string; scientificName: string },
   supabaseAdmin: SupabaseClient,
@@ -173,8 +206,29 @@ export async function fetchSpeciesObservationStats(
     return cached.payload;
   }
 
+  if (cached?.payload && isStaleUsable(cached, now)) {
+    if (row?.id) {
+      scheduleFullStatsRefresh(
+        {
+          cacheKey: row.id,
+          speciesId: resolvedSpeciesId,
+          scientificName,
+          storedTaxonId: row?.inaturalist_taxon_id ?? null,
+        },
+        supabaseAdmin,
+        options,
+        now,
+      );
+    }
+
+    return {
+      ...cached.payload,
+      status: "stale",
+    };
+  }
+
   try {
-    const payload = await fetchFreshStats(
+    const core = await fetchCoreStats(
       {
         speciesId: resolvedSpeciesId,
         scientificName,
@@ -186,23 +240,20 @@ export async function fetchSpeciesObservationStats(
     );
 
     if (row?.id) {
-      await upsertCachedStats(row.id, scientificName, payload, supabaseAdmin);
+      scheduleAnnotationRefreshFromCore(
+        {
+          cacheKey: row.id,
+          core,
+        },
+        supabaseAdmin,
+        options,
+        now,
+      );
     }
 
-    return payload;
+    return core.payload;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (cached?.payload && isStaleUsable(cached, now)) {
-      return {
-        ...cached.payload,
-        status: "stale",
-        provider_errors: dedupeStrings([
-          ...cached.payload.provider_errors,
-          message,
-        ]),
-      };
-    }
-
     return emptyStatsPayload({
       speciesId: resolvedSpeciesId,
       scientificName,
@@ -286,7 +337,7 @@ export function annotationLabelFor(
   return match?.label ?? null;
 }
 
-async function fetchFreshStats(
+async function fetchCoreStats(
   request: {
     speciesId: string | null;
     scientificName: string;
@@ -295,7 +346,7 @@ async function fetchFreshStats(
   supabaseAdmin: SupabaseClient,
   options: SpeciesObservationStatsFetchOptions,
   now: Date,
-): Promise<SpeciesObservationStatsPayload> {
+): Promise<CoreStatsResult> {
   const fetcher = options.fetcher ?? fetch;
   const delayMs = options.delayMs ?? DEFAULT_DELAY_MS;
   const providerErrors: string[] = [];
@@ -360,43 +411,23 @@ async function fetchFreshStats(
     normalizeRollingHistoryHistogram({}, now),
   );
 
-  const lifeStage = await fetchAnnotationSeries(
-    lookup,
-    LIFE_STAGE_ANNOTATIONS,
-    fetcher,
-    providerErrors,
-    delayMs,
-  );
-  const sex = await fetchAnnotationSeries(
-    lookup,
-    SEX_ANNOTATIONS,
-    fetcher,
-    providerErrors,
-    delayMs,
-  );
-
   const hasData = summary.total > 0 ||
     hasAnyCounts(seasonality) ||
-    hasAnyHistoryCounts(history) ||
-    lifeStage.some((series) => hasAnyCounts(series.values)) ||
-    sex.some((series) => hasAnyCounts(series.values));
+    hasAnyHistoryCounts(history);
 
   if (!hasData && looksLikeProviderOutage(providerErrors)) {
     throw new Error(dedupeStrings(providerErrors).join("; "));
   }
 
-  const status = providerErrors.length > 0
-    ? "partial"
-    : hasData
-    ? "fresh"
-    : "no_data";
+  const status: SpeciesObservationStatsPayload["status"] =
+    providerErrors.length > 0 ? "partial" : hasData ? "partial" : "no_data";
 
-  return {
+  const payload = {
     species_id: request.speciesId,
     scientific_name: request.scientificName,
     source: {
-      provider: "inaturalist",
-      scope: "global",
+      provider: "inaturalist" as const,
+      scope: "global" as const,
       inaturalist_taxon_id: lookup.taxonId,
       fetched_at: now.toISOString(),
     },
@@ -407,9 +438,179 @@ async function fetchFreshStats(
     provider_errors: dedupeStrings(providerErrors),
     seasonality,
     history,
+    life_stage: buildAnnotationSeries(LIFE_STAGE_ANNOTATIONS, {}),
+    sex: buildAnnotationSeries(SEX_ANNOTATIONS, {}),
+  };
+
+  return { lookup, providerErrors, summary, seasonality, history, payload };
+}
+
+async function fetchFreshStats(
+  request: {
+    speciesId: string | null;
+    scientificName: string;
+    storedTaxonId: number | null;
+  },
+  supabaseAdmin: SupabaseClient,
+  options: SpeciesObservationStatsFetchOptions,
+  now: Date,
+): Promise<SpeciesObservationStatsPayload> {
+  const core = await fetchCoreStats(
+    request,
+    supabaseAdmin,
+    options,
+    now,
+  );
+
+  return await completeStatsWithAnnotations(core, options, now);
+}
+
+async function completeStatsWithAnnotations(
+  core: CoreStatsResult,
+  options: SpeciesObservationStatsFetchOptions,
+  now: Date,
+): Promise<SpeciesObservationStatsPayload> {
+  const fetcher = options.fetcher ?? fetch;
+  const delayMs = options.delayMs ?? DEFAULT_DELAY_MS;
+  const providerErrors = [...core.providerErrors];
+
+  const lifeStage = await fetchAnnotationSeries(
+    core.lookup,
+    LIFE_STAGE_ANNOTATIONS,
+    fetcher,
+    providerErrors,
+    delayMs,
+  );
+  const sex = await fetchAnnotationSeries(
+    core.lookup,
+    SEX_ANNOTATIONS,
+    fetcher,
+    providerErrors,
+    delayMs,
+  );
+
+  const hasData = core.summary.total > 0 ||
+    hasAnyCounts(core.seasonality) ||
+    hasAnyHistoryCounts(core.history) ||
+    lifeStage.some((series) => hasAnyCounts(series.values)) ||
+    sex.some((series) => hasAnyCounts(series.values));
+
+  if (!hasData && looksLikeProviderOutage(providerErrors)) {
+    throw new Error(dedupeStrings(providerErrors).join("; "));
+  }
+
+  const status: SpeciesObservationStatsPayload["status"] =
+    providerErrors.length > 0 ? "partial" : hasData ? "fresh" : "no_data";
+
+  return {
+    ...core.payload,
+    source: {
+      provider: "inaturalist",
+      scope: "global",
+      inaturalist_taxon_id: core.lookup.taxonId,
+      fetched_at: now.toISOString(),
+    },
+    status,
+    total_observations: core.summary.total,
+    last_observation_date: core.summary.lastObservedOn,
+    fetched_at: now.toISOString(),
+    provider_errors: dedupeStrings(providerErrors),
+    seasonality: core.seasonality,
+    history: core.history,
     life_stage: lifeStage,
     sex,
   };
+}
+
+function scheduleAnnotationRefreshFromCore(
+  input: {
+    cacheKey: string;
+    core: CoreStatsResult;
+  },
+  supabaseAdmin: SupabaseClient,
+  options: SpeciesObservationStatsFetchOptions,
+  now: Date,
+): void {
+  if (!options.runBackground) return;
+  if (!hasPayloadData(input.core.payload)) return;
+  scheduleBackgroundRefresh(
+    input.cacheKey,
+    input.core.payload.scientific_name,
+    options,
+    async () => {
+      await Promise.resolve();
+      const payload = await completeStatsWithAnnotations(
+        input.core,
+        options,
+        now,
+      );
+      await upsertCachedStats(
+        input.cacheKey,
+        input.core.payload.scientific_name,
+        payload,
+        supabaseAdmin,
+      );
+    },
+  );
+}
+
+function scheduleFullStatsRefresh(
+  request: {
+    cacheKey: string;
+    speciesId: string | null;
+    scientificName: string;
+    storedTaxonId: number | null;
+  },
+  supabaseAdmin: SupabaseClient,
+  options: SpeciesObservationStatsFetchOptions,
+  now: Date,
+): void {
+  if (!options.runBackground) return;
+  scheduleBackgroundRefresh(
+    request.cacheKey,
+    request.scientificName,
+    options,
+    async () => {
+      await Promise.resolve();
+      const payload = await fetchFreshStats(
+        {
+          speciesId: request.speciesId,
+          scientificName: request.scientificName,
+          storedTaxonId: request.storedTaxonId,
+        },
+        supabaseAdmin,
+        options,
+        now,
+      );
+      await upsertCachedStats(
+        request.cacheKey,
+        request.scientificName,
+        payload,
+        supabaseAdmin,
+      );
+    },
+  );
+}
+
+function scheduleBackgroundRefresh(
+  cacheKey: string,
+  scientificName: string,
+  options: SpeciesObservationStatsFetchOptions,
+  operation: () => Promise<void>,
+): void {
+  if (!options.runBackground || backgroundRefreshKeys.has(cacheKey)) return;
+  backgroundRefreshKeys.add(cacheKey);
+  const task = operation()
+    .catch((error) => {
+      options.onBackgroundRefreshError?.(error, {
+        speciesId: cacheKey,
+        scientificName,
+      });
+    })
+    .finally(() => {
+      backgroundRefreshKeys.delete(cacheKey);
+    });
+  options.runBackground(task);
 }
 
 async function fetchAnnotationSeries(
@@ -767,6 +968,14 @@ function hasAnyHistoryCounts(
   values: SpeciesObservationHistoryCount[],
 ): boolean {
   return values.some((value) => value.count > 0);
+}
+
+function hasPayloadData(payload: SpeciesObservationStatsPayload): boolean {
+  return payload.total_observations > 0 ||
+    hasAnyCounts(payload.seasonality) ||
+    hasAnyHistoryCounts(payload.history) ||
+    payload.life_stage.some((series) => hasAnyCounts(series.values)) ||
+    payload.sex.some((series) => hasAnyCounts(series.values));
 }
 
 function looksLikeProviderOutage(providerErrors: string[]): boolean {

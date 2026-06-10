@@ -63,7 +63,7 @@ A vertical timeline of `SpectrumNode` items inside `ConfidenceExplanationSheet`,
 An informational liquid-glass component displaying AI-enriched encyclopedic extracts (`wikipediaOverview`), alongside a suite of dynamic biological `KeyValueRow` metrics, and a native Safari overlay button.
 - **Structural Rendering**: Dynamically parses and lists available biological telemetry such as `estimatedSizeCm`, `lifeStage`, `reproductiveCondition`, `sex`, and `ecologicalInteractions` while safely omitting empty values. Note: The `individualCount` metric is captured via backend Edge Functions for DWCA telemetry but intentionally omitted from this front-end display to conserve UI space.
 - **Heuristic Filtering**: Enforces a strict ≥60 character length threshold on `wikipediaOverview`. When valid, the extract is capped at an 8-line truncation limit to avoid walls of text, terminating gracefully into a "Read more on Wikipedia" pill that relies on injected parent `$isSafariPresented` bindings.
-- **Shared card chrome**: `OverviewCard` and `ExploreOverviewCard` keep separate data sourcing and visibility gates, but both render through `InsightCardHeader`, `WikipediaSummarySection`, and `WikipediaReadMoreButton` from `Features/Insights/Components/Cards/Card.swift`. Future Explore/Insights cards should reuse these presentational helpers instead of copying header typography or Wikipedia button styling.
+- **Shared card chrome**: `OverviewCard` and `ExploreOverviewCard` keep separate data sourcing and visibility gates, but both render through focused helpers under `Features/Insights/Components/Cards/Chrome/`: `InsightCardHeader.swift`, `WikipediaSummarySection.swift`, and `WikipediaReadMoreButton.swift`. Future Explore/Insights cards should reuse these presentational helpers instead of copying header typography or Wikipedia button styling.
 
 ## 9. Staggered Entrance: `CardEntranceModifier`
 **Location**: `Core/UI/Modifiers/CardEntranceModifier.swift`
@@ -89,7 +89,7 @@ A small presentation-only modifier for compact circular material controls. It ow
 
 An edge-to-edge structural presentation component for the `gbifTaxonKey` density map and LLM `habitatDescription`.
 - **Edge-to-Edge Maps**: Rebuts the `.card()` background modifier found elsewhere, leveraging `-16pt` negative horizontal padding on its root `VStack` to cancel default `BiologicalView` safe area margins, allowing the map frame to stretch across the full width of the interface.
-- **Shared map/text chrome**: `HabitatAndDistributionCard` and `ExploreHabitatDistributionCard` both use `.gbifHeatmapCardChrome()` for the 260 pt rounded map frame, shadow, and border treatment, and `InsightScientificNameStyler.highlightedText(...)` for monospaced scientific-name highlighting. The cards still own their own loading/visibility behavior.
+- **Shared map/text chrome**: `HabitatAndDistributionCard` and `ExploreHabitatDistributionCard` both use `.gbifHeatmapCardChrome()` from `GBIFHeatmapCardChrome.swift` for the 260 pt rounded map frame, shadow, and border treatment, and `InsightScientificNameStyler.highlightedText(...)` from `InsightScientificNameStyler.swift` for monospaced scientific-name highlighting. The cards still own their own loading/visibility behavior.
 - **Loading continuity**: While habitat copy is still hydrating, the card keeps the same map chrome mounted and renders a compact pulsing text placeholder below the header. The retry loop stays local to `HabitatAndDistributionCard`; the shared chrome does not own any enrichment behavior.
 - **Null Fallbacks**: Wraps the map in a `ZStack` so that if `isEnrichmentLoading` completes but the GBIF occurrence dataset yields no result (nil `gbifTaxonKey`), `GBIFHeatmapMapView` still renders its world-level base map snapshot and drops a distinct "No distribution data available" pill directly atop it.
 
@@ -101,9 +101,12 @@ A reusable Swift Charts card for species-level observation patterns.
 - **Shared surface**: Rendered inside Insight biological results and Species
   Dictionary pages. Both surfaces pass a species ID when available and the
   canonical scientific name.
-- **Data ownership**: `SpeciesObservationStatsViewModel` owns local SwiftData
-  aggregation and public baseline loading. Local scan data stays on-device; the
-  network request contains only species identity.
+- **Data ownership**: `SpeciesObservationStatsViewModel` owns loading and
+  public baseline coordination. `SpeciesObservationStatsDatabaseActor` fetches
+  local SwiftData projections off the main actor, and
+  `SpeciesObservationStatsReducer` owns normalization and bucket aggregation.
+  Local scan data stays on-device; the network request contains only species
+  identity.
 - **Tabs**: Seasonality, History, and Life Stage. Sex is treated as per-scan
   Overview metadata rather than a species-level chart dimension.
 - **Normalized compare scale**: Local and public series normalize independently
@@ -155,11 +158,12 @@ Displays public species reference images from `/species-dictionary`.
 - **Fallback behavior**: Images without attribution metadata still render in iOS with source labeling. Future web renderers must run the shared public projection attribution audit before publishing reference media.
 
 ## 15. Candidate Swipe Experience: `CandidateSwipeModal`
-**Location**: `Features/Insights/Components/Cards/CandidateSwipe/` (Directory)
+**Location**: `Features/Insights/Components/Candidates/CandidateSwipe/` (Directory) plus `Features/Insights/Models/CandidateReview/CandidateSwipeSession.swift`
 
-A high-end, Tinder-style gesture interface allowing users to rapidly review and identify AI alternative candidates. The `CandidateSwipeModal` has been fully decoupled from a monolith into a clean, modular folder hierarchy consisting of 10 isolated files:
+A high-end, Tinder-style gesture interface allowing users to rapidly review and identify AI alternative candidates. The `CandidateSwipeModal` is split into focused component files, while the swipe-decision state lives in the feature-local `CandidateSwipeSession` model:
 
-- **`CandidateSwipeModal`**: The primary modal `.sheet` entry point. It manages the `stack` array natively and observes it via an `.onChange(of: stack.isEmpty)` interceptor, automatically executing `dismiss()` the moment the final card resolves (eliminating the need for an empty state).
+- **`CandidateSwipeModal`**: The primary modal `.sheet` entry point. It owns animation, drag offsets, grid/stack mode, dismissal timing, and paywall routing. It delegates candidate decisions to `CandidateSwipeSession` and renders an explicit exhausted state when no alternatives remain.
+- **`CandidateSwipeSession`**: Pure feature-local model for `remainingCandidates`, `confirmedCandidate`, `isExhausted`, and skip/reject/confirm/restart transitions. Unit tests cover the state transitions without SwiftUI animation concerns.
 - **`SwipeableCandidateCard`**: The core structural view for the individual species cards. Integrates `SimilarSpeciesImageFetcher` to asynchronously load up to 5 progressively loaded Wikipedia/GBIF visuals under a 3-stop vertical gradient that defaults to the `.images.first` thumb.
 - **`CandidateImageExpandedView`**: Natively loads the `imageFetcher.images` array iteratively into a `.page` TabView carousel embedding the custom `ZoomableScrollView`.
 - **`OriginalCaptureExpandedView`**: A dedicated single-image sheet container that provides pinch-to-zoom over the user’s original capture payload using `ZoomableScrollView`.

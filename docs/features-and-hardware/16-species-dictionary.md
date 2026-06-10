@@ -91,11 +91,12 @@ The model trims the incoming scientific name before fetching and prefers a
 
 `SpeciesObservationChartsCard` is embedded in the loaded dictionary content
 after Habitat & Distribution. It owns its own
-`SpeciesObservationStatsViewModel`, aggregates local `LocalScanRecord` counts
-on-device, and fetches the public baseline from `/species-observation-stats`.
-The dictionary page passes `species.id` and `species.scientificName`, so the
-stats endpoint can use the dictionary UUID and resolve/store
-`inaturalist_taxon_id`.
+`SpeciesObservationStatsViewModel`, fetches local scan projections through
+`SpeciesObservationStatsDatabaseActor`, aggregates them on-device through
+`SpeciesObservationStatsReducer`, and fetches the public baseline from
+`/species-observation-stats`. The dictionary page passes `species.id` and
+`species.scientificName`, so the stats endpoint can use the dictionary UUID and
+resolve/store `inaturalist_taxon_id`.
 
 ## Entry Point
 
@@ -225,10 +226,10 @@ MerianNetworkClient.shared.getSpeciesObservationStats(
 )
 ```
 
-That method POSTs to `species-observation-stats` with the dictionary
-`species_id` and `scientific_name`. It returns global public iNaturalist
-aggregates only. Local Merian logs are aggregated on-device and are not sent to
-Supabase. See
+That method sends a public GET to `species-observation-stats` with the
+dictionary `species_id` and `scientific_name`. It returns global public
+iNaturalist aggregates only. Local Merian logs are aggregated on-device and are
+not sent to Supabase. See
 [`Species Observation Charts`](./18-species-observation-charts.md) for the full
 contract, cache behavior, annotation mappings, and privacy rules.
 

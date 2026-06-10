@@ -431,12 +431,17 @@ struct SpeciesDictionaryTests {
         MockURLProtocol.mockEndpoints["/species-observation-stats"] = { request in
             requestCount += 1
             #expect(request.url?.path.hasSuffix("/species-observation-stats") == true)
-            #expect(request.httpMethod == "POST")
+            #expect(request.httpMethod == "GET")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
 
-            let body = try #require(MockURLProtocol.bodyData(for: request))
-            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-            #expect(payload["species_id"] as? String == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
-            #expect(payload["scientific_name"] as? String == "Danaus plexippus")
+            let url = try #require(request.url)
+            let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+            let queryItems = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).compactMap { item in
+                item.value.map { (item.name, $0) }
+            })
+            #expect(queryItems["species_id"] == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
+            #expect(queryItems["scientific_name"] == "Danaus plexippus")
+            #expect(MockURLProtocol.bodyData(for: request) == nil)
             return (mockResponse, testData)
         }
 

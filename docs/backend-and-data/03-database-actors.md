@@ -151,7 +151,7 @@ await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifica
 
 ---
 
-### `SpeciesObservationStatsDatabaseActor` (`Features/Insights/ViewModels/SpeciesObservationStatsViewModel.swift`)
+### `SpeciesObservationStatsDatabaseActor` (`Features/Insights/ViewModels/SpeciesObservationStatsViewModel.swift`, reducer in `Features/Insights/Models/SpeciesObservationStatsReducer.swift`)
 
 **Declaration**: `@ModelActor actor SpeciesObservationStatsDatabaseActor`
 
@@ -164,9 +164,9 @@ await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifica
   species UUID exists, and one descriptor for exact `scientificName` /
   `userIdentificationOverride` fallback.
 - Merges candidates by `LocalScanRecord.id`, sorts deterministically by
-  timestamp/id, then delegates to the shared reducer so seasonality, history,
-  life-stage filtering, and effective-name matching remain identical to the
-  previous behavior.
+  timestamp/id, then delegates to `SpeciesObservationStatsReducer` so
+  seasonality, history, life-stage filtering, and effective-name matching
+  remain identical to the previous behavior.
 - Uses a narrow `propertiesToFetch` projection containing only reducer fields,
   avoiding full `LocalScanRecord` materialization for large local libraries.
 

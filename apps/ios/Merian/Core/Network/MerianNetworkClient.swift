@@ -531,6 +531,50 @@ final class MerianNetworkClient {
         return (data, httpResponse)
     }
 
+    private func performPublicGETRequest(
+        url: URL,
+        timeoutInterval: TimeInterval = 20.0,
+        isRetry: Bool = false
+    ) async throws -> (Data, HTTPURLResponse) {
+        var request = URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: timeoutInterval)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await activeSession.data(for: request)
+        } catch let urlError as URLError {
+            let transientCodes: Set<URLError.Code> = [
+                .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet
+            ]
+            if transientCodes.contains(urlError.code) && !isRetry {
+                MerianLog.network.debug("Transient public network error \(urlError.code.rawValue, privacy: .public) — retrying in 2s.")
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                return try await performPublicGETRequest(url: url, timeoutInterval: timeoutInterval, isRetry: true)
+            }
+            throw urlError
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw MerianError.invalidResponse
+        }
+
+        if httpResponse.statusCode != 200 {
+            let errString = String(data: data, encoding: .utf8) ?? "Unknown"
+            MerianLog.network.debug("Public edge function failed [\(httpResponse.statusCode, privacy: .public)]: \(errString, privacy: .public)")
+
+            if httpResponse.statusCode >= 500 && !isRetry {
+                MerianLog.network.debug("Public server error \(httpResponse.statusCode, privacy: .public) — retrying in 2s.")
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                return try await performPublicGETRequest(url: url, timeoutInterval: timeoutInterval, isRetry: true)
+            }
+
+            throw MerianError.httpError(statusCode: httpResponse.statusCode, message: errString)
+        }
+
+        return (data, httpResponse)
+    }
+
     // MARK: - Inference
 
     /// Builds a fully-authenticated POST URLRequest for the /identify edge function.
@@ -1025,7 +1069,6 @@ final class MerianNetworkClient {
         scientificName: String
     ) async throws -> SpeciesObservationStatsEntry {
         let functionUrl = try endpointURL("species-observation-stats")
-        var payload: [String: Any] = [:]
         let requestedSpeciesId = normalizedSpeciesDictionaryId(speciesId)
         let requestedScientificName = scientificName
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1041,15 +1084,20 @@ final class MerianNetworkClient {
             return cached
         }
 
+        var components = URLComponents(url: functionUrl, resolvingAgainstBaseURL: false)
+        var queryItems: [URLQueryItem] = []
         if let requestedSpeciesId {
-            payload["species_id"] = requestedSpeciesId
+            queryItems.append(URLQueryItem(name: "species_id", value: requestedSpeciesId))
         }
         if let requestedScientificName {
-            payload["scientific_name"] = requestedScientificName
+            queryItems.append(URLQueryItem(name: "scientific_name", value: requestedScientificName))
+        }
+        components?.queryItems = queryItems.isEmpty ? nil : queryItems
+        guard let requestURL = components?.url else {
+            throw MerianError.invalidURL
         }
 
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData, timeoutInterval: 10.0)
+        let (data, _) = try await performPublicGETRequest(url: requestURL, timeoutInterval: 20.0)
         let entry = try makeExploreDecoder().decode(SpeciesObservationStatsResponse.self, from: data).data
         cacheSpeciesObservationStatsEntry(
             entry,

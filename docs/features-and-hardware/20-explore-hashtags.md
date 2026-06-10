@@ -130,7 +130,7 @@ shadowbanned authors, and blocked relationships are excluded.
 - Detail chips: `Features/Explore/Views/ExplorePostDetailView.swift`
 - Tagged-post route and collection: `Features/Explore/Views/ExploreView.swift`
 - Share input:
-  `Features/Insights/Components/Toolbars/BottomToolbar/ShareButton.swift`
+  `Features/Insights/Components/Toolbars/BottomToolbar/InsightShareButton.swift`
 - Composer UI:
   `Features/Explore/Components/ExplorePostComposerView.swift`
 - Suggestion context and ranking:
