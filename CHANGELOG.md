@@ -13,22 +13,30 @@ TestFlight, App Store, support, and QA.
 - Added an iOS-to-web theme bridge so Merian-opened web pages can follow the app's theme preference.
 - Added AI-derived sex observation metadata to scan records, the Overview card, Supabase persistence, and Darwin Core exports.
 - Added native Messages and Photos share extensions: Messages can insert cached scan images/cards/descriptions, and Photos can queue one shared image for Merian identification.
-- Added custom public profile pictures with R2-backed avatar uploads, Profile
-  picker support, and Explore/Profile identity refresh.
+- Added custom public profile picture uploads for logged-in users, with
+  R2-backed avatar storage, Profile picker support, and Explore/Profile
+  identity refresh.
 - Added a bundled in-app changelog in Settings for selected release notes,
   feature notes, and in-progress work.
+- Added extra species dictionary data fetches so undiscovered species can still
+  load dictionary pages when users navigate to them.
 
 ### Changed
 
 - Streamlined Explore post details so species education lives in the species
   dictionary, while reference images, observation context, alternate names, and
   a direct dictionary link remain easy to find.
+- Simplified the in-app changelog to show dates without version/build labels
+  until release versioning is finalized.
+- Updated Explore posts to show usernames on feed cards and post detail headers.
 
 ### Fixed
 
 - Fixed species observation charts timing out on first load by returning core
   public stats quickly while detailed life-stage and sex buckets refresh in the
   background.
+- Fixed similar species so lookalike suggestions load reliably in insight
+  sheets.
 - Hardened Edge media request/response handling so chunked or missing-length
   bodies are capped while streaming before V8 heap allocation can run away.
 - Reduced share-import, expanded-original-image, local species-chart, APNs

@@ -26,6 +26,13 @@ struct ChangelogTests {
         #expect(sorted[1].imageAssetName == nil)
     }
 
+    @Test func supportsEntriesWithoutVersionLabels() throws {
+        let catalog = try ChangelogCatalog.decode(from: samplePayload)
+
+        #expect(catalog.entries[0].version == nil)
+        #expect(catalog.entries[0].build == nil)
+    }
+
     private var samplePayload: Data {
         Data(
             """
@@ -34,7 +41,6 @@ struct ChangelogTests {
               "entries": [
                 {
                   "id": "older-entry",
-                  "version": "1.0",
                   "date": "2026-05-01",
                   "title": "Older entry",
                   "sections": [
@@ -49,8 +55,6 @@ struct ChangelogTests {
                 },
                 {
                   "id": "newer-entry",
-                  "version": "1.0",
-                  "build": "200",
                   "date": "2026-06-04",
                   "title": "Newer entry",
                   "imageAssetName": "missing_changelog_asset",

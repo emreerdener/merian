@@ -3,7 +3,6 @@
   "entries": [
     {
       "id": "2026-06-11-explore-species-details",
-      "version": "1.0",
       "date": "2026-06-11",
       "title": "Explore species details",
       "sections": [
@@ -11,14 +10,22 @@
           "title": "Improved",
           "items": [
             "Explore post details now keep deeper species education in the species dictionary, with a direct link from each post.",
-            "Reference images, observation context, and alternate common names are arranged more clearly around the post's AI explanation."
+            "Reference images, observation context, and alternate common names are arranged more clearly around the post's AI explanation.",
+            "Species dictionary pages can now load for species you have not discovered yet.",
+            "Explore posts now use usernames on feed cards and post detail headers.",
+            "The changelog now shows dates without version labels while release versioning is still being finalized."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Similar species suggestions now load reliably in insight sheets."
           ]
         }
       ]
     },
     {
       "id": "2026-06-10-species-chart-loading",
-      "version": "1.0",
       "date": "2026-06-10",
       "title": "Species chart loading",
       "sections": [
@@ -33,8 +40,6 @@
     },
     {
       "id": "2026-06-04-field-notes",
-      "version": "1.0",
-      "build": "199",
       "date": "2026-06-04",
       "title": "Field notes and sharing polish",
       "sections": [
@@ -43,7 +48,7 @@
           "items": [
             "A new Settings changelog collects selected release notes, feature notes, and in-progress work inside the app.",
             "Native Messages and Photos share extension groundwork for sharing cached scan images, cards, descriptions, and queued image identification.",
-            "Custom public profile pictures with R2-backed avatar uploads and Explore/Profile identity refresh.",
+            "Logged-in users can upload custom public profile pictures, with Explore/Profile identity refresh.",
             "AI-derived sex observation metadata on scan records, the Overview card, Supabase persistence, and Darwin Core exports."
           ]
         },
@@ -59,7 +64,6 @@
     },
     {
       "id": "2026-05-28-public-web",
-      "version": "1.0",
       "date": "2026-05-28",
       "title": "Public pages foundation",
       "sections": [

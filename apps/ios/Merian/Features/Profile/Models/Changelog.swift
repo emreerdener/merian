@@ -24,20 +24,12 @@ struct ChangelogCatalog: Codable, Equatable, Sendable {
 
 struct ChangelogEntry: Codable, Equatable, Identifiable, Sendable {
     let id: String
-    let version: String
+    let version: String?
     let build: String?
     let date: String
     let title: String
     let imageAssetName: String?
     let sections: [ChangelogSection]
-
-    var versionLabel: String {
-        if let build, !build.isEmpty {
-            return "Version \(version) (\(build))"
-        }
-
-        return "Version \(version)"
-    }
 
     var formattedDate: String {
         guard let parsedDate = Self.dateFormatter.date(from: date) else {

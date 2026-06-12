@@ -39,10 +39,7 @@ private struct ChangelogEntryRow: View {
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: 8) {
-                    Text(entry.versionLabel)
-                    Text(entry.formattedDate)
-                }
+                Text(entry.formattedDate)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

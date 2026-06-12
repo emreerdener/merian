@@ -26,8 +26,6 @@ Use schema version `1`:
   "entries": [
     {
       "id": "2026-06-04-settings-changelog",
-      "version": "1.0",
-      "build": "199",
       "date": "2026-06-04",
       "title": "Settings changelog",
       "imageAssetName": "optional_asset_name",
@@ -47,8 +45,6 @@ Use schema version `1`:
 Field rules:
 
 - `id`: Stable unique string. Prefer `YYYY-MM-DD-short-topic`.
-- `version`: Marketing version intended for the note.
-- `build`: Optional build number. Include it when the note maps to a concrete build.
 - `date`: `YYYY-MM-DD`.
 - `title`: Short user-facing release title.
 - `imageAssetName`: Optional asset catalog image name. Omit it when no image is available.
