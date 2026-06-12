@@ -266,6 +266,7 @@ struct SpeciesDictionaryRoute: Identifiable, Equatable, Hashable {
 
 enum SpeciesDictionaryEntryPoint: String, Equatable, Hashable {
     case insightSimilarSpecies = "insight_similar_species"
+    case exploreDetailDictionary = "explore_detail_dictionary"
     case exploreDetailSimilarSpecies = "explore_detail_similar_species"
     case speciesDictionarySimilarSpecies = "species_dictionary_similar_species"
     case search

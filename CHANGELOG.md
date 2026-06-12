@@ -18,6 +18,12 @@ TestFlight, App Store, support, and QA.
 - Added a bundled in-app changelog in Settings for selected release notes,
   feature notes, and in-progress work.
 
+### Changed
+
+- Streamlined Explore post details so species education lives in the species
+  dictionary, while reference images, observation context, alternate names, and
+  a direct dictionary link remain easy to find.
+
 ### Fixed
 
 - Fixed species observation charts timing out on first load by returning core

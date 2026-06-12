@@ -123,7 +123,6 @@ struct ExplorePostDetailSpeciesSummary: View {
     let scientificName: String
     let postCommonName: String
     let displayCommonName: String
-    let alternativeCommonNames: [String]
     let aiReasoning: AttributedString?
     let onCommonNameMaxYChange: (CGFloat) -> Void
 
@@ -168,11 +167,6 @@ struct ExplorePostDetailSpeciesSummary: View {
                     }
                 )
 
-            AlternativeCommonNamesLine(
-                names: alternativeCommonNames,
-                primaryCommonName: displayCommonName
-            )
-
             if let aiReasoning {
                 Text(aiReasoning)
                     .font(.system(.body))
@@ -181,6 +175,7 @@ struct ExplorePostDetailSpeciesSummary: View {
                     .lineSpacing(4)
                     .padding(.top, 8)
             }
+
         }
         .frame(maxWidth: .infinity)
     }

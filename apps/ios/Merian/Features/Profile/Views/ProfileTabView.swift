@@ -94,6 +94,14 @@ struct ProfileTabView: View {
                     )
                 }
             }
+            .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
+                SpeciesDictionaryPageContentView(
+                    scientificName: route.scientificName,
+                    speciesId: route.speciesId,
+                    entryPoint: route.entryPoint,
+                    showsCloseButton: false
+                )
+            }
             // MARK: - Off-Thread SQLite Data Generation
             .task {
                 // Decouples massive SwiftData queries explicitly into a `ModelActor` to completely 

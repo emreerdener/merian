@@ -100,6 +100,7 @@ struct AlternativeCommonNamesLine: View {
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 

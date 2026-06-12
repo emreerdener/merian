@@ -2,7 +2,8 @@ import SwiftUI
 
 struct ExplorePostDetailInsightSection: View {
     let scientificName: String
-    let currentCommonName: String
+    let displayCommonName: String
+    let alternativeCommonNames: [String]
     let detail: ExplorePostDetail?
     let isLoading: Bool
     let errorMessage: String?
@@ -33,14 +34,6 @@ struct ExplorePostDetailInsightSection: View {
         if isLoading && detail == nil {
             ExploreLoadingInsightCard()
         } else {
-            if let detail, detail.hasOverviewContent {
-                ExploreOverviewCard(
-                    scientificName: scientificName,
-                    iucnRedListStatus: detail.iucnRedListStatus,
-                    wikipediaOverview: detail.wikipediaOverview
-                )
-            }
-
             if let referenceGalleryImages = detail?.referenceGalleryImages,
                !referenceGalleryImages.isEmpty {
                 ExploreReferenceGallery(
@@ -49,37 +42,38 @@ struct ExplorePostDetailInsightSection: View {
                 )
             }
 
-            if let taxonomyData = detail?.taxonomyData {
-                TaxonomyCard(
-                    taxonomyData: taxonomyData,
-                    scientificName: scientificName
-                )
-            }
+            ExploreSpeciesDictionaryLink(
+                scientificName: scientificName,
+                speciesId: detail?.speciesDictionaryId
+            )
 
-            if let detail, detail.hasHabitatDistributionContent {
-                ExploreHabitatDistributionCard(
-                    scientificName: scientificName,
-                    habitatDescription: detail.habitatDescription,
-                    gbifTaxonKey: detail.gbifTaxonKey
-                )
-            }
-
-            if let similarData = detail?.similarSpeciesData {
-                SimilarSpeciesGallery(
-                    similarData: similarData,
-                    currentScientificName: scientificName,
-                    currentCommonName: currentCommonName,
-                    routeForSpecies: exploreSimilarSpeciesRoute
-                )
-            }
+            AlternativeCommonNamesLine(
+                names: alternativeCommonNames,
+                primaryCommonName: displayCommonName
+            )
         }
     }
+}
 
-    private func exploreSimilarSpeciesRoute(for entry: SimilarSpeciesEntry) -> SpeciesDictionaryRoute {
+struct ExploreSpeciesDictionaryLink: View {
+    let scientificName: String
+    let speciesId: String?
+
+    private var speciesDictionaryRoute: SpeciesDictionaryRoute {
         SpeciesDictionaryRoute(
-            scientificName: entry.scientificName,
-            speciesId: entry.speciesId,
-            entryPoint: .exploreDetailSimilarSpecies
+            scientificName: scientificName,
+            speciesId: speciesId,
+            entryPoint: .exploreDetailDictionary
         )
+    }
+
+    var body: some View {
+        NavigationLink(value: speciesDictionaryRoute) {
+            Label("View species dictionary", systemImage: "book")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
     }
 }

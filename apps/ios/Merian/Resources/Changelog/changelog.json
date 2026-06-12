@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-11-explore-species-details",
+      "version": "1.0",
+      "date": "2026-06-11",
+      "title": "Explore species details",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Explore post details now keep deeper species education in the species dictionary, with a direct link from each post.",
+            "Reference images, observation context, and alternate common names are arranged more clearly around the post's AI explanation."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-10-species-chart-loading",
       "version": "1.0",
       "date": "2026-06-10",

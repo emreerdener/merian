@@ -125,7 +125,6 @@ struct ExplorePostDetailView: View {
                                     scientificName: post.speciesScientificName,
                                     postCommonName: post.speciesCommonName,
                                     displayCommonName: viewModel.resolvedSpeciesCommonName(for: post),
-                                    alternativeCommonNames: detail?.alternativeCommonNames ?? [],
                                     aiReasoning: detail?.trimmedAiReasoning.map {
                                         styledAiReasoning(text: $0, scientificName: post.speciesScientificName)
                                     },
@@ -134,19 +133,20 @@ struct ExplorePostDetailView: View {
                                     }
                                 )
 
+                                ExploreObservationContextCard(post: post)
+
                                 toxicityBanner
 
                                 fieldNotesSection(for: post)
 
                                 ExplorePostDetailInsightSection(
                                     scientificName: post.speciesScientificName,
-                                    currentCommonName: viewModel.resolvedSpeciesCommonName(for: post),
+                                    displayCommonName: viewModel.resolvedSpeciesCommonName(for: post),
+                                    alternativeCommonNames: detail?.alternativeCommonNames ?? [],
                                     detail: detail,
                                     isLoading: isLoadingDetail,
                                     errorMessage: detailErrorMessage
                                 )
-
-                                ExploreObservationContextCard(post: post)
                             }
                             .padding(.horizontal, 16)
                             .padding(.top, 16)
