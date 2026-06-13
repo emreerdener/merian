@@ -8,7 +8,7 @@ import Observation
 
     // MARK: - Configuration
 
-    let maxFreeScansPerDay = 2
+    let maxFreeScansPerDay = 1
 
     // MARK: - State
 

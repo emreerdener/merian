@@ -98,7 +98,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Anonymous IDFV-backed Ghost Sessions (zero-friction, no sign-up required at launch).
 - Sign in with Apple / Google OAuth merges Ghost identity via `linkIdentityWithIdToken` or the `/merge-ghost-profile` Edge RPC.
 - RevenueCat webhook drives `free` ↔ `pro` tier migrations and triggers R2 storage moves between lifecycle buckets.
-- Free tier: 2 scans/day. Pro: unlimited scans, Gemini 2.5 Pro model, offline queue.
+- Free tier: 1 scan/day. Pro: unlimited scans, Gemini 2.5 Pro model, offline queue.
 
 ### Archive Safety
 - Cloudflare R2 free-tier objects expire after 90 days. `ArchiveManager` monitors scan age and downloads images to the local `Documents` directory in the 80–88 day window, storing only relative filenames (not full paths) to survive iOS container UUID randomization across reboots.

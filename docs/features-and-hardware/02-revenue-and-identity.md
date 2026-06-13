@@ -194,7 +194,7 @@ Enforces the paywall in frontend entry points.
 - **Refunds**: If an inference fails unrecoverably (task cancellation, JSON
   decoding failure, network error), `UsageManager.shared.refundScan()` restores
   the consumed token so the user is not penalized for a technical failure.
-- Grants 2 free daily scans via `UserDefaults` keyed against
+- Grants 1 free daily scan via `UserDefaults` keyed against
   `DeviceIdentityManager.shared.deviceId`.
 - Resets limits at calendar boundaries. The `evaluateDailyRefresh()` check is
   called from `AppDIContainer.handleActivePhase()`, ensuring user quotas are

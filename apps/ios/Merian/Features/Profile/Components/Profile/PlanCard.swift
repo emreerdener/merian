@@ -12,7 +12,7 @@ struct PlanCard: View {
                         Image(systemName: revenueCat.isProActive ? "lock.open.fill" : "lock.fill")
                             .foregroundColor(.secondary)
                             .font(.system(size: 14, weight: .semibold))
-                        Text(revenueCat.isProActive ? "UNLIMITED SCANS" : "2 SCANS DAILY")
+                        Text(revenueCat.isProActive ? "UNLIMITED SCANS" : "1 SCAN DAILY")
                             .font(.system(.caption, design: .monospaced))
                             .fontWeight(.bold)
                             .foregroundColor(.secondary)
@@ -40,7 +40,7 @@ struct PlanCard: View {
                 }
             }
             
-            Text(revenueCat.isProActive ? "You have unlimited identifications, offline taxonomy packs, and the Apple Watch companion natively unlocked." : "You have 2 free scans daily. Upgrade to unlock more advanced AI reasoning, unlimited identifications, audio recording, Apple Watch logging, and offline Field Queue caching.")
+            Text(revenueCat.isProActive ? "You have unlimited identifications, offline taxonomy packs, and the Apple Watch companion natively unlocked." : "You have 1 free scan daily. Upgrade to unlock more advanced AI reasoning, unlimited identifications, audio recording, Apple Watch logging, and offline Field Queue caching.")
                 .font(.system(.subheadline))
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

@@ -1064,7 +1064,7 @@ and `KeychainManager` migration logic. Do not inline
 - `refundScan()` — restores the consumed token if inference fails unrecoverably
   (task cancellation, JSON decoding failure, network error) or if queue
   insertion fails after a token was reserved.
-- Grants 2 free daily scans via `UserDefaults` keyed against
+- Grants 1 free daily scan via `UserDefaults` keyed against
   `DeviceIdentityManager.shared.deviceId`. Resets limits at calendar day
   boundaries via `evaluateDailyRefresh()`, called from
   `AppDIContainer.handleActivePhase()` on foreground transitions.

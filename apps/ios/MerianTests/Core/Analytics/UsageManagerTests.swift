@@ -29,14 +29,14 @@ final class UsageManagerTests: XCTestCase {
         // Reset state
         usageManager.evaluateDailyRefresh()
         
-        XCTAssertEqual(usageManager.freeScansRemaining, 2)
+        XCTAssertEqual(usageManager.freeScansRemaining, 1)
         // Consume one
         usageManager.consumeScan()
-        XCTAssertEqual(usageManager.freeScansRemaining, 1)
+        XCTAssertEqual(usageManager.freeScansRemaining, 0)
         
         // Refund one
         usageManager.refundScan()
-        XCTAssertEqual(usageManager.freeScansRemaining, 2)
+        XCTAssertEqual(usageManager.freeScansRemaining, 1)
     }
 
     func testCanPerformScanRespectsDailyQuotaForFreeTier() {
@@ -45,7 +45,6 @@ final class UsageManagerTests: XCTestCase {
         usageManager.evaluateDailyRefresh()
         XCTAssertTrue(usageManager.canPerformScan(isProActive: false))
 
-        usageManager.consumeScan()
         usageManager.consumeScan()
 
         XCTAssertEqual(usageManager.freeScansRemaining, 0)

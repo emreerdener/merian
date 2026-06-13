@@ -121,13 +121,13 @@ final class OfflineSyncTests: XCTestCase {
     
     func test_enqueueCapture_enforcesFreeUserLimits() async {
         let isProActive = false
-        let maxFreeScansPerDay = 3 // Assuming standard config
-        let queuedScansInDatabase = 3
+        let maxFreeScansPerDay = 1
+        let queuedScansInDatabase = 1
         
         // This simulates the validation drop sequence internally inside `enqueueCapture`
         let canEnqueue = isProActive || queuedScansInDatabase < maxFreeScansPerDay
         
-        XCTAssertFalse(canEnqueue, "Hoarding Breach: A free-tier user was incorrectly allowed to enqueue a 4th offline scan into local DB.")
+        XCTAssertFalse(canEnqueue, "Hoarding Breach: A free-tier user was incorrectly allowed to enqueue a 2nd offline scan into local DB.")
     }
 
     // MARK: - 5. Exponential Backoff Constraints
