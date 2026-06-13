@@ -108,7 +108,7 @@ struct Preferences: View {
                 onUpgrade: { showPaywall = true }
             )
         } header: {
-            ProSectionHeader()
+            Text("Pro")
         }
         .listRowBackground(ProSettingsStyle.accent.opacity(0.08))
 
@@ -137,7 +137,7 @@ struct Preferences: View {
             // MARK: - Audio Recording
             Button { audioRecordingSettingsActive = true } label: {
                 SettingsNavigationRow(
-                    title: "Audio recording",
+                    title: "Audio",
                     description: "Microphone hints and tuning preferences.",
                     icon: "mic.fill",
                     iconColor: .red
@@ -267,17 +267,6 @@ private struct ProSettingsBanner: View {
     }
 }
 
-private struct ProSectionHeader: View {
-    var body: some View {
-            Text("PRO")
-                .font(.system(size: 11, weight: .black))
-                .foregroundStyle(ProSettingsStyle.accent)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(ProSettingsStyle.accent.opacity(0.18))
-                .clipShape(Capsule())
-        }
-}
 
 private struct ProFeatureToggleRow: View {
     let title: String
