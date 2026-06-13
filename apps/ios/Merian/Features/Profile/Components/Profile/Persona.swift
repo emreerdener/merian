@@ -20,18 +20,19 @@ struct Persona: View {
                 .padding(.horizontal, 32)
             
             if let target = persona.nextLevelThreshold, let nextTitle = persona.nextLevelTitle {
+                let progressBarWidth: CGFloat = 240
+                let progress = min(CGFloat(uniqueSpeciesCount) / CGFloat(target), 1.0)
+                
                 VStack(spacing: 6) {
                     ZStack(alignment: .leading) {
-                        GeometryReader { geometry in
-                            let progress = min(CGFloat(uniqueSpeciesCount) / CGFloat(target), 1.0)
-                            Rectangle()
-                                .fill(AchievementTintToken.springGreen.color)
-                                .frame(width: max(0, geometry.size.width * progress))
-                        }
+                        Capsule()
+                            .fill(Color(uiColor: .secondarySystemFill))
+                            .frame(width: progressBarWidth, height: 8)
+                        
+                        Capsule()
+                            .fill(AchievementTintToken.springGreen.color)
+                            .frame(width: progressBarWidth * progress, height: 8)
                     }
-                    .frame(height: 12)
-                    .background(Color(uiColor: .secondarySystemFill))
-                    .clipShape(Capsule())
                     
                     Text("\(uniqueSpeciesCount) / \(target) discoveries until **\(nextTitle)**")
                         .font(.caption)
