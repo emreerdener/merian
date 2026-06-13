@@ -57,10 +57,15 @@ private struct InferenceRequestContext: Sendable {
     let currentMonth: Int
     let timeOfDay: String
     let depthScaleText: String?
+    let defaultGeoprivacy: String
 }
 
 private enum InferencePayloadBuilder {
-    static func makeContext(userId: String, telemetry: CaptureTelemetry) -> InferenceRequestContext {
+    static func makeContext(
+        userId: String,
+        telemetry: CaptureTelemetry,
+        defaultGeoprivacy: String
+    ) -> InferenceRequestContext {
         let captureDate: Date = telemetry.timestamp.flatMap {
             DateUtilities.iso8601Formatter.date(from: $0)
         } ?? Date()
@@ -76,7 +81,8 @@ private enum InferencePayloadBuilder {
             deviceRegion: Locale.current.region?.identifier,
             currentMonth: Calendar.current.component(.month, from: captureDate),
             timeOfDay: formatter.string(from: captureDate),
-            depthScaleText: telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) }
+            depthScaleText: telemetry.subjectDistanceInMeters.map { String(format: "%.1f meters", $0) },
+            defaultGeoprivacy: normalizedGeoprivacy(defaultGeoprivacy)
         )
     }
 
@@ -178,9 +184,12 @@ private enum InferencePayloadBuilder {
         setIfPresent(telemetry.gpsLatitude, forKey: "gpsLatitude", in: &payload)
         setIfPresent(telemetry.gpsLongitude, forKey: "gpsLongitude", in: &payload)
         setIfPresent(telemetry.gpsElevation, forKey: "gpsElevation", in: &payload)
-        let publicLocationLabel = ExploreLocationPrivacy.displayLabel(from: telemetry.locationName)
+        let publicLocationLabel = context.defaultGeoprivacy == "private"
+            ? nil
+            : ExploreLocationPrivacy.displayLabel(from: telemetry.locationName)
         setIfPresent(telemetry.locationName, forKey: "semanticLocation", in: &payload)
         setIfPresent(publicLocationLabel, forKey: "publicLocationLabel", in: &payload)
+        setIfPresent(context.defaultGeoprivacy, forKey: "geoprivacy", in: &payload)
         setIfPresent(telemetry.weatherCondition, forKey: "weatherCondition", in: &payload)
         setIfPresent(telemetry.weatherTemperatureF, forKey: "weatherTemperatureF", in: &payload)
         setIfPresent(context.deviceRegion, forKey: "deviceRegion", in: &payload)
@@ -198,6 +207,15 @@ private enum InferencePayloadBuilder {
                 return nil
             }
             return object
+        }
+    }
+
+    static func normalizedGeoprivacy(_ value: String) -> String {
+        switch value {
+        case "private", "obscured":
+            return value
+        default:
+            return "open"
         }
     }
 
@@ -395,10 +413,16 @@ final class MerianNetworkClient {
 
     private func makeInferenceRequestContext(telemetry: CaptureTelemetry) async -> InferenceRequestContext {
         let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
+        let (deviceId, defaultGeoprivacy) = await MainActor.run {
+            (
+                DeviceIdentityManager.shared.deviceId,
+                AppDIContainer.shared.profileViewModel.defaultGeoprivacy
+            )
+        }
         return InferencePayloadBuilder.makeContext(
             userId: authUserId ?? deviceId,
-            telemetry: telemetry
+            telemetry: telemetry,
+            defaultGeoprivacy: defaultGeoprivacy
         )
     }
 
@@ -656,7 +680,8 @@ final class MerianNetworkClient {
         currentMonth: Int,
         timeOfDay: String,
         depthScaleText: String?,
-        clientScanId: String
+        clientScanId: String,
+        defaultGeoprivacy: String = "open"
     ) throws -> Data {
         let context = InferenceRequestContext(
             userId: userId.lowercased(),
@@ -665,7 +690,8 @@ final class MerianNetworkClient {
             deviceRegion: deviceRegion,
             currentMonth: currentMonth,
             timeOfDay: timeOfDay,
-            depthScaleText: depthScaleText
+            depthScaleText: depthScaleText,
+            defaultGeoprivacy: InferencePayloadBuilder.normalizedGeoprivacy(defaultGeoprivacy)
         )
 
         return try InferencePayloadBuilder.multimodalBody(
@@ -720,7 +746,8 @@ final class MerianNetworkClient {
                 currentMonth: context.currentMonth,
                 timeOfDay: context.timeOfDay,
                 depthScaleText: context.depthScaleText,
-                clientScanId: capturedClientScanId
+                clientScanId: capturedClientScanId,
+                defaultGeoprivacy: context.defaultGeoprivacy
             )
         }.value
 

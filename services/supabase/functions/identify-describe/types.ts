@@ -33,6 +33,7 @@ export interface DescribeRequest {
   semanticLocation?: string;
   publicLocationLabel?: string;
   public_location_label?: string;
+  geoprivacy?: string;
   timeOfDay?: string;
   timestamp?: string;
 }

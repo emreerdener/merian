@@ -105,7 +105,7 @@ serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
     const bodyReadResult = await readRequestJsonWithinBudget<
-      Record<string, any>
+      Record<string, unknown>
     >(
       req,
       MEDIA_BUDGETS.maxMultimodalJsonBodyBytes,
@@ -144,6 +144,7 @@ serve((req: Request) =>
       payload.semantic_location;
     const publicExploreLocationLabel = payload.publicLocationLabel ??
       payload.public_location_label;
+    const scanGeoprivacy = payload.geoprivacy;
     const weatherCondition = payload.weatherCondition ??
       payload.weather_condition;
     const weatherTemperatureF = payload.weatherTemperatureF ??
@@ -198,7 +199,7 @@ serve((req: Request) =>
     const resolvedImageBase64s = base64Payloads || [];
 
     // 2. WAV Preprocessing Loop
-    let processedAudios: string[] = [];
+    const processedAudios: string[] = [];
     if (audioBase64s.length > 0 || audioR2ObjectKeys.length > 0) {
       const { audioBuffers, errorResponse: audioErrorResponse } =
         await resolveAudioBuffers({
@@ -693,6 +694,7 @@ serve((req: Request) =>
             weather_temperature_f: weatherTemperatureF ?? undefined,
             semantic_location: semanticLocation ?? undefined,
             public_location_label: publicExploreLocationLabel ?? undefined,
+            geoprivacy: scanGeoprivacy ?? undefined,
             device_locale: deviceLocale ?? undefined,
             device_time_zone: deviceTimeZone ?? undefined,
             current_month: currentMonth ?? null,

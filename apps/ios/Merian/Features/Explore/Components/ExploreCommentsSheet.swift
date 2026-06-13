@@ -13,6 +13,7 @@ struct ExploreCommentsSheet: View {
     private let replyThreadRowSpacing: CGFloat = 10
 
     var body: some View {
+        let _ = viewModel.replyStateVersion
         NavigationStack {
             Group {
                 if viewModel.isCommentsLoading && viewModel.comments.isEmpty {

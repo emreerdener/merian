@@ -16,6 +16,7 @@ export interface AudioClientRequest {
   gps_elevation?: number | null;
   semantic_location?: string | null;
   public_location_label?: string | null;
+  geoprivacy?: string | null;
   weather_condition?: string | null;
   weather_temperature_f?: number | null;
   device_locale?: string | null;

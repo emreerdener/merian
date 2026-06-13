@@ -77,7 +77,8 @@ The cache is owned by:
 - `MessageScanShareCache.swift`: shared record, text, deep-link, and file-store
   model.
 - `MessageScanShareCacheWriter.swift`: app-side writer that limits the cache to
-  the latest 100 completed biological scans.
+  the latest 100 completed biological scans and applies the current
+  `ProfileViewModel.defaultGeoprivacy` before writing captions.
 - `MessageScanLibraryExtensionView.swift`: SwiftUI list/search UI hosted by
   `MessagesViewController`.
 
@@ -101,6 +102,14 @@ tap Send. Merian must not auto-send.
 Private field notes are not surfaced in the Messages extension insert flow.
 Public Explore URLs are used only as the message payload URL for scans with an
 existing public post id.
+
+### Geoprivacy
+
+Messages captions must not reveal private scan locations. The containing app
+applies geoprivacy before writing the App Group snapshot: `private` omits the
+`Near ...` location line, `obscured` writes the sanitized public label, and
+`open` may write the original local location label. The extension reads only the
+cached snapshot and must not re-derive location text from raw scan telemetry.
 
 ### Deep Links
 

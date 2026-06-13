@@ -383,6 +383,8 @@ private struct AchievementDetailHeader: View {
 }
 
 private struct AchievementContributionRow: View {
+    @Environment(ProfileViewModel.self) private var profileViewModel
+
     let contribution: AchievementContribution
     let onTap: () -> Void
 
@@ -443,8 +445,7 @@ private struct AchievementContributionRow: View {
 
     private var metadataText: String {
         var segments = [contribution.timestamp.formatted(date: .abbreviated, time: .shortened)]
-        if let locationName = contribution.locationName?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !locationName.isEmpty {
+        if let locationName = visibleLocationName {
             segments.append(locationName)
         }
         return segments.joined(separator: " • ")
@@ -460,11 +461,24 @@ private struct AchievementContributionRow: View {
         components.append(contribution.reasonText)
         components.append(contribution.timestamp.formatted(date: .abbreviated, time: .shortened))
 
-        if let locationName = contribution.locationName?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !locationName.isEmpty {
+        if let locationName = visibleLocationName {
             components.append(locationName)
         }
 
         return components.joined(separator: ". ")
+    }
+
+    private var visibleLocationName: String? {
+        let trimmed = contribution.locationName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+
+        switch profileViewModel.defaultGeoprivacy {
+        case "private":
+            return nil
+        case "obscured":
+            return ExploreLocationPrivacy.displayLabel(from: trimmed)
+        default:
+            return trimmed
+        }
     }
 }

@@ -267,7 +267,6 @@ private struct ProSettingsBanner: View {
     }
 }
 
-
 private struct ProFeatureToggleRow: View {
     let title: String
     let description: String

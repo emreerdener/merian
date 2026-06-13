@@ -119,7 +119,7 @@ serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
     const bodyReadResult = await readRequestJsonWithinBudget<
-      Record<string, any>
+      Record<string, unknown>
     >(
       req,
       MEDIA_BUDGETS.maxAudioJsonBodyBytes,
@@ -153,6 +153,7 @@ serve((req: Request) =>
       gps_elevation,
       semantic_location,
       public_location_label,
+      geoprivacy,
       weather_condition,
       weather_temperature_f,
       device_locale,
@@ -560,6 +561,7 @@ serve((req: Request) =>
             weather_temperature_f: weather_temperature_f ?? undefined,
             semantic_location: semantic_location ?? undefined,
             public_location_label: public_location_label ?? undefined,
+            geoprivacy: geoprivacy ?? undefined,
             device_locale: device_locale ?? undefined,
             device_time_zone: device_time_zone ?? undefined,
             current_month: normalizedCurrentMonth ?? null,

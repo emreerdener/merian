@@ -18,6 +18,7 @@ enum MessageScanShareCacheWriter {
 
     static func refresh(
         records: [LocalScanRecord],
+        defaultGeoprivacy: String,
         fileManager: FileManager = .default
     ) async {
         guard let rootURL = MessageScanShareCacheStore.appGroupRootURL(fileManager: fileManager) else {
@@ -28,7 +29,7 @@ enum MessageScanShareCacheWriter {
             .filter(\.isBiological)
             .sorted { $0.timestamp > $1.timestamp }
             .prefix(MessageScanShareCacheConstants.maxRecordCount)
-            .map { source(from: $0, fileManager: fileManager) }
+            .map { source(from: $0, defaultGeoprivacy: defaultGeoprivacy, fileManager: fileManager) }
 
         await MessageScanShareCacheRenderActor.shared.writeCache(
             sources: Array(sources),
@@ -39,6 +40,7 @@ enum MessageScanShareCacheWriter {
 
     private static func source(
         from record: LocalScanRecord,
+        defaultGeoprivacy: String,
         fileManager: FileManager
     ) -> Source {
         Source(
@@ -46,12 +48,28 @@ enum MessageScanShareCacheWriter {
             commonName: record.commonName,
             scientificName: record.scientificName,
             timestamp: record.timestamp,
-            locationName: record.locationName,
+            locationName: visibleLocationName(record.locationName, defaultGeoprivacy: defaultGeoprivacy),
             confidenceScore: record.confidenceScore,
             publicExplorePostId: ExploreShareStateStore.sharedPostId(for: record.id),
             fieldNotes: trimmedNonEmpty(record.fieldNotes),
             imageURL: firstImageURL(for: record, fileManager: fileManager)
         )
+    }
+
+    private static func visibleLocationName(
+        _ locationName: String?,
+        defaultGeoprivacy: String
+    ) -> String? {
+        guard let trimmed = trimmedNonEmpty(locationName) else { return nil }
+
+        switch defaultGeoprivacy {
+        case "private":
+            return nil
+        case "obscured":
+            return ExploreLocationPrivacy.displayLabel(from: trimmed)
+        default:
+            return trimmed
+        }
     }
 
     private static func firstImageURL(

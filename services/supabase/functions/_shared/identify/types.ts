@@ -80,6 +80,7 @@ export interface Payload {
   gpsElevation?: number | null;
   semanticLocation?: string;
   publicLocationLabel?: string;
+  geoprivacy?: string;
   weatherCondition?: string;
   weatherTemperatureF?: number;
   deviceLocale?: string;
@@ -122,6 +123,7 @@ export interface MultimodalPayload {
   gpsElevation?: number | null;
   semanticLocation?: string;
   publicLocationLabel?: string;
+  geoprivacy?: string;
   weatherCondition?: string;
   weatherTemperatureF?: number;
   deviceLocale?: string;

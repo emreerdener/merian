@@ -2,6 +2,7 @@ import SwiftUI
 
 struct InsightBottomToolbar: ToolbarContent {
     @Environment(InferenceEngine.self) var inferenceEngine
+    @Environment(ProfileViewModel.self) private var profileViewModel
     
     let showBottomBarTools: Bool
     let collections: [ScanCollection]
@@ -24,7 +25,7 @@ struct InsightBottomToolbar: ToolbarContent {
     var body: some ToolbarContent {
         if showBottomBarTools, let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
             ToolbarItemGroup(placement: .bottomBar) {
-                let publicLocationLabel = ExploreLocationPrivacy.displayLabel(from: speciesData.locationName)
+                let publicLocationLabel = visiblePublicLocationLabel(from: speciesData.locationName)
 
                 InsightShareButton(
                     shareExternally: shareExternally,
@@ -77,5 +78,10 @@ struct InsightBottomToolbar: ToolbarContent {
                 )
             }
         }
+    }
+
+    private func visiblePublicLocationLabel(from locationName: String?) -> String? {
+        guard profileViewModel.defaultGeoprivacy != "private" else { return nil }
+        return ExploreLocationPrivacy.displayLabel(from: locationName)
     }
 }

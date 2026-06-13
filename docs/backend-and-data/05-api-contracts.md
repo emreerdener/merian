@@ -235,6 +235,8 @@ before any full response buffer is assembled.
   "gpsElevation": 42.5,
   "depthScaleText": "1.2 meters",
   "semanticLocation": "Zilker Park",
+  "publicLocationLabel": "Austin, Texas",
+  "geoprivacy": "obscured",
   "weatherCondition": "Sunny",
   "weatherTemperatureF": 72.5,
   "deviceLocale": "en",
@@ -290,6 +292,15 @@ them into the Gemini context string as `TZ:` and `Region:` tokens alongside
 without requiring location permission. `deviceTimeZone` is also persisted to
 `scans.device_time_zone` for timezone-aware public profile streaks and heatmaps;
 `deviceRegion` remains inference-context only.
+
+`geoprivacy` is optional for backward compatibility. Valid values are `open`,
+`obscured`, and `private`. When absent or invalid, the Edge insert helper reads
+`users.default_geoprivacy`. Private scans may still persist exact owner-owned
+telemetry, but public projections are scrubbed: public coordinates,
+`coordinate_uncertainty_in_meters`, and `public_location_label` are cleared by
+insert helpers and database triggers. Current iOS clients omit
+`publicLocationLabel` when `geoprivacy == "private"` and send sanitized labels
+for open/obscured scans.
 
 ### The JSON Response Schema (From Gemini Back to Swift)
 
@@ -2195,6 +2206,8 @@ ordered compositions of images, audio, and descriptive context.
   "gpsLongitude": -122.4194,
   "gpsElevation": 42.5,
   "semanticLocation": "Zilker Park",
+  "publicLocationLabel": "Austin, Texas",
+  "geoprivacy": "obscured",
   "weatherCondition": "Partly Cloudy",
   "weatherTemperatureF": 68.0,
   "deviceLocale": "en",
@@ -2227,13 +2240,18 @@ ordered compositions of images, audio, and descriptive context.
   capped. Clip count, byte budgets, IDOR ownership, and path traversal are
   validated through `_shared/identify/media.ts` before decode/fetch.
 - The canonical request contract is camelCase telemetry (`gpsLatitude`,
-  `semanticLocation`, `deviceTimeZone`, etc.) plus
+  `semanticLocation`, `publicLocationLabel`, `geoprivacy`, `deviceTimeZone`,
+  etc.) plus
   `observation_contexts: [{ freeText, addedAt? }]`, matching
   `MerianNetworkClient.buildMultiModalRequest(...)` and the iOS
   `ObservationContext` model. The same Swift inference payload builder also
   backs `/identify` so visual and multimodal requests share telemetry
   formatting, user context, and pre-serialization inline media budget
   validation.
+- If `geoprivacy` is missing, invalid, or supplied by an old queued payload, the
+  Edge insert helper resolves the scan privacy from `users.default_geoprivacy`.
+  Private scans clear `public_location_label` server-side even if a stale client
+  supplied one.
 - `deviceTimeZone` is persisted to `public.scans.device_time_zone` when present
   so public profile streaks and heatmaps can use the author's local day
   boundary. Missing or invalid legacy rows fall back to UTC at profile-read
@@ -2267,6 +2285,8 @@ body plus the description payload.
   "gpsLongitude": -122.4194,
   "gpsElevation": 42.5,
   "semanticLocation": "Zilker Park",
+  "publicLocationLabel": "Austin, Texas",
+  "geoprivacy": "obscured",
   "weatherCondition": "Partly Cloudy",
   "weatherTemperatureF": 68.0,
   "deviceLocale": "en",

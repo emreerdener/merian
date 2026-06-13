@@ -16,49 +16,50 @@ struct ScanInformationCard: View {
     var fallbackLatitude: Double?
     var fallbackLongitude: Double?
     
-    var hasValidData: Bool {
-        let nameValid = (speciesData?.locationName ?? fallbackLocationName).map { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? false
-        let weatherValid = (speciesData?.weatherTemperatureF ?? fallbackTemperature) != nil && (speciesData?.weatherCondition ?? fallbackCondition) != nil
-        let elev = speciesData?.gpsElevation ?? fallbackElevation
-        let elevationValid = elev != nil && elev != 0
-        let coordsValid: Bool = {
-            let lat = speciesData?.gpsLatitude ?? fallbackLatitude
-            let lon = speciesData?.gpsLongitude ?? fallbackLongitude
-            guard let lat = lat, let lon = lon else { return false }
-            let latValid = lat >= -90 && lat <= 90
-            let lonValid = lon >= -180 && lon <= 180
-            return latValid && lonValid && !(lat == 0 && lon == 0)
-        }()
-        let zoomValid = speciesData?.zoomFactor != nil
-        return nameValid || weatherValid || elevationValid || coordsValid || zoomValid || timestamp != nil
-    }
-    
     var body: some View {
-        let name: String? = speciesData?.locationName ?? fallbackLocationName
+        let rawName: String? = speciesData?.locationName ?? fallbackLocationName
         let temp: Double? = speciesData?.weatherTemperatureF ?? fallbackTemperature
         let cond: String? = speciesData?.weatherCondition ?? fallbackCondition
         let elevation: Double? = speciesData?.gpsElevation ?? fallbackElevation
         let lat: Double? = speciesData?.gpsLatitude ?? fallbackLatitude
         let lon: Double? = speciesData?.gpsLongitude ?? fallbackLongitude
         let zoom: Double? = speciesData?.zoomFactor
-        
-        if hasValidData {
+        let privacy = profileViewModel.defaultGeoprivacy
+        let isPrivate = privacy == "private"
+        let isObscured = privacy == "obscured"
+        let displayLocationName = visibleLocationName(rawName, privacy: privacy)
+        let displayElevation = privacy == "open" ? elevation : nil
+        let displayTemperature = isPrivate ? nil : temp
+        let displayCondition = isPrivate ? nil : cond
+        let mapCoordinate = visibleMapCoordinate(latitude: lat, longitude: lon, privacy: privacy)
+        let hasVisibleData = hasVisibleScanData(
+            locationName: displayLocationName,
+            temperature: displayTemperature,
+            condition: displayCondition,
+            elevation: displayElevation,
+            mapCoordinate: mapCoordinate,
+            zoom: zoom
+        )
+
+        if hasVisibleData {
             VStack(alignment: .leading, spacing: 16) {
                 InsightCardHeader(systemImage: "viewfinder", title: "Scan")
                 
                 VStack(spacing: 12) {
                     // Location
-                    if let validName = name, !validName.trimmingCharacters(in: .whitespaces).isEmpty {
+                    if let validName = displayLocationName,
+                       !validName.trimmingCharacters(in: .whitespaces).isEmpty {
                         KeyValueRow(title: "LOCATION", value: validName)
                     }
                     
                     // Elevation
-                    if let elev = elevation, elev != 0 {
+                    if let elev = displayElevation, elev != 0 {
                         KeyValueRow(title: "ELEVATION", value: "\(Int(elev))m")
                     }
                     
                     // Weather
-                    if let validTemp = temp, let validCondition = cond {
+                    if let validTemp = displayTemperature,
+                       let validCondition = displayCondition {
                         KeyValueRow(
                             title: "WEATHER", 
                             value: "\(Int(validTemp))°F \(validCondition.capitalized)",
@@ -90,10 +91,7 @@ struct ScanInformationCard: View {
                     }
                     
                     // Map
-                    let privacy = profileViewModel.defaultGeoprivacy
-                    if privacy != "private", let lat = lat, let lon = lon, lat >= -90 && lat <= 90, lon >= -180 && lon <= 180, !(lat == 0 && lon == 0) {
-                        let coord = CLLocationCoordinate2D(latitude: lat, longitude: lon)
-                        let isObscured = privacy == "obscured"
+                    if let coord = mapCoordinate {
                         let span = isObscured ? MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2) : MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
                         
                         Map(initialPosition: .region(MKCoordinateRegion(center: coord, span: span))) {
@@ -122,6 +120,58 @@ struct ScanInformationCard: View {
     }
     
 // Removed featureRow since KeyValueRow was extracted
+
+    private func hasVisibleScanData(
+        locationName: String?,
+        temperature: Double?,
+        condition: String?,
+        elevation: Double?,
+        mapCoordinate: CLLocationCoordinate2D?,
+        zoom: Double?
+    ) -> Bool {
+        let nameValid = locationName.map { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? false
+        let weatherValid = temperature != nil && condition != nil
+        let elevationValid = elevation != nil && elevation != 0
+        let zoomValid = zoom != nil
+        return nameValid || weatherValid || elevationValid || mapCoordinate != nil || zoomValid || timestamp != nil
+    }
+
+    private func visibleLocationName(_ rawName: String?, privacy: String) -> String? {
+        switch privacy {
+        case "private":
+            return nil
+        case "obscured":
+            return ExploreLocationPrivacy.displayLabel(from: rawName)
+        default:
+            return rawName
+        }
+    }
+
+    private func visibleMapCoordinate(latitude: Double?, longitude: Double?, privacy: String) -> CLLocationCoordinate2D? {
+        guard privacy != "private",
+              let latitude,
+              let longitude,
+              latitude >= -90,
+              latitude <= 90,
+              longitude >= -180,
+              longitude <= 180,
+              !(latitude == 0 && longitude == 0) else {
+            return nil
+        }
+
+        if privacy == "obscured" {
+            return CLLocationCoordinate2D(
+                latitude: roundedPublicCoordinate(latitude),
+                longitude: roundedPublicCoordinate(longitude)
+            )
+        }
+
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    private func roundedPublicCoordinate(_ value: Double) -> Double {
+        (value * 10).rounded() / 10
+    }
     
     private func weatherIcon(for condition: String) -> String {
         let lower = condition.lowercased()

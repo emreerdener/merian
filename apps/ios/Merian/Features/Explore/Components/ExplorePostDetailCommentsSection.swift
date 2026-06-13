@@ -34,6 +34,7 @@ struct ExplorePostDetailCommentsSection: View {
     private let replyThreadLineColor = Color(uiColor: .systemGray4)
 
     var body: some View {
+        let _ = viewModel.replyStateVersion
         if isComposerSticky {
             composer
                 .padding(.horizontal, 16)

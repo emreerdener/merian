@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-13-geoprivacy",
+      "date": "2026-06-13",
+      "title": "Geoprivacy fixes",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Private scans now hide location details across scan cards, sharing, achievements, and Messages share captions.",
+            "Open and obscured scans now restore location context at the expected precision."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-11-explore-species-details",
       "date": "2026-06-11",
       "title": "Explore species details",

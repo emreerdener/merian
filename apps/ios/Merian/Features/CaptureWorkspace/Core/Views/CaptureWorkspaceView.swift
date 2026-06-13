@@ -13,6 +13,7 @@ struct CaptureWorkspaceView: View {
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(AudioCaptureManager.self) var audioCaptureManager
     @Environment(AppSettings.self) private var appSettings
+    @Environment(ProfileViewModel.self) private var profileViewModel
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query(
@@ -78,7 +79,8 @@ struct CaptureWorkspaceView: View {
                     record.coverImagePath ?? "",
                     record.capturedMediaSnapshot.imagePaths.joined(separator: ","),
                     record.fieldNotes ?? "",
-                    ExploreShareStateStore.sharedPostId(for: record.id) ?? ""
+                    ExploreShareStateStore.sharedPostId(for: record.id) ?? "",
+                    profileViewModel.defaultGeoprivacy
                 ].joined(separator: "|")
             }
             .joined(separator: "\n")
@@ -281,7 +283,10 @@ struct CaptureWorkspaceView: View {
         }
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
         .task(id: messageShareCacheSignature) {
-            await MessageScanShareCacheWriter.refresh(records: messageShareCacheRecords)
+            await MessageScanShareCacheWriter.refresh(
+                records: messageShareCacheRecords,
+                defaultGeoprivacy: profileViewModel.defaultGeoprivacy
+            )
         }
         .sheet(
             isPresented: Binding(
@@ -418,7 +423,10 @@ struct CaptureWorkspaceView: View {
                 }
             case .exploreShareStateChanged:
                 Task {
-                    await MessageScanShareCacheWriter.refresh(records: messageShareCacheRecords)
+                    await MessageScanShareCacheWriter.refresh(
+                        records: messageShareCacheRecords,
+                        defaultGeoprivacy: profileViewModel.defaultGeoprivacy
+                    )
                 }
             default: break
             }

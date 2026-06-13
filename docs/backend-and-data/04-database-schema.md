@@ -15,8 +15,13 @@ Tracks the global state of the anonymous/authenticated user.
   PostHog/RevenueCat telemetry for ecosystem-wide session continuity.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
 - `default_geoprivacy` (ENUM): `'open'` | `'obscured'` | `'private'`. Dictates
-  the GPS fuzzing applied to new scans. `obscured` rounds coordinates to a ~50km
-  approximation; `private` hides them from all public bounds.
+  the privacy projection applied to scans. Current clients send this value on
+  identify requests, and Edge insert helpers fall back to this column when the
+  request omits or sends an invalid value. Updating this preference triggers a
+  scan reprojection for that user: `private` clears public coordinates and
+  public location labels, `obscured` rounds public coordinates with a 10 km
+  uncertainty floor, and `open` restores exact public coordinates when exact GPS
+  exists and species-safety rules allow it.
 - `current_streak_count` (Int): Gamification metric.
 - `total_species_discovered` (Int): Calculated at the database level via a
   Postgres `AFTER INSERT` trigger (`update_user_species_count()`). To avoid
@@ -448,6 +453,11 @@ The transaction log for every successful identification.
   scans round into a coarse public display cell rather than exposing the capture
   point; `open` scans may retain exact coordinates. The same migration backfills
   older rows that were missing public coordinates.
+- `geoprivacy` (ENUM): Per-scan privacy state (`open`, `obscured`, `private`).
+  New identify/describe/audio inserts resolve this from the explicit request
+  field when valid, otherwise from `users.default_geoprivacy`. Migration
+  `20260613100000_sync_user_default_geoprivacy_to_scans.sql` adds a user
+  default sync trigger so Settings changes reproject existing scans.
 - `coordinate_uncertainty_in_meters` (INTEGER, nullable): Public-location
   uncertainty band paired with `gps_lat_public` / `gps_long_public`. The same
   trigger clamps obscured Explore-visible rows to a coarse uncertainty floor
@@ -462,6 +472,12 @@ The transaction log for every successful identification.
   semantic searchability.
 - `weather_condition`, `semantic_location`, `device_locale`, `time_of_day`,
   `depth_scale_text` (Text)
+- `public_location_label` (TEXT, nullable): Sanitized public label used by
+  Explore feeds, maps, share text, and hashtag suggestions. Trigger
+  `trg_set_scan_public_location_label` derives it from
+  `public_location_label` / `semantic_location` for open and obscured scans and
+  sets it to `NULL` for private scans. Local owner-facing UI must not treat
+  `semantic_location` as display-safe without checking geoprivacy.
 - `device_time_zone` (TEXT, nullable): IANA timezone identifier sent by the
   client as `deviceTimeZone` during identify, multimodal, describe, and audio
   ingestion. Added in migration

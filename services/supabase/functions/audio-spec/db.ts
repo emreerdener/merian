@@ -4,6 +4,7 @@ import {
   buildSpeciesDictionaryProvenanceRows,
   recordSpeciesContentProvenance,
 } from "../_shared/speciesContentProvenance.ts";
+import { resolveScanGeoprivacy } from "../_shared/identify/db.ts";
 import { hasTierCached, setTierCache } from "../_shared/tierCache.ts";
 import { AudioCandidate } from "./types.ts";
 
@@ -143,6 +144,7 @@ export interface AudioScanInsertRow {
   id: string;
   user_id: string;
   species_id: string | null;
+  geoprivacy?: string | null;
   timestamp?: string;
   gps_lat_exact?: number | null;
   gps_long_exact?: number | null;
@@ -191,8 +193,24 @@ export async function insertScan(
   row: AudioScanInsertRow,
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
+  const geoprivacy = await resolveScanGeoprivacy(
+    row.user_id,
+    supabaseAdmin,
+    row.geoprivacy,
+  );
+  const scanRow = {
+    ...row,
+    geoprivacy,
+    public_location_label: geoprivacy === "private"
+      ? null
+      : row.public_location_label,
+  };
+
   const { error } = await supabaseAdmin
     .from("scans")
-    .upsert(row, { onConflict: "id", ignoreDuplicates: true });
+    .upsert(scanRow, {
+      onConflict: "id",
+      ignoreDuplicates: true,
+    });
   if (error) throw new Error(`insertScan: ${error.message}`);
 }

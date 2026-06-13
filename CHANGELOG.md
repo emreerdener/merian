@@ -32,6 +32,9 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed geoprivacy so private scans hide location details across scan cards,
+  sharing, achievements, Messages share captions, and public labels, while open
+  and obscured scans restore location context at the expected precision.
 - Fixed species observation charts timing out on first load by returning core
   public stats quickly while detailed life-stage and sex buckets refresh in the
   background.

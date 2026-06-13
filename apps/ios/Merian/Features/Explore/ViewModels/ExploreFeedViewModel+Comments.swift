@@ -260,48 +260,58 @@ extension ExploreFeedViewModel {
             print("[RepliesDebug] loadReplies aborted: already loaded full replies")
             return
         }
-        guard !loadingReplyCommentIds.contains(comment.id) else {
-            print("[RepliesDebug] loadReplies aborted: already loading full replies")
+
+        if let existingTask = activeReplyTasks[comment.id] {
+            print("[RepliesDebug] loadReplies: awaiting existing task for comment \(comment.id)")
+            _ = await existingTask.value
             return
         }
 
         print("[RepliesDebug] loadReplies proceeding to fetch for comment \(comment.id)")
-        loadingReplyCommentIds.insert(comment.id)
-        failedReplyCommentIds.remove(comment.id)
-        markReplyStateChanged()
-        commentErrorMessage = nil
-        defer {
-            loadingReplyCommentIds.remove(comment.id)
+        
+        let task = Task { @MainActor in
+            loadingReplyCommentIds.insert(comment.id)
+            failedReplyCommentIds.remove(comment.id)
             markReplyStateChanged()
-            print("[RepliesDebug] loadReplies defer finished for comment \(comment.id)")
-        }
-
-        do {
-            let replies = try await MerianNetworkClient.shared.getExploreCommentReplies(
-                parentCommentId: comment.id,
-                limit: repliesPageSize
-            )
-            print("[RepliesDebug] loadReplies fetch successful: fetched \(replies.count) replies for comment \(comment.id)")
-            repliesByCommentId[comment.id] = replies
-            hasLoadedReplyPreviewByCommentId.insert(comment.id)
-            hasLoadedRepliesByCommentId.insert(comment.id)
-            if replies.count < repliesPageSize {
-                hasReachedEndOfRepliesByCommentId.insert(comment.id)
-            } else {
-                hasReachedEndOfRepliesByCommentId.remove(comment.id)
+            commentErrorMessage = nil
+            
+            defer {
+                loadingReplyCommentIds.remove(comment.id)
+                activeReplyTasks.removeValue(forKey: comment.id)
+                markReplyStateChanged()
+                print("[RepliesDebug] loadReplies task defer finished for comment \(comment.id)")
             }
-            updateReplyCursor(parentCommentId: comment.id, using: replies)
-            markReplyStateChanged()
-        } catch is CancellationError {
-            print("[RepliesDebug] loadReplies task cancelled for comment \(comment.id)")
-        } catch let error as URLError where error.code == .cancelled {
-            print("[RepliesDebug] loadReplies URLSession cancelled for comment \(comment.id)")
-        } catch {
-            print("[RepliesDebug] loadReplies failed with error: \(error) for comment \(comment.id)")
-            commentErrorMessage = ExploreErrorFormatter.message(for: error)
-            failedReplyCommentIds.insert(comment.id)
-            HapticManager.shared.triggerErrorThump()
+            
+            do {
+                let replies = try await MerianNetworkClient.shared.getExploreCommentReplies(
+                    parentCommentId: comment.id,
+                    limit: repliesPageSize
+                )
+                print("[RepliesDebug] loadReplies task fetch successful: fetched \(replies.count) replies for comment \(comment.id)")
+                repliesByCommentId[comment.id] = replies
+                hasLoadedReplyPreviewByCommentId.insert(comment.id)
+                hasLoadedRepliesByCommentId.insert(comment.id)
+                if replies.count < repliesPageSize {
+                    hasReachedEndOfRepliesByCommentId.insert(comment.id)
+                } else {
+                    hasReachedEndOfRepliesByCommentId.remove(comment.id)
+                }
+                updateReplyCursor(parentCommentId: comment.id, using: replies)
+                markReplyStateChanged()
+            } catch is CancellationError {
+                print("[RepliesDebug] loadReplies task cancelled for comment \(comment.id)")
+            } catch let error as URLError where error.code == .cancelled {
+                print("[RepliesDebug] loadReplies task URLSession cancelled for comment \(comment.id)")
+            } catch {
+                print("[RepliesDebug] loadReplies task failed with error: \(error) for comment \(comment.id)")
+                commentErrorMessage = ExploreErrorFormatter.message(for: error)
+                failedReplyCommentIds.insert(comment.id)
+                HapticManager.shared.triggerErrorThump()
+            }
         }
+        
+        activeReplyTasks[comment.id] = task
+        _ = await task.value
     }
 
     func loadMoreRepliesIfNeeded(parentComment: ExploreComment, currentReply: ExploreComment) async {
@@ -555,6 +565,11 @@ extension ExploreFeedViewModel {
     }
 
     private func resetReplyState(keepingPendingExpansion: Bool = false) {
+        for task in activeReplyTasks.values {
+            task.cancel()
+        }
+        activeReplyTasks = [:]
+
         replyingToComment = nil
         repliesByCommentId = [:]
         expandedReplyCommentIds = []

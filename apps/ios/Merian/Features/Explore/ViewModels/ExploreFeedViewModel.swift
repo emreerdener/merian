@@ -210,6 +210,7 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var hasLoadedRepliesByCommentId = Set<String>()
     @ObservationIgnored var hasReachedEndOfRepliesByCommentId = Set<String>()
     @ObservationIgnored var pendingExpandedReplyParentCommentId: String?
+    @ObservationIgnored var activeReplyTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored var activeCommentsRequestId = UUID()
     @ObservationIgnored var likeRequestsInFlight = Set<String>()
     @ObservationIgnored var isRefreshingUnreadNotificationCount = false

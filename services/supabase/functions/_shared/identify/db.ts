@@ -16,6 +16,43 @@ import {
 } from "../tierCache.ts";
 import { CachedSpeciesRow, IdentificationCandidate } from "./types.ts";
 
+export type ScanGeoprivacy = "open" | "obscured" | "private";
+
+const VALID_SCAN_GEOPRIVACY = new Set<ScanGeoprivacy>([
+  "open",
+  "obscured",
+  "private",
+]);
+
+export function isScanGeoprivacy(value: unknown): value is ScanGeoprivacy {
+  return typeof value === "string" &&
+    VALID_SCAN_GEOPRIVACY.has(value as ScanGeoprivacy);
+}
+
+export async function resolveScanGeoprivacy(
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+  explicitGeoprivacy?: string | null,
+): Promise<ScanGeoprivacy> {
+  if (isScanGeoprivacy(explicitGeoprivacy)) {
+    return explicitGeoprivacy;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("default_geoprivacy")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`resolveScanGeoprivacy: ${error.message}`);
+  }
+
+  const defaultGeoprivacy = (data as { default_geoprivacy?: unknown } | null)
+    ?.default_geoprivacy;
+  return isScanGeoprivacy(defaultGeoprivacy) ? defaultGeoprivacy : "open";
+}
+
 export async function upsertGhostUserIfMissing(
   userId: string,
   supabaseAdmin: SupabaseClient,
@@ -236,6 +273,7 @@ export interface ScanInsertRow {
   id: string;
   user_id: string;
   species_id: string | null;
+  geoprivacy?: string | null;
   timestamp?: string;
   gps_lat_exact?: number | null;
   gps_long_exact?: number | null;
@@ -301,8 +339,24 @@ export async function insertScan(
   row: ScanInsertRow,
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
+  const geoprivacy = await resolveScanGeoprivacy(
+    row.user_id,
+    supabaseAdmin,
+    row.geoprivacy,
+  );
+  const scanRow = {
+    ...row,
+    geoprivacy,
+    public_location_label: geoprivacy === "private"
+      ? null
+      : row.public_location_label,
+  };
+
   const { error } = await supabaseAdmin
     .from("scans")
-    .upsert(row, { onConflict: "id", ignoreDuplicates: true });
+    .upsert(scanRow, {
+      onConflict: "id",
+      ignoreDuplicates: true,
+    });
   if (error) throw new Error(`insertScan: ${error.message}`);
 }
