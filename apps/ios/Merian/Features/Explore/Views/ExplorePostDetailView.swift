@@ -138,13 +138,12 @@ struct ExplorePostDetailView: View {
                                     }
                                 )
 
-                                ExploreObservationContextCard(post: post)
-
                                 toxicityBanner
 
                                 fieldNotesSection(for: post)
 
                                 ExplorePostDetailInsightSection(
+                                    post: post,
                                     scientificName: post.speciesScientificName,
                                     displayCommonName: viewModel.resolvedSpeciesCommonName(for: post),
                                     alternativeCommonNames: detail?.alternativeCommonNames ?? [],

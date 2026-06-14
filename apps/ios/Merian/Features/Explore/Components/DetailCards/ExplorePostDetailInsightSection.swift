@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ExplorePostDetailInsightSection: View {
+    let post: ExplorePost
     let scientificName: String
     let displayCommonName: String
     let alternativeCommonNames: [String]
@@ -12,6 +13,21 @@ struct ExplorePostDetailInsightSection: View {
         isLoading
             || detail != nil
             || errorMessage != nil
+    }
+
+    private var speciesDictionaryRoute: SpeciesDictionaryRoute {
+        SpeciesDictionaryRoute(
+            scientificName: scientificName,
+            speciesId: detail?.speciesDictionaryId,
+            entryPoint: .exploreDetailDictionary
+        )
+    }
+
+    private var shouldShowOverviewCard: Bool {
+        ExploreOverviewCard.hasVisibleContent(
+            iucnRedListStatus: detail?.iucnRedListStatus,
+            wikipediaOverview: detail?.wikipediaOverview
+        )
     }
 
     var body: some View {
@@ -42,10 +58,21 @@ struct ExplorePostDetailInsightSection: View {
                 )
             }
 
-            ExploreSpeciesDictionaryLink(
-                scientificName: scientificName,
-                speciesId: detail?.speciesDictionaryId
-            )
+            if shouldShowOverviewCard {
+                ExploreOverviewCard(
+                    scientificName: scientificName,
+                    iucnRedListStatus: detail?.iucnRedListStatus,
+                    wikipediaOverview: detail?.wikipediaOverview,
+                    action: .speciesDictionary(speciesDictionaryRoute)
+                )
+            } else {
+                ExploreSpeciesDictionaryLink(
+                    scientificName: scientificName,
+                    speciesId: detail?.speciesDictionaryId
+                )
+            }
+
+            ExploreObservationContextCard(post: post)
 
             AlternativeCommonNamesLine(
                 names: alternativeCommonNames,
