@@ -175,6 +175,8 @@ async function sendApnsPush(
   apnsTopic: string,
   notificationId: string,
   postId: string,
+  commentId: string | null,
+  parentCommentId: string | null,
   notificationType: string,
   badgeCount: number | null | undefined,
 ): Promise<ApnsFailure | null> {
@@ -196,6 +198,8 @@ async function sendApnsPush(
       },
       type: "explore_activity",
       postId,
+      commentId,
+      parentCommentId,
       notificationId,
       notificationType,
     }),
@@ -285,6 +289,8 @@ serve(async (req: Request) => {
         apnsTopic,
         payload.notification_id,
         payload.post_id,
+        payload.comment_id,
+        payload.parent_comment_id,
         payload.type,
         payload.unread_count,
       );

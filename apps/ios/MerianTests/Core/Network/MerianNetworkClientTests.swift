@@ -736,6 +736,50 @@ struct MerianNetworkClientTests {
         #expect(comments[0].reactions?.first?.emoji == "👍")
     }
 
+    @Test func testGetExploreCommentRepliesUsesParentCommentAndDecodesReply() async throws {
+        let testData = """
+        {
+            "success": true,
+            "data": [
+                {
+                    "comment_id": "reply-avatar-123",
+                    "post_id": "post-avatar-123",
+                    "parent_comment_id": "parent-avatar-123",
+                    "author_user_id": "reply-author-123",
+                    "author_name": "Reply Author",
+                    "author_avatar_url": "https://example.com/reply-author.jpg",
+                    "body": "Reply body",
+                    "created_at": "2026-05-19T10:01:00.000Z",
+                    "viewer_can_delete": false,
+                    "viewer_can_moderate": false,
+                    "viewer_can_report": true,
+                    "reply_count": 0,
+                    "reactions": []
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/get-explore-comment-replies"] = { request in
+            #expect(request.url?.path.hasSuffix("/get-explore-comment-replies") == true)
+            #expect(request.httpMethod == "POST")
+
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["parent_comment_id"] as? String == "parent-avatar-123")
+            #expect(payload["limit"] as? Int == 25)
+            return (mockResponse, testData)
+        }
+
+        let replies = try await MerianNetworkClient.shared.getExploreCommentReplies(parentCommentId: "parent-avatar-123")
+
+        #expect(replies.count == 1)
+        #expect(replies[0].id == "reply-avatar-123")
+        #expect(replies[0].parentCommentId == "parent-avatar-123")
+        #expect(replies[0].authorAvatarUrl == "https://example.com/reply-author.jpg")
+    }
+
     @Test func testCreateExploreCommentParsesAuthorAvatar() async throws {
         let testData = """
         {

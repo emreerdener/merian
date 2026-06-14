@@ -86,6 +86,7 @@ struct ExploreView: View {
                     shouldOpenInsight: route.shouldOpenInsight,
                     targetCommentId: route.targetCommentId,
                     targetReplyParentCommentId: route.targetReplyParentCommentId,
+                    notificationReplyThreadTarget: route.notificationReplyThreadTarget,
                     allowsInsightPresentation: allowsInsightPresentation
                 )
             }
@@ -242,7 +243,8 @@ struct ExploreView: View {
         focusCommentComposer: Bool = false,
         openInsight: Bool = false,
         targetCommentId: String? = nil,
-        targetReplyParentCommentId: String? = nil
+        targetReplyParentCommentId: String? = nil,
+        notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget? = nil
     ) {
         viewModel.upsertPost(post)
         viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
@@ -251,7 +253,8 @@ struct ExploreView: View {
             shouldFocusCommentComposer: focusCommentComposer,
             shouldOpenInsight: allowsInsightPresentation && openInsight,
             targetCommentId: targetCommentId,
-            targetReplyParentCommentId: targetReplyParentCommentId
+            targetReplyParentCommentId: targetReplyParentCommentId,
+            notificationReplyThreadTarget: notificationReplyThreadTarget
         ))
     }
 
@@ -346,6 +349,25 @@ struct ExploreView: View {
             let targetCommentId = targetReplyParentCommentId == notification.commentId
                 ? nil
                 : notification.commentId
+
+            if notification.type == .commentReply,
+               let targetReplyId = notification.commentId {
+                openPostDetail(
+                    for: post,
+                    notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget(
+                        parentCommentId: notification.parentCommentId,
+                        targetReplyId: targetReplyId,
+                        fallbackReply: ExploreNotificationReplyFallback(
+                            commentId: targetReplyId,
+                            body: notification.commentBody,
+                            authorUserId: notification.triggeringUserId,
+                            authorName: notification.triggeringUserName,
+                            createdAt: notification.createdAt
+                        )
+                    )
+                )
+                return
+            }
 
             if targetReplyParentCommentId != nil {
                 viewModel.prepareToExpandReplyThread(parentCommentId: targetReplyParentCommentId)
@@ -717,6 +739,29 @@ struct ExplorePostRoute: Hashable {
     let shouldOpenInsight: Bool
     let targetCommentId: String?
     let targetReplyParentCommentId: String?
+    let notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget?
+
+    init(
+        postId: String,
+        shouldFocusCommentComposer: Bool,
+        shouldOpenInsight: Bool,
+        targetCommentId: String?,
+        targetReplyParentCommentId: String?,
+        notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget? = nil
+    ) {
+        self.postId = postId
+        self.shouldFocusCommentComposer = shouldFocusCommentComposer
+        self.shouldOpenInsight = shouldOpenInsight
+        self.targetCommentId = targetCommentId
+        self.targetReplyParentCommentId = targetReplyParentCommentId
+        self.notificationReplyThreadTarget = notificationReplyThreadTarget
+    }
+}
+
+struct ExploreNotificationReplyThreadTarget: Hashable {
+    let parentCommentId: String?
+    let targetReplyId: String
+    let fallbackReply: ExploreNotificationReplyFallback
 }
 
 struct ExploreHashtagRoute: Hashable {

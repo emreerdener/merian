@@ -170,6 +170,8 @@ type PushPayloadRow = {
   notification_id: string;
   recipient_user_id: string;
   post_id: string;
+  comment_id: string | null;
+  parent_comment_id: string | null;
   type: "like_aggregated" | "comment" | "comment_reaction" | "comment_reply";
   action_count: number;
   reaction_emoji: string | null;
@@ -703,6 +705,11 @@ Deno.test("Explore notifications DB - comment replies notify parent author and d
     );
     assertEquals(parentPushPayloadResult.rows.length, 1);
     assertEquals(parentPushPayloadResult.rows[0].type, "comment_reply");
+    assertEquals(parentPushPayloadResult.rows[0].comment_id, replyId);
+    assertEquals(
+      parentPushPayloadResult.rows[0].parent_comment_id,
+      parentCommentId,
+    );
     assertEquals(
       parentPushPayloadResult.rows[0].is_reply_to_viewer_comment,
       true,

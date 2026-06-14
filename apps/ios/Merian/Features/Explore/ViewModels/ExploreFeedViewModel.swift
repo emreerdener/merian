@@ -14,6 +14,18 @@ struct ExploreCommentCursor {
     let commentId: String
 }
 
+struct ExploreReplyThreadRenderState: Equatable {
+    var replies: [ExploreComment] = []
+    var isExpanded = false
+    var isLoading = false
+    var isLoadingPreview = false
+    var isLoadingMore = false
+    var didFail = false
+    var hasLoadedPreview = false
+    var hasLoadedReplies = false
+    var hasReachedEnd = false
+}
+
 @MainActor
 @Observable
 final class ExplorePostStore {
@@ -180,6 +192,10 @@ final class ExploreFeedViewModel {
     var loadingReplyPreviewCommentIds: Set<String> = []
     var loadingMoreReplyCommentIds: Set<String> = []
     var failedReplyCommentIds: Set<String> = []
+    var hasLoadedReplyPreviewByCommentId = Set<String>()
+    var hasLoadedRepliesByCommentId = Set<String>()
+    var hasReachedEndOfRepliesByCommentId = Set<String>()
+    var replyThreadRenderStates: [String: ExploreReplyThreadRenderState] = [:]
     var replyStateVersion: UInt64 = 0
 
     var posts: [ExplorePost] {
@@ -206,9 +222,6 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var hasLoadedCommentsOnce = false
     @ObservationIgnored var hasReachedEndOfComments = false
     @ObservationIgnored var replyCursorsByCommentId: [String: ExploreCommentCursor] = [:]
-    @ObservationIgnored var hasLoadedReplyPreviewByCommentId = Set<String>()
-    @ObservationIgnored var hasLoadedRepliesByCommentId = Set<String>()
-    @ObservationIgnored var hasReachedEndOfRepliesByCommentId = Set<String>()
     @ObservationIgnored var pendingExpandedReplyParentCommentId: String?
     @ObservationIgnored var activeReplyTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored var activeCommentsRequestId = UUID()

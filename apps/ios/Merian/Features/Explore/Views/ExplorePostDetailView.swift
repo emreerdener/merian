@@ -8,6 +8,7 @@ struct ExplorePostDetailView: View {
     let shouldOpenInsight: Bool
     let targetCommentId: String?
     let targetReplyParentCommentId: String?
+    let notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget?
     let allowsInsightPresentation: Bool
     let allowsAuthorProfilePresentation: Bool
 
@@ -26,8 +27,10 @@ struct ExplorePostDetailView: View {
     @State private var localFieldNotes: String?
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
+    @State private var selectedNotificationReplyThreadRoute: ExploreNotificationReplyThreadRoute?
     @State private var isRefreshingAfterInsightDismiss = false
     @State private var didAutoOpenInsight = false
+    @State private var didPresentNotificationReplyThread = false
     @State private var isCommonNameScrolledPast = false
     @State private var postToUnpublish: ExplorePost?
     @State private var commentsSectionMinY: CGFloat = .infinity
@@ -53,6 +56,7 @@ struct ExplorePostDetailView: View {
         shouldOpenInsight: Bool,
         targetCommentId: String? = nil,
         targetReplyParentCommentId: String? = nil,
+        notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget? = nil,
         allowsInsightPresentation: Bool,
         allowsAuthorProfilePresentation: Bool = true
     ) {
@@ -62,6 +66,7 @@ struct ExplorePostDetailView: View {
         self.shouldOpenInsight = shouldOpenInsight
         self.targetCommentId = targetCommentId
         self.targetReplyParentCommentId = targetReplyParentCommentId
+        self.notificationReplyThreadTarget = notificationReplyThreadTarget
         self.allowsInsightPresentation = allowsInsightPresentation
         self.allowsAuthorProfilePresentation = allowsAuthorProfilePresentation
     }
@@ -253,6 +258,7 @@ struct ExplorePostDetailView: View {
                         await viewModel.expandPendingReplyThreadIfNeeded()
                         await focusTargetCommentIfNeeded(using: scrollProxy)
                         syncLocalFieldNotes(for: post)
+                        presentNotificationReplyThreadIfNeeded(for: post)
 
                         if shouldFocusCommentComposer {
                             focusComments(using: scrollProxy, animated: false)
@@ -350,6 +356,9 @@ struct ExplorePostDetailView: View {
         }
         .sheet(item: $selectedAuthorProfileRoute) { route in
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
+        }
+        .sheet(item: $selectedNotificationReplyThreadRoute) { route in
+            ExploreNotificationReplyThreadSheet(route: route)
         }
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
             Task {
@@ -507,6 +516,19 @@ struct ExplorePostDetailView: View {
                 scrollProxy.scrollTo(commentsComposerId, anchor: .bottom)
             }
         }
+    }
+
+    private func presentNotificationReplyThreadIfNeeded(for post: ExplorePost) {
+        guard !didPresentNotificationReplyThread,
+              let notificationReplyThreadTarget else { return }
+
+        didPresentNotificationReplyThread = true
+        selectedNotificationReplyThreadRoute = ExploreNotificationReplyThreadRoute(
+            post: post,
+            parentCommentId: notificationReplyThreadTarget.parentCommentId,
+            targetReplyId: notificationReplyThreadTarget.targetReplyId,
+            fallbackReply: notificationReplyThreadTarget.fallbackReply
+        )
     }
 
     private func focusTargetCommentIfNeeded(using scrollProxy: ScrollViewProxy) async {

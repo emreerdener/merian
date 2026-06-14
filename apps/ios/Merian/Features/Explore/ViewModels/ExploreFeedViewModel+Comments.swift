@@ -190,12 +190,24 @@ extension ExploreFeedViewModel {
         HapticManager.shared.triggerSelectionPulse()
     }
 
+    func replyThreadRenderState(for commentId: String) -> ExploreReplyThreadRenderState {
+        replyThreadRenderStates[commentId] ?? currentReplyThreadRenderState(for: commentId)
+    }
+
     func expandReplies(for comment: ExploreComment) {
         HapticManager.shared.triggerSheetSpring()
         guard !expandedReplyCommentIds.contains(comment.id) else { return }
 
         expandedReplyCommentIds.insert(comment.id)
         markReplyStateChanged()
+    }
+
+    func expandRepliesAndLoad(for comment: ExploreComment) async {
+        expandReplies(for: comment)
+        if !hasLoadedRepliesByCommentId.contains(comment.id),
+           !loadingReplyCommentIds.contains(comment.id) {
+            await loadReplies(for: comment)
+        }
     }
 
     func loadReplyPreviewIfNeeded(for comment: ExploreComment) async {
@@ -268,13 +280,12 @@ extension ExploreFeedViewModel {
         }
 
         print("[RepliesDebug] loadReplies proceeding to fetch for comment \(comment.id)")
-        
+        loadingReplyCommentIds.insert(comment.id)
+        failedReplyCommentIds.remove(comment.id)
+        markReplyStateChanged()
+        commentErrorMessage = nil
+
         let task = Task { @MainActor in
-            loadingReplyCommentIds.insert(comment.id)
-            failedReplyCommentIds.remove(comment.id)
-            markReplyStateChanged()
-            commentErrorMessage = nil
-            
             defer {
                 loadingReplyCommentIds.remove(comment.id)
                 activeReplyTasks.removeValue(forKey: comment.id)
@@ -581,6 +592,7 @@ extension ExploreFeedViewModel {
         hasLoadedReplyPreviewByCommentId = []
         hasLoadedRepliesByCommentId = []
         hasReachedEndOfRepliesByCommentId = []
+        replyThreadRenderStates = [:]
         if !keepingPendingExpansion {
             pendingExpandedReplyParentCommentId = nil
         }
@@ -639,5 +651,38 @@ extension ExploreFeedViewModel {
 
     private func markReplyStateChanged() {
         replyStateVersion &+= 1
+        refreshReplyThreadRenderStates()
+    }
+
+    private func refreshReplyThreadRenderStates() {
+        let parentCommentIds = Set(repliesByCommentId.keys)
+            .union(expandedReplyCommentIds)
+            .union(loadingReplyCommentIds)
+            .union(loadingReplyPreviewCommentIds)
+            .union(loadingMoreReplyCommentIds)
+            .union(failedReplyCommentIds)
+            .union(hasLoadedReplyPreviewByCommentId)
+            .union(hasLoadedRepliesByCommentId)
+            .union(hasReachedEndOfRepliesByCommentId)
+
+        var nextStates: [String: ExploreReplyThreadRenderState] = [:]
+        for parentCommentId in parentCommentIds {
+            nextStates[parentCommentId] = currentReplyThreadRenderState(for: parentCommentId)
+        }
+        replyThreadRenderStates = nextStates
+    }
+
+    private func currentReplyThreadRenderState(for parentCommentId: String) -> ExploreReplyThreadRenderState {
+        ExploreReplyThreadRenderState(
+            replies: repliesByCommentId[parentCommentId] ?? [],
+            isExpanded: expandedReplyCommentIds.contains(parentCommentId),
+            isLoading: loadingReplyCommentIds.contains(parentCommentId),
+            isLoadingPreview: loadingReplyPreviewCommentIds.contains(parentCommentId),
+            isLoadingMore: loadingMoreReplyCommentIds.contains(parentCommentId),
+            didFail: failedReplyCommentIds.contains(parentCommentId),
+            hasLoadedPreview: hasLoadedReplyPreviewByCommentId.contains(parentCommentId),
+            hasLoadedReplies: hasLoadedRepliesByCommentId.contains(parentCommentId),
+            hasReachedEnd: hasReachedEndOfRepliesByCommentId.contains(parentCommentId)
+        )
     }
 }

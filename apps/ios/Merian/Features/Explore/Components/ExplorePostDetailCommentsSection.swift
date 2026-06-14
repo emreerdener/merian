@@ -14,6 +14,17 @@ enum ExploreCommentScrollTarget {
     }
 }
 
+struct ExploreReplyRenderInvalidationAnchor: View {
+    let version: UInt64
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .transaction { _ in _ = version }
+    }
+}
+
 struct ExplorePostDetailCommentsSection: View {
     @Bindable var viewModel: ExploreFeedViewModel
     let post: ExplorePost
@@ -27,6 +38,7 @@ struct ExplorePostDetailCommentsSection: View {
 
     @State private var reactingCommentId: String?
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
+    @State private var localReplyStateVersion: UInt64 = 0
 
     private let availableEmojis = ["\u{2764}\u{FE0F}", "\u{1F44D}", "\u{1F602}", "\u{1F389}", "\u{1F632}", "\u{1F33F}"]
     private let replyThreadParentExtension: CGFloat = 36
@@ -34,36 +46,43 @@ struct ExplorePostDetailCommentsSection: View {
     private let replyThreadLineColor = Color(uiColor: .systemGray4)
 
     var body: some View {
-        let _ = viewModel.replyStateVersion
-        if isComposerSticky {
-            composer
-                .padding(.horizontal, 16)
-                .background(
-                    Color(uiColor: .systemBackground)
-                        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: -3)
-                        .ignoresSafeArea(edges: .bottom)
-                )
-        } else {
-            VStack(alignment: .leading, spacing: 16) {
-                header
+        Group {
+            if isComposerSticky {
+                composer
+                    .padding(.horizontal, 16)
+                    .background(
+                        Color(uiColor: .systemBackground)
+                            .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: -3)
+                            .ignoresSafeArea(edges: .bottom)
+                    )
+            } else {
+                VStack(alignment: .leading, spacing: 16) {
+                    header
 
-                if viewModel.isCommentsLoading && viewModel.comments.isEmpty {
-                    loadingState
-                } else if viewModel.comments.isEmpty {
-                    emptyState
-                } else {
-                    commentsList
+                    if viewModel.isCommentsLoading && viewModel.comments.isEmpty {
+                        loadingState
+                    } else if viewModel.comments.isEmpty {
+                        emptyState
+                    } else {
+                        commentsList
+                    }
+
+                    if !hideInlineComposer {
+                        composer
+                            .padding(.top, 8)
+                            .id(composerId)
+                    }
                 }
-
-                if !hideInlineComposer {
-                    composer
-                        .padding(.top, 8)
-                        .id(composerId)
+                .sheet(item: $selectedAuthorProfileRoute) { route in
+                    ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
                 }
             }
-            .sheet(item: $selectedAuthorProfileRoute) { route in
-                ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
-            }
+        }
+        .background {
+            ExploreReplyRenderInvalidationAnchor(version: localReplyStateVersion)
+        }
+        .onChange(of: viewModel.replyStateVersion) { _, newValue in
+            localReplyStateVersion = newValue
         }
     }
 
@@ -250,7 +269,9 @@ struct ExplorePostDetailCommentsSection: View {
     }
 
     private func commentThread(_ comment: ExploreComment) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let replyState = viewModel.replyThreadRenderState(for: comment.id)
+
+        return VStack(alignment: .leading, spacing: 10) {
             commentRow(comment, allowsReply: true)
 
             let replyCount = comment.replyCount ?? 0
@@ -258,14 +279,14 @@ struct ExplorePostDetailCommentsSection: View {
                 VStack(alignment: .leading, spacing: 10) {
                     replyCountLabel(replyCount, for: comment)
 
-                    if viewModel.expandedReplyCommentIds.contains(comment.id) {
-                        repliesList(for: comment)
+                    if replyState.isExpanded {
+                        repliesList(for: comment, replyState: replyState)
                     } else {
-                        replyPreview(for: comment, replyCount: replyCount)
+                        replyPreview(for: comment, replyCount: replyCount, replyState: replyState)
                     }
                 }
 
-                if viewModel.repliesByCommentId[comment.id]?.isEmpty == false {
+                if !replyState.replies.isEmpty {
                     threadReplyButton(for: comment)
                 }
             }
@@ -273,7 +294,9 @@ struct ExplorePostDetailCommentsSection: View {
     }
 
     private func replyCountLabel(_ replyCount: Int, for comment: ExploreComment) -> some View {
-        Button(action: { viewModel.expandReplies(for: comment) }) {
+        Button(action: {
+            Task { await viewModel.expandRepliesAndLoad(for: comment) }
+        }) {
             Text("\(replyCount) \(replyCount == 1 ? "reply" : "replies")")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
@@ -303,20 +326,25 @@ struct ExplorePostDetailCommentsSection: View {
     }
 
     @ViewBuilder
-    private func replyPreview(for comment: ExploreComment, replyCount: Int) -> some View {
+    private func replyPreview(
+        for comment: ExploreComment,
+        replyCount: Int,
+        replyState: ExploreReplyThreadRenderState
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            if viewModel.loadingReplyPreviewCommentIds.contains(comment.id),
-               viewModel.repliesByCommentId[comment.id]?.isEmpty ?? true {
+            if replyState.isLoadingPreview, replyState.replies.isEmpty {
                 ProgressView()
                     .progressViewStyle(.circular)
                     .padding(.leading, 48)
             }
 
-            if let firstReply = viewModel.repliesByCommentId[comment.id]?.first {
+            if let firstReply = replyState.replies.first {
                 replyRow(firstReply, topExtension: replyThreadParentExtension, connectsToNext: false)
 
                 if replyCount > 1 {
-                    Button(action: { viewModel.expandReplies(for: comment) }) {
+                    Button(action: {
+                        Task { await viewModel.expandRepliesAndLoad(for: comment) }
+                    }) {
                         Text(showMoreRepliesTitle(for: replyCount))
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(.secondary)
@@ -334,10 +362,14 @@ struct ExplorePostDetailCommentsSection: View {
     }
 
     @ViewBuilder
-    private func repliesList(for comment: ExploreComment) -> some View {
+    private func repliesList(for comment: ExploreComment, replyState: ExploreReplyThreadRenderState) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !viewModel.hasLoadedRepliesByCommentId.contains(comment.id) {
-                if viewModel.failedReplyCommentIds.contains(comment.id) {
+            if !replyState.hasLoadedReplies {
+                if replyState.isLoading {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .padding(.leading, 48)
+                } else if replyState.didFail {
                     Button(action: {
                         Task { await viewModel.loadReplies(for: comment) }
                     }) {
@@ -351,30 +383,39 @@ struct ExplorePostDetailCommentsSection: View {
                     .buttonStyle(.plain)
                     .padding(.leading, 48)
                 } else {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .padding(.leading, 48)
+                    Button(action: {
+                        Task { await viewModel.loadReplies(for: comment) }
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.down.circle")
+                            Text("Load replies")
+                        }
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 48)
                 }
             }
 
-            ForEach(Array((viewModel.repliesByCommentId[comment.id] ?? []).enumerated()), id: \.element.id) { index, reply in
+            ForEach(Array(replyState.replies.enumerated()), id: \.element.id) { index, reply in
                 replyRow(
                     reply,
                     topExtension: index > 0 ? replyThreadRowSpacing / 2 : replyThreadParentExtension,
-                    connectsToNext: index < (viewModel.repliesByCommentId[comment.id] ?? []).count - 1
+                    connectsToNext: index < replyState.replies.count - 1
                 )
                     .onAppear {
                         Task { await viewModel.loadMoreRepliesIfNeeded(parentComment: comment, currentReply: reply) }
                     }
             }
 
-            if viewModel.loadingMoreReplyCommentIds.contains(comment.id) {
+            if replyState.isLoadingMore {
                 ProgressView()
                     .progressViewStyle(.circular)
                     .padding(.leading, 48)
-            } else if viewModel.hasLoadedRepliesByCommentId.contains(comment.id),
-                      !viewModel.hasReachedEndOfRepliesByCommentId.contains(comment.id),
-                      let lastReply = viewModel.repliesByCommentId[comment.id]?.last {
+            } else if replyState.hasLoadedReplies,
+                      !replyState.hasReachedEnd,
+                      let lastReply = replyState.replies.last {
                 Button(action: {
                     Task { await viewModel.loadMoreRepliesIfNeeded(parentComment: comment, currentReply: lastReply) }
                 }) {
@@ -385,13 +426,6 @@ struct ExplorePostDetailCommentsSection: View {
                 .buttonStyle(.plain)
                 .padding(.leading, 48)
             }
-        }
-        .task {
-            print("[UIRepliesDebug] repliesList task started for comment \(comment.id)")
-            defer {
-                print("[UIRepliesDebug] repliesList task ended for comment \(comment.id) - isCancelled: \(Task.isCancelled)")
-            }
-            await viewModel.loadReplies(for: comment)
         }
     }
 
@@ -422,7 +456,7 @@ struct ExplorePostDetailCommentsSection: View {
             return nil
         }
 
-        guard viewModel.repliesByCommentId[comment.id]?.contains(where: { $0.id == targetCommentId }) != true else {
+        guard viewModel.replyThreadRenderState(for: comment.id).replies.contains(where: { $0.id == targetCommentId }) != true else {
             return nil
         }
 

@@ -857,3 +857,118 @@ final class ExploreMediaLayoutTests: XCTestCase {
         assertPixel(rgbaPixel(in: rendered, x: 160, y: 295), approximately: bottomColor)
     }
 }
+
+@MainActor
+final class ExploreReplyLoadingStateTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        MockURLProtocol.mockEndpoints = [:]
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
+        MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
+    }
+
+    private func makeComment(id: String = "parent-comment-123") -> ExploreComment {
+        ExploreComment(
+            commentId: id,
+            postId: "post-123",
+            parentCommentId: nil,
+            authorUserId: "author-123",
+            authorName: "Parent Author",
+            authorUsername: nil,
+            authorAvatarUrl: nil,
+            body: "Parent body",
+            createdAt: "2026-05-19T10:00:00.000Z",
+            viewerCanDelete: false,
+            viewerCanModerate: false,
+            viewerCanReport: true,
+            replyCount: 1,
+            reactions: nil
+        )
+    }
+
+    func testLoadRepliesMarksLoadedAndClearsLoadingState() async throws {
+        let viewModel = ExploreFeedViewModel()
+        let parentComment = makeComment()
+        let responseData = """
+        {
+            "success": true,
+            "data": [
+                {
+                    "comment_id": "reply-123",
+                    "post_id": "post-123",
+                    "parent_comment_id": "parent-comment-123",
+                    "author_user_id": "reply-author-123",
+                    "author_name": "Reply Author",
+                    "body": "Reply body",
+                    "created_at": "2026-05-19T10:01:00.000Z",
+                    "viewer_can_delete": false,
+                    "viewer_can_moderate": false,
+                    "viewer_can_report": true,
+                    "reply_count": 0,
+                    "reactions": []
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/get-explore-comment-replies"] = { _ in
+            (mockResponse, responseData)
+        }
+
+        await viewModel.loadReplies(for: parentComment)
+
+        XCTAssertFalse(viewModel.loadingReplyCommentIds.contains(parentComment.id))
+        XCTAssertTrue(viewModel.hasLoadedRepliesByCommentId.contains(parentComment.id))
+        XCTAssertFalse(viewModel.failedReplyCommentIds.contains(parentComment.id))
+        XCTAssertEqual(viewModel.repliesByCommentId[parentComment.id]?.first?.id, "reply-123")
+
+        let replyState = viewModel.replyThreadRenderState(for: parentComment.id)
+        XCTAssertFalse(replyState.isLoading)
+        XCTAssertTrue(replyState.hasLoadedReplies)
+        XCTAssertEqual(replyState.replies.first?.id, "reply-123")
+    }
+
+    func testCancelledLoadRepliesClearsLoadingWithoutFailureOrLoadedState() async {
+        let viewModel = ExploreFeedViewModel()
+        let parentComment = makeComment()
+
+        MockURLProtocol.mockEndpoints["/get-explore-comment-replies"] = { _ in
+            throw URLError(.cancelled)
+        }
+
+        await viewModel.loadReplies(for: parentComment)
+
+        XCTAssertFalse(viewModel.loadingReplyCommentIds.contains(parentComment.id))
+        XCTAssertFalse(viewModel.hasLoadedRepliesByCommentId.contains(parentComment.id))
+        XCTAssertFalse(viewModel.failedReplyCommentIds.contains(parentComment.id))
+
+        let replyState = viewModel.replyThreadRenderState(for: parentComment.id)
+        XCTAssertFalse(replyState.isLoading)
+        XCTAssertFalse(replyState.hasLoadedReplies)
+        XCTAssertFalse(replyState.didFail)
+    }
+
+    func testFailedLoadRepliesClearsLoadingAndSetsRetryState() async {
+        let viewModel = ExploreFeedViewModel()
+        let parentComment = makeComment()
+
+        MockURLProtocol.mockEndpoints["/get-explore-comment-replies"] = { _ in
+            throw NSError(domain: "ExploreReplyLoadingStateTests", code: 1)
+        }
+
+        await viewModel.loadReplies(for: parentComment)
+
+        XCTAssertFalse(viewModel.loadingReplyCommentIds.contains(parentComment.id))
+        XCTAssertFalse(viewModel.hasLoadedRepliesByCommentId.contains(parentComment.id))
+        XCTAssertTrue(viewModel.failedReplyCommentIds.contains(parentComment.id))
+
+        let replyState = viewModel.replyThreadRenderState(for: parentComment.id)
+        XCTAssertFalse(replyState.isLoading)
+        XCTAssertFalse(replyState.hasLoadedReplies)
+        XCTAssertTrue(replyState.didFail)
+    }
+}
