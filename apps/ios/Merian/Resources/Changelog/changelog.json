@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-15-nonbio-local-purge",
+      "date": "2026-06-15",
+      "title": "Non-biological cleanup",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Non-biological scans older than 30 days are now cleaned up locally when the app returns to the foreground or when you open the Non-biological collection."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-14-smart-collections",
       "date": "2026-06-14",
       "title": "Smart collections",

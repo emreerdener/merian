@@ -743,6 +743,70 @@ struct BackgroundDatabaseActorTests {
         #expect(deletedPaths == ["should_not_delete.webp"], "Committed local file paths should still be returned for cleanup")
     }
 
+    @Test func testPurgeExpiredNonBiologicalScansDeletesOnlyExpiredNonBioRecords() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let referenceDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let cutoffDate = referenceDate.addingTimeInterval(TimeInterval(-MerianConfig.nonBiologicalRetentionDays * 24 * 60 * 60))
+        let mediaJSON = try #require(CapturedMediaSnapshot(items: [
+            .image(.documents("expired_nonbio.webp")),
+            .audio(.documents("expired_nonbio.wav")),
+            .image(.remoteURL("https://merian.example/nonbio.webp"))
+        ]).jsonString)
+
+        let expiredNonBio = LocalScanRecord(
+            id: "expired_nonbio",
+            speciesId: "nonbio_species",
+            scientificName: "Notebook",
+            commonName: "Notebook",
+            timestamp: cutoffDate.addingTimeInterval(-60),
+            capturedMediaJSON: mediaJSON,
+            isBiological: false,
+            isLiveCapture: false,
+            ecologyType: "unknown"
+        )
+        let freshNonBio = LocalScanRecord(
+            id: "fresh_nonbio",
+            speciesId: "nonbio_species_fresh",
+            scientificName: "Desk",
+            commonName: "Desk",
+            timestamp: cutoffDate.addingTimeInterval(60),
+            isBiological: false,
+            isLiveCapture: false,
+            ecologyType: "unknown"
+        )
+        let expiredBiological = LocalScanRecord(
+            id: "expired_bio",
+            speciesId: "bio_species",
+            scientificName: "Quercus alba",
+            commonName: "White Oak",
+            timestamp: cutoffDate.addingTimeInterval(-60),
+            isBiological: true,
+            isLiveCapture: false,
+            ecologyType: "wild"
+        )
+        context.insert(expiredNonBio)
+        context.insert(freshNonBio)
+        context.insert(expiredBiological)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let result = try await actor.purgeExpiredNonBiologicalScans(cutoffDate: cutoffDate)
+
+        let recordDescriptor = FetchDescriptor<LocalScanRecord>()
+        let remainingIds = try context.fetch(recordDescriptor).map(\.id)
+        let taskDescriptor = FetchDescriptor<PendingCloudDeletionTask>(
+            predicate: #Predicate { $0.scanId == "expired_nonbio" }
+        )
+
+        #expect(!remainingIds.contains("expired_nonbio"), "Expired non-biological records should be removed locally")
+        #expect(remainingIds.contains("fresh_nonbio"), "Fresh non-biological records should remain")
+        #expect(remainingIds.contains("expired_bio"), "Biological records should not be affected by the nonbio purge")
+        #expect(try context.fetch(taskDescriptor).count == 1, "Expired local purge should queue cloud deletion idempotently")
+        #expect(result.deletedRecordCount == 1, "The purge result should report deleted records even when media paths are empty")
+        #expect(result.localMediaPaths == ["expired_nonbio.webp", "expired_nonbio.wav"], "Only local media paths should be returned for file cleanup")
+    }
+
     // MARK: - updateScanWithOverride: V29 identification review persistence
 
     @Test func testUpdateScanWithOverrideSetsOverrideString() async throws {

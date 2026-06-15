@@ -20,6 +20,10 @@ enum MerianConfig {
     static let archiveRescueWindowStartDays = 80
     /// The latest a Free Tier scan will be evaluated for rescue (days before full expiry).
     static let archiveRescueWindowEndDays   = 88
+    /// Local and cloud retention window for non-biological scans.
+    static let nonBiologicalRetentionDays = 30
+    /// Maximum expired non-biological records to purge during one foreground cleanup pass.
+    static let nonBiologicalPurgeBatchSize = 250
 
     // MARK: - Storage
 

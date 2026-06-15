@@ -90,6 +90,9 @@ struct NonBiologicalScansView: View {
                 toastMessage = nil
             }
         }
+        .task {
+            await purgeExpiredNonBiologicalScans()
+        }
         
         // MARK: - View Modifiers
         .navigationTitle("Non-biological")
@@ -146,6 +149,12 @@ struct NonBiologicalScansView: View {
     }
     
     // MARK: - Action Handlers
+    private func purgeExpiredNonBiologicalScans() async {
+        await AppDIContainer.shared.scanRepository.purgeExpiredNonBiologicalScans(
+            modelContainer: modelContext.container
+        )
+    }
+
     private func clearAllNonBiologicalScans() {
         isClearingAll = true
         let payloads = nonBioRecords.map { scan in

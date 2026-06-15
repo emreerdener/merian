@@ -222,6 +222,33 @@ final class ScanRepository {
         offlineQueue.purgeSoftDeletedRecords()
     }
 
+    func purgeExpiredNonBiologicalScans(
+        modelContainer: ModelContainer,
+        referenceDate: Date = Date()
+    ) async {
+        guard let cutoffDate = Calendar.current.date(
+            byAdding: .day,
+            value: -MerianConfig.nonBiologicalRetentionDays,
+            to: referenceDate
+        ) else { return }
+
+        let actor = BackgroundDatabaseActor(modelContainer: modelContainer)
+
+        do {
+            let result = try await actor.purgeExpiredNonBiologicalScans(cutoffDate: cutoffDate)
+            guard result.deletedRecordCount > 0 else { return }
+
+            await FileIOActor.shared.deleteFiles(at: result.localMediaPaths)
+            ScanLibraryEvents.postLibraryDidUpdate()
+            await offlineQueue.syncPendingDeletions()
+            MerianLog.data.debug(
+                "purgeExpiredNonBiologicalScans: purged \(result.deletedRecordCount, privacy: .public) records and \(result.localMediaPaths.count, privacy: .public) local media paths"
+            )
+        } catch {
+            MerianLog.data.error("purgeExpiredNonBiologicalScans: cleanup failed: \(error, privacy: .private)")
+        }
+    }
+
     func syncBiologicalRescue(scanId: String) async {
         struct BiologicalOverridePayload: Encodable, Sendable {
             let is_biological_subject: Bool

@@ -55,6 +55,10 @@ final class AppLifecycleManager {
                 )
                 ShareImportLog.logger.debug("AppLifecycleManager.handleActivePhase: share import reconcile complete")
                 await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context)
+                await container.scanRepository.purgeExpiredNonBiologicalScans(
+                    modelContainer: context.container,
+                    referenceDate: now
+                )
 
                 // Restore account history on re-install or multi-device login.
                 // Throttled to once per 15 minutes to avoid redundant network syncs on every foreground.

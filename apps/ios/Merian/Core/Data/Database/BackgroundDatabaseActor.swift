@@ -62,6 +62,11 @@ actor BackgroundDatabaseActor {
         let imagePaths: [String]
     }
 
+    struct ExpiredNonBiologicalPurgeResult: Sendable, Equatable {
+        let deletedRecordCount: Int
+        let localMediaPaths: [String]
+    }
+
     // MARK: - Pending Scan Fetching
 
     /// Returns up to `limit` `.pending` (state 0) `OfflineQueuedScan` records sorted oldest-first.
@@ -121,6 +126,41 @@ actor BackgroundDatabaseActor {
             modelContext.rollback()
             throw error
         }
+    }
+
+    /// Deletes non-biological records older than the supplied cutoff.
+    ///
+    /// The fetch is bounded so foreground cleanup cannot accidentally load a pathological
+    /// library into memory. Callers may invoke this again on the next foreground if more
+    /// expired records remain.
+    func purgeExpiredNonBiologicalScans(cutoffDate: Date, limit: Int = MerianConfig.nonBiologicalPurgeBatchSize) throws -> ExpiredNonBiologicalPurgeResult {
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate {
+                $0.isBiological == false &&
+                $0.timestamp < cutoffDate
+            },
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+        descriptor.fetchLimit = limit
+
+        let expiredRecords = try modelContext.fetch(descriptor)
+        guard !expiredRecords.isEmpty else {
+            return ExpiredNonBiologicalPurgeResult(deletedRecordCount: 0, localMediaPaths: [])
+        }
+
+        let payloads = expiredRecords.map { record in
+            let mediaSnapshot = record.capturedMediaSnapshot
+            return ScanErasurePayload(
+                id: record.id,
+                imagePaths: mediaSnapshot.imagePaths + mediaSnapshot.audioPaths
+            )
+        }
+
+        let deletedPaths = try bulkDeleteNonBiologicalScans(payloads: payloads)
+        return ExpiredNonBiologicalPurgeResult(
+            deletedRecordCount: expiredRecords.count,
+            localMediaPaths: deletedPaths
+        )
     }
 
     // MARK: - State Transitions

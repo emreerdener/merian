@@ -35,6 +35,8 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed non-biological scans older than 30 days remaining on device by adding
+  local foreground cleanup that mirrors the server purge window.
 - Fixed geoprivacy so private scans hide location details across scan cards,
   sharing, achievements, Messages share captions, and public labels, while open
   and obscured scans restore location context at the expected precision.

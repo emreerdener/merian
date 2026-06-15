@@ -907,6 +907,13 @@ so only `public_uploads/free/` and `public_uploads/pro/` URLs are eligible for
 scan purge deletion. `avatars/`, `staging/`, `quarantine/`, and `exports/` URLs
 are skipped even if a malformed scan row contains them.
 
+The iOS app mirrors this retention boundary locally. `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)`
+is invoked on foreground and when `NonBiologicalScansView` opens. It delegates to
+`BackgroundDatabaseActor.purgeExpiredNonBiologicalScans(cutoffDate:)`, which
+fetches a bounded batch of expired local non-biological records, deletes rows,
+queues `PendingCloudDeletionTask` tombstones, commits SwiftData first, and only
+then returns local media paths for `FileIOActor` cleanup.
+
 ### Targeted 90-Day Domesticated Purge
 
 The `auto-purge-domesticated` Edge Function reclaims heavy storage costs by
