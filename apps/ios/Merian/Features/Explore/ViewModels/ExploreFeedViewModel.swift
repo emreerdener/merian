@@ -229,6 +229,7 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var isRefreshingUnreadNotificationCount = false
     @ObservationIgnored var unreadNotificationsChannel: RealtimeChannelV2?
     @ObservationIgnored var unreadNotificationListenerTask: Task<Void, Never>?
+    @ObservationIgnored var toastDismissTask: Task<Void, Never>?
     @ObservationIgnored var activeFeedRequestId = UUID()
     @ObservationIgnored var currentInitialFeedRequestId: UUID?
     @ObservationIgnored var currentLoadMoreRequestId: UUID?
@@ -315,5 +316,19 @@ final class ExploreFeedViewModel {
 
     var currentNearbyLongitude: Double? {
         nearbyLocationSnapshot?.longitude
+    }
+
+    func autoDismissToast(matching message: String, after seconds: UInt64 = 3) {
+        toastDismissTask?.cancel()
+        toastDismissTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard self?.toastMessage == message else { return }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    self?.toastMessage = nil
+                }
+            }
+        }
     }
 }

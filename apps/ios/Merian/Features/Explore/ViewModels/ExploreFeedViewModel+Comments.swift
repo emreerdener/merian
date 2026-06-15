@@ -161,7 +161,9 @@ extension ExploreFeedViewModel {
             removeCommentLocally(comment)
             updateCommentCount(postId: comment.postId, commentCount: response.commentCount)
             HapticManager.shared.triggerSelectionPulse()
-            toastMessage = comment.removalSuccessMessage
+            let successMessage = comment.removalSuccessMessage
+            toastMessage = successMessage
+            autoDismissToast(matching: successMessage)
         } catch {
             HapticManager.shared.triggerErrorThump()
             toastMessage = ExploreErrorFormatter.message(for: error)
