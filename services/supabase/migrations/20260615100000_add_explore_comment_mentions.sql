@@ -361,10 +361,15 @@ AS $$
 DECLARE
     comment_row RECORD;
 BEGIN
-    SELECT id, post_id, parent_comment_id, user_id, body
+    SELECT
+        c.id,
+        c.post_id,
+        c.parent_comment_id,
+        c.user_id,
+        c.body
     INTO comment_row
-    FROM public.explore_post_comments
-    WHERE id = target_comment_id;
+    FROM public.explore_post_comments c
+    WHERE c.id = target_comment_id;
 
     IF comment_row.id IS NULL THEN
         RAISE EXCEPTION 'Explore comment not found.';
@@ -391,7 +396,7 @@ BEGIN
             resolved.public_username,
             mentions.first_ord
         FROM (
-            SELECT username, MIN(ord) AS first_ord
+            SELECT parsed.username, MIN(parsed.ord) AS first_ord
             FROM (
                 SELECT LOWER(match[2]) AS username, ord
                 FROM regexp_matches(
@@ -400,7 +405,7 @@ BEGIN
                     'g'
                 ) WITH ORDINALITY AS mention_match(match, ord)
             ) parsed
-            GROUP BY username
+            GROUP BY parsed.username
         ) mentions
         JOIN public.users resolved
             ON resolved.public_username = mentions.username

@@ -2,6 +2,26 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-15-explore-comment-mentions",
+      "date": "2026-06-15",
+      "title": "Explore comment mentions",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Explore comments now support @username mentions for post authors, visible thread participants, and people you follow.",
+            "Mentioned users can receive Explore activity notifications without turning the comment into a reply."
+          ]
+        },
+        {
+          "title": "Improved",
+          "items": [
+            "The comment composer can suggest eligible handles as you type, and tapped mentions open that user's public Explore profile."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-15-explore-name-consistency",
       "date": "2026-06-15",
       "title": "Explore name consistency",

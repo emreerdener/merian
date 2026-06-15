@@ -1,8 +1,7 @@
 # Public Usernames
 
 Public usernames are Merian's stable public handles for Explore identity and
-future comment mentions. They are stored without `@` and rendered as
-`@username` in UI.
+comment mentions. They are stored without `@` and rendered as `@username` in UI.
 
 Public avatars are part of the same public identity projection. Custom uploaded
 avatars are documented here because feed/profile identity payloads carry
@@ -21,7 +20,7 @@ avatars are documented here because feed/profile identity payloads carry
 - Logged-in users can keep showing their provider-derived public display name on
   Explore posts, such as `Emre E.`.
 - Ghost/default-alias users show the handle on Explore, such as `@stone_glen_72`.
-- Future comment tagging must use `public_username`, not `public_author_name`.
+- Explore comment tagging uses `public_username`, not `public_author_name`.
 - `public_avatar_url` resolves to a custom Merian avatar first and an OAuth
   provider avatar second.
 

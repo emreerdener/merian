@@ -42,6 +42,12 @@ Follow notifications have `post_id = null`. They are shown in-app, contribute to
 unread counts, and are marked read by the normal mark-read endpoint, but tapping
 them does not navigate to a post.
 
+Mention notifications are created only after `create-explore-comment` resolves
+eligible `@username` tokens into `explore_comment_mentions`. They are deduped
+against existing comment/reply notifications for the same recipient and comment,
+so a post owner or parent commenter does not receive a second activity row when
+they are also mentioned in the body.
+
 ## Visibility Rules
 
 The SQL RPC filters hidden activity before returning rows:
@@ -56,7 +62,8 @@ The SQL RPC filters hidden activity before returning rows:
 - follow notifications require the active `user_follows` row to still exist
 
 Follow notifications are removed when the relationship is deleted or either user
-blocks the other.
+blocks the other. Comment mention notifications are removed when the underlying
+comment is deleted or moderated.
 
 ## Push Behavior
 

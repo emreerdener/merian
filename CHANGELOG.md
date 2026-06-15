@@ -25,6 +25,9 @@ TestFlight, App Store, support, and QA.
   load dictionary pages when users navigate to them.
 - Added a common-name picker for Explore sharing and editing so posts use the
   known species name you choose.
+- Added `@username` mentions in Explore comments, with scoped suggestions for
+  post authors, visible thread participants, and followed users plus mention
+  notifications.
 
 ### Changed
 
@@ -34,6 +37,8 @@ TestFlight, App Store, support, and QA.
 - Simplified the in-app changelog to show dates without version/build labels
   until release versioning is finalized.
 - Updated Explore posts to show usernames on feed cards and post detail headers.
+- Updated Explore comment composers so mentions can be inserted from
+  autocomplete and resolved mention spans open the user's public profile sheet.
 
 ### Fixed
 

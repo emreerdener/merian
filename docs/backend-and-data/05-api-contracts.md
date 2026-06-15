@@ -1606,6 +1606,14 @@ Current response shape:
       "viewer_can_delete": false,
       "viewer_can_moderate": false,
       "viewer_can_report": true,
+      "mentions": [
+        {
+          "user_id": "uuid",
+          "username": "ash_b",
+          "display_name": "Ash B.",
+          "avatar_url": "https://..."
+        }
+      ],
       "reactions": [
         {
           "emoji": "👍",
@@ -1622,6 +1630,10 @@ Current response shape:
 copied public projection used by feed cards, map previews, and author profiles.
 The client must treat it as optional and fall back to iconography when it is
 `null`.
+
+`mentions` is an additive array of resolved `@username` spans in `body`. The raw
+body remains plain text; the client links only usernames that appear in
+`mentions`. Unresolved `@text` stays normal text.
 
 The request body supports cursor pagination on
 `(created_at ASC, comment_id ASC)`:
@@ -1643,6 +1655,34 @@ Follow-up page requests send:
   "after_comment_id": "uuid"
 }
 ```
+
+### `/get-explore-comment-replies`
+
+Returns one page of visible replies under a top-level Explore comment. Replies
+use the same row shape as `/get-explore-comments`, including `author_username`,
+`author_avatar_url`, `reactions`, and `mentions`.
+
+Request:
+
+```json
+{
+  "parent_comment_id": "uuid",
+  "limit": 25
+}
+```
+
+Follow-up page requests send both cursor fields:
+
+```json
+{
+  "parent_comment_id": "uuid",
+  "limit": 25,
+  "after_created_at": "2026-04-28T10:00:00.000Z",
+  "after_comment_id": "uuid"
+}
+```
+
+Replies stay one level deep. A reply cannot be the parent of another reply.
 
 ### `/share-scan-to-explore` and `/unshare-explore-post`
 
@@ -1903,6 +1943,15 @@ Notification side effects:
   `public.users.public_username` and `author_avatar_url` from
   `public.users.public_avatar_url` so the newly-appended row matches the
   subsequent `/get-explore-comments` read payload.
+- The created comment response includes `mentions`, an array of resolved
+  `@username` tokens from the saved body.
+- Mention resolution is scoped to the post author, visible participants in the
+  relevant thread, and followed users. It does not allow arbitrary public-user
+  tagging.
+- The resolver skips self, blocked, shadowbanned, invisible-profile, duplicate,
+  and ineligible mentions, then stores at most five unique eligible users.
+- Mention notifications use `comment_mention` and are deduped against existing
+  `comment` or `comment_reply` notifications for the same recipient/comment.
 - Comment notifications are created and removed server-side through triggers on
   `explore_post_comments`.
 - Self-comments do not create notifications.
@@ -1916,6 +1965,49 @@ Removal semantics:
   `moderated_at` and `moderated_by_user_id`.
 - Both paths remove the comment from public reads and decrement `comment_count`,
   but they remain distinguishable in the database for auditability.
+
+### `/get-explore-mention-suggestions`
+
+Returns eligible `@username` suggestions for the current comment composer. The
+endpoint is intentionally scoped and is not a global public-user search.
+
+Request:
+
+```json
+{
+  "post_id": "uuid",
+  "parent_comment_id": "uuid",
+  "query": "as",
+  "limit": 8
+}
+```
+
+- `post_id` is required.
+- `parent_comment_id` is optional. When present, it must be a visible top-level
+  comment on the same post and thread-participant suggestions are scoped to that
+  reply thread.
+- Empty or short queries may return the post author and visible thread
+  participants.
+- Followed-user suggestions require a typed query so the endpoint cannot become
+  a follower-list browser.
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "user_id": "uuid",
+      "username": "ash_b",
+      "display_name": "Ash B.",
+      "avatar_url": "https://...",
+      "source": "thread"
+    }
+  ]
+}
+```
+
+`source` is one of `post_author`, `thread`, or `following`.
 
 ### `/toggle-explore-comment-reaction`
 
@@ -2017,6 +2109,21 @@ Current response shape:
       "is_read": false,
       "created_at": "2026-04-27T12:06:00.000Z",
       "updated_at": "2026-04-27T12:06:00.000Z"
+    },
+    {
+      "notification_id": "uuid",
+      "post_id": "uuid",
+      "type": "comment_mention",
+      "comment_id": "uuid",
+      "reaction_emoji": null,
+      "triggering_user_id": "uuid",
+      "triggering_user_name": "User M",
+      "comment_body": "Looping in @ash_b",
+      "recent_actor_names": [],
+      "action_count": 1,
+      "is_read": false,
+      "created_at": "2026-04-27T12:07:00.000Z",
+      "updated_at": "2026-04-27T12:07:00.000Z"
     },
     {
       "notification_id": "uuid",
@@ -2153,6 +2260,10 @@ The Explore detail page additionally uses:
 - `weather_condition` + `weather_temperature_f` for optional public weather
   telemetry
 - `/get-explore-comments` for the inline thread and composer state
+- `/get-explore-comment-replies` for reply pagination under top-level comments
+- `/get-explore-mention-suggestions` for trailing-token `@username` autocomplete
+- `mentions` from comment and reply rows for tappable mention spans that open
+  `ExploreAuthorProfileSheet`
 - `author_username` from post/profile/comment rows for stable handle display
   and default/ghost author labels
 - `author_avatar_url` from comment rows for both `ExploreCommentsSheet` and
