@@ -271,6 +271,10 @@ Most `@ModelActor` actors are created ad-hoc (per operation) rather than stored 
 
 Large collection membership reads should be projected from `LocalScanRecord.collections`, not by repeatedly faulting `ScanCollection.scans` on UI or reconciliation paths. `BackgroundDatabaseActor.pushCollectionsToEdge()` and `ScanRepository.syncCollections` now build membership maps from bounded scan-side batches.
 
+## 2026-06 Smart Collection Save Boundary
+
+Smart default collections are virtual UI snapshots until the user saves one. `SmartCollectionSuggester` reads local `LocalScanRecord` rows on the main UI side and emits private suggestions without creating `ScanCollection` objects or cloud payloads. Once saved, `SmartCollectionSaver` creates a normal `ScanCollection`, appends that collection to the current matching records, saves the `ModelContext`, posts a library refresh, and then enqueues the existing collection-sync drain. The Edge sync contract remains unchanged: only persisted `ScanCollection` records are serialized to `/sync-collections`.
+
 ---
 
 ## Decision Guide

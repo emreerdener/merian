@@ -68,37 +68,47 @@ struct CollectionCard: View {
     let summary: CollectionSummaryItem
     
     var body: some View {
+        CollectionCardChrome(
+            title: collection.name,
+            count: summary.count,
+            coverScan: summary.coverScan,
+            emptyIconName: "photo.on.rectangle"
+        )
+    }
+}
+
+struct SmartCollectionCard: View {
+    let snapshot: SmartCollectionSnapshot
+
+    var body: some View {
+        CollectionCardChrome(
+            title: snapshot.title,
+            count: snapshot.count,
+            coverScan: snapshot.coverScan,
+            emptyIconName: snapshot.iconName
+        )
+    }
+}
+
+private struct CollectionCardChrome: View {
+    let title: String
+    let count: Int
+    let coverScan: LocalScanRecord?
+    let emptyIconName: String
+
+    var body: some View {
         ZStack {
-            if let firstScan = summary.coverScan {
-                GeometryReader { geo in
-                    ScanThumbnail(record: firstScan)
-                        .frame(width: geo.size.width, height: geo.size.width)
-                        .clipped()
-                }
-                .aspectRatio(1.0, contentMode: .fill)
-            } else {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.3))
-                    .aspectRatio(1.0, contentMode: .fill)
-                    .overlay(
-                        Image(systemName: "photo.on.rectangle")
-                            .font(.system(size: 24))
-                            .foregroundColor(.secondary)
-                            // Natively shifts the icon mathematically up exactly half the height
-                            // of the bottom text panel, centering it perfectly within the visible area.
-                            .offset(y: -24)
-                    )
-            }
-            
+            coverImage
+
             VStack {
                 Spacer()
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(collection.name)
+                    Text(title)
                         .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                         .lineLimit(1)
-                    Text("\(summary.count) Scans")
+                    Text("\(count) Scans")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.8))
                 }
@@ -110,5 +120,28 @@ struct CollectionCard: View {
         }
         .cornerRadius(12)
         .clipped()
+    }
+
+    @ViewBuilder
+    private var coverImage: some View {
+        if let coverScan {
+            GeometryReader { geo in
+                ScanThumbnail(record: coverScan)
+                    .frame(width: geo.size.width, height: geo.size.width)
+                    .clipped()
+            }
+            .aspectRatio(1.0, contentMode: .fill)
+        } else {
+            Rectangle()
+                .fill(Color.gray.opacity(0.3))
+                .aspectRatio(1.0, contentMode: .fill)
+                .overlay(
+                    Image(systemName: emptyIconName)
+                        .font(.system(size: 24))
+                        .foregroundColor(.secondary)
+                        // Shifts the icon up by half the bottom label panel height.
+                        .offset(y: -24)
+                )
+        }
     }
 }

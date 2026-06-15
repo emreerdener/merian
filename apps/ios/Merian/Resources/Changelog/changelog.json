@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-14-smart-collections",
+      "date": "2026-06-14",
+      "title": "Smart collections",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Collections can now suggest useful groups from your scan library, including recent finds, places, review candidates, and common organism groups.",
+            "Smart collections stay private and local until you save one as a regular collection."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-13-geoprivacy",
       "date": "2026-06-13",
       "title": "Geoprivacy fixes",

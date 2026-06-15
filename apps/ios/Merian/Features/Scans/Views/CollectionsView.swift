@@ -13,6 +13,7 @@ struct CollectionsView: View {
 
     @State private var nonBioCount: Int = 0
     @State private var collectionSnapshot = CollectionMembershipSnapshot.empty
+    @State private var smartCollections: [SmartCollectionSnapshot] = []
     @State private var collectionToEdit: ScanCollection?
     @State private var showRenameAlert = false
     @State private var showDeleteConfirmation = false
@@ -32,7 +33,14 @@ struct CollectionsView: View {
 
                 let showFavorites = !isSearching || "favorites".contains(query)
                 let showNonBio = !isSearching || "non-biological".contains(query) || "non biological".contains(query)
-                let totalFound = userCollections.count + (showFavorites ? 1 : 0) + (showNonBio ? 1 : 0)
+                let visibleSmartCollections = smartCollections.filter {
+                    !isSearching || $0.title.localizedCaseInsensitiveContains(query)
+                }
+                let smartRowCollections = visibleSmartCollections.filter(\.isPinnedRow)
+                let smartCardCollections = visibleSmartCollections.filter { !$0.isPinnedRow }
+                let hasCardCollections = !userCollections.isEmpty || !smartCardCollections.isEmpty
+                let hasRowCollections = (showFavorites && favoritesCollection != nil) || showNonBio || !smartRowCollections.isEmpty
+                let totalFound = userCollections.count + visibleSmartCollections.count + (showFavorites ? 1 : 0) + (showNonBio ? 1 : 0)
 
                 if isSearching || isSearchFocused {
                     HStack {
@@ -52,57 +60,29 @@ struct CollectionsView: View {
                     .padding(.bottom, 0)
                 }
 
-                VStack(spacing: 16) {
-                    if showFavorites, let favoritesCollection {
-                        DefaultCollectionLink(
-                            title: "Favorites",
-                            iconName: "heart",
-                            count: favoritesSummary.count
-                        ) {
-                            CollectionDetailView(collection: favoritesCollection)
-                        }
-                    }
-
-                    if showNonBio {
-                        DefaultCollectionLink(
-                            title: "Non-biological",
-                            iconName: "cube",
-                            count: nonBioCount
-                        ) {
-                            NonBiologicalScansView()
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-
-                if isSearching && userCollections.isEmpty && !showFavorites && !showNonBio {
+                if isSearching && userCollections.isEmpty && visibleSmartCollections.isEmpty && !showFavorites && !showNonBio {
                     EmptyStateView(
                         iconName: "magnifyingglass",
                         title: "No results found",
                         message: "No collections match \"\(searchQuery)\"."
                     )
-                } else if !isSearching && userCollections.isEmpty {
-                    EmptyStateView(
-                        imageName: "fireflies",
-                        title: "Collections",
-                        message: "Create your first collection to start organizing your scans."
-                    ) {
-                        Button {
-                            showNewCollectionAlert = true
-                        } label: {
-                            Text("New collection")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.regular)
-                    }
-                } else {
+                } else if hasCardCollections {
                     LazyVGrid(
                         columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
                         spacing: 16
                     ) {
+                        ForEach(smartCardCollections) { smartCollection in
+                            NavigationLink {
+                                SmartCollectionDetailView(
+                                    snapshot: smartCollection,
+                                    collections: collections
+                                )
+                            } label: {
+                                SmartCollectionCard(snapshot: smartCollection)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
                         ForEach(userCollections) { collection in
                             NavigationLink {
                                 CollectionDetailView(collection: collection)
@@ -133,6 +113,63 @@ struct CollectionsView: View {
                     }
                     .padding(.horizontal)
                 }
+
+                if hasRowCollections {
+                    VStack(spacing: 16) {
+                        if showFavorites, let favoritesCollection {
+                            DefaultCollectionLink(
+                                title: "Favorites",
+                                iconName: "heart",
+                                count: favoritesSummary.count
+                            ) {
+                                CollectionDetailView(collection: favoritesCollection)
+                            }
+                        }
+
+                        if showNonBio {
+                            DefaultCollectionLink(
+                                title: "Non-biological",
+                                iconName: "cube",
+                                count: nonBioCount
+                            ) {
+                                NonBiologicalScansView()
+                            }
+                        }
+
+                        ForEach(smartRowCollections) { smartCollection in
+                            DefaultCollectionLink(
+                                title: smartCollection.title,
+                                iconName: smartCollection.iconName,
+                                count: smartCollection.count
+                            ) {
+                                SmartCollectionDetailView(
+                                    snapshot: smartCollection,
+                                    collections: collections
+                                )
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, hasCardCollections ? 0 : 16)
+                }
+
+                if !isSearching && userCollections.isEmpty && visibleSmartCollections.isEmpty {
+                    EmptyStateView(
+                        imageName: "fireflies",
+                        title: "Collections",
+                        message: "Create your first collection to start organizing your scans."
+                    ) {
+                        Button {
+                            showNewCollectionAlert = true
+                        } label: {
+                            Text("New collection")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                    }
+                }
             }
             .padding(.bottom, 16)
         }
@@ -160,14 +197,29 @@ struct CollectionsView: View {
             refreshCollectionSnapshot()
             refreshNonBioCount()
         }
+        .task(id: collectionsSignature) {
+            refreshCollectionSnapshot()
+        }
         .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
             refreshCollectionSnapshot()
             refreshNonBioCount()
         }
     }
 
+    private var collectionsSignature: String {
+        collections
+            .filter { !$0.isDeleted }
+            .map { "\($0.id):\($0.name)" }
+            .sorted()
+            .joined(separator: "|")
+    }
+
     private func refreshCollectionSnapshot() {
         collectionSnapshot = CollectionMembershipSnapshot(scans: allScans)
+        smartCollections = SmartCollectionSuggester.suggestions(
+            from: allScans,
+            existingCollections: collections
+        )
     }
 
     private func refreshNonBioCount() {
@@ -175,5 +227,11 @@ struct CollectionsView: View {
         if let count = try? modelContext.fetchCount(descriptor) {
             nonBioCount = count
         }
+    }
+}
+
+private extension SmartCollectionSnapshot {
+    var isPinnedRow: Bool {
+        definition.rule == .needsReview
     }
 }

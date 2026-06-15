@@ -8,6 +8,9 @@ TestFlight, App Store, support, and QA.
 
 ### Added
 
+- Added smart default Collections that suggest helpful scan groupings from your
+  library, such as recent finds, places, review candidates, and common organism
+  groups, with a one-tap save option.
 - Added the initial Next.js + Mantine web app scaffold for public Explore share pages.
 - Added public Terms, Privacy Policy, Community Guidelines, Privacy Choices, Support, and Legal hub pages for `merian.earth`.
 - Added an iOS-to-web theme bridge so Merian-opened web pages can follow the app's theme preference.
