@@ -7,6 +7,13 @@ export interface InsertedExploreComment {
   created_at: string;
 }
 
+export interface ExploreCommentMentionRow {
+  user_id: string;
+  username: string;
+  display_name: string;
+  avatar_url?: string | null;
+}
+
 export interface ExploreReplyParent {
   id: string;
   post_id: string;
@@ -16,7 +23,10 @@ export interface ExploreReplyParent {
   moderated_at?: string | null;
 }
 
-function makeHttpError(status: number, message: string): Error & { status: number } {
+function makeHttpError(
+  status: number,
+  message: string,
+): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
@@ -39,7 +49,10 @@ export async function fetchReplyParent(
 
   const parent = data as ExploreReplyParent;
   if (parent.post_id !== postId) {
-    throw makeHttpError(400, "parent_comment_id must belong to the same Explore post.");
+    throw makeHttpError(
+      400,
+      "parent_comment_id must belong to the same Explore post.",
+    );
   }
   if (parent.parent_comment_id != null) {
     throw makeHttpError(400, "Replies can only target top-level comments.");
@@ -70,10 +83,34 @@ export async function insertExploreComment(
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to create Explore comment: ${error?.message ?? "Unknown error"}`);
+    throw new Error(
+      `Failed to create Explore comment: ${error?.message ?? "Unknown error"}`,
+    );
   }
 
   return data as InsertedExploreComment;
+}
+
+export async function insertExploreCommentMentionsFromBody(
+  commentId: string,
+  actorUserId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<ExploreCommentMentionRow[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "insert_explore_comment_mentions_from_body",
+    {
+      target_comment_id: commentId,
+      actor_user_id: actorUserId,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to resolve Explore comment mentions: ${error.message}`,
+    );
+  }
+
+  return (data ?? []) as ExploreCommentMentionRow[];
 }
 
 export async function fetchExplorePostCommentCount(
@@ -87,7 +124,9 @@ export async function fetchExplorePostCommentCount(
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to fetch Explore comment count: ${error?.message ?? "No data"}`);
+    throw new Error(
+      `Failed to fetch Explore comment count: ${error?.message ?? "No data"}`,
+    );
   }
 
   return Number(data.comment_count ?? 0);

@@ -5,6 +5,7 @@ enum ExploreNotificationType: String, Decodable {
     case comment
     case commentReaction = "comment_reaction"
     case commentReply = "comment_reply"
+    case commentMention = "comment_mention"
     case follow
 }
 

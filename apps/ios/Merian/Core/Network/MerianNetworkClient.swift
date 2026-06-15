@@ -1069,6 +1069,27 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreCommentsResponse.self, from: data).data
     }
 
+    func getExploreMentionSuggestions(
+        postId: String,
+        parentCommentId: String? = nil,
+        query: String,
+        limit: Int = 8
+    ) async throws -> [ExploreMentionSuggestion] {
+        let functionUrl = try endpointURL("get-explore-mention-suggestions")
+        var payload: [String: Any] = [
+            "post_id": postId,
+            "query": query,
+            "limit": limit
+        ]
+        if let parentCommentId {
+            payload["parent_comment_id"] = parentCommentId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreMentionSuggestionsResponse.self, from: data).data
+    }
+
     func getExplorePost(postId: String) async throws -> ExplorePost {
         let functionUrl = try endpointURL("get-explore-post")
         let bodyData = try JSONSerialization.data(withJSONObject: ["post_id": postId])

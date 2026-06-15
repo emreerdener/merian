@@ -5,7 +5,12 @@ import { importPKCS8, SignJWT } from "https://esm.sh/jose@5.9.6";
 import { mapWithConcurrencyLimit } from "../_shared/concurrency.ts";
 import { logStructuredError } from "../_shared/edgeHandler.ts";
 import { requireUuid } from "../_shared/explore.ts";
-import { corsHeaders, jsonResponse, requireParams, timingSafeCompare } from "../_shared/http.ts";
+import {
+  corsHeaders,
+  jsonResponse,
+  requireParams,
+  timingSafeCompare,
+} from "../_shared/http.ts";
 import {
   clearPushDeviceDeliveryError,
   ExplorePushNotificationPayload,
@@ -43,7 +48,9 @@ function apnsHost(environment: ApnsEnvironment): string {
 function buildLikeTitle(actorNames: string[], actionCount: number): string {
   const safeCount = Math.max(actionCount, actorNames.length);
   if (actorNames.length >= 2 && safeCount > 2) {
-    return `${actorNames[0]}, ${actorNames[1]}, and ${safeCount - 2} others liked your post`;
+    return `${actorNames[0]}, ${actorNames[1]}, and ${
+      safeCount - 2
+    } others liked your post`;
   }
   if (actorNames.length >= 2) {
     return `${actorNames[0]} and ${actorNames[1]} liked your post`;
@@ -66,7 +73,9 @@ function buildCommentReactionTitle(
     : "reacted to your comment";
 
   if (actorNames.length >= 2 && safeCount > 2) {
-    return `${actorNames[0]}, ${actorNames[1]}, and ${safeCount - 2} others ${actionSuffix}`;
+    return `${actorNames[0]}, ${actorNames[1]}, and ${
+      safeCount - 2
+    } others ${actionSuffix}`;
   }
   if (actorNames.length >= 2) {
     return `${actorNames[0]} and ${actorNames[1]} ${actionSuffix}`;
@@ -79,7 +88,9 @@ function buildCommentReactionTitle(
 
 function buildCommentBody(commentBody: string | null): string {
   const trimmed = (commentBody ?? "").trim();
-  if (trimmed.length <= 120) return trimmed || "Open Explore to view the conversation.";
+  if (trimmed.length <= 120) {
+    return trimmed || "Open Explore to view the conversation.";
+  }
   return `${trimmed.slice(0, 117)}...`;
 }
 
@@ -87,7 +98,8 @@ function buildNotificationCopy(
   payload: ExplorePushNotificationPayload,
 ): NotificationCopy {
   if (payload.type === "comment") {
-    const actorName = typeof payload.triggering_user_name === "string" && payload.triggering_user_name.length > 0
+    const actorName = typeof payload.triggering_user_name === "string" &&
+        payload.triggering_user_name.length > 0
       ? payload.triggering_user_name
       : "Someone";
     return {
@@ -97,7 +109,8 @@ function buildNotificationCopy(
   }
 
   if (payload.type === "comment_reply") {
-    const actorName = typeof payload.triggering_user_name === "string" && payload.triggering_user_name.length > 0
+    const actorName = typeof payload.triggering_user_name === "string" &&
+        payload.triggering_user_name.length > 0
       ? payload.triggering_user_name
       : "Someone";
     return {
@@ -108,11 +121,29 @@ function buildNotificationCopy(
     };
   }
 
-  const actorNames = payload.recent_actor_names?.filter((value): value is string => value.length > 0) ?? [];
+  if (payload.type === "comment_mention") {
+    const actorName = typeof payload.triggering_user_name === "string" &&
+        payload.triggering_user_name.length > 0
+      ? payload.triggering_user_name
+      : "Someone";
+    return {
+      title: `${actorName} mentioned you in a comment`,
+      body: buildCommentBody(payload.comment_body),
+    };
+  }
+
+  const actorNames =
+    payload.recent_actor_names?.filter((value): value is string =>
+      value.length > 0
+    ) ?? [];
 
   if (payload.type === "comment_reaction") {
     return {
-      title: buildCommentReactionTitle(actorNames, payload.action_count, payload.reaction_emoji),
+      title: buildCommentReactionTitle(
+        actorNames,
+        payload.action_count,
+        payload.reaction_emoji,
+      ),
       body: buildCommentBody(payload.comment_body),
     };
   }
@@ -139,7 +170,10 @@ function normalizedBadgeCount(count: number | null | undefined): number {
 
 async function getApnsBearerToken(): Promise<string | null> {
   const now = Date.now();
-  if (cachedApnsBearerToken && cachedApnsBearerToken.expiresAtMs - now > 5 * 60 * 1000) {
+  if (
+    cachedApnsBearerToken &&
+    cachedApnsBearerToken.expiresAtMs - now > 5 * 60 * 1000
+  ) {
     return cachedApnsBearerToken.token;
   }
 
@@ -151,7 +185,10 @@ async function getApnsBearerToken(): Promise<string | null> {
     return null;
   }
 
-  const importedKey = await importPKCS8(normalizePrivateKey(privateKey), "ES256");
+  const importedKey = await importPKCS8(
+    normalizePrivateKey(privateKey),
+    "ES256",
+  );
   const issuedAtSeconds = Math.floor(now / 1000);
   const token = await new SignJWT({})
     .setProtectedHeader({ alg: "ES256", kid: keyId })
@@ -180,30 +217,33 @@ async function sendApnsPush(
   notificationType: string,
   badgeCount: number | null | undefined,
 ): Promise<ApnsFailure | null> {
-  const response = await fetch(`${apnsHost(device.environment)}/3/device/${device.device_token}`, {
-    method: "POST",
-    headers: {
-      "authorization": `bearer ${bearerToken}`,
-      "apns-priority": "10",
-      "apns-push-type": "alert",
-      "apns-topic": apnsTopic,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      aps: {
-        alert: copy,
-        badge: normalizedBadgeCount(badgeCount),
-        sound: "default",
-        "thread-id": "explore_activity",
+  const response = await fetch(
+    `${apnsHost(device.environment)}/3/device/${device.device_token}`,
+    {
+      method: "POST",
+      headers: {
+        "authorization": `bearer ${bearerToken}`,
+        "apns-priority": "10",
+        "apns-push-type": "alert",
+        "apns-topic": apnsTopic,
+        "content-type": "application/json",
       },
-      type: "explore_activity",
-      postId,
-      commentId,
-      parentCommentId,
-      notificationId,
-      notificationType,
-    }),
-  });
+      body: JSON.stringify({
+        aps: {
+          alert: copy,
+          badge: normalizedBadgeCount(badgeCount),
+          sound: "default",
+          "thread-id": "explore_activity",
+        },
+        type: "explore_activity",
+        postId,
+        commentId,
+        parentCommentId,
+        notificationId,
+        notificationType,
+      }),
+    },
+  );
 
   if (response.ok) {
     return null;
@@ -256,9 +296,15 @@ serve(async (req: Request) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
-  const payload = await fetchExplorePushNotificationPayload(notificationId, supabaseAdmin);
+  const payload = await fetchExplorePushNotificationPayload(
+    notificationId,
+    supabaseAdmin,
+  );
   if (!payload) {
-    return jsonResponse({ success: true, skipped: "notification_not_visible" }, 200);
+    return jsonResponse(
+      { success: true, skipped: "notification_not_visible" },
+      200,
+    );
   }
 
   const bearerToken = await getApnsBearerToken();
@@ -271,72 +317,89 @@ serve(async (req: Request) => {
     return jsonResponse({ success: true, skipped: "apns_not_configured" }, 200);
   }
 
-  const devices = await fetchEligiblePushDevices(payload.recipient_user_id, supabaseAdmin);
+  const devices = await fetchEligiblePushDevices(
+    payload.recipient_user_id,
+    supabaseAdmin,
+  );
   if (devices.length === 0) {
-    return jsonResponse({ success: true, delivered: 0, skipped: "no_eligible_devices" }, 200);
+    return jsonResponse({
+      success: true,
+      delivered: 0,
+      skipped: "no_eligible_devices",
+    }, 200);
   }
 
   const copy = buildNotificationCopy(payload);
   let delivered = 0;
-  const failures: Array<{ deviceId: string; reason: string; status: number }> = [];
+  const failures: Array<{ deviceId: string; reason: string; status: number }> =
+    [];
 
-  await mapWithConcurrencyLimit(devices, APNS_DELIVERY_CONCURRENCY, async (device) => {
-    try {
-      const failure = await sendApnsPush(
-        device,
-        copy,
-        bearerToken,
-        apnsTopic,
-        payload.notification_id,
-        payload.post_id,
-        payload.comment_id,
-        payload.parent_comment_id,
-        payload.type,
-        payload.unread_count,
-      );
+  await mapWithConcurrencyLimit(
+    devices,
+    APNS_DELIVERY_CONCURRENCY,
+    async (device) => {
+      try {
+        const failure = await sendApnsPush(
+          device,
+          copy,
+          bearerToken,
+          apnsTopic,
+          payload.notification_id,
+          payload.post_id,
+          payload.comment_id,
+          payload.parent_comment_id,
+          payload.type,
+          payload.unread_count,
+        );
 
-      if (!failure) {
-        delivered += 1;
-        await clearPushDeviceDeliveryError(device.id, supabaseAdmin);
-        return;
+        if (!failure) {
+          delivered += 1;
+          await clearPushDeviceDeliveryError(device.id, supabaseAdmin);
+          return;
+        }
+
+        failures.push({
+          deviceId: device.id,
+          reason: failure.reason,
+          status: failure.status,
+        });
+        await markPushDeviceDeliveryFailure(
+          device.id,
+          failure.reason,
+          isTerminalApnsReason(failure.reason),
+          supabaseAdmin,
+        );
+        logStructuredError("explore_push_delivery_failed", {
+          notification_id: payload.notification_id,
+          post_id: payload.post_id,
+          device_id: device.id,
+          environment: device.environment,
+          status: failure.status,
+          reason: failure.reason,
+        });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        failures.push({
+          deviceId: device.id,
+          reason,
+          status: 500,
+        });
+        await markPushDeviceDeliveryFailure(
+          device.id,
+          reason,
+          false,
+          supabaseAdmin,
+        );
+        logStructuredError("explore_push_delivery_exception", {
+          notification_id: payload.notification_id,
+          post_id: payload.post_id,
+          device_id: device.id,
+          environment: device.environment,
+          reason,
+        });
       }
-
-      failures.push({
-        deviceId: device.id,
-        reason: failure.reason,
-        status: failure.status,
-      });
-      await markPushDeviceDeliveryFailure(
-        device.id,
-        failure.reason,
-        isTerminalApnsReason(failure.reason),
-        supabaseAdmin,
-      );
-      logStructuredError("explore_push_delivery_failed", {
-        notification_id: payload.notification_id,
-        post_id: payload.post_id,
-        device_id: device.id,
-        environment: device.environment,
-        status: failure.status,
-        reason: failure.reason,
-      });
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      failures.push({
-        deviceId: device.id,
-        reason,
-        status: 500,
-      });
-      await markPushDeviceDeliveryFailure(device.id, reason, false, supabaseAdmin);
-      logStructuredError("explore_push_delivery_exception", {
-        notification_id: payload.notification_id,
-        post_id: payload.post_id,
-        device_id: device.id,
-        environment: device.environment,
-        reason,
-      });
-    }
-  });
+    },
+  );
 
   return jsonResponse({
     success: true,

@@ -154,6 +154,7 @@ type NotificationFeedRow = {
     | "comment"
     | "comment_reaction"
     | "comment_reply"
+    | "comment_mention"
     | "follow";
   comment_id: string | null;
   parent_comment_id: string | null;
@@ -172,7 +173,12 @@ type PushPayloadRow = {
   post_id: string;
   comment_id: string | null;
   parent_comment_id: string | null;
-  type: "like_aggregated" | "comment" | "comment_reaction" | "comment_reply";
+  type:
+    | "like_aggregated"
+    | "comment"
+    | "comment_reaction"
+    | "comment_reply"
+    | "comment_mention";
   action_count: number;
   reaction_emoji: string | null;
   comment_body: string | null;
@@ -190,6 +196,7 @@ type NotificationCursorRow = {
     | "comment"
     | "comment_reaction"
     | "comment_reply"
+    | "comment_mention"
     | "follow";
 };
 

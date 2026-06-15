@@ -100,7 +100,7 @@ struct SmartCollectionTests {
             referenceDate: referenceDate
         )
 
-        #expect(suggestions.map(\.title).contains("Central Park finds"))
+        #expect(suggestions.map(\.title).contains("Central Park"))
         #expect(SmartCollectionSuggester.normalizedLocationName("central-park") == "central park")
     }
 

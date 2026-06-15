@@ -13,6 +13,7 @@ import {
   fetchExplorePostCommentCount,
   fetchReplyParent,
   insertExploreComment,
+  insertExploreCommentMentionsFromBody,
 } from "./db.ts";
 
 serve((req: Request) =>
@@ -68,6 +69,11 @@ serve((req: Request) =>
       user.id,
       supabaseAdmin,
     );
+    const mentions = await insertExploreCommentMentionsFromBody(
+      inserted.id,
+      user.id,
+      supabaseAdmin,
+    );
     const commentCount = await fetchExplorePostCommentCount(
       postId,
       supabaseAdmin,
@@ -90,6 +96,7 @@ serve((req: Request) =>
         viewer_can_report: false,
         reply_count: 0,
         reactions: null,
+        mentions,
       },
       comment_count: commentCount,
     });

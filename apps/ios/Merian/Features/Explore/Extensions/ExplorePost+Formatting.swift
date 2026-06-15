@@ -127,6 +127,10 @@ extension ExplorePost {
 
 extension ExploreComment {
     var displayAuthorName: String {
-        ExplorePost.publicAuthorDisplayName(from: authorName, username: authorUsername)
+        ExplorePost.publicAuthorDisplayName(
+            from: authorName,
+            username: authorUsername,
+            preferUsername: true
+        )
     }
 }

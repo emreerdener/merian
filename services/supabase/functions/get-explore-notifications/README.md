@@ -1,6 +1,7 @@
 # Get Explore Notifications
 
-Returns the viewer's in-app Explore activity feed. This is the source of truth for the Explore bell badge and notifications sheet.
+Returns the viewer's in-app Explore activity feed. This is the source of truth
+for the Explore bell badge and notifications sheet.
 
 ## Request
 
@@ -24,16 +25,22 @@ Follow-up page:
 
 - `limit` is optional and capped server-side.
 - Pagination is stable on `(updated_at DESC, notification_id DESC)`.
-- Authentication is resolved by `withEdgeHandler`; the request body cannot choose `self_id`.
+- Authentication is resolved by `withEdgeHandler`; the request body cannot
+  choose `self_id`.
 
 ## Notification Types
 
 - `like_aggregated`: post-backed aggregate like row.
 - `comment`: post-backed plain comment row.
-- `comment_reaction`: post-backed aggregate emoji reaction row for comment authors.
+- `comment_reply`: post-backed reply row.
+- `comment_mention`: post-backed mention row.
+- `comment_reaction`: post-backed aggregate emoji reaction row for comment
+  authors.
 - `follow`: postless informational row when another user follows the recipient.
 
-Follow notifications have `post_id = null`. They are shown in-app, contribute to unread counts, and are marked read by the normal mark-read endpoint, but tapping them does not navigate to a post.
+Follow notifications have `post_id = null`. They are shown in-app, contribute to
+unread counts, and are marked read by the normal mark-read endpoint, but tapping
+them does not navigate to a post.
 
 ## Visibility Rules
 
@@ -48,11 +55,14 @@ The SQL RPC filters hidden activity before returning rows:
 - soft-deleted or moderated comments are excluded
 - follow notifications require the active `user_follows` row to still exist
 
-Follow notifications are removed when the relationship is deleted or either user blocks the other.
+Follow notifications are removed when the relationship is deleted or either user
+blocks the other.
 
 ## Push Behavior
 
-Remote APNs push delivery is layered on top of `public.explore_post_notifications`, but follow notifications are intentionally in-app only. The push trigger skips `type = 'follow'`.
+Remote APNs push delivery is layered on top of
+`public.explore_post_notifications`, but follow notifications are intentionally
+in-app only. The push trigger skips `type = 'follow'`.
 
 ## Local Verification
 
@@ -63,4 +73,5 @@ deno check services/supabase/functions/get-explore-notifications/index.ts
 deno test --allow-env --allow-net services/supabase/functions/_tests/exploreNotificationsDb.test.ts
 ```
 
-The DB integration tests skip live assertions when the local Supabase Postgres instance is not running at `127.0.0.1:54322`.
+The DB integration tests skip live assertions when the local Supabase Postgres
+instance is not running at `127.0.0.1:54322`.

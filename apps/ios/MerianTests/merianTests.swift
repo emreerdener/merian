@@ -601,6 +601,28 @@ final class ExploreAuthorDisplayNameTests: XCTestCase {
         XCTAssertEqual(ExplorePost.publicUsernameDisplayValue(" river_w "), "@river_w")
         XCTAssertEqual(ExplorePost.publicUsernameDisplayValue("@river_w"), "@river_w")
     }
+
+    func testCommentDisplayNamePrefersUsernameWhenAvailable() {
+        let comment = ExploreComment(
+            commentId: "comment-123",
+            postId: "post-123",
+            parentCommentId: nil,
+            authorUserId: "author-123",
+            authorName: "River W.",
+            authorUsername: "river_w",
+            authorAvatarUrl: nil,
+            body: "Beautiful find.",
+            createdAt: "2026-06-15T10:00:00.000Z",
+            viewerCanDelete: false,
+            viewerCanModerate: false,
+            viewerCanReport: true,
+            replyCount: nil,
+            reactions: nil,
+            mentions: nil
+        )
+
+        XCTAssertEqual(comment.displayAuthorName, "@river_w")
+    }
 }
 
 @MainActor
@@ -885,7 +907,8 @@ final class ExploreReplyLoadingStateTests: XCTestCase {
             viewerCanModerate: false,
             viewerCanReport: true,
             replyCount: 1,
-            reactions: nil
+            reactions: nil,
+            mentions: nil
         )
     }
 

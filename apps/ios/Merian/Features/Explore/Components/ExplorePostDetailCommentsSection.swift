@@ -49,7 +49,6 @@ struct ExplorePostDetailCommentsSection: View {
         Group {
             if isComposerSticky {
                 composer
-                    .padding(.horizontal, 16)
                     .background(
                         Color(uiColor: .systemBackground)
                             .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: -3)
@@ -156,116 +155,12 @@ struct ExplorePostDetailCommentsSection: View {
     }
 
     private var composer: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let commentErrorMessage = viewModel.commentErrorMessage {
-                Text(commentErrorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            }
-
-            if let replyingToComment = viewModel.replyingToComment {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrowshape.turn.up.left")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    Text("Replying to \(replyingToComment.displayAuthorName)")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    Spacer(minLength: 8)
-
-                    Button(action: { viewModel.cancelReply() }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .padding(4)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            HStack(alignment: .bottom, spacing: 12) {
-                if SupabaseManager.shared.isAuthenticated, let avatarUrl = SupabaseManager.shared.currentUserAvatarUrl {
-                    AsyncImage(url: avatarUrl) { image in
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 40, height: 40)
-                    } placeholder: {
-                        Color(uiColor: .tertiarySystemFill)
-                            .frame(width: 40, height: 40)
-                    }
-                    .frame(width: 40, height: 40)
-                    .clipShape(Circle())
-                    .padding(.bottom, 1)
-                }
-
-                TextField(composerPlaceholder, text: $viewModel.commentDraft, axis: .vertical)
-                    .lineLimit(1...4)
-                    .focused(isComposerFocused)
-                    .id(viewModel.composerResetToken)
-                    .submitLabel(.done)
-                    .onSubmit {
-                        onDismissComposer()
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color(uiColor: .tertiarySystemFill))
-                    )
-
-                Button(action: {
-                    Task { await viewModel.submitComment() }
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(canSubmitComment ? Color.primary : Color.secondary.opacity(0.25))
-                            .frame(width: 42, height: 42)
-
-                        if viewModel.isSubmittingComment {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                                .tint(Color(uiColor: .systemBackground))
-                        } else {
-                            Image(systemName: "arrow.up")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(canSubmitComment ? Color(uiColor: .systemBackground) : Color.primary.opacity(0.4))
-                        }
-                    }
-                }
-                .disabled(!canSubmitComment || viewModel.isSubmittingComment)
-                .buttonStyle(.plain)
-            }
-
-            Text("\(viewModel.commentDraft.count)/500")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-        .padding(.top, 12)
-        .padding(.bottom, 12)
-        .gesture(
-            DragGesture(minimumDistance: 10, coordinateSpace: .local)
-                .onChanged { value in
-                    if isComposerFocused.wrappedValue && value.translation.height > 10 {
-                        onDismissComposer()
-                    }
-                }
+        ExploreCommentComposer(
+            viewModel: viewModel,
+            post: post,
+            isComposerFocused: isComposerFocused,
+            onDismissComposer: onDismissComposer
         )
-    }
-
-    private var canSubmitComment: Bool {
-        !viewModel.commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var composerPlaceholder: String {
-        if let replyingToComment = viewModel.replyingToComment {
-            return "Reply to \(replyingToComment.displayAuthorName)"
-        }
-        return "Add a comment"
     }
 
     private func commentThread(_ comment: ExploreComment) -> some View {
@@ -543,10 +438,9 @@ struct ExplorePostDetailCommentsSection: View {
                 }
             }
 
-            Text(comment.body)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
+            ExploreCommentBodyText(comment: comment) { mention in
+                openMentionProfile(mention)
+            }
 
             reactionsView(for: comment)
 
@@ -577,6 +471,11 @@ struct ExplorePostDetailCommentsSection: View {
     private func openAuthorProfile(for comment: ExploreComment) {
         HapticManager.shared.triggerSelectionPulse()
         selectedAuthorProfileRoute = ExploreAuthorProfileRoute(comment: comment)
+    }
+
+    private func openMentionProfile(_ mention: ExploreCommentMention) {
+        HapticManager.shared.triggerSelectionPulse()
+        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(mention: mention)
     }
 
     private func createdAtText(for comment: ExploreComment) -> String? {

@@ -90,6 +90,8 @@ struct NotificationRowView: View {
             return "bubble.left.fill"
         case .commentReply:
             return "arrowshape.turn.up.left.fill"
+        case .commentMention:
+            return "at"
         case .commentReaction:
             return "face.smiling.fill"
         case .follow:
@@ -105,6 +107,8 @@ struct NotificationRowView: View {
             return .blue
         case .commentReply:
             return .purple
+        case .commentMention:
+            return .mint
         case .commentReaction:
             return .orange
         case .follow:
@@ -120,6 +124,8 @@ struct NotificationRowView: View {
             return Color.blue.opacity(0.12)
         case .commentReply:
             return Color.purple.opacity(0.12)
+        case .commentMention:
+            return Color.mint.opacity(0.14)
         case .commentReaction:
             return Color.orange.opacity(0.14)
         case .follow:
@@ -152,6 +158,9 @@ struct NotificationRowView: View {
                 return "\(actorName) replied to your comment."
             }
             return "\(actorName) replied on your post."
+        case .commentMention:
+            let actorName = trimmed(notification.triggeringUserName) ?? "Someone"
+            return "\(actorName) mentioned you in a comment."
         case .likeAggregated:
             return likeSummaryText()
         case .commentReaction:
@@ -164,7 +173,7 @@ struct NotificationRowView: View {
 
     private var secondaryText: String? {
         switch notification.type {
-        case .comment, .commentReply:
+        case .comment, .commentReply, .commentMention:
             return trimmed(notification.commentBody)
         case .likeAggregated:
             return nil

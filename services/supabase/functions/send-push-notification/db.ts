@@ -6,7 +6,12 @@ export interface ExplorePushNotificationPayload {
   post_id: string;
   comment_id: string | null;
   parent_comment_id: string | null;
-  type: "like_aggregated" | "comment" | "comment_reaction" | "comment_reply";
+  type:
+    | "like_aggregated"
+    | "comment"
+    | "comment_reaction"
+    | "comment_reply"
+    | "comment_mention";
   action_count: number;
   reaction_emoji: string | null;
   comment_body: string | null;
@@ -48,7 +53,9 @@ export async function fetchEligiblePushDevices(
 ): Promise<PushDeviceRow[]> {
   const { data, error } = await supabaseAdmin
     .from("user_push_devices")
-    .select("id, device_token, platform, environment, explore_enabled, is_active")
+    .select(
+      "id, device_token, platform, environment, explore_enabled, is_active",
+    )
     .eq("user_id", userId)
     .eq("platform", "ios")
     .eq("explore_enabled", true)
@@ -94,6 +101,8 @@ export async function markPushDeviceDeliveryFailure(
     .eq("id", deviceId);
 
   if (error) {
-    throw new Error(`Failed to update push delivery error state: ${error.message}`);
+    throw new Error(
+      `Failed to update push delivery error state: ${error.message}`,
+    );
   }
 }

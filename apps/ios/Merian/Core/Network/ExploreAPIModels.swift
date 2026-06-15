@@ -525,6 +525,10 @@ struct ExploreCommentsResponse: Decodable {
     let data: [ExploreComment]
 }
 
+struct ExploreMentionSuggestionsResponse: Decodable {
+    let data: [ExploreMentionSuggestion]
+}
+
 struct ExploreScanShareStateResponse: Decodable {
     let data: ExploreScanShareState
 }
@@ -751,6 +755,7 @@ struct ExploreComment: Decodable, Identifiable, Equatable {
     let viewerCanReport: Bool
     var replyCount: Int?
     var reactions: [ExploreCommentReaction]?
+    var mentions: [ExploreCommentMention]?
 
     var id: String { commentId }
 
@@ -782,6 +787,33 @@ struct ExploreCommentReaction: Decodable, Identifiable, Equatable {
     var viewerHasReacted: Bool
     
     var id: String { emoji }
+}
+
+struct ExploreCommentMention: Decodable, Identifiable, Equatable {
+    let userId: String
+    let username: String
+    let displayName: String
+    let avatarUrl: String?
+
+    var id: String { userId }
+    var displayUsername: String { "@\(username)" }
+}
+
+struct ExploreMentionSuggestion: Decodable, Identifiable, Equatable {
+    enum Source: String, Decodable {
+        case postAuthor = "post_author"
+        case thread
+        case following
+    }
+
+    let userId: String
+    let username: String
+    let displayName: String
+    let avatarUrl: String?
+    let source: Source
+
+    var id: String { userId }
+    var displayUsername: String { "@\(username)" }
 }
 
 struct ExploreShareResponse: Decodable {

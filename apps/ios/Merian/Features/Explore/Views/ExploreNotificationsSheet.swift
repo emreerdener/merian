@@ -558,7 +558,8 @@ struct ExploreNotificationReplyThreadSheet: View {
             viewerCanModerate: false,
             viewerCanReport: false,
             replyCount: nil,
-            reactions: nil
+            reactions: nil,
+            mentions: nil
         )
     }
 }

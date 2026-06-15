@@ -166,7 +166,7 @@ enum SmartCollectionSuggester {
             guard let displayName = displayLocationName(from: groupScans) else { continue }
             append(
                 to: &snapshots,
-                title: "\(displayName) finds",
+                title: displayName,
                 iconName: "mappin.and.ellipse",
                 rule: .location(normalize(displayName)),
                 rank: 2,
