@@ -289,10 +289,8 @@ enum SmartCollectionSuggester {
 
     private static func isReviewCandidate(_ scan: LocalScanRecord) -> Bool {
         guard scan.userReviewState == .unreviewed else { return false }
-        if scan.candidatesData != nil { return true }
-
         guard let confidenceScore = scan.confidenceScore else { return false }
-        let threshold = MerianConfig.confidenceBands(forInferenceTier: scan.inferenceTier).diagnosticTrigger
+        let threshold = MerianConfig.confidenceBands(forInferenceTier: scan.inferenceTier).possible
         return confidenceScore < threshold
     }
 

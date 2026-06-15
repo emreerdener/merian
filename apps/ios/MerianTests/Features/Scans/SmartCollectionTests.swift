@@ -44,7 +44,7 @@ struct SmartCollectionTests {
             try makeScan(
                 name: "Review Bird \($0)",
                 taxonomyClass: "aves",
-                confidenceScore: 0.82,
+                confidenceScore: 0.58,
                 candidatesData: Data([1]),
                 timestamp: referenceDate.addingTimeInterval(TimeInterval(-$0))
             )
@@ -102,6 +102,26 @@ struct SmartCollectionTests {
 
         #expect(suggestions.map(\.title).contains("Central Park"))
         #expect(SmartCollectionSuggester.normalizedLocationName("central-park") == "central park")
+    }
+
+    @Test("Needs review is based on confidence, not candidate presence")
+    func testNeedsReviewIgnoresCandidatesWhenConfidenceIsStrong() throws {
+        let scans = try (0..<2).map {
+            try makeScan(
+                name: "Strong Candidate \($0)",
+                confidenceScore: 0.92,
+                candidatesData: Data([1]),
+                timestamp: referenceDate.addingTimeInterval(TimeInterval(-$0))
+            )
+        }
+
+        let suggestions = SmartCollectionSuggester.suggestions(
+            from: scans,
+            existingCollections: [],
+            referenceDate: referenceDate
+        )
+
+        #expect(!suggestions.map(\.title).contains("Needs review"))
     }
 
     @Test("Shared scans emit a smart collection and respect duplicate suppression")

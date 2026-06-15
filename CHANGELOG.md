@@ -47,6 +47,8 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed Needs review smart collections so they only include weak-confidence
+  unreviewed scans instead of every scan that happens to have candidates.
 - Fixed Explore posts so shared discoveries keep the selected common name from
   the composer instead of drifting to dictionary defaults.
 - Fixed the Explore comment mention push toggle so it no longer appears enabled

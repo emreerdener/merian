@@ -30,6 +30,19 @@
       ]
     },
     {
+      "id": "2026-06-15-needs-review-confidence",
+      "date": "2026-06-15",
+      "title": "Needs review cleanup",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Needs review now focuses on weak-confidence unreviewed scans instead of including every scan with alternate candidates."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-15-explore-name-consistency",
       "date": "2026-06-15",
       "title": "Explore name consistency",
