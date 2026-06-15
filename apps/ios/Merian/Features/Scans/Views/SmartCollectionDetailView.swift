@@ -3,27 +3,29 @@ import SwiftUI
 
 struct SmartCollectionDetailView: View {
     let snapshot: SmartCollectionSnapshot
-    let collections: [ScanCollection]
+    let onHideSmartCollection: (SmartCollectionSnapshot) -> Void
 
-    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var allScans: [LocalScanRecord]
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedScanForInsight: ScanInsightRoute?
-    @State private var saveErrorMessage: String?
-    @State private var isSaving = false
+
+    private var liveSnapshot: SmartCollectionSnapshot {
+        SmartCollectionSuggester.refreshedSnapshot(for: snapshot, from: allScans)
+    }
 
     var body: some View {
         ScrollView {
-            if snapshot.scans.isEmpty {
+            if liveSnapshot.scans.isEmpty {
                 EmptyStateView(
-                    iconName: snapshot.iconName,
-                    title: snapshot.title,
+                    iconName: liveSnapshot.iconName,
+                    title: liveSnapshot.title,
                     message: "This smart collection no longer has matching scans."
                 )
             } else {
                 ScansGrid(
-                    scans: snapshot.scans,
+                    scans: liveSnapshot.scans,
                     onSelect: { scan in
                         inferenceEngine.load(from: scan)
                         selectedScanForInsight = ScanInsightRoute(scanId: scan.id)
@@ -34,16 +36,15 @@ struct SmartCollectionDetailView: View {
         .navigationTitle(snapshot.title)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    saveSmartCollection()
-                } label: {
-                    if isSaving {
-                        ProgressView()
-                    } else {
-                        Label("Save", systemImage: "square.and.arrow.down")
+                Menu {
+                    Button(role: .destructive) {
+                        hideSmartCollection()
+                    } label: {
+                        Label("Hide smart collection", systemImage: "eye.slash")
                     }
+                } label: {
+                    Image(systemName: "ellipsis")
                 }
-                .disabled(isSaving || snapshot.scans.isEmpty)
             }
         }
         .navigationDestination(item: $selectedScanForInsight) { route in
@@ -57,33 +58,11 @@ struct SmartCollectionDetailView: View {
                 presentationStyle: .embeddedInScansLibrary
             )
         }
-        .alert("Could not save collection", isPresented: Binding(
-            get: { saveErrorMessage != nil },
-            set: { if !$0 { saveErrorMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(saveErrorMessage ?? "Please try again.")
-        }
     }
 
-    private func saveSmartCollection() {
-        guard !isSaving else { return }
-        isSaving = true
-
-        do {
-            _ = try SmartCollectionSaver.save(
-                snapshot: snapshot,
-                existingCollections: collections,
-                modelContext: modelContext
-            )
-            HapticManager.shared.triggerSuccessPulse()
-            dismiss()
-        } catch {
-            saveErrorMessage = "Please try again."
-            HapticManager.shared.triggerErrorThump()
-        }
-
-        isSaving = false
+    private func hideSmartCollection() {
+        onHideSmartCollection(snapshot)
+        HapticManager.shared.triggerLightImpact()
+        dismiss()
     }
 }

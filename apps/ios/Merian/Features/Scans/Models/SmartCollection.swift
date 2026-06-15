@@ -1,5 +1,4 @@
 import Foundation
-import SwiftData
 
 struct SmartCollectionDefinition: Identifiable, Equatable {
     enum Rule: Equatable {
@@ -43,6 +42,7 @@ enum SmartCollectionSuggester {
     static func suggestions(
         from scans: [LocalScanRecord],
         existingCollections: [ScanCollection],
+        hiddenCollectionIDs: Set<String> = [],
         referenceDate: Date = Date()
     ) -> [SmartCollectionSnapshot] {
         let activeCollectionNames = Set(
@@ -67,6 +67,7 @@ enum SmartCollectionSuggester {
 
         return snapshots
             .filter { !activeCollectionNames.contains(normalizedCollectionName($0.title)) }
+            .filter { !hiddenCollectionIDs.contains($0.id) }
             .sorted { lhs, rhs in
                 if lhs.definition.rank != rhs.definition.rank {
                     return lhs.definition.rank < rhs.definition.rank
@@ -78,6 +79,26 @@ enum SmartCollectionSuggester {
             }
             .prefix(maximumSuggestions)
             .map { $0 }
+    }
+
+    static func refreshedSnapshot(
+        for snapshot: SmartCollectionSnapshot,
+        from scans: [LocalScanRecord],
+        referenceDate: Date = Date()
+    ) -> SmartCollectionSnapshot {
+        let biologicalScans = scans
+            .filter { $0.isBiological }
+            .sortedByNewest()
+        let matchingScans = matchingScans(
+            for: snapshot.definition,
+            in: biologicalScans,
+            referenceDate: referenceDate
+        ).sortedByNewest()
+        return SmartCollectionSnapshot(
+            definition: snapshot.definition,
+            scans: matchingScans,
+            coverScan: matchingScans.first
+        )
     }
 
     static func normalizedCollectionName(_ name: String) -> String {
@@ -254,6 +275,33 @@ enum SmartCollectionSuggester {
         return confidenceScore < threshold
     }
 
+    private static func matchingScans(
+        for definition: SmartCollectionDefinition,
+        in scans: [LocalScanRecord],
+        referenceDate: Date
+    ) -> [LocalScanRecord] {
+        switch definition.rule {
+        case .needsReview:
+            return scans.filter(isReviewCandidate)
+        case .recentFinds:
+            let cutoff = referenceDate.addingTimeInterval(-recentWindow)
+            return scans.filter { $0.timestamp >= cutoff && $0.timestamp <= referenceDate }
+        case .location(let normalizedLocation):
+            return scans.filter { normalizedLocationName($0.locationName) == normalizedLocation }
+        case .taxonomy(let bucket):
+            return scans.filter { scan in
+                SearchCategoryBucket(
+                    kingdom: scan.taxonomyKingdom?.lowercased() ?? "",
+                    className: scan.taxonomyClass?.lowercased() ?? ""
+                ) == bucket
+            }
+        case .invasive:
+            return scans.filter(\.isInvasive)
+        case .hazards:
+            return scans.filter { $0.hazardType.lowercased() != "none" }
+        }
+    }
+
     private static func displayLocationName(from scans: [LocalScanRecord]) -> String? {
         scans
             .sortedByNewest()
@@ -278,65 +326,25 @@ enum SmartCollectionSuggester {
     }
 }
 
-enum SmartCollectionSaver {
-    @MainActor
-    static func save(
-        snapshot: SmartCollectionSnapshot,
-        existingCollections: [ScanCollection],
-        modelContext: ModelContext,
-        enqueueSync: Bool = true
-    ) throws -> ScanCollection {
-        let collectionName = uniqueCollectionName(
-            baseName: snapshot.title,
-            existingCollections: existingCollections
-        )
-        let collection = ScanCollection(name: collectionName)
-        modelContext.insert(collection)
-
-        for scan in snapshot.scans {
-            var updatedCollections = scan.collections ?? []
-            if !updatedCollections.contains(where: { $0.id == collection.id }) {
-                updatedCollections.append(collection)
-                scan.collections = updatedCollections
-            }
-        }
-
-        do {
-            try modelContext.save()
-        } catch {
-            modelContext.rollback()
-            throw error
-        }
-
-        ScanLibraryEvents.postLibraryDidUpdate()
-        if enqueueSync {
-            OfflineQueueManager.shared.enqueueCollectionSync()
-        }
-        return collection
+enum SmartCollectionPreferences {
+    static func hiddenIDs(defaults: UserDefaults = .standard) -> Set<String> {
+        Set(defaults.stringArray(forKey: UserDefaultsKeys.hiddenSmartCollectionIDs) ?? [])
     }
 
-    static func uniqueCollectionName(
-        baseName: String,
-        existingCollections: [ScanCollection]
-    ) -> String {
-        let activeNames = Set(
-            existingCollections
-                .filter { !$0.isDeleted }
-                .map { SmartCollectionSuggester.normalizedCollectionName($0.name) }
-        )
+    @discardableResult
+    static func hide(id: String, defaults: UserDefaults = .standard) -> Set<String> {
+        var ids = hiddenIDs(defaults: defaults)
+        ids.insert(id)
+        persistHiddenIDs(ids, defaults: defaults)
+        return ids
+    }
 
-        guard activeNames.contains(SmartCollectionSuggester.normalizedCollectionName(baseName)) else {
-            return baseName
-        }
+    static func clearHiddenIDs(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: UserDefaultsKeys.hiddenSmartCollectionIDs)
+    }
 
-        var suffix = 2
-        while true {
-            let candidate = "\(baseName) \(suffix)"
-            if !activeNames.contains(SmartCollectionSuggester.normalizedCollectionName(candidate)) {
-                return candidate
-            }
-            suffix += 1
-        }
+    private static func persistHiddenIDs(_ ids: Set<String>, defaults: UserDefaults) {
+        defaults.set(ids.sorted(), forKey: UserDefaultsKeys.hiddenSmartCollectionIDs)
     }
 }
 

@@ -706,6 +706,7 @@ These helpers remain as parked implementation support for a future rebuild.
 | `zoomSideLeft`                         | `"zoomSideLeft"`                         | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView`                                                                                                                           |
 | `zoomSliderVisible`                    | `"zoomSliderVisible"`                    | `ZoomSliderView`, `CameraSettingsView`                                                                                                                                              |
 | `needsCollectionSync`                  | `"needsCollectionSync"`                  | `OfflineQueueManager+Sync` (write on enqueue, clear on success), `ScanRepository` (read/clear during historical sync)                                                               |
+| `hiddenSmartCollectionIDs`             | `"hiddenSmartCollectionIDs"`             | `SmartCollectionPreferences` stores locally hidden smart collection ids; these are UI-only and are not synced through `/sync-collections`.                                           |
 | `speciesPreferredNamePrefix`           | `"speciesPreferredName_"`                | `SpeciesPreferredNameStore` bridge for per-species display-name overrides used by Insights and Explore.                                                                             |
 
 `KeychainKeys.hasAuthenticatedOAuth` is the single source of truth for the

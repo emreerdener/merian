@@ -5,6 +5,8 @@ struct CollectionsView: View {
     let searchQuery: String
     let isSearchFocused: Bool
     let collections: [ScanCollection]
+    let hiddenSmartCollectionIDs: Set<String>
+    let onHideSmartCollection: (SmartCollectionSnapshot) -> Void
     @Binding var showNewCollectionAlert: Bool
     @Binding var newlyCreatedCollection: ScanCollection?
 
@@ -75,7 +77,7 @@ struct CollectionsView: View {
                             NavigationLink {
                                 SmartCollectionDetailView(
                                     snapshot: smartCollection,
-                                    collections: collections
+                                    onHideSmartCollection: onHideSmartCollection
                                 )
                             } label: {
                                 SmartCollectionCard(snapshot: smartCollection)
@@ -144,7 +146,7 @@ struct CollectionsView: View {
                             ) {
                                 SmartCollectionDetailView(
                                     snapshot: smartCollection,
-                                    collections: collections
+                                    onHideSmartCollection: onHideSmartCollection
                                 )
                             }
                         }
@@ -193,11 +195,14 @@ struct CollectionsView: View {
             refreshCollectionSnapshot()
             refreshNonBioCount()
         }
-        .task(id: allScans.count) {
+        .task(id: scanSmartCollectionSignature) {
             refreshCollectionSnapshot()
             refreshNonBioCount()
         }
         .task(id: collectionsSignature) {
+            refreshCollectionSnapshot()
+        }
+        .task(id: hiddenSmartCollectionSignature) {
             refreshCollectionSnapshot()
         }
         .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
@@ -214,11 +219,36 @@ struct CollectionsView: View {
             .joined(separator: "|")
     }
 
+    private var hiddenSmartCollectionSignature: String {
+        hiddenSmartCollectionIDs.sorted().joined(separator: "|")
+    }
+
+    private var scanSmartCollectionSignature: String {
+        allScans
+            .map { scan in
+                [
+                    scan.id,
+                    String(scan.timestamp.timeIntervalSince1970),
+                    scan.isBiological ? "1" : "0",
+                    scan.locationName ?? "",
+                    scan.taxonomyKingdom ?? "",
+                    scan.taxonomyClass ?? "",
+                    scan.isInvasive ? "1" : "0",
+                    scan.hazardType,
+                    String(scan.confidenceScore ?? -1),
+                    String(scan.candidatesData?.count ?? 0),
+                    scan.userReviewState.rawValue
+                ].joined(separator: ":")
+            }
+            .joined(separator: "|")
+    }
+
     private func refreshCollectionSnapshot() {
         collectionSnapshot = CollectionMembershipSnapshot(scans: allScans)
         smartCollections = SmartCollectionSuggester.suggestions(
             from: allScans,
-            existingCollections: collections
+            existingCollections: collections,
+            hiddenCollectionIDs: hiddenSmartCollectionIDs
         )
     }
 

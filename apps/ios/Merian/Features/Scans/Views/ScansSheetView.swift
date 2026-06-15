@@ -52,6 +52,7 @@ struct ScansSheetView: View {
     @State private var showNewCollectionAlert = false
     @State private var newCollectionName = ""
     @State private var newlyCreatedCollection: ScanCollection?
+    @State private var hiddenSmartCollectionIDs = SmartCollectionPreferences.hiddenIDs()
     
     @State private var scanToDelete: String?
     @State private var showDeleteConfirmation = false
@@ -126,6 +127,8 @@ struct ScansSheetView: View {
                 ScansSheetToolbar(
                     searchManager: searchManager, activeTab: $activeTab,
                     showNewCollectionAlert: $showNewCollectionAlert, dismiss: dismiss,
+                    hiddenSmartCollectionCount: hiddenSmartCollectionIDs.count,
+                    onShowHiddenSmartCollections: showHiddenSmartCollections,
                     onShare: shareSelectedScans,
                     onDownload: downloadSelectedScans,
                     onDelete: { showBatchDeleteConfirmation = true }
@@ -169,6 +172,8 @@ struct ScansSheetView: View {
                     searchManager: searchManager,
                     isSearchFocused: isSearchFocused,
                     sortedCollections: searchManager.sortedCollections,
+                    hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
+                    onHideSmartCollection: hideSmartCollection,
                     showNewCollectionAlert: $showNewCollectionAlert,
                     newlyCreatedCollection: $newlyCreatedCollection
                 )
@@ -220,6 +225,16 @@ struct ScansSheetView: View {
                 isNonBiologicalScansPresented = true
             }
         }
+    }
+
+    private func hideSmartCollection(_ snapshot: SmartCollectionSnapshot) {
+        hiddenSmartCollectionIDs = SmartCollectionPreferences.hide(id: snapshot.id)
+    }
+
+    private func showHiddenSmartCollections() {
+        SmartCollectionPreferences.clearHiddenIDs()
+        hiddenSmartCollectionIDs = []
+        HapticManager.shared.triggerSelectionPulse()
     }
 
     private func handleAppear() {
@@ -543,6 +558,8 @@ private struct CollectionsTabContent: View {
     let searchManager: ScansManager
     let isSearchFocused: Bool
     let sortedCollections: [ScanCollection]
+    let hiddenSmartCollectionIDs: Set<String>
+    let onHideSmartCollection: (SmartCollectionSnapshot) -> Void
     @Binding var showNewCollectionAlert: Bool
     @Binding var newlyCreatedCollection: ScanCollection?
 
@@ -551,6 +568,8 @@ private struct CollectionsTabContent: View {
             searchQuery: searchManager.searchQuery,
             isSearchFocused: isSearchFocused,
             collections: sortedCollections,
+            hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
+            onHideSmartCollection: onHideSmartCollection,
             showNewCollectionAlert: $showNewCollectionAlert,
             newlyCreatedCollection: $newlyCreatedCollection
         )
@@ -563,6 +582,8 @@ private struct ScansSheetToolbar: ToolbarContent {
     @Binding var showNewCollectionAlert: Bool
     @Environment(AppSettings.self) private var appSettings
     let dismiss: DismissAction
+    let hiddenSmartCollectionCount: Int
+    let onShowHiddenSmartCollections: () -> Void
     let onShare: () -> Void
     let onDownload: () -> Void
     let onDelete: () -> Void
@@ -611,6 +632,11 @@ private struct ScansSheetToolbar: ToolbarContent {
                     if activeTab == .collections {
                         Button(action: { showNewCollectionAlert = true }) {
                             Label("New collection", systemImage: "folder.badge.plus")
+                        }
+                        if hiddenSmartCollectionCount > 0 {
+                            Button(action: onShowHiddenSmartCollections) {
+                                Label("Show hidden smart collections", systemImage: "eye")
+                            }
                         }
                         Picker(selection: Binding(get: { searchManager.collectionSortOption }, set: { searchManager.collectionSortOption = $0 })) {
                             ForEach(ScanSortOption.allCases) { option in

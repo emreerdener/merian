@@ -104,13 +104,8 @@ struct SmartCollectionTests {
         #expect(SmartCollectionSuggester.normalizedLocationName("central-park") == "central park")
     }
 
-    @Test("Saving a smart collection creates a regular collection with collision-safe naming")
-    func testSaveSmartCollectionCreatesSyncedCollectionSnapshot() throws {
-        let existing = ScanCollection(name: "Recent finds")
-        let existingTwo = ScanCollection(name: "Recent finds 2")
-        context.insert(existing)
-        context.insert(existingTwo)
-
+    @Test("Hidden smart collection ids suppress suggestions until reset")
+    func testHiddenSmartCollectionIDsSuppressAndReset() throws {
         let scans = try (0..<3).map {
             try makeScan(
                 name: "Recent \($0)",
@@ -125,18 +120,34 @@ struct SmartCollectionTests {
             referenceDate: referenceDate
         ).first { $0.title == "Recent finds" })
 
-        let saved = try SmartCollectionSaver.save(
-            snapshot: snapshot,
-            existingCollections: [existing, existingTwo],
-            modelContext: context,
-            enqueueSync: false
+        let hiddenSuggestions = SmartCollectionSuggester.suggestions(
+            from: scans,
+            existingCollections: [],
+            hiddenCollectionIDs: [snapshot.id],
+            referenceDate: referenceDate
         )
+        #expect(!hiddenSuggestions.map(\.title).contains("Recent finds"))
 
-        #expect(saved.name == "Recent finds 3")
-        #expect(saved.scans?.count == 3)
-        #expect(scans.allSatisfy { scan in
-            scan.collections?.contains(where: { $0.id == saved.id }) == true
-        })
+        let suiteName = "SmartCollectionTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let storedIDs = SmartCollectionPreferences.hide(id: snapshot.id, defaults: defaults)
+        #expect(storedIDs == [snapshot.id])
+        #expect(SmartCollectionPreferences.hiddenIDs(defaults: defaults) == [snapshot.id])
+
+        SmartCollectionPreferences.clearHiddenIDs(defaults: defaults)
+        #expect(SmartCollectionPreferences.hiddenIDs(defaults: defaults).isEmpty)
+
+        let restoredSuggestions = SmartCollectionSuggester.suggestions(
+            from: scans,
+            existingCollections: [],
+            hiddenCollectionIDs: SmartCollectionPreferences.hiddenIDs(defaults: defaults),
+            referenceDate: referenceDate
+        )
+        #expect(restoredSuggestions.map(\.title).contains("Recent finds"))
     }
 
     private func makeScan(
