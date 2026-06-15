@@ -19,13 +19,21 @@ The workflow performs the following steps:
    helper tests.
 5. Links the Supabase project.
 6. Pushes database migrations.
-7. Deploys all configured Edge Functions with `supabase functions deploy`.
+7. Deploys all configured Edge Functions with `supabase functions deploy
+   --import-map supabase/functions/deno.json`.
 
 Deploying all configured functions is intentional. Shared modules such as
 `functions/_shared/aws.ts`, `functions/_shared/mediaBudgets.ts`, and
 `functions/_shared/concurrency.ts` are bundled into each dependent Edge
 Function at deploy time; deploying a hand-maintained partial list risks leaving
 production on mixed helper versions.
+
+The deploy command explicitly passes `services/supabase/functions/deno.json`
+because many existing functions still import the historical
+`https://esm.sh/@supabase/supabase-js@2.49.1` specifier. The import map remaps
+that exact URL to Supabase's recommended npm package specifier for Edge
+Functions, avoiding deploy-time failures when esm.sh returns transient 5xx
+responses while the Supabase bundler creates each function graph.
 
 ## Required GitHub Secrets
 
@@ -79,7 +87,7 @@ deno test \
   services/supabase/functions/update-public-avatar/avatar_test.ts
 
 make db-push
-make functions-deploy
+supabase --workdir services functions deploy --import-map services/supabase/functions/deno.json
 ```
 
 If `make db-push` reports a missing access token, authenticate the local CLI:

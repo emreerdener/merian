@@ -91,9 +91,9 @@ struct MainTabBar: View {
 
     @MainActor
     private func refreshExploreBadge() async {
-        async let fetchLatestPost: ExplorePost? = {
+        async let fetchRecentPosts: [ExplorePost]? = {
             do {
-                return try await MerianNetworkClient.shared.getExploreFeed(limit: 1).first
+                return try await MerianNetworkClient.shared.getExploreFeed(limit: 20)
             } catch {
                 MerianLog.network.debug("Failed to fetch latest post for badge: \(error.localizedDescription, privacy: .private)")
                 return nil
@@ -109,27 +109,22 @@ struct MainTabBar: View {
             }
         }()
         
-        let (latestPost, unreadCount) = await (fetchLatestPost, fetchUnreadCount)
+        let (recentPosts, unreadCount) = await (fetchRecentPosts, fetchUnreadCount)
 
         if let unreadCount {
             hasUnreadExploreNotifications = unreadCount > 0
             AppIconBadgeCoordinator.setExploreUnreadNotificationCount(unreadCount)
         }
 
-        guard let latestPost else {
+        guard let recentPosts else {
             appSettings.hasUnseenExplorePost = false
             return
         }
 
-        guard let latestPostDate = latestPost.sharedAtDate else { return }
-        guard !appSettings.lastSeenExplorePostSharedAt.isEmpty else { return }
-
-        guard let lastSeenPostDate = DateUtilities.iso8601FractionalFormatter.date(from: appSettings.lastSeenExplorePostSharedAt)
-            ?? DateUtilities.iso8601Formatter.date(from: appSettings.lastSeenExplorePostSharedAt) else {
-            return
-        }
-
-        appSettings.hasUnseenExplorePost = latestPostDate > lastSeenPostDate
+        appSettings.hasUnseenExplorePost = ExploreBadgePolicy.hasUnseenExternalPost(
+            in: recentPosts,
+            lastSeenSharedAt: appSettings.lastSeenExplorePostSharedAt
+        )
     }
 }
 

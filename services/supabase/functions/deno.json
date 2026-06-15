@@ -7,7 +7,8 @@
     "@std/http/": "https://deno.land/std@0.224.0/http/",
     "@std/encoding/": "https://deno.land/std@0.224.0/encoding/",
     "@std/encoding-base64": "jsr:@std/encoding@1/base64",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.1",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.49.1",
+    "https://esm.sh/@supabase/supabase-js@2.49.1": "npm:@supabase/supabase-js@2.49.1",
     "aws4fetch": "https://esm.sh/aws4fetch@1.0.20",
     "@google/genai": "https://esm.sh/@google/genai@1.0.0",
     "jszip": "https://esm.sh/jszip@3.10.1"

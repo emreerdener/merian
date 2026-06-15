@@ -26,7 +26,6 @@ extension InsightSheetViewModel {
                 hashtags: hashtags,
                 locationSharing: locationSharing
             )
-            appSettings.hasUnseenExplorePost = true
             cacheSharedExplorePostId(response.postId, for: scanId)
             state.sharedExploreHashtags = hashtags
             state.exploreFieldNotesArePublic = notesForPost != nil
@@ -67,7 +66,6 @@ extension InsightSheetViewModel {
                 hashtags: draft.hashtags,
                 locationSharing: draft.locationSharing
             )
-            appSettings.hasUnseenExplorePost = true
             cacheSharedExplorePostId(response.postId, for: scanId)
             state.sharedExploreHashtags = draft.hashtags
             state.exploreFieldNotesArePublic = draft.publicFieldNotes != nil
