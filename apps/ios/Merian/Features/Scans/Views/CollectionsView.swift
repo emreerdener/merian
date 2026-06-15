@@ -128,16 +128,6 @@ struct CollectionsView: View {
                             }
                         }
 
-                        if showNonBio {
-                            DefaultCollectionLink(
-                                title: "Non-biological",
-                                iconName: "cube",
-                                count: nonBioCount
-                            ) {
-                                NonBiologicalScansView()
-                            }
-                        }
-
                         ForEach(smartRowCollections) { smartCollection in
                             DefaultCollectionLink(
                                 title: smartCollection.title,
@@ -148,6 +138,16 @@ struct CollectionsView: View {
                                     snapshot: smartCollection,
                                     onHideSmartCollection: onHideSmartCollection
                                 )
+                            }
+                        }
+
+                        if showNonBio {
+                            DefaultCollectionLink(
+                                title: "Non-biological",
+                                iconName: "cube",
+                                count: nonBioCount
+                            ) {
+                                NonBiologicalScansView()
                             }
                         }
                     }
