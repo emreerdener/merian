@@ -104,6 +104,36 @@ struct SmartCollectionTests {
         #expect(SmartCollectionSuggester.normalizedLocationName("central-park") == "central park")
     }
 
+    @Test("Shared scans emit a smart collection and respect duplicate suppression")
+    func testSharedScansEmitSmartCollection() throws {
+        let sharedScan = try makeScan(name: "Shared Oak", timestamp: referenceDate)
+        let privateScan = try makeScan(name: "Private Oak", timestamp: referenceDate.addingTimeInterval(-10))
+        let sharedPostIDProvider: (String) -> String? = { scanId in
+            scanId == sharedScan.id ? "post-shared-oak" : nil
+        }
+
+        let suggestions = SmartCollectionSuggester.suggestions(
+            from: [sharedScan, privateScan],
+            existingCollections: [],
+            sharedPostIDProvider: sharedPostIDProvider,
+            referenceDate: referenceDate
+        )
+        let sharedSnapshot = try #require(suggestions.first { $0.title == "Explore posts" })
+
+        #expect(sharedSnapshot.count == 1)
+        #expect(sharedSnapshot.scans.first?.id == sharedScan.id)
+
+        let duplicate = ScanCollection(name: "Explore posts")
+        let suppressedSuggestions = SmartCollectionSuggester.suggestions(
+            from: [sharedScan, privateScan],
+            existingCollections: [duplicate],
+            sharedPostIDProvider: sharedPostIDProvider,
+            referenceDate: referenceDate
+        )
+
+        #expect(!suppressedSuggestions.map(\.title).contains("Explore posts"))
+    }
+
     @Test("Hidden smart collection ids suppress suggestions until reset")
     func testHiddenSmartCollectionIDsSuppressAndReset() throws {
         let scans = try (0..<3).map {

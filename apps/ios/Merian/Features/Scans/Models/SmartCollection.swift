@@ -4,6 +4,7 @@ struct SmartCollectionDefinition: Identifiable, Equatable {
     enum Rule: Equatable {
         case needsReview
         case recentFinds
+        case shared
         case location(String)
         case taxonomy(SearchCategoryBucket)
         case invasive
@@ -33,6 +34,7 @@ enum SmartCollectionSuggester {
     private static let maximumSuggestions = 6
     private static let minimumRecentScans = 3
     private static let minimumReviewScans = 2
+    private static let minimumSharedScans = 1
     private static let minimumTaxonomyScans = 3
     private static let minimumLocationScans = 3
     private static let minimumSpecialScans = 2
@@ -43,6 +45,7 @@ enum SmartCollectionSuggester {
         from scans: [LocalScanRecord],
         existingCollections: [ScanCollection],
         hiddenCollectionIDs: Set<String> = [],
+        sharedPostIDProvider: (String) -> String? = { ExploreShareStateStore.sharedPostId(for: $0) },
         referenceDate: Date = Date()
     ) -> [SmartCollectionSnapshot] {
         let activeCollectionNames = Set(
@@ -61,6 +64,7 @@ enum SmartCollectionSuggester {
 
         appendReviewSuggestion(to: &snapshots, scans: biologicalScans)
         appendRecentSuggestion(to: &snapshots, scans: biologicalScans, referenceDate: referenceDate)
+        appendSharedSuggestion(to: &snapshots, scans: biologicalScans, sharedPostIDProvider: sharedPostIDProvider)
         appendLocationSuggestions(to: &snapshots, scans: biologicalScans)
         appendTaxonomySuggestions(to: &snapshots, scans: biologicalScans)
         appendSpecialSuggestions(to: &snapshots, scans: biologicalScans)
@@ -145,6 +149,23 @@ enum SmartCollectionSuggester {
         )
     }
 
+    private static func appendSharedSuggestion(
+        to snapshots: inout [SmartCollectionSnapshot],
+        scans: [LocalScanRecord],
+        sharedPostIDProvider: (String) -> String?
+    ) {
+        let matches = scans.filter { sharedPostIDProvider($0.id) != nil }
+        append(
+            to: &snapshots,
+            title: "Explore posts",
+            iconName: "globe.americas",
+            rule: .shared,
+            rank: 2,
+            scans: matches,
+            minimumCount: minimumSharedScans
+        )
+    }
+
     private static func appendLocationSuggestions(
         to snapshots: inout [SmartCollectionSnapshot],
         scans: [LocalScanRecord]
@@ -169,7 +190,7 @@ enum SmartCollectionSuggester {
                 title: displayName,
                 iconName: "mappin.and.ellipse",
                 rule: .location(normalize(displayName)),
-                rank: 2,
+                rank: 3,
                 scans: groupScans,
                 minimumCount: minimumLocationScans
             )
@@ -208,7 +229,7 @@ enum SmartCollectionSuggester {
                 title: bucket.displayTitle,
                 iconName: bucket.iconName,
                 rule: .taxonomy(bucket),
-                rank: 3,
+                rank: 4,
                 scans: groupScans,
                 minimumCount: minimumTaxonomyScans
             )
@@ -224,7 +245,7 @@ enum SmartCollectionSuggester {
             title: "Invasive finds",
             iconName: "exclamationmark.triangle",
             rule: .invasive,
-            rank: 4,
+            rank: 5,
             scans: scans.filter(\.isInvasive),
             minimumCount: minimumSpecialScans
         )
@@ -234,7 +255,7 @@ enum SmartCollectionSuggester {
             title: "Potential hazards",
             iconName: "cross.case",
             rule: .hazards,
-            rank: 5,
+            rank: 6,
             scans: scans.filter { $0.hazardType.lowercased() != "none" },
             minimumCount: minimumSpecialScans
         )
@@ -286,6 +307,8 @@ enum SmartCollectionSuggester {
         case .recentFinds:
             let cutoff = referenceDate.addingTimeInterval(-recentWindow)
             return scans.filter { $0.timestamp >= cutoff && $0.timestamp <= referenceDate }
+        case .shared:
+            return scans.filter { ExploreShareStateStore.sharedPostId(for: $0.id) != nil }
         case .location(let normalizedLocation):
             return scans.filter { normalizedLocationName($0.locationName) == normalizedLocation }
         case .taxonomy(let bucket):

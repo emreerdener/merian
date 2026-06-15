@@ -209,6 +209,11 @@ struct CollectionsView: View {
             refreshCollectionSnapshot()
             refreshNonBioCount()
         }
+        .onReceive(AppEventPublisher.shared.publisher) { event in
+            if case .exploreShareStateChanged = event {
+                refreshCollectionSnapshot()
+            }
+        }
     }
 
     private var collectionsSignature: String {
