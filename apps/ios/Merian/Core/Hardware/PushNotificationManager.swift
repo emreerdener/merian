@@ -27,6 +27,11 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
             && UserDefaults.standard.bool(forKey: UserDefaultsKeys.isExploreNotificationsEnabled)
     }
 
+    private var effectiveExploreCommentMentionPushEnabled: Bool {
+        UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
+            && UserDefaults.standard.bool(forKey: UserDefaultsKeys.isExploreCommentMentionNotificationsEnabled)
+    }
+
     private override init() {
         super.init()
     }
@@ -122,7 +127,8 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
             try await MerianNetworkClient.shared.registerPushDevice(
                 deviceToken: deviceToken,
                 environment: currentPushEnvironment,
-                exploreEnabled: effectiveExplorePushEnabled
+                exploreEnabled: effectiveExplorePushEnabled,
+                commentMentionsEnabled: effectiveExploreCommentMentionPushEnabled
             )
         } catch {
             MerianLog.hardware.error(

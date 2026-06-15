@@ -101,6 +101,18 @@ struct AppDIContainerTests {
         #expect(settings.isAchievementNotificationsEnabled == false)
     }
 
+    @Test func testExploreNotificationDefaultsStartOn() {
+        let suiteName = "merian.tests.explore-notification-defaults.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = AppSettings(userDefaults: defaults, observeExternalChanges: false)
+
+        #expect(settings.isExploreNotificationsEnabled == true)
+        #expect(settings.isExploreCommentMentionNotificationsEnabled == true)
+    }
+
     @Test func testSpeciesPreferredNameStoreKeepsPreferenceScopedBySpecies() {
         let suiteName = "merian.tests.species-preferred-name.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard

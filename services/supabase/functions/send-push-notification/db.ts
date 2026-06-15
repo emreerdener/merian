@@ -27,6 +27,7 @@ export interface PushDeviceRow {
   platform: "ios";
   environment: "sandbox" | "production";
   explore_enabled: boolean;
+  comment_mentions_enabled: boolean;
   is_active: boolean;
 }
 
@@ -49,17 +50,25 @@ export async function fetchExplorePushNotificationPayload(
 
 export async function fetchEligiblePushDevices(
   userId: string,
+  notificationType: ExplorePushNotificationPayload["type"],
   supabaseAdmin: SupabaseClient,
 ): Promise<PushDeviceRow[]> {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("user_push_devices")
     .select(
-      "id, device_token, platform, environment, explore_enabled, is_active",
+      "id, device_token, platform, environment, explore_enabled, comment_mentions_enabled, is_active",
     )
     .eq("user_id", userId)
     .eq("platform", "ios")
-    .eq("explore_enabled", true)
     .eq("is_active", true);
+
+  if (notificationType === "comment_mention") {
+    query = query.eq("comment_mentions_enabled", true);
+  } else {
+    query = query.eq("explore_enabled", true);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Failed to fetch Explore push devices: ${error.message}`);

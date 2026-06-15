@@ -27,7 +27,9 @@ serve((req: Request) =>
       ? body.device_token.trim().toLowerCase()
       : "";
     if (!DEVICE_TOKEN_RE.test(rawToken)) {
-      return jsonResponse({ error: "device_token must be a lowercase hex APNs token." }, 400);
+      return jsonResponse({
+        error: "device_token must be a lowercase hex APNs token.",
+      }, 400);
     }
 
     if (body.platform !== "ios") {
@@ -35,20 +37,38 @@ serve((req: Request) =>
     }
 
     if (body.environment !== "sandbox" && body.environment !== "production") {
-      return jsonResponse({ error: "environment must be 'sandbox' or 'production'." }, 400);
+      return jsonResponse({
+        error: "environment must be 'sandbox' or 'production'.",
+      }, 400);
     }
 
     if (typeof body.explore_enabled !== "boolean") {
       return jsonResponse({ error: "explore_enabled must be a boolean." }, 400);
     }
 
+    if (
+      body.comment_mentions_enabled !== undefined &&
+      typeof body.comment_mentions_enabled !== "boolean"
+    ) {
+      return jsonResponse(
+        { error: "comment_mentions_enabled must be a boolean." },
+        400,
+      );
+    }
+
+    const commentMentionsEnabled =
+      typeof body.comment_mentions_enabled === "boolean"
+        ? body.comment_mentions_enabled
+        : body.explore_enabled;
+
     await upsertPushDeviceRegistration(user.id, {
       deviceToken: rawToken,
       platform: "ios",
       environment: body.environment,
       exploreEnabled: body.explore_enabled,
+      commentMentionsEnabled,
     }, supabaseAdmin);
 
     return jsonResponse({ success: true }, 200);
-  }),
+  })
 );

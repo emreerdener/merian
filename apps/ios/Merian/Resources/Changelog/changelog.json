@@ -16,7 +16,15 @@
         {
           "title": "Improved",
           "items": [
-            "The comment composer can suggest eligible handles as you type, and tapped mentions open that user's public Explore profile."
+            "The comment composer can suggest eligible handles as you type, and tapped mentions open that user's public Explore profile.",
+            "Notification settings now include an independent push toggle for Explore comment mentions.",
+            "Explore activity and comment mention push notifications now default on for new installs."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "The comment mention push toggle now stays independent from the separate Explore activity push setting."
           ]
         }
       ]

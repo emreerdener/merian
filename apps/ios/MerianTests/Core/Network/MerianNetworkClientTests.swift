@@ -911,13 +911,15 @@ struct MerianNetworkClientTests {
             #expect(payload?["platform"] as? String == "ios")
             #expect(payload?["environment"] as? String == "sandbox")
             #expect(payload?["explore_enabled"] as? Bool == true)
+            #expect(payload?["comment_mentions_enabled"] as? Bool == false)
             return (mockResponse, Data("{}".utf8))
         }
 
         try await MerianNetworkClient.shared.registerPushDevice(
             deviceToken: "abc123",
             environment: "sandbox",
-            exploreEnabled: true
+            exploreEnabled: true,
+            commentMentionsEnabled: false
         )
     }
     

@@ -32,6 +32,7 @@ Migrations:
 ```text
 services/supabase/migrations/20260615090000_add_explore_comment_mention_notification_type.sql
 services/supabase/migrations/20260615100000_add_explore_comment_mentions.sql
+services/supabase/migrations/20260615120000_add_explore_comment_mention_push_preference.sql
 ```
 
 The migrations add:
@@ -43,6 +44,7 @@ The migrations add:
 - `public.comment_mention_projection(comment_id)`
 - `public.insert_explore_comment_mentions_from_body(comment_id, actor_user_id)`
 - `public.insert_explore_comment_mention_notifications(comment_id)`
+- `public.user_push_devices.comment_mentions_enabled`
 
 `explore_comment_mentions` has a primary key on
 `(comment_id, mentioned_user_id)` so duplicate tokens cannot create duplicate
@@ -132,6 +134,27 @@ Soft-deleting or moderating a comment removes `comment_mention` notifications
 for that comment. Restoring a comment recreates the eligible mention
 notifications.
 
+## Push Preferences
+
+Mention notifications can be delivered through APNs when the recipient enables
+the independent `Comment mentions` push toggle in Notifications settings.
+Explore activity pushes and comment mention pushes both default on for new app
+installs. Effective mention delivery requires:
+
+- iOS notification authorization
+- the `Comment mentions` push setting
+- an active `public.user_push_devices` row for the APNs token
+
+The Edge registration contract accepts `comment_mentions_enabled` in addition
+to `explore_enabled`. The field is optional for older clients; when omitted,
+the server treats the mention preference like the submitted `explore_enabled`
+value for compatibility. `send-push-notification` requires
+`explore_enabled = true` for regular Explore activity pushes and requires
+`comment_mentions_enabled = true` for `comment_mention` payloads.
+
+This setting controls only remote push delivery. The in-app Explore
+notifications feed remains complete and continues to include mention rows.
+
 ## iOS Touchpoints
 
 - DTOs and client method: `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
@@ -150,6 +173,9 @@ notifications.
 - Notification rendering:
   `apps/ios/Merian/Features/Explore/Models/ExploreNotification.swift` and
   `apps/ios/Merian/Features/Explore/Components/NotificationRowView.swift`
+- Push preference:
+  `apps/ios/Merian/Features/Profile/Views/NotificationSettingsView.swift` and
+  `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift`
 - Regression tests:
   `apps/ios/MerianTests/Features/Explore/ExploreCommentMentionTextTests.swift`
 

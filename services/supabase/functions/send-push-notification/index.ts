@@ -319,6 +319,7 @@ serve(async (req: Request) => {
 
   const devices = await fetchEligiblePushDevices(
     payload.recipient_user_id,
+    payload.type,
     supabaseAdmin,
   );
   if (devices.length === 0) {

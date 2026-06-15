@@ -39,11 +39,18 @@ TestFlight, App Store, support, and QA.
 - Updated Explore posts to show usernames on feed cards and post detail headers.
 - Updated Explore comment composers so mentions can be inserted from
   autocomplete and resolved mention spans open the user's public profile sheet.
+- Added an independent Notifications setting for Explore comment mention pushes,
+  while keeping mention activity visible in the in-app Explore notifications
+  feed.
+- Explore activity and comment mention push notifications now default on for new
+  installs.
 
 ### Fixed
 
 - Fixed Explore posts so shared discoveries keep the selected common name from
   the composer instead of drifting to dictionary defaults.
+- Fixed the Explore comment mention push toggle so it no longer appears enabled
+  or disabled based on the separate Explore activity push setting.
 - Fixed non-biological scans older than 30 days remaining on device by adding
   local foreground cleanup that mirrors the server purge window.
 - Fixed geoprivacy so private scans hide location details across scan cards,

@@ -1499,13 +1499,19 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(PublicUsernameAvailabilityResponse.self, from: data)
     }
 
-    func registerPushDevice(deviceToken: String, environment: String, exploreEnabled: Bool) async throws {
+    func registerPushDevice(
+        deviceToken: String,
+        environment: String,
+        exploreEnabled: Bool,
+        commentMentionsEnabled: Bool
+    ) async throws {
         let functionUrl = try endpointURL("register-push-device")
         let payload: [String: Any] = [
             "device_token": deviceToken,
             "platform": "ios",
             "environment": environment,
-            "explore_enabled": exploreEnabled
+            "explore_enabled": exploreEnabled,
+            "comment_mentions_enabled": commentMentionsEnabled
         ]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)

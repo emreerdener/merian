@@ -950,8 +950,12 @@ Remote push device registry for Explore activity delivery. Added in migration
 - `platform` (TEXT): Currently `'ios'`.
 - `environment` (TEXT): `'sandbox'` or `'production'` so debug and release
   tokens are routed to the correct APNs host.
-- `explore_enabled` (BOOLEAN): Whether this device should receive remote Explore
-  activity pushes.
+- `explore_enabled` (BOOLEAN, default `TRUE`): Whether this device should
+  receive remote Explore activity pushes.
+- `comment_mentions_enabled` (BOOLEAN): Whether this device should receive
+  remote pushes for `comment_mention` Explore notifications. Defaults to
+  `TRUE` and is independent from `explore_enabled`, which controls
+  likes/comments/replies on the viewer's own Explore activity.
 - `is_active` (BOOLEAN): Disabled when APNs reports a terminal token failure.
 - `last_registered_at` (TIMESTAMPTZ): Last successful registration heartbeat
   from the app.

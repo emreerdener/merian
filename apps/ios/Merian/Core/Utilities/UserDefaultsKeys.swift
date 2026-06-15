@@ -34,6 +34,8 @@ enum UserDefaultsKeys {
     static let isAchievementNotificationsEnabled = "isAchievementNotificationsEnabled"
     /// Whether Explore activity notifications are enabled.
     static let isExploreNotificationsEnabled = "isExploreNotificationsEnabled"
+    /// Whether Explore comment mention push notifications are enabled.
+    static let isExploreCommentMentionNotificationsEnabled = "isExploreCommentMentionNotificationsEnabled"
     /// Last APNs device token registered by the app, stored as lowercase hex.
     static let remotePushDeviceToken = "remotePushDeviceToken"
     /// Whether the live on-device inference viewfinder pass is paused (Legacy Viewfinder mode).
@@ -1116,6 +1118,15 @@ final class AppSettings {
     var isExploreNotificationsEnabled: Bool {
         didSet { persistBool(isExploreNotificationsEnabled, oldValue: oldValue, key: UserDefaultsKeys.isExploreNotificationsEnabled) }
     }
+    var isExploreCommentMentionNotificationsEnabled: Bool {
+        didSet {
+            persistBool(
+                isExploreCommentMentionNotificationsEnabled,
+                oldValue: oldValue,
+                key: UserDefaultsKeys.isExploreCommentMentionNotificationsEnabled
+            )
+        }
+    }
     var hasSeenExploreOnboarding: Bool {
         didSet { persistBool(hasSeenExploreOnboarding, oldValue: oldValue, key: UserDefaultsKeys.hasSeenExploreOnboarding) }
     }
@@ -1179,7 +1190,8 @@ final class AppSettings {
             UserDefaultsKeys.isPushNotificationsEnabled: false,
             UserDefaultsKeys.hasPromptedForNotificationsPostIdent: false,
             UserDefaultsKeys.isAchievementNotificationsEnabled: true,
-            UserDefaultsKeys.isExploreNotificationsEnabled: false,
+            UserDefaultsKeys.isExploreNotificationsEnabled: true,
+            UserDefaultsKeys.isExploreCommentMentionNotificationsEnabled: true,
             UserDefaultsKeys.hasSeenExploreOnboarding: false,
             UserDefaultsKeys.hasSeenExploreNewChip: false,
             UserDefaultsKeys.hasUnseenExplorePost: false,
@@ -1208,6 +1220,9 @@ final class AppSettings {
         hasPromptedForNotificationsPostIdent = userDefaults.bool(forKey: UserDefaultsKeys.hasPromptedForNotificationsPostIdent)
         isAchievementNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
         isExploreNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isExploreNotificationsEnabled)
+        isExploreCommentMentionNotificationsEnabled = userDefaults.bool(
+            forKey: UserDefaultsKeys.isExploreCommentMentionNotificationsEnabled
+        )
         hasSeenExploreOnboarding = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreOnboarding)
         hasSeenExploreNewChip = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreNewChip)
         hasUnseenExplorePost = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenExplorePost)
@@ -1267,6 +1282,9 @@ final class AppSettings {
         hasPromptedForNotificationsPostIdent = userDefaults.bool(forKey: UserDefaultsKeys.hasPromptedForNotificationsPostIdent)
         isAchievementNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
         isExploreNotificationsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isExploreNotificationsEnabled)
+        isExploreCommentMentionNotificationsEnabled = userDefaults.bool(
+            forKey: UserDefaultsKeys.isExploreCommentMentionNotificationsEnabled
+        )
         hasSeenExploreOnboarding = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreOnboarding)
         hasSeenExploreNewChip = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreNewChip)
         hasUnseenExplorePost = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenExplorePost)

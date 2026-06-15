@@ -2202,7 +2202,8 @@ activity pushes:
   "device_token": "lowercasehex...",
   "platform": "ios",
   "environment": "sandbox",
-  "explore_enabled": true
+  "explore_enabled": true,
+  "comment_mentions_enabled": true
 }
 ```
 
@@ -2211,7 +2212,14 @@ activity pushes:
 - `device_token` is normalized to lowercase and upserted by
   `(device_token, platform, environment)`.
 - `explore_enabled` is feature-specific. Users can opt into Explore activity
-  pushes without also enabling discovery-result alerts.
+  pushes without also enabling discovery-result alerts. New installs default
+  this setting on.
+- `comment_mentions_enabled` is optional for compatibility with older clients.
+  New installs default this setting on. When omitted, the server treats the
+  mention preference like the submitted `explore_enabled` value for older
+  clients. When present, `comment_mention` payloads require
+  `comment_mentions_enabled` to be true. Other Explore activity payloads
+  require `explore_enabled` to be true.
 - The server stores these rows in `public.user_push_devices`. Delivery failures
   from APNs feed back into that table via `last_error_*` fields and `is_active`.
 
@@ -2279,8 +2287,8 @@ The Explore detail page additionally uses:
   `ExploreAuthorProfileSheet`
 - `/check-public-username` and `/update-public-username` from the Profile
   account card username editor
-- `/register-push-device` to sync the APNs token plus the Explore-specific push
-  preference
+- `/register-push-device` to sync the APNs token, the Explore-specific push
+  preference, and the independent comment mention push preference
 
 The Explore map additionally uses:
 
@@ -2305,7 +2313,10 @@ Remote Explore APNs delivery is layered on top of this contract through the
 internal `send-push-notification` webhook path. That webhook is not called by
 the iOS client directly; it is triggered server-side from
 `public.explore_post_notifications`. Follow notifications are excluded from push
-dispatch and remain in-app only.
+dispatch and remain in-app only. Comment mention pushes are dispatched only to
+devices with `comment_mentions_enabled` enabled; regular Explore activity pushes
+use `explore_enabled`. The in-app notification row is still retained even when
+the related push toggle is off.
 
 Preferred species display names are not part of the Explore endpoint payload.
 The iOS client syncs `user_species_preferences` directly through PostgREST under

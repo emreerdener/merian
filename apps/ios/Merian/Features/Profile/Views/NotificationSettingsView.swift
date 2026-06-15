@@ -8,6 +8,7 @@ struct NotificationSettingsView: View {
         case discovery
         case achievements
         case explore
+        case exploreCommentMentions
     }
 
     @Environment(AppSettings.self) private var appSettings
@@ -54,10 +55,24 @@ struct NotificationSettingsView: View {
                         }
                     }
                 )
+                SettingsToggleRow(
+                    title: "Comment mentions",
+                    description: "Receive a push when someone mentions you in an Explore comment.",
+                    isOn: binding(
+                        for: $appSettings.isExploreCommentMentionNotificationsEnabled,
+                        target: .exploreCommentMentions
+                    ) {
+                        Task { @MainActor in
+                            await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
+                                reason: "explore_comment_mentions_setting_changed"
+                            )
+                        }
+                    }
+                )
             } header: {
                 Text("Explore")
             } footer: {
-                Text("This controls remote Explore activity pushes only. The in-app notifications feed remains available inside Explore.")
+                Text("These controls affect remote Explore activity pushes only. The in-app notifications feed remains available inside Explore.")
             }
         }
         .navigationTitle("Notifications")
@@ -132,6 +147,13 @@ struct NotificationSettingsView: View {
             Task { @MainActor in
                 await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
                     reason: "explore_setting_enabled_after_authorization"
+                )
+            }
+        case .exploreCommentMentions:
+            appSettings.isExploreCommentMentionNotificationsEnabled = true
+            Task { @MainActor in
+                await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
+                    reason: "explore_comment_mentions_setting_enabled_after_authorization"
                 )
             }
         }
