@@ -115,6 +115,7 @@ struct ExploreAuthorProfileSheet: View {
                 )
             }
         }
+        .presentationBackground(Color(uiColor: .systemGroupedBackground))
         .task(id: route.authorUserId) {
             await loadProfile()
         }
@@ -200,7 +201,7 @@ struct ExploreAuthorProfileSheet: View {
 
     private func errorState(message: String) -> some View {
         EmptyStateView(
-            iconName: "person.crop.circle.badge.exclamationmark",
+            imageName: "fireflies",
             title: "Profile unavailable",
             message: message
         ) {
