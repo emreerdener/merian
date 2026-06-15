@@ -755,6 +755,12 @@ Manual-share public feed wrapper around `scans`. Added in migration
 - `shared_at` (TIMESTAMPTZ): Reverse-chronological feed ordering key.
 - `unshared_at` (TIMESTAMPTZ, nullable): Soft-removes the post from the public
   feed without deleting the scan.
+- `species_common_name` (TEXT, nullable): Author-selected public common-name
+  snapshot for the post. Added by
+  `20260614120000_snapshot_explore_species_common_name.sql`. Share/edit Edge
+  Functions trim, collapse whitespace, and cap this value at 200 characters.
+  Read RPCs prefer it over `species_dictionary.common_names`; omitted or null
+  values preserve the legacy dictionary/common-name fallback.
 - `like_count` / `comment_count` (INT): Denormalized counters maintained by
   triggers.
 
@@ -957,6 +963,13 @@ Remote push device registry for Explore activity delivery. Added in migration
 
 Explore uses SQL RPCs to project a privacy-safe public read model out of
 `explore_posts`, `scans`, `users`, and `species_dictionary`.
+
+`public.explore_post_species_common_name(snapshot_common_name, common_names,
+scientific_name)` centralizes post-name fallback. Feed, detail, author, map, and
+hashtag post projections call this helper so an Explore post shows the
+author-selected `explore_posts.species_common_name` snapshot when one exists and
+falls back to dictionary English common names or the scientific name for legacy
+posts.
 
 Migration `20260505120000_add_explore_feed_filters.sql` also added
 `public.haversine_distance_meters(...)`, which the nearby feed uses to

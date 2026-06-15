@@ -58,6 +58,7 @@ enum ExplorePostLocationSharing: String, CaseIterable, Identifiable {
 }
 
 struct ExplorePostComposerDraft {
+    let selectedCommonName: String
     let fieldNotes: String?
     let fieldNotesArePublic: Bool
     let hashtags: [String]
@@ -70,10 +71,10 @@ struct ExplorePostComposerDraft {
 
 struct ExplorePostComposerView: View {
     let mode: ExplorePostComposerMode
-    let speciesName: String
     let scientificName: String
     let heroImageUrl: String?
     let publicLocationLabel: String?
+    let commonNameOptions: [String]
     let initialFieldNotes: String?
     let initialFieldNotesArePublic: Bool
     let initialHashtags: [String]
@@ -88,6 +89,8 @@ struct ExplorePostComposerView: View {
     @State private var hashtagsText: String
     @State private var locationSharing = ExplorePostLocationSharing.obscured
     @State private var loadedImage: UIImage?
+    @State private var selectedCommonName: String
+    @State private var isNamePickerPresented = false
 
     init(
         mode: ExplorePostComposerMode,
@@ -95,6 +98,8 @@ struct ExplorePostComposerView: View {
         scientificName: String,
         heroImageUrl: String?,
         publicLocationLabel: String?,
+        commonNameOptions: [String] = [],
+        initialSelectedCommonName: String? = nil,
         initialFieldNotes: String?,
         initialFieldNotesArePublic: Bool = true,
         initialHashtags: [String],
@@ -103,10 +108,14 @@ struct ExplorePostComposerView: View {
         onSubmit: @escaping (ExplorePostComposerDraft) -> Void
     ) {
         self.mode = mode
-        self.speciesName = speciesName
         self.scientificName = scientificName
         self.heroImageUrl = heroImageUrl
         self.publicLocationLabel = publicLocationLabel
+        let selectedName = Self.cleanedCommonName(initialSelectedCommonName) ?? Self.cleanedCommonName(speciesName) ?? scientificName
+        let options = ([selectedName, speciesName] + commonNameOptions)
+            .compactMap(Self.cleanedCommonName)
+            .removingFuzzyDuplicateNames()
+        self.commonNameOptions = options.isEmpty ? [selectedName] : options
         self.initialFieldNotes = initialFieldNotes
         self.initialFieldNotesArePublic = initialFieldNotesArePublic
         self.initialHashtags = initialHashtags
@@ -121,6 +130,7 @@ struct ExplorePostComposerView: View {
         _fieldNotesText = State(initialValue: initialFieldNotes ?? "")
         _fieldNotesArePublic = State(initialValue: initialFieldNotesArePublic)
         _hashtagsText = State(initialValue: initialHashtags.map { "#\($0)" }.joined(separator: " "))
+        _selectedCommonName = State(initialValue: selectedName)
     }
 
     var body: some View {
@@ -193,41 +203,70 @@ struct ExplorePostComposerView: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
+        .sheet(isPresented: $isNamePickerPresented) {
+            NamePickerSheet(
+                allNames: commonNameOptions,
+                activeName: selectedCommonName,
+                title: "Post name",
+                footerText: "Your selection updates this post and your preferred name for this species.",
+                onSelect: { name in
+                    selectedCommonName = name
+                    isNamePickerPresented = false
+                    HapticManager.shared.triggerSelectionPulse()
+                }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private var discoveryPreview: some View {
-        HStack(spacing: 12) {
-            Group {
-                if let image = loadedImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Color(uiColor: .tertiarySystemFill)
-                        .overlay {
-                            Image(systemName: "leaf")
-                                .foregroundStyle(.secondary)
-                        }
+        Button {
+            guard commonNameOptions.count > 1 else { return }
+            isNamePickerPresented = true
+        } label: {
+            HStack(spacing: 12) {
+                Group {
+                    if let image = loadedImage {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Color(uiColor: .tertiarySystemFill)
+                            .overlay {
+                                Image(systemName: "leaf")
+                                    .foregroundStyle(.secondary)
+                            }
+                    }
+                }
+                .frame(width: 62, height: 62)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(selectedCommonName)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+
+                    Text(scientificName)
+                        .font(.footnote)
+                        .italic()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+
+                if commonNameOptions.count > 1 {
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                 }
             }
-            .frame(width: 62, height: 62)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(speciesName)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-
-                Text(scientificName)
-                    .font(.footnote)
-                    .italic()
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
         }
+        .buttonStyle(.plain)
+        .accessibilityHint(commonNameOptions.count > 1 ? "Choose which common name appears on the Explore post" : "")
         .padding(12)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .task(id: heroImageUrl) {
@@ -363,8 +402,10 @@ struct ExplorePostComposerView: View {
     }
 
     private var currentHashtagSuggestions: [String] {
-        ExploreHashtagSuggestionEngine.suggestions(
-            for: hashtagSuggestionContext.updating(fieldNotes: fieldNotesText),
+        var context = hashtagSuggestionContext.updating(fieldNotes: fieldNotesText)
+        context.speciesName = selectedCommonName
+        return ExploreHashtagSuggestionEngine.suggestions(
+            for: context,
             selectedHashtags: normalizedHashtags
         )
     }
@@ -387,11 +428,17 @@ struct ExplorePostComposerView: View {
         let trimmedNotes = fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines)
         onSubmit(
             ExplorePostComposerDraft(
+                selectedCommonName: selectedCommonName,
                 fieldNotes: trimmedNotes.isEmpty ? nil : trimmedNotes,
                 fieldNotesArePublic: fieldNotesArePublic,
                 hashtags: normalizedHashtags,
                 locationSharing: locationSharing
             )
         )
+    }
+
+    private static func cleanedCommonName(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
     }
 }

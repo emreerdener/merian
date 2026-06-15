@@ -2,6 +2,25 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-15-explore-name-consistency",
+      "date": "2026-06-15",
+      "title": "Explore name consistency",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Explore sharing and editing now lets you choose which known common name appears on the community post."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Shared Explore posts now keep the selected common name instead of drifting to dictionary defaults."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-15-nonbio-local-purge",
       "date": "2026-06-15",
       "title": "Non-biological cleanup",

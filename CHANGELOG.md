@@ -23,6 +23,8 @@ TestFlight, App Store, support, and QA.
   feature notes, and in-progress work.
 - Added extra species dictionary data fetches so undiscovered species can still
   load dictionary pages when users navigate to them.
+- Added a common-name picker for Explore sharing and editing so posts use the
+  known species name you choose.
 
 ### Changed
 
@@ -35,6 +37,8 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed Explore posts so shared discoveries keep the selected common name from
+  the composer instead of drifting to dictionary defaults.
 - Fixed non-biological scans older than 30 days remaining on device by adding
   local foreground cleanup that mirrors the server purge window.
 - Fixed geoprivacy so private scans hide location details across scan cards,

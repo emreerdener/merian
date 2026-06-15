@@ -17,6 +17,10 @@ type ExploreLocationRow = {
   public_location_label: string | null;
 };
 
+type ExploreSpeciesNameRow = {
+  species_common_name: string;
+};
+
 type TrendingExploreFeedRow = ExploreFeedRow & {
   ranking_value: number;
 };
@@ -126,6 +130,126 @@ Deno.test("Explore feed DB - location labels are city/state only for feed and de
 
     assertEquals(feedRows.rows[0]?.public_location_label, "Austin, TX");
     assertEquals(detailRows.rows[0]?.public_location_label, "Austin, TX");
+  });
+});
+
+Deno.test("Explore feed DB - post common-name snapshot overrides dictionary name", async () => {
+  await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {
+    const ownerId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    const scanId = crypto.randomUUID();
+    const postId = crypto.randomUUID();
+
+    await insertUser(client, ownerId, "Snapshot Owner");
+    await insertUser(client, viewerId, "Snapshot Viewer");
+    await insertSpecies(client, speciesId, "Odocoileus hemionus");
+
+    await insertScan(client, {
+      id: scanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 38.5816,
+      longitude: -121.4944,
+      geoprivacy: "open",
+    });
+
+    await insertExplorePost(client, {
+      id: postId,
+      userId: ownerId,
+      scanId,
+      sharedAt: "2026-04-28T12:10:00.000Z",
+      speciesCommonName: "Black-Tailed Deer",
+    });
+
+    const storedPostRows = await client.queryObject<ExploreSpeciesNameRow>(
+      `
+        SELECT species_common_name
+        FROM public.explore_posts
+        WHERE id = $1
+      `,
+      [postId],
+    );
+
+    assertEquals(
+      storedPostRows.rows[0]?.species_common_name,
+      "Black-Tailed Deer",
+    );
+
+    await client.queryArray(
+      `
+        UPDATE public.species_dictionary
+        SET common_names = '{"en":"Colombian Black-Tailed Deer"}'::jsonb
+        WHERE id = $1
+      `,
+      [speciesId],
+    );
+
+    const feedRows = await client.queryObject<ExploreSpeciesNameRow>(
+      `
+        SELECT species_common_name
+        FROM public.get_explore_feed($1, 20, NULL, NULL)
+      `,
+      [viewerId],
+    );
+
+    const detailRows = await client.queryObject<ExploreSpeciesNameRow>(
+      `
+        SELECT species_common_name
+        FROM public.get_explore_post($1, $2)
+      `,
+      [viewerId, postId],
+    );
+
+    assertEquals(feedRows.rows[0]?.species_common_name, "Black-Tailed Deer");
+    assertEquals(detailRows.rows[0]?.species_common_name, "Black-Tailed Deer");
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_posts
+        SET species_common_name = $1
+        WHERE id = $2
+      `,
+      ["Mule Deer", postId],
+    );
+
+    const editedDetailRows = await client.queryObject<ExploreSpeciesNameRow>(
+      `
+        SELECT species_common_name
+        FROM public.get_explore_post($1, $2)
+      `,
+      [viewerId, postId],
+    );
+
+    assertEquals(editedDetailRows.rows[0]?.species_common_name, "Mule Deer");
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_posts
+        SET field_notes = $1
+        WHERE id = $2
+      `,
+      ["Keep the selected name while toggling notes.", postId],
+    );
+
+    const preservedRows = await client.queryObject<ExploreSpeciesNameRow>(
+      `
+        SELECT species_common_name
+        FROM public.explore_posts
+        WHERE id = $1
+      `,
+      [postId],
+    );
+    const preservedFeedRows = await client.queryObject<ExploreSpeciesNameRow>(
+      `
+        SELECT species_common_name
+        FROM public.get_explore_feed($1, 20, NULL, NULL)
+      `,
+      [viewerId],
+    );
+
+    assertEquals(preservedRows.rows[0]?.species_common_name, "Mule Deer");
+    assertEquals(preservedFeedRows.rows[0]?.species_common_name, "Mule Deer");
   });
 });
 

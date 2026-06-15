@@ -13,7 +13,10 @@ interface ShareEligibleScanRow {
   confirmed_species_id: string | null;
 }
 
-function makeHttpError(status: number, message: string): Error & { status: number } {
+function makeHttpError(
+  status: number,
+  message: string,
+): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
@@ -27,7 +30,9 @@ export async function fetchShareEligibleScan(
 ): Promise<ShareEligibleScanRow> {
   const { data, error } = await supabaseAdmin
     .from("scans")
-    .select("id,user_id,geoprivacy,image_storage_urls,is_tombstoned,species_id,confirmed_species_id")
+    .select(
+      "id,user_id,geoprivacy,image_storage_urls,is_tombstoned,species_id,confirmed_species_id",
+    )
     .eq("id", scanId)
     .eq("user_id", userId)
     .single();
@@ -46,7 +51,9 @@ export async function fetchShareEligibleScan(
     throw makeHttpError(409, "Private scans cannot be shared to Explore.");
   }
 
-  if ((row.image_storage_urls?.length ?? 0) === 0 && restoredObjectKeys.length > 0) {
+  if (
+    (row.image_storage_urls?.length ?? 0) === 0 && restoredObjectKeys.length > 0
+  ) {
     const userTier = await getTierForUser(userId, supabaseAdmin);
     const publicUrls = await promoteSafeMedia(
       {
@@ -63,11 +70,17 @@ export async function fetchShareEligibleScan(
       .update({ image_storage_urls: publicUrls })
       .eq("id", scanId)
       .eq("user_id", userId)
-      .select("id,user_id,geoprivacy,image_storage_urls,is_tombstoned,species_id,confirmed_species_id")
+      .select(
+        "id,user_id,geoprivacy,image_storage_urls,is_tombstoned,species_id,confirmed_species_id",
+      )
       .single();
 
     if (updateError || !updatedRow) {
-      throw new Error(`Failed to restore shareable scan media: ${updateError?.message ?? "Unknown error"}`);
+      throw new Error(
+        `Failed to restore shareable scan media: ${
+          updateError?.message ?? "Unknown error"
+        }`,
+      );
     }
 
     row = updatedRow as ShareEligibleScanRow;
@@ -87,6 +100,7 @@ export async function fetchShareEligibleScan(
 export async function upsertExplorePost(
   scanId: string,
   userId: string,
+  speciesCommonName: string | null,
   fieldNotes: string | null,
   supabaseAdmin: SupabaseClient,
 ): Promise<{ id: string; shared_at: string }> {
@@ -96,6 +110,7 @@ export async function upsertExplorePost(
       {
         scan_id: scanId,
         user_id: userId,
+        species_common_name: speciesCommonName,
         field_notes: fieldNotes,
         shared_at: new Date().toISOString(),
         unshared_at: null,
@@ -108,7 +123,9 @@ export async function upsertExplorePost(
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to share scan to Explore: ${error?.message ?? "Unknown error"}`);
+    throw new Error(
+      `Failed to share scan to Explore: ${error?.message ?? "Unknown error"}`,
+    );
   }
 
   return data as { id: string; shared_at: string };
@@ -125,7 +142,9 @@ export async function replaceExplorePostHashtags(
     .eq("post_id", postId);
 
   if (deleteError) {
-    throw new Error(`Failed to clear Explore post hashtags: ${deleteError.message}`);
+    throw new Error(
+      `Failed to clear Explore post hashtags: ${deleteError.message}`,
+    );
   }
 
   if (hashtags.length === 0) {
@@ -137,6 +156,8 @@ export async function replaceExplorePostHashtags(
     .insert(hashtags.map((tag) => ({ post_id: postId, tag })));
 
   if (insertError) {
-    throw new Error(`Failed to save Explore post hashtags: ${insertError.message}`);
+    throw new Error(
+      `Failed to save Explore post hashtags: ${insertError.message}`,
+    );
   }
 }

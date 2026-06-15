@@ -1115,6 +1115,10 @@ read directly from `auth.users` on the client. `ranking_value` is populated for
 Feed-card hashtag hydration is a batched lookup over the page's `post_id`
 values. `hashtags` is returned by the updated feed function as normalized public
 tag text without leading `#`; it is `[]` for untagged posts.
+`species_common_name` is the post snapshot selected by the author when sharing
+or editing. It should be preferred over dictionary names for the public post
+projection, while clients may still apply viewer-local preferred-name display on
+top of the DTO for personalized native surfaces.
 
 ### `/get-explore-post`
 
@@ -1651,6 +1655,10 @@ Follow-up page requests send:
   `unshared_at` without deleting the underlying scan.
 - `field_notes` is optional and capped at 1000 characters. It is a public copy
   controlled by the user, not the private local source of truth.
+- `species_common_name` is optional. When provided it must be a string; the Edge
+  function trims it, collapses internal whitespace, caps it at 200 characters,
+  and stores it as the Explore post's public common-name snapshot. When omitted
+  or empty, legacy dictionary fallback behavior is preserved.
 - `hashtags` is optional. The share endpoint accepts at most five hashtag
   strings, strips leading `#`, lowercases them, deduplicates them, and requires
   each tag to be 2 to 40 letters, digits, or underscores. Resharing replaces the
@@ -1675,7 +1683,10 @@ Request body:
 ```json
 {
   "post_id": "uuid",
-  "field_notes": "Found at the shaded meadow edge after rain."
+  "field_notes": "Found at the shaded meadow edge after rain.",
+  "species_common_name": "Black-Tailed Deer",
+  "hashtags": ["deer", "urbanwildlife"],
+  "location_sharing": "obscured"
 }
 ```
 
@@ -1685,7 +1696,9 @@ Response body:
 {
   "success": true,
   "post_id": "uuid",
-  "field_notes": "Found at the shaded meadow edge after rain."
+  "field_notes": "Found at the shaded meadow edge after rain.",
+  "hashtags": ["deer", "urbanwildlife"],
+  "species_common_name": "Black-Tailed Deer"
 }
 ```
 
@@ -1696,6 +1709,16 @@ Rules:
 - `field_notes` may be a string or `null`.
 - Empty or whitespace-only strings are normalized to `null`.
 - Non-empty notes are trimmed and capped at 1000 characters.
+- `species_common_name` is optional. If omitted, the existing
+  `explore_posts.species_common_name` snapshot is preserved. If provided, it
+  follows the same validation as `/share-scan-to-explore`: string-only, trimmed,
+  internal whitespace collapsed, and capped at 200 characters. Empty strings and
+  `null` clear the snapshot so read RPCs can fall back to dictionary names.
+- `hashtags` is optional and, when provided, replaces the post's public hashtag
+  edges using the same normalization as `/share-scan-to-explore`.
+- `location_sharing` is accepted by the iOS edit flow for the shared composer
+  contract, but location visibility is still ultimately bounded by the backing
+  scan's public geoprivacy projection.
 - The update is scoped by `explore_posts.id`, `explore_posts.user_id`, and
   `unshared_at IS NULL`; non-owned or unshared posts return 404.
 

@@ -822,4 +822,5 @@ struct ExploreUpdateFieldNotesResponse: Decodable {
     let postId: String
     let fieldNotes: String?
     let hashtags: [String]?
+    let speciesCommonName: String?
 }

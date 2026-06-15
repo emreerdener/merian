@@ -202,7 +202,7 @@ Normalization rule:
 Each Explore card should contain:
 
 - Primary image
-- Common name
+- Common name snapshot chosen by the post author
 - Scientific name
 - Author label
 - Optional author avatar
@@ -314,6 +314,7 @@ Suggested fields:
 - `scan_id UUID NOT NULL REFERENCES public.scans(id) ON DELETE CASCADE`
 - `shared_at TIMESTAMPTZ NOT NULL DEFAULT now()`
 - `unshared_at TIMESTAMPTZ`
+- `species_common_name TEXT`
 - `like_count INTEGER NOT NULL DEFAULT 0`
 - `comment_count INTEGER NOT NULL DEFAULT 0`
 
@@ -438,9 +439,11 @@ The `explore_posts` wrapper is the cleaner foundation.
 Recommended V1 endpoints:
 
 - `share-scan-to-explore`
-  - Creates or re-activates an Explore post for a scan
+  - Creates or re-activates an Explore post for a scan, including the optional selected `species_common_name` snapshot
 - `unshare-explore-post`
   - Removes the post from the feed
+- `update-explore-field-notes`
+  - Updates an owned post's public field notes, hashtags, location-sharing intent, and optional `species_common_name` snapshot while preserving the existing name when it is omitted
 - `get-explore-feed`
   - Returns Explore cards for `Recent`, `Following`, `Trending`, or `Nearby` depending on the requested filter
 - `get-explore-post`
@@ -513,7 +516,7 @@ Recommended response fields:
 - `author_name`
 - `author_username`
 - `author_avatar_url`
-- `species_common_name` (displayed through the SwiftData-backed preferred-name cache when the viewer has a `UserSpeciesPreference`)
+- `species_common_name` (author-selected post snapshot; native clients may still display a viewer-local SwiftData-backed preferred name on top of this fallback)
 - `species_scientific_name`
 - `public_location_label`
 - `time_of_day`

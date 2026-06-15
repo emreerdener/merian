@@ -439,10 +439,12 @@ private struct ExploreFeedTabContent: View {
         .sheet(item: $editingPost, onDismiss: clearPostEditor) { post in
             ExplorePostComposerView(
                 mode: .edit,
-                speciesName: viewModel.resolvedSpeciesCommonName(for: post),
+                speciesName: postSnapshotCommonName(for: post),
                 scientificName: post.speciesScientificName,
                 heroImageUrl: post.heroImageUrl,
                 publicLocationLabel: post.publicDisplayLocationLabel,
+                commonNameOptions: commonNameOptions(for: post, detail: editingPostDetail),
+                initialSelectedCommonName: postSnapshotCommonName(for: post),
                 initialFieldNotes: editingPostDetail?.trimmedFieldNotes ?? editingPostLocalFieldNotes,
                 initialFieldNotesArePublic: editingPostDetail?.trimmedFieldNotes != nil,
                 initialHashtags: editingPostDetail?.hashtags ?? post.hashtags ?? [],
@@ -636,8 +638,10 @@ private struct ExploreFeedTabContent: View {
         defer { isSavingEditedPost = false }
 
         do {
+            persistPreferredCommonName(draft.selectedCommonName, scientificName: post.speciesScientificName)
             let response = try await MerianNetworkClient.shared.updateExplorePostContent(
                 postId: post.id,
+                speciesCommonName: draft.selectedCommonName,
                 fieldNotes: draft.publicFieldNotes,
                 hashtags: draft.hashtags,
                 locationSharing: draft.locationSharing
@@ -646,6 +650,7 @@ private struct ExploreFeedTabContent: View {
             editingPostDetail?.fieldNotes = response.fieldNotes
             editingPost = nil
             await viewModel.refreshPost(postId: post.id)
+            viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 viewModel.toastMessage = "Explore post updated"
@@ -672,6 +677,26 @@ private struct ExploreFeedTabContent: View {
     private func clearPostEditor() {
         editingPostDetail = nil
         editingPostLocalFieldNotes = nil
+    }
+
+    private func postSnapshotCommonName(for post: ExplorePost) -> String {
+        let trimmed = post.speciesCommonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? viewModel.resolvedSpeciesCommonName(for: post) : trimmed
+    }
+
+    private func commonNameOptions(for post: ExplorePost, detail: ExplorePostDetail?) -> [String] {
+        ([postSnapshotCommonName(for: post)] + (detail?.alternativeCommonNames ?? []))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .removingFuzzyDuplicateNames()
+    }
+
+    private func persistPreferredCommonName(_ name: String, scientificName: String) {
+        _ = SpeciesPreferredNameRepository.setPreferredName(
+            name,
+            for: scientificName,
+            modelContext: modelContext
+        )
     }
 
     private func activateNearbyFeedSelection(isRefresh: Bool = false) async {

@@ -16,6 +16,8 @@ struct InsightShareButton: View {
     let isUpdatingExploreFieldNotes: Bool
     let speciesName: String
     let scientificName: String
+    var commonNameOptions: [String]
+    var initialSelectedCommonName: String
     var heroImageUrl: String?
     var publicLocationLabel: String?
     var fieldNotesPreview: String?
@@ -111,6 +113,8 @@ struct InsightShareButton: View {
                 scientificName: scientificName,
                 heroImageUrl: heroImageUrl,
                 publicLocationLabel: publicLocationLabel,
+                commonNameOptions: commonNameOptions,
+                initialSelectedCommonName: initialSelectedCommonName,
                 initialFieldNotes: fieldNotesPreview,
                 initialFieldNotesArePublic: sharedExplorePostId == nil ? true : fieldNotesArePublicOnExplore,
                 initialHashtags: sharedExplorePostId == nil ? [] : sharedExploreHashtags,

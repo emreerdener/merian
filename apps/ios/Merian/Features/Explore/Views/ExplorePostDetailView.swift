@@ -380,10 +380,12 @@ struct ExplorePostDetailView: View {
             if let post = currentPost {
                 ExplorePostComposerView(
                     mode: .edit,
-                    speciesName: viewModel.resolvedSpeciesCommonName(for: post),
+                    speciesName: postSnapshotCommonName(for: post),
                     scientificName: post.speciesScientificName,
                     heroImageUrl: post.heroImageUrl,
                     publicLocationLabel: post.publicDisplayLocationLabel,
+                    commonNameOptions: commonNameOptions(for: post),
+                    initialSelectedCommonName: postSnapshotCommonName(for: post),
                     initialFieldNotes: detail?.trimmedFieldNotes ?? localFieldNotes,
                     initialFieldNotesArePublic: fieldNotesArePublicOnExplore,
                     initialHashtags: detail?.hashtags ?? post.hashtags ?? [],
@@ -696,8 +698,10 @@ struct ExplorePostDetailView: View {
         defer { isSavingPostContent = false }
 
         do {
+            persistPreferredCommonName(draft.selectedCommonName, scientificName: post.speciesScientificName)
             let response = try await MerianNetworkClient.shared.updateExplorePostContent(
                 postId: post.id,
+                speciesCommonName: draft.selectedCommonName,
                 fieldNotes: draft.publicFieldNotes,
                 hashtags: draft.hashtags,
                 locationSharing: draft.locationSharing
@@ -706,6 +710,7 @@ struct ExplorePostDetailView: View {
             updateLocalFieldNotes(draft.fieldNotes ?? "")
             showPostComposer = false
             await viewModel.refreshPost(postId: post.id)
+            viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
             await loadPostDetail()
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -730,6 +735,26 @@ struct ExplorePostDetailView: View {
             modelContext: modelContext
         )
         localFieldNotes = trimmed.isEmpty ? nil : notes
+    }
+
+    private func postSnapshotCommonName(for post: ExplorePost) -> String {
+        let trimmed = post.speciesCommonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? viewModel.resolvedSpeciesCommonName(for: post) : trimmed
+    }
+
+    private func commonNameOptions(for post: ExplorePost) -> [String] {
+        ([postSnapshotCommonName(for: post)] + (detail?.alternativeCommonNames ?? []))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .removingFuzzyDuplicateNames()
+    }
+
+    private func persistPreferredCommonName(_ name: String, scientificName: String) {
+        _ = SpeciesPreferredNameRepository.setPreferredName(
+            name,
+            for: scientificName,
+            modelContext: modelContext
+        )
     }
 
     private func syncPublicFieldNotesAfterInsightDismiss(for post: ExplorePost) async {

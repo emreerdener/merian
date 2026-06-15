@@ -85,6 +85,8 @@ extension InsightSheetView {
             isSharingToExplore: viewModel.state.isSharingToExplore,
             isUpdatingExplorePostContent: viewModel.state.isUpdatingExplorePostContent,
             isUpdatingExploreFieldNotes: viewModel.state.isUpdatingExploreFieldNotes,
+            displaySpeciesName: viewModel.resolvedHeaderTitle,
+            commonNameOptions: viewModel.allNamesForPicker,
             fieldNotesPreview: viewModel.shareableFieldNotes,
             sharedExploreHashtags: viewModel.state.sharedExploreHashtags,
             sharedExplorePostId: viewModel.state.sharedExplorePostId,

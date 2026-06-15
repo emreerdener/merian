@@ -8,6 +8,8 @@ import SwiftUI
 struct NamePickerSheet: View {
     let allNames: [String]
     let activeName: String
+    var title: String = "Preferred name"
+    var footerText: String = "Your selection is stored locally and applies only to your device."
     let onSelect: (String) -> Void
 
     var body: some View {
@@ -33,10 +35,10 @@ struct NamePickerSheet: View {
                 } header: {
                     Text("Common names")
                 } footer: {
-                    Text("Your selection is stored locally and applies only to your device.")
+                    Text(footerText)
                 }
             }
-            .navigationTitle("Preferred name")
+            .navigationTitle(title)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif

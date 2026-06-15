@@ -21,6 +21,7 @@ extension InsightSheetViewModel {
             let notesForPost = fieldNotes ?? (includeFieldNotes ? shareableFieldNotes : nil)
             let response = try await MerianNetworkClient.shared.shareScanToExplore(
                 scan: record,
+                speciesCommonName: resolvedHeaderTitle,
                 fieldNotes: notesForPost,
                 hashtags: hashtags,
                 locationSharing: locationSharing
@@ -58,8 +59,10 @@ extension InsightSheetViewModel {
 
         do {
             let scanId = record.id
+            persistComposerPreferredCommonName(draft.selectedCommonName, modelContext: modelContext)
             let response = try await MerianNetworkClient.shared.shareScanToExplore(
                 scan: record,
+                speciesCommonName: draft.selectedCommonName,
                 fieldNotes: draft.publicFieldNotes,
                 hashtags: draft.hashtags,
                 locationSharing: draft.locationSharing
@@ -129,8 +132,10 @@ extension InsightSheetViewModel {
         defer { state.isUpdatingExplorePostContent = false }
 
         do {
+            persistComposerPreferredCommonName(draft.selectedCommonName, modelContext: modelContext)
             let response = try await MerianNetworkClient.shared.updateExplorePostContent(
                 postId: postId,
+                speciesCommonName: draft.selectedCommonName,
                 fieldNotes: draft.publicFieldNotes,
                 hashtags: draft.hashtags,
                 locationSharing: draft.locationSharing
@@ -152,6 +157,20 @@ extension InsightSheetViewModel {
                 state.toastMessage = ExploreErrorFormatter.message(for: error)
             }
         }
+    }
+
+    private func persistComposerPreferredCommonName(_ name: String, modelContext: ModelContext) {
+        guard let scientificName = inferenceEngine?.speciesData?.scientificName else { return }
+        let didSave = SpeciesPreferredNameRepository.setPreferredName(
+            name,
+            for: scientificName,
+            modelContext: modelContext
+        )
+        guard didSave else { return }
+        state.preferredCommonName = SpeciesPreferredNameRepository.preferredName(
+            for: scientificName,
+            modelContext: modelContext
+        )
     }
 
 // Removed presentShareSheet as this logic was extracted into ShareSheetUtility

@@ -15,6 +15,8 @@ struct InsightBottomToolbar: ToolbarContent {
     let isSharingToExplore: Bool
     let isUpdatingExplorePostContent: Bool
     let isUpdatingExploreFieldNotes: Bool
+    var displaySpeciesName: String
+    var commonNameOptions: [String]
     var fieldNotesPreview: String?
     var sharedExploreHashtags: [String]
     var sharedExplorePostId: String?
@@ -34,13 +36,15 @@ struct InsightBottomToolbar: ToolbarContent {
                     isSharingToExplore: isSharingToExplore,
                     isUpdatingExplorePostContent: isUpdatingExplorePostContent,
                     isUpdatingExploreFieldNotes: isUpdatingExploreFieldNotes,
-                    speciesName: speciesData.commonName,
+                    speciesName: displaySpeciesName,
                     scientificName: speciesData.scientificName,
+                    commonNameOptions: commonNameOptions,
+                    initialSelectedCommonName: displaySpeciesName,
                     heroImageUrl: recordSnapshot?.coverImagePath ?? inferenceEngine.activeMedia.imagePathsForUpload.first,
                     publicLocationLabel: publicLocationLabel,
                     fieldNotesPreview: fieldNotesPreview,
                     hashtagSuggestionContext: ExploreHashtagSuggestionContext(
-                        speciesName: speciesData.commonName,
+                        speciesName: displaySpeciesName,
                         scientificName: speciesData.scientificName,
                         publicLocationLabel: publicLocationLabel,
                         fieldNotes: fieldNotesPreview,

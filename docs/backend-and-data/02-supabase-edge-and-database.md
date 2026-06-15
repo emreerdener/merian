@@ -611,6 +611,14 @@ pages do not depend on the target post already existing in the currently paged
 `ExploreFeedViewModel.posts` array. Public web consumers must treat this as the
 maximum public projection and avoid querying private scan/auth tables directly.
 
+Explore post common names are post snapshots, not live dictionary labels. The
+share and edit functions may write `explore_posts.species_common_name` from the
+composer's selected known common name; `update-explore-field-notes` preserves
+that snapshot when `species_common_name` is omitted. Read RPCs route through
+`public.explore_post_species_common_name(...)` so feed, detail, author, map, and
+hashtag views all prefer the stored snapshot and fall back to dictionary English
+names or the scientific name only for legacy posts without a snapshot.
+
 Author profile reads are split the same way as feed/detail reads.
 `get-explore-author-profile` returns a privacy-scoped profile sheet payload only
 when the target author has at least one visible Explore post for the requester.

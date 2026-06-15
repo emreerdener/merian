@@ -7,9 +7,16 @@ import {
   requireUuid,
   syncPublicAuthorIdentity,
 } from "../_shared/explore.ts";
-import { fetchShareEligibleScan, replaceExplorePostHashtags, upsertExplorePost } from "./db.ts";
+import {
+  fetchShareEligibleScan,
+  replaceExplorePostHashtags,
+  upsertExplorePost,
+} from "./db.ts";
 
-function makeHttpError(status: number, message: string): Error & { status: number } {
+function makeHttpError(
+  status: number,
+  message: string,
+): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
   error.status = status;
   return error;
@@ -23,18 +30,27 @@ function normalizeRestoredObjectKeys(value: unknown, userId: string): string[] {
 
   const normalized = value.map((entry) => {
     if (typeof entry !== "string") {
-      throw makeHttpError(400, "restored_object_keys must only contain strings.");
+      throw makeHttpError(
+        400,
+        "restored_object_keys must only contain strings.",
+      );
     }
     return entry.trim();
   }).filter((entry) => entry.length > 0);
 
   if (normalized.length > 5) {
-    throw makeHttpError(400, "restored_object_keys cannot contain more than 5 items.");
+    throw makeHttpError(
+      400,
+      "restored_object_keys cannot contain more than 5 items.",
+    );
   }
 
   const expectedPrefix = `staging/${userId.toLowerCase()}/`;
   if (!normalized.every((entry) => entry.startsWith(expectedPrefix))) {
-    throw makeHttpError(400, "restored_object_keys must belong to the current user.");
+    throw makeHttpError(
+      400,
+      "restored_object_keys must belong to the current user.",
+    );
   }
 
   return normalized;
@@ -53,6 +69,27 @@ function normalizeFieldNotes(value: unknown): string | null {
 
   if (trimmed.length > 1000) {
     throw makeHttpError(400, "field_notes must be 1000 characters or fewer.");
+  }
+
+  return trimmed;
+}
+
+function normalizeSpeciesCommonName(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value !== "string") {
+    throw makeHttpError(400, "species_common_name must be a string.");
+  }
+
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  if (trimmed.length > 200) {
+    throw makeHttpError(
+      400,
+      "species_common_name must be 200 characters or fewer.",
+    );
   }
 
   return trimmed;
@@ -90,13 +127,30 @@ serve((req: Request) =>
     if (paramErr) return paramErr;
 
     const scanId = requireUuid(body.scan_id, "scan_id");
-    const restoredObjectKeys = normalizeRestoredObjectKeys(body.restored_object_keys, user.id);
+    const restoredObjectKeys = normalizeRestoredObjectKeys(
+      body.restored_object_keys,
+      user.id,
+    );
+    const speciesCommonName = normalizeSpeciesCommonName(
+      body.species_common_name,
+    );
     const fieldNotes = normalizeFieldNotes(body.field_notes);
     const hashtags = normalizeHashtags(body.hashtags);
 
-    await fetchShareEligibleScan(scanId, user.id, restoredObjectKeys, supabaseAdmin);
+    await fetchShareEligibleScan(
+      scanId,
+      user.id,
+      restoredObjectKeys,
+      supabaseAdmin,
+    );
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
-    const post = await upsertExplorePost(scanId, user.id, fieldNotes, supabaseAdmin);
+    const post = await upsertExplorePost(
+      scanId,
+      user.id,
+      speciesCommonName,
+      fieldNotes,
+      supabaseAdmin,
+    );
     await replaceExplorePostHashtags(post.id, hashtags, supabaseAdmin);
 
     return jsonResponse({
@@ -105,5 +159,5 @@ serve((req: Request) =>
       scan_id: scanId,
       shared_at: post.shared_at,
     });
-  }),
+  })
 );

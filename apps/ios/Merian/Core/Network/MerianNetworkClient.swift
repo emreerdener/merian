@@ -1493,6 +1493,7 @@ final class MerianNetworkClient {
     func shareScanToExplore(
         scanId: String,
         restoredObjectKeys: [String]? = nil,
+        speciesCommonName: String? = nil,
         fieldNotes: String? = nil,
         hashtags: [String] = [],
         locationSharing: ExplorePostLocationSharing = .obscured
@@ -1504,6 +1505,10 @@ final class MerianNetworkClient {
             "hashtags": hashtags,
             "location_sharing": locationSharing.rawValue
         ]
+        let trimmedCommonName = speciesCommonName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedCommonName, !trimmedCommonName.isEmpty {
+            payload["species_common_name"] = trimmedCommonName
+        }
         if let restoredObjectKeys, !restoredObjectKeys.isEmpty {
             payload["restored_object_keys"] = restoredObjectKeys
         }
@@ -1514,6 +1519,7 @@ final class MerianNetworkClient {
 
     func shareScanToExplore(
         scan: LocalScanRecord,
+        speciesCommonName: String? = nil,
         fieldNotes: String? = nil,
         hashtags: [String] = [],
         locationSharing: ExplorePostLocationSharing = .obscured
@@ -1522,6 +1528,7 @@ final class MerianNetworkClient {
         do {
             return try await shareScanToExplore(
                 scanId: mediaSnapshot.scanId,
+                speciesCommonName: speciesCommonName,
                 fieldNotes: fieldNotes,
                 hashtags: hashtags,
                 locationSharing: locationSharing
@@ -1539,6 +1546,7 @@ final class MerianNetworkClient {
             return try await shareScanToExplore(
                 scanId: mediaSnapshot.scanId,
                 restoredObjectKeys: restoredObjectKeys,
+                speciesCommonName: speciesCommonName,
                 fieldNotes: fieldNotes,
                 hashtags: hashtags,
                 locationSharing: locationSharing
@@ -1565,17 +1573,22 @@ final class MerianNetworkClient {
 
     func updateExplorePostContent(
         postId: String,
+        speciesCommonName: String? = nil,
         fieldNotes: String?,
         hashtags: [String],
         locationSharing: ExplorePostLocationSharing
     ) async throws -> ExploreUpdateFieldNotesResponse {
         let functionUrl = try endpointURL("update-explore-field-notes")
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "post_id": postId,
             "field_notes": fieldNotes ?? NSNull(),
             "hashtags": hashtags,
             "location_sharing": locationSharing.rawValue
         ]
+        let trimmedCommonName = speciesCommonName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedCommonName, !trimmedCommonName.isEmpty {
+            payload["species_common_name"] = trimmedCommonName
+        }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(ExploreUpdateFieldNotesResponse.self, from: data)
