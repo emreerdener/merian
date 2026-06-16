@@ -241,7 +241,7 @@ private struct ProSettingsBanner: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
 
-                Text(isProActive ? "Your advanced field kit is active." : "Unlock richer captures and advanced AI analysis.")
+                Text(isProActive ? "Your advanced field kit is active" : "Unlock richer captures and advanced AI analysis")
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(.white.opacity(0.82))
                     .lineLimit(2)

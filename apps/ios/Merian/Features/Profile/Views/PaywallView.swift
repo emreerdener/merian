@@ -42,7 +42,6 @@ private let paywallComparisons = [
     PaywallFeatureComparison(title: "AI model", freeValue: "Flash", proValue: "Pro"),
     PaywallFeatureComparison(title: "Audio IDs", freeValue: "-", proValue: "Included"),
     PaywallFeatureComparison(title: "Multi-capture", freeValue: "-", proValue: "Included"),
-    PaywallFeatureComparison(title: "Offline queue", freeValue: "Included", proValue: "Included"),
     PaywallFeatureComparison(title: "Apple Watch logging", freeValue: "-", proValue: "Included")
 ]
 
@@ -80,10 +79,10 @@ struct PaywallView: View {
                     brandHeader
                         .padding(.top, 28)
 
+                    planPicker
+
                     heroCarousel
                         .padding(.horizontal, -20)
-
-                    planPicker
 
                     comparisonSection
 
