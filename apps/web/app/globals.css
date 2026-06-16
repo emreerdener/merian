@@ -32,64 +32,56 @@ a {
   --text-sub: #38513a;
   --eyebrow-bg: rgba(77, 145, 83, 0.12);
   --eyebrow-color: #24552e;
-  
+
   --form-bg: rgba(255, 255, 255, 0.84);
   --form-border: rgba(29, 49, 31, 0.14);
   --form-shadow: 0 18px 50px rgba(36, 67, 35, 0.12);
-  
+
   --btn-bg: #2d5872;
   --btn-hover: #1e3f54;
   --btn-text: #ffffff;
-  
+
   --proof-color: #39543c;
   --proof-bullet: #c46a45;
 }
 
 [data-mantine-color-scheme="dark"] {
-  --bg-gradient: linear-gradient(
-    135deg,
-    #0b100d 0%,
-    #131e16 100%
-  );
+  --bg-gradient: linear-gradient(135deg, #0b100d 0%, #131e16 100%);
   --bg-solid: #090e0b;
   --text-main: #edf5ee;
   --text-sub: #a1b8a5;
   --eyebrow-bg: rgba(142, 208, 151, 0.15);
   --eyebrow-color: #8ed097;
-  
+
   --form-bg: rgba(19, 30, 22, 0.8);
   --form-border: rgba(142, 208, 151, 0.2);
   --form-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
-  
+
   --btn-bg: #417e9e;
   --btn-hover: #5097bd;
   --btn-text: #ffffff;
-  
+
   --proof-color: #a1b8a5;
   --proof-bullet: #e08e69;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-mantine-color-scheme="light"]) {
-    --bg-gradient: linear-gradient(
-      135deg,
-      #0b100d 0%,
-      #131e16 100%
-    );
+    --bg-gradient: linear-gradient(135deg, #0b100d 0%, #131e16 100%);
     --bg-solid: #090e0b;
     --text-main: #edf5ee;
     --text-sub: #a1b8a5;
     --eyebrow-bg: rgba(142, 208, 151, 0.15);
     --eyebrow-color: #8ed097;
-    
+
     --form-bg: rgba(19, 30, 22, 0.8);
     --form-border: rgba(142, 208, 151, 0.2);
     --form-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
-    
+
     --btn-bg: #417e9e;
     --btn-hover: #5097bd;
     --btn-text: #ffffff;
-    
+
     --proof-color: #a1b8a5;
     --proof-bullet: #e08e69;
   }
@@ -131,7 +123,7 @@ a {
 }
 
 .splash-title {
-  font-size: clamp(4.4rem, 12vw, 9.5rem);
+  font-size: clamp(4rem, 12vw, 7rem);
   line-height: 0.85;
   letter-spacing: -0.02em;
   color: var(--text-main);
@@ -203,7 +195,9 @@ a {
   background: var(--btn-bg) !important;
   color: var(--btn-text) !important;
   border-radius: 8px;
-  transition: background 0.2s ease, transform 0.1s ease !important;
+  transition:
+    background 0.2s ease,
+    transform 0.1s ease !important;
 }
 
 .waitlist-signup__button:hover {
