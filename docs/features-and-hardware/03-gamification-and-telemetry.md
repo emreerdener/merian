@@ -191,12 +191,15 @@ linked anonymously.
   plus `effective_tier`, `plan`, `subscription_tier`, and `trial_active` from
   `_shared/tierCache.ts`:
   - paid Pro: `effective_tier = "pro"`, `plan = "pro_paid"`,
-    `subscription_tier = "pro"`, `trial_active = false`
+    `subscription_tier = "pro"`, `trial_active = false`; this includes active
+    standard Pro subscriptions and active paid 7-day passes
   - trial Pro: `effective_tier = "pro"`, `plan = "pro_trial"`,
     `subscription_tier = "free"` or `null` for a first-scan ghost user,
     `trial_active = true`
   - free: `effective_tier = "free"`, `plan = "free"`,
-    `subscription_tier = "free"`, `trial_active = false`
+    `subscription_tier = "free"`, `trial_active = false`; expired timed-pass
+    rows also resolve here as a safety fallback before the expiry worker clears
+    the stored tier
 - Cost dashboards should prefer `llm_model` and `effective_tier` for model
   spend, and use `plan` to distinguish paid Pro from trial Pro. The raw
   `subscription_tier` remains useful for debugging RevenueCat webhook state but

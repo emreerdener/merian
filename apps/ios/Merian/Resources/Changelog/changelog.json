@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-16-seven-day-pass",
+      "date": "2026-06-16",
+      "title": "7-day Pro pass",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "7-day Pro passes now use verified RevenueCat purchases with a Merian-owned expiration window so access ends reliably after the pass period."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-15-paywall-refresh",
       "date": "2026-06-15",
       "title": "Pro paywall refresh",

@@ -45,7 +45,14 @@ multiple functions need the same behavior and the ownership boundary is clear.
   Supabase lookups inside hot Edge paths. Exposes both the compatibility
   `getTierForUser(...)` helper and the richer `resolveTierForUser(...)` contract
   used by scan telemetry: `effective_tier`, `plan`, `subscription_tier`,
-  `trial_active`, and `user_exists`.
+  `trial_active`, and `user_exists`. Reads `subscription_expires_at` so active
+  detached 7-day passes resolve as paid Pro and stale timed Pro rows resolve as
+  free until the scheduled expiry worker clears them.
+- **`subscriptionPass.ts`**: Exact product policy for the detached
+  `merian_7_day_pass`, including the 7-day duration and RevenueCat
+  `purchased_at_ms` expiration calculation.
+- **`storageMigration.ts`**: Shared R2 prefix migration helper used by
+  RevenueCat webhook tier changes and scheduled timed-pass expiry downgrades.
 - **`explore.ts`**: Explore UUID/hashtag validation, public author identity
   sync, feed-card hashtag/pro-badge/username hydration, and shared
   social-surface helpers.

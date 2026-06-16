@@ -57,15 +57,36 @@ function isTrialActive(createdAt: string | null | undefined): boolean {
   return diffDays <= 7;
 }
 
-function resolutionForUserRow(row: {
+function isTimestampInFuture(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const date = new Date(value);
+  const time = date.getTime();
+  return Number.isFinite(time) && time > Date.now();
+}
+
+export function resolutionForUserRow(row: {
   subscription_tier?: string | null;
   created_at?: string | null;
+  subscription_expires_at?: string | null;
 }): TierResolution {
   const subscriptionTier: SubscriptionTier = row.subscription_tier === "pro"
     ? "pro"
     : "free";
 
   if (subscriptionTier === "pro") {
+    if (
+      row.subscription_expires_at &&
+      !isTimestampInFuture(row.subscription_expires_at)
+    ) {
+      return {
+        effective_tier: "free",
+        plan: "free",
+        subscription_tier: "free",
+        trial_active: false,
+        user_exists: true,
+      };
+    }
+
     return {
       effective_tier: "pro",
       plan: "pro_paid",
@@ -126,7 +147,7 @@ export async function resolveTierForUser(
 
   const { data } = await supabaseAdmin
     .from("users")
-    .select("subscription_tier, created_at")
+    .select("subscription_tier, created_at, subscription_expires_at")
     .eq("id", userId)
     .maybeSingle();
 

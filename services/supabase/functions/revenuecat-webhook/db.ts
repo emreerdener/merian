@@ -19,14 +19,20 @@ export async function ensureUserExists(
 export async function updateUserTier(
   userId: string,
   targetTier: "pro" | "free",
+  expiresAt: string | null,
   supabaseAdmin: SupabaseClient,
 ) {
   const { error } = await supabaseAdmin
     .from("users")
-    .update({ subscription_tier: targetTier })
+    .update({
+      subscription_tier: targetTier,
+      subscription_expires_at: expiresAt,
+    })
     .eq("id", userId);
 
   if (error) {
-    throw new Error(`Failed to set user tier to ${targetTier}: ${error.message}`);
+    throw new Error(
+      `Failed to set user tier to ${targetTier}: ${error.message}`,
+    );
   }
 }

@@ -14,6 +14,11 @@ Tracks the global state of the anonymous/authenticated user.
   generated via standard Supabase Ghost Sessions with IDFV fallback. Mapped into
   PostHog/RevenueCat telemetry for ecosystem-wide session continuity.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
+- `subscription_expires_at` (TIMESTAMPTZ, nullable): Set only for Merian-owned
+  timed Pro grants such as the detached `merian_7_day_pass` non-renewing
+  purchase. Standard RevenueCat subscriptions leave this null. The hourly
+  `expire-subscription-passes` worker downgrades expired timed grants and clears
+  this value.
 - `default_geoprivacy` (ENUM): `'open'` | `'obscured'` | `'private'`. Dictates
   the privacy projection applied to scans. Current clients send this value on
   identify requests, and Edge insert helpers fall back to this column when the

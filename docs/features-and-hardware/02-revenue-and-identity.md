@@ -101,8 +101,10 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   `ProcessInfo` values mapped to `.xcconfig` secure layers.
 - Uses `logIn(currentAppUserID)` to bind the IDFV tracking string.
 - Evaluates `isSubscribed` and `trialDaysRemaining` via `.customerInfo()`.
-  - `isSubscribed` checks for active entitlements across `pro` (Naturalist Tier)
-    and `7_day_pass` identifiers.
+  - `isSubscribed` checks for active entitlements across the standard Pro
+    subscription identifiers and a locally evaluated `merian_7_day_pass`
+    non-subscription transaction. The 7-day pass is intentionally not a
+    RevenueCat entitlement.
   - `trialDaysRemaining` computes the days since the user's `firstSeen` date in
     RevenueCat (representing app installation) and grants a dynamic 7-day trial
     of the Pro feature set for all new users.
@@ -119,21 +121,25 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     `effective_tier` (`"pro"` or `"free"`), `plan` (`"pro_paid"`, `"pro_trial"`,
     or `"free"`), and `trial_active`. Paid users have
     `users.subscription_tier = "pro"` from RevenueCat webhook events and resolve
-    to `plan = "pro_paid"`. Trial users usually still have
+    to `plan = "pro_paid"`. Non-renewing 7-day pass users also carry
+    `users.subscription_expires_at`; the backend expiry worker downgrades them
+    after that timestamp, while the resolver treats any stale timed Pro row as
+    free as a fallback. Trial users usually still have
     `users.subscription_tier = "free"`; if `created_at` is within the 7-day
     window, they resolve to `effective_tier = "pro"` and `plan = "pro_trial"`.
     Ghost users without a row are treated as trial Pro for their first scan and
     then upserted as raw `subscription_tier = "free"` so paid entitlement
-    storage remains webhook-owned.
+    and paid-pass storage remains webhook-owned.
 
 ## RevenueCat Webhook (`revenuecat-webhook`)
 
-To keep the Supabase PostgreSQL backend in sync with iOS RevenueCat entitlement
+To keep the Supabase PostgreSQL backend in sync with iOS RevenueCat purchase
 state, a dedicated `revenuecat-webhook` Edge Function listens for global
 subscription events (`INITIAL_PURCHASE`, `RENEWAL`, `EXPIRATION`, and
-`UNCANCELLATION`). This endpoint requires a `Bearer REVENUECAT_WEBHOOK_SECRET`
-`Authorization` header, mapped to Env Vars, and deflects unauthenticated
-requests with a 401 at the Kong Gateway via `verify_jwt = false`.
+`UNCANCELLATION`) plus the exact non-renewing `merian_7_day_pass` product. This
+endpoint requires a `Bearer REVENUECAT_WEBHOOK_SECRET` `Authorization` header,
+mapped to Env Vars, and deflects unauthenticated requests with a 401 at the
+Kong Gateway via `verify_jwt = false`.
 
 1. **`app_user_id` UUID validation**: After HMAC authentication,
    `event.app_user_id` is validated against a strict UUID regex before any DB
@@ -142,13 +148,19 @@ requests with a 401 at the Kong Gateway via `verify_jwt = false`.
    check but fail UUID constraints in the DB layer. Anonymous-ID events are
    rejected with `HTTP 400` and a warning log.
 2. **Tier Syndication**: Updates the `users.subscription_tier` enum to `pro` on
-   initialization/renewal, and downgrades it to `free` on expiration.
-   `CANCELLATION` events are ignored — turning off Auto-Renew lets users keep
-   Pro features until the genuine `EXPIRATION` timestamp lapses. The webhook
-   does not mark the dynamic 7-day app trial as paid Pro; trial access is
-   derived at inference time from RevenueCat first-seen/client state and
-   `users.created_at`.
-3. **Cloudflare Data Migration**: When a user upgrades to `pro`, the webhook
+   initialization/renewal, and downgrades it to `free` on expiration. Standard
+   subscriptions clear `subscription_expires_at`; the detached 7-day pass sets
+   it to `purchased_at_ms + 7 days`. `CANCELLATION` events are ignored for
+   standard auto-renewing subscriptions — turning off Auto-Renew lets users keep
+   Pro features until the genuine `EXPIRATION` timestamp lapses. For the
+   7-day pass, refund/cancellation-style events downgrade immediately.
+3. **Timed Pass Expiry**: `expire-subscription-passes` runs hourly via
+   `pg_cron`, finds timed Pro rows whose `subscription_expires_at` has passed,
+   downgrades them to `free`, clears the expiry timestamp, and migrates storage
+   back to the free bucket path. The webhook does not mark the dynamic 7-day app
+   trial as paid Pro; trial access is derived at inference time from RevenueCat
+   first-seen/client state and `users.created_at`.
+4. **Cloudflare Data Migration**: When a user upgrades to `pro`, the webhook
    queries the `scans` table using a `while` loop over paginated
    `.range(start, end)` subsets, traversing past Supabase's 1,000 max-row API
    limit set by `config.toml`. To prevent Ghost Profile R2 migration data loss,

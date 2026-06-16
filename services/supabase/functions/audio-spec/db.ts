@@ -5,7 +5,12 @@ import {
   recordSpeciesContentProvenance,
 } from "../_shared/speciesContentProvenance.ts";
 import { resolveScanGeoprivacy } from "../_shared/identify/db.ts";
-import { hasTierCached, setTierCache } from "../_shared/tierCache.ts";
+import {
+  hasTierCached,
+  resolutionForUserRow,
+  setTierCache,
+  setTierResolutionCache,
+} from "../_shared/tierCache.ts";
 import { AudioCandidate } from "./types.ts";
 
 // MARK: - User
@@ -17,11 +22,11 @@ export async function upsertGhostUserIfMissing(
   if (!hasTierCached(userId)) {
     const { data: existingUser } = await supabaseAdmin
       .from("users")
-      .select("subscription_tier")
+      .select("subscription_tier, created_at, subscription_expires_at")
       .eq("id", userId)
       .maybeSingle();
     if (existingUser) {
-      setTierCache(userId, existingUser.subscription_tier as string);
+      setTierResolutionCache(userId, resolutionForUserRow(existingUser));
     } else {
       await supabaseAdmin
         .from("users")

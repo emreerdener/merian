@@ -1046,8 +1046,12 @@ and `KeychainManager` migration logic. Do not inline
 ### `RevenueCatManager`
 
 - Manages `isProActive` state.
-- Handles `.purchaserInfo()` callbacks and connects to the `revenuecat-webhook`
-  Edge function.
+- Handles RevenueCat `CustomerInfo` refreshes, evaluates standard Pro
+  entitlements, and treats `merian_7_day_pass` as a detached non-subscription
+  purchase that is active for seven days from its purchase date.
+- Connects authenticated users to RevenueCat; the `revenuecat-webhook` Edge
+  function remains the server-side purchase authority and writes timed pass
+  expiry into Supabase.
 
 ### `UsageManager`
 

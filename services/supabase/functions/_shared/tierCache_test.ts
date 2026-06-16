@@ -38,6 +38,10 @@ function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+function isoDaysFromNow(days: number): string {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
 // ---------------------------------------------------------------------------
 // Basic set / get contract
 // ---------------------------------------------------------------------------
@@ -81,6 +85,38 @@ Deno.test("resolveTierForUser: paid pro resolves pro_paid", async () => {
   assertEquals(resolution.effective_tier, "pro");
   assertEquals(resolution.plan, "pro_paid");
   assertEquals(resolution.subscription_tier, "pro");
+  assertEquals(resolution.trial_active, false);
+});
+
+Deno.test("resolveTierForUser: active timed pro pass resolves pro_paid", async () => {
+  const userId = `tier_test_active_pass_${crypto.randomUUID()}`;
+  const resolution = await resolveTierForUser(
+    userId,
+    mockSupabase({
+      subscription_tier: "pro",
+      created_at: isoDaysAgo(20),
+      subscription_expires_at: isoDaysFromNow(1),
+    }) as never,
+  );
+  assertEquals(resolution.effective_tier, "pro");
+  assertEquals(resolution.plan, "pro_paid");
+  assertEquals(resolution.subscription_tier, "pro");
+  assertEquals(resolution.trial_active, false);
+});
+
+Deno.test("resolveTierForUser: expired timed pro pass resolves free", async () => {
+  const userId = `tier_test_expired_pass_${crypto.randomUUID()}`;
+  const resolution = await resolveTierForUser(
+    userId,
+    mockSupabase({
+      subscription_tier: "pro",
+      created_at: isoDaysAgo(20),
+      subscription_expires_at: isoDaysAgo(1),
+    }) as never,
+  );
+  assertEquals(resolution.effective_tier, "free");
+  assertEquals(resolution.plan, "free");
+  assertEquals(resolution.subscription_tier, "free");
   assertEquals(resolution.trial_active, false);
 });
 

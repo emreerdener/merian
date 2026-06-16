@@ -502,10 +502,11 @@ or audio attached:
   fossils, subspecies, cultivars); effective free users use `gemini-2.5-flash`
   for 2–3× lower latency. Tier is resolved via `resolveTierForUser()` from
   `_shared/tierCache.ts` (5-minute TTL worker-level cache). This resolver
-  separates model choice from paid storage: paid subscribers return
-  `plan = "pro_paid"`, dynamic 7-day trial users return `plan = "pro_trial"`
-  while usually keeping raw `subscription_tier = "free"`, and expired free users
-  return `plan = "free"`.
+  separates model choice from paid storage: paid subscribers and active paid
+  7-day passes return `plan = "pro_paid"`, dynamic 7-day trial users return
+  `plan = "pro_trial"` while usually keeping raw
+  `subscription_tier = "free"`, and expired free/timed-pass users return
+  `plan = "free"`.
 - **Fossil, Geological & Non-Biological Handling**: The system instruction
   explicitly distinguishes liveness from biological identity. Fossils, pressed
   plants, museum specimens, and dried organisms are
@@ -896,11 +897,13 @@ insight sheet display.
 ### Edge Function Critical Path
 
 - **Lightweight critical-path tier SELECT**: A single
-  `SELECT subscription_tier, created_at` runs before the Gemini call when the
-  warm-isolate cache misses. It determines the effective model (Pro →
-  `gemini-2.5-pro`, free → `gemini-2.5-flash`) and the telemetry plan
-  (`pro_paid`, `pro_trial`, or `free`). Ghost-user upsert stays in the
-  background task. The SELECT is skipped on cache hit.
+  `SELECT subscription_tier, created_at, subscription_expires_at` runs before
+  the Gemini call when the warm-isolate cache misses. It determines the
+  effective model (Pro → `gemini-2.5-pro`, free → `gemini-2.5-flash`) and the
+  telemetry plan (`pro_paid`, `pro_trial`, or `free`). Active timed passes are
+  paid Pro; expired timed-pass rows resolve as free until the hourly expiry
+  worker clears them. Ghost-user upsert stays in the background task. The SELECT
+  is skipped on cache hit.
 - **Worker-level tier cache** (`_shared/tierCache.ts`): A module-scope
   `Map<userId, { resolution, ts }>` with a 5-minute TTL persists across warm
   Deno isolate re-use via `resolveTierForUser()`. Cache hits are near-instant on
@@ -908,7 +911,8 @@ insight sheet display.
   trial Pro with `user_exists = false`, then the background upsert creates the
   raw free user row and rewrites the cache to a normal trial resolution. This
   avoids first-scan ghosts being downgraded to cached free while keeping paid
-  `subscription_tier` changes owned by RevenueCat webhook events.
+  `subscription_tier` changes owned by RevenueCat webhook events and timed-pass
+  expiry owned by `expire-subscription-passes`.
 - **System instruction structured via Markdown**: The instruction was migrated
   from a dense single paragraph to structured hierarchical Markdown headers
   (`# Subject Liveness & Status`, `# Identification Rules`, etc.). This

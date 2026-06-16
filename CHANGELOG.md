@@ -8,6 +8,9 @@ TestFlight, App Store, support, and QA.
 
 ### Added
 
+- Added durable 7-day Pro pass infrastructure that verifies purchases through
+  RevenueCat while Merian tracks and expires the timed access window in
+  Supabase.
 - Added smart default Collections that suggest helpful scan groupings from your
   library, such as recent finds, places, review candidates, and common organism
   groups, plus an Explore posts collection, with local hide controls.

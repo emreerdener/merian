@@ -52,4 +52,83 @@ final class RevenueCatManagerTests: XCTestCase {
         XCTAssertFalse(revenueCatManager.isSubscribed)
         XCTAssertNil(revenueCatManager.trialDaysRemaining)
     }
+
+    func testSevenDayPassPolicyUnlocksActivePass() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let purchase = SevenDayPassPurchase(
+            productIdentifier: SevenDayPassAccessPolicy.productIdentifier,
+            purchaseDate: now.addingTimeInterval(-6 * 24 * 60 * 60)
+        )
+
+        XCTAssertTrue(
+            SevenDayPassAccessPolicy.isActive(purchases: [purchase], now: now)
+        )
+    }
+
+    func testSevenDayPassPolicyRejectsExpiredPass() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let purchase = SevenDayPassPurchase(
+            productIdentifier: SevenDayPassAccessPolicy.productIdentifier,
+            purchaseDate: now.addingTimeInterval(-8 * 24 * 60 * 60)
+        )
+
+        XCTAssertFalse(
+            SevenDayPassAccessPolicy.isActive(purchases: [purchase], now: now)
+        )
+    }
+
+    func testSevenDayPassPolicyRejectsPassAtExactExpirationBoundary() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let purchase = SevenDayPassPurchase(
+            productIdentifier: SevenDayPassAccessPolicy.productIdentifier,
+            purchaseDate: now.addingTimeInterval(-7 * 24 * 60 * 60)
+        )
+
+        XCTAssertFalse(
+            SevenDayPassAccessPolicy.isActive(purchases: [purchase], now: now)
+        )
+    }
+
+    func testSevenDayPassPolicyUnlocksWhenAnyExactPassPurchaseIsActive() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expiredPurchase = SevenDayPassPurchase(
+            productIdentifier: SevenDayPassAccessPolicy.productIdentifier,
+            purchaseDate: now.addingTimeInterval(-8 * 24 * 60 * 60)
+        )
+        let activePurchase = SevenDayPassPurchase(
+            productIdentifier: SevenDayPassAccessPolicy.productIdentifier,
+            purchaseDate: now.addingTimeInterval(-1 * 24 * 60 * 60)
+        )
+
+        XCTAssertTrue(
+            SevenDayPassAccessPolicy.isActive(
+                purchases: [expiredPurchase, activePurchase],
+                now: now
+            )
+        )
+    }
+
+    func testSevenDayPassPolicyIgnoresDetachedRevenueCatEntitlementIdentifier() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let purchase = SevenDayPassPurchase(
+            productIdentifier: "7_day_pass",
+            purchaseDate: now
+        )
+
+        XCTAssertFalse(
+            SevenDayPassAccessPolicy.isActive(purchases: [purchase], now: now)
+        )
+    }
+
+    func testSevenDayPassPolicyIgnoresSubstringProductIdentifiers() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let purchase = SevenDayPassPurchase(
+            productIdentifier: "\(SevenDayPassAccessPolicy.productIdentifier)_extra",
+            purchaseDate: now
+        )
+
+        XCTAssertFalse(
+            SevenDayPassAccessPolicy.isActive(purchases: [purchase], now: now)
+        )
+    }
 }

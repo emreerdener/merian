@@ -12,6 +12,7 @@ import {
 import {
   getCachedTierResolution,
   hasTierCached,
+  resolutionForUserRow,
   setTierResolutionCache,
 } from "../tierCache.ts";
 import { CachedSpeciesRow, IdentificationCandidate } from "./types.ts";
@@ -78,33 +79,12 @@ export async function upsertGhostUserIfMissing(
   if (!hasTierCached(userId)) {
     const { data: existingUser } = await supabaseAdmin
       .from("users")
-      .select("subscription_tier, created_at")
+      .select("subscription_tier, created_at, subscription_expires_at")
       .eq("id", userId)
       .maybeSingle();
     if (existingUser) {
-      const createdAtDate = existingUser.created_at
-        ? new Date(existingUser.created_at)
-        : null;
-      const diffMs = createdAtDate
-        ? Date.now() - createdAtDate.getTime()
-        : Infinity;
-      const trialActive = Number.isFinite(diffMs) &&
-        diffMs / (1000 * 60 * 60 * 24) <= 7;
       setTierResolutionCache(userId, {
-        effective_tier: existingUser.subscription_tier === "pro" || trialActive
-          ? "pro"
-          : "free",
-        plan: existingUser.subscription_tier === "pro"
-          ? "pro_paid"
-          : trialActive
-          ? "pro_trial"
-          : "free",
-        subscription_tier: existingUser.subscription_tier === "pro"
-          ? "pro"
-          : "free",
-        trial_active: existingUser.subscription_tier === "pro"
-          ? false
-          : trialActive,
+        ...resolutionForUserRow(existingUser),
         user_exists: true,
       });
     } else {

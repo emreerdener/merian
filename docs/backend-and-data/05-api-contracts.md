@@ -315,11 +315,13 @@ To optimize API expenditures, the `identify` Deno Edge node uses two strategies:
   `gemini-2.5-flash` regardless of tier. `gemini-2.5-pro` is exclusively for the
   multimodal vision identification step. Tier is resolved via
   `resolveTierForUser`, which performs a lightweight
-  `SELECT subscription_tier, created_at` on cache miss and returns
-  `effective_tier`, `plan`, `subscription_tier`, and `trial_active` for
-  telemetry. A module-scope `_tierCache` (5-minute TTL) eliminates the DB
-  round-trip on repeat scans within a warm isolate. Both tiers use the
-  `merianResponseSchema` constraint to protect SQLite UI logic.
+  `SELECT subscription_tier, created_at, subscription_expires_at` on cache miss
+  and returns `effective_tier`, `plan`, `subscription_tier`, and `trial_active`
+  for telemetry. Active timed passes resolve as paid Pro; stale timed Pro rows
+  resolve as free until the hourly expiry worker clears the row. A module-scope
+  `_tierCache` (5-minute TTL) eliminates the DB round-trip on repeat scans
+  within a warm isolate. Both tiers use the `merianResponseSchema` constraint to
+  protect SQLite UI logic.
 - **Dynamic Token Truncation (Non-biological targets)**: When processing
   non-biological subjects, the Deno node removes `taxonomy`, `insight_data`, and
   `ecology_type` from the `required: []` array and passes
@@ -3344,8 +3346,14 @@ Receives a raw RevenueCat Webhook structure wrapper targeting an internal JSON
 ### Migration Mechanics
 
 - Upgrades (`INITIAL_PURCHASE`, `RENEWAL`, `UNCANCELLATION`) convert
-  `subscription_tier` to `pro`.
-- Downgrades (`EXPIRATION`) revert the tier to `free`.
+  `subscription_tier` to `pro` and clear `subscription_expires_at`.
+- Exact `merian_7_day_pass` `NON_RENEWING_PURCHASE` events convert
+  `subscription_tier` to `pro` and set `subscription_expires_at` to
+  `purchased_at_ms + 7 days`. Other non-renewing products are ignored.
+- Standard subscription downgrades (`EXPIRATION`) revert the tier to `free`.
+- Pass refund/cancellation-style events downgrade immediately. Timed passes
+  that naturally reach `subscription_expires_at` are downgraded by the hourly
+  `expire-subscription-passes` worker.
 - **R2 Storage Relocation**: Migrates files between the `free` and `pro` prefix
   buckets in Cloudflare R2. To prevent execution timeouts on users with
   thousands of photos, the script iterates through SQL constraints utilizing a

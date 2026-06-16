@@ -3,6 +3,26 @@ import Observation
 import os
 @_spi(Internal) import RevenueCat
 
+struct SevenDayPassPurchase {
+    let productIdentifier: String
+    let purchaseDate: Date
+}
+
+enum SevenDayPassAccessPolicy {
+    static let productIdentifier = "merian_7_day_pass"
+    static let duration: TimeInterval = 7 * 24 * 60 * 60
+
+    static func isActive(
+        purchases: [SevenDayPassPurchase],
+        now: Date = Date()
+    ) -> Bool {
+        purchases.contains { purchase in
+            guard purchase.productIdentifier == productIdentifier else { return false }
+            return purchase.purchaseDate.addingTimeInterval(duration) > now
+        }
+    }
+}
+
 @MainActor
 @Observable final class RevenueCatManager {
     static let shared = RevenueCatManager()
@@ -114,10 +134,17 @@ import os
 
     private func updateEntitlements(with info: CustomerInfo) {
         let isNaturalist = info.entitlements.all["Naturalist Tier"]?.isActive == true
-        let is7DayPass   = info.entitlements.all["7_day_pass"]?.isActive == true
         let isPro        = info.entitlements.all["pro"]?.isActive == true
+        let isActive7DayPass = SevenDayPassAccessPolicy.isActive(
+            purchases: info.nonSubscriptions.map {
+                SevenDayPassPurchase(
+                    productIdentifier: $0.productIdentifier,
+                    purchaseDate: $0.purchaseDate
+                )
+            }
+        )
         
-        isSubscribed = isNaturalist || is7DayPass || isPro
+        isSubscribed = isNaturalist || isPro || isActive7DayPass
         
         let diff = Calendar.current.dateComponents([.day], from: info.firstSeen, to: Date()).day ?? 0
         let trialRemaining = max(0, 7 - diff)

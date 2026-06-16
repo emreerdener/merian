@@ -34,7 +34,8 @@ to modify the pipeline, modify the exact module below rather than cluttering
   selection. It returns the raw database `subscription_tier` plus
   `effective_tier`, `plan`, and `trial_active` so trial Pro users route to
   `gemini-2.5-pro` and emit `plan = "pro_trial"` without being stored as paid
-  Pro.
+  Pro. It also reads `subscription_expires_at` so detached paid 7-day passes
+  resolve as Pro only while their timed grant is active.
 
 ## Architecture Guidelines
 

@@ -91,6 +91,9 @@ Several utilities are shared across all Edge Functions via
   `setTierCache(userId, tier)` / `setTierResolutionCache(userId, resolution)`.
   Trial users usually remain raw `subscription_tier = "free"` but resolve to
   `effective_tier = "pro"` and `plan = "pro_trial"` inside the 7-day window.
+  Active 7-day paid passes remain raw `subscription_tier = "pro"` with
+  `subscription_expires_at` set; stale timed Pro rows resolve as free until the
+  hourly expiry worker clears the row.
 - **`aws.ts`**: Exports native `S3/R2` Cloudflare mappings utilizing
   `aws4fetch`. Exposes array batch tools (`deleteR2Objects`, `copyR2Object`)
   used for purging storage footprints. `deleteR2Objects` is bounded through
@@ -335,8 +338,11 @@ The `/identify` Edge Function acts as the inference proxy:
     resolution is split: `resolveTierForUser(userId, supabaseAdmin)` from
     `_shared/tierCache.ts` runs on the critical path (before the Gemini call) to
     choose the model and emit telemetry — it hits the 5-minute TTL worker-level
-    cache or falls back to a lightweight `SELECT subscription_tier, created_at`.
-    Paid users resolve to `plan = "pro_paid"`. Raw free users inside the 7-day
+    cache or falls back to a lightweight
+    `SELECT subscription_tier, created_at, subscription_expires_at`. Paid users
+    resolve to `plan = "pro_paid"` when they have an uncapped subscription or an
+    active timed pass. Expired timed-pass rows resolve as free until the hourly
+    expiry worker downgrades the stored row. Raw free users inside the 7-day
     trial window resolve to `effective_tier = "pro"` and `plan = "pro_trial"`;
     expired free users resolve to `plan = "free"`. Ghost users (no row in
     `users`) are treated as trial Pro for their first scan and cached with
@@ -713,9 +719,15 @@ the function immediately calls `setTierCache(userId, tier)` from
 Pro purchaser would receive `gemini-2.5-flash` calls (free tier) for up to 5
 minutes while the TTL-based cache holds the stale `"free"` entry.
 
-On `EXPIRATION` (user downgrade), the same process runs in reverse, moving
-objects from `/pro/` back to `/free/`, returning them to the targeted 90-day
-domesticated purge cycle.
+Standard subscription purchases (`INITIAL_PURCHASE`, `RENEWAL`,
+`UNCANCELLATION`) clear `subscription_expires_at`; exact
+`merian_7_day_pass` `NON_RENEWING_PURCHASE` events set it to
+`purchased_at_ms + 7 days`. On `EXPIRATION` for standard subscriptions, or
+refund/cancellation-style events for the pass, the same process runs in reverse,
+moving objects from `/pro/` back to `/free/`, returning them to the targeted
+90-day domesticated purge cycle. The scheduled
+`expire-subscription-passes` worker performs that same downgrade/storage
+migration when a timed pass reaches `subscription_expires_at`.
 
 Before saving `image_storage_urls` to PostgreSQL, the function strips AWS
 signature query string parameters from the URL to prevent Cloudflare R2

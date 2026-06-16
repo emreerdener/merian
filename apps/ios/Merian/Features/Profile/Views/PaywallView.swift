@@ -114,7 +114,7 @@ struct PaywallView: View {
     private var brandHeader: some View {
         HStack(spacing: 6) {
             Text("Merian")
-                .font(.system(size: 20, weight: .bold, design: .serif))
+                .font(.system(size: 20, weight: .bold))
             Text("PRO")
                 .font(.system(size: 20, weight: .heavy))
                 .foregroundStyle(.primary)
