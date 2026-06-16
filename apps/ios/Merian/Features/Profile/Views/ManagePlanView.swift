@@ -47,13 +47,13 @@ struct ManagePlanView: View {
                 }
                 .padding(.vertical, 8)
                 
-                if let termsUrl = URL(string: "https://example.com/terms") {
+                if let termsUrl = URL(string: "https://merian.earth/terms") {
                     Link("Terms of service", destination: termsUrl)
                         .foregroundColor(.primary)
                         .padding(.vertical, 8)
                 }
                 
-                if let privacyUrl = URL(string: "https://example.com/privacy") {
+                if let privacyUrl = URL(string: "https://merian.earth/privacy") {
                     Link("Privacy policy", destination: privacyUrl)
                         .foregroundColor(.primary)
                         .padding(.vertical, 8)

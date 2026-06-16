@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-15-paywall-refresh",
+      "date": "2026-06-15",
+      "title": "Pro paywall refresh",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "The Pro paywall now has a richer visual flow with selectable plan cards, plan comparisons, member-supported context, and a persistent purchase button.",
+            "Restore purchases, redeem code, Privacy Policy, and Terms of Use actions are easier to find from the paywall."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-15-explore-comment-mentions",
       "date": "2026-06-15",
       "title": "Explore comment mentions",

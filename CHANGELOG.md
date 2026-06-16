@@ -31,6 +31,9 @@ TestFlight, App Store, support, and QA.
 
 ### Changed
 
+- Refreshed the Pro paywall with an immersive visual layout, selectable plan
+  cards, plan comparison rows, stronger restore/policy actions, and a persistent
+  purchase button.
 - Streamlined Explore post details so species education lives in the species
   dictionary, while reference images, observation context, alternate names, and
   a direct dictionary link remain easy to find.

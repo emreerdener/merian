@@ -229,7 +229,7 @@ private struct ProSettingsBanner: View {
                 .padding(.leading, 14)
                 .padding(.vertical, -18)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text("Merian")
                         .font(.system(.title2).weight(.bold))
@@ -242,9 +242,10 @@ private struct ProSettingsBanner: View {
                 .minimumScaleFactor(0.78)
 
                 Text(isProActive ? "Your advanced field kit is active." : "Unlock richer captures and advanced AI analysis.")
-                    .font(.subheadline.weight(.medium))
+                    .font(.footnote.weight(.medium))
                     .foregroundStyle(.white.opacity(0.82))
                     .lineLimit(2)
+                    .lineSpacing(-2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
