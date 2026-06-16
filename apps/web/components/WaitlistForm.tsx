@@ -47,9 +47,8 @@ export function WaitlistForm() {
   return (
     <Stack gap="sm" id="waitlist" className="waitlist-signup">
       <form onSubmit={handleSubmit}>
-        <Group gap="sm" wrap="nowrap" align="flex-end" className="waitlist-signup__row">
+        <Group gap="sm" wrap="nowrap" align="center" className="waitlist-signup__row">
           <TextInput
-            label="Email"
             aria-label="Email address"
             placeholder="you@example.com"
             value={email}

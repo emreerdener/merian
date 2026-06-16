@@ -4,39 +4,34 @@ import type { ReactNode } from "react";
 import {
   Anchor,
   AppShell,
-  AppShellFooter,
   AppShellHeader,
   AppShellMain,
-  AppShellNavbar,
   Burger,
   Button,
   Container,
   Group,
-  Stack,
-  Text,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconArrowUpRight } from "@tabler/icons-react";
 import { siteConfig } from "@/lib/site";
+import { usePathname } from "next/navigation";
 
 type MerianAppShellProps = {
   children: ReactNode;
 };
 
-const footerLinks = [
-  { href: "/privacy", label: "Privacy" },
-  { href: "/terms", label: "Terms" },
-  { href: "/guidelines", label: "Guidelines" },
-  { href: "/privacy-choices", label: "Privacy choices" },
-  { href: "/support", label: "Support" },
-];
-
 export function MerianAppShell({ children }: MerianAppShellProps) {
-  const [opened, { close, toggle }] = useDisclosure();
+  const pathname = usePathname();
+  const isSplashPage = pathname === "/";
+  const [opened, { toggle }] = useDisclosure();
   const primaryCtaHref = siteConfig.appStoreUrl ?? "/#waitlist";
   const primaryCtaLabel = siteConfig.appStoreUrl
     ? "Download the app"
     : "Join beta";
+
+  if (isSplashPage) {
+    return <main className="splash-layout">{children}</main>;
+  }
 
   return (
     <AppShell header={{ height: 60 }} padding="md" className="merian-app-shell">
@@ -82,3 +77,4 @@ export function MerianAppShell({ children }: MerianAppShellProps) {
     </AppShell>
   );
 }
+
