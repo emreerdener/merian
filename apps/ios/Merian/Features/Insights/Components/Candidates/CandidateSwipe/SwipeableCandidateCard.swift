@@ -17,6 +17,10 @@ struct SwipeableCandidateCard: View {
     @State private var isFeatureExpanded = false
     @Environment(InferenceEngine.self) private var inferenceEngine
 
+    private var hasAdditionalCandidateImages: Bool {
+        imageFetcher.images.count > 1
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             // Base card
@@ -83,6 +87,30 @@ struct SwipeableCandidateCard: View {
                     }
                     Spacer()
                 }
+            }
+
+            if hasAdditionalCandidateImages && !isSwipingLeft {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.86))
+                            .padding(10)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .environment(\.colorScheme, .dark)
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(.white.opacity(0.24), lineWidth: 0.5)
+                            )
+                            .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+                            .padding([.top, .trailing], 18)
+                            .accessibilityHidden(true)
+                    }
+                    Spacer()
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
             }
 
             // Bottom gradient — sits above the image/overlays but below the text and PIP Picture in Picture.
