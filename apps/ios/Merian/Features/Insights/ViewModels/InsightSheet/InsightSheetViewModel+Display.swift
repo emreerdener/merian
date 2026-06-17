@@ -189,10 +189,13 @@ extension InsightSheetViewModel {
         guard let species = inferenceEngine?.speciesData else {
             return "Scanning subject..."
         }
+        let common = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !species.isBiological || common.lowercased() == "not applicable" {
+            return "Non-biological"
+        }
         if let preferred = state.preferredCommonName, !preferred.isEmpty {
             return preferred
         }
-        let common = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
         let scientific = species.scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
         if common.isEmpty {
             return scientific

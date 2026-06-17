@@ -91,68 +91,25 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertTrue(userCorrected.isExploreShareEligible)
     }
 
-    func testBiologicalRescueNormalizationClearsStaleIdentificationButPreservesMedia() throws {
-        let mediaJSON = #"[]"#
-        let record = LocalScanRecord(
-            speciesId: UUID().uuidString,
-            scientificName: "Inanimate Object",
-            commonName: "Sticker",
-            capturedMediaJSON: mediaJSON,
-            coverImagePath: "/tmp/original.jpg",
-            semanticTags: ["sticker", "object"],
-            hazardType: "irritant",
-            isBiological: false,
-            isLiveCapture: true,
-            isInvasive: true,
-            ecologyType: "built",
-            wikipediaUrl: "https://example.com/wiki",
-            wikipediaOverview: "Old summary",
-            referenceImageUrl: "https://example.com/ref.jpg",
-            confidenceScore: 1.0,
-            taxonomyKingdom: "Animalia",
-            taxonomyClass: "Insecta",
-            candidatesData: Data([1, 2, 3]),
-            aiReasoning: "Old non-biological reasoning",
-            habitatDescription: "Old habitat",
-            gbifTaxonKey: 123,
-            estimatedSizeCm: 4,
-            lifeStage: "adult",
-            sex: "female",
-            sexConfidence: 0.9,
-            individualCount: 1,
-            inferenceTier: "pro",
-            userIdentificationOverride: "Danaus plexippus",
-            userConfirmedIdentification: true,
-            isFlagged: true,
-            imageQualityScore: 88,
-            alternativeCommonNames: ["Monarch"],
-            confirmedSpeciesId: UUID().uuidString,
-            userReviewStateRaw: UserReviewState.aiConfirmed.rawValue
+    func testNonBiologicalCorrectionReanalysisUsesConfirmationCopyAndScopedEvent() throws {
+        XCTAssertEqual(NonBiologicalCorrectionReanalysis.confirmationTitle, "Reanalyze identification?")
+        XCTAssertEqual(
+            NonBiologicalCorrectionReanalysis.confirmationMessage,
+            "This identification was marked as non-biological. Reanalysis will look for a biological subject using the original capture."
         )
-        record.similarSpecies = ["Limenitis archippus"]
-        record.lookalikesData = Data([4, 5, 6])
+        XCTAssertEqual(NonBiologicalCorrectionReanalysis.primaryAction, "Reanalyze")
+        XCTAssertEqual(NonBiologicalCorrectionReanalysis.secondaryAction, "Cancel")
 
-        record.normalizeForBiologicalRescue()
+        let scanId = UUID().uuidString
+        let event = NonBiologicalCorrectionReanalysis.refinementEvent(scanId: scanId)
+        guard case let .triggerRefinement(eventScanId, initialDescription, entryPoint) = event else {
+            XCTFail("Correction should emit a refinement event")
+            return
+        }
 
-        XCTAssertTrue(record.isBiological)
-        XCTAssertEqual(record.scientificName, LocalScanRecord.unresolvedBiologicalScientificName)
-        XCTAssertEqual(record.commonName, LocalScanRecord.unresolvedBiologicalCommonName)
-        XCTAssertNil(record.confidenceScore)
-        XCTAssertNil(record.aiReasoning)
-        XCTAssertNil(record.taxonomyKingdom)
-        XCTAssertNil(record.taxonomyClass)
-        XCTAssertNil(record.referenceImageUrl)
-        XCTAssertNil(record.candidatesData)
-        XCTAssertNil(record.similarSpecies)
-        XCTAssertNil(record.lookalikesData)
-        XCTAssertNil(record.userIdentificationOverride)
-        XCTAssertFalse(record.userConfirmedIdentification)
-        XCTAssertFalse(record.isFlagged)
-        XCTAssertEqual(record.userReviewState, .unreviewed)
-        XCTAssertFalse(record.isExploreShareEligible)
-        XCTAssertEqual(record.capturedMediaJSON, mediaJSON)
-        XCTAssertEqual(record.coverImagePath, "/tmp/original.jpg")
-        XCTAssertEqual(record.imageQualityScore, 88)
+        XCTAssertEqual(eventScanId, scanId)
+        XCTAssertEqual(initialDescription, NonBiologicalCorrectionReanalysis.initialDescription)
+        XCTAssertEqual(entryPoint, .nonBiologicalCorrection)
     }
 
     private func waitForIndexing(

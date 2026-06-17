@@ -1,6 +1,11 @@
 import Combine
 import Foundation
 
+enum RefinementEntryPoint: Sendable, Equatable {
+    case standard
+    case nonBiologicalCorrection
+}
+
 /// Strongly-typed system events replacing legacy `NotificationCenter` broadcasts.
 enum AppEvent {
     /// Dispatched when the user exceeds their scan quota and the paywall must be presented.
@@ -26,7 +31,11 @@ enum AppEvent {
     
     /// Dispatched to seamlessly jump the user from an ambiguous Insight Sheet back to the Camera,
     /// carrying the scan ID forward into a supplementary multi-image generation sequence.
-    case triggerRefinement(scanId: String, initialDescription: String? = nil)
+    case triggerRefinement(
+        scanId: String,
+        initialDescription: String? = nil,
+        entryPoint: RefinementEntryPoint = .standard
+    )
 
     /// Dispatched to open the scans sheet and push the non-biological collection.
     case requestOpenNonBiologicalScansIntent

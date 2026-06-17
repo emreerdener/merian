@@ -1,14 +1,31 @@
 import SwiftData
 import SwiftUI
 
+enum NonBiologicalCorrectionReanalysis {
+    static let confirmationTitle = "Reanalyze identification?"
+    static let confirmationMessage = "This identification was marked as non-biological. Reanalysis will look for a biological subject using the original capture."
+    static let primaryAction = "Reanalyze"
+    static let secondaryAction = "Cancel"
+    static let initialDescription = "This identification was marked as non-biological. Reanalyze it as a biological subject using the original capture."
+
+    static func refinementEvent(scanId: String) -> AppEvent {
+        .triggerRefinement(
+            scanId: scanId,
+            initialDescription: initialDescription,
+            entryPoint: .nonBiologicalCorrection
+        )
+    }
+}
+
 struct NonBiologicalScansView: View {
+
     // MARK: - State Dependencies
     @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == false }, sort: \.timestamp, order: .reverse) private var nonBioRecords: [LocalScanRecord]
     
     @Environment(\.modelContext) private var modelContext
     
     // MARK: - Interface State
-    @State private var scanToRescue: String?
+    @State private var scanToReanalyze: String?
     @State private var scanToDelete: String?
     @State private var showDeleteConfirmation = false
     @State private var showClearAllConfirmation = false
@@ -45,15 +62,15 @@ struct NonBiologicalScansView: View {
                 .padding(.bottom, 8)
                 
                 ScansGrid(scans: nonBioRecords, onSelect: { scan in
-                    scanToRescue = scan.id
+                    scanToReanalyze = scan.id
                 }, onDelete: { scan in
                     scanToDelete = scan.id
                     showDeleteConfirmation = true
                 }) { scan in
                     Button {
-                        markAsBiological(scan)
+                        scanToReanalyze = scan.id
                     } label: {
-                        Label("Mark as biological", systemImage: "leaf.arrow.triangle.circlepath")
+                        Label("Reanalyze as biological", systemImage: "leaf.arrow.triangle.circlepath")
                     }
                 }
             }
@@ -112,20 +129,20 @@ struct NonBiologicalScansView: View {
             }
         }
         .alert(
-            "Mark this item as biological?",
+            NonBiologicalCorrectionReanalysis.confirmationTitle,
             isPresented: Binding(
-                get: { scanToRescue != nil },
-                set: { if !$0 { scanToRescue = nil } }
+                get: { scanToReanalyze != nil },
+                set: { if !$0 { scanToReanalyze = nil } }
             )
         ) {
-            Button("Cancel", role: .cancel) { }
-            Button("Mark as biological") {
-                if let scanId = scanToRescue {
-                    markAsBiological(scanId: scanId)
+            Button(NonBiologicalCorrectionReanalysis.secondaryAction, role: .cancel) { }
+            Button(NonBiologicalCorrectionReanalysis.primaryAction) {
+                if let scanId = scanToReanalyze {
+                    reanalyzeAsBiological(scanId: scanId)
                 }
             }
         } message: {
-            Text("This will move the scan back into your main library and prevent it from being auto-deleted.")
+            Text(NonBiologicalCorrectionReanalysis.confirmationMessage)
         }
         .scanDeletionDialog(
             isPresented: $showDeleteConfirmation,
@@ -190,41 +207,9 @@ struct NonBiologicalScansView: View {
         }
     }
     
-    private func markAsBiological(_ scan: LocalScanRecord) {
-        markAsBiological(scanId: scan.id)
-    }
-
-    private func markAsBiological(scanId: String) {
-        // Local Optimistic UI - Re-fetch explicitly on the MainActor context to guarantee SwiftData UI observers fire!
-        var descriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate { $0.id == scanId }
-        )
-        descriptor.fetchLimit = 1
-        guard let activeRecord = try? modelContext.fetch(descriptor).first else {
-            MerianLog.data.error("Failed to re-fetch scan for mutation.")
-            return
-        }
-        
-        activeRecord.normalizeForBiologicalRescue()
-        
-        do {
-            try modelContext.save()
-            ScanLibraryEvents.postLibraryDidUpdate()
-            MerianLog.data.debug("Scan rescued back to biological library.")
-        } catch {
-            MerianLog.data.error("SwiftData save failed during biological rescue: \(error, privacy: .private)")
-        }
-        
-        // Remote synchronization belongs in the repository layer so the view only initiates intent.
-        Task {
-            await AppDIContainer.shared.scanRepository.syncBiologicalRescue(scanId: scanId)
-        }
-        
-        AppEventPublisher.shared.send(.triggerRefinement(
-            scanId: scanId,
-            initialDescription: LocalScanRecord.biologicalRescueReanalysisPrompt
-        ))
+    private func reanalyzeAsBiological(scanId: String) {
+        AppEventPublisher.shared.send(NonBiologicalCorrectionReanalysis.refinementEvent(scanId: scanId))
         HapticManager.shared.triggerSelectionPulse()
-        withAnimation { toastMessage = "Restored for reanalysis" }
+        withAnimation { toastMessage = "Reanalysis started" }
     }
 }

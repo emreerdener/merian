@@ -1834,17 +1834,18 @@ private struct GBIFMedia: Decodable {
         // predicted species and is misleading when displayed under the override species name.
         let displayAiReasoning: String = overrideName == nil ? (record.aiReasoning ?? "") : ""
         let recordIsBiological = record.isBiological
+        let recordHasResolvedBiologicalIdentification = record.hasResolvedBiologicalIdentification
         let recordScientificName = record.scientificName
         let recordId = record.id
         let safeContext = record.modelContext
-        let shouldResetLocalLookalikes = recordIsBiological && shouldResetLocalLookalikesCache()
+        let shouldResetLocalLookalikes = recordHasResolvedBiologicalIdentification && shouldResetLocalLookalikesCache()
         if shouldResetLocalLookalikes {
             scheduleLocalLookalikesCacheResetIfNeeded(modelContext: safeContext)
         }
         let lookalikesJsonData: Data? = shouldResetLocalLookalikes ? nil : record.lookalikesData
         let lookalikesLegacyArray: [String]? = shouldResetLocalLookalikes ? nil : record.similarSpecies
         let gbifKey = record.gbifTaxonKey
-        let needsWiki = recordIsBiological &&
+        let needsWiki = recordHasResolvedBiologicalIdentification &&
             (record.wikipediaOverview == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty)
         let recordTaxonomy = TaxonomyData(
             kingdom: record.taxonomyKingdom,
@@ -1868,9 +1869,9 @@ private struct GBIFMedia: Decodable {
             !$0.entries.isEmpty && $0.entries.allSatisfy { $0.commonName == nil }
         } ?? false
         // Split enrichment needs by scope so each concurrent call is fired only when required.
-        let needsMetadata = recordIsBiological &&
+        let needsMetadata = recordHasResolvedBiologicalIdentification &&
             (record.habitatDescription == nil || record.gbifTaxonKey == nil || !hasUsableLookalikeTaxonomy(recordTaxonomy))
-        let needsLookalikes = recordIsBiological &&
+        let needsLookalikes = recordHasResolvedBiologicalIdentification &&
             (shouldResetLocalLookalikes || record.lookalikesData == nil || lookalikesHaveNoCommonNames)
         let needsEnrichment = needsMetadata || needsLookalikes
 
@@ -1931,7 +1932,7 @@ private struct GBIFMedia: Decodable {
             // Step 1: Determine initial reference image loading state.
             guard !Task.isCancelled else { return }
             let refUrls = Self.normalizedReferenceURLs(from: record.referenceImageUrl)
-            let shouldLoadImages = recordIsBiological && refUrls.isEmpty && (gbifKey != nil || needsEnrichment)
+            let shouldLoadImages = recordHasResolvedBiologicalIdentification && refUrls.isEmpty && (gbifKey != nil || needsEnrichment)
             self.activeMedia.referenceState = shouldLoadImages ? .loading : (refUrls.isEmpty ? .empty : .loaded(refUrls))
 
             // Step 2: Resolve similar species and decode candidates off @MainActor (CPU-bound).

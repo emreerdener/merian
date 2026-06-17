@@ -76,6 +76,25 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.headerParagraphs.first == "A test object.")
     }
 
+    @Test func testNonBiologicalHeaderTitleUsesFriendlyDisplayName() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "nonbio_title",
+            commonName: "Unknown Subject",
+            scientificName: "Taxonomy Unavailable",
+            insightData: InsightData(aiReasoning: "A non-biological subject.", hazardType: "none"),
+            confidenceScore: 0.0,
+            isBiological: false,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+        viewModel.inferenceEngine = engine
+
+        #expect(viewModel.resolvedHeaderTitle == "Non-biological")
+    }
+
     @Test func testFetchLocalRecord() async throws {
         // Validation that the viewmodel gracefully pulls state and assigns local memory
         let ctx = try createIsolatedContext()

@@ -72,12 +72,14 @@ struct RefinementScanContext: Equatable {
     let subjectId: String?
     let capturedMediaSnapshot: CapturedMediaSnapshot
     let coverImagePath: String?
+    let entryPoint: RefinementEntryPoint
 
-    init(record: LocalScanRecord) {
+    init(record: LocalScanRecord, entryPoint: RefinementEntryPoint = .standard) {
         self.scanId = record.id
         self.subjectId = DescribeSubjectResolver.subjectId(for: record)
         self.capturedMediaSnapshot = record.capturedMediaSnapshot
         self.coverImagePath = record.coverImagePath
+        self.entryPoint = entryPoint
     }
 }
 
@@ -244,8 +246,12 @@ final class CaptureWorkspaceViewModel {
                         targetCommentId: targetCommentId,
                         targetReplyParentCommentId: targetReplyParentCommentId
                     )
-                case .triggerRefinement(let scanId, let initialDescription):
-                    self?.startRefinementScan(scanId: scanId, initialDescription: initialDescription)
+                case .triggerRefinement(let scanId, let initialDescription, let entryPoint):
+                    self?.startRefinementScan(
+                        scanId: scanId,
+                        initialDescription: initialDescription,
+                        entryPoint: entryPoint
+                    )
                 case .requestOpenNonBiologicalScansIntent:
                     self?.activeSheet = .scans
                 case .requestOpenScansLibraryIntent:
@@ -561,13 +567,38 @@ final class CaptureWorkspaceViewModel {
         }
     }
     
-    func startRefinementScan(from record: LocalScanRecord, initialDescription: String? = nil) {
-        startRefinementScan(with: RefinementScanContext(record: record), initialDescription: initialDescription)
+    func startRefinementScan(
+        from record: LocalScanRecord,
+        initialDescription: String? = nil,
+        entryPoint: RefinementEntryPoint = .standard
+    ) {
+        guard canStartRefinement(from: record, entryPoint: entryPoint) else {
+            MerianLog.general.debug("Blocked refinement entry point for incompatible scan state.")
+            return
+        }
+
+        startRefinementScan(
+            with: RefinementScanContext(record: record, entryPoint: entryPoint),
+            initialDescription: initialDescription
+        )
     }
 
-    func startRefinementScan(scanId: String, initialDescription: String? = nil) {
+    func startRefinementScan(
+        scanId: String,
+        initialDescription: String? = nil,
+        entryPoint: RefinementEntryPoint = .standard
+    ) {
         guard let record = fetchLocalScan(scanId: scanId) else { return }
-        startRefinementScan(from: record, initialDescription: initialDescription)
+        startRefinementScan(from: record, initialDescription: initialDescription, entryPoint: entryPoint)
+    }
+
+    private func canStartRefinement(from record: LocalScanRecord, entryPoint: RefinementEntryPoint) -> Bool {
+        switch entryPoint {
+        case .standard:
+            true
+        case .nonBiologicalCorrection:
+            !record.isBiological
+        }
     }
 
     private func startRefinementScan(with context: RefinementScanContext, initialDescription: String? = nil) {

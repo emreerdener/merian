@@ -249,23 +249,6 @@ final class ScanRepository {
         }
     }
 
-    func syncBiologicalRescue(scanId: String) async {
-        struct BiologicalOverridePayload: Encodable, Sendable {
-            let is_biological_subject: Bool
-            let ecology_type: String
-        }
-
-        do {
-            try await SupabaseManager.shared.client
-                .from("scans")
-                .update(BiologicalOverridePayload(is_biological_subject: true, ecology_type: "unknown"))
-                .eq("id", value: scanId)
-                .execute()
-        } catch {
-            MerianLog.network.error("Remote markAsBiological sync failed: \(error, privacy: .private)")
-        }
-    }
-
     // MARK: - Deletion
 
     /// Fully deletes a scan: queues a cloud deletion task, removes the `LocalScanRecord` from

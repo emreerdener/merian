@@ -248,7 +248,6 @@ public final class LocalScanRecord {
 extension LocalScanRecord {
     static let unresolvedBiologicalScientificName = "Taxonomy Unavailable"
     static let unresolvedBiologicalCommonName = "Unknown Subject"
-    static let biologicalRescueReanalysisPrompt = "This capture was manually marked as biological. Reanalyze it as a biological subject and identify the organism."
 
     var hasResolvedBiologicalIdentification: Bool {
         guard isBiological else { return false }
@@ -260,48 +259,6 @@ extension LocalScanRecord {
 
     var isExploreShareEligible: Bool {
         hasResolvedBiologicalIdentification
-    }
-
-    func normalizeForBiologicalRescue() {
-        isBiological = true
-        scientificName = Self.unresolvedBiologicalScientificName
-        commonName = Self.unresolvedBiologicalCommonName
-        semanticTags = []
-        hazardType = "none"
-        isInvasive = false
-        ecologyType = "unknown"
-        wikipediaUrl = nil
-        wikipediaOverview = nil
-        referenceImageUrl = nil
-        confidenceScore = nil
-        taxonomyKingdom = nil
-        taxonomyPhylum = nil
-        taxonomyClass = nil
-        taxonomyOrder = nil
-        taxonomyFamily = nil
-        taxonomyGenus = nil
-        similarSpecies = nil
-        lookalikesData = nil
-        candidatesData = nil
-        iucnRedListStatus = nil
-        aiReasoning = nil
-        habitatDescription = nil
-        gbifTaxonKey = nil
-        estimatedSizeCm = nil
-        lifeStage = nil
-        reproductiveCondition = nil
-        sex = nil
-        sexConfidence = nil
-        sexEvidence = nil
-        individualCount = nil
-        ecologicalInteractions = nil
-        inferenceTier = nil
-        alternativeCommonNames = nil
-        confirmedSpeciesId = nil
-        userIdentificationOverride = nil
-        userConfirmedIdentification = false
-        isFlagged = false
-        userReviewState = .unreviewed
     }
 
     private static func isResolvedBiologicalName(_ value: String) -> Bool {

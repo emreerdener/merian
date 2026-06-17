@@ -222,6 +222,61 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertEqual(viewModel.describePromptFlow, .reanalysis(subjectId: "subj_plan"))
     }
 
+    func testNonBiologicalCorrectionRefinementContextDoesNotMutateOriginalScan() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+
+        let record = LocalScanRecord(
+            speciesId: "object-1",
+            scientificName: "Inanimate Object",
+            commonName: "Sticker",
+            capturedMediaJSON: #"[]"#,
+            coverImagePath: "/tmp/original.jpg",
+            isBiological: false,
+            confidenceScore: 1.0,
+            userReviewStateRaw: UserReviewState.unreviewed.rawValue
+        )
+
+        viewModel.startRefinementScan(
+            from: record,
+            initialDescription: NonBiologicalCorrectionReanalysis.initialDescription,
+            entryPoint: .nonBiologicalCorrection
+        )
+
+        XCTAssertEqual(viewModel.baseRefinementContext?.scanId, record.id)
+        XCTAssertEqual(viewModel.baseRefinementContext?.entryPoint, .nonBiologicalCorrection)
+        XCTAssertEqual(viewModel.refinementInitialDescriptionDraft, NonBiologicalCorrectionReanalysis.initialDescription)
+        XCTAssertEqual(viewModel.requestedCaptureMode, .describe)
+        XCTAssertFalse(record.isBiological)
+        XCTAssertEqual(record.scientificName, "Inanimate Object")
+        XCTAssertEqual(record.commonName, "Sticker")
+        XCTAssertEqual(record.confidenceScore, 1.0)
+        XCTAssertEqual(record.coverImagePath, "/tmp/original.jpg")
+    }
+
+    func testNonBiologicalCorrectionEntryPointIsLimitedToNonBiologicalScans() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+
+        let biologicalRecord = LocalScanRecord(
+            speciesId: "species-allowed-only-through-standard",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch Butterfly",
+            isBiological: true
+        )
+
+        viewModel.startRefinementScan(from: biologicalRecord, entryPoint: .nonBiologicalCorrection)
+
+        XCTAssertNil(viewModel.baseRefinementContext)
+        XCTAssertNil(viewModel.requestedCaptureMode)
+    }
+
     func testStartRefinementScanClearsLoadingStateWhenPreparationFails() async throws {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,

@@ -15,7 +15,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Manually restored biological scans now wait for reanalysis instead of showing incorrect 100% AI confidence or offering Explore sharing too early."
+            "Non-biological corrections now explain what happened and start reanalysis instead of creating an unidentified biological scan with incorrect confidence, phantom reference media, or early Explore sharing."
           ]
         }
       ]
