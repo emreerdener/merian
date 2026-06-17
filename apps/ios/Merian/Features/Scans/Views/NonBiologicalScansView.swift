@@ -205,9 +205,7 @@ struct NonBiologicalScansView: View {
             return
         }
         
-        activeRecord.isBiological = true
-        activeRecord.ecologyType = "unknown"
-        activeRecord.aiReasoning = nil
+        activeRecord.normalizeForBiologicalRescue()
         
         do {
             try modelContext.save()
@@ -222,7 +220,11 @@ struct NonBiologicalScansView: View {
             await AppDIContainer.shared.scanRepository.syncBiologicalRescue(scanId: scanId)
         }
         
+        AppEventPublisher.shared.send(.triggerRefinement(
+            scanId: scanId,
+            initialDescription: LocalScanRecord.biologicalRescueReanalysisPrompt
+        ))
         HapticManager.shared.triggerSelectionPulse()
-        withAnimation { toastMessage = "Restored to library" }
+        withAnimation { toastMessage = "Restored for reanalysis" }
     }
 }

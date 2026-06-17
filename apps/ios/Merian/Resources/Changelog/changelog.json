@@ -11,6 +11,12 @@
           "items": [
             "Biological scan images are now durable for Free and Pro users; Merian no longer auto-purges successful sighting evidence based on age or tier."
           ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Manually restored biological scans now wait for reanalysis instead of showing incorrect 100% AI confidence or offering Explore sharing too early."
+          ]
         }
       ]
     },

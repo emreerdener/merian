@@ -88,7 +88,7 @@ struct LibraryView: View {
                             },
                             customMenuItems: { scan in
                                 Group {
-                                    if let onShareToExplore {
+                                    if let onShareToExplore, scan.isExploreShareEligible {
                                         Button {
                                             onShareToExplore(scan)
                                         } label: {

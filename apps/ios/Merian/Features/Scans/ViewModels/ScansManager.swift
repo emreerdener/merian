@@ -465,6 +465,12 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             return
         }
 
+        guard scan.isExploreShareEligible else {
+            HapticManager.shared.triggerErrorThump()
+            showToast(message: "Reanalyze this scan before sharing to Explore.")
+            return
+        }
+
         do {
             let response = try await MerianNetworkClient.shared.shareScanToExplore(scan: scan)
             ExploreShareStateStore.setSharedPostId(response.postId, for: scanId)

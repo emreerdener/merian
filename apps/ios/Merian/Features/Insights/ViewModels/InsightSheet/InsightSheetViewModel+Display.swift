@@ -152,7 +152,8 @@ extension InsightSheetViewModel {
 
     var canShareToExplore: Bool {
         guard queuedContext == nil else { return false }
-        return toolbarRecordSnapshot != nil && inferenceEngine?.speciesData?.isBiological == true
+        return toolbarRecordSnapshot?.isExploreShareEligible == true &&
+            inferenceEngine?.speciesData?.isBiological == true
     }
 
     var isAlreadyFlagged: Bool {

@@ -56,6 +56,9 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed manually restored non-biological scans so they no longer show incorrect
+  100% AI confidence or offer Explore sharing until Merian reanalyzes them as
+  real biological identifications.
 - Fixed Needs review smart collections so they only include weak-confidence
   unreviewed scans instead of every scan that happens to have candidates.
 - Fixed Explore posts so shared discoveries keep the selected common name from

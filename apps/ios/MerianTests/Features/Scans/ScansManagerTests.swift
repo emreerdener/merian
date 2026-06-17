@@ -51,6 +51,110 @@ final class ScansManagerTests: XCTestCase {
         return record
     }
 
+    func testExploreShareEligibilityRequiresResolvedBiologicalIdentification() throws {
+        let resolved = try createTestScan(
+            commonName: "Monarch Butterfly",
+            scientificName: "Danaus plexippus",
+            ecologyType: "wild"
+        )
+        let taxonomyUnavailable = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: LocalScanRecord.unresolvedBiologicalScientificName,
+            commonName: "Unknown subject",
+            isBiological: true
+        )
+        let unknownCommonName = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Danaus plexippus",
+            commonName: LocalScanRecord.unresolvedBiologicalCommonName,
+            isBiological: true
+        )
+        let nonBiological = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch Butterfly",
+            isBiological: false
+        )
+        let userCorrected = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: LocalScanRecord.unresolvedBiologicalScientificName,
+            commonName: LocalScanRecord.unresolvedBiologicalCommonName,
+            isBiological: true,
+            userIdentificationOverride: "Danaus plexippus",
+            confirmedSpeciesId: UUID().uuidString
+        )
+
+        XCTAssertTrue(resolved.isExploreShareEligible)
+        XCTAssertFalse(taxonomyUnavailable.isExploreShareEligible)
+        XCTAssertFalse(unknownCommonName.isExploreShareEligible)
+        XCTAssertFalse(nonBiological.isExploreShareEligible)
+        XCTAssertTrue(userCorrected.isExploreShareEligible)
+    }
+
+    func testBiologicalRescueNormalizationClearsStaleIdentificationButPreservesMedia() throws {
+        let mediaJSON = #"[]"#
+        let record = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Inanimate Object",
+            commonName: "Sticker",
+            capturedMediaJSON: mediaJSON,
+            coverImagePath: "/tmp/original.jpg",
+            semanticTags: ["sticker", "object"],
+            hazardType: "irritant",
+            isBiological: false,
+            isLiveCapture: true,
+            isInvasive: true,
+            ecologyType: "built",
+            wikipediaUrl: "https://example.com/wiki",
+            wikipediaOverview: "Old summary",
+            referenceImageUrl: "https://example.com/ref.jpg",
+            confidenceScore: 1.0,
+            taxonomyKingdom: "Animalia",
+            taxonomyClass: "Insecta",
+            candidatesData: Data([1, 2, 3]),
+            aiReasoning: "Old non-biological reasoning",
+            habitatDescription: "Old habitat",
+            gbifTaxonKey: 123,
+            estimatedSizeCm: 4,
+            lifeStage: "adult",
+            sex: "female",
+            sexConfidence: 0.9,
+            individualCount: 1,
+            inferenceTier: "pro",
+            userIdentificationOverride: "Danaus plexippus",
+            userConfirmedIdentification: true,
+            isFlagged: true,
+            imageQualityScore: 88,
+            alternativeCommonNames: ["Monarch"],
+            confirmedSpeciesId: UUID().uuidString,
+            userReviewStateRaw: UserReviewState.aiConfirmed.rawValue
+        )
+        record.similarSpecies = ["Limenitis archippus"]
+        record.lookalikesData = Data([4, 5, 6])
+
+        record.normalizeForBiologicalRescue()
+
+        XCTAssertTrue(record.isBiological)
+        XCTAssertEqual(record.scientificName, LocalScanRecord.unresolvedBiologicalScientificName)
+        XCTAssertEqual(record.commonName, LocalScanRecord.unresolvedBiologicalCommonName)
+        XCTAssertNil(record.confidenceScore)
+        XCTAssertNil(record.aiReasoning)
+        XCTAssertNil(record.taxonomyKingdom)
+        XCTAssertNil(record.taxonomyClass)
+        XCTAssertNil(record.referenceImageUrl)
+        XCTAssertNil(record.candidatesData)
+        XCTAssertNil(record.similarSpecies)
+        XCTAssertNil(record.lookalikesData)
+        XCTAssertNil(record.userIdentificationOverride)
+        XCTAssertFalse(record.userConfirmedIdentification)
+        XCTAssertFalse(record.isFlagged)
+        XCTAssertEqual(record.userReviewState, .unreviewed)
+        XCTAssertFalse(record.isExploreShareEligible)
+        XCTAssertEqual(record.capturedMediaJSON, mediaJSON)
+        XCTAssertEqual(record.coverImagePath, "/tmp/original.jpg")
+        XCTAssertEqual(record.imageQualityScore, 88)
+    }
+
     private func waitForIndexing(
         expectedDocumentCount: Int? = nil,
         after trigger: @MainActor () -> Void

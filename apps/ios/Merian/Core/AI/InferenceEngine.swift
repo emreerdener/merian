@@ -1882,7 +1882,7 @@ private struct GBIFMedia: Decodable {
             commonName: record.commonName,
             scientificName: displayScientificName,
             insightData: InsightData(aiReasoning: displayAiReasoning, hazardType: record.hazardType),
-            confidenceScore: record.confidenceScore ?? 1.0,
+            confidenceScore: record.confidenceScore ?? 0.0,
             blurScore: nil,
             similarSpecies: nil,
             wikipediaUrl: record.wikipediaUrl,

@@ -151,6 +151,23 @@ struct InferenceEngineTests {
         #expect(engine.isProcessing == false, "Processing state should return to false synchronously")
     }
 
+    @Test func testLoadFromLocalScanRecordWithNilConfidenceDoesNotDefaultToPerfectMatch() throws {
+        let record = LocalScanRecord(
+            speciesId: "species_unresolved",
+            scientificName: LocalScanRecord.unresolvedBiologicalScientificName,
+            commonName: LocalScanRecord.unresolvedBiologicalCommonName,
+            isBiological: true,
+            confidenceScore: nil
+        )
+        let engine = InferenceEngine()
+
+        engine.load(from: record)
+
+        let resultingData = try #require(engine.speciesData, "SpeciesData should not be nil after loading")
+        #expect(resultingData.confidenceScore == 0.0)
+        #expect(resultingData.confidenceScore != 1.0, "Missing local confidence must not render as 100% confident")
+    }
+
     @Test func testPrepareForNewScanClearsPendingBackgroundWrites() async throws {
         let engine = InferenceEngine()
         let counter = CounterBox()
