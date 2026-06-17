@@ -35,7 +35,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.101.0
 
       - name: Validate deployment secrets
         run: |
@@ -49,8 +49,7 @@ jobs:
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency.ts \
             supabase/functions/_shared/concurrency_test.ts \
-            supabase/functions/auto-purge-nonbio/index.ts \
-            supabase/functions/auto-purge-domesticated/index.ts
+            supabase/functions/auto-purge-nonbio/index.ts
 
       - name: Validate Edge Function lint
         run: |
@@ -60,7 +59,6 @@ jobs:
             supabase/functions/_shared/concurrency.ts \
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
-            supabase/functions/auto-purge-domesticated/index.ts \
             supabase/functions/delete-scan/index.ts
 
       - name: Validate shared Edge runtime checks
@@ -71,7 +69,6 @@ jobs:
             supabase/functions/_shared/concurrency.ts \
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
-            supabase/functions/auto-purge-domesticated/index.ts \
             supabase/functions/delete-scan/index.ts
 
       - name: Test shared Edge helpers
