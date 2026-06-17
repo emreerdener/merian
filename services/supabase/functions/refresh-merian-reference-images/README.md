@@ -13,14 +13,14 @@ All fields are optional:
 
 ```json
 {
-  "quality_threshold": 90,
+  "quality_threshold": 80,
   "species_confidence_threshold": 0.95,
   "per_species_limit": 8,
   "dry_run": false
 }
 ```
 
-- `quality_threshold`: integer `0...100`, default `90`.
+- `quality_threshold`: integer `0...100`, default `80`.
 - `species_confidence_threshold`: number `0...1`, default `0.95`.
 - `per_species_limit`: integer `1...50`, default `8`.
 - `dry_run`: boolean, default `false`.
@@ -32,7 +32,7 @@ All fields are optional:
   species present.
 - Uses `COALESCE(scans.confirmed_species_id, scans.species_id)`.
 - Unnests all non-empty `scans.image_storage_urls`.
-- Requires `image_quality_score >= 90` and either
+- Requires `image_quality_score >= 80` and either
   `ai_confidence_score >= 0.95` or a non-null `confirmed_species_id` by default.
 - Dedupes by `(species_id, image_url)`, preferring confirmed-species provenance,
   higher confidence, higher quality score, and then newer `shared_at`.

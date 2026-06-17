@@ -87,7 +87,7 @@ Deno.test("Merian reference images DB - promotes qualifying published media with
         longitude: -97.7431,
         geoprivacy: "open",
         imageUrl: "https://media.merian.app/public_uploads/pro/low.webp",
-        imageQualityScore: 89,
+        imageQualityScore: 79,
       });
       await insertExplorePost(client, {
         id: crypto.randomUUID(),
@@ -128,7 +128,7 @@ Deno.test("Merian reference images DB - promotes qualifying published media with
       });
 
       const summaryResult = await client.queryObject<RefreshSummary>(
-        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE, 0.95)",
+        "SELECT * FROM public.refresh_merian_reference_images(80, 8, FALSE, 0.95)",
       );
       const summary = summaryResult.rows[0];
       assertExists(summary);
@@ -264,7 +264,7 @@ Deno.test("Merian reference images DB - requires high species confidence and ima
         imageUrl:
           "https://media.merian.app/public_uploads/pro/low-quality.webp",
         aiConfidenceScore: 0.99,
-        imageQualityScore: 89,
+        imageQualityScore: 79,
       });
       await insertExplorePost(client, {
         id: crypto.randomUUID(),
@@ -292,7 +292,7 @@ Deno.test("Merian reference images DB - requires high species confidence and ima
       });
 
       const dryRun = await client.queryObject<RefreshSummary>(
-        "SELECT * FROM public.refresh_merian_reference_images(90, 8, TRUE, 0.95)",
+        "SELECT * FROM public.refresh_merian_reference_images(80, 8, TRUE, 0.95)",
       );
       assertEquals(dryRun.rows[0].candidate_count, 2);
       assertEquals(dryRun.rows[0].promoted_count, 2);
@@ -300,7 +300,7 @@ Deno.test("Merian reference images DB - requires high species confidence and ima
       assertEquals(dryRun.rows[0].dry_run, true);
 
       const summary = await client.queryObject<RefreshSummary>(
-        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE, 0.95)",
+        "SELECT * FROM public.refresh_merian_reference_images(80, 8, FALSE, 0.95)",
       );
       assertEquals(summary.rows[0].candidate_count, 2);
       assertEquals(summary.rows[0].promoted_count, 2);
@@ -354,7 +354,7 @@ Deno.test("Merian reference images DB - requires high species confidence and ima
       );
 
       const removal = await client.queryObject<RefreshSummary>(
-        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE, 0.95)",
+        "SELECT * FROM public.refresh_merian_reference_images(80, 8, FALSE, 0.95)",
       );
       assertEquals(removal.rows[0].removed_count, 1);
 
@@ -421,7 +421,7 @@ Deno.test("Merian reference images DB - mirrors unshare and external refresh pre
       );
 
       await client.queryObject<RefreshSummary>(
-        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE, 0.95)",
+        "SELECT * FROM public.refresh_merian_reference_images(80, 8, FALSE, 0.95)",
       );
 
       const orderedBeforeExternalRefresh = await client.queryObject<
@@ -482,7 +482,7 @@ Deno.test("Merian reference images DB - mirrors unshare and external refresh pre
       );
 
       const removal = await client.queryObject<RefreshSummary>(
-        "SELECT * FROM public.refresh_merian_reference_images(90, 8, FALSE, 0.95)",
+        "SELECT * FROM public.refresh_merian_reference_images(80, 8, FALSE, 0.95)",
       );
       assertEquals(removal.rows[0].removed_count, 2);
 

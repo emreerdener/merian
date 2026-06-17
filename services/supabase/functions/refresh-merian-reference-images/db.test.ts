@@ -8,7 +8,7 @@ import {
 Deno.test("refresh merian reference images - parses defaults and custom request", () => {
   const defaults = parseMerianReferenceImageRefreshRequest({});
   assertEquals(defaults.request, {
-    qualityThreshold: 90,
+    qualityThreshold: 80,
     speciesConfidenceThreshold: 0.95,
     perSpeciesLimit: 8,
     dryRun: false,
@@ -90,7 +90,7 @@ Deno.test("refresh merian reference images - calls transactional RPC", async () 
   } as unknown as SupabaseClient;
 
   const result = await runMerianReferenceImageRefresh({
-    qualityThreshold: 90,
+    qualityThreshold: 80,
     speciesConfidenceThreshold: 0.95,
     perSpeciesLimit: 8,
     dryRun: false,
@@ -99,7 +99,7 @@ Deno.test("refresh merian reference images - calls transactional RPC", async () 
   assertEquals(calls, [{
     name: "refresh_merian_reference_images",
     params: {
-      p_quality_threshold: 90,
+      p_quality_threshold: 80,
       p_per_species_limit: 8,
       p_dry_run: false,
       p_species_confidence_threshold: 0.95,

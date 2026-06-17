@@ -58,6 +58,9 @@ TestFlight, App Store, support, and QA.
   feed.
 - Explore activity and comment mention push notifications now default on for new
   installs.
+- Species dictionary galleries now admit more published Merian photos by
+  lowering the Merian reference-image quality gate while keeping the species
+  confidence gate in place.
 
 ### Fixed
 

@@ -514,10 +514,10 @@ Key rules:
   is checked with `timingSafeCompare`.
 - The scheduled job `refresh_merian_reference_images_hourly` runs at minute 37
   every hour with
-  `{ "quality_threshold": 90, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
+  `{ "quality_threshold": 80, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
 - Selection happens transactionally in
   `public.refresh_merian_reference_images(...)`: visible Explore posts only, all
-  non-empty image URLs from qualifying scans, `image_quality_score >= 90`,
+  non-empty image URLs from qualifying scans, `image_quality_score >= 80`,
   `ai_confidence_score >= 0.95` unless `confirmed_species_id` is present,
   species resolution through `COALESCE(confirmed_species_id, species_id)`, and
   up to 8 promoted images per species.

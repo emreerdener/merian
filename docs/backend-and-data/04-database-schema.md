@@ -1050,10 +1050,10 @@ client contract.
   unlicensed rows, preserves existing license/attribution/size metadata for
   matching URLs, demotes curated licensed extras behind freshly verified rows,
   and never deletes, recategorizes, or demotes `source = 'merian'` rows.
-- `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 90, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE, p_species_confidence_threshold DOUBLE PRECISION DEFAULT 0.95)`:
+- `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 80, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE, p_species_confidence_threshold DOUBLE PRECISION DEFAULT 0.95)`:
   Internal service-role helper used by `/refresh-merian-reference-images`.
   It selects currently visible Explore posts, unnests all non-empty
-  `scans.image_storage_urls`, requires `image_quality_score >= 90` by default,
+  `scans.image_storage_urls`, requires `image_quality_score >= 80` by default,
   requires `ai_confidence_score >= 0.95` unless `confirmed_species_id` is
   present, resolves species via `COALESCE(confirmed_species_id, species_id)`,
   dedupes by `(species_id, image_url)`, promotes up to 8 Merian images per
@@ -1170,6 +1170,13 @@ and reschedules the hourly cron payload with
 AI-resolved scans must meet both the image-quality and species-confidence gates;
 confirmed-species scans may qualify through `confirmed_species_id` while still
 recording their raw AI confidence privately.
+
+### `20260617120000_lower_merian_reference_image_quality_threshold.sql`
+
+Lowers the current Merian reference-image quality threshold to
+`image_quality_score >= 80`, updates the SQL helper default, and reschedules the
+hourly cron payload with
+`{ "quality_threshold": 80, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
 
 ## SwiftData Schema (Local Offline Queue)
 

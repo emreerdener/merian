@@ -252,7 +252,7 @@ can refine promotion policy.
 
 - [x] Add `merian` as a normalized `species_reference_images.source`.
 - [x] Promote currently visible Explore post media with
-      `image_quality_score >= 90`.
+      `image_quality_score >= 80`.
 - [x] Gate AI-resolved media with `ai_confidence_score >= 0.95`, while allowing
       `confirmed_species_id` to qualify as the authoritative species signal.
 - [x] Use all non-empty image URLs from qualifying scans, cap at 8 promoted
@@ -271,7 +271,7 @@ Current rules:
 - `/refresh-merian-reference-images` runs hourly through `pg_cron`/`pg_net`,
   authenticating with `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`.
 - The scheduled run uses
-  `{ "quality_threshold": 90, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
+  `{ "quality_threshold": 80, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
 - Public rows use `source = "merian"`,
   `license = "Used with permission via Merian"`, and the author's public Explore
   label as `attribution`.

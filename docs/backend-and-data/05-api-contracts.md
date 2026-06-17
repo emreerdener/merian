@@ -3189,7 +3189,7 @@ Scheduled call:
 
 ```json
 {
-  "quality_threshold": 90,
+  "quality_threshold": 80,
   "species_confidence_threshold": 0.95,
   "per_species_limit": 8
 }
@@ -3221,7 +3221,7 @@ Manual service-role calls may also include:
    non-tombstoned, media present, non-private geoprivacy, non-shadowbanned
    author, and resolved species present.
 3. It unnests all non-empty `scans.image_storage_urls`, requires
-   `image_quality_score >= 90` and `ai_confidence_score >= 0.95` by default
+   `image_quality_score >= 80` and `ai_confidence_score >= 0.95` by default
    unless `confirmed_species_id` is present, dedupes by
    `(species_id, image_url)`, and promotes up to 8 images per species.
 4. Public rows use `source = "merian"`,
