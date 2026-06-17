@@ -254,6 +254,14 @@ BEGIN
         );
         patched_definition := REPLACE(
             patched_definition,
+            '        public_location_label,' || E'\n' ||
+            '        time_of_day,',
+            '        public_location_label,' || E'\n' ||
+            '        location_sharing,' || E'\n' ||
+            '        time_of_day,'
+        );
+        patched_definition := REPLACE(
+            patched_definition,
             'AND s.geoprivacy <> ''private''' || E'\n',
             ''
         );
