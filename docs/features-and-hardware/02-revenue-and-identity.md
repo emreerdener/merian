@@ -199,7 +199,11 @@ Enforces the paywall in frontend entry points.
   no quota involvement — every scan that enters the queue is already paid for
   and uploads unconditionally. This eliminates the historical silent stall where
   `freeScansRemaining = 0` caused `syncPendingScans` to discard queued scans via
-  a zero batchLimit.
+  a zero batchLimit. Successful non-biological results still count as scan
+  attempts. The Non-biological collection's correction reanalysis flow bypasses
+  only the Pro reanalysis feature gate for that specific correction path; when
+  the user submits the replacement scan it still follows normal free-tier
+  inference settings and daily scan limits.
 - **Refunds**: If an inference fails unrecoverably (task cancellation, JSON
   decoding failure, network error), `UsageManager.shared.refundScan()` restores
   the consumed token so the user is not penalized for a technical failure.

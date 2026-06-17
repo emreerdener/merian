@@ -58,7 +58,11 @@ TestFlight, App Store, support, and QA.
 
 - Fixed non-biological corrections so they now explain the result and start
   reanalysis instead of creating an unidentified biological scan with incorrect
-  confidence, phantom reference media, or premature Explore sharing.
+  confidence, phantom reference media, or premature Explore sharing. These
+  correction reanalyses are available from the Non-biological collection for
+  free users while still following normal daily scan limits when submitted.
+- Fixed non-biological insight titles so stored taxonomy placeholders now
+  display as "Non-biological" instead of "Unknown Subject".
 - Fixed Needs review smart collections so they only include weak-confidence
   unreviewed scans instead of every scan that happens to have candidates.
 - Fixed Explore posts so shared discoveries keep the selected common name from

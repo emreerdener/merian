@@ -299,6 +299,12 @@ triggering excessive SwiftUI view rebuilds.
   `InferenceEngine` so they preserve `@MainActor` state ordering and the
   `AppDIContainer` singleton boundaries while removing duplicated success-path
   logic.
+- **Non-biological correction reanalysis**: Correction from the Non-biological
+  collection is a scoped refinement entry point, not a record mutation. The old
+  non-biological record stays unchanged until a replacement result succeeds.
+  This entry point bypasses only the Pro reanalysis feature gate; the submitted
+  replacement still goes through normal free-tier inference settings and daily
+  scan accounting.
 - **Shared post-inference hydration**: Biological visual, audio, and describe
   results all route through `schedulePostInferenceHydrationIfNeeded(...)`, which
   owns the single `liveHydrationTask`, skips Wikipedia when `wikipediaOverview`
@@ -412,7 +418,10 @@ triggering excessive SwiftUI view rebuilds.
   rollback path calls `UsageManager.shared.refundScan()` before deleting staged
   files. `syncPendingScans` has no quota checks or `consumeScan` calls — every
   scan in the queue at upload time is already paid for and uploads
-  unconditionally regardless of `freeScansRemaining`.
+  unconditionally regardless of `freeScansRemaining`. Non-biological results
+  count as successful scan attempts and are not refunded. A correction
+  reanalysis for a non-biological result can bypass the Pro feature gate, but
+  not daily free-scan accounting.
 - **Sync Phase Transitions**: Drives `SyncStateManager` through
   `.uploading(count:)` → `.inferencing` → `.finalizing` → `.idle` as the
   pipeline progresses.
