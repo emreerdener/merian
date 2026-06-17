@@ -21,7 +21,8 @@
             "Non-biological results now show the clearer title \"Non-biological\" instead of unresolved taxonomy placeholder text.",
             "Correction reanalysis from the Non-biological collection remains available to free users while still following normal daily scan limits when submitted.",
             "The reanalysis explanation no longer stays in the Describe text field as if it were user-entered notes.",
-            "Describe notes entered for the current reanalysis are now included with the submission and cleared from the input afterward."
+            "Describe notes entered for the current reanalysis are now included with the submission and cleared from the input afterward.",
+            "Explore Map now shows only open-location discoveries, keeping obscured and private posts off the map."
           ]
         }
       ]

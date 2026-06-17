@@ -114,16 +114,6 @@ struct Preferences: View {
 
         // MARK: - Capture setup
         Section {
-            // MARK: - Capture Modes
-            Button { captureModeOrderSettingsActive = true } label: {
-                SettingsNavigationRow(
-                    title: "Capture modes",
-                    description: "Choose your default mode and reorder Scan, Record, and Describe.",
-                    icon: "rectangle.split.3x1.fill",
-                    iconColor: .yellow
-                )
-            }
-
             // MARK: - Camera
             Button { cameraSettingsActive = true } label: {
                 SettingsNavigationRow(
@@ -143,6 +133,17 @@ struct Preferences: View {
                     iconColor: .red
                 )
             }
+
+            // MARK: - Capture Modes
+            Button { captureModeOrderSettingsActive = true } label: {
+                SettingsNavigationRow(
+                    title: "Capture modes",
+                    description: "Choose your default mode and reorder Scan, Record, and Describe.",
+                    icon: "rectangle.split.3x1.fill",
+                    iconColor: .yellow
+                )
+            }
+            
             // MARK: - Confirm Submissions
             SettingsToggleRow(
                 title: "Confirm scan submission",

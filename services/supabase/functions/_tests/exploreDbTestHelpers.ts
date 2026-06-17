@@ -65,6 +65,7 @@ export async function insertSpecies(
   client: Client,
   id: string,
   scientificName: string,
+  iucnRedListStatus = "least_concern",
 ): Promise<void> {
   await client.queryArray(
     `
@@ -94,10 +95,10 @@ export async function insertSpecies(
         'Rosa',
         '{}'::jsonb,
         'North America',
-        'least_concern'
+        $3
       )
     `,
-    [id, scientificName],
+    [id, scientificName, iucnRedListStatus],
   );
 }
 

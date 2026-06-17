@@ -63,8 +63,8 @@ The Explore feed and map shell are now live. The current shipped implementation 
 
 - `ExploreView` uses a segmented `Feed` / `Map` toolbar control plus a horizontally paged shell. While the map tab is active, the outer pager swipe is intentionally disabled so map pans win over parent horizontal gestures.
 - `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction. At broad zooms, individual posts still use simple indicator dots; at close zooms, the shipped client upgrades them into circular scan thumbnails when the visible result set is small enough.
-- Publication state still lives on `explore_posts`, but the shipped map does not store coordinates on `explore_posts`. Spatial reads currently project privacy-safe coordinates from `public.scans.gps_lat_public` / `gps_long_public` through `public.get_explore_map_posts(...)` and the `get-explore-map-points` edge function.
-- Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` and a server-side fallback so newly shared scans with exact coordinates are normalized/backfilled correctly and do not disappear from the map.
+- Publication state still lives on `explore_posts`, but the shipped map does not store coordinates on `explore_posts`. Spatial reads use normalized `public.scans.gps_lat_public` / `gps_long_public` through `public.get_explore_map_posts(...)` and the `get-explore-map-points` edge function, and the map returns only open-geoprivacy posts.
+- Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` so newly shared scans with exact coordinates are normalized/backfilled correctly before map reads.
 - `ExplorePostStore` now owns shared Explore post state across feed, map, detail, comments, and notification-driven navigation, while `ExploreFeedViewModel` keeps feed-specific UI and pagination state.
 - The feed tab now ships a filter row with `Recent`, `Following`, `Trending`, and `Nearby`.
 - `Recent` remains the default mode and still uses the canonical `(shared_at, post_id)` cursor.
@@ -337,7 +337,7 @@ Shipped normalized tag edges:
 Current shipped note:
 
 - The live Explore map does not currently persist coordinates on `explore_posts`.
-- Spatial reads project from the backing `scans.gps_lat_public` / `gps_long_public` fields through `public.get_explore_map_posts(...)`.
+- Spatial reads use the backing `scans.gps_lat_public` / `gps_long_public` fields through `public.get_explore_map_posts(...)`, and the map RPC returns only open-geoprivacy rows.
 - `trg_sync_scan_public_coordinates` keeps those scan-layer public coordinates normalized from exact coordinates, geoprivacy, and uncertainty.
 
 Future map-coordinate extension if Explore needs a dedicated post-owned spatial projection:
@@ -556,7 +556,7 @@ Product principle:
 Current backend note:
 
 - `explore_posts` remains the publication state model.
-- The shipped map projection currently comes from `public.scans.gps_lat_public` / `gps_long_public`, joined through `public.get_explore_map_posts(...)`, rather than stored coordinate fields on `explore_posts`.
+- The shipped map projection currently comes from `public.scans.gps_lat_public` / `gps_long_public`, joined through `public.get_explore_map_posts(...)`, rather than stored coordinate fields on `explore_posts`. The map RPC returns only open-geoprivacy rows.
 
 ### Why Merian Can Beat A Basic Pin Map
 
@@ -622,16 +622,16 @@ Rules:
 
 - `private` scans remain entirely absent from Explore, including the map
 - `open` scans may render with exact public coordinates
-- `obscured` scans may render only with server-generated public coordinates that represent the obscured area, never the original capture coordinate
+- `obscured` scans may remain visible on non-map Explore surfaces, but the shipped map excludes them unless a future explicit per-post override is added
 - If Merian applies an endangered-species safety offset, the Explore map must use that already-sanitized public coordinate rather than the original point
-- The client should never receive raw coordinates for `obscured` posts
+- The client should never receive raw coordinates for non-open posts
 - The client should receive a display hint such as `coordinate_visibility: exact|obscured`
 
 Marker treatment:
 
 - `exact` can use a standard pinpoint or image-backed marker
-- `obscured` should use a softer glyph or halo so the user understands the location is approximate
-- In the current shipped client, posts begin as simple indicator dots, then switch to circular scan thumbnails only once the camera is close enough (`zoomLevel >= 14.8`) and the visible post set is small enough (`<= 24` posts). `obscured` posts keep their approximate-location halo in either mode.
+- Open posts whose public coordinates are approximate for species-safety or uncertainty rules should use a softer glyph or halo so the user understands the location is approximate
+- In the current shipped client, posts begin as simple indicator dots, then switch to circular scan thumbnails once the camera is close enough. Approximate open posts keep their approximate-location halo in either mode.
 
 ### Public Coordinate Strategy
 
@@ -642,8 +642,8 @@ Current approach:
 - `public.scans.gps_lat_public` / `gps_long_public` are the authoritative Explore map coordinates today.
 - `trg_sync_scan_public_coordinates` derives them from `gps_lat_exact` / `gps_long_exact`, `geoprivacy`, `coordinate_uncertainty_in_meters`, and species safety context.
 - `private` scans produce `NULL` public coordinates and remain absent from the map.
-- `obscured` scans are rounded into a stable coarse public cell rather than re-jittered on every request.
-- `public.get_explore_map_posts(...)` still derives a privacy-safe fallback server-side if a row has not been normalized yet.
+- `obscured` scans are rounded into a stable coarse public cell for privacy-safe non-map surfaces, but are excluded from the shipped map.
+- `public.get_explore_map_posts(...)` reads the stored public coordinate fields and does not derive map output from exact GPS at read time.
 
 Why this shipped scan-layer approach works:
 

@@ -3,6 +3,8 @@ import SwiftData
 import SwiftUI
 
 struct ExploreMapView: View {
+    private static let approximateCoordinateRadiusMeters: CLLocationDistance = 10_000
+
     private enum PreviewCardDragAxis {
         case horizontal
         case vertical
@@ -111,7 +113,7 @@ struct ExploreMapView: View {
         Map(position: $viewModel.cameraPosition) {
             if let selectedPost = viewModel.selectedPost,
                selectedPost.coordinateVisibility == .obscured {
-                MapCircle(center: selectedPost.coordinate, radius: 2000)
+                MapCircle(center: selectedPost.coordinate, radius: Self.approximateCoordinateRadiusMeters)
                     .foregroundStyle(Color.accentColor.opacity(0.14))
                     .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
             }

@@ -449,9 +449,10 @@ The transaction log for every successful identification.
   bounded `[-180, 180]`. Added `NOT VALID` — future inserts/updates validated;
   existing rows not retroactively checked.
 - `gps_lat_public` / `gps_long_public` (Float): Same CHECK constraints as exact
-  columns. These are the current privacy-safe map coordinates used by Explore
-  V1. Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql`
-  added `derive_public_scan_coordinate(...)` plus the
+  columns. These are the privacy-safe public coordinates available to Explore
+  projections. Explore Map reads them only for `open` geoprivacy rows. Migration
+  `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added
+  `derive_public_scan_coordinate(...)` plus the
   `trg_sync_scan_public_coordinates` trigger so inserts/updates automatically
   normalize public coordinates from exact coordinates, geoprivacy, uncertainty,
   and species safety context. `private` scans null these fields; `obscured`
@@ -1093,12 +1094,12 @@ client contract.
 - `public.get_explore_map_posts(self_id UUID, north_latitude DOUBLE PRECISION, south_latitude DOUBLE PRECISION, east_longitude DOUBLE PRECISION, west_longitude DOUBLE PRECISION, max_limit INTEGER)`:
   Returns privacy-safe map rows for the current visible bounds. The projection
   joins `explore_posts`, `scans`, `users`, and `species_dictionary`, emits
-  `coordinate_visibility = exact|obscured`, filters the same
-  unshared/media/private/shadowban/block exclusions as the feed, and reads
-  current public coordinates from `scans.gps_lat_public` / `gps_long_public`. As
-  a safety fallback, it still derives public coordinates from exact scan
-  coordinates server-side if a row has not yet been normalized, preventing new
-  exact-location shares from disappearing from the map.
+  `coordinate_visibility = exact|obscured`, filters unshared posts,
+  media-cleared scans, shadowbanned authors, both directions of blocking, and
+  any non-open scan geoprivacy. It reads current public coordinates from
+  `scans.gps_lat_public` / `gps_long_public` and returns the scrubbed
+  `scans.public_location_label`; it does not derive map output from exact GPS or
+  raw semantic location fields.
 - `public.get_explore_notifications(self_id UUID, max_limit INTEGER, before_updated_at TIMESTAMPTZ, before_notification_id UUID)`:
   Returns the owner's in-app Explore activity feed. Like rows are aggregated,
   comment rows are filtered against comment soft deletes and both-direction user
@@ -1126,10 +1127,11 @@ client contract.
 
 These RPCs intentionally avoid raw auth metadata and private scan-only fields.
 Feed/detail/notification reads avoid coordinates entirely, while
-`public.get_explore_map_posts(...)` returns only privacy-safe public coordinates
-(`exact` or `obscured`) derived from the scan's Explore-eligible geoprivacy
-state. Together they allow Explore to reuse safe species visuals such as
-taxonomy and habitat/distribution cards without mounting the private Insight
+`public.get_explore_map_posts(...)` returns only open-geoprivacy public
+coordinates. `coordinate_visibility = obscured` is reserved for open scans whose
+public coordinates are rounded by species-safety or uncertainty rules. Together
+these RPCs allow Explore to reuse safe species visuals such as taxonomy and
+habitat/distribution cards without mounting the private Insight
 `InferenceEngine`.
 
 ### `00007_auto_purge_nonbio_cron.sql` (Lifecycle Sync)

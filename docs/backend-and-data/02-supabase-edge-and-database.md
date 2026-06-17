@@ -680,10 +680,9 @@ The map path is intentionally split into two layers.
 or individual post rows. The current shipped implementation does not store map
 coordinates on `explore_posts`. Instead, `public.scans.gps_lat_public` /
 `gps_long_public` are normalized by the `trg_sync_scan_public_coordinates`
-trigger and backfilled by migration
-`20260428213000_fix_explore_map_public_coordinate_fallback.sql`, which also
-fixed the regression where newly shared scans with only exact coordinates could
-be invisible on the Explore map.
+trigger and read only for open-geoprivacy map results. Obscured and private
+posts can still be visible on non-map Explore surfaces when otherwise eligible,
+but the map does not return them.
 
 Explore activity now supports optional remote APNs delivery on top of the in-app
 feed. The app registers APNs device tokens through `register-push-device`,

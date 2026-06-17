@@ -1567,15 +1567,15 @@ Current response shapes:
 Privacy and filtering rules:
 
 - the map excludes unshared posts, tombstoned scans, scans with no remaining
-  image URLs, private geoprivacy scans, shadowbanned authors, and both
+  image URLs, obscured/private geoprivacy scans, shadowbanned authors, and both
   directions of user blocking
-- `coordinate_visibility` communicates whether a point is exact or approximate
+- `coordinate_visibility` communicates whether an open-geoprivacy point is
+  exact or approximate because species-safety or uncertainty rules rounded the
+  public projection
 - the shipped map projection currently comes from `public.scans.gps_lat_public`
   / `gps_long_public`, not from stored coordinates on `explore_posts`
-- migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql`
-  added the `trg_sync_scan_public_coordinates` trigger plus a server-side
-  fallback in `public.get_explore_map_posts(...)`, preventing newly shared scans
-  with only exact coordinates from disappearing from the map
+- the map returns the stored scrubbed `public_location_label`; it does not derive
+  labels from raw semantic location fields
 
 ### `/get-explore-comments`
 

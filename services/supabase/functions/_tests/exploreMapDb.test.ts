@@ -62,8 +62,16 @@ Deno.test("Explore map DB - newly shared scan with exact coordinates is queryabl
     );
 
     assertExists(insertedScan.rows[0]);
-    assertAlmostEquals(insertedScan.rows[0].gps_lat_public ?? 0, 30.2672, 0.0001);
-    assertAlmostEquals(insertedScan.rows[0].gps_long_public ?? 0, -97.7431, 0.0001);
+    assertAlmostEquals(
+      insertedScan.rows[0].gps_lat_public ?? 0,
+      30.2672,
+      0.0001,
+    );
+    assertAlmostEquals(
+      insertedScan.rows[0].gps_long_public ?? 0,
+      -97.7431,
+      0.0001,
+    );
     assertEquals(insertedScan.rows[0].coordinate_uncertainty_in_meters, 0);
 
     await insertExplorePost(client, {
@@ -95,7 +103,7 @@ Deno.test("Explore map DB - newly shared scan with exact coordinates is queryabl
   });
 });
 
-Deno.test("Explore map DB - obscured geoprivacy projects rounded public coordinates", async () => {
+Deno.test("Explore map DB - obscured geoprivacy is excluded from map results", async () => {
   await withExploreDbTest("exploreMapDb.test", async (client: Client) => {
     const ownerId = crypto.randomUUID();
     const viewerId = crypto.randomUUID();
@@ -133,7 +141,147 @@ Deno.test("Explore map DB - obscured geoprivacy projects rounded public coordina
 
     assertExists(insertedScan.rows[0]);
     assertAlmostEquals(insertedScan.rows[0].gps_lat_public ?? 0, 30.3, 0.0001);
-    assertAlmostEquals(insertedScan.rows[0].gps_long_public ?? 0, -97.7, 0.0001);
+    assertAlmostEquals(
+      insertedScan.rows[0].gps_long_public ?? 0,
+      -97.7,
+      0.0001,
+    );
+    assertEquals(insertedScan.rows[0].coordinate_uncertainty_in_meters, 10000);
+
+    await insertExplorePost(client, {
+      id: postId,
+      userId: ownerId,
+      scanId,
+    });
+
+    const mapRows = await client.queryObject<ExploreMapRow>(
+      `
+        SELECT post_id, latitude, longitude, coordinate_visibility
+        FROM public.get_explore_map_posts(
+          $1,
+          30.6,
+          30.0,
+          -97.4,
+          -98.0,
+          100
+        )
+      `,
+      [viewerId],
+    );
+
+    assertEquals(mapRows.rows.length, 0);
+  });
+});
+
+Deno.test("Explore map DB - private geoprivacy is excluded from map results", async () => {
+  await withExploreDbTest("exploreMapDb.test", async (client: Client) => {
+    const ownerId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    const scanId = crypto.randomUUID();
+    const postId = crypto.randomUUID();
+
+    await insertUser(client, ownerId, "Private Owner");
+    await insertUser(client, viewerId, "Private Viewer");
+    await insertSpecies(client, speciesId, "Rosa privata");
+
+    await insertScan(client, {
+      id: scanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "private",
+      gpsLatPublic: null,
+      gpsLongPublic: null,
+      aiConfidenceScore: 0.88,
+    });
+
+    const insertedScan = await client.queryObject<ScanCoordinateRow>(
+      `
+        SELECT
+          gps_lat_public,
+          gps_long_public,
+          coordinate_uncertainty_in_meters
+        FROM public.scans
+        WHERE id = $1
+      `,
+      [scanId],
+    );
+
+    assertExists(insertedScan.rows[0]);
+    assertEquals(insertedScan.rows[0].gps_lat_public, null);
+    assertEquals(insertedScan.rows[0].gps_long_public, null);
+    assertEquals(insertedScan.rows[0].coordinate_uncertainty_in_meters, null);
+
+    await insertExplorePost(client, {
+      id: postId,
+      userId: ownerId,
+      scanId,
+    });
+
+    const mapRows = await client.queryObject<ExploreMapRow>(
+      `
+        SELECT post_id, latitude, longitude, coordinate_visibility
+        FROM public.get_explore_map_posts(
+          $1,
+          30.6,
+          30.0,
+          -97.4,
+          -98.0,
+          100
+        )
+      `,
+      [viewerId],
+    );
+
+    assertEquals(mapRows.rows.length, 0);
+  });
+});
+
+Deno.test("Explore map DB - protected open geoprivacy uses rounded public coordinates", async () => {
+  await withExploreDbTest("exploreMapDb.test", async (client: Client) => {
+    const ownerId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    const scanId = crypto.randomUUID();
+    const postId = crypto.randomUUID();
+
+    await insertUser(client, ownerId, "Protected Owner");
+    await insertUser(client, viewerId, "Protected Viewer");
+    await insertSpecies(client, speciesId, "Rosa vulnerabilis", "vulnerable");
+
+    await insertScan(client, {
+      id: scanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "open",
+      gpsLatPublic: null,
+      gpsLongPublic: null,
+      aiConfidenceScore: 0.88,
+    });
+
+    const insertedScan = await client.queryObject<ScanCoordinateRow>(
+      `
+        SELECT
+          gps_lat_public,
+          gps_long_public,
+          coordinate_uncertainty_in_meters
+        FROM public.scans
+        WHERE id = $1
+      `,
+      [scanId],
+    );
+
+    assertExists(insertedScan.rows[0]);
+    assertAlmostEquals(insertedScan.rows[0].gps_lat_public ?? 0, 30.3, 0.0001);
+    assertAlmostEquals(
+      insertedScan.rows[0].gps_long_public ?? 0,
+      -97.7,
+      0.0001,
+    );
     assertEquals(insertedScan.rows[0].coordinate_uncertainty_in_meters, 10000);
 
     await insertExplorePost(client, {

@@ -8,7 +8,7 @@ shared UI, Explore, public map data, and public exports.
 | Mode | Owner-facing local scan UI | Public/public-share projection |
 |---|---|---|
 | `open` | Shows location label, elevation, weather, and exact map marker when telemetry exists. | May publish exact public coordinates and a sanitized public location label. |
-| `obscured` | Shows a coarse location label, weather, and a rounded map region with a 10 km uncertainty circle. Elevation is hidden. | Publishes rounded public coordinates and a sanitized public location label with `coordinate_uncertainty_in_meters >= 10000`. |
+| `obscured` | Shows a coarse location label, weather, and a rounded map region with a 10 km uncertainty circle. Elevation is hidden. | Publishes rounded public coordinates and a sanitized public location label with `coordinate_uncertainty_in_meters >= 10000`; Explore Map excludes these posts unless a future explicit per-post override is added. |
 | `private` | Hides location label, elevation, weather, and map from scan-information surfaces. | Clears public coordinates, public uncertainty, and public location labels; private scans are excluded from Explore share/public feeds. |
 
 `users.default_geoprivacy` is the preference source of truth. New scans send the
@@ -64,8 +64,11 @@ without checking the current geoprivacy mode at the UI boundary.
 
 ## Public Boundaries
 
-Explore read RPCs and share-state helpers exclude private scans. Public map
-points read only `gps_lat_public` / `gps_long_public`, never exact coordinates.
+Explore read RPCs and share-state helpers exclude private scans. Public Explore
+Map points are stricter: they include only `open` geoprivacy scans, and read
+only `gps_lat_public` / `gps_long_public`, never exact coordinates. Open scans
+may still render approximate map points when species-safety or uncertainty
+rules round the public projection.
 Global Darwin Core exports include only open public records; personal exports
 may include the user's own exact telemetry when they request their own archive.
 
@@ -74,6 +77,7 @@ surface, use this checklist:
 
 - never read exact GPS for public responses;
 - exclude `geoprivacy = 'private'` from public/shareable result sets;
+- require `geoprivacy = 'open'` for public map result sets;
 - use `public_location_label` only after the DB trigger has scrubbed it;
 - use `gps_lat_public`, `gps_long_public`, and
   `coordinate_uncertainty_in_meters` for map display;
