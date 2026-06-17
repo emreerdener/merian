@@ -63,6 +63,10 @@ TestFlight, App Store, support, and QA.
   free users while still following normal daily scan limits when submitted.
 - Fixed non-biological insight titles so stored taxonomy placeholders now
   display as "Non-biological" instead of "Unknown Subject".
+- Fixed non-biological correction reanalysis so the explanatory prompt no
+  longer remains in the Describe text field as if it were user-entered notes.
+- Fixed reanalysis submissions so Describe text entered for the current
+  analysis is consumed into the submission and cleared from the input afterward.
 - Fixed Needs review smart collections so they only include weak-confidence
   unreviewed scans instead of every scan that happens to have candidates.
 - Fixed Explore posts so shared discoveries keep the selected common name from

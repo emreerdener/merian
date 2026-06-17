@@ -6,12 +6,11 @@ enum NonBiologicalCorrectionReanalysis {
     static let confirmationMessage = "This identification was marked as non-biological. Reanalysis will look for a biological subject using the original capture."
     static let primaryAction = "Reanalyze"
     static let secondaryAction = "Cancel"
-    static let initialDescription = "This identification was marked as non-biological. Reanalyze it as a biological subject using the original capture."
 
     static func refinementEvent(scanId: String) -> AppEvent {
         .triggerRefinement(
             scanId: scanId,
-            initialDescription: initialDescription,
+            initialDescription: nil,
             entryPoint: .nonBiologicalCorrection
         )
     }

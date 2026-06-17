@@ -108,7 +108,7 @@ final class ScansManagerTests: XCTestCase {
         }
 
         XCTAssertEqual(eventScanId, scanId)
-        XCTAssertEqual(initialDescription, NonBiologicalCorrectionReanalysis.initialDescription)
+        XCTAssertNil(initialDescription)
         XCTAssertEqual(entryPoint, .nonBiologicalCorrection)
     }
 

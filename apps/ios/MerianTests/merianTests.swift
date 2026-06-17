@@ -242,13 +242,13 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         viewModel.startRefinementScan(
             from: record,
-            initialDescription: NonBiologicalCorrectionReanalysis.initialDescription,
+            initialDescription: "This should not prefill Describe.",
             entryPoint: .nonBiologicalCorrection
         )
 
         XCTAssertEqual(viewModel.baseRefinementContext?.scanId, record.id)
         XCTAssertEqual(viewModel.baseRefinementContext?.entryPoint, .nonBiologicalCorrection)
-        XCTAssertEqual(viewModel.refinementInitialDescriptionDraft, NonBiologicalCorrectionReanalysis.initialDescription)
+        XCTAssertNil(viewModel.refinementInitialDescriptionDraft)
         XCTAssertEqual(viewModel.requestedCaptureMode, .describe)
         XCTAssertFalse(record.isBiological)
         XCTAssertEqual(record.scientificName, "Inanimate Object")
@@ -342,6 +342,74 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         XCTAssertFalse(viewModel.hasAvailableStagedCaptureSlot)
         XCTAssertFalse(viewModel.shouldShowMediaModeToggle)
+    }
+
+    func testActiveToolbarSubmissionStagesPendingDescribeDraft() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        viewModel.baseRefinementContext = RefinementScanContext(
+            record: LocalScanRecord(
+                speciesId: "species-reanalysis",
+                scientificName: "Danaus plexippus",
+                commonName: "Monarch Butterfly"
+            )
+        )
+        let uiImage = makeUIImage()
+        viewModel.stagedCapture.images = [
+            StagedImage(
+                compressedData: makePNGData(),
+                displayData: makePNGData(color: .systemBlue),
+                uiImage: uiImage,
+                original: IdentifiableImage(image: uiImage)
+            )
+        ]
+
+        XCTAssertTrue(
+            viewModel.stagePendingDescribeDraftForActiveSubmission(
+                ObservationContext(freeText: "Small green subject on concrete")
+            )
+        )
+
+        XCTAssertEqual(viewModel.stagedCapture.observationContexts.count, 1)
+        XCTAssertEqual(
+            viewModel.stagedCapture.observationContexts.first?.context.freeText,
+            "Small green subject on concrete"
+        )
+    }
+
+    func testActiveToolbarSubmissionReplacesExistingStagedDescribeDraft() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        let uiImage = makeUIImage()
+        viewModel.stagedCapture.images = [
+            StagedImage(
+                compressedData: makePNGData(),
+                displayData: makePNGData(color: .systemBlue),
+                uiImage: uiImage,
+                original: IdentifiableImage(image: uiImage)
+            )
+        ]
+        viewModel.stagedCapture.observationContexts = [
+            StagedObservationContext(context: ObservationContext(freeText: "Previous draft"))
+        ]
+
+        XCTAssertTrue(
+            viewModel.stagePendingDescribeDraftForActiveSubmission(
+                ObservationContext(freeText: "Fresh draft for this analysis")
+            )
+        )
+
+        XCTAssertEqual(viewModel.stagedCapture.observationContexts.count, 1)
+        XCTAssertEqual(
+            viewModel.stagedCapture.observationContexts.first?.context.freeText,
+            "Fresh draft for this analysis"
+        )
     }
 
     func testPhotoLibraryPreparedImageRequiresCropAndPresentsCropSheet() {

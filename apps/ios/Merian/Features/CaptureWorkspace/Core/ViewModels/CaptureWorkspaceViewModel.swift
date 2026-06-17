@@ -605,7 +605,9 @@ final class CaptureWorkspaceViewModel {
         self.refinementSubjectId = context.subjectId
         self.baseRefinementContext = context
         let trimmedDescription = initialDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.refinementInitialDescriptionDraft = trimmedDescription?.isEmpty == false ? trimmedDescription : nil
+        self.refinementInitialDescriptionDraft = context.entryPoint == .nonBiologicalCorrection
+            ? nil
+            : (trimmedDescription?.isEmpty == false ? trimmedDescription : nil)
         self.activeSheet = nil
         self.requestedCaptureMode = .describe
 

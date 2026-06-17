@@ -64,6 +64,32 @@ extension CaptureWorkspaceViewModel {
         }
     }
 
+    /// Consumes any live Describe text before the active staged toolbar submits.
+    ///
+    /// The bottom toolbar can submit already-staged media while the Describe page is still
+    /// showing a live text draft. Capture that draft into the staged payload when possible
+    /// so the submitted analysis owns it and the input can reset cleanly afterward.
+    @discardableResult
+    func stagePendingDescribeDraftForActiveSubmission(_ observationContext: ObservationContext) -> Bool {
+        guard !observationContext.isEmpty else { return false }
+
+        var stagedContext = observationContext
+        stagedContext.addedAt = Date()
+
+        if let index = stagedCapture.observationContexts.indices.last {
+            let addedAt = stagedCapture.observationContexts[index].addedAt
+            stagedCapture.observationContexts[index] = StagedObservationContext(
+                context: stagedContext,
+                addedAt: addedAt
+            )
+            return true
+        }
+
+        guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
+        stagedCapture.observationContexts.append(StagedObservationContext(context: stagedContext))
+        return true
+    }
+
     // MARK: - Solo Describe Path (description only, no images)
 
     /// Routes a solo description through the shared non-visual pipeline.

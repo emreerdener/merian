@@ -255,8 +255,7 @@ struct CaptureWorkspaceView: View {
                                 }
                             },
                             onSubmit: { 
-                                viewModel.submitStagedCapture(modelContext: modelContext)
-                                cameraManager.resetZoom()
+                                submitActiveStagedCapture()
                             },
                             onDescriptionTap: { index in stagedDescriptionEditIndex = index }
                         )
@@ -467,6 +466,14 @@ struct CaptureWorkspaceView: View {
     private func dismissCaptureKeyboardAndRestoreChrome() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         restoreBottomChrome(animated: true)
+    }
+
+    private func submitActiveStagedCapture() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        _ = viewModel.stagePendingDescribeDraftForActiveSubmission(observationContext)
+        observationContext = ObservationContext()
+        viewModel.submitStagedCapture(modelContext: modelContext)
+        cameraManager.resetZoom()
     }
 
     private func restoreBottomChrome(animated: Bool) {
