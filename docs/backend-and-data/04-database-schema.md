@@ -449,9 +449,9 @@ The transaction log for every successful identification.
   bounded `[-180, 180]`. Added `NOT VALID` — future inserts/updates validated;
   existing rows not retroactively checked.
 - `gps_lat_public` / `gps_long_public` (Float): Same CHECK constraints as exact
-  columns. These are the privacy-safe public coordinates available to Explore
-  projections. Explore Map reads them only for `open` geoprivacy rows. Migration
-  `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added
+  columns. These are scan-level privacy-safe coordinate projections used as an
+  input to post-owned Explore location projection, not the public map source of
+  truth. Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added
   `derive_public_scan_coordinate(...)` plus the
   `trg_sync_scan_public_coordinates` trigger so inserts/updates automatically
   normalize public coordinates from exact coordinates, geoprivacy, uncertainty,
@@ -773,9 +773,10 @@ Manual-share public feed wrapper around `scans`. Added in migration
   `obscured`, or `private`. The global/user scan geoprivacy seeds the composer,
   but editing a shared post changes only this post-owned value.
 - `public_latitude` / `public_longitude` / `public_coordinate_visibility`
-  (nullable): Post-owned Explore Map projection populated only when
-  `location_sharing = 'open'`. Protected-species and uncertainty rules can store
-  rounded coordinates with `public_coordinate_visibility = 'obscured'`.
+  (nullable): Post-owned spatial projection populated only when
+  `location_sharing = 'open'`. Explore Map and non-owned Nearby matching read
+  these fields rather than scan GPS. Protected-species and uncertainty rules can
+  store rounded coordinates with `public_coordinate_visibility = 'obscured'`.
 - `public_location_label` (TEXT, nullable): Scrubbed post-owned location label.
   `private` posts clear it; `obscured` posts may keep the label but stay off the
   map.
@@ -805,7 +806,8 @@ BioBlitz matching without extracting tags from field notes or comments.
 
 **Current map-coordinate note**: The shipped Explore map reads post-owned
 public coordinates on `explore_posts`. Spatial reads only return posts whose
-`location_sharing` is `open`; `obscured` and `private` posts remain off-map.
+`location_sharing` is `open`; `obscured` and `private` posts remain off-map and
+out of non-owned Nearby matches.
 
 ### `explore_post_likes`
 
@@ -993,8 +995,8 @@ posts.
 
 Migration `20260505120000_add_explore_feed_filters.sql` also added
 `public.haversine_distance_meters(...)`, which the nearby feed uses to
-radius-filter public coordinates without exposing raw scan coordinates to the
-client contract.
+radius-filter post-owned public coordinates without exposing raw scan
+coordinates to the client contract.
 
 - `public.get_explore_feed(self_id UUID, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`:
   The shipped `recent` feed projection. It returns reverse-chronological feed
@@ -1011,8 +1013,9 @@ client contract.
   The shipped `following` feed projection. It returns the same card-shaped rows
   as `get_explore_feed`, but joins `public.user_follows` so only followed
   authors' currently visible posts survive. It preserves all standard Explore
-  filters for unshared, tombstoned, media-less, private-geoprivacy,
-  shadowbanned, blocked, and non-species-backed content. Paging is stable on
+  filters for unshared, tombstoned, media-less, shadowbanned, blocked, and
+  non-species-backed content. Post `location_sharing` controls public location
+  output rather than post visibility. Paging is stable on
   `(shared_at DESC, post_id DESC)`.
 - `public.get_explore_feed_trending(self_id UUID, max_limit INTEGER, before_ranking_value DOUBLE PRECISION, before_shared_at TIMESTAMPTZ, before_post_id UUID)`:
   The shipped `trending` feed projection. It ranks posts by trailing-30-day like
@@ -1020,12 +1023,17 @@ client contract.
   populates `ranking_value` with the recent-like count used for pagination, and
   the cursor is stable on `(ranking_value DESC, shared_at DESC, post_id DESC)`.
 - `public.get_explore_feed_nearby(self_id UUID, target_latitude DOUBLE PRECISION, target_longitude DOUBLE PRECISION, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`:
-  The shipped `nearby` feed projection. It reuses
-  `derive_public_scan_coordinate(...)` semantics rather than exact scan
-  coordinates, filters posts to a roughly 50-mile radius around the viewer, then
-  sorts the surviving rows by `(shared_at DESC, post_id DESC)`. This keeps the
-  client feed feeling like Explore rather than a pure nearest-neighbor list
-  while preserving privacy rules already used by the map.
+  The shipped `nearby` feed projection. It reads
+  `explore_posts.public_latitude` / `public_longitude`, which are populated
+  only from the post's saved `location_sharing` and the protected-species /
+  uncertainty safety rules. Non-owned posts therefore need post-level
+  `location_sharing = 'open'` and a stored public coordinate to match the radius
+  query; `obscured` and `private` posts remain visible in non-spatial Explore
+  feeds but cannot be discovered by Nearby. The RPC filters matches to roughly
+  50 miles around the viewer, then sorts surviving rows by
+  `(shared_at DESC, post_id DESC)`. This keeps the client feed feeling like
+  Explore rather than a pure nearest-neighbor list while preserving the same
+  coordinate boundary used by the map.
 - `public.get_explore_post(self_id UUID, target_post_id UUID)`: Returns the same
   card projection as `get_explore_feed` for a single post. This is used by
   notification taps and future deep-link paths so routing does not depend on the
@@ -1045,8 +1053,10 @@ client contract.
   `species_dictionary.reference_image_url`. `similar_species` is projected
   through `public.public_species_similar_species(...)` so common-name, thumbnail
   fallback, relation ordering, rejection filtering, and optional explanation
-  metadata match `/species-dictionary`. It enforces the same
-  unshared/media/geoprivacy/shadowban/block filters as the feed.
+  metadata match `/species-dictionary`. It enforces the same unshared, media,
+  shadowban, and block filters as the feed. Post `location_sharing` is returned
+  so edit surfaces can hydrate the saved post-level location choice, but it does
+  not hide an otherwise visible detail page.
 - `public.get_species_content_refresh_queue(max_rows INTEGER DEFAULT 100, as_of TIMESTAMPTZ DEFAULT NOW())`:
   Internal service-role queue query over `species_content_provenance`. It
   returns stale or low-confidence species content rows with `species_id`,
@@ -1135,12 +1145,13 @@ client contract.
 
 These RPCs intentionally avoid raw auth metadata and private scan-only fields.
 Feed/detail/notification reads avoid coordinates entirely, while
-`public.get_explore_map_posts(...)` returns only open-geoprivacy public
-coordinates. `coordinate_visibility = obscured` is reserved for open scans whose
-public coordinates are rounded by species-safety or uncertainty rules. Together
-these RPCs allow Explore to reuse safe species visuals such as taxonomy and
-habitat/distribution cards without mounting the private Insight
-`InferenceEngine`.
+`public.get_explore_map_posts(...)` and non-owned Nearby matching read only
+post-owned public coordinates from `explore_posts`. Spatial result sets require
+post-level `location_sharing = 'open'`; `coordinate_visibility = obscured` is
+reserved for open posts whose public coordinates are rounded by species-safety
+or uncertainty rules. Together these RPCs allow Explore to reuse safe species
+visuals such as taxonomy and habitat/distribution cards without mounting the
+private Insight `InferenceEngine`.
 
 ### `00007_auto_purge_nonbio_cron.sql` (Lifecycle Sync)
 

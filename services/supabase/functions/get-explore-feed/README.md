@@ -1,13 +1,18 @@
 # Get Explore Feed
 
-Returns public Explore post cards for the feed tab. The endpoint accepts one `filter` and routes to a dedicated SQL RPC for that mode.
+Returns public Explore post cards for the feed tab. The endpoint accepts one
+`filter` and routes to a dedicated SQL RPC for that mode.
 
 ## Filters
 
-- `recent`: default reverse-chronological feed, backed by `public.get_explore_feed(...)`.
-- `following`: reverse-chronological feed of followed authors' visible posts, backed by `public.get_explore_feed_following(...)`.
-- `trending`: freshness-biased recent-like ranking, backed by `public.get_explore_feed_trending(...)`.
-- `nearby`: location-gated radius feed, backed by `public.get_explore_feed_nearby(...)`.
+- `recent`: default reverse-chronological feed, backed by
+  `public.get_explore_feed(...)`.
+- `following`: reverse-chronological feed of followed authors' visible posts,
+  backed by `public.get_explore_feed_following(...)`.
+- `trending`: freshness-biased recent-like ranking, backed by
+  `public.get_explore_feed_trending(...)`.
+- `nearby`: location-gated radius feed, backed by
+  `public.get_explore_feed_nearby(...)`.
 
 The iOS filter order is `Recent`, `Following`, `Trending`, `Nearby`.
 
@@ -55,6 +60,9 @@ Nearby:
 - `trending` pages on `(ranking_value DESC, shared_at DESC, post_id DESC)`.
 - Cursor fields must be omitted for the first page.
 - `nearby` requires both `latitude` and `longitude`.
+- `nearby` reads post-owned public coordinates from `explore_posts`. For
+  non-owned posts, only saved `location_sharing = "open"` posts with stored
+  public coordinates can match the radius query.
 
 ## Response Hashtags
 
@@ -98,9 +106,12 @@ Every mode excludes:
 - both directions of user blocking
 
 Post `location_sharing` controls public location fields; it does not hide the
-post from feed modes.
+post from non-spatial feed modes. `Nearby` is spatial, so non-owned `obscured`
+and `private` posts do not have public coordinates to match.
 
-`following` additionally requires an active `public.user_follows` row where the requester follows the post author. Following does not reveal hidden profiles or grant access to private scans.
+`following` additionally requires an active `public.user_follows` row where the
+requester follows the post author. Following does not reveal hidden profiles or
+grant access to private scans.
 
 ## Local Verification
 
@@ -111,4 +122,5 @@ deno check services/supabase/functions/get-explore-feed/index.ts
 deno test --allow-env --allow-net services/supabase/functions/_tests/exploreFeedDb.test.ts
 ```
 
-The DB integration tests skip live assertions when the local Supabase Postgres instance is not running at `127.0.0.1:54322`.
+The DB integration tests skip live assertions when the local Supabase Postgres
+instance is not running at `127.0.0.1:54322`.

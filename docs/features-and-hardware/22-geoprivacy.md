@@ -70,8 +70,10 @@ geoprivacy, as long as the post remains otherwise eligible. Public location is
 controlled by `explore_posts.location_sharing`: `private` clears public location
 fields, `obscured` can show a scrubbed label while staying off-map, and `open`
 projects post-owned public map coordinates. Open posts may still render
-approximate map points when species-safety or uncertainty rules round the public
-projection.
+  approximate map points when species-safety or uncertainty rules round the public
+  projection. Nearby uses the same post-owned public coordinate projection for
+  spatial matching, so non-owned `obscured` and `private` posts remain out of
+  Nearby while still being eligible for non-spatial Explore feeds.
 Global Darwin Core exports include only open public records; personal exports
 may include the user's own exact telemetry when they request their own archive.
 
@@ -80,11 +82,13 @@ surface, use this checklist:
 
 - never read exact GPS directly in public read RPCs;
 - keep public Explore post visibility separate from scan geoprivacy;
-- require `explore_posts.location_sharing = 'open'` for public map result sets;
+- require `explore_posts.location_sharing = 'open'` for public spatial result
+  sets such as Explore Map and non-owned Nearby matches;
 - use post-owned `public_location_label` only after the DB trigger has scrubbed
   it;
 - use post-owned `public_latitude`, `public_longitude`, and
-  `public_coordinate_visibility` for Explore Map display;
+  `public_coordinate_visibility` for Explore Map display and Nearby spatial
+  matching;
 - gate local owner-facing text/map rendering through `defaultGeoprivacy`;
 - add a test for private hide and open/obscured restore behavior.
 

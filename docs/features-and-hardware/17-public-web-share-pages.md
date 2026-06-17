@@ -89,7 +89,11 @@ The web page must not render:
 - moderation-only state
 - service-role credentials or Supabase tokens
 
-If Explore geoprivacy changes, the RPC/view contract must be updated before the web UI consumes the new fields.
+The web page must trust the public post projection as-is. Post-level
+`location_sharing` controls whether `public_location_label` is present; the web
+route must not query scan GPS, scan `semantic_location`, or scan geoprivacy to
+reconstruct location. If Explore geoprivacy changes, the RPC/view contract must
+be updated before the web UI consumes the new fields.
 
 ## Sharing Strategy
 

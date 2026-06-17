@@ -260,9 +260,9 @@ can refine promotion policy.
 - [x] Store private source scan/post/user provenance in
       `species_reference_image_merian_sources` without exposing it through
       public species APIs.
-- [x] Mirror source visibility: unshared posts, private geoprivacy, cleared
-      media, tombstoned scans, and shadowbanned authors remove public Merian
-      rows on the next refresh.
+- [x] Mirror source visibility: unshared posts, private backing-scan geoprivacy,
+      cleared media, tombstoned scans, and shadowbanned authors remove public
+      Merian rows on the next refresh.
 - [ ] Add manual review/curation tooling for exceptional promotion, demotion,
       and representative-photo diversity after automated V1 has production data.
 

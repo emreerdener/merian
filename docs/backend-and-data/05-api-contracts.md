@@ -1006,9 +1006,15 @@ mode and already filters out:
 - unshared posts
 - tombstoned scans
 - scans with no remaining image URLs
-- private geoprivacy scans
 - shadowbanned authors
 - both directions of user blocking
+
+Post `location_sharing` controls public location output, not ordinary feed
+visibility. `private` posts can still appear in Recent, Following, Trending,
+profile, hashtag, and detail surfaces, but their public location fields are
+empty. The `nearby` filter is spatial and uses post-owned public coordinates;
+for non-owned posts this means only saved `location_sharing = "open"` posts
+with a stored public coordinate can match the radius query.
 
 Primary request shapes:
 
@@ -1072,8 +1078,10 @@ Validation rules:
 - `before_ranking_value` is rejected for `recent`, `following`, and `nearby`.
 - `trending` is freshness-biased rather than all-time top. The ranking value is
   the post's like activity from the trailing 30 days.
-- `nearby` reuses privacy-safe public coordinates and limits results to roughly
-  50 miles around the supplied viewer location before applying recency sort.
+- `nearby` reads `explore_posts.public_latitude` / `public_longitude` and limits
+  non-owned coordinate-bearing posts to roughly 50 miles around the supplied
+  viewer location before applying recency sort. `obscured` and `private` posts
+  remain visible in non-spatial feeds but do not expose coordinates for Nearby.
 
 `Recent` remains the iOS default for first load and for the Explore-tab unread
 badge refresh path.
@@ -1161,6 +1169,7 @@ Current response shape:
     "species_common_name": "Monarch Butterfly",
     "species_scientific_name": "Danaus plexippus",
     "public_location_label": "Austin, TX",
+    "location_sharing": "open",
     "time_of_day": "afternoon",
     "current_month": 4,
     "weather_condition": "clear",
@@ -1185,9 +1194,11 @@ filters as the main feed:
 - unshared posts are excluded
 - tombstoned scans are excluded
 - scans with no remaining image URLs are excluded
-- private geoprivacy scans are excluded
 - shadowbanned authors are excluded
 - both directions of user blocking are excluded
+
+Post `location_sharing` is returned for edit hydration and controls public
+location fields. It does not hide an otherwise visible detail page.
 
 Request body:
 
@@ -1203,6 +1214,7 @@ Current response shape:
 {
   "data": {
     "post_id": "uuid",
+    "location_sharing": "open",
     "hashtags": ["citybioblitz", "springcount"],
     "species_dictionary_id": "uuid",
     "alternative_common_names": ["Milkweed Butterfly", "Common Tiger"],
@@ -1477,8 +1489,9 @@ Rules:
   together.
 - Pagination is stable on `(shared_at DESC, post_id DESC)`.
 - The endpoint applies the same unshared, tombstoned, missing-media,
-  private-geoprivacy, missing-species, shadowban, and mutual-block filters as
-  the Explore feed.
+  missing-species, shadowban, and mutual-block filters as the Explore feed.
+  Post `location_sharing` controls public location fields, not tagged-post
+  visibility.
 - The backing RPC is `public.get_explore_hashtag_posts(...)`, which reads the
   normalized `(tag, post_id)` edge index from `public.explore_post_hashtags`.
 
@@ -1553,6 +1566,7 @@ Current response shapes:
       "species_common_name": "Monarch Butterfly",
       "species_scientific_name": "Danaus plexippus",
       "public_location_label": "Austin, TX",
+      "location_sharing": "open",
       "time_of_day": "afternoon",
       "current_month": 4,
       "weather_condition": "clear",
@@ -1715,14 +1729,21 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   share uses the scan's current geoprivacy. Valid values are `open`,
   `obscured`, and `private`; legacy `hidden` is treated as `private`.
 - The Explore map reads post-owned public coordinates from `explore_posts`.
-  Only posts whose saved `location_sharing` is `open` can appear on the map.
+  Only posts whose saved `location_sharing` is `open` can appear on the map or
+  match non-owned Nearby radius queries. Protected-species and uncertainty
+  rules can still store rounded public coordinates with
+  `coordinate_visibility = "obscured"`.
+- Updating the user's global/default geoprivacy or the backing scan's
+  `geoprivacy` later does not overwrite an existing Explore post's explicit
+  `location_sharing` choice.
 
 ### `/update-explore-field-notes`
 
-Updates the public field-notes copy on an already-shared Explore post owned by
-the current viewer. This endpoint does not mutate the private local notes stored
-in SwiftData; iOS continues to treat `FieldNotesRepository` as the local source
-of truth.
+Updates public share options on an already-shared Explore post owned by the
+current viewer. Despite the legacy endpoint name, this includes field notes,
+hashtags, the public common-name snapshot, and post-level `location_sharing`.
+This endpoint does not mutate the private local notes stored in SwiftData; iOS
+continues to treat `FieldNotesRepository` as the local source of truth.
 
 Request body:
 
@@ -1766,6 +1787,8 @@ Rules:
 - `location_sharing`, when provided, updates only this Explore post. Valid
   values are `open`, `obscured`, and `private`; legacy `hidden` is treated as
   `private`.
+- Changing `location_sharing` reprojects only the post-owned public location
+  fields. It does not mutate `scans.geoprivacy` or the user's global default.
 - The update is scoped by `explore_posts.id`, `explore_posts.user_id`, and
   `unshared_at IS NULL`; non-owned or unshared posts return 404.
 
@@ -1855,7 +1878,8 @@ Current response shape:
   "data": {
     "scan_id": "uuid",
     "post_id": "uuid",
-    "shared_at": "2026-04-29T22:18:03.000Z"
+    "shared_at": "2026-04-29T22:18:03.000Z",
+    "location_sharing": "obscured"
   }
 }
 ```
@@ -1863,6 +1887,11 @@ Current response shape:
 Behavior notes:
 
 - the lookup is owner-only: it reads only scans where `scans.user_id = self_id`
+- when a live Explore post exists, `location_sharing` is the post-owned value
+  used to hydrate share/edit options
+- when no live post exists, `location_sharing` falls back to the scan's current
+  geoprivacy so a new share composer can seed the default option
+- the endpoint does not mutate scan or post geoprivacy
 - if the scan still has an active Explore post and is still publicly visible,
   `post_id` and `shared_at` are returned
 - if the scan exists but the Explore post was unshared or the scan is no longer
@@ -3223,8 +3252,12 @@ Manual service-role calls may also include:
 
 1. Calls `public.refresh_merian_reference_images(...)` with the service role.
 2. The SQL helper selects visible Explore posts only: shared, not unshared,
-   non-tombstoned, media present, non-private geoprivacy, non-shadowbanned
-   author, and resolved species present.
+   non-tombstoned, media present, non-private backing scan geoprivacy,
+   non-shadowbanned author, and resolved species present. This species-reference
+   promotion gate is stricter than ordinary Explore visibility; post-level
+   `private` location sharing can keep the post visible while omitting public
+   location, but private backing scans are not promoted into Merian reference
+   imagery.
 3. It unnests all non-empty `scans.image_storage_urls`, requires
    `image_quality_score >= 80` and `ai_confidence_score >= 0.95` by default
    unless `confirmed_species_id` is present, dedupes by

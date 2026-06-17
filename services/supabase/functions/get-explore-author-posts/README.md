@@ -1,6 +1,7 @@
 # Get Explore Author Posts
 
-Returns the paginated published-scan library for one Explore author. This endpoint powers the full library mode inside `ExploreAuthorProfileSheet`.
+Returns the paginated published-scan library for one Explore author. This
+endpoint powers the full library mode inside `ExploreAuthorProfileSheet`.
 
 ## Request
 
@@ -26,8 +27,10 @@ Follow-up page:
 
 - `author_user_id` is required and must be a UUID.
 - `limit` is optional, defaults to `30`, and is capped at `100`.
-- `before_shared_at` and `before_post_id` must be omitted together or supplied together.
-- Authentication is resolved by `withEdgeHandler`; the request body cannot choose `self_id`.
+- `before_shared_at` and `before_post_id` must be omitted together or supplied
+  together.
+- Authentication is resolved by `withEdgeHandler`; the request body cannot
+  choose `self_id`.
 
 ## Response
 
@@ -49,6 +52,7 @@ The response is the same card-shaped Explore post projection used by the feed:
       "species_common_name": "River Birch",
       "species_scientific_name": "Betula nigra",
       "public_location_label": "Austin, TX",
+      "location_sharing": "open",
       "time_of_day": "day",
       "current_month": 5,
       "weather_condition": "clear",
@@ -63,7 +67,8 @@ The response is the same card-shaped Explore post projection used by the feed:
 }
 ```
 
-The backing RPC is `public.get_explore_author_posts(self_id, target_author_user_id, max_limit, before_shared_at, before_post_id)`.
+The backing RPC is
+`public.get_explore_author_posts(self_id, target_author_user_id, max_limit, before_shared_at, before_post_id)`.
 The Edge function then batches `public.explore_post_hashtags` by the returned
 post IDs so library cards keep the same `hashtags` array as feed cards.
 
@@ -84,7 +89,8 @@ The iOS cursor stores the last row's `shared_at` and `post_id` as:
 - `before_shared_at`
 - `before_post_id`
 
-This keeps pagination stable when newer posts are inserted above the current window.
+This keeps pagination stable when newer posts are inserted above the current
+window.
 
 ## Visibility Rules
 
@@ -109,4 +115,5 @@ deno check services/supabase/functions/get-explore-author-posts/index.ts
 deno test --allow-env --allow-net services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
 ```
 
-The DB integration tests skip live assertions when the local Supabase Postgres instance is not running at `127.0.0.1:54322`.
+The DB integration tests skip live assertions when the local Supabase Postgres
+instance is not running at `127.0.0.1:54322`.

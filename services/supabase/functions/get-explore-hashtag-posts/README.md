@@ -33,8 +33,8 @@ Follow-up page:
 
 ## Response
 
-The response is the feed-card Explore post projection with `ranking_value = null`
-and hydrated hashtags:
+The response is the feed-card Explore post projection with
+`ranking_value = null` and hydrated hashtags:
 
 ```json
 {
@@ -52,6 +52,7 @@ and hydrated hashtags:
       "species_common_name": "River Birch",
       "species_scientific_name": "Betula nigra",
       "public_location_label": "Austin, TX",
+      "location_sharing": "open",
       "like_count": 8,
       "comment_count": 1,
       "viewer_has_liked": false,
@@ -78,8 +79,8 @@ Clients preserve `author_name` for logged-in display labels and render
   blocking. Post `location_sharing` controls public location fields; it does not
   hide tagged posts.
 - The source lookup is `public.explore_post_hashtags(tag, post_id)`. Future
-  event and BioBlitz matching should reuse normalized tag edges rather than parse
-  public notes.
+  event and BioBlitz matching should reuse normalized tag edges rather than
+  parse public notes.
 
 ## Local Verification
 

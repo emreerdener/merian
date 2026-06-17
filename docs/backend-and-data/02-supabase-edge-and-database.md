@@ -528,9 +528,12 @@ Key rules:
   remain in the private
   `species_reference_image_merian_sources` table along with the private
   confidence/provenance snapshot used for promotion.
-- If an Explore post is unshared, media is cleared, geoprivacy becomes private,
-  the scan is tombstoned, or the author is shadowbanned, the next refresh
-  removes the corresponding Merian public reference image.
+- If an Explore post is unshared, media is cleared, the source scan geoprivacy
+  becomes private, the scan is tombstoned, or the author is shadowbanned, the
+  next refresh removes the corresponding Merian public reference image. This
+  reference-image promotion gate is stricter than ordinary Explore visibility:
+  a post-level `private` location setting can still leave the post visible, but
+  private backing scans are not promoted into species reference imagery.
 
 ## The Unified Multi-Modal Inference Node (`identify-multimodal`)
 
@@ -649,9 +652,10 @@ contract:
   plus `(shared_at, post_id)` tie-breakers and a
   `(ranking_value, shared_at, post_id)` cursor
 - `nearby`: a location-gated feed backed by
-  `public.get_explore_feed_nearby(...)`, requiring viewer coordinates, reusing
-  the same privacy-safe public coordinate rules as the Explore map, filtering to
-  a roughly 50-mile radius, and then sorting the resulting posts by recency
+  `public.get_explore_feed_nearby(...)`, requiring viewer coordinates, reading
+  post-owned public coordinates from `explore_posts.public_latitude` /
+  `public_longitude`, filtering non-owned coordinate-bearing posts to a roughly
+  50-mile radius, and then sorting the resulting posts by recency
 
 Explore hashtags are normalized public metadata, not parsed captions. Publishing
 through `share-scan-to-explore` replaces up to five
@@ -683,7 +687,10 @@ map fields when that value is `open`. `obscured` and `private` posts can still
 be visible on non-map Explore surfaces when otherwise eligible, but the map does
 not return them. Protected-species and coordinate-uncertainty rules can still
 downgrade an `open` post to rounded public coordinates with
-`coordinate_visibility = 'obscured'`.
+`coordinate_visibility = 'obscured'`. The Nearby feed uses the same stored
+post-owned public coordinates for spatial matching, so non-owned `obscured` and
+`private` posts do not appear through Nearby even though they can appear in
+Recent, Following, Trending, profile, hashtag, and detail reads.
 
 Explore activity now supports optional remote APNs delivery on top of the in-app
 feed. The app registers APNs device tokens through `register-push-device`,

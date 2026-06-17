@@ -3,8 +3,8 @@
 Internal cron worker that promotes high-quality, currently published Explore
 post media into `species_reference_images` with `source = "merian"`.
 
-The worker is service-role only. `verify_jwt = false` is intentional so
-`pg_net` can call it; the function validates
+The worker is service-role only. `verify_jwt = false` is intentional so `pg_net`
+can call it; the function validates
 `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` with a timing-safe compare.
 
 ## Request
@@ -28,21 +28,24 @@ All fields are optional:
 ## Behavior
 
 - Considers only visible Explore posts: shared, not unshared, non-tombstoned,
-  media present, non-private geoprivacy, non-shadowbanned author, and resolved
-  species present.
+  media present, non-private backing scan geoprivacy, non-shadowbanned author,
+  and resolved species present. This promotion gate is stricter than ordinary
+  Explore post visibility: a post-level `private` location setting can keep the
+  post visible without public location, but private backing scans are not
+  promoted into Merian species reference imagery.
 - Uses `COALESCE(scans.confirmed_species_id, scans.species_id)`.
 - Unnests all non-empty `scans.image_storage_urls`.
-- Requires `image_quality_score >= 80` and either
-  `ai_confidence_score >= 0.95` or a non-null `confirmed_species_id` by default.
+- Requires `image_quality_score >= 80` and either `ai_confidence_score >= 0.95`
+  or a non-null `confirmed_species_id` by default.
 - Dedupes by `(species_id, image_url)`, preferring confirmed-species provenance,
   higher confidence, higher quality score, and then newer `shared_at`.
 - Promotes up to 8 Merian images per species by default.
 - Writes public rows with:
   - `source = "merian"`
   - `license = "Used with permission via Merian"`
-  - `attribution = users.public_author_name`
-    (`public_username` remains the handle and is not used as media attribution
-    unless the user's default/alias display label is the username)
+  - `attribution = users.public_author_name` (`public_username` remains the
+    handle and is not used as media attribution unless the user's default/alias
+    display label is the username)
 - Removes Merian public rows when their source post/media is no longer eligible.
 - Keeps source scan/post/user provenance in
   `species_reference_image_merian_sources`, which has no anon/authenticated RLS

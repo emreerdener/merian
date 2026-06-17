@@ -63,14 +63,14 @@ The Explore feed and map shell are now live. The current shipped implementation 
 
 - `ExploreView` uses a segmented `Feed` / `Map` toolbar control plus a horizontally paged shell. While the map tab is active, the outer pager swipe is intentionally disabled so map pans win over parent horizontal gestures.
 - `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction. At broad zooms, individual posts still use simple indicator dots; at close zooms, the shipped client upgrades them into circular scan thumbnails when the visible result set is small enough.
-- Publication state and post geoprivacy live on `explore_posts`. Spatial reads use post-owned `public_latitude` / `public_longitude` through `public.get_explore_map_posts(...)` and the `get-explore-map-points` edge function, and the map returns only posts whose saved `location_sharing` is `open`.
+- Publication state and post geoprivacy live on `explore_posts`. Spatial reads use post-owned `public_latitude` / `public_longitude`; Explore Map reads them through `public.get_explore_map_posts(...)` and `get-explore-map-points`, and Nearby uses the same stored projection for radius matching. Non-owned spatial results require saved `location_sharing = 'open'`.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` so newly shared scans with exact coordinates are normalized/backfilled correctly before map reads.
 - `ExplorePostStore` now owns shared Explore post state across feed, map, detail, comments, and notification-driven navigation, while `ExploreFeedViewModel` keeps feed-specific UI and pagination state.
 - The feed tab now ships a filter row with `Recent`, `Following`, `Trending`, and `Nearby`.
 - `Recent` remains the default mode and still uses the canonical `(shared_at, post_id)` cursor.
 - `Following` is an asymmetric-follow feed backed by followed authors' visible Explore posts. It uses the same `(shared_at, post_id)` cursor as `Recent` and does not change `Recent`, `Trending`, `Nearby`, or map results.
 - `Trending` is freshness-biased rather than all-time top. It uses recent like activity from the trailing 30 days and paginates on `(ranking_value, shared_at, post_id)`.
-- `Nearby` requires viewer location, reuses the same privacy-safe public coordinate rules as the map, filters to a roughly 50-mile radius, and then sorts the surviving posts by recency rather than raw distance.
+- `Nearby` requires viewer location, reads the same post-owned public coordinates as the map, filters non-owned coordinate-bearing posts to a roughly 50-mile radius, and then sorts the surviving posts by recency rather than raw distance.
 - The Explore-tab unread badge and "last seen" bookkeeping remain tied to the `Recent` feed only so browsing alternate modes does not mutate recency tracking.
 
 ## Public Author Profile Extension (2026-05-11)
@@ -337,7 +337,7 @@ Shipped normalized tag edges:
 Current shipped note:
 
 - Explore posts store post-level `location_sharing` with `open`, `obscured`, or `private`.
-- Spatial reads use post-owned `public_latitude` / `public_longitude` fields through `public.get_explore_map_posts(...)`, and the map RPC returns only rows whose saved `location_sharing` is `open`.
+- Spatial reads use post-owned `public_latitude` / `public_longitude` fields. The map RPC returns only rows whose saved `location_sharing` is `open`, and Nearby uses the same stored coordinates for non-owned radius matching.
 - The global/scan geoprivacy setting seeds the share composer, but editing a shared post changes only that post's saved location setting.
 
 - `public_latitude DOUBLE PRECISION NULL`
@@ -549,7 +549,7 @@ Product principle:
 Current backend note:
 
 - `explore_posts` remains the publication state model.
-- The shipped map projection comes from post-owned `explore_posts.public_latitude` / `public_longitude`, joined through `public.get_explore_map_posts(...)`. The map RPC returns only posts whose saved `location_sharing` is `open`.
+- The shipped map projection comes from post-owned `explore_posts.public_latitude` / `public_longitude`, joined through `public.get_explore_map_posts(...)`. The map RPC returns only posts whose saved `location_sharing` is `open`; Nearby uses the same stored public coordinate fields for non-owned radius matching.
 
 ### Why Merian Can Beat A Basic Pin Map
 
@@ -638,15 +638,17 @@ Current approach:
 - Protected-species and uncertainty rules can round an `open` post into a stable coarse public cell with `public_coordinate_visibility = 'obscured'`.
 - `public.get_explore_map_posts(...)` reads the stored post public coordinate fields and does not derive map output from exact GPS at read time.
 
-Why this shipped scan-layer approach works:
+Why this shipped post-layer approach works:
 
 - Repeated re-jittering creates privacy leakage over multiple requests
 - Stable points make the map feel consistent when users pan away and back
-- The fallback path fixed the regression where newly shared exact-coordinate scans could exist in Explore but remain invisible on the map
+- The projection path keeps newly shared or edited exact-coordinate posts visible on spatial surfaces only when that post's saved location setting allows it
 
-Future refinement:
+Implementation guardrail:
 
-- If Explore later needs a fully post-owned spatial projection for moderation, archival, or ranking reasons, we can add stored public coordinates to `explore_posts` without changing the current client contract.
+- Do not reintroduce map or Nearby read-time projection from exact scan GPS.
+  Public spatial reads should consume the stored post-owned public coordinate
+  fields.
 
 ### Backend Query Model
 
@@ -725,7 +727,8 @@ Implementation notes:
 
 - Broad zooms should return cluster rows rather than individual posts
 - Close zooms should return individual posts
-- The endpoint should keep the same blocking, shadowban, media-availability, and `private` geoprivacy exclusions as `get-explore-feed`
+- The endpoint should keep the same blocking, shadowban, media-availability, missing-species, and unshared-post exclusions as `get-explore-feed`
+- The endpoint should require post-level `location_sharing = 'open'` and stored post-owned public coordinates for map rows
 - The endpoint should enforce a hard row cap to prevent pathological city-scale payloads
 
 Clustering strategy:
@@ -957,7 +960,7 @@ Client behavior:
 ### Phase 6: Explore Map
 
 - Add `get-explore-map-points`
-- Normalize privacy-safe public coordinates on `scans` through `trg_sync_scan_public_coordinates` and `public.get_explore_map_posts(...)`
+- Normalize privacy-safe spatial output through post-owned `explore_posts.public_latitude` / `public_longitude` fields and `public.get_explore_map_posts(...)`
 - Add cluster and point rendering in `ExploreMapView`
 - Add a preview-card selection model that routes into `ExplorePostDetailView`
 - Reuse the existing Explore tab shell; while the map tab is active, disable outer pager swipe so map panning wins over parent gestures
@@ -997,7 +1000,8 @@ When the public species-page project exists:
 - Close zoom levels can upgrade individual points into thumbnail-backed markers without changing the selection flow.
 - Tapping a map point opens a compact preview card before opening full detail.
 - Tapping a map preview card opens the same public Explore detail page used by feed posts.
-- `obscured` posts render only with privacy-safe public coordinates derived server-side from scan geoprivacy rules.
+- `obscured` posts can render scrubbed public location text on feed/detail surfaces, but stay off spatial map and non-owned Nearby results.
+- `open` posts with protected-species or uncertainty safety rules render with rounded post-owned public coordinates and `coordinate_visibility = 'obscured'`.
 - The bell icon shows an unread count and opens an in-app notifications sheet for likes, comments, reactions, and follows.
 - The bell unread count is refreshed on foreground, on a lightweight fallback poll, and by a Supabase realtime subscription to the viewer's notification rows.
 - Users can opt into remote Explore activity pushes separately from discovery-result alerts.
