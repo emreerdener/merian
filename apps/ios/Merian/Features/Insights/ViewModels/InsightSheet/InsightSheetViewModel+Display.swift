@@ -138,16 +138,17 @@ extension InsightSheetViewModel {
 
     var canReviewAlternatives: Bool {
         guard queuedContext == nil else { return false }
-        guard let speciesData = inferenceEngine?.speciesData else { return false }
-        return !(speciesData.candidates ?? []).isEmpty &&
-            !speciesData.alternativesExhausted &&
-            !speciesData.isFlagged
+        return !reviewAlternativeCandidates.isEmpty
+    }
+
+    var reviewAlternativeCandidates: [IdentificationCandidate] {
+        guard queuedContext == nil else { return [] }
+        return CandidateReviewVisibilityPolicy.visibleCandidates(for: inferenceEngine?.speciesData)
     }
 
     var canConfirm: Bool {
         guard queuedContext == nil else { return false }
-        guard let speciesData = inferenceEngine?.speciesData else { return false }
-        return !speciesData.userConfirmedIdentification && speciesData.userIdentificationOverride == nil && !speciesData.isFlagged
+        return !reviewAlternativeCandidates.isEmpty
     }
 
     var canShareToExplore: Bool {

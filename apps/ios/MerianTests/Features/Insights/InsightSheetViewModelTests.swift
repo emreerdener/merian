@@ -95,6 +95,68 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.resolvedHeaderTitle == "Non-biological")
     }
 
+    @Test func testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "strong_hidden_candidates",
+            commonName: "Genista Broom Moth",
+            scientificName: "Uresiphita reversalis",
+            insightData: InsightData(aiReasoning: "A strong identification.", hazardType: "none"),
+            confidenceScore: 0.96,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild",
+            inferenceTier: "flash",
+            candidates: [
+                IdentificationCandidate(
+                    scientificName: "Pieris rapae",
+                    commonName: "Cabbage White",
+                    confidenceScore: 0.70
+                )
+            ]
+        )
+        viewModel.inferenceEngine = engine
+        viewModel.activeLocalRecordId = "strong_hidden_candidates"
+
+        #expect(viewModel.canConfirm == false)
+        #expect(viewModel.canReviewAlternatives == false)
+        #expect(viewModel.canReanalyze == true)
+        #expect(viewModel.isAlreadyFlagged == false)
+    }
+
+    @Test func testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "strong_competitive_candidates",
+            commonName: "Genista Broom Moth",
+            scientificName: "Uresiphita reversalis",
+            insightData: InsightData(aiReasoning: "A competitive alternative exists.", hazardType: "none"),
+            confidenceScore: 0.96,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild",
+            inferenceTier: "flash",
+            candidates: [
+                IdentificationCandidate(
+                    scientificName: "Pieris rapae",
+                    commonName: "Cabbage White",
+                    confidenceScore: 0.82
+                )
+            ]
+        )
+        viewModel.inferenceEngine = engine
+        viewModel.activeLocalRecordId = "strong_competitive_candidates"
+
+        #expect(viewModel.canConfirm == true)
+        #expect(viewModel.canReviewAlternatives == true)
+        #expect(viewModel.canReanalyze == true)
+        #expect(viewModel.isAlreadyFlagged == false)
+    }
+
     @Test func testFetchLocalRecord() async throws {
         // Validation that the viewmodel gracefully pulls state and assigns local memory
         let ctx = try createIsolatedContext()

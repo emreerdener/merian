@@ -124,6 +124,113 @@ struct SmartCollectionTests {
         #expect(!suggestions.map(\.title).contains("Needs review"))
     }
 
+    @Test("Needs review includes non-strong identifications even without competitive alternatives")
+    func testNeedsReviewIncludesNonStrongIdentifications() throws {
+        let candidates = try encodedCandidates(confidenceScores: [0.70])
+        let scans = [
+            try makeScan(
+                name: "Possible Flash With Weak Alternative",
+                confidenceScore: 0.90,
+                candidatesData: candidates,
+                inferenceTier: "flash",
+                timestamp: referenceDate
+            ),
+            try makeScan(
+                name: "Possible Flash Without Alternatives",
+                confidenceScore: 0.90,
+                inferenceTier: "flash",
+                timestamp: referenceDate.addingTimeInterval(-1)
+            )
+        ]
+
+        let suggestions = SmartCollectionSuggester.suggestions(
+            from: scans,
+            existingCollections: [],
+            referenceDate: referenceDate
+        )
+        let snapshot = try #require(suggestions.first { $0.title == "Needs review" })
+
+        #expect(snapshot.count == 2)
+    }
+
+    @Test("Needs review includes strong identifications only when an alternative is competitive")
+    func testNeedsReviewIncludesStrongCompetitiveAlternatives() throws {
+        let competitiveCandidates = try encodedCandidates(confidenceScores: [0.82])
+        let weakCandidates = try encodedCandidates(confidenceScores: [0.70])
+        let scans = [
+            try makeScan(
+                name: "Competitive Flash 1",
+                confidenceScore: 0.96,
+                candidatesData: competitiveCandidates,
+                inferenceTier: "flash",
+                timestamp: referenceDate
+            ),
+            try makeScan(
+                name: "Competitive Flash 2",
+                confidenceScore: 0.96,
+                candidatesData: competitiveCandidates,
+                inferenceTier: "flash",
+                timestamp: referenceDate.addingTimeInterval(-1)
+            ),
+            try makeScan(
+                name: "Weak Flash",
+                confidenceScore: 0.96,
+                candidatesData: weakCandidates,
+                inferenceTier: "flash",
+                timestamp: referenceDate.addingTimeInterval(-2)
+            )
+        ]
+
+        let suggestions = SmartCollectionSuggester.suggestions(
+            from: scans,
+            existingCollections: [],
+            referenceDate: referenceDate
+        )
+        let snapshot = try #require(suggestions.first { $0.title == "Needs review" })
+
+        #expect(snapshot.count == 2)
+        #expect(snapshot.scans.allSatisfy { $0.commonName.hasPrefix("Competitive Flash") })
+    }
+
+    @Test("Needs review suppresses reviewed or flagged scans")
+    func testNeedsReviewSuppressesReviewedStates() throws {
+        let candidates = try encodedCandidates(confidenceScores: [0.82])
+        let scans = [
+            try makeScan(
+                name: "Confirmed Flash",
+                confidenceScore: 0.90,
+                candidatesData: candidates,
+                userConfirmedIdentification: true,
+                inferenceTier: "flash",
+                timestamp: referenceDate
+            ),
+            try makeScan(
+                name: "Overridden Flash",
+                confidenceScore: 0.90,
+                candidatesData: candidates,
+                userIdentificationOverride: "Danaus plexippus",
+                inferenceTier: "flash",
+                timestamp: referenceDate.addingTimeInterval(-1)
+            ),
+            try makeScan(
+                name: "Flagged Flash",
+                confidenceScore: 0.90,
+                candidatesData: candidates,
+                isFlagged: true,
+                inferenceTier: "flash",
+                timestamp: referenceDate.addingTimeInterval(-2)
+            )
+        ]
+
+        let suggestions = SmartCollectionSuggester.suggestions(
+            from: scans,
+            existingCollections: [],
+            referenceDate: referenceDate
+        )
+
+        #expect(!suggestions.map(\.title).contains("Needs review"))
+    }
+
     @Test("Shared scans emit a smart collection and respect duplicate suppression")
     func testSharedScansEmitSmartCollection() throws {
         let sharedScan = try makeScan(name: "Shared Oak", timestamp: referenceDate)
@@ -209,7 +316,11 @@ struct SmartCollectionTests {
         hazardType: String = "none",
         confidenceScore: Double = 0.995,
         candidatesData: Data? = nil,
+        userIdentificationOverride: String? = nil,
+        userConfirmedIdentification: Bool = false,
+        isFlagged: Bool = false,
         userReviewState: UserReviewState = .unreviewed,
+        inferenceTier: String = "pro",
         timestamp: Date
     ) throws -> LocalScanRecord {
         let record = LocalScanRecord(
@@ -229,10 +340,23 @@ struct SmartCollectionTests {
             taxonomyClass: taxonomyClass,
             locationName: locationName,
             candidatesData: candidatesData,
-            inferenceTier: "pro",
+            inferenceTier: inferenceTier,
+            userIdentificationOverride: userIdentificationOverride,
+            userConfirmedIdentification: userConfirmedIdentification,
+            isFlagged: isFlagged,
             userReviewStateRaw: userReviewState.rawValue
         )
         context.insert(record)
         return record
+    }
+
+    private func encodedCandidates(confidenceScores: [Double]) throws -> Data {
+        let candidates = confidenceScores.enumerated().map { index, confidenceScore in
+            IdentificationCandidate(
+                scientificName: "Candidate\(index) testii",
+                confidenceScore: confidenceScore
+            )
+        }
+        return try JSONEncoder().encode(candidates)
     }
 }

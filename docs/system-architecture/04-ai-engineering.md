@@ -584,8 +584,9 @@ or audio attached:
   `MerianConfig.flashConfidence` and `MerianConfig.proConfidence`. The
   diagnostic trigger (0.99 for both tiers) is intentionally above the `strong`
   threshold — candidates are stripped only when the model is effectively
-  certain, ensuring every Strong, Possible, and Weak match scan reaches the
-  client with the full candidate list as an escape hatch.
+  certain, so Possible, Weak, and Strong scans below `0.99` can still persist
+  candidate alternatives as an escape hatch. Client display remains gated by
+  `CandidateReviewVisibilityPolicy`.
   - **Similar species**: The enrichment path fetches or generates
     `similar_species` when validated lookalikes are not already cached in the
     database. The Swift client renders those entries with the stable "Similar
@@ -601,28 +602,23 @@ or audio attached:
     model is not asked to conditionally self-suppress (which was unreliable).
     Candidates are persisted per-scan to `public.scans.candidates` (JSONB) and
     on-device to `LocalScanRecord.candidatesData` (Data blob,
-    `MerianSchemaV28`). `CandidatesCard` renders the list in `BiologicalView`
-    when `candidates.count >= 2`.
+    `MerianSchemaV28`). Persisted candidates do not automatically render UI:
+    the iOS client filters them through `CandidateReviewVisibilityPolicy`.
+    Candidate-review UI appears when the primary confidence is below the tier's
+    Strong threshold, or when a Strong primary has a top candidate with
+    `confidenceScore >= 0.80` within `0.15` of the primary confidence. The same
+    thresholds feed the Needs review smart collection. Baseline guards suppress
+    candidate review for unknown, non-biological, human, confirmed, overridden,
+    flagged, and alternatives-exhausted scans.
   - **User identification review** (`MerianSchemaV29`): Users can confirm or
-    override the AI's identification from `CandidatesCard`. The card has two
-    distinct pending-state layouts depending on whether the model produced
-    candidates:
-    - **With candidates** (`candidates.count >= 2`): Two buttons — **"Yes,
-      correct"** (confirms AI result) and **"Not sure"** (expands the candidate
-      list). After expanding, the user taps a candidate to trigger a
-      confirmation dialog, then `applyIdentificationOverride`. An "Actually, the
-      AI is correct" fallback button collapses the list and confirms.
-    - **Without candidates** (`candidates.isEmpty`, card shown because
-      `hasLowConfidence`): Two buttons — **"Yes, correct"** (confirms AI result)
-      and **"No, incorrect"** (routes directly to the flag/report sheet via the
-      `onFlagIssue` callback wired in `BiologicalView`). This path exists
-      because there are no alternatives to offer; the flag flow is the
-      appropriate escape hatch so the user can indicate what they think the
-      correct identification is.
-    - `onFlagIssue: (() -> Void)?` is an optional callback on `CandidatesCard`.
-      `BiologicalView` sets it to `{ viewModel.isFlagIssuePresented = true }`.
-      The parameter is optional so `CandidatesCard` can be placed in other
-      contexts without requiring a flag route.
+    override the AI's identification from the policy-visible `CandidatesCard` or
+    the confidence explanation sheet. The pending card shows a direct
+    confirmation affordance plus a Review alternatives path that opens
+    `CandidateSwipeModal`; the swipe modal owns stack/grid review, skip/reject,
+    candidate confirmation, exhausted-state recovery, optional reanalysis, and
+    flag routing. The scan insight top menu uses the same policy-filtered
+    candidate list for `Confirm species` and `Review alternatives`, while
+    `Reanalyze species` and `Flag for review` remain separately gated.
     - `InferenceEngine` exposes three methods for this flow:
     - `applyIdentificationOverride(scientificName:modelContext:)`: Immediately
       wipes all stale contextual fields (`wikipediaOverview`,
@@ -642,13 +638,13 @@ or audio attached:
       avoiding corrupted view states. Persists to `LocalScanRecord` via
       `updateScanWithOverride` (passing `.aiConfirmed`), and syncs all three
       review variables to `public.scans` via `syncIdentificationReviewToCloud`.
-    - `resetIdentificationReview(modelContext:)`: Clears both
-      `userIdentificationOverride` and `userConfirmedIdentification`, reverts
-      `speciesData.scientificName` to `aiScientificName`, persists locally
-      (passing `.unreviewed`), zeros both cloud columns via
-      `syncIdentificationReviewToCloud`, and re-hydrates the AI's original
-      species data via `fetchAndPatchOverrideData`. Called by both Undo (from
-      `.overridden`) and Change (from `.confirmed`).
+    - `resetIdentificationReview(modelContext:)`: Clears
+      `userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`,
+      and `alternativesExhausted`, reverts `speciesData.scientificName` to
+      `aiScientificName`, persists locally (passing `.unreviewed`), zeros the
+      review columns via `syncIdentificationReviewToCloud`, and re-hydrates the
+      AI's original species data via `fetchAndPatchOverrideData`. Called by
+      Undo, Change, and the alternatives-exhausted reset path.
     - `fetchAndPatchOverrideData(scientificName:scanId:modelContext:restoringAiReasoning:)`:
       Queries `species_dictionary` via a PostgREST array select with `.limit(1)`
       and takes `.first` (the Supabase Swift SDK does not provide a

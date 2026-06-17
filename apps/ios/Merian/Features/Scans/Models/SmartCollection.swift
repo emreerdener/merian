@@ -289,9 +289,22 @@ enum SmartCollectionSuggester {
 
     private static func isReviewCandidate(_ scan: LocalScanRecord) -> Bool {
         guard scan.userReviewState == .unreviewed else { return false }
-        guard let confidenceScore = scan.confidenceScore else { return false }
-        let threshold = MerianConfig.confidenceBands(forInferenceTier: scan.inferenceTier).possible
-        return confidenceScore < threshold
+        return CandidateReviewVisibilityPolicy.shouldSurfaceForReviewCollection(
+            primaryConfidence: scan.confidenceScore,
+            inferenceTier: scan.inferenceTier,
+            candidates: decodedCandidates(from: scan.candidatesData),
+            isBiological: scan.isBiological,
+            isUnknownSubject: scan.scientificName == LocalScanRecord.unresolvedBiologicalScientificName,
+            isHumanSubject: scan.commonName.lowercased() == "human" || scan.scientificName.lowercased() == "homo sapiens",
+            userIdentificationOverride: scan.userIdentificationOverride,
+            userConfirmedIdentification: scan.userConfirmedIdentification,
+            isFlagged: scan.isFlagged
+        )
+    }
+
+    private static func decodedCandidates(from data: Data?) -> [IdentificationCandidate] {
+        guard let data else { return [] }
+        return (try? JSONDecoder().decode([IdentificationCandidate].self, from: data)) ?? []
     }
 
     private static func matchingScans(

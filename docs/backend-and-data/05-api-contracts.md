@@ -412,7 +412,7 @@ constraint in the Deno schema.
   "// Cache Hit — sourced from species_dictionary.alternative_common_names (populated from GBIF vernacular names on first enrichment):": "",
   "alternative_common_names": ["Monarch", "Common Tiger"],
 
-  "// Present when confidence_score < diagnosticTrigger (0.99 both Flash and Pro — intentionally above strong threshold so Strong match scans still show candidates as escape hatch). Server strips to null at or above 0.99. See _shared/identify/thresholds.ts.": "",
+  "// Present when confidence_score < diagnosticTrigger (0.99 both Flash and Pro — intentionally above strong threshold so Strong match scans can still persist candidates as an escape hatch). Server strips to null at or above 0.99. Client display is separately gated by CandidateReviewVisibilityPolicy. See _shared/identify/thresholds.ts.": "",
   "candidates": [
     {
       "scientific_name": "Limenitis archippus",
@@ -459,7 +459,8 @@ constraint in the Deno schema.
 > `null` only when `confidence_score >= diagnosticTrigger` (`0.99` for both
 > Flash and Pro), preserving candidates for Possible, Weak, and Strong scans
 > below that near-certain threshold. Candidates are scan-specific and persist to
-> `public.scans.candidates` plus `LocalScanRecord.candidatesData`.
+> `public.scans.candidates` plus `LocalScanRecord.candidatesData`, while
+> client display is separately gated by `CandidateReviewVisibilityPolicy`.
 
 ### Background Ingestion & Media Moderation
 

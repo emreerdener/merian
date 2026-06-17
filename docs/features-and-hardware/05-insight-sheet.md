@@ -24,9 +24,9 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `ImagesCarousel` | Horizontally scrolling mixed-media strip combining live captures, persisted user media pages, and reference images. The user-media portion is sourced from `ActiveScanMedia`, which can contain images, audio clips, and descriptions in one stable ordered timeline. Each page is a `ZoomPageViewController` for image content or the matching mixed-media page type for audio/description content. When `totalImages == 0`, renders a `globe.americas.fill` placeholder on a black background. Pagination dots are shown whenever `totalImages > 1`, and page identity is stabilized across the queued/live/result handoff by keying off the persistent scan ID. |
 | `ConfidenceBadge` | Tappable liquid-glass capsule showing the AI's confidence band (Strong / Possible / Weak) with a shimmering glare animation; opens `ConfidenceExplanationSheet` on tap. When `isFlagged` is `true`, shows "Under Review" (orange, `flag.fill`). When `userIdentificationOverride` is non-nil, shows "Your ID" (indigo, `person.fill.checkmark`). When `userConfirmedIdentification` is `true`, shows "Confirmed" (green, `checkmark.seal.fill`). **Analyzing mode** (`analyzingPhrase != nil`): background glass layers collapse to transparent, icon switches to `sparkles.2`, text uses `Color.primary` on a minimal capsule border — tap is suppressed. Each phrase change triggers a left-to-right gradient mask sweep via the internal `RevealText` view and the capsule width springs to fit the new string length. Phrases are auto-suffixed with `...` if not already ending with one. |
 | `ConfidenceSpectrum` | Visual confidence spectrum with `SpectrumNode` labels; band thresholds derived from `MerianConfig` |
-| `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy. When an override, confirmed, or flagged state is active, renders bespoke explanation cards at the top of the modal payload that allow the user to undo or change their review. **Five review-state cards (mutually exclusive):** `AllCandidatesReviewedView` (State 5a — `isFlagged && candidates.count >= 2`; user rejected all swipe-deck alternatives), `UnderReviewView` (State 5b — `isFlagged` with no candidates; generic flag path), `OverriddenView` (user selected an alternative species), `ConfirmedView` (user confirmed the AI match), `ConfirmedView` with reset (user confirmed via low-confidence path). Contains `ConfidenceHeader`, `ConfidenceSpectrum`, `ModelInfoSection`, `AIMistakesBanner`, and `ProTips`. The `ProTips` component evaluates `RevenueCatManager.shared.isProActive` to conditionally render a premium upgrade trigger that opens `PaywallView` for free-tier users. |
+| `ConfidenceExplanationSheet` | Sub-sheet explaining the confidence scale, AI limitations, and tips for improving scan accuracy. When an alternatives-exhausted, flagged, override, or confirmed state is active, renders bespoke explanation cards at the top of the modal payload that allow the user to undo, reset, or change their review. **Review-state cards (mutually exclusive):** `AllCandidatesReviewedView` (`alternativesExhausted == true`; user rejected all swipe-deck alternatives), `UnderReviewView` (`isFlagged == true`; generic flag path), `OverriddenView` (user selected an alternative species), and `ConfirmedView` (user confirmed the AI match). Contains `ConfidenceHeader`, `ConfidenceSpectrum`, `ModelInfoSection`, `AIMistakesBanner`, and `ProTips`. The `ProTips` component evaluates `RevenueCatManager.shared.isProActive` to conditionally render a premium upgrade trigger that opens `PaywallView` for free-tier users. |
 | `ModelInfoSection` | Informational card inside `ConfidenceExplanationSheet` showing which Merian AI tier processed the scan. Standard tier (`inferenceTier == nil` or `"flash"`) renders a blue `cpu` icon with a gray "Standard" capsule badge. Pro tier (`inferenceTier == "pro"`) renders an indigo `sparkles` icon with an indigo "Pro" capsule badge and a "Powered by Gemini 2.5 Pro" footnote. Positioned between `ConfidenceSpectrum` and `AIMistakesBanner`. |
-| `CandidatesCard` | Identification candidates card with a multi-state approve/deny and moderation UX. Shown when `speciesData.candidates` has ≥ 2 entries **or** when a review state (override/confirmed) is already set. **Hidden** when `allCandidatesRejected` is true (`isFlagged == true && candidates.count >= 2`), which means the user already rejected every swipe alternative — in that state `AllCandidatesReviewedView` inside `ConfidenceExplanationSheet` replaces the card with a condensed summary. |
+| `CandidatesCard` | Identification candidates card with a multi-state approve/deny and moderation UX. Shown only with policy-visible candidates from `CandidateReviewVisibilityPolicy`, not raw `speciesData.candidates`. Hidden after confirmation, override, flagging, or alternatives exhaustion; when `alternativesExhausted == true`, `AllCandidatesReviewedView` inside `ConfidenceExplanationSheet` replaces the card with a condensed summary and a Review again affordance. |
 | `TaxonomyCard` | Collapsible card showing the full Linnaean tree. Also reused by the Explore detail page when public taxonomy data is available. |
 | `SimilarSpeciesGallery` | Horizontally scrolling carousel of lookalikes sourced from `speciesData.similarSpecies` in Insight and from public `similar_species` on Explore detail. Each `SimilarSpeciesCard` renders `referenceImageUrl` via `AsyncLocalImageView` when available, or asynchronously falls back to `SimilarSpeciesImageFetcher` (Wikipedia → GBIF waterfall). Image load failures never remove a card — on failure the card falls back to a leaf-icon placeholder so species names remain visible. Cards are excluded when their `scientificName` is blank, when they duplicate the active species scientific name, or when the same scientific name appears twice. If a lookalike shares the active species' common name, the gallery suppresses the duplicate common-name label and lets the scientific name carry the distinction. Insight, Explore detail, and Species Dictionary pass `routeForSpecies` builders so cards push `SpeciesDictionaryPageContentView` in the current sheet/navigation stack, preferring `speciesId` when present and falling back to scientific name. The card no longer renders relation rationale copy; it stays focused on image, common name, and scientific name. |
 | `OverviewCard` | Structural card rendering dynamic biological KeyValueRow metrics (e.g., size, life stage, sex with supporting cue/confidence, interactions, invasive species status) followed by an 8-line truncated Wikipedia extract and a built-in Safari "Learn more" button. |
@@ -102,8 +102,8 @@ var isProcessing: Bool {
 // (the queued-scan path exposes only a trash button; no review actions apply).
 var isReviewLocked: Bool   { guard queuedContext == nil else { return false }; /* userConfirmedIdentification || userIdentificationOverride != nil */ }
 var canReanalyze: Bool     { guard queuedContext == nil else { return false }; /* not review-locked, local path, no additional images */ }
-var canReviewAlternatives: Bool { guard queuedContext == nil else { return false }; /* not review-locked, candidates present, not exhausted */ }
-var canConfirm: Bool       { guard queuedContext == nil else { return false }; /* not confirmed, not overridden, not flagged */ }
+var canReviewAlternatives: Bool { guard queuedContext == nil else { return false }; /* reviewAlternativeCandidates is non-empty */ }
+var canConfirm: Bool       { guard queuedContext == nil else { return false }; /* reviewAlternativeCandidates is non-empty */ }
 var isAlreadyFlagged: Bool { guard queuedContext == nil else { return false }; /* speciesData.isFlagged || isReviewLocked */ }
 var canShareToExplore: Bool { /* false unless the active record has a resolved biological identification */ }
 
@@ -331,45 +331,58 @@ Each `SimilarSpeciesCard` receives a `SimilarSpeciesEntry`. When `referenceImage
 
 ## Identification Candidates
 
-When the AI's confidence falls below the tier-specific `diagnosticTrigger` threshold (`0.99` for both Flash and Pro) the `candidates` array is forwarded to the client and displayed as a `CandidatesCard` in `BiologicalView`. This threshold is intentionally above the `strong` band on each tier (`0.95` Flash / `0.85` Pro), so every Possible, Weak, **and Strong match** scan carries candidates as an escape hatch for overconfident wrong IDs. Only scans at or above `0.99` have candidates stripped.
+When the AI's confidence falls below the tier-specific `diagnosticTrigger` threshold (`0.99` for both Flash and Pro) the `candidates` array is forwarded to the client and persisted for the scan. This threshold is intentionally above the `strong` band on each tier (`0.95` Flash / `0.85` Pro), so Possible, Weak, and most Strong-match scans can still carry candidates as an escape hatch for overconfident wrong IDs. Only scans at or above `0.99` have candidates stripped.
+
+Stored candidates do **not** automatically create a visible candidate-review UI. Display is controlled on-device by `CandidateReviewVisibilityPolicy`, which is shared by the inline `CandidatesCard`, `ConfidenceExplanationSheet`, toolbar actions, and the Needs review smart collection. The policy shows review alternatives when the primary identification is below the tier's Strong threshold, or when a Strong primary has a genuinely competitive alternative.
 
 ### Data Flow
 
 1. **Gemini schema** (`services/supabase/functions/_shared/identify/schema.ts`): `candidates` is a **required** field in `merianResponseSchema` — Gemini always generates exactly 2 alternative species regardless of confidence. Each entry is `{ scientific_name, confidence_score, distinguishing_feature }` where `distinguishing_feature` (required string) is the single most important observable visual trait that separates this candidate from the primary identification, grounded in `extracted_visual_traits`. `common_name` is absent from the Gemini schema — it is enriched server-side via a batch `species_dictionary` lookup before the response is sent, so the field is present when the candidate species is already cached and absent (omitted from JSON) on a cache miss. The system instruction asks for genuinely distinct alternatives, not subspecies variants of the primary identification.
 2. **Server-side strip** (`services/supabase/functions/identify-multimodal/index.ts`, shared thresholds in `services/supabase/functions/_shared/identify/thresholds.ts`): After Gemini returns, the active multimodal handler calls `diagnosticTriggerForTier(tier)`. If `confidence_score >= diagnosticTrigger`, the `candidates` array is cleared to `null` before the response is sent to the client and before the `insertScan` DB write. This is the sole gate: Gemini is not asked to self-suppress, the server enforces the rule unconditionally. **Thresholds**: `0.99` for both Flash and Pro (intentionally above `FLASH_STRONG` = 0.95 and `PRO_STRONG` = 0.85 so Strong match scans still carry candidates). `MerianConfig.flashConfidence.diagnosticTrigger` and `MerianConfig.proConfidence.diagnosticTrigger` in the iOS client mirror these values and must be kept in sync.
-3. **Supabase persistence** (`candidates` JSONB, migration `20260330000000_add_candidates_to_scans.sql`): Stored as a JSONB column on `public.scans`. `NULL` for high-confidence scans and all scans from before this migration. A partial index (`WHERE candidates IS NOT NULL`) keeps index overhead minimal since the vast majority of scans are high-confidence.
+3. **Supabase persistence** (`candidates` JSONB, migration `20260330000000_add_candidates_to_scans.sql`): Stored as a JSONB column on `public.scans`. `NULL` for scans at or above the diagnostic trigger (`0.99`) and all scans from before this migration. A partial index (`WHERE candidates IS NOT NULL`) keeps index overhead minimal since most near-certain scans do not need stored alternatives.
 4. **SwiftData persistence** (`candidatesData: Data?`, `MerianSchemaV28`): The iOS client JSON-encodes `[IdentificationCandidate]` via `JSONEncoder` and stores the blob in `LocalScanRecord.candidatesData`. `InferenceEngine.load(from:)` decodes it back via `JSONDecoder` for historical scans.
 5. **Historical sync** (`ScanRepository.syncHistoricalScansDown`): The `candidates` column is included in the `SELECT` query. A `CloudIdentificationCandidate` DTO (`{ scientific_name: String, common_name: String?, confidence_score: Double, distinguishing_feature: String? }`) decodes the cloud JSONB. `ingestScans` re-encodes it to `IdentificationCandidate` (including `distinguishingFeature`) and persists as `candidatesData`. The `updateExistingScans` backfill path checks `existing.candidatesData == nil` before writing, ensuring cloud candidates are retroactively available in pre-existing local records. `distinguishing_feature` is `String?` in the DTO to decode gracefully from pre-migration JSONB rows that have only the two-field shape.
 
 ### Display Gate
 
-`BiologicalView` renders `CandidatesCard` when the scan has ≥ 2 candidates or confidence is below the diagnostic trigger, subject to three hard suppression guards:
+`CandidateReviewVisibilityPolicy` centralizes review visibility. `BiologicalView`, `ConfidenceExplanationSheet`, and `InsightSheetViewModel.canReviewAlternatives` call this policy instead of checking raw candidate presence independently.
+
+Visible candidate-review UI is allowed when all baseline guards pass:
 
 ```swift
-let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil
-                  || inferenceEngine.speciesData?.userConfirmedIdentification == true
-                  || inferenceEngine.speciesData?.isFlagged == true
-                  || inferenceEngine.speciesData?.alternativesExhausted == true
-let isUnknownSubject = inferenceEngine.speciesData?.scientificName == "Taxonomy Unavailable"
-let isHumanSubject   = inferenceEngine.speciesData?.isHumanSubject ?? false
-
-if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
-   !isUnknownSubject && !isHumanSubject && !hasReviewState
-   && (candidates.count >= 2 || hasLowConfidence) {
-    CandidatesCard(candidates: candidates,
-                   aiScientificName: primaryAIName,
-                   inferenceTier: speciesData.inferenceTier)
-        .cardEntrance(index: 3)
-}
+isBiological == true
+isUnknownSubject == false
+isHumanSubject == false
+candidates.isEmpty == false
+userIdentificationOverride == nil
+userConfirmedIdentification == false
+isFlagged == false
+alternativesExhausted == false
+primaryConfidence < MerianConfig.confidenceBands(forInferenceTier: tier).diagnosticTrigger
 ```
+
+After the baseline guards pass, one of these confidence checks must also pass:
+
+```swift
+primaryConfidence < MerianConfig.confidenceBands(forInferenceTier: tier).strong
+
+// OR, for Strong primaries:
+topCandidateConfidence >= 0.80
+abs(primaryConfidence - topCandidateConfidence) <= 0.15
+```
+
+These constants live in `CandidateReviewVisibilityPolicy`:
+
+- `minimumCompetitiveCandidateConfidence = 0.80`
+- `competitiveCandidateMargin = 0.15`
 
 **`isUnknownSubject`** — suppresses candidates when taxonomy is unavailable; the alternatives would be equally unresolved.
 
 **`isHumanSubject`** (`SpeciesData.isHumanSubject`: `commonName.lowercased() == "human" || scientificName.lowercased() == "homo sapiens"`) — suppresses candidates for human subjects. The AI sometimes generates plausible-sounding primate alternatives when confidence is low; surfacing them for a human photo would be misleading and inappropriate.
 
-**`hasReviewState`** — suppresses candidates once any review action has been taken (`userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`, or `alternativesExhausted`). When `isFlagged && candidates.count >= 2` specifically (user rejected every swipe alternative), `CandidatesCard` is hidden and `AllCandidatesReviewedView` inside `ConfidenceExplanationSheet` takes over instead.
+**`hasReviewState`** — suppresses candidates once any review action has been taken (`userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`, or `alternativesExhausted`). When `alternativesExhausted == true`, `CandidatesCard` is hidden and `AllCandidatesReviewedView` inside `ConfidenceExplanationSheet` takes over instead.
 
-`CandidatesCard` internally computes the threshold via `MerianConfig.confidenceBands(forInferenceTier: inferenceTier).diagnosticTrigger` for display-only purposes (e.g., subtitle copy).
+The policy returns the stored candidate array only when it is visible. Hidden candidates remain persisted for recovery and future flows, but inline cards, confidence-sheet rows, and toolbar Review alternatives actions behave as if the candidate list is empty.
 
 **`isHumanSubject` and the override path**: `isHumanSubject` checks `scientificName` (the mutable active field), not `aiScientificName`. If a user overrides a human scan to another species, `scientificName` changes to the override name, the guard lifts, and candidates for the override species become visible — consistent with the carousel ref-image unblock that also follows an override.
 
@@ -405,7 +418,7 @@ Users can confirm or override the AI's primary identification directly from `Can
 - **`.pending`**: Default state. Shows a "Was the AI correct?" prompt with a `SlideToConfirm` drag-to-confirm pill. The system passes a dynamically injected name derived from `viewModel.resolvedHeaderTitle` (e.g., "Confirm Giant Panda") rather than a hardcoded string. To prevent text overflow on these long dynamic names, the pill natively relies on `minimumScaleFactor(0.6)` typographic squishing before truncating. The user drags the thumb ≥88% of the track width to confirm; releasing early springs the thumb back. On completion, `InferenceEngine.confirmAIIdentification(modelContext:)` is called, setting `userConfirmedIdentification = true` locally and transitioning to `.confirmed`. Refusing all alternatives allows the user to flag the scan. For candidates with missing `commonName` strings (or common names identical to taxonomy), `SwipeableCandidateCard` securely elevates the `scientificName` to the primary title string un-capitalized. Each card also displays `distinguishingFeature` (the single most important observable visual trait separating this candidate from the primary ID) below the species name in sentence case, truncated to 2 lines. Tapping the feature text opens a `DistinguishingFeatureSheetView` sheet ("What to look for") at `.fraction(0.35)` height showing the full untruncated text. The original capture is also accessible via a PiP thumbnail (bottom-right) that expands to a full-screen `OriginalCaptureExpandedView`; that expanded path downscales `activeMedia.liveImageData` through `ImageDownsampler` at `MerianConfig.displayImageMaxSize` rather than inflating the original capture with `UIImage(data:)`. Tapping the candidate image expands it to a paged `TabView` carousel containing up to 5 progressively loaded reference images inside `CandidateImageExpandedView`.
 - **`.confirmed`**: Replaces the prompt with nothing (the card hides its body). `ConfidenceBadge` transitions to "Confirmed" (green, `checkmark.seal.fill`). `ConfidenceExplanationSheet` shows a confirmation message.
 - **`.overridden(to:)`**: Active after the user selects a candidate as their preferred identification. Renders an `OverriddenView` showing "Your identification" with the override name, "AI originally suggested X" footer, and an Undo button. `ConfidenceBadge` transitions to "Your ID" (indigo, `person.fill.checkmark`).
-- **`.flagged`**: Active when the user flags the AI payload for moderation via `ReportInsightViewModel`. To guarantee 100% offline stability, `InferenceEngine.flagAIIdentification` natively mutates the in-memory `speciesData.isFlagged` property first, instantly hiding the `CandidatesCard` (via `EmptyView()`) and updating the `ConfidenceBadge` to "Under Review". `LocalScanRecord.isFlagged` is persisted immediately, allowing `OfflineQueueManager` to safely pipeline the flag to `public.scans` when the network recovers, fully bypassing potential foreign key constraint violations from synchronous edge functions. **Two sub-states of `.flagged`** are surfaced inside `ConfidenceExplanationSheet`: (a) **All candidates rejected** (`isFlagged && candidates.count >= 2`) — `AllCandidatesReviewedView` shows "Alternatives reviewed", the candidate count, a Reset button (`resetIdentificationReview`), and a **"Review again" button** that re-opens `CandidateSwipeModal` so the user can reconsider the alternatives without resetting state; (b) **Generic flag** (`isFlagged && candidates.count < 2`) — `UnderReviewView` shows the orange "Flagged for review" message with an Undo button. `CandidatesCard` itself emits `EmptyView()` in both sub-states and never re-renders the pending UX. `ConfidenceExplanationSheet` reads `inferenceEngine.speciesData?.candidates` directly — the `candidateCount` prop that previously threaded through `BiologicalView → InsightHeader → ConfidenceBadge` has been removed.
+- **`.flagged`**: Active when the user flags the AI payload for moderation via `ReportInsightViewModel`. To guarantee 100% offline stability, `InferenceEngine.flagAIIdentification` natively mutates the in-memory `speciesData.isFlagged` property first, instantly hiding the `CandidatesCard` (via `EmptyView()`) and updating the `ConfidenceBadge` to "Under Review". `LocalScanRecord.isFlagged` is persisted immediately, allowing `OfflineQueueManager` to safely pipeline the flag to `public.scans` when the network recovers, fully bypassing potential foreign key constraint violations from synchronous edge functions. `UnderReviewView` shows the orange "Flagged for review" message with an Undo button. Candidate exhaustion is a separate state: when `alternativesExhausted == true`, `AllCandidatesReviewedView` shows "Alternatives reviewed", the stored candidate count, a Reset button (`resetIdentificationReview`), and a **"Review again" button** that re-opens `CandidateSwipeModal` with stored candidates so the user can reconsider alternatives without resetting first.
 
 **Override flow**: Selecting a candidate calls `InferenceEngine.applyIdentificationOverride(scientificName:modelContext:)`, which:
 1. Mutates `speciesData.userIdentificationOverride` and `speciesData.scientificName` to the override name, and clears `speciesData.isFlagged = false` — required for the "Review again" → confirm path where `isFlagged` was set by the swipe-rejection flow.
@@ -426,9 +439,9 @@ Users can confirm or override the AI's primary identification directly from `Can
 - `isFlagged: Bool` — persisted to flag upstream manual moderation routines.
 
 **Re-identification**: A user who has already acted on a review can always re-enter the selection flow:
-- From `.overridden`: tap Undo → calls `resetIdentificationReview` → reverts to `.pending` with full candidate list visible.
+- From `.overridden`: tap Undo → calls `resetIdentificationReview` → reverts to `.pending` with policy-visible candidates available again.
 - From `.confirmed`: tap "Change" in `ConfirmedView` → calls `resetIdentificationReview` → reverts to `.pending`.
-- `resetIdentificationReview` clears `userIdentificationOverride`, `userConfirmedIdentification`, and `isFlagged` locally (the latter via `BackgroundDatabaseActor.updateScanAsUnflagged`), reverts `speciesData.scientificName` to `aiScientificName`, and re-hydrates the AI's original species data from `species_dictionary`. It sets `userReviewStateRaw` to `"unreviewed"` locally. Clearing `isFlagged` on reset is required for the `AllCandidatesReviewedView` → full reset path: without it, `allCandidatesRejected` stays `true` and `CandidatesCard` would remain hidden after the user resets.
+- `resetIdentificationReview` clears `userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`, and `alternativesExhausted` locally (including `BackgroundDatabaseActor.updateScanAsUnflagged` for the flag), reverts `speciesData.scientificName` to `aiScientificName`, and re-hydrates the AI's original species data from `species_dictionary`. It sets `userReviewStateRaw` to `"unreviewed"` locally. Clearing `alternativesExhausted` is required for the `AllCandidatesReviewedView` → full reset path; otherwise `CandidateReviewVisibilityPolicy` would keep candidate actions suppressed after reset.
 
 **Cross-device sync caveat**: `ScanRepository.updateExistingScans` propagates `userConfirmedIdentification` in the `true` direction only — a reset performed on device A (which syncs `user_confirmed_identification = false` to the cloud) will not propagate to device B during that device's next sync. Device B retains its local confirmed/overridden state. Full bidirectional review-state sync is deferred.
 
@@ -465,11 +478,11 @@ The badge renders for override/confirmed states even when `confidenceScore == 0`
 
 `ConfidenceSpectrum` renders a vertical list of `SpectrumNode` items using the same `MerianConfig` constants so the displayed percentage ranges are always in sync with the badge logic.
 
-`ConfidenceExplanationSheet` opens as a bottom sheet from the badge tap. It contains `ConfidenceHeader`, `ConfidenceSpectrum`, `ModelInfoSection`, `AIMistakesBanner`, and `ProTips` (which conditionally shows a location permission prompt when GPS access is not granted). `ModelInfoSection` sits between `ConfidenceSpectrum` and `AIMistakesBanner` and surfaces which Merian AI tier processed the scan — "Merian AI Standard" for free/Flash scans, "Merian AI Pro" for Pro scans, with a "Powered by Gemini 2.5 Pro" footnote on the Pro variant. The sheet reads `inferenceEngine.speciesData?.candidates` directly via `@Environment(InferenceEngine.self)` to discriminate between the two flagged sub-states. Review-state cards rendered at the top of the sheet (mutually exclusive, evaluated in order):
+`ConfidenceExplanationSheet` opens as a bottom sheet from the badge tap. It contains `ConfidenceHeader`, `ConfidenceSpectrum`, `ModelInfoSection`, `AIMistakesBanner`, and `ProTips` (which conditionally shows a location permission prompt when GPS access is not granted). `ModelInfoSection` sits between `ConfidenceSpectrum` and `AIMistakesBanner` and surfaces which Merian AI tier processed the scan — "Merian AI Standard" for free/Flash scans, "Merian AI Pro" for Pro scans, with a "Powered by Gemini 2.5 Pro" footnote on the Pro variant. The sheet reads stored candidates for the alternatives-exhausted Review again path and `CandidateReviewVisibilityPolicy.visibleCandidates(for:)` for normal candidate display. Review-state cards rendered at the top of the sheet (mutually exclusive, evaluated in order):
 
 | Priority | Condition | View | Action |
 |---|---|---|---|
-| 1 | `isFlagged && candidates.count >= 2` | `AllCandidatesReviewedView` | Reset → `resetIdentificationReview` |
+| 1 | `alternativesExhausted == true` | `AllCandidatesReviewedView` | Review again → `CandidateSwipeModal`; Reset → `resetIdentificationReview` |
 | 2 | `isFlagged` | `UnderReviewView` | Undo → `unflagAIIdentification` |
 | 3 | `userIdentificationOverride != nil` | `OverriddenView` | Undo → `resetIdentificationReview` |
 | 4 | `userConfirmedIdentification == true` | `ConfirmedView` | Undo → `resetIdentificationReview` |
@@ -515,7 +528,7 @@ if data.isNewDiscovery && data.isBiological
 1. Base Export (Save photos)
 2. Identification Section (Confirm species, Review alternatives, Reanalyze species, Flag for review)
 3. Destructive Section (Delete scan)
-The middle tier ("Identification") checks `userConfirmedIdentification == true` and `userIdentificationOverride != nil`. The moment the user explicitly locks in a conclusion (be it confirmation or override), the entire menu gracefully culls those review-state actions dynamically, cleanly prioritizing visual confidence until they undo their actions elsewhere.
+The middle tier ("Identification") is driven by `InsightSheetViewModel` display properties. `Confirm species` and `Review alternatives` both depend on `reviewAlternativeCandidates`, which is filtered through `CandidateReviewVisibilityPolicy`; when policy-visible candidates are absent, both actions are hidden. `Reanalyze species` and `Flag for review` remain independently available through their existing local-record and flagged-state guards. Confirmed, overridden, flagged, exhausted, unknown, non-biological, and human-subject states suppress the candidate actions without affecting reanalysis/flag affordances where those still make sense.
 
 ---
 

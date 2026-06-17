@@ -74,17 +74,33 @@ struct ConfidenceExplanationSheet: View {
         }
     }
 
+    private var storedCandidates: [IdentificationCandidate] {
+        inferenceEngine.speciesData?.candidates ?? []
+    }
+
+    private var visibleReviewCandidates: [IdentificationCandidate] {
+        CandidateReviewVisibilityPolicy.visibleCandidates(for: inferenceEngine.speciesData)
+    }
+
+    private var swipeModalCandidates: [IdentificationCandidate] {
+        if inferenceEngine.speciesData?.alternativesExhausted == true {
+            return storedCandidates
+        }
+        return visibleReviewCandidates
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 32) {
                 ConfidenceHeader(title: headerTitle)
 
-                let candidates = inferenceEngine.speciesData?.candidates ?? []
+                let candidates = visibleReviewCandidates
+                let storedCandidateCount = storedCandidates.count
                 let isExhausted = inferenceEngine.speciesData?.alternativesExhausted == true
 
                 if isExhausted {
                     AllCandidatesReviewedView(
-                        candidatesCount: candidates.count,
+                        candidatesCount: storedCandidateCount,
                         onReviewAgain: {
                             isSwipeModalPresented = true
                         },
@@ -127,7 +143,7 @@ struct ConfidenceExplanationSheet: View {
                         }
                     )
                     .padding(.horizontal, 16)
-                } else {
+                } else if !candidates.isEmpty {
 
                     CandidatesCard(
                         candidates: candidates,
@@ -165,7 +181,7 @@ struct ConfidenceExplanationSheet: View {
             
             CandidateSwipeModal(
                 isPresented: $isSwipeModalPresented,
-                candidates: inferenceEngine.speciesData?.candidates ?? [],
+                candidates: swipeModalCandidates,
                 aiScientificName: aiScientificName ?? "Unknown",
                 confirmButtonTitle: confirmButtonTitle,
                 onConfirmOriginal: {

@@ -34,6 +34,11 @@ TestFlight, App Store, support, and QA.
 
 ### Changed
 
+- Candidate review prompts now appear only for non-strong identifications or
+  strong IDs with a competitive alternative, while Merian still keeps stored
+  candidates available for recovery and future review flows. The Needs review
+  smart collection now follows the same non-strong and competitive-alternative
+  thresholds.
 - Biological scan images are now durable for Free and Pro users; Merian no
   longer auto-purges successful biological sighting evidence based on age or
   tier, while temporary and non-biological cleanup remains in place.
@@ -67,8 +72,9 @@ TestFlight, App Store, support, and QA.
   longer remains in the Describe text field as if it were user-entered notes.
 - Fixed reanalysis submissions so Describe text entered for the current
   analysis is consumed into the submission and cleared from the input afterward.
-- Fixed Needs review smart collections so they only include weak-confidence
-  unreviewed scans instead of every scan that happens to have candidates.
+- Fixed Needs review smart collections so they follow the shared non-strong and
+  competitive-alternative thresholds instead of every scan that happens to have
+  candidates.
 - Fixed Explore posts so shared discoveries keep the selected common name from
   the composer instead of drifting to dictionary defaults.
 - Fixed the Explore comment mention push toggle so it no longer appears enabled

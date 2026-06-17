@@ -84,18 +84,13 @@ struct BiologicalView: View {
             let isBiological = inferenceEngine.speciesData?.isBiological ?? false
 
             if isBiological {
-                // MARK: - Identification Candidates
-                let hasReviewState = inferenceEngine.speciesData?.userIdentificationOverride != nil ||
-                                     inferenceEngine.speciesData?.userConfirmedIdentification == true ||
-                                     inferenceEngine.speciesData?.isFlagged == true ||
-                                     inferenceEngine.speciesData?.alternativesExhausted == true
-                let candidates = inferenceEngine.speciesData?.candidates ?? []
-
                 let isUnknownSubject = inferenceEngine.speciesData?.scientificName == "Taxonomy Unavailable"
-                let isHumanSubject = inferenceEngine.speciesData?.isHumanSubject ?? false
+
+                // MARK: - Identification Candidates
+                let candidates = CandidateReviewVisibilityPolicy.visibleCandidates(for: inferenceEngine.speciesData)
 
                 if let primaryAIName = inferenceEngine.speciesData?.aiScientificName,
-                   !isUnknownSubject && !isHumanSubject && !hasReviewState {
+                   !candidates.isEmpty {
                     CandidatesCard(
                         candidates: candidates,
                         aiScientificName: primaryAIName,

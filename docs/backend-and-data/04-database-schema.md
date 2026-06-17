@@ -539,9 +539,11 @@ The transaction log for every successful identification.
   server-side before insert when `confidence_score >= diagnosticTrigger` (`0.99`
   for both Flash and Pro — see `_shared/identify/thresholds.ts`). The threshold
   is intentionally above `FLASH_STRONG` (0.95) and `PRO_STRONG` (0.85) so that
-  every Possible, Weak, **and Strong match** scan still reaches the client with
-  candidates as an escape hatch. Only scans at or above `0.99` (effectively
-  certain) have candidates stripped. `NULL` for those high-confidence scans and
+  every Possible, Weak, **and Strong match** scan below that diagnostic line can
+  still persist candidates as an escape hatch. Client UI visibility is
+  separately gated by `CandidateReviewVisibilityPolicy`. Only scans at or above
+  `0.99` (effectively certain) have candidates stripped. `NULL` for those
+  near-certain scans and
   all scans captured before migration
   `20260330000000_add_candidates_to_scans.sql`. Shape:
   `[{"scientific_name": "...", "confidence_score": 0.71}, ...]`. A partial index
@@ -1469,8 +1471,8 @@ Tracks locally synchronized species scans for the Scans library.
   response, and by `ScanRepository.ingestScans` / `updateExistingScans` on
   historical cloud sync. `InferenceEngine.load(from:)` decodes this field back
   to `[IdentificationCandidate]` via `JSONDecoder` and sets it as
-  `speciesData.candidates`. `nil` for high-confidence scans where the server
-  stripped candidates, and for all scans captured before V28. A lightweight
+  `speciesData.candidates`. `nil` for scans at or above the diagnostic trigger
+  where the server stripped candidates, and for all scans captured before V28. A lightweight
   migration (`migrateV27toV28`) handles the version bump — no data transform
   required since the field is optional with a nil default.)
 - `userIdentificationOverride`: String? (Added in `MerianSchemaV29`. The

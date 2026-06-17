@@ -9,6 +9,7 @@
         {
           "title": "Changed",
           "items": [
+            "Candidate review prompts now appear only for non-strong identifications or strong IDs with a competitive alternative, while stored candidates remain available for recovery and future review flows. The Needs review smart collection follows the same non-strong and competitive-alternative thresholds.",
             "Biological scan images are now durable for Free and Pro users; Merian no longer auto-purges successful sighting evidence based on age or tier."
           ]
         },
@@ -87,7 +88,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Needs review now focuses on weak-confidence unreviewed scans instead of including every scan with alternate candidates."
+            "Needs review now follows the shared non-strong and competitive-alternative thresholds instead of including every scan with alternate candidates."
           ]
         }
       ]

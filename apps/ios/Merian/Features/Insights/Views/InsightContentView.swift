@@ -103,10 +103,11 @@ struct InsightContentView: View {
             }
         }
         .sheet(isPresented: $viewModel.state.isCandidateSwipePresented) {
-            if let speciesData = inferenceEngine.speciesData {
+            let candidates = viewModel.reviewAlternativeCandidates
+            if let speciesData = inferenceEngine.speciesData, !candidates.isEmpty {
                 CandidateSwipeModal(
                     isPresented: $viewModel.state.isCandidateSwipePresented,
-                    candidates: speciesData.candidates ?? [],
+                    candidates: candidates,
                     aiScientificName: speciesData.scientificName,
                     confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
                     onConfirmOriginal: { Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) } },
