@@ -55,11 +55,13 @@ The SQL RPC filters hidden activity before returning rows:
 - unshared posts are excluded
 - tombstoned scans are excluded
 - media-less posts are excluded
-- private-geoprivacy scans are excluded
 - shadowbanned owners or follow actors are excluded
 - blocked actors are excluded in both directions
 - soft-deleted or moderated comments are excluded
 - follow notifications require the active `user_follows` row to still exist
+
+Post `location_sharing` controls public location fields; it does not hide
+post-backed activity.
 
 Follow notifications are removed when the relationship is deleted or either user
 blocks the other. Comment mention notifications are removed when the underlying

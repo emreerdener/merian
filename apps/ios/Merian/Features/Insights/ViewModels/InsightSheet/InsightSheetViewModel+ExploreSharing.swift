@@ -6,7 +6,7 @@ extension InsightSheetViewModel {
         includeFieldNotes: Bool = false,
         fieldNotes: String? = nil,
         hashtags: [String] = [],
-        locationSharing: ExplorePostLocationSharing = .obscured,
+        locationSharing: ExplorePostLocationSharing? = nil,
         modelContext: ModelContext
     ) async {
         guard canShareToExplore,
@@ -28,6 +28,7 @@ extension InsightSheetViewModel {
             )
             cacheSharedExplorePostId(response.postId, for: scanId)
             state.sharedExploreHashtags = hashtags
+            state.sharedExploreLocationSharing = response.locationSharing ?? locationSharing
             state.exploreFieldNotesArePublic = notesForPost != nil
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -68,6 +69,7 @@ extension InsightSheetViewModel {
             )
             cacheSharedExplorePostId(response.postId, for: scanId)
             state.sharedExploreHashtags = draft.hashtags
+            state.sharedExploreLocationSharing = response.locationSharing ?? draft.locationSharing
             state.exploreFieldNotesArePublic = draft.publicFieldNotes != nil
             syncComposerFieldNotes(draft.fieldNotes, modelContext: modelContext)
             HapticManager.shared.triggerSuccessPulse()
@@ -139,6 +141,7 @@ extension InsightSheetViewModel {
                 locationSharing: draft.locationSharing
             )
             state.sharedExploreHashtags = response.hashtags ?? draft.hashtags
+            state.sharedExploreLocationSharing = response.locationSharing ?? draft.locationSharing
             state.exploreFieldNotesArePublic = response.fieldNotes?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty == false
@@ -197,6 +200,7 @@ extension InsightSheetViewModel {
 
             ExploreShareStateStore.setSharedPostId(shareState.postId, for: scanId)
             applySharedExplorePostId(shareState.postId, for: scanId, bumpRevision: false)
+            state.sharedExploreLocationSharing = shareState.locationSharing
             await refreshExploreFieldNotesVisibility(
                 postId: shareState.postId,
                 modelContext: modelContext
@@ -213,12 +217,14 @@ extension InsightSheetViewModel {
         guard let postId else {
             state.exploreFieldNotesArePublic = false
             state.sharedExploreHashtags = []
+            state.sharedExploreLocationSharing = nil
             return
         }
 
         do {
             let detail = try await MerianNetworkClient.shared.getExplorePostDetail(postId: postId)
             state.sharedExploreHashtags = detail.hashtags ?? []
+            state.sharedExploreLocationSharing = detail.locationSharing
             if let fieldNotes = detail.trimmedFieldNotes {
                 state.exploreFieldNotesArePublic = true
                 if let modelContext {
@@ -252,6 +258,7 @@ extension InsightSheetViewModel {
         guard scanId != nil else {
             state.sharedExplorePostId = nil
             state.exploreFieldNotesArePublic = false
+            state.sharedExploreLocationSharing = nil
             return
         }
 
@@ -259,6 +266,7 @@ extension InsightSheetViewModel {
         state.sharedExplorePostId = (trimmed?.isEmpty == false) ? trimmed : nil
         if state.sharedExplorePostId == nil {
             state.exploreFieldNotesArePublic = false
+            state.sharedExploreLocationSharing = nil
         }
     }
 }

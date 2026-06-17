@@ -92,11 +92,13 @@ The endpoint returns only posts currently visible to the requester:
 
 - unshared posts excluded
 - tombstoned scans excluded
-- private-geoprivacy scans excluded
 - scans without image media excluded
 - scans without a species key excluded
 - shadowbanned authors excluded
 - both directions of user blocking excluded
+
+Post `location_sharing` controls public location fields; it does not hide
+published posts from the author's grid.
 
 ## Local Verification
 

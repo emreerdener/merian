@@ -15,6 +15,7 @@ type ExploreFeedRow = {
 
 type ExploreLocationRow = {
   public_location_label: string | null;
+  location_sharing?: "open" | "obscured" | "private";
 };
 
 type ExploreSpeciesNameRow = {
@@ -130,6 +131,60 @@ Deno.test("Explore feed DB - location labels are city/state only for feed and de
 
     assertEquals(feedRows.rows[0]?.public_location_label, "Austin, TX");
     assertEquals(detailRows.rows[0]?.public_location_label, "Austin, TX");
+  });
+});
+
+Deno.test("Explore feed DB - private post geoprivacy keeps shared post visible without location", async () => {
+  await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {
+    const ownerId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    const scanId = crypto.randomUUID();
+    const postId = crypto.randomUUID();
+
+    await insertUser(client, ownerId, "Private Post Owner");
+    await insertUser(client, viewerId, "Private Post Viewer");
+    await insertSpecies(client, speciesId, "Rosa privaposta");
+
+    await insertScan(client, {
+      id: scanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "private",
+      semanticLocation: "Austin, Texas",
+    });
+
+    await insertExplorePost(client, {
+      id: postId,
+      userId: ownerId,
+      scanId,
+      sharedAt: "2026-04-28T12:05:00.000Z",
+      locationSharing: "private",
+    });
+
+    const feedRows = await client.queryObject<ExploreLocationRow>(
+      `
+        SELECT public_location_label, location_sharing
+        FROM public.get_explore_feed($1, 20, NULL, NULL)
+      `,
+      [viewerId],
+    );
+
+    const detailRows = await client.queryObject<ExploreLocationRow>(
+      `
+        SELECT public_location_label, location_sharing
+        FROM public.get_explore_post($1, $2)
+      `,
+      [viewerId, postId],
+    );
+
+    assertEquals(feedRows.rows.length, 1);
+    assertEquals(feedRows.rows[0]?.public_location_label, null);
+    assertEquals(feedRows.rows[0]?.location_sharing, "private");
+    assertEquals(detailRows.rows[0]?.public_location_label, null);
+    assertEquals(detailRows.rows[0]?.location_sharing, "private");
   });
 });
 
@@ -788,6 +843,67 @@ Deno.test("Explore nearby feed DB - filters to the nearby radius and keeps recen
     assertEquals(
       rows.rows.map((row) => row.post_id),
       [nearbyNewerPostId, nearbyOlderPostId],
+    );
+  });
+});
+
+Deno.test("Explore nearby feed DB - uses post-level public coordinates", async () => {
+  await withExploreDbTest("exploreFeedDb.test", async (client: Client) => {
+    const ownerId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    const privateScanOpenPostScanId = crypto.randomUUID();
+    const openScanObscuredPostScanId = crypto.randomUUID();
+    const privateScanOpenPostId = crypto.randomUUID();
+    const openScanObscuredPostId = crypto.randomUUID();
+
+    await insertUser(client, ownerId, "Nearby Override Owner");
+    await insertUser(client, viewerId, "Nearby Override Viewer");
+    await insertSpecies(client, speciesId, "Rosa overrideis");
+
+    await insertScan(client, {
+      id: privateScanOpenPostScanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "private",
+    });
+    await insertScan(client, {
+      id: openScanObscuredPostScanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 30.2673,
+      longitude: -97.7432,
+      geoprivacy: "open",
+    });
+
+    await insertExplorePost(client, {
+      id: privateScanOpenPostId,
+      userId: ownerId,
+      scanId: privateScanOpenPostScanId,
+      locationSharing: "open",
+      sharedAt: "2026-04-28T12:00:00.000Z",
+    });
+    await insertExplorePost(client, {
+      id: openScanObscuredPostId,
+      userId: ownerId,
+      scanId: openScanObscuredPostScanId,
+      locationSharing: "obscured",
+      sharedAt: "2026-04-28T12:10:00.000Z",
+    });
+
+    const rows = await client.queryObject<ExploreFeedRow>(
+      `
+        SELECT post_id, shared_at::text AS shared_at
+        FROM public.get_explore_feed_nearby($1, 30.2672, -97.7431, 20, NULL, NULL)
+      `,
+      [viewerId],
+    );
+
+    assertEquals(
+      rows.rows.map((row) => row.post_id),
+      [privateScanOpenPostId],
     );
   });
 });

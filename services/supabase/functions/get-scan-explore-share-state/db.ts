@@ -4,6 +4,7 @@ export interface ExploreScanShareStateRow {
   scan_id: string;
   post_id?: string | null;
   shared_at?: string | null;
+  location_sharing: "open" | "obscured" | "private";
 }
 
 export async function fetchExploreScanShareState(

@@ -389,6 +389,7 @@ struct ExplorePostDetailView: View {
                     initialFieldNotes: detail?.trimmedFieldNotes ?? localFieldNotes,
                     initialFieldNotesArePublic: fieldNotesArePublicOnExplore,
                     initialHashtags: detail?.hashtags ?? post.hashtags ?? [],
+                    initialLocationSharing: detail?.locationSharing ?? post.locationSharing ?? .obscured,
                     isSaving: isSavingPostContent,
                     onSubmit: { draft in
                         Task { await savePostContent(draft, for: post) }
@@ -707,6 +708,7 @@ struct ExplorePostDetailView: View {
                 locationSharing: draft.locationSharing
             )
             detail?.fieldNotes = response.fieldNotes
+            detail?.locationSharing = response.locationSharing ?? draft.locationSharing
             updateLocalFieldNotes(draft.fieldNotes ?? "")
             showPostComposer = false
             await viewModel.refreshPost(postId: post.id)

@@ -24,6 +24,7 @@ struct InsightShareButton: View {
     var hashtagSuggestionContext: ExploreHashtagSuggestionContext
     var sharedExploreHashtags: [String]
     var sharedExplorePostId: String?
+    var initialLocationSharing: ExplorePostLocationSharing
     var fieldNotesArePublicOnExplore: Bool
     var onViewInExplore: (() -> Void)?
     var onUpdateFieldNotesVisibility: ((Bool) async -> FieldNotesVisibilityUpdateFeedback)?
@@ -118,6 +119,7 @@ struct InsightShareButton: View {
                 initialFieldNotes: fieldNotesPreview,
                 initialFieldNotesArePublic: sharedExplorePostId == nil ? true : fieldNotesArePublicOnExplore,
                 initialHashtags: sharedExplorePostId == nil ? [] : sharedExploreHashtags,
+                initialLocationSharing: initialLocationSharing,
                 hashtagSuggestionContext: hashtagSuggestionContext.updating(fieldNotes: fieldNotesPreview),
                 isSaving: sharedExplorePostId == nil ? isSharingToExplore : isUpdatingExplorePostContent,
                 onSubmit: { draft in

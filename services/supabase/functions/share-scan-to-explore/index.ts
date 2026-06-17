@@ -117,6 +117,30 @@ function normalizeHashtags(value: unknown): string[] {
   return uniqueTags;
 }
 
+function normalizeLocationSharing(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value !== "string") {
+    throw makeHttpError(400, "location_sharing must be a string.");
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "open" || normalized === "obscured" ||
+    normalized === "private"
+  ) {
+    return normalized;
+  }
+
+  if (normalized === "hidden") {
+    return "private";
+  }
+
+  throw makeHttpError(
+    400,
+    "location_sharing must be open, obscured, or private.",
+  );
+}
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
@@ -136,19 +160,24 @@ serve((req: Request) =>
     );
     const fieldNotes = normalizeFieldNotes(body.field_notes);
     const hashtags = normalizeHashtags(body.hashtags);
+    const requestedLocationSharing = normalizeLocationSharing(
+      body.location_sharing,
+    );
 
-    await fetchShareEligibleScan(
+    const scan = await fetchShareEligibleScan(
       scanId,
       user.id,
       restoredObjectKeys,
       supabaseAdmin,
     );
+    const locationSharing = requestedLocationSharing ?? scan.geoprivacy;
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
     const post = await upsertExplorePost(
       scanId,
       user.id,
       speciesCommonName,
       fieldNotes,
+      locationSharing,
       supabaseAdmin,
     );
     await replaceExplorePostHashtags(post.id, hashtags, supabaseAdmin);
@@ -158,6 +187,7 @@ serve((req: Request) =>
       post_id: post.id,
       scan_id: scanId,
       shared_at: post.shared_at,
+      location_sharing: locationSharing,
     });
   })
 );

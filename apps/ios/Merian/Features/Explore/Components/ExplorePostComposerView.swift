@@ -23,36 +23,58 @@ enum ExplorePostComposerMode {
     }
 }
 
-enum ExplorePostLocationSharing: String, CaseIterable, Identifiable {
+enum ExplorePostLocationSharing: String, CaseIterable, Identifiable, Decodable, Equatable {
+    case open
     case obscured
-    case hidden
+    case privateLocation = "private"
 
     var id: String { rawValue }
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self).lowercased()
+        switch rawValue {
+        case "open":
+            self = .open
+        case "obscured":
+            self = .obscured
+        case "private", "hidden":
+            self = .privateLocation
+        default:
+            self = .obscured
+        }
+    }
+
     var title: String {
         switch self {
+        case .open:
+            return "Open"
         case .obscured:
-            return "Obscure"
-        case .hidden:
-            return "Hide"
+            return "Obscured"
+        case .privateLocation:
+            return "Private"
         }
     }
 
     var systemImage: String {
         switch self {
+        case .open:
+            return "mappin.and.ellipse"
         case .obscured:
             return "location.viewfinder"
-        case .hidden:
+        case .privateLocation:
             return "location.slash"
         }
     }
 
     var detail: String {
         switch self {
+        case .open:
+            return "Use the discovery location on Explore Map when safe."
         case .obscured:
-            return "Show a broad public location when one is available."
-        case .hidden:
-            return "Keep the post location off the feed and map."
+            return "Show a broad public label; keep it off Explore Map."
+        case .privateLocation:
+            return "Share this post without public location."
         }
     }
 }
@@ -78,6 +100,7 @@ struct ExplorePostComposerView: View {
     let initialFieldNotes: String?
     let initialFieldNotesArePublic: Bool
     let initialHashtags: [String]
+    let initialLocationSharing: ExplorePostLocationSharing
     let hashtagSuggestionContext: ExploreHashtagSuggestionContext
     let isSaving: Bool
     let onSubmit: (ExplorePostComposerDraft) -> Void
@@ -87,7 +110,7 @@ struct ExplorePostComposerView: View {
     @State private var fieldNotesText: String
     @State private var fieldNotesArePublic: Bool
     @State private var hashtagsText: String
-    @State private var locationSharing = ExplorePostLocationSharing.obscured
+    @State private var locationSharing: ExplorePostLocationSharing
     @State private var loadedImage: UIImage?
     @State private var selectedCommonName: String
     @State private var isNamePickerPresented = false
@@ -103,6 +126,7 @@ struct ExplorePostComposerView: View {
         initialFieldNotes: String?,
         initialFieldNotesArePublic: Bool = true,
         initialHashtags: [String],
+        initialLocationSharing: ExplorePostLocationSharing = .obscured,
         hashtagSuggestionContext: ExploreHashtagSuggestionContext? = nil,
         isSaving: Bool,
         onSubmit: @escaping (ExplorePostComposerDraft) -> Void
@@ -119,6 +143,7 @@ struct ExplorePostComposerView: View {
         self.initialFieldNotes = initialFieldNotes
         self.initialFieldNotesArePublic = initialFieldNotesArePublic
         self.initialHashtags = initialHashtags
+        self.initialLocationSharing = initialLocationSharing
         self.hashtagSuggestionContext = hashtagSuggestionContext ?? ExploreHashtagSuggestionContext(
             speciesName: speciesName,
             scientificName: scientificName,
@@ -130,6 +155,7 @@ struct ExplorePostComposerView: View {
         _fieldNotesText = State(initialValue: initialFieldNotes ?? "")
         _fieldNotesArePublic = State(initialValue: initialFieldNotesArePublic)
         _hashtagsText = State(initialValue: initialHashtags.map { "#\($0)" }.joined(separator: " "))
+        _locationSharing = State(initialValue: initialLocationSharing)
         _selectedCommonName = State(initialValue: selectedName)
     }
 
@@ -138,6 +164,7 @@ struct ExplorePostComposerView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     discoveryPreview
+                    locationSharingEditor
                     fieldNotesEditor
                     hashtagsEditor
                 }
@@ -363,6 +390,61 @@ struct ExplorePostComposerView: View {
                 .foregroundStyle(.secondary)
 
             suggestedHashtagChips
+        }
+    }
+
+    private var locationSharingEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Location", systemImage: "location")
+                .font(.headline)
+
+            VStack(spacing: 8) {
+                ForEach(ExplorePostLocationSharing.allCases) { option in
+                    Button {
+                        locationSharing = option
+                        HapticManager.shared.triggerSelectionPulse()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: option.systemImage)
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(locationSharing == option ? Color.accentColor : .secondary)
+                                .frame(width: 24)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(option.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text(option.detail)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.leading)
+                            }
+
+                            Spacer(minLength: 8)
+
+                            if locationSharing == option {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            Color(uiColor: .secondarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(
+                                    locationSharing == option ? Color.accentColor.opacity(0.35) : Color.primary.opacity(0.08),
+                                    lineWidth: 1
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 

@@ -47,11 +47,13 @@ The same Explore visibility rules apply to both profile and library reads:
 
 - unshared posts are excluded
 - tombstoned scans are excluded
-- private-geoprivacy scans are excluded from published post grids
 - scans without image media are excluded from published post grids
 - non-species-backed scans are excluded from published post grids
 - shadowbanned authors are hidden
 - both directions of user blocking hide the author and posts
+
+Post-level `location_sharing` controls public location fields but does not hide
+published posts from profile grids.
 
 Public achievement payloads contain only progress fields:
 

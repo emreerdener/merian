@@ -15,6 +15,7 @@ type ExploreScanShareStateRow = {
   scan_id: string;
   post_id: string | null;
   shared_at: string | null;
+  location_sharing: "open" | "obscured" | "private";
 };
 
 Deno.test("Explore scan share state DB - returns active Explore post for an owned shared scan", async () => {
@@ -47,7 +48,8 @@ Deno.test("Explore scan share state DB - returns active Explore post for an owne
         SELECT
           scan_id,
           post_id,
-          shared_at::text AS shared_at
+          shared_at::text AS shared_at,
+          location_sharing
         FROM public.get_scan_explore_share_state($1, $2)
       `,
         [ownerId, scanId],
@@ -58,11 +60,12 @@ Deno.test("Explore scan share state DB - returns active Explore post for an owne
       assertEquals(row.scan_id, scanId);
       assertEquals(row.post_id, postId);
       assertExists(row.shared_at);
+      assertEquals(row.location_sharing, "open");
     },
   );
 });
 
-Deno.test("Explore scan share state DB - clears the shared post when the scan is no longer public", async () => {
+Deno.test("Explore scan share state DB - keeps the shared post when scan geoprivacy becomes private", async () => {
   await withExploreDbTest(
     "exploreScanShareStateDb.test",
     async (client: Client) => {
@@ -85,6 +88,7 @@ Deno.test("Explore scan share state DB - clears the shared post when the scan is
         id: postId,
         userId: ownerId,
         scanId,
+        locationSharing: "open",
       });
 
       await client.queryArray(
@@ -101,7 +105,8 @@ Deno.test("Explore scan share state DB - clears the shared post when the scan is
         SELECT
           scan_id,
           post_id,
-          shared_at::text AS shared_at
+          shared_at::text AS shared_at,
+          location_sharing
         FROM public.get_scan_explore_share_state($1, $2)
       `,
         [ownerId, scanId],
@@ -110,8 +115,9 @@ Deno.test("Explore scan share state DB - clears the shared post when the scan is
       const row = result.rows[0];
       assertExists(row);
       assertEquals(row.scan_id, scanId);
-      assertEquals(row.post_id, null);
-      assertEquals(row.shared_at, null);
+      assertEquals(row.post_id, postId);
+      assertExists(row.shared_at);
+      assertEquals(row.location_sharing, "open");
     },
   );
 });

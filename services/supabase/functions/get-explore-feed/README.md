@@ -93,10 +93,12 @@ Every mode excludes:
 - unshared posts
 - tombstoned scans
 - scans with no image media
-- private-geoprivacy scans
 - scans without a species key
 - shadowbanned authors
 - both directions of user blocking
+
+Post `location_sharing` controls public location fields; it does not hide the
+post from feed modes.
 
 `following` additionally requires an active `public.user_follows` row where the requester follows the post author. Following does not reveal hidden profiles or grant access to private scans.
 

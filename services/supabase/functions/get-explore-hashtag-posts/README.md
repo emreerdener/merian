@@ -74,8 +74,9 @@ Clients preserve `author_name` for logged-in display labels and render
 
 - Rows order by `(shared_at DESC, post_id DESC)`.
 - The RPC excludes unshared posts, tombstoned scans, scans with no image media,
-  private-geoprivacy scans, scans without a species key, shadowbanned authors,
-  and both directions of user blocking.
+  scans without a species key, shadowbanned authors, and both directions of user
+  blocking. Post `location_sharing` controls public location fields; it does not
+  hide tagged posts.
 - The source lookup is `public.explore_post_hashtags(tag, post_id)`. Future
   event and BioBlitz matching should reuse normalized tag edges rather than parse
   public notes.

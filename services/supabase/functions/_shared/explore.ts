@@ -14,7 +14,6 @@ interface ExplorePostLookupRow {
     {
       image_storage_urls?: string[] | null;
       is_tombstoned?: boolean | null;
-      geoprivacy?: string | null;
     }
   >;
   author?: NestedRelation<{ is_shadowbanned?: boolean | null }>;
@@ -493,7 +492,7 @@ export async function fetchInteractiveExplorePost(
       id,
       user_id,
       unshared_at,
-      scan:scans!inner(image_storage_urls,is_tombstoned,geoprivacy),
+      scan:scans!inner(image_storage_urls,is_tombstoned),
       author:users!explore_posts_user_id_fkey!inner(is_shadowbanned)
     `)
     .eq("id", postId)
@@ -522,10 +521,6 @@ export async function fetchInteractiveExplorePost(
   }
 
   if ((imageUrls?.length ?? 0) == 0) {
-    throw makeHttpError(404, "Explore post is no longer available.");
-  }
-
-  if (scan?.geoprivacy === "private") {
     throw makeHttpError(404, "Explore post is no longer available.");
   }
 

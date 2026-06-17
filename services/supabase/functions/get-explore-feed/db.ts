@@ -15,6 +15,7 @@ export interface ExploreFeedRow {
   species_common_name: string;
   species_scientific_name: string;
   public_location_label?: string | null;
+  location_sharing: "open" | "obscured" | "private";
   time_of_day?: string | null;
   current_month?: number | null;
   weather_condition?: string | null;

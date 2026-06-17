@@ -1523,15 +1523,17 @@ final class MerianNetworkClient {
         speciesCommonName: String? = nil,
         fieldNotes: String? = nil,
         hashtags: [String] = [],
-        locationSharing: ExplorePostLocationSharing = .obscured
+        locationSharing: ExplorePostLocationSharing? = nil
     ) async throws -> ExploreShareResponse {
         let functionUrl = try endpointURL("share-scan-to-explore")
         var payload: [String: Any] = [
             "scan_id": scanId,
             "field_notes": fieldNotes ?? NSNull(),
-            "hashtags": hashtags,
-            "location_sharing": locationSharing.rawValue
+            "hashtags": hashtags
         ]
+        if let locationSharing {
+            payload["location_sharing"] = locationSharing.rawValue
+        }
         let trimmedCommonName = speciesCommonName?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let trimmedCommonName, !trimmedCommonName.isEmpty {
             payload["species_common_name"] = trimmedCommonName
@@ -1549,7 +1551,7 @@ final class MerianNetworkClient {
         speciesCommonName: String? = nil,
         fieldNotes: String? = nil,
         hashtags: [String] = [],
-        locationSharing: ExplorePostLocationSharing = .obscured
+        locationSharing: ExplorePostLocationSharing? = nil
     ) async throws -> ExploreShareResponse {
         let mediaSnapshot = ExploreShareMediaSnapshot(scan: scan)
         do {

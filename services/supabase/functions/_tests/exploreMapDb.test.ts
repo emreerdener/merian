@@ -103,7 +103,7 @@ Deno.test("Explore map DB - newly shared scan with exact coordinates is queryabl
   });
 });
 
-Deno.test("Explore map DB - obscured geoprivacy is excluded from map results", async () => {
+Deno.test("Explore map DB - obscured post geoprivacy is excluded from map results", async () => {
   await withExploreDbTest("exploreMapDb.test", async (client: Client) => {
     const ownerId = crypto.randomUUID();
     const viewerId = crypto.randomUUID();
@@ -152,6 +152,7 @@ Deno.test("Explore map DB - obscured geoprivacy is excluded from map results", a
       id: postId,
       userId: ownerId,
       scanId,
+      locationSharing: "obscured",
     });
 
     const mapRows = await client.queryObject<ExploreMapRow>(
@@ -173,7 +174,7 @@ Deno.test("Explore map DB - obscured geoprivacy is excluded from map results", a
   });
 });
 
-Deno.test("Explore map DB - private geoprivacy is excluded from map results", async () => {
+Deno.test("Explore map DB - private post geoprivacy is excluded from map results", async () => {
   await withExploreDbTest("exploreMapDb.test", async (client: Client) => {
     const ownerId = crypto.randomUUID();
     const viewerId = crypto.randomUUID();
@@ -218,9 +219,117 @@ Deno.test("Explore map DB - private geoprivacy is excluded from map results", as
       id: postId,
       userId: ownerId,
       scanId,
+      locationSharing: "private",
     });
 
     const mapRows = await client.queryObject<ExploreMapRow>(
+      `
+        SELECT post_id, latitude, longitude, coordinate_visibility
+        FROM public.get_explore_map_posts(
+          $1,
+          30.6,
+          30.0,
+          -97.4,
+          -98.0,
+          100
+        )
+      `,
+      [viewerId],
+    );
+
+    assertEquals(mapRows.rows.length, 0);
+  });
+});
+
+Deno.test("Explore map DB - private scan can appear after explicit open post override", async () => {
+  await withExploreDbTest("exploreMapDb.test", async (client: Client) => {
+    const ownerId = crypto.randomUUID();
+    const viewerId = crypto.randomUUID();
+    const speciesId = crypto.randomUUID();
+    const scanId = crypto.randomUUID();
+    const postId = crypto.randomUUID();
+
+    await insertUser(client, ownerId, "Private Override Owner");
+    await insertUser(client, viewerId, "Private Override Viewer");
+    await insertSpecies(client, speciesId, "Rosa aperta");
+
+    await insertScan(client, {
+      id: scanId,
+      userId: ownerId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "private",
+      gpsLatPublic: null,
+      gpsLongPublic: null,
+      aiConfidenceScore: 0.88,
+      semanticLocation: "Austin, Texas",
+    });
+
+    await insertExplorePost(client, {
+      id: postId,
+      userId: ownerId,
+      scanId,
+      locationSharing: "private",
+    });
+
+    let mapRows = await client.queryObject<ExploreMapRow>(
+      `
+        SELECT post_id, latitude, longitude, coordinate_visibility
+        FROM public.get_explore_map_posts(
+          $1,
+          30.6,
+          30.0,
+          -97.4,
+          -98.0,
+          100
+        )
+      `,
+      [viewerId],
+    );
+
+    assertEquals(mapRows.rows.length, 0);
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_posts
+        SET location_sharing = 'open'
+        WHERE id = $1
+      `,
+      [postId],
+    );
+
+    mapRows = await client.queryObject<ExploreMapRow>(
+      `
+        SELECT post_id, latitude, longitude, coordinate_visibility
+        FROM public.get_explore_map_posts(
+          $1,
+          30.6,
+          30.0,
+          -97.4,
+          -98.0,
+          100
+        )
+      `,
+      [viewerId],
+    );
+
+    assertEquals(mapRows.rows.length, 1);
+    assertEquals(mapRows.rows[0].post_id, postId);
+    assertAlmostEquals(mapRows.rows[0].latitude, 30.2672, 0.0001);
+    assertAlmostEquals(mapRows.rows[0].longitude, -97.7431, 0.0001);
+    assertEquals(mapRows.rows[0].coordinate_visibility, "exact");
+
+    await client.queryArray(
+      `
+        UPDATE public.explore_posts
+        SET location_sharing = 'private'
+        WHERE id = $1
+      `,
+      [postId],
+    );
+
+    mapRows = await client.queryObject<ExploreMapRow>(
       `
         SELECT post_id, latitude, longitude, coordinate_visibility
         FROM public.get_explore_map_posts(

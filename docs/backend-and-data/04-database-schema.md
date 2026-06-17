@@ -769,12 +769,23 @@ Manual-share public feed wrapper around `scans`. Added in migration
   Functions trim, collapse whitespace, and cap this value at 200 characters.
   Read RPCs prefer it over `species_dictionary.common_names`; omitted or null
   values preserve the legacy dictionary/common-name fallback.
+- `location_sharing` (TEXT): Post-level geoprivacy override with `open`,
+  `obscured`, or `private`. The global/user scan geoprivacy seeds the composer,
+  but editing a shared post changes only this post-owned value.
+- `public_latitude` / `public_longitude` / `public_coordinate_visibility`
+  (nullable): Post-owned Explore Map projection populated only when
+  `location_sharing = 'open'`. Protected-species and uncertainty rules can store
+  rounded coordinates with `public_coordinate_visibility = 'obscured'`.
+- `public_location_label` (TEXT, nullable): Scrubbed post-owned location label.
+  `private` posts clear it; `obscured` posts may keep the label but stay off the
+  map.
 - `like_count` / `comment_count` (INT): Denormalized counters maintained by
   triggers.
 
 **Ephemeral-media rule**: V1 Explore reuses `scans.image_storage_urls` directly.
-If the scan is tombstoned, private, or later loses all image URLs, the Explore
-post disappears from the public feed automatically.
+If the scan is tombstoned or later loses all image URLs, the Explore post
+disappears from the public feed automatically. Scan geoprivacy no longer hides
+the post itself; post-level `location_sharing` controls public location output.
 
 ### `explore_post_hashtags`
 
@@ -792,12 +803,9 @@ The `(tag, post_id)` lookup index powers `public.get_explore_hashtag_posts(...)`
 for the in-app tagged-post collection and is also intended for future event and
 BioBlitz matching without extracting tags from field notes or comments.
 
-**Current map-coordinate note**: The shipped Explore map does not currently
-persist public coordinates on `explore_posts`. Spatial reads project from the
-backing `scans.gps_lat_public` / `gps_long_public` fields through
-`public.get_explore_map_posts(...)`. This keeps publication state on
-`explore_posts` while the current privacy-safe map projection remains
-scan-backed.
+**Current map-coordinate note**: The shipped Explore map reads post-owned
+public coordinates on `explore_posts`. Spatial reads only return posts whose
+`location_sharing` is `open`; `obscured` and `private` posts remain off-map.
 
 ### `explore_post_likes`
 
@@ -1096,10 +1104,10 @@ client contract.
   joins `explore_posts`, `scans`, `users`, and `species_dictionary`, emits
   `coordinate_visibility = exact|obscured`, filters unshared posts,
   media-cleared scans, shadowbanned authors, both directions of blocking, and
-  any non-open scan geoprivacy. It reads current public coordinates from
-  `scans.gps_lat_public` / `gps_long_public` and returns the scrubbed
-  `scans.public_location_label`; it does not derive map output from exact GPS or
-  raw semantic location fields.
+  any non-open post `location_sharing`. It reads post-owned public coordinates
+  from `explore_posts.public_latitude` / `public_longitude` and returns the
+  scrubbed `explore_posts.public_location_label`; it does not derive map output
+  from exact GPS or raw semantic location fields at read time.
 - `public.get_explore_notifications(self_id UUID, max_limit INTEGER, before_updated_at TIMESTAMPTZ, before_notification_id UUID)`:
   Returns the owner's in-app Explore activity feed. Like rows are aggregated,
   comment rows are filtered against comment soft deletes and both-direction user

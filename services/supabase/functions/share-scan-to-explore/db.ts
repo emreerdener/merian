@@ -47,10 +47,6 @@ export async function fetchShareEligibleScan(
     throw makeHttpError(409, "Tombstoned scans cannot be shared to Explore.");
   }
 
-  if (row.geoprivacy === "private") {
-    throw makeHttpError(409, "Private scans cannot be shared to Explore.");
-  }
-
   if (
     (row.image_storage_urls?.length ?? 0) === 0 && restoredObjectKeys.length > 0
   ) {
@@ -102,6 +98,7 @@ export async function upsertExplorePost(
   userId: string,
   speciesCommonName: string | null,
   fieldNotes: string | null,
+  locationSharing: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<{ id: string; shared_at: string }> {
   const { data, error } = await supabaseAdmin
@@ -112,6 +109,7 @@ export async function upsertExplorePost(
         user_id: userId,
         species_common_name: speciesCommonName,
         field_notes: fieldNotes,
+        location_sharing: locationSharing,
         shared_at: new Date().toISOString(),
         unshared_at: null,
       },

@@ -84,7 +84,7 @@ The backend logic is strictly decoupled into modular, single-responsibility func
   - `MerianShareExtension` is paused and de-shipped as of 2026-05-19. Its source and backend queue path remain in the repo, but current app builds do not embed the extension or advertise Photos share-sheet import.
   - Universal Links should eventually bind `https://merian.earth/explore/post/{postId}` to the same native Explore detail router while preserving the web page as the fallback for users without the app.
 - **Moderation & Social**
-  - `/get-filtered-discovery-feed`: Paginates heavy spatial queries (abstracting global `geoprivacy = 'open'` filtering away from the mobile client), handles blocking mechanisms, and destructively rounds coordinates natively via the IUCN Red List index to protect vulnerable species from poachers.
+  - `/get-filtered-discovery-feed`: Paginates public discovery queries from post-owned sharing fields, handles blocking mechanisms, and uses scrubbed or rounded public coordinates when Explore surfaces are allowed to expose location.
   - `/block-user` & `/flag-issue`: Trust and Safety endpoint managers mitigating bad actors on the global feed.
 - **Revenue Integration**
   - `/revenuecat-webhook`: Subscribes to realtime Apple/Google subscription transitions, stamping user tiers natively into Postgres bounds without client-side polling.

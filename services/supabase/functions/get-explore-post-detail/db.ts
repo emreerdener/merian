@@ -4,6 +4,7 @@ import type { PublicSimilarSpecies } from "../_shared/publicSpeciesProjection.ts
 export interface ExplorePostDetailRow {
   post_id: string;
   field_notes?: string | null;
+  location_sharing: "open" | "obscured" | "private";
   hashtags?: string[] | null;
   species_dictionary_id?: string | null;
   alternative_common_names?: string[] | null;

@@ -448,6 +448,7 @@ private struct ExploreFeedTabContent: View {
                 initialFieldNotes: editingPostDetail?.trimmedFieldNotes ?? editingPostLocalFieldNotes,
                 initialFieldNotesArePublic: editingPostDetail?.trimmedFieldNotes != nil,
                 initialHashtags: editingPostDetail?.hashtags ?? post.hashtags ?? [],
+                initialLocationSharing: editingPostDetail?.locationSharing ?? post.locationSharing ?? .obscured,
                 isSaving: isSavingEditedPost,
                 onSubmit: { draft in
                     Task { await saveEditedPost(draft, for: post) }
@@ -648,6 +649,7 @@ private struct ExploreFeedTabContent: View {
             )
             updateLocalFieldNotes(draft.fieldNotes ?? "", for: post)
             editingPostDetail?.fieldNotes = response.fieldNotes
+            editingPostDetail?.locationSharing = response.locationSharing ?? draft.locationSharing
             editingPost = nil
             await viewModel.refreshPost(postId: post.id)
             viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)

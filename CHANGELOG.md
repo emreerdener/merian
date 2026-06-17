@@ -67,6 +67,9 @@ TestFlight, App Store, support, and QA.
 - Fixed Explore Map geoprivacy so only open-location discoveries appear on the
   map; obscured and private posts stay off the map while other eligible Explore
   surfaces continue to respect their privacy-safe public fields.
+- Added per-post Explore geoprivacy so share/edit options can keep a post
+  private, show an obscured public label, or explicitly make that post open on
+  the map without changing the underlying scan default.
 - Fixed non-biological corrections so they now explain the result and start
   reanalysis instead of creating an unidentified biological scan with incorrect
   confidence, phantom reference media, or premature Explore sharing. These

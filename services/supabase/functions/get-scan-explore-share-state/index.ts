@@ -29,6 +29,7 @@ serve((req: Request) =>
         scan_id: scanId,
         post_id: null,
         shared_at: null,
+        location_sharing: "obscured",
       },
     }, 200);
   })

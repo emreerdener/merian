@@ -90,6 +90,7 @@ extension InsightSheetView {
             fieldNotesPreview: viewModel.shareableFieldNotes,
             sharedExploreHashtags: viewModel.state.sharedExploreHashtags,
             sharedExplorePostId: viewModel.state.sharedExplorePostId,
+            sharedExploreLocationSharing: viewModel.state.sharedExploreLocationSharing,
             fieldNotesArePublicOnExplore: viewModel.state.exploreFieldNotesArePublic,
             onViewInExplore: allowsExplorePresentation ? {
                 viewModel.state.showExploreSheet = true

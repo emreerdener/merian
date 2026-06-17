@@ -165,6 +165,7 @@ final class ExploreMapViewModel {
                 speciesCommonName: canonical.speciesCommonName,
                 speciesScientificName: canonical.speciesScientificName,
                 publicLocationLabel: canonical.publicLocationLabel,
+                locationSharing: canonical.locationSharing,
                 timeOfDay: canonical.timeOfDay,
                 currentMonth: canonical.currentMonth,
                 weatherCondition: canonical.weatherCondition,

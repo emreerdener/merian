@@ -1096,6 +1096,7 @@ Current response shape:
       "species_common_name": "Monarch Butterfly",
       "species_scientific_name": "Danaus plexippus",
       "public_location_label": "Austin, TX",
+      "location_sharing": "open",
       "time_of_day": "afternoon",
       "current_month": 4,
       "weather_condition": "clear",
@@ -1433,8 +1434,9 @@ Validation and pagination rules:
   together.
 - Pagination is stable on `(shared_at DESC, post_id DESC)`.
 - The endpoint filters unshared posts, tombstoned scans, scans with no image
-  media, private-geoprivacy scans, scans without a species key, shadowbanned
-  authors, and both directions of user blocking.
+  media, scans without a species key, shadowbanned authors, and both directions
+  of user blocking. Post `location_sharing` controls public location fields, not
+  feed visibility.
 - The card projection includes batched `hashtags` arrays just like the feed.
 
 ### `/get-explore-hashtag-posts`
@@ -1567,21 +1569,21 @@ Current response shapes:
 Privacy and filtering rules:
 
 - the map excludes unshared posts, tombstoned scans, scans with no remaining
-  image URLs, obscured/private geoprivacy scans, shadowbanned authors, and both
+  image URLs, non-open post `location_sharing`, shadowbanned authors, and both
   directions of user blocking
-- `coordinate_visibility` communicates whether an open-geoprivacy point is
-  exact or approximate because species-safety or uncertainty rules rounded the
-  public projection
-- the shipped map projection currently comes from `public.scans.gps_lat_public`
-  / `gps_long_public`, not from stored coordinates on `explore_posts`
-- the map returns the stored scrubbed `public_location_label`; it does not derive
-  labels from raw semantic location fields
+- `coordinate_visibility` communicates whether an open post point is exact or
+  approximate because species-safety or uncertainty rules rounded the public
+  projection
+- the shipped map projection comes from post-owned public coordinates on
+  `explore_posts`, not from raw scan GPS at read time
+- the map returns the post-owned scrubbed `public_location_label`; it does not
+  derive labels from raw semantic location fields
 
 ### `/get-explore-comments`
 
 Returns comment rows for a single Explore post. The read path enforces the same
-private-geoprivacy and mutual-block filters as the feed. Comment rows include
-the public author label, the stable author username handle, the optional public
+visible-post and mutual-block filters as the feed. Comment rows include the
+public author label, the stable author username handle, the optional public
 author avatar projection, and three viewer capability flags:
 
 - `viewer_can_delete`: The viewer authored this comment and may delete it.
@@ -1709,10 +1711,11 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   hashtags clear the set for that share request.
 - Unsharing also purges any Explore notifications tied to that post so the
   activity feed cannot route into hidden content.
-- The current Explore map reads privacy-safe coordinates from the backing
-  `scans` row. `trg_sync_scan_public_coordinates` ensures those public
-  coordinates are derived or backfilled even when a scan was originally inserted
-  with only exact GPS fields.
+- `location_sharing` is optional for backward compatibility. If omitted, the
+  share uses the scan's current geoprivacy. Valid values are `open`,
+  `obscured`, and `private`; legacy `hidden` is treated as `private`.
+- The Explore map reads post-owned public coordinates from `explore_posts`.
+  Only posts whose saved `location_sharing` is `open` can appear on the map.
 
 ### `/update-explore-field-notes`
 
@@ -1741,7 +1744,8 @@ Response body:
   "post_id": "uuid",
   "field_notes": "Found at the shaded meadow edge after rain.",
   "hashtags": ["deer", "urbanwildlife"],
-  "species_common_name": "Black-Tailed Deer"
+  "species_common_name": "Black-Tailed Deer",
+  "location_sharing": "obscured"
 }
 ```
 
@@ -1759,9 +1763,9 @@ Rules:
   `null` clear the snapshot so read RPCs can fall back to dictionary names.
 - `hashtags` is optional and, when provided, replaces the post's public hashtag
   edges using the same normalization as `/share-scan-to-explore`.
-- `location_sharing` is accepted by the iOS edit flow for the shared composer
-  contract, but location visibility is still ultimately bounded by the backing
-  scan's public geoprivacy projection.
+- `location_sharing`, when provided, updates only this Explore post. Valid
+  values are `open`, `obscured`, and `private`; legacy `hidden` is treated as
+  `private`.
 - The update is scoped by `explore_posts.id`, `explore_posts.user_id`, and
   `unshared_at IS NULL`; non-owned or unshared posts return 404.
 
@@ -2063,8 +2067,9 @@ Returns the viewer's in-app Explore activity feed. The request body is optional:
 
 - `limit` defaults to `50` and is capped server-side.
 - The read path mirrors Explore visibility rules: unshared posts, tombstoned
-  scans, posts with no remaining media, private-geoprivacy scans, shadowbanned
-  owners, blocked actors, and soft-deleted comments are filtered out.
+  scans, posts with no remaining media, shadowbanned owners, blocked actors, and
+  soft-deleted comments are filtered out. Post `location_sharing` controls public
+  location fields, not notification visibility.
 - Follow notifications are validated against an active follow relationship and
   blocked or shadowbanned actors are filtered out.
 - Pagination is cursor-based on `(updated_at DESC, notification_id DESC)`.

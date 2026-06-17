@@ -71,11 +71,13 @@ Preview posts use stricter Explore visibility rules:
 
 - unshared posts excluded
 - tombstoned scans excluded
-- private-geoprivacy scans excluded
 - scans without image media excluded
 - scans without a species key excluded
 - shadowbanned authors excluded
 - both directions of user blocking excluded
+
+Post `location_sharing` controls public location fields; it does not hide
+published posts from profile eligibility.
 
 Follow state:
 

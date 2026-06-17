@@ -2,7 +2,11 @@ import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { buildExploreMapPayload } from "./cluster.ts";
 import { ExploreMapPostRow } from "./types.ts";
 
-function makeRow(id: string, latitude: number, longitude: number): ExploreMapPostRow {
+function makeRow(
+  id: string,
+  latitude: number,
+  longitude: number,
+): ExploreMapPostRow {
   return {
     post_id: id,
     scan_id: `scan-${id}`,
@@ -17,6 +21,7 @@ function makeRow(id: string, latitude: number, longitude: number): ExploreMapPos
     species_common_name: "Mushroom",
     species_scientific_name: "Fungus testus",
     public_location_label: "Austin, TX",
+    location_sharing: "open",
     time_of_day: null,
     current_month: null,
     weather_condition: null,

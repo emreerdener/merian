@@ -15,21 +15,27 @@ export async function updateExploreFieldNotes(
   fieldNotes: string | null,
   hashtags: string[] | undefined,
   speciesCommonName: string | null | undefined,
+  locationSharing: string | undefined,
   supabaseAdmin: SupabaseClient,
 ): Promise<{
   id: string;
   field_notes: string | null;
   species_common_name: string | null;
+  location_sharing: string;
   hashtags?: string[];
 }> {
   const updates: {
     field_notes: string | null;
     species_common_name?: string | null;
+    location_sharing?: string;
   } = {
     field_notes: fieldNotes,
   };
   if (speciesCommonName !== undefined) {
     updates.species_common_name = speciesCommonName;
+  }
+  if (locationSharing !== undefined) {
+    updates.location_sharing = locationSharing;
   }
 
   const { data, error } = await supabaseAdmin
@@ -38,7 +44,7 @@ export async function updateExploreFieldNotes(
     .eq("id", postId)
     .eq("user_id", userId)
     .is("unshared_at", null)
-    .select("id,field_notes,species_common_name")
+    .select("id,field_notes,species_common_name,location_sharing")
     .single();
 
   if (error || !data) {
@@ -75,6 +81,7 @@ export async function updateExploreFieldNotes(
       id: string;
       field_notes: string | null;
       species_common_name: string | null;
+      location_sharing: string;
     }),
     hashtags,
   };

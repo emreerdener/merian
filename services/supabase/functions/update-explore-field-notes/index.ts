@@ -74,6 +74,30 @@ function normalizeHashtags(value: unknown): string[] | undefined {
   return uniqueTags;
 }
 
+function normalizeLocationSharing(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== "string") {
+    throw makeHttpError(400, "location_sharing must be a string.");
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "open" || normalized === "obscured" ||
+    normalized === "private"
+  ) {
+    return normalized;
+  }
+
+  if (normalized === "hidden") {
+    return "private";
+  }
+
+  throw makeHttpError(
+    400,
+    "location_sharing must be open, obscured, or private.",
+  );
+}
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
@@ -89,12 +113,16 @@ serve((req: Request) =>
     const speciesCommonName = Object.hasOwn(body, "species_common_name")
       ? normalizeSpeciesCommonName(body.species_common_name)
       : undefined;
+    const locationSharing = Object.hasOwn(body, "location_sharing")
+      ? normalizeLocationSharing(body.location_sharing)
+      : undefined;
     const row = await updateExploreFieldNotes(
       postId,
       user.id,
       fieldNotes,
       hashtags,
       speciesCommonName,
+      locationSharing,
       supabaseAdmin,
     );
 
@@ -104,6 +132,7 @@ serve((req: Request) =>
       field_notes: row.field_notes,
       hashtags: row.hashtags,
       species_common_name: row.species_common_name,
+      location_sharing: row.location_sharing,
     });
   })
 );

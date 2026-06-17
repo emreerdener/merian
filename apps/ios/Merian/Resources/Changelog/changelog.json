@@ -22,7 +22,8 @@
             "Correction reanalysis from the Non-biological collection remains available to free users while still following normal daily scan limits when submitted.",
             "The reanalysis explanation no longer stays in the Describe text field as if it were user-entered notes.",
             "Describe notes entered for the current reanalysis are now included with the submission and cleared from the input afterward.",
-            "Explore Map now shows only open-location discoveries, keeping obscured and private posts off the map."
+            "Explore Map now shows only open-location discoveries, keeping obscured and private posts off the map.",
+            "Explore share and edit options now include per-post geoprivacy, so a post can be private, obscured, or explicitly open without changing the underlying scan default."
           ]
         }
       ]

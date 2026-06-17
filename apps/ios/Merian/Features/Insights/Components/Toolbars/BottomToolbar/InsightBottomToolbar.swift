@@ -20,6 +20,7 @@ struct InsightBottomToolbar: ToolbarContent {
     var fieldNotesPreview: String?
     var sharedExploreHashtags: [String]
     var sharedExplorePostId: String?
+    var sharedExploreLocationSharing: ExplorePostLocationSharing?
     var fieldNotesArePublicOnExplore: Bool
     var onViewInExplore: (() -> Void)?
     var onUpdateFieldNotesVisibility: ((Bool) async -> FieldNotesVisibilityUpdateFeedback)?
@@ -66,6 +67,9 @@ struct InsightBottomToolbar: ToolbarContent {
                     ),
                     sharedExploreHashtags: sharedExploreHashtags,
                     sharedExplorePostId: sharedExplorePostId,
+                    initialLocationSharing: sharedExplorePostId == nil
+                        ? defaultLocationSharing
+                        : (sharedExploreLocationSharing ?? defaultLocationSharing),
                     fieldNotesArePublicOnExplore: fieldNotesArePublicOnExplore,
                     onViewInExplore: onViewInExplore,
                     onUpdateFieldNotesVisibility: onUpdateFieldNotesVisibility
@@ -85,7 +89,17 @@ struct InsightBottomToolbar: ToolbarContent {
     }
 
     private func visiblePublicLocationLabel(from locationName: String?) -> String? {
-        guard profileViewModel.defaultGeoprivacy != "private" else { return nil }
         return ExploreLocationPrivacy.displayLabel(from: locationName)
+    }
+
+    private var defaultLocationSharing: ExplorePostLocationSharing {
+        switch profileViewModel.defaultGeoprivacy {
+        case "open":
+            return .open
+        case "private":
+            return .privateLocation
+        default:
+            return .obscured
+        }
     }
 }

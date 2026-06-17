@@ -8,8 +8,8 @@ shared UI, Explore, public map data, and public exports.
 | Mode | Owner-facing local scan UI | Public/public-share projection |
 |---|---|---|
 | `open` | Shows location label, elevation, weather, and exact map marker when telemetry exists. | May publish exact public coordinates and a sanitized public location label. |
-| `obscured` | Shows a coarse location label, weather, and a rounded map region with a 10 km uncertainty circle. Elevation is hidden. | Publishes rounded public coordinates and a sanitized public location label with `coordinate_uncertainty_in_meters >= 10000`; Explore Map excludes these posts unless a future explicit per-post override is added. |
-| `private` | Hides location label, elevation, weather, and map from scan-information surfaces. | Clears public coordinates, public uncertainty, and public location labels; private scans are excluded from Explore share/public feeds. |
+| `obscured` | Shows a coarse location label, weather, and a rounded map region with a 10 km uncertainty circle. Elevation is hidden. | Publishes rounded public coordinates and a sanitized public location label with `coordinate_uncertainty_in_meters >= 10000`; Explore posts default to `obscured` location sharing and stay off the Explore Map unless the author explicitly changes that post to `open`. |
+| `private` | Hides location label, elevation, weather, and map from scan-information surfaces. | Clears scan public coordinates, public uncertainty, and public location labels; Explore posts default to `private` location sharing but can be explicitly changed per post. |
 
 `users.default_geoprivacy` is the preference source of truth. New scans send the
 current setting in the identify request where possible, and Edge insert helpers
@@ -49,8 +49,9 @@ visibility decisions:
 
 - `ScanInformationCard` hides private location/elevation/weather/map, rounds
   obscured coordinates, and shows exact owner-facing context only for `open`.
-- `InsightBottomToolbar` passes no public location label to the Explore composer
-  or hashtag suggestions when privacy is `private`.
+- `InsightBottomToolbar` seeds the Explore composer location option from
+  `defaultGeoprivacy`. The composer can override that one post to `open`,
+  `obscured`, or `private`.
 - `AchievementContributionRow` hides private contribution locations in metadata
   and accessibility labels; `obscured` uses the sanitized public label.
 - `MessageScanShareCacheWriter` writes App Group Messages share captions without
@@ -64,23 +65,26 @@ without checking the current geoprivacy mode at the UI boundary.
 
 ## Public Boundaries
 
-Explore read RPCs and share-state helpers exclude private scans. Public Explore
-Map points are stricter: they include only `open` geoprivacy scans, and read
-only `gps_lat_public` / `gps_long_public`, never exact coordinates. Open scans
-may still render approximate map points when species-safety or uncertainty
-rules round the public projection.
+Explore read RPCs expose public posts regardless of the backing scan's current
+geoprivacy, as long as the post remains otherwise eligible. Public location is
+controlled by `explore_posts.location_sharing`: `private` clears public location
+fields, `obscured` can show a scrubbed label while staying off-map, and `open`
+projects post-owned public map coordinates. Open posts may still render
+approximate map points when species-safety or uncertainty rules round the public
+projection.
 Global Darwin Core exports include only open public records; personal exports
 may include the user's own exact telemetry when they request their own archive.
 
 When adding a new public, shared, widget, extension, notification, or export
 surface, use this checklist:
 
-- never read exact GPS for public responses;
-- exclude `geoprivacy = 'private'` from public/shareable result sets;
-- require `geoprivacy = 'open'` for public map result sets;
-- use `public_location_label` only after the DB trigger has scrubbed it;
-- use `gps_lat_public`, `gps_long_public`, and
-  `coordinate_uncertainty_in_meters` for map display;
+- never read exact GPS directly in public read RPCs;
+- keep public Explore post visibility separate from scan geoprivacy;
+- require `explore_posts.location_sharing = 'open'` for public map result sets;
+- use post-owned `public_location_label` only after the DB trigger has scrubbed
+  it;
+- use post-owned `public_latitude`, `public_longitude`, and
+  `public_coordinate_visibility` for Explore Map display;
 - gate local owner-facing text/map rendering through `defaultGeoprivacy`;
 - add a test for private hide and open/obscured restore behavior.
 

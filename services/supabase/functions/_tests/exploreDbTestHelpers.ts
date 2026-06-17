@@ -190,6 +190,7 @@ type InsertExplorePostOptions = {
   sharedAt?: string | null;
   fieldNotes?: string | null;
   speciesCommonName?: string | null;
+  locationSharing?: "open" | "obscured" | "private";
 };
 
 export async function insertExplorePost(
@@ -204,9 +205,10 @@ export async function insertExplorePost(
         scan_id,
         shared_at,
         field_notes,
-        species_common_name
+        species_common_name,
+        location_sharing
       )
-      VALUES ($1, $2, $3, COALESCE($4::timestamptz, now()), $5, $6)
+      VALUES ($1, $2, $3, COALESCE($4::timestamptz, now()), $5, $6, $7)
     `,
     [
       options.id,
@@ -215,6 +217,7 @@ export async function insertExplorePost(
       options.sharedAt ?? null,
       options.fieldNotes ?? null,
       options.speciesCommonName ?? null,
+      options.locationSharing ?? "open",
     ],
   );
 }

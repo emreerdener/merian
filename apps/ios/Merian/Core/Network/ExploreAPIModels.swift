@@ -43,6 +43,7 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     let speciesCommonName: String
     let speciesScientificName: String
     let publicLocationLabel: String?
+    let locationSharing: ExplorePostLocationSharing?
     let timeOfDay: String?
     let currentMonth: Int?
     let weatherCondition: String?
@@ -474,6 +475,7 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
     let speciesCommonName: String
     let speciesScientificName: String
     let publicLocationLabel: String?
+    let locationSharing: ExplorePostLocationSharing?
     let timeOfDay: String?
     let currentMonth: Int?
     let weatherCondition: String?
@@ -508,6 +510,7 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
             speciesCommonName: speciesCommonName,
             speciesScientificName: speciesScientificName,
             publicLocationLabel: publicLocationLabel,
+            locationSharing: locationSharing,
             timeOfDay: timeOfDay,
             currentMonth: currentMonth,
             weatherCondition: weatherCondition,
@@ -570,6 +573,7 @@ struct PublicUsernameAvailabilityResponse: Decodable {
 struct ExplorePostDetail: Decodable {
     let postId: String
     var fieldNotes: String?
+    var locationSharing: ExplorePostLocationSharing?
     let hashtags: [String]?
     let speciesDictionaryId: String?
     let alternativeCommonNames: [String]?
@@ -821,12 +825,14 @@ struct ExploreShareResponse: Decodable {
     let postId: String
     let scanId: String
     let sharedAt: String
+    let locationSharing: ExplorePostLocationSharing?
 }
 
 struct ExploreScanShareState: Decodable, Equatable {
     let scanId: String
     let postId: String?
     let sharedAt: String?
+    let locationSharing: ExplorePostLocationSharing?
 }
 
 struct ExploreLikeResponse: Decodable {
@@ -855,4 +861,5 @@ struct ExploreUpdateFieldNotesResponse: Decodable {
     let fieldNotes: String?
     let hashtags: [String]?
     let speciesCommonName: String?
+    let locationSharing: ExplorePostLocationSharing?
 }
