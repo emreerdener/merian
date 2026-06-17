@@ -130,8 +130,8 @@ On a fresh cold-boot, SwiftUI evaluates the global `WindowGroup` environment and
 ### SwiftUI Render Loop CPU Thrashing (`ScansThumbnailView`)
 When loading grid arrays from SwiftData entries, missing `imagePath` and `fallbackImageUrl` values previously mapped conditionally to `.task(id: ... ?? UUID().uuidString)`. SwiftUI cancels running `.task { }` executions whenever their tracked `id` parameter changes. By returning a dynamic UUID inline, SwiftUI aborted the task, forced a view invalidation, executed layout, and evaluated a new UUID, re-triggering the task recursively. This created infinite cancellation loops running at 120Hz, generating 100% CPU load and draining device battery. Merian fixes this by replacing UUID generation with a constant literal fallback: `?? "empty_thumbnail_state"`.
 
-### SQLite Thread-Safety Violations (`ArchiveManager`)
-Instantiating non-isolated `ModelContext` containers inside arbitrary `Task.detached` closures violates Swift 6 concurrency rules, generating data races and `EXC_BAD_ACCESS` crashes under load. Merian abandoned arbitrary detached SQLite threading. Background database ingestion (such as rescuing aging `.jpg` blobs off the S3 proxy) runs inside `@ModelActor` constructs (`ArchiveDatabaseActor`). This isolates SQL read/write operations inside a sequential concurrent thread pool, preventing memory access corruption. Duplicated object mapping logic across models (such as copying `SpeciesData` initialization dictionaries inside `OfflineQueueManager`) is consolidated back into `init(fromEdgeResponse:)` origins, isolating network JSON decoding and preventing data parity errors.
+### SQLite Thread-Safety Violations
+Instantiating non-isolated `ModelContext` containers inside arbitrary `Task.detached` closures violates Swift 6 concurrency rules, generating data races and `EXC_BAD_ACCESS` crashes under load. Merian abandoned arbitrary detached SQLite threading. Background database ingestion runs inside `@ModelActor` constructs such as `BackgroundDatabaseActor` and `HistoricalDatabaseActor`. This isolates SQL read/write operations inside a sequential concurrent thread pool, preventing memory access corruption. Duplicated object mapping logic across models (such as copying `SpeciesData` initialization dictionaries inside `OfflineQueueManager`) is consolidated back into `init(fromEdgeResponse:)` origins, isolating network JSON decoding and preventing data parity errors.
 
 ### Serial Upload Staging Head-of-Line Blocking (`OfflineQueueManager`)
 Before upload tasks were handed to the OS background `URLSession`, each image in a batch was staged serially: `FileManager.copyItem` (a synchronous NVMe write) ran sequentially per file before the next began. For a 3-image scan on a busy NVMe controller this added 500 ms–2 s of dead time before any byte reached R2.
@@ -504,7 +504,7 @@ To avoid JetSam OOM terminations when parsing large 48 MP ProRAW/HEIC payloads f
 ### File System Sandboxing Limits (`LocalImageLoader`)
 When grid interfaces ingest hundreds of locally un-cached APFS identifiers, executing synchronous `FileManager` and `UIImage(contentsOfFile:)` loads stutters the main thread and trips OS memory caps. Merian abstracts this through the isolated `LocalImageLoader` actor. It manages multi-tier RAM lookups inside an isolated concurrent queue, offloading all file reads to `ImageDownsampler.downsample()` within an encapsulated `Task.detached(priority: .userInitiated)`. Uncached `CGImageSourceCreateWithURL` fallback loads are removed, forcing the OS to honor `[kCGImageSourceShouldCache: false]` and CGImageSource size scaling, protecting device RAM.
 
-The loader also implements a recursive network fallback pipeline to handle expired cloud images (e.g. targeted 90-day Free Tier domesticated edge function purge) or failed local disk fetches. `LocalImageLoader` splits the aggregated `fallbackUrl` by commas and cascades through R2, Wikipedia, and GBIF URLs sequentially, swallowing 404 errors and falling back to displaying the "Visuals archived" icon. This runs without blocking the Main Thread or leaking RAM.
+The loader also implements a recursive network fallback pipeline to handle missing cloud images (e.g. user deletion, moderation removal, historical cleanup, or transient CDN failure) or failed local disk fetches. `LocalImageLoader` splits the aggregated `fallbackUrl` by commas and cascades through R2, Wikipedia, and GBIF URLs sequentially, swallowing 404 errors and falling back to displaying the "Visuals archived" icon. This runs without blocking the Main Thread or leaking RAM.
 
 The loader protects against "thundering herd" memory leaks. If the UI queries a missing image URL before cache limits evaluate, it tracks in-flight executions inside an `[String: Task<UIImage?, Never>]` dictionary, reducing duplicate loads to a single instance. To address an actor reentrancy vulnerability at the `await` suspension point, `LocalImageLoader` checks `if activeTasks[cacheKey] == fetchTask` inside its teardown `defer` block, ensuring concurrent task overwrites cannot cause an earlier task to wipe a newer active network request from the dictionary. `loadImage` returns `nil` when path strings are empty, rather than binding fresh `UUID` strings that previously bypassed cache logic and inflated `NSCache` allocations indefinitely.
 
@@ -540,7 +540,7 @@ enum SyncPhase: Equatable {
 Computed shims (`isSyncing: Bool { phase.isActive }` and `pendingUploadCount: Int`) preserve backward compatibility for existing UI components.
 
 ### Centralized Magic Numbers (`MerianConfig`)
-Batch sizes, fetch limits, pagination page sizes, storage thresholds, and retention windows were previously scattered as literals across `OfflineQueueManager`, `ScanRepository`, `ArchiveManager`, and `BackgroundDatabaseActor`. Divergence between these call sites introduced silent bugs (e.g., a fetch limit of 50 and a batch limit of 5 in different files with no linking comment).
+Batch sizes, fetch limits, pagination page sizes, and retention windows were previously scattered as literals across `OfflineQueueManager`, `ScanRepository`, and `BackgroundDatabaseActor`. Divergence between these call sites introduced silent bugs (e.g., a fetch limit of 50 and a batch limit of 5 in different files with no linking comment).
 
 All policy constants are now consolidated in `MerianConfig.swift` (Core/Utilities/):
 
@@ -551,13 +551,10 @@ enum MerianConfig {
     static let historicalSyncPageSize       = 200
     static let collectionsSyncPageSize      = 100
     static let ingestCheckpointInterval     = 100
-    static let diskSpaceThreshold: Int64    = 500 * 1024 * 1024
-    static let archiveRescueWindowStartDays = 80
-    static let archiveRescueWindowEndDays   = 88
 }
 ```
 
-`ArchiveManager`, `OfflineQueueManager+Sync`, and `ScanRepository` reference these constants exclusively. Tuning any policy requires a change in exactly one place.
+`OfflineQueueManager+Sync` and `ScanRepository` reference these constants exclusively. Tuning any policy requires a change in exactly one place.
 
 ### Transactional Scan Deletion (`eradicateScan`)
 The original `eradicateScan` deleted image files from disk before committing the SwiftData changes. A save failure after file deletion left the `LocalScanRecord` intact in the database while its images were gone — a permanently broken state.
@@ -734,27 +731,8 @@ The detached task holds no reference to the `@MainActor`-isolated `ScansManager`
 
 The caches are rebuilt once when `allScans` changes, then reused across all query/filter/sort passes. `record(for:)` resolves through `scanIndexById` first and only falls back to `scanRecordById` if the indexed slot is unavailable or stale during a snapshot transition. `sortPrimitivesById` avoids recreating primitive sort payloads on every keystroke. This keeps CPU predictable without a second SwiftData fetch or per-result linear scan.
 
-### Concurrent Archive Downloads with Sliding Window (`ArchiveManager`)
-`initiatePrePurgeSync(pendingImages:)` previously downloaded images to the Photo Library in a serial `for` loop — one `PHPhotoLibrary.performChanges` call at a time. For users archiving dozens of images before a purge cycle, serial execution left NVMe bandwidth idle between operations.
-
-The loop was replaced with a `withTaskGroup` sliding window capped at 3 concurrent in-flight downloads:
-
-```swift
-await withTaskGroup(of: Void.self) { group in
-    var inFlight = 0
-    var urlIterator = pendingImages.makeIterator()
-    func enqueueNext() {
-        while inFlight < 3, let url = urlIterator.next() {
-            inFlight += 1
-            group.addTask { try? await self.downloadToLocalLibrary(url: url) }
-        }
-    }
-    enqueueNext()
-    for await _ in group { inFlight -= 1; enqueueNext() }
-}
-```
-
-`PHPhotoLibrary.performChanges` serialises internally on the Photos daemon side, so a higher cap would not improve throughput; 3 was chosen to saturate NVMe bandwidth without queuing more requests than the Photos subsystem can absorb simultaneously.
+### Retired Timed Archive Rescue (`ArchiveManager`)
+Merian no longer runs timed local rescue downloads for biological scan media because successful biological evidence is durable in cloud storage regardless of subscription tier. `ArchiveManager` is now limited to generated dataset archive ZIP downloads.
 
 ### Historical Sync PostgREST Response Bloat — `species_dictionary(*)` Wildcard (`ScanRepository`)
 
@@ -932,7 +910,7 @@ This ensures:
 
 - **Non-fatal bootstrap boundaries**: auth presentation, Apple nonce generation, and `ModelContainer` startup are now recoverable paths. Startup retries corruption recovery once, quarantines the store when signatures match, and falls back to an in-memory safe mode with a user-facing notice instead of crashing.
 - **Collection membership is scan-driven**: hot UI paths (`CollectionCard`, `CollectionsView`, `SelectMultipleScansView`, `CollectionDetailView`) and historical reconciliation no longer rely on `collection.scans` traversal. Membership snapshots are derived from `LocalScanRecord.collections` so SwiftData faults stay bounded.
-- **Archive and offline file work are actor-owned**: `ArchiveManager` now delegates heavy network/file rescue work to `ArchiveTransferWorker`, while queued-scan cleanup and image writes flow through `FileIOActor.deleteFiles(at:)` / `writeTemporaryImages(imageDatas:)`.
+- **Offline file work is actor-owned**: queued-scan cleanup and image writes flow through `FileIOActor.deleteFiles(at:)` / `writeTemporaryImages(imageDatas:)`.
 - **File-backed restore uploads**: explore restore now re-uploads images with `upload(for:fromFile:)` and a small task-group concurrency window, eliminating duplicate in-memory image buffers during restores.
 - **Detached tasks are now exceptional**: view-owned network mutation work such as biological rescue and export flows moved behind repository or actor APIs. Remaining detached work must stay within `Sendable` CPU/file bridges only.
 - **Documented detached-work bridge**: high-level app flows now use `DetachedWork` instead of spelling raw `Task.detached` inline. This keeps the remaining executor escapes explicit, searchable, and narrow enough for linting.

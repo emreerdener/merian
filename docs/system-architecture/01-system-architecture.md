@@ -72,7 +72,7 @@ The backend logic is strictly decoupled into modular, single-responsibility func
 - **Data Lifecycle & Offline Sync**
   - `/sync-collections`: Reconciles offline iOS SwiftData modifications with the Postgres single source of truth.
   - `/delete-scan` & `/safe-delete`: Atomic operations cascading Postgres deletions out to Cloudflare R2 blobs to prevent orphaned objects.
-  - `/auto-purge-domesticated` & `/auto-purge-nonbio`: Automated webhook/cron jobs actively trimming non-wildlife data to maintain taxonomic dataset integrity.
+  - `/auto-purge-nonbio`: Automated webhook/cron job trimming non-biological captures while preserving biological sighting evidence.
 - **Public Species Content**
   - `/species-dictionary`: Public species-level dictionary projection for the in-app species page and future web frontend.
   - `/refresh-species-content`: Internal service-role cron worker that consumes `species_content_provenance`, refreshes GBIF/Wikipedia-backed fields, and synchronizes normalized reference imagery.

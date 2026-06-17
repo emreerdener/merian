@@ -623,27 +623,14 @@ These helpers remain as parked implementation support for a future rebuild.
   default profile stats path; that would pull media-adjacent columns into every
   Profile render.
 
-### `ArchiveManager` (Archive Safety Protocol)
+### `ArchiveManager`
 
-- Background worker that protects Free tier user data against the targeted
-  90-day Cloudflare R2 domesticated purge
-  (`00008_auto_purge_domesticated_cron.sql`).
-- Polls available disk space via `getAvailableDiskSpace()`. Storage threshold
-  and rescue window are driven by `MerianConfig` (`diskSpaceThreshold = 500 MB`,
-  `archiveRescueWindowStartDays = 80`, `archiveRescueWindowEndDays = 88`).
-- `evaluateAndRescueAgingScans` queries SwiftData for
-  `.isLocallyArchived == false` records older than 80 days. It runs once per day
-  via `.handleActivePhase()` lifecycle hooks. `ArchiveManager` now stays
-  `@MainActor` only for lifecycle coordination; heavy download/file rescue work
-  is delegated to a private `ArchiveTransferWorker` actor. The worker queries
-  the remote database for `image_storage_urls`, streams each binary via
-  `URLSession.download(from:)`, and moves the temp file into the local library
-  without blocking UI state. SwiftData stores only the relative `filename`
-  string rather than the full `fileURL.path`, preventing path breakage caused by
-  iOS randomizing container UUIDs across reboots and app updates.
-- **N+1 Query Prevention**: Extracts all `.identifier` strings upfront and sends
-  a single `.in("id", ...)` PostgREST query, pulling all storage relationships
-  in one round-trip.
+- Dataset archive download coordinator for generated export ZIP files.
+- Polls available disk space via `getAvailableDiskSpace()` for diagnostics and
+  support. Biological scan evidence is no longer rescued on a timer because
+  cloud media is durable regardless of subscription tier.
+- `downloadArchive(id:url:)` streams the generated ZIP to the local Documents
+  directory and reuses an existing file for the same archive id.
 
 ### `MerianConfig`
 
@@ -652,8 +639,8 @@ These helpers remain as parked implementation support for a future rebuild.
 - A policy change requires exactly one edit, with no risk of values diverging
   across files.
 - Referenced by `OfflineQueueManager`, `ScanRepository`
-  (`HistoricalDatabaseActor`), `ArchiveManager`, `CaptureWorkspaceViewModel`,
-  and `InferenceEngine`.
+  (`HistoricalDatabaseActor`), `CaptureWorkspaceViewModel`, and
+  `InferenceEngine`.
 
 | Constant                          | Value  | Consumer                                                                         |
 | --------------------------------- | ------ | -------------------------------------------------------------------------------- |
@@ -665,9 +652,6 @@ These helpers remain as parked implementation support for a future rebuild.
 | `historicalSyncPageSize`          | 200    | `ScanRepository`                                                                 |
 | `collectionsSyncPageSize`         | 100    | `ScanRepository`                                                                 |
 | `ingestCheckpointInterval`        | 50     | `HistoricalDatabaseActor`                                                        |
-| `diskSpaceThreshold`              | 500 MB | `ArchiveManager`                                                                 |
-| `archiveRescueWindowStartDays`    | 80     | `ArchiveManager`                                                                 |
-| `archiveRescueWindowEndDays`      | 88     | `ArchiveManager`                                                                 |
 | `imageCompressionQuality`         | 0.85   | `Capture`, `CaptureWorkspaceViewModel`                                           |
 | `visionConfidenceThreshold`       | 0.65   | `InferenceEngine` (Vision pre-classifier)                                        |
 | `visionConfidenceMargin`          | 0.15   | `InferenceEngine` (margin guard vs. second-best)                                 |
@@ -699,7 +683,6 @@ These helpers remain as parked implementation support for a future rebuild.
 | `suppressInferenceBanners`             | `"suppressInferenceBanners"`             | `AppSettings` typed property for mutation; `PushNotificationManager.willPresent` performs a direct synchronous key read because the delegate method is nonisolated.                 |
 | `lastBackgroundedDate`                 | `"lastBackgroundedDate"`                 | `AppLifecycleManager`                                                                                                                                                               |
 | `lastHistoricalSyncDate`               | `"lastHistoricalSyncDate"`               | `AppLifecycleManager`, `SupabaseManager`                                                                                                                                            |
-| `lastArchiveRescueDate`                | `"lastArchiveRescueDate"`                | `AppLifecycleManager`                                                                                                                                                               |
 | `enrichedSpeciesTimestamps`            | `"enrichedSpeciesTimestamps"`            | `InferenceEngine`                                                                                                                                                                   |
 | `isLiveInferencePaused`                | `"isLiveInferencePaused"`                | `CameraSettingsView`, `CameraManager`                                                                                                                                               |
 | `invertZoomDirection`                  | `"invertZoomDirection"`                  | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView`                                                                                                           |
@@ -882,7 +865,7 @@ and `KeychainManager` migration logic. Do not inline
   `httpShouldSetCookies = false`, `urlCache = nil`. TLS pinning via
   `MerianTLSDelegate` is applied to `*.supabase.co` only. **Media and external
   API calls use their own isolated sessions** (never `URLSession.shared`):
-  `LocalImageLoader`, `ArchiveManager`, `ArchiveDatabaseActor`, and
+  `LocalImageLoader`, `ArchiveManager`, and
   `InsightMediaExportManager`/`ExportProcessingActor` each declare a
   `private static let mediaSession` (30 s / 300 s timeouts);
   `SimilarSpeciesImageFetcher`, `InferenceEngine`, and `GBIFHeatmapMapView`

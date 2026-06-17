@@ -238,9 +238,6 @@ All magic numbers governing the sync pipeline live in `MerianConfig.swift` (Core
 | `historicalSyncPageSize` | 200 | Records per page for scans rehydration |
 | `collectionsSyncPageSize` | 100 | Records per page for collections rehydration |
 | `ingestCheckpointInterval` | 50 | SwiftData save frequency during bulk ingest |
-| `diskSpaceThreshold` | 500 MB | Minimum free space before archive/rescue operations |
-| `archiveRescueWindowStartDays` | 80 | Free Tier ASP rescue window start |
-| `archiveRescueWindowEndDays` | 88 | Free Tier ASP rescue window end |
 
 ## 2026-04 Hardening Updates
 

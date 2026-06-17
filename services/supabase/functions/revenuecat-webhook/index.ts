@@ -1,11 +1,10 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { jsonResponse, runBackground } from "../_shared/edgeHandler.ts";
+import { jsonResponse } from "../_shared/edgeHandler.ts";
 import { timingSafeCompare } from "../_shared/http.ts";
 
 import { ensureUserExists, updateUserTier } from "./db.ts";
 import { classifyRevenueCatEvent } from "./events.ts";
-import { migrateUserStorage } from "./storage.ts";
 import { setTierCache } from "../_shared/tierCache.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -67,13 +66,6 @@ serve(async (req: Request) => {
       // Immediately update the in-process tier cache so the next enrich-scan or identify
       // call on this isolate uses current tier state without waiting for the TTL to expire.
       setTierCache(userId, action.targetTier);
-      const [sourcePrefix, targetPrefix] =
-        action.storageMigration === "free_to_pro"
-          ? ["free", "pro"]
-          : ["pro", "free"];
-      runBackground(
-        migrateUserStorage(userId, sourcePrefix, targetPrefix, supabaseAdmin),
-      );
     }
 
     return jsonResponse({ success: true }, 200);

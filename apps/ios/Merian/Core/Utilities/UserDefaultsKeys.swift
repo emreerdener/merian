@@ -97,8 +97,6 @@ enum UserDefaultsKeys {
     static let lastBackgroundedDate = "lastBackgroundedDate"
     /// Throttle marker for the last historical cloud-to-local sync attempt.
     static let lastHistoricalSyncDate = "lastHistoricalSyncDate"
-    /// Throttle marker for the last archive-rescue evaluation.
-    static let lastArchiveRescueDate = "lastArchiveRescueDate"
     /// A persisted 24-hour TTL dictionary of species that have already completed enrichment.
     static let enrichedSpeciesTimestamps = "enrichedSpeciesTimestamps"
     /// Version marker for one-time local similar-species cache resets.

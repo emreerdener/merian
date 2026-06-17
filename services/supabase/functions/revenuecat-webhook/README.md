@@ -35,13 +35,10 @@ while handling massive backend data moves, the module is strictly decoupled:
   idempotent upsert to ensure the user row exists and transitioning
   `subscription_tier` and `subscription_expires_at` cleanly.
 
-- **`storage.ts`** Re-exports the shared `migrateUserStorage` engine from
-  `_shared/storageMigration.ts`. When a user transitions tiers, this function
-  silently duplicates all of their 12 MP image binaries from the active `free`
-  Cloudflare R2 bucket over to the `pro` bucket line (or vice versa), and
-  meticulously rewrites the `scans` table urls in PostgreSQL to match. The same
-  helper is used by `expire-subscription-passes` so webhook downgrades and timed
-  pass expiry share storage semantics.
+- Tier transitions do not copy existing scan media between R2 prefixes. Both
+  `public_uploads/free/` and `public_uploads/pro/` are durable scan-media
+  prefixes, so the webhook only updates subscription state and the in-process
+  tier cache.
 
 ## 7-Day Pass Contract
 

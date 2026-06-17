@@ -78,15 +78,6 @@ final class AppLifecycleManager {
             // (e.g. app killed or suspended mid-inference). NWPathMonitor only fires
             // on connectivity *changes*, so this must also run on every foreground.
             container.offlineQueueManager.replayInferenceForUploadedScans()
-
-            // Evaluate archive rescue once per 24 hours.
-            let lastRescueDate = UserDefaults.standard.object(forKey: UserDefaultsKeys.lastArchiveRescueDate) as? Date ?? Date.distantPast
-            if now.timeIntervalSince(lastRescueDate) >= 86400 {
-                if let context = container.offlineQueueManager.modelContext {
-                    container.archiveManager.evaluateAndRescueAgingScans(modelContext: context)
-                    UserDefaults.standard.set(now, forKey: UserDefaultsKeys.lastArchiveRescueDate)
-                }
-            }
         }
     }
 

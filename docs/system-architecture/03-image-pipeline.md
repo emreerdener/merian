@@ -191,7 +191,7 @@ Every `set(_:forKey:)` call computes the pixel-area cost (`width × height × 4 
 
 When a user reinstalls the app or signs in on a new device, `LocalScanRecord.localImagePath` contains a Cloudflare R2 URL rather than a local filename. `LocalImageLoader` handles this transparently — it detects the `http://` prefix and routes through `fetchNetworkFallback`, which downloads to a temp file, downsamples to the caller-provided `maxDimension` (no longer hardcoded), caches in RAM, and deletes the temp file.
 
-This means the grid renders correctly with cloud images immediately, and any locally archived scans (via `ArchiveManager`) will be served from disk on subsequent loads once they have been rescued to `documentsDirectory`.
+This means the grid renders correctly with cloud images immediately. Legacy locally archived scans whose media was previously copied into `documentsDirectory` still load from disk through the same local-image path.
 
 ---
 
@@ -215,4 +215,4 @@ The same file-backed rule now applies to explore-media restore. `MerianNetworkCl
 | `FileIOActor` | `Core/Data/Database/` | Disk reads/writes; isolated from Main and SwiftData actors |
 | `LocalImageLoader` | `Core/Data/Images/` | Load orchestration; RAM cache hits; request coalescing; local/remote routing |
 | `ImageCache` | `Core/Data/Images/` | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap |
-| `ArchiveManager` | `Core/Data/Images/` | `@MainActor` coordinator that delegates heavy rescue downloads and file moves to `ArchiveTransferWorker`, keeping UI state on the main actor and bulk file/network work off it |
+| `ArchiveManager` | `Core/Data/Images/` | `@MainActor` coordinator for generated dataset archive ZIP downloads |

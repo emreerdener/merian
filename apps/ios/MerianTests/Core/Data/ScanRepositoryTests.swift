@@ -81,10 +81,10 @@ struct ScanRepositoryTests {
         )
         ctx.insert(record)
         
-        // Base state assertion ensures the boolean initializes as `false` cleanly matching 90-day retention policies
+        // Base state assertion ensures the backward-compatible local archive flag initializes as `false`.
         #expect(record.isLocallyArchived == false, "Initial scan mapping must NOT be locally archived")
-        
-        // Act: Mutate manually migrating execution out of the 90-day bounds
+
+        // Act: Mutate manually to confirm the legacy flag still persists for already-archived records.
         record.isLocallyArchived = true
         try ctx.save()
         

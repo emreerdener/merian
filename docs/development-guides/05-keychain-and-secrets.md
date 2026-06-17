@@ -21,7 +21,6 @@ This document explains what storage mechanism to use for persistent identity tok
 | `Merian_HasAuthenticatedOAuth` | `KeychainManager` (`kSecClassGenericPassword`) | Security-sensitive auth flag, migrated from `UserDefaults` on first run |
 | Device IDFV (`Merian_Device_IDFV`) | `DeviceIdentityManager` (`kSecClassGenericPassword`) | Persisted across reinstalls within the same vendor group |
 | `hasCompletedOnboarding` | `UserDefaults` | Non-sensitive preference |
-| `lastArchiveRescueDate` | `UserDefaults` | Non-sensitive timestamp |
 | `isAchievementNotificationsEnabled` | `UserDefaults` | Non-sensitive preference |
 | `Merian_UnlockedSpeciesCount` | `UserDefaults` | Non-sensitive gamification counter |
 | `Merian_UnlockedAchievements` | `UserDefaults` | Non-sensitive gamification set |
@@ -39,7 +38,7 @@ Merian uses two different categories of keys/configuration:
 **Absolute rule: no true backend secret may appear in any `.swift` file, `Info.plist`, iOS `.xcconfig` file, client component, or `NEXT_PUBLIC_` web environment variable.**
 
 - `GEMINI_API_KEY` — lives exclusively in Supabase Edge secrets. The iOS binary has no knowledge of this key. All Gemini calls go through the `/identify` Edge function.
-- `SUPABASE_SERVICE_ROLE_KEY` — lives in Supabase Edge secrets or server-side web deployment secrets only. Never in the iOS app, never in `Config.xcconfig`, and never in a `NEXT_PUBLIC_` variable. Internal cron/webhook workers such as `refresh-species-content`, `refresh-merian-reference-images`, `auto-purge-nonbio`, and `auto-purge-domesticated` may receive it only as a server-to-server `Authorization: Bearer ...` header from `pg_net`/Vault. The Next.js web app may read it only from server-rendered route/helpers such as `apps/web/lib/supabase.ts`.
+- `SUPABASE_SERVICE_ROLE_KEY` — lives in Supabase Edge secrets or server-side web deployment secrets only. Never in the iOS app, never in `Config.xcconfig`, and never in a `NEXT_PUBLIC_` variable. Internal cron/webhook workers such as `refresh-species-content`, `refresh-merian-reference-images`, and `auto-purge-nonbio` may receive it only as a server-to-server `Authorization: Bearer ...` header from `pg_net`/Vault. The Next.js web app may read it only from server-rendered route/helpers such as `apps/web/lib/supabase.ts`.
 - `SUPABASE_ANON_KEY` — this is public client config, not a secret. It is injected via `Config.xcconfig` into `MerianEnvironment.swift`.
 - `SUPABASE_URL`, `REVENUECAT_API_KEY`, `POSTHOG_API_KEY`, `TELEMETRY_APP_ID`, `GIDClientID`, and `REVERSED_CLIENT_ID` are also public client config values used by the app at runtime.
 

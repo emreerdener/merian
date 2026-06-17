@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-17-durable-biological-media",
+      "date": "2026-06-17",
+      "title": "Durable biological evidence",
+      "sections": [
+        {
+          "title": "Changed",
+          "items": [
+            "Biological scan images are now durable for Free and Pro users; Merian no longer auto-purges successful sighting evidence based on age or tier."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-16-seven-day-pass",
       "date": "2026-06-16",
       "title": "7-day Pro pass",

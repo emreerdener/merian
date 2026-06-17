@@ -34,6 +34,9 @@ TestFlight, App Store, support, and QA.
 
 ### Changed
 
+- Biological scan images are now durable for Free and Pro users; Merian no
+  longer auto-purges successful biological sighting evidence based on age or
+  tier, while temporary and non-biological cleanup remains in place.
 - Refreshed the Pro paywall with an immersive visual layout, selectable plan
   cards, plan comparison rows, stronger restore/policy actions, and a persistent
   purchase button.

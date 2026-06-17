@@ -12,7 +12,6 @@ export interface RevenueCatWebhookEvent {
 export interface TierUpdateAction {
   targetTier: "pro" | "free";
   expiresAt: string | null;
-  storageMigration: "free_to_pro" | "pro_to_free";
 }
 
 export function classifyRevenueCatEvent(
@@ -25,7 +24,6 @@ export function classifyRevenueCatEvent(
     return {
       targetTier: "pro",
       expiresAt: passExpirationFromRevenueCatEvent(event),
-      storageMigration: "free_to_pro",
     };
   }
 
@@ -36,7 +34,6 @@ export function classifyRevenueCatEvent(
     return {
       targetTier: "free",
       expiresAt: null,
-      storageMigration: "pro_to_free",
     };
   }
 
@@ -48,7 +45,6 @@ export function classifyRevenueCatEvent(
     return {
       targetTier: "pro",
       expiresAt: null,
-      storageMigration: "free_to_pro",
     };
   }
 
@@ -56,7 +52,6 @@ export function classifyRevenueCatEvent(
     return {
       targetTier: "free",
       expiresAt: null,
-      storageMigration: "pro_to_free",
     };
   }
 

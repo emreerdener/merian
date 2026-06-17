@@ -166,12 +166,9 @@ Kong Gateway via `verify_jwt = false`.
    limit set by `config.toml`. To prevent Ghost Profile R2 migration data loss,
    it evaluates image URIs based on the `public_uploads/free/` prefix rather
    than matching the new authenticated `userId`, ensuring historical offline
-   scans are included. It uses the AWS S3 SDK to perform remote `PUT` copies,
-   moving the image bytes into the permanent `public_uploads/pro/{userId}/`
-   tier, protecting the user from the Rolling Cloud Window 90-day expiration
-   purge. It then deletes the original `/free/` object and reconstructs the
-   public Cloudflare URL (`https://media.merian.app/public_uploads/pro/...`),
-   saving it to the `scans.image_storage_urls` array. This prevents S3
+  scans are included. Existing scan media remains under its original
+  `public_uploads/free/` or `public_uploads/pro/` prefix when the tier changes;
+  both prefixes are durable scan-media storage. This prevents S3
    validation failures that would cause iOS `URLSession` to receive
    `HTTP 400 Bad Request` errors and result in dead links.
 

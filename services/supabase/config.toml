@@ -411,9 +411,6 @@ verify_jwt = false
 [functions.auto-purge-nonbio]
 verify_jwt = false
 
-[functions.auto-purge-domesticated]
-verify_jwt = false
-
 [functions.expire-subscription-passes]
 verify_jwt = false
 

@@ -12,7 +12,6 @@ Deno.test("classifyRevenueCatEvent: exact pass purchase grants timed pro from Re
   assertEquals(action, {
     targetTier: "pro",
     expiresAt: "2026-06-23T00:00:00.000Z",
-    storageMigration: "free_to_pro",
   });
 });
 
@@ -43,7 +42,6 @@ Deno.test("classifyRevenueCatEvent: normal subscription purchases clear timed ex
     assertEquals(classifyRevenueCatEvent({ type, product_id: "merian_pro" }), {
       targetTier: "pro",
       expiresAt: null,
-      storageMigration: "free_to_pro",
     });
   }
 });
@@ -57,7 +55,6 @@ Deno.test("classifyRevenueCatEvent: standard expiration downgrades with no timed
     {
       targetTier: "free",
       expiresAt: null,
-      storageMigration: "pro_to_free",
     },
   );
 });
@@ -72,7 +69,6 @@ Deno.test("classifyRevenueCatEvent: pass cancellation/refund/expiration immediat
       {
         targetTier: "free",
         expiresAt: null,
-        storageMigration: "pro_to_free",
       },
     );
   }

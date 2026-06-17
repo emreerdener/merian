@@ -1444,8 +1444,8 @@ Tracks locally synchronized species scans for the Scans library.
 - `referenceImageUrl`: String? (Stores Wikipedia/GBIF biological reference
   images only. Kept separate from scan images to prevent duplication in the UI
   Image Carousel).
-- `isLocallyArchived`: Bool (Managed by the Archive Safety Protocol to track R2
-  payloads downloaded before the 90-day free tier domesticated expiration).
+- `isLocallyArchived`: Bool (Legacy/backward-compatible flag for records whose
+  visual payload was previously copied into local Documents storage).
 - `taxonomyKingdom`, `taxonomyPhylum`, `taxonomyClass`, `taxonomyOrder`,
   `taxonomyFamily`, `taxonomyGenus`: String? (Linnaean taxonomy fields added in
   `MerianSchemaV3`, enabling background semantic discovery without relying on

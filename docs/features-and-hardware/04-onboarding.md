@@ -59,7 +59,7 @@ func completeOnboarding() {
 - `AppLifecycleManager.handleInactivePhase()` — same guard
 - `AppLifecycleManager.handleBackgroundPhase()` — same guard
 
-This means during onboarding: no camera session starts, no offline sync runs, no archive rescue fires.
+This means during onboarding: no camera session starts and no offline sync runs.
 
 ---
 

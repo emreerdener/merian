@@ -119,7 +119,6 @@ Deno.test("classifyRevenueCatEvent: exact 7-day pass grants timed pro", () => {
 
   assertEquals(action?.targetTier, "pro");
   assertEquals(action?.expiresAt, "2026-06-23T12:00:00.000Z");
-  assertEquals(action?.storageMigration, "free_to_pro");
 });
 
 Deno.test("classifyRevenueCatEvent: unrelated non-renewing purchase is ignored", () => {
@@ -140,7 +139,6 @@ Deno.test("classifyRevenueCatEvent: standard subscription purchase clears expiry
 
   assertEquals(action?.targetTier, "pro");
   assertEquals(action?.expiresAt, null);
-  assertEquals(action?.storageMigration, "free_to_pro");
 });
 
 Deno.test("classifyRevenueCatEvent: pass refund downgrades immediately", () => {
@@ -151,5 +149,4 @@ Deno.test("classifyRevenueCatEvent: pass refund downgrades immediately", () => {
 
   assertEquals(action?.targetTier, "free");
   assertEquals(action?.expiresAt, null);
-  assertEquals(action?.storageMigration, "pro_to_free");
 });

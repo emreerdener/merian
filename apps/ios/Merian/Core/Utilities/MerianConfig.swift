@@ -14,21 +14,12 @@ enum MerianConfig {
     /// Remove this flag once standard quota enforcement should return.
     static var alphaUnlimitedFreeScansEnabled = true
 
-    // MARK: - Free Tier Retention
+    // MARK: - Retention
 
-    /// The earliest a Free Tier scan can enter the archive rescue window (days before expiry).
-    static let archiveRescueWindowStartDays = 80
-    /// The latest a Free Tier scan will be evaluated for rescue (days before full expiry).
-    static let archiveRescueWindowEndDays   = 88
     /// Local and cloud retention window for non-biological scans.
     static let nonBiologicalRetentionDays = 30
     /// Maximum expired non-biological records to purge during one foreground cleanup pass.
     static let nonBiologicalPurgeBatchSize = 250
-
-    // MARK: - Storage
-
-    /// Minimum free device storage (bytes) required before archive or rescue operations proceed.
-    static let diskSpaceThreshold: Int64 = 500 * 1024 * 1024  // 500 MB
 
     // MARK: - Upload Batching
 

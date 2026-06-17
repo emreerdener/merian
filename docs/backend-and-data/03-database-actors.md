@@ -219,14 +219,14 @@ await FileIOActor.shared.deleteImages(at: failedPaths)
 
 **Why isolated from SwiftData actors**: Disk I/O and SQLite writes contend for different OS resources. Keeping them on separate actors prevents either from starving the other.
 
-### `ArchiveTransferWorker` (`Core/Data/Images/ArchiveManager.swift`)
+### `ArchiveManager` (`Core/Data/Images/ArchiveManager.swift`)
 
-**Declaration**: `private actor ArchiveTransferWorker`
+**Declaration**: `@MainActor @Observable final class ArchiveManager`
 
 **Responsibilities:**
-- Owns the heavy download / temp-file / photo-library rescue work triggered by `ArchiveManager`.
-- Streams aging cloud images to disk off the main actor and moves rescued files into the local library.
-- Keeps `ArchiveManager` itself free to remain an `@MainActor` lifecycle coordinator without mixing UI state and large file/network work on the same executor.
+- Downloads generated dataset archive ZIP files via an isolated media session.
+- Reuses local Documents files for repeat archive opens.
+- Exposes disk-space diagnostics without owning SwiftData rescue work.
 
 ---
 

@@ -273,8 +273,8 @@ The `/identify` Edge Function acts as the inference proxy:
 6. **Moderation Pipeline (`_shared/identify/moderation.ts`)**: Evaluates Gemini
    Safety Ratings before any write occurs. Unsafe media sets the user's status
    to `SHADOWBANNED`, increments abuse strikes, and deletes the R2 object. Safe
-   media falls through to the Rolling Cloud Window storage policy, which selects
-   the appropriate Cloudflare R2 lifecycle bucket based on `.userTier`. The
+   biological media is promoted into durable scan storage under the current
+   `.userTier` prefix. The
    shared moderation module calls `getR2Config()` once at the top and reuses the
    resulting `AwsClient`. **Moderation ERROR guard**: When
    `modResult.status === "ERROR"` (e.g. abuse strike DB write failed or a
@@ -699,20 +699,13 @@ unbounded APNs requests and device state writes from a single V8 isolate.
 
 ## The Webhook Node (`revenuecat-webhook`)
 
-The `revenuecat-webhook` function drives async tier migrations (`pro` ↔ `free`).
-Because Deno enforces a 10-second processing limit, bulk R2 operations are
-deferred via `runBackground(task)` from `_shared/edgeHandler.ts`. The webhook
-secret is validated using `timingSafeCompare()`, a constant-time XOR comparison,
-rather than plain string equality — this prevents timing attacks. The deferred
-task queries orphaned `public_uploads/free/` objects from the `scans` table and
-issues `AWS SDK PUT` copy commands to move them into the `/pro/` bucket. To
-prevent IDOR attacks on S3 deletes, the function validates that the
-`originalUserId` parsed from `image_storage_urls` matches the `userId`
-associated with the webhook trigger. **Concurrent webhook idempotency**
-(`storage.ts`): Before issuing a copy for a URL, the function checks whether the
-URL already contains the target prefix (e.g., `/pro/`). If it does, the copy is
-skipped rather than retried — this handles concurrent webhook retry deliveries
-from RevenueCat without creating duplicate objects or spurious `403` errors.
+The `revenuecat-webhook` function drives tier updates (`pro` ↔ `free`) without
+moving existing scan media between R2 prefixes. Both `public_uploads/free/` and
+`public_uploads/pro/` are durable scan-media storage, so RevenueCat events only
+update `users.subscription_tier`, `users.subscription_expires_at`, and the
+in-process tier cache. The webhook secret is validated using
+`timingSafeCompare()`, a constant-time XOR comparison, rather than plain string
+equality — this prevents timing attacks.
 **Tier cache invalidation**: After writing the new tier to the `users` table,
 the function immediately calls `setTierCache(userId, tier)` from
 `_shared/tierCache.ts` to update the in-process isolate cache. Without this, a
@@ -723,11 +716,11 @@ Standard subscription purchases (`INITIAL_PURCHASE`, `RENEWAL`,
 `UNCANCELLATION`) clear `subscription_expires_at`; exact
 `merian_7_day_pass` `NON_RENEWING_PURCHASE` events set it to
 `purchased_at_ms + 7 days`. On `EXPIRATION` for standard subscriptions, or
-refund/cancellation-style events for the pass, the same process runs in reverse,
-moving objects from `/pro/` back to `/free/`, returning them to the targeted
-90-day domesticated purge cycle. The scheduled
-`expire-subscription-passes` worker performs that same downgrade/storage
-migration when a timed pass reaches `subscription_expires_at`.
+refund/cancellation-style events for the pass, Merian downgrades the account
+tier and updates the in-process tier cache. Existing scan media remains in
+place because both `public_uploads/free/` and `public_uploads/pro/` are durable
+scan-media prefixes. The scheduled `expire-subscription-passes` worker performs
+the same downgrade when a timed pass reaches `subscription_expires_at`.
 
 Before saving `image_storage_urls` to PostgreSQL, the function strips AWS
 signature query string parameters from the URL to prevent Cloudflare R2
@@ -869,8 +862,10 @@ following:
 - `idx_scans_user_species` on `scans (user_id, species_id)` — supports the
   Postgres trigger computing `COUNT(DISTINCT species_id)`.
 - `idx_scans_lifecycle` on `scans (timestamp) WHERE image_storage_urls != '{}'`
-  — scopes the daily storage cleanup cron job to rows that have images, avoiding
-  full-table scans.
+  — supports media-present scans queries used by public/feed/reference-image
+  projections.
+- `idx_scans_nonbio_lifecycle` on `scans (timestamp) WHERE
+  is_biological_subject = false` — scopes the non-biological cleanup worker.
 
 Additional migration-specific indexes:
 
@@ -890,12 +885,14 @@ Additional migration-specific indexes:
   filter and the `ORDER BY` in a single index-only scan, making each page
   O(page_size) regardless of library size.
 
-## Storage Economics & Lifecycle Syndication
+## Storage Economics & Evidence Retention
 
-`00004_storage_lifecycle_sync.sql` configures a `pg_cron` job that clears
-`image_storage_urls` on `subscription_tier = 'free'` rows older than 90 days. It
-runs at 02:00 UTC daily. The underlying scan row is preserved; only the storage
-URLs are cleared.
+Biological scan media is durable regardless of subscription tier. Migration
+`20260616130000_disable_free_tier_media_expiration.sql` unschedules the earlier
+free-tier URL scrubber and the targeted domesticated-media purge, then drops
+the broad `scrub_expired_free_tier_urls()` helper. Successful biological
+sightings keep their image evidence unless the user deletes the scan, moderation
+removes the media, or an operator performs an explicit support action.
 
 **`get-filtered-discovery-feed`**: Applies
 `.not("image_storage_urls", "eq", "{}")` to exclude rows with cleared media from
@@ -907,10 +904,9 @@ column list rather than `select("*")`, omitting telemetry and analytics columns
 token counts, `extracted_visual_traits`, `ai_reasoning`, etc.) that the client
 never renders. This reduces per-row payload size by approximately 60% at scale.
 
-**Graceful Degradation**: Scans whose R2 media has expired render a
-`.ultraThinMaterial` glass pane with an `archivebox.fill` icon in
-`ScansThumbnailView` and `AsyncLocalImageView`, rather than looping on a
-`ProgressView`.
+**Graceful Degradation**: Scans whose media is missing because of user deletion,
+moderation, historical cleanup, or transient CDN failure render the archived
+visual placeholder rather than looping on a `ProgressView`.
 
 ### Automated 30-Day Non-Biological Purge
 
@@ -933,21 +929,6 @@ is invoked on foreground and when `NonBiologicalScansView` opens. It delegates t
 fetches a bounded batch of expired local non-biological records, deletes rows,
 queues `PendingCloudDeletionTask` tombstones, commits SwiftData first, and only
 then returns local media paths for `FileIOActor` cleanup.
-
-### Targeted 90-Day Domesticated Purge
-
-The `auto-purge-domesticated` Edge Function reclaims heavy storage costs by
-purging 90-day-old `domesticated` ecology scans from Free tier users without
-touching valuable `wild` and `invasive` specimens. To safely avoid Deno's
-wall-clock timeouts when issuing hundreds of network API calls to Cloudflare,
-the worker chunks candidate URL arrays and delegates each chunk to
-`deleteScanMediaR2Objects`, which filters to scan-media prefixes before using
-the bounded delete fanout. The raw delete concurrency remains capped at 16. The
-query is supported by `idx_scans_domesticated_purge` on `(timestamp)` where
-`ecology_type = 'domesticated'` and `image_storage_urls <> '{}'`, narrowing the
-scan to rows whose media can actually be reclaimed. It zeroes out the
-`image_storage_urls` array rather than dropping the row, ensuring the user's
-localized text record safely remains in their app gallery.
 
 ## Token Cost Analytics (`services/supabase/analytics/`)
 

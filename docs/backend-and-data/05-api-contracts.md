@@ -3281,45 +3281,6 @@ No JSON body is required. The cron trigger issues an empty POST request.
    only after successfully purging the R2 remote hashes, preventing orphan
    binaries.
 
----
-
-## Deno `/auto-purge-domesticated` Edge Node
-
-A daily cron-job endpoint responsible for removing massive image footprints
-belonging to free-tier users who have scanned domesticated taxonomy (e.g., pets,
-houseplants) older than 90 days. It intentionally preserves the database row ID
-for offline user lifelist functionality, while zeroing out the network
-footprint.
-
-### Request Payload
-
-No JSON body is required. The cron trigger issues an empty POST request.
-
-### Authentication Enforcement
-
-- Enforces strict cron authorization via `timingSafeCompare` against a
-  `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` Authorization header. Returns `401` if
-  invalid.
-- Blocks accidental `GET` evaluations by validating `req.method === "POST"`.
-
-### Deletion Safety
-
-1. Performs a PostgREST Inner Join `users!inner(...)` to evaluate
-   `users.subscription_tier == "free"`.
-2. Queries scans where `ecology_type == 'domesticated'` and
-   `timestamp < 90 days ago` with `.limit(500)`.
-3. Aggregates R2 `image_storage_urls` and batches the evaluation in chunks of
-   500 via `deleteScanMediaR2Objects`; the shared helper filters to
-   `public_uploads/free|pro/` before capping in-flight Cloudflare delete
-   requests at 16 per Edge isolate. Durable `avatars/` profile images are
-   skipped.
-4. Safely executes `.update({ image_storage_urls: [] })` across the 500 scans to
-   synchronize PostgreSQL natively without destroying the row telemetry context!
-5. Uses the partial index `idx_scans_domesticated_purge` for the timestamp scan
-   over domesticated rows that still have image URLs.
-
----
-
 ## Deno `/revenuecat-webhook` Edge Node
 
 Receives POST push events triggered natively from the RevenueCat subscription
@@ -3354,12 +3315,6 @@ Receives a raw RevenueCat Webhook structure wrapper targeting an internal JSON
 - Pass refund/cancellation-style events downgrade immediately. Timed passes
   that naturally reach `subscription_expires_at` are downgraded by the hourly
   `expire-subscription-passes` worker.
-- **R2 Storage Relocation**: Migrates files between the `free` and `pro` prefix
-  buckets in Cloudflare R2. To prevent execution timeouts on users with
-  thousands of photos, the script iterates through SQL constraints utilizing a
-  `size: 1000` chunk-by-chunk lookup bound in an independent
-  `EdgeRuntime.waitUntil` detached thread.
-- Defends against IDOR manipulations silently: If a user attempts to execute an
-  R2 copy belonging to an external User UUID through manipulated array data, the
-  proxy blocks the migration sequence logic and reports a silent violation to
-  Edge telemetry logs.
+- Existing scan media stays in place on tier changes. Both
+  `public_uploads/free/` and `public_uploads/pro/` are durable scan-media
+  prefixes.

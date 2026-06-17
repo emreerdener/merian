@@ -78,7 +78,6 @@ deno check \
   services/supabase/functions/_shared/concurrency_test.ts \
   services/supabase/functions/update-public-avatar/index.ts \
   services/supabase/functions/auto-purge-nonbio/index.ts \
-  services/supabase/functions/auto-purge-domesticated/index.ts \
   services/supabase/functions/delete-scan/index.ts
 
 deno test \
@@ -104,8 +103,8 @@ For non-interactive local environments, export `SUPABASE_ACCESS_TOKEN` and
 After deployment:
 
 - Confirm `supabase db push` applied the newest migration.
-- Confirm `auto-purge-nonbio`, `auto-purge-domesticated`, and `delete-scan`
-  were deployed after any `_shared/aws.ts` change.
+- Confirm `auto-purge-nonbio` and `delete-scan` were deployed after any
+  `_shared/aws.ts` change.
 - Confirm `update-public-avatar` was deployed after
   `20260528120000_add_custom_public_avatars.sql`.
 - Inspect Cloudflare R2 lifecycle rules against `docs/r2-lifecycle.json` and

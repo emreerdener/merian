@@ -140,7 +140,6 @@ native iOS source tree.
 | `ProfileDatabaseActor` | `apps/ios/Merian/Features/Profile/Components/Profile/UserStats.swift` | Ad-hoc for profile screen calculations; long-lived via `OfflineQueueManager.resolvedProfileDbActor(container:)` for post-inference awards. |
 | `SpeciesObservationStatsDatabaseActor` | `apps/ios/Merian/Features/Insights/ViewModels/SpeciesObservationStatsViewModel.swift` | Ad-hoc per species chart load; filtered/projection SwiftData fetches for local observation overlays, then delegates bucketing to `Features/Insights/Models/SpeciesObservationStatsReducer.swift`. |
 | `SearchDatabaseActor` | `apps/ios/Merian/Features/Scans/ViewModels/ScansManager.swift` | Ad-hoc for incremental search payload extraction from persistent IDs. |
-| `ArchiveDatabaseActor` | `apps/ios/Merian/Core/Data/Images/ArchiveManager.swift` | Archive bookkeeping and rescue state. |
 | `FileIOActor` | `apps/ios/Merian/Core/Data/Database/FileIOActor.swift` | Singleton actor for image/audio file writes, deletes, and path validation. |
 
 ## Supabase Edge Function Inventory
@@ -210,7 +209,6 @@ Scheduled/background workers:
 - `refresh-species-content`
 - `refresh-merian-reference-images`
 - `auto-purge-nonbio`
-- `auto-purge-domesticated`
 
 Every function above has a `[functions.<name>]` entry in `services/supabase/config.toml`.
 `merge-ghost-profile` and `request-export-dwca` intentionally use

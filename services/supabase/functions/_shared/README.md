@@ -51,8 +51,6 @@ multiple functions need the same behavior and the ownership boundary is clear.
 - **`subscriptionPass.ts`**: Exact product policy for the detached
   `merian_7_day_pass`, including the 7-day duration and RevenueCat
   `purchased_at_ms` expiration calculation.
-- **`storageMigration.ts`**: Shared R2 prefix migration helper used by
-  RevenueCat webhook tier changes and scheduled timed-pass expiry downgrades.
 - **`explore.ts`**: Explore UUID/hashtag validation, public author identity
   sync, feed-card hashtag/pro-badge/username hydration, and shared
   social-surface helpers.

@@ -16,19 +16,18 @@ backend authority that turns those timed grants back into free accounts.
    `subscription_expires_at <= now()`.
 4. Each matching row is downgraded to `subscription_tier = 'free'` and
    `subscription_expires_at = null`.
-5. The shared `_shared/storageMigration.ts` helper moves scan media from the
-   `pro` R2 prefix back to the `free` prefix.
+5. Existing scan media remains in place; both `public_uploads/free/` and
+   `public_uploads/pro/` are durable scan-media prefixes.
 
 Standard auto-renewing Pro subscriptions leave `subscription_expires_at = null`,
 so they are ignored by this worker.
 
 ## Testing
 
-Run the worker, guarded database-query, and shared storage-migration tests with:
+Run the worker and guarded database-query tests with:
 
 ```bash
 deno test --allow-all \
   services/supabase/functions/expire-subscription-passes/db_test.ts \
-  services/supabase/functions/expire-subscription-passes/worker_test.ts \
-  services/supabase/functions/_shared/storageMigration_test.ts
+  services/supabase/functions/expire-subscription-passes/worker_test.ts
 ```
