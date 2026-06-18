@@ -54,6 +54,7 @@ struct TaxonomyTreeCanvasView: View {
                     TaxonomyTreeEdgesCanvas(
                         graph: viewModel.graph,
                         positions: layout.positions,
+                        scale: viewModel.scale,
                         spotlightIDs: spotlightIDs,
                         selectedNodeID: viewModel.selectedNodeID
                     )
@@ -91,17 +92,7 @@ struct TaxonomyTreeCanvasView: View {
                 VStack(spacing: 8) {
                     TaxonomyTreeControlBar(
                         searchText: $viewModel.searchText,
-                        breadcrumb: viewModel.breadcrumbText,
-                        canClearFocus: viewModel.focusedNodeID != nil || viewModel.selectedNodeID != nil,
-                        onReset: {
-                            viewModel.resetView()
-                        },
-                        onZoomIn: {
-                            viewModel.zoom(by: 1.18)
-                        },
-                        onZoomOut: {
-                            viewModel.zoom(by: 0.86)
-                        }
+                        breadcrumb: viewModel.breadcrumbText
                     )
 
                     let searchResults = viewModel.searchResults
@@ -124,8 +115,21 @@ struct TaxonomyTreeCanvasView: View {
                         }
                     }
                 }
+                .frame(width: max(0, proxy.size.width - 28), alignment: .topLeading)
                 .padding(.horizontal, 14)
                 .padding(.top, 12)
+                .padding(.bottom, 12)
+                .frame(width: proxy.size.width, alignment: .topLeading)
+                .background(alignment: .top) {
+                    Color(uiColor: .systemGroupedBackground)
+                        .overlay(alignment: .bottom) {
+                            Rectangle()
+                                .fill(Color.black.opacity(0.07))
+                                .frame(height: 1 / UIScreen.main.scale)
+                        }
+                        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 3)
+                        .ignoresSafeArea(edges: .top)
+                }
 
                 if viewModel.isLoading {
                     ProgressView()
@@ -136,6 +140,24 @@ struct TaxonomyTreeCanvasView: View {
                         .padding(.top, 82)
                         .padding(.trailing, 16)
                 }
+
+                TaxonomyTreeFloatingControls(
+                    canClearFocus: viewModel.focusedNodeID != nil || viewModel.selectedNodeID != nil,
+                    onZoomOut: {
+                        viewModel.zoom(by: 0.86)
+                    },
+                    onZoomIn: {
+                        viewModel.zoom(by: 1.18)
+                    },
+                    onReset: {
+                        viewModel.resetView()
+                    }
+                )
+                .position(
+                    x: max(58, proxy.size.width - 42),
+                    y: max(220, proxy.size.height - (selectedNode == nil ? 120 : 244))
+                )
+                .zIndex(4)
 
                 if let selectedNode {
                     TaxonomyTreeSelectionDrawer(
@@ -345,23 +367,33 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
 private struct TaxonomyTreeEdgesCanvas: View {
     let graph: TaxonomyTreeGraph
     let positions: [String: CGPoint]
+    let scale: CGFloat
     let spotlightIDs: Set<String>
     let selectedNodeID: String?
 
     var body: some View {
         Canvas { context, _ in
             for edge in graph.edges {
-                guard let start = positions[edge.from], let end = positions[edge.to] else { continue }
+                guard let startNode = graph.node(id: edge.from),
+                      let endNode = graph.node(id: edge.to),
+                      let startCenter = positions[edge.from],
+                      let endCenter = positions[edge.to] else { continue }
                 let isSpotlighted = spotlightIDs.isEmpty ||
                     (spotlightIDs.contains(edge.from) && spotlightIDs.contains(edge.to))
                 let isSelectedEdge = selectedNodeID == edge.from || selectedNodeID == edge.to
+                let endpoints = edgeEndpoints(
+                    from: startCenter,
+                    fromSize: TaxonomyTreeNodeStyle.style(for: startNode, scale: scale).renderedSize,
+                    to: endCenter,
+                    toSize: TaxonomyTreeNodeStyle.style(for: endNode, scale: scale).renderedSize
+                )
                 var path = Path()
-                path.move(to: start)
-                let midpointX = (start.x + end.x) / 2
+                path.move(to: endpoints.start)
+                let midpointX = (endpoints.start.x + endpoints.end.x) / 2
                 path.addCurve(
-                    to: end,
-                    control1: CGPoint(x: midpointX, y: start.y),
-                    control2: CGPoint(x: midpointX, y: end.y)
+                    to: endpoints.end,
+                    control1: CGPoint(x: midpointX, y: endpoints.start.y),
+                    control2: CGPoint(x: midpointX, y: endpoints.end.y)
                 )
                 context.stroke(
                     path,
@@ -372,66 +404,109 @@ private struct TaxonomyTreeEdgesCanvas: View {
         }
         .drawingGroup()
     }
+
+    private func edgeEndpoints(
+        from start: CGPoint,
+        fromSize startSize: CGSize,
+        to end: CGPoint,
+        toSize endSize: CGSize
+    ) -> (start: CGPoint, end: CGPoint) {
+        let startsToRight = end.x >= start.x
+        let startX = start.x + (startsToRight ? startSize.width / 2 : -startSize.width / 2)
+        let endX = end.x + (startsToRight ? -endSize.width / 2 : endSize.width / 2)
+        return (
+            CGPoint(x: startX, y: start.y),
+            CGPoint(x: endX, y: end.y)
+        )
+    }
 }
 
 private struct TaxonomyTreeControlBar: View {
     @Binding var searchText: String
     let breadcrumb: String?
-    let canClearFocus: Bool
-    let onReset: () -> Void
-    let onZoomIn: () -> Void
-    let onZoomOut: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                TextField("Search taxonomy", text: $searchText)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
-                    .font(.subheadline)
-
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("Clear search")
-                }
-
-                Divider()
-                    .frame(height: 22)
-
-                controlButton(systemImage: "minus.magnifyingglass", action: onZoomOut, label: "Zoom out")
-                controlButton(systemImage: "plus.magnifyingglass", action: onZoomIn, label: "Zoom in")
-                controlButton(systemImage: "scope", action: onReset, label: canClearFocus ? "Reset tree" : "Recenter tree")
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            searchField
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
+                .clipped()
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             if let breadcrumb {
-                Text(breadcrumb)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .padding(.horizontal, 4)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Text(breadcrumb)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.horizontal, 4)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipped()
             }
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+
+            TextField("Search taxonomy", text: $searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.subheadline)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .clipped()
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .clipped()
+    }
+}
+
+private struct TaxonomyTreeFloatingControls: View {
+    let canClearFocus: Bool
+    let onZoomOut: () -> Void
+    let onZoomIn: () -> Void
+    let onReset: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            controlButton(systemImage: "plus.magnifyingglass", action: onZoomIn, label: "Zoom in")
+            controlButton(systemImage: "minus.magnifyingglass", action: onZoomOut, label: "Zoom out")
+            controlButton(systemImage: "scope", action: onReset, label: canClearFocus ? "Locate tree origin" : "Recenter tree")
         }
     }
 
     private func controlButton(systemImage: String, action: @escaping () -> Void, label: String) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.subheadline.weight(.semibold))
-                .frame(width: 26, height: 26)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 50, height: 50)
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: Circle())
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.72), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
@@ -462,7 +537,7 @@ private struct TaxonomyTreeSearchResultsView: View {
                         .frame(width: 132, alignment: .leading)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -481,13 +556,7 @@ private struct TaxonomyTreeNodeView: View {
     let action: () -> Void
 
     private var style: TaxonomyTreeNodeStyle {
-        if node.isSpecies && scale >= 1.05 {
-            return .species
-        }
-        if scale < 0.72 {
-            return .compact
-        }
-        return .readable
+        TaxonomyTreeNodeStyle.style(for: node, scale: scale)
     }
 
     var body: some View {
@@ -495,12 +564,12 @@ private struct TaxonomyTreeNodeView: View {
             content
                 .frame(width: style.size.width, height: style.size.height)
                 .padding(.horizontal, style.horizontalPadding)
+                .opacity(isSpotlighted ? 1 : 0.36)
                 .background(background)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(borderColor, lineWidth: isSelected || isFocused ? 2 : 1)
                 )
-                .opacity(isSpotlighted ? 1 : 0.24)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
@@ -596,6 +665,7 @@ private struct TaxonomyTreeNodeView: View {
                     .fill(rankTint.opacity(0.75))
                     .frame(width: 4)
             }
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .shadow(color: .black.opacity(isSelected || isFocused ? 0.16 : 0.06), radius: isSelected || isFocused ? 8 : 3, x: 0, y: 2)
     }
 
@@ -643,6 +713,20 @@ private enum TaxonomyTreeNodeStyle {
         case .readable: 8
         case .species: 8
         }
+    }
+
+    var renderedSize: CGSize {
+        CGSize(width: size.width + horizontalPadding * 2, height: size.height)
+    }
+
+    static func style(for node: TaxonomyTreeNode, scale: CGFloat) -> TaxonomyTreeNodeStyle {
+        if node.isSpecies && scale >= 1.05 {
+            return .species
+        }
+        if scale < 0.72 {
+            return .compact
+        }
+        return .readable
     }
 }
 
