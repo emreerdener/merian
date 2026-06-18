@@ -8,6 +8,7 @@ import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjectio
 import {
   fetchSpeciesDictionary,
   fetchSpeciesDictionaryCatalog,
+  fetchSpeciesDictionaryOverview,
   fetchUserScannedSpeciesDictionaryTree,
   parseSpeciesDictionaryRequest,
 } from "./db.ts";
@@ -42,7 +43,9 @@ serve(async (req: Request) => {
       const catalog = await fetchSpeciesDictionaryCatalog(
         {
           mode: "catalog",
+          category: parsedRequest.category,
           query: parsedRequest.query,
+          region: parsedRequest.region,
           limit: parsedRequest.limit ?? 40,
           cursor: parsedRequest.cursor,
         },
@@ -57,8 +60,28 @@ serve(async (req: Request) => {
             ? {
               scientific_name: catalog.nextCursor.scientificName,
               species_id: catalog.nextCursor.speciesId,
+              created_at: catalog.nextCursor.createdAt,
             }
             : null,
+        },
+        200,
+        publicDictionaryCacheHeaders,
+      );
+    }
+
+    if (parsedRequest.mode === "overview") {
+      const overview = await fetchSpeciesDictionaryOverview(
+        {
+          mode: "overview",
+          userRegion: parsedRequest.userRegion,
+        },
+        supabaseAdmin,
+      );
+
+      return jsonResponse(
+        {
+          schema_version: PUBLIC_SPECIES_SCHEMA_VERSION,
+          data: overview,
         },
         200,
         publicDictionaryCacheHeaders,

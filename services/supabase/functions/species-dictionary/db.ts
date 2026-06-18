@@ -67,17 +67,36 @@ interface LookalikeSpeciesRow {
 export interface SpeciesDictionaryCatalogCursor {
   scientificName: string;
   speciesId: string;
+  createdAt?: string;
 }
+
+export type SpeciesDictionaryCatalogCategory =
+  | "all"
+  | "region"
+  | "recently_added";
+
+export type SpeciesDictionaryOverviewCategoryId =
+  | "all"
+  | "your_region"
+  | "taxonomy"
+  | "recently_added";
 
 export interface SpeciesDictionaryCatalogRequest {
   mode: "catalog";
+  category?: SpeciesDictionaryCatalogCategory;
   query?: string;
+  region?: string;
   limit: number;
   cursor?: SpeciesDictionaryCatalogCursor;
 }
 
 export interface SpeciesDictionaryTreeRequest {
   mode: "tree";
+}
+
+export interface SpeciesDictionaryOverviewRequest {
+  mode: "overview";
+  userRegion?: string;
 }
 
 export interface SpeciesDictionaryCatalogItem {
@@ -90,6 +109,27 @@ export interface SpeciesDictionaryCatalogItem {
   hazard_type: string | null;
   group_tags: string[];
   reference_image_url: string | null;
+}
+
+export interface SpeciesDictionaryCategorySummary {
+  id: SpeciesDictionaryOverviewCategoryId;
+  title: string;
+  subtitle: string | null;
+  count: number;
+  reference_image_url: string | null;
+  region: string | null;
+}
+
+export interface SpeciesDictionaryRegionSummary {
+  id: string;
+  title: string;
+  count: number;
+  reference_image_url: string | null;
+}
+
+export interface SpeciesDictionaryOverviewResult {
+  categories: SpeciesDictionaryCategorySummary[];
+  regions: SpeciesDictionaryRegionSummary[];
 }
 
 export interface SpeciesDictionaryCatalogResult {
@@ -143,6 +183,9 @@ export interface SpeciesDictionaryTreeResult {
 
 export const USER_SCANNED_SPECIES_TREE_PAGE_SIZE = 500;
 export const SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE = 100;
+export const SPECIES_DICTIONARY_OVERVIEW_REGION_LIMIT = 24;
+const SPECIES_DICTIONARY_CATALOG_SELECT =
+  "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags, native_region, created_at";
 
 export interface UserScanSpeciesRow {
   species_id?: string | null;
@@ -150,10 +193,13 @@ export interface UserScanSpeciesRow {
 }
 
 export interface SpeciesDictionaryRequestResult {
-  mode?: "catalog" | "tree";
+  mode?: "catalog" | "tree" | "overview";
+  category?: SpeciesDictionaryCatalogCategory;
   speciesId?: string;
   scientificName?: string;
   query?: string;
+  region?: string;
+  userRegion?: string;
   limit?: number;
   cursor?: SpeciesDictionaryCatalogCursor;
   error?: string;
@@ -171,9 +217,17 @@ export function parseSpeciesDictionaryRequest(
     return { mode: "tree" };
   }
 
+  if (body.mode === "overview") {
+    const userRegion = normalizeOptionalRegion(body.user_region);
+    if (userRegion?.error) return userRegion;
+    return userRegion?.region
+      ? { mode: "overview", userRegion: userRegion.region }
+      : { mode: "overview" };
+  }
+
   if (body.mode !== undefined && body.mode !== null) {
     return {
-      error: "mode must be catalog or tree when provided.",
+      error: "mode must be catalog, overview, or tree when provided.",
       status: 400,
     };
   }
@@ -226,20 +280,45 @@ export function parseSpeciesDictionaryRequest(
 export function parseSpeciesDictionaryCatalogRequest(
   body: Record<string, unknown>,
 ): SpeciesDictionaryRequestResult {
+  const category = normalizeOptionalCatalogCategory(body.category);
+  if (category?.error) return category;
+
   const limit = normalizeCatalogLimit(body.limit);
   if (limit?.error) return limit;
 
   const query = normalizeOptionalCatalogQuery(body.query);
   if (query?.error) return query;
 
+  const region = normalizeOptionalRegion(body.region);
+  if (region?.error) return region;
+
   const cursor = normalizeOptionalCatalogCursor(body.cursor);
   if (cursor?.error) return cursor;
 
+  if (category?.category === "region" && !region?.region) {
+    return {
+      error: "region is required when category is region.",
+      status: 400,
+    };
+  }
+
+  if (
+    category?.category === "recently_added" && cursor?.cursor &&
+    !cursor.cursor.createdAt
+  ) {
+    return {
+      error: "cursor.created_at is required when category is recently_added.",
+      status: 400,
+    };
+  }
+
   const result: SpeciesDictionaryRequestResult = {
     mode: "catalog",
+    category: category?.category ?? "all",
     limit: limit?.limit ?? 40,
   };
   if (query?.query) result.query = query.query;
+  if (region?.region) result.region = region.region;
   if (cursor?.cursor) result.cursor = cursor.cursor;
   return result;
 }
@@ -251,21 +330,40 @@ export async function fetchSpeciesDictionaryCatalog(
   const requestedLimit = Math.max(1, Math.min(100, Math.floor(request.limit)));
   const fetchLimit = requestedLimit + 1;
   const queryText = request.query?.trim().replace(/\s+/g, " ");
+  const category = request.category ?? "all";
 
   let catalogQuery = supabaseAdmin
     .from("species_dictionary")
-    .select(
-      "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags",
-    )
-    .order("scientific_name", { ascending: true })
-    .order("id", { ascending: true })
+    .select(SPECIES_DICTIONARY_CATALOG_SELECT)
     .limit(fetchLimit);
 
   if (queryText) {
     catalogQuery = catalogQuery.ilike("scientific_name", `%${queryText}%`);
   }
 
-  if (request.cursor) {
+  if (category === "region" && request.region) {
+    const regionFilter = normalizedRegionTitle(request.region) ?? request.region;
+    catalogQuery = catalogQuery.ilike(
+      "native_region",
+      `%${regionFilter.trim().replace(/\s+/g, " ")}%`,
+    );
+  }
+
+  if (category === "recently_added") {
+    catalogQuery = catalogQuery
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+  } else {
+    catalogQuery = catalogQuery
+      .order("scientific_name", { ascending: true })
+      .order("id", { ascending: true });
+  }
+
+  if (request.cursor && category === "recently_added" && request.cursor.createdAt) {
+    catalogQuery = catalogQuery.or(
+      `created_at.lt.${request.cursor.createdAt},and(created_at.eq.${request.cursor.createdAt},id.lt.${request.cursor.speciesId})`,
+    );
+  } else if (request.cursor && category !== "recently_added") {
     catalogQuery = catalogQuery.or(
       `scientific_name.gt.${request.cursor.scientificName},and(scientific_name.eq.${request.cursor.scientificName},id.gt.${request.cursor.speciesId})`,
     );
@@ -296,10 +394,39 @@ export async function fetchSpeciesDictionaryCatalog(
     ? {
       scientificName: lastVisibleRow.scientific_name,
       speciesId: lastVisibleRow.id,
+      createdAt: stringValue(lastVisibleRow.created_at) ?? undefined,
     }
     : null;
 
   return { data: items, nextCursor };
+}
+
+export async function fetchSpeciesDictionaryOverview(
+  request: SpeciesDictionaryOverviewRequest,
+  supabaseAdmin: SupabaseClient,
+): Promise<SpeciesDictionaryOverviewResult> {
+  const { data, error } = await supabaseAdmin
+    .from("species_dictionary")
+    .select(SPECIES_DICTIONARY_CATALOG_SELECT)
+    .order("scientific_name", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch species dictionary overview: ${error.message}`,
+    );
+  }
+
+  const rows = (data ?? []) as SpeciesDictionaryRow[];
+  const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
+    rows.map((row) => row.id),
+    supabaseAdmin,
+  );
+  return buildSpeciesDictionaryOverview(
+    rows,
+    firstImageBySpeciesId,
+    request.userRegion,
+  );
 }
 
 export async function fetchUserScannedSpeciesDictionaryTree(
@@ -388,9 +515,7 @@ async function fetchSpeciesDictionaryRowsByIds(
   ) {
     const { data, error } = await supabaseAdmin
       .from("species_dictionary")
-      .select(
-        "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags",
-      )
+      .select(SPECIES_DICTIONARY_CATALOG_SELECT)
       .in("id", batch)
       .order("scientific_name", { ascending: true })
       .order("id", { ascending: true });
@@ -553,6 +678,75 @@ export function buildSpeciesDictionaryCatalogItem(
   };
 }
 
+export function buildSpeciesDictionaryOverview(
+  rows: SpeciesDictionaryRow[],
+  firstImageBySpeciesId: Map<string, string> = new Map(),
+  userRegion?: string,
+): SpeciesDictionaryOverviewResult {
+  const sortedRows = rows.slice().sort(speciesDictionaryCreatedAtDescending);
+  const regions = buildSpeciesDictionaryRegionSummaries(
+    rows,
+    firstImageBySpeciesId,
+  );
+  const normalizedUserRegion = normalizedRegionKey(userRegion);
+  const userRegionRows = normalizedUserRegion
+    ? rows.filter((row) =>
+      regionKeysMatch(normalizedRegionKey(row.native_region), normalizedUserRegion)
+    )
+    : [];
+  const userRegionTitle = userRegionRows.length > 0
+    ? (regions.find((region) =>
+      regionKeysMatch(normalizedRegionKey(region.title), normalizedUserRegion)
+    )?.title ?? normalizedRegionTitle(userRegion))
+    : null;
+
+  return {
+    categories: [
+      {
+        id: "all",
+        title: "All",
+        subtitle: "Browse every species in the dictionary",
+        count: rows.length,
+        reference_image_url: representativeImageUrl(rows, firstImageBySpeciesId),
+        region: null,
+      },
+      {
+        id: "your_region",
+        title: "Your Region",
+        subtitle: userRegionTitle
+          ? `Species associated with ${userRegionTitle}`
+          : "Browse regions to find local species",
+        count: userRegionRows.length,
+        reference_image_url: representativeImageUrl(
+          userRegionRows,
+          firstImageBySpeciesId,
+        ),
+        region: userRegionTitle,
+      },
+      {
+        id: "taxonomy",
+        title: "Taxonomy",
+        subtitle: "Explore species by biological lineage",
+        count: rows.length,
+        reference_image_url: representativeImageUrl(rows, firstImageBySpeciesId),
+        region: null,
+      },
+      {
+        id: "recently_added",
+        title: "Recently Added",
+        subtitle: "Newest entries added to the database",
+        count: rows.length,
+        reference_image_url: representativeImageUrl(
+          sortedRows,
+          firstImageBySpeciesId,
+        ),
+        region: null,
+      },
+    ],
+    regions,
+  };
+}
+
 export async function fetchSpeciesDictionary(
   lookup: string | { speciesId?: string; scientificName?: string },
   supabaseAdmin: SupabaseClient,
@@ -562,9 +756,7 @@ export async function fetchSpeciesDictionary(
     : lookup;
   const query = supabaseAdmin
     .from("species_dictionary")
-    .select(
-      "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags",
-    )
+    .select(SPECIES_DICTIONARY_CATALOG_SELECT)
     .limit(1);
 
   const { data: speciesRows, error: speciesError } = normalizedLookup.speciesId
@@ -964,6 +1156,84 @@ function taxonomyRankSortValue(rank: TaxonomyTreeRank): number {
   ].indexOf(rank);
 }
 
+function buildSpeciesDictionaryRegionSummaries(
+  rows: SpeciesDictionaryRow[],
+  firstImageBySpeciesId: Map<string, string>,
+): SpeciesDictionaryRegionSummary[] {
+  const summariesByKey = new Map<
+    string,
+    {
+      title: string;
+      count: number;
+      referenceImageUrl: string | null;
+    }
+  >();
+
+  for (const row of rows) {
+    const title = normalizedRegionTitle(row.native_region);
+    if (!title) continue;
+
+    const key = normalizedRegionKey(title);
+    if (!key) continue;
+
+    const current = summariesByKey.get(key) ?? {
+      title,
+      count: 0,
+      referenceImageUrl: null,
+    };
+    current.count += 1;
+    current.referenceImageUrl ??= referenceImageUrlForRow(
+      row,
+      firstImageBySpeciesId,
+    );
+    summariesByKey.set(key, current);
+  }
+
+  return Array.from(summariesByKey.entries())
+    .map(([key, summary]) => ({
+      id: `region:${encodeURIComponent(key)}`,
+      title: summary.title,
+      count: summary.count,
+      reference_image_url: summary.referenceImageUrl,
+    }))
+    .sort((lhs, rhs) => {
+      const countDelta = rhs.count - lhs.count;
+      return countDelta !== 0 ? countDelta : lhs.title.localeCompare(rhs.title);
+    })
+    .slice(0, SPECIES_DICTIONARY_OVERVIEW_REGION_LIMIT);
+}
+
+function representativeImageUrl(
+  rows: SpeciesDictionaryRow[],
+  firstImageBySpeciesId: Map<string, string>,
+): string | null {
+  for (const row of rows) {
+    const url = referenceImageUrlForRow(row, firstImageBySpeciesId);
+    if (url) return url;
+  }
+  return null;
+}
+
+function referenceImageUrlForRow(
+  row: SpeciesDictionaryRow,
+  firstImageBySpeciesId: Map<string, string>,
+): string | null {
+  return firstImageBySpeciesId.get(row.id) ??
+    firstReferenceImageUrl(row.reference_image_url);
+}
+
+function speciesDictionaryCreatedAtDescending(
+  lhs: SpeciesDictionaryRow,
+  rhs: SpeciesDictionaryRow,
+): number {
+  const lhsCreatedAt = stringValue(lhs.created_at) ?? "";
+  const rhsCreatedAt = stringValue(rhs.created_at) ?? "";
+  const createdAtDelta = rhsCreatedAt.localeCompare(lhsCreatedAt);
+  return createdAtDelta !== 0
+    ? createdAtDelta
+    : (stringValue(rhs.id) ?? "").localeCompare(stringValue(lhs.id) ?? "");
+}
+
 function normalizeCatalogLimit(
   value: unknown,
 ): SpeciesDictionaryRequestResult | undefined {
@@ -992,6 +1262,90 @@ function normalizeOptionalCatalogQuery(
   return { query };
 }
 
+function normalizeOptionalCatalogCategory(
+  value: unknown,
+): SpeciesDictionaryRequestResult | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") {
+    return { error: "category must be a string when provided.", status: 400 };
+  }
+
+  const category = value.trim();
+  if (!category) return undefined;
+  if (
+    category === "all" || category === "region" ||
+    category === "recently_added"
+  ) {
+    return { category };
+  }
+
+  return {
+    error: "category must be all, region, or recently_added.",
+    status: 400,
+  };
+}
+
+function normalizeOptionalRegion(
+  value: unknown,
+): SpeciesDictionaryRequestResult | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") {
+    return { error: "region must be a string when provided.", status: 400 };
+  }
+
+  const region = value.trim().replace(/\s+/g, " ");
+  if (!region) return undefined;
+  if (region.length > 80) {
+    return { error: "region is too long.", status: 400 };
+  }
+
+  return { region };
+}
+
+function normalizedRegionTitle(value: string | null | undefined): string | null {
+  const region = stringValue(value)?.trim().replace(/\s+/g, " ");
+  if (region && isUnknownRegionTitle(region)) return null;
+  if (region && /^[A-Za-z]{2}$/.test(region)) {
+    return regionDisplayName(region.toUpperCase()) ?? region;
+  }
+  return region || null;
+}
+
+function isUnknownRegionTitle(region: string): boolean {
+  const normalized = region
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  return normalized === "unknown" ||
+    normalized === "unspecified" ||
+    normalized === "not available" ||
+    normalized === "n a";
+}
+
+function regionDisplayName(regionCode: string): string | null {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" }).of(regionCode) ??
+      null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizedRegionKey(value: string | null | undefined): string {
+  return normalizedRegionTitle(value)
+    ?.toLocaleLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ") ?? "";
+}
+
+function regionKeysMatch(lhs: string, rhs: string): boolean {
+  return lhs.length > 0 && rhs.length > 0 &&
+    (lhs.includes(rhs) || rhs.includes(lhs));
+}
+
 function normalizeOptionalCatalogCursor(
   value: unknown,
 ): SpeciesDictionaryRequestResult | undefined {
@@ -1003,6 +1357,7 @@ function normalizeOptionalCatalogCursor(
   const cursor = value as Record<string, unknown>;
   const scientificNameValue = cursor.scientific_name ?? cursor.scientificName;
   const speciesIdValue = cursor.species_id ?? cursor.speciesId;
+  const createdAtValue = cursor.created_at ?? cursor.createdAt;
 
   if (typeof scientificNameValue !== "string") {
     return { error: "cursor.scientific_name must be a string.", status: 400 };
@@ -1019,12 +1374,19 @@ function normalizeOptionalCatalogCursor(
     return { error: "cursor.scientific_name is too long.", status: 400 };
   }
 
-  return {
-    cursor: {
-      scientificName,
-      speciesId: speciesIdValue.trim(),
-    },
+  const normalizedCursor: SpeciesDictionaryCatalogCursor = {
+    scientificName,
+    speciesId: speciesIdValue.trim(),
   };
+
+  if (createdAtValue !== undefined && createdAtValue !== null) {
+    if (typeof createdAtValue !== "string" || !createdAtValue.trim()) {
+      return { error: "cursor.created_at must be a string.", status: 400 };
+    }
+    normalizedCursor.createdAt = createdAtValue.trim();
+  }
+
+  return { cursor: normalizedCursor };
 }
 
 function isUuid(value: string): boolean {

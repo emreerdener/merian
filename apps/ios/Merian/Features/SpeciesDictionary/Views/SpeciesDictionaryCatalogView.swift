@@ -1,8 +1,17 @@
 import SwiftUI
 
+enum SpeciesDictionaryCategoryRoute: Hashable {
+    case catalog(title: String, category: SpeciesDictionaryCatalogCategory, region: String?)
+    case taxonomy
+    case regions
+}
+
 struct SpeciesDictionaryCatalogView: View {
     let isSearchEnabled: Bool
     let showsNavigationTitle: Bool
+    let navigationTitle: String
+    let category: SpeciesDictionaryCatalogCategory
+    let region: String?
     private let externalSearchText: Binding<String>?
     @State private var localSearchText = ""
     @State private var items: [SpeciesDictionaryCatalogItem] = []
@@ -16,10 +25,16 @@ struct SpeciesDictionaryCatalogView: View {
     init(
         isSearchEnabled: Bool = true,
         showsNavigationTitle: Bool = true,
+        navigationTitle: String = "Dictionary",
+        category: SpeciesDictionaryCatalogCategory = .all,
+        region: String? = nil,
         searchText: Binding<String>? = nil
     ) {
         self.isSearchEnabled = isSearchEnabled
         self.showsNavigationTitle = showsNavigationTitle
+        self.navigationTitle = navigationTitle
+        self.category = category
+        self.region = region
         self.externalSearchText = searchText
     }
 
@@ -36,7 +51,7 @@ struct SpeciesDictionaryCatalogView: View {
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .modifier(SpeciesDictionaryCatalogTitleModifier(isEnabled: showsNavigationTitle))
+        .modifier(SpeciesDictionaryCatalogTitleModifier(title: navigationTitle, isEnabled: showsNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
         .modifier(SpeciesDictionaryCatalogSearchModifier(
             searchText: searchTextBinding,
@@ -117,6 +132,8 @@ struct SpeciesDictionaryCatalogView: View {
         errorMessage = nil
         do {
             let response = try await MerianNetworkClient.shared.getSpeciesDictionaryCatalog(
+                category: category,
+                region: region,
                 query: normalizedQuery,
                 limit: pageLimit
             )
@@ -134,6 +151,8 @@ struct SpeciesDictionaryCatalogView: View {
         isLoadingMore = true
         do {
             let response = try await MerianNetworkClient.shared.getSpeciesDictionaryCatalog(
+                category: category,
+                region: region,
                 query: normalizedQuery,
                 limit: pageLimit,
                 cursor: nextCursor
@@ -161,8 +180,368 @@ struct SpeciesDictionaryCatalogView: View {
     }
 }
 
+struct SpeciesDictionaryOverviewView: View {
+    let userRegion: String?
+
+    @State private var overview: SpeciesDictionaryOverview?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        Group {
+            if isLoading && overview == nil {
+                loadingState
+            } else if let errorMessage, overview == nil {
+                errorState(message: errorMessage)
+            } else if let overview {
+                overviewContent(overview)
+            } else {
+                loadingState
+            }
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .task(id: userRegion ?? "") {
+            await loadOverview()
+        }
+    }
+
+    private func overviewContent(_ overview: SpeciesDictionaryOverview) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 14),
+                        GridItem(.flexible(), spacing: 14)
+                    ],
+                    spacing: 14
+                ) {
+                    ForEach(overview.categories) { category in
+                        NavigationLink(value: route(for: category)) {
+                            SpeciesDictionaryCategoryCard(category: category)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Regions")
+                        .font(.headline)
+                        .padding(.horizontal, 2)
+
+                    NavigationLink(value: SpeciesDictionaryCategoryRoute.regions) {
+                        SpeciesDictionaryRegionRow(
+                            title: "Browse all regions",
+                            count: overview.regions.count,
+                            referenceImageUrl: overview.regions.first?.referenceImageUrl,
+                            systemImage: "globe.americas"
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    ForEach(overview.regions) { region in
+                        NavigationLink(
+                            value: SpeciesDictionaryCategoryRoute.catalog(
+                                title: region.title,
+                                category: .region,
+                                region: region.title
+                            )
+                        ) {
+                            SpeciesDictionaryRegionRow(
+                                title: region.title,
+                                count: region.count,
+                                referenceImageUrl: region.referenceImageUrl,
+                                systemImage: "mappin.and.ellipse"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
+        }
+        .refreshable {
+            await loadOverview()
+        }
+    }
+
+    private var loadingState: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Loading dictionary")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func errorState(message: String) -> some View {
+        ContentUnavailableView {
+            Label("Dictionary unavailable", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(message)
+        } actions: {
+            Button("Retry") {
+                Task { await loadOverview() }
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    @MainActor
+    private func loadOverview() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            let response = try await MerianNetworkClient.shared.getSpeciesDictionaryOverview(
+                userRegion: userRegion
+            )
+            overview = response.data
+        } catch {
+            errorMessage = ExploreErrorFormatter.message(for: error)
+        }
+        isLoading = false
+    }
+
+    private func route(for category: SpeciesDictionaryCategorySummary) -> SpeciesDictionaryCategoryRoute {
+        switch category.id {
+        case .all:
+            return .catalog(title: "All", category: .all, region: nil)
+        case .yourRegion:
+            let region = category.region?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let region, !region.isEmpty else {
+                return .regions
+            }
+            return .catalog(title: "Your Region", category: .region, region: region)
+        case .taxonomy:
+            return .taxonomy
+        case .recentlyAdded:
+            return .catalog(title: "Recently Added", category: .recentlyAdded, region: nil)
+        }
+    }
+}
+
+private struct SpeciesDictionaryCategoryCard: View {
+    let category: SpeciesDictionaryCategorySummary
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            cardImage
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(category.title)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                Text(countLabel)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(1)
+            }
+            .padding(9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.ultraThinMaterial)
+            .environment(\.colorScheme, .dark)
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var cardImage: some View {
+        if let referenceImageUrl = category.referenceImageUrl,
+           let url = URL(string: referenceImageUrl) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    placeholderImage
+                }
+            }
+        } else {
+            placeholderImage
+        }
+    }
+
+    private var placeholderImage: some View {
+        Rectangle()
+            .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+            .overlay {
+                Image(systemName: iconName)
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .offset(y: -20)
+            }
+    }
+
+    private var iconName: String {
+        switch category.id {
+        case .all: "book.closed"
+        case .yourRegion: "location"
+        case .taxonomy: "point.3.connected.trianglepath.dotted"
+        case .recentlyAdded: "sparkles"
+        }
+    }
+
+    private var countLabel: String {
+        "\(category.count) Species"
+    }
+}
+
+private struct SpeciesDictionaryRegionRow: View {
+    let title: String
+    let count: Int
+    let referenceImageUrl: String?
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            thumbnail
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text("\(count)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let referenceImageUrl, let url = URL(string: referenceImageUrl) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    placeholderThumbnail
+                }
+            }
+            .frame(width: 48, height: 48)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        } else {
+            placeholderThumbnail
+                .frame(width: 48, height: 48)
+        }
+    }
+
+    private var placeholderThumbnail: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+            .overlay {
+                Image(systemName: systemImage)
+                    .foregroundStyle(.secondary)
+            }
+    }
+}
+
+struct SpeciesDictionaryRegionsView: View {
+    let userRegion: String?
+
+    @State private var overview: SpeciesDictionaryOverview?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        Group {
+            if isLoading && overview == nil {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorMessage, overview == nil {
+                ContentUnavailableView {
+                    Label("Regions unavailable", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(errorMessage)
+                } actions: {
+                    Button("Retry") {
+                        Task { await loadOverview() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            } else if let overview {
+                regionList(overview)
+            }
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .navigationTitle("Regions")
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: userRegion ?? "") {
+            await loadOverview()
+        }
+    }
+
+    private func regionList(_ overview: SpeciesDictionaryOverview) -> some View {
+        ScrollView {
+            LazyVStack(spacing: 10) {
+                ForEach(overview.regions) { region in
+                    NavigationLink(
+                        value: SpeciesDictionaryCategoryRoute.catalog(
+                            title: region.title,
+                            category: .region,
+                            region: region.title
+                        )
+                    ) {
+                        SpeciesDictionaryRegionRow(
+                            title: region.title,
+                            count: region.count,
+                            referenceImageUrl: region.referenceImageUrl,
+                            systemImage: "mappin.and.ellipse"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(16)
+        }
+        .refreshable {
+            await loadOverview()
+        }
+    }
+
+    @MainActor
+    private func loadOverview() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            let response = try await MerianNetworkClient.shared.getSpeciesDictionaryOverview(
+                userRegion: userRegion
+            )
+            overview = response.data
+        } catch {
+            errorMessage = ExploreErrorFormatter.message(for: error)
+        }
+        isLoading = false
+    }
+}
+
+// Species record row used by the Explore Dictionary tab and standalone catalog.
 private struct SpeciesDictionaryCatalogRow: View {
     let item: SpeciesDictionaryCatalogItem
+    private let thumbnailSize: CGFloat = 88
 
     var body: some View {
         HStack(spacing: 12) {
@@ -215,11 +594,11 @@ private struct SpeciesDictionaryCatalogRow: View {
                     placeholderThumbnail
                 }
             }
-            .frame(width: 58, height: 58)
+            .frame(width: thumbnailSize, height: thumbnailSize)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else {
             placeholderThumbnail
-                .frame(width: 58, height: 58)
+                .frame(width: thumbnailSize, height: thumbnailSize)
         }
     }
 
@@ -263,12 +642,13 @@ private struct SpeciesDictionaryCatalogSearchModifier: ViewModifier {
 }
 
 private struct SpeciesDictionaryCatalogTitleModifier: ViewModifier {
+    let title: String
     let isEnabled: Bool
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if isEnabled {
-            content.navigationTitle("Dictionary")
+            content.navigationTitle(title)
         } else {
             content
         }

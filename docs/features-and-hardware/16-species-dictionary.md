@@ -218,25 +218,72 @@ dictionary page and Explore detail similar-species projection. iOS treats the
 key as optional for backward compatibility with older mocks or deployed
 functions, and future web clients should use it before depending on new fields.
 
-### Catalog Mode
+### Overview and Catalog Modes
 
 The same `/species-dictionary` function also supports the Explore Dictionary
-catalog through a compact catalog mode:
+landing view through overview mode:
 
 ```json
 {
-  "mode": "catalog",
-  "query": "Danaus",
-  "limit": 40,
-  "cursor": {
-    "scientific_name": "Danaus plexippus",
-    "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+  "mode": "overview",
+  "user_region": "US"
+}
+```
+
+The response returns image-backed category summaries for `All`, `Your Region`,
+`Taxonomy`, and `Recently Added`, plus region summaries derived from
+`species_dictionary.native_region`. `user_region` may be an ISO region code from
+`Locale.current.region?.identifier`; the function expands codes such as `US` for
+native-region matching.
+
+```json
+{
+  "schema_version": 1,
+  "data": {
+    "categories": [
+      {
+        "id": "your_region",
+        "title": "Your Region",
+        "subtitle": "Species associated with United States",
+        "count": 8,
+        "reference_image_url": "https://...",
+        "region": "United States"
+      }
+    ],
+    "regions": [
+      {
+        "id": "region:united%20states",
+        "title": "United States",
+        "count": 8,
+        "reference_image_url": "https://..."
+      }
+    ]
   }
 }
 ```
 
-The response keeps the shared schema version and returns a cursor-paginated
-list:
+Catalog mode powers search results and category detail pages:
+
+```json
+{
+  "mode": "catalog",
+  "category": "region",
+  "region": "United States",
+  "query": "Danaus",
+  "limit": 40,
+  "cursor": {
+    "scientific_name": "Danaus plexippus",
+    "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+    "created_at": "2026-06-01T12:00:00Z"
+  }
+}
+```
+
+`category` defaults to `all` for backward compatibility. `region` is required
+when `category` is `region` and may also be an ISO region code. `recently_added` sorts by
+`species_dictionary.created_at DESC, id DESC`; other catalog views sort by
+`scientific_name ASC, id ASC`. The response keeps the shared schema version and
+returns a cursor-paginated list:
 
 ```json
 {

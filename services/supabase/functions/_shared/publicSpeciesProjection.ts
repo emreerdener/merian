@@ -75,6 +75,8 @@ export interface PublicSpeciesDictionaryRow {
   habitat_description: string | null;
   gbif_taxon_key: number | null;
   group_tags: string[] | null;
+  native_region?: string | null;
+  created_at?: string | null;
 }
 
 export interface PublicSimilarSpecies {

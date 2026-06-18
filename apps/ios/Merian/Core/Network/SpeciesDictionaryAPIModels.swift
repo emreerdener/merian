@@ -15,6 +15,13 @@ struct SpeciesDictionaryCatalogResponse: Decodable {
     var effectiveSchemaVersion: Int { schemaVersion ?? 0 }
 }
 
+struct SpeciesDictionaryOverviewResponse: Decodable {
+    let schemaVersion: Int?
+    let data: SpeciesDictionaryOverview
+
+    var effectiveSchemaVersion: Int { schemaVersion ?? 0 }
+}
+
 struct SpeciesDictionaryTreeResponse: Decodable {
     let schemaVersion: Int?
     let data: SpeciesDictionaryTreePayload
@@ -22,9 +29,33 @@ struct SpeciesDictionaryTreeResponse: Decodable {
     var effectiveSchemaVersion: Int { schemaVersion ?? 0 }
 }
 
+enum SpeciesDictionaryCatalogCategory: String, Codable, Equatable, Hashable {
+    case all
+    case region
+    case recentlyAdded = "recently_added"
+}
+
+enum SpeciesDictionaryOverviewCategoryID: String, Decodable, Equatable, Hashable {
+    case all
+    case yourRegion = "your_region"
+    case taxonomy
+    case recentlyAdded = "recently_added"
+}
+
 struct SpeciesDictionaryCatalogCursor: Codable, Equatable, Hashable {
     let scientificName: String
     let speciesId: String
+    let createdAt: String?
+
+    init(scientificName: String, speciesId: String) {
+        self.init(scientificName: scientificName, speciesId: speciesId, createdAt: nil)
+    }
+
+    init(scientificName: String, speciesId: String, createdAt: String?) {
+        self.scientificName = scientificName
+        self.speciesId = speciesId
+        self.createdAt = createdAt
+    }
 }
 
 struct SpeciesDictionaryCatalogItem: Decodable, Equatable, Identifiable, Hashable {
@@ -71,6 +102,27 @@ struct SpeciesDictionaryCatalogItem: Decodable, Equatable, Identifiable, Hashabl
             entryPoint: .exploreDictionaryCatalog
         )
     }
+}
+
+struct SpeciesDictionaryOverview: Decodable, Equatable {
+    let categories: [SpeciesDictionaryCategorySummary]
+    let regions: [SpeciesDictionaryRegionSummary]
+}
+
+struct SpeciesDictionaryCategorySummary: Decodable, Equatable, Identifiable, Hashable {
+    let id: SpeciesDictionaryOverviewCategoryID
+    let title: String
+    let subtitle: String?
+    let count: Int
+    let referenceImageUrl: String?
+    let region: String?
+}
+
+struct SpeciesDictionaryRegionSummary: Decodable, Equatable, Identifiable, Hashable {
+    let id: String
+    let title: String
+    let count: Int
+    let referenceImageUrl: String?
 }
 
 struct SpeciesDictionaryTreePayload: Decodable, Equatable {

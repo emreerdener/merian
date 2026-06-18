@@ -534,7 +534,8 @@ struct SpeciesDictionaryTests {
             ],
             "next_cursor": {
                 "scientific_name": "Danaus plexippus",
-                "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+                "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                "created_at": "2026-06-01T12:00:00Z"
             }
         }
         """.data(using: .utf8)!
@@ -548,7 +549,54 @@ struct SpeciesDictionaryTests {
         #expect(response.data.first?.taxonomy?.className == "Insecta")
         #expect(response.data.first?.referenceImageUrl == "https://example.com/monarch.jpg")
         #expect(response.nextCursor?.scientificName == "Danaus plexippus")
+        #expect(response.nextCursor?.createdAt == "2026-06-01T12:00:00Z")
         #expect(response.data.first?.dictionaryRoute.entryPoint == .exploreDictionaryCatalog)
+    }
+
+    @Test func testSpeciesDictionaryOverviewResponseDecodesCategoriesAndRegions() throws {
+        let data = """
+        {
+            "schema_version": 1,
+            "data": {
+                "categories": [
+                    {
+                        "id": "all",
+                        "title": "All",
+                        "subtitle": "Browse every species in the dictionary",
+                        "count": 42,
+                        "reference_image_url": "https://example.com/all.jpg",
+                        "region": null
+                    },
+                    {
+                        "id": "your_region",
+                        "title": "Your Region",
+                        "subtitle": "Species associated with United States",
+                        "count": 8,
+                        "reference_image_url": "https://example.com/local.jpg",
+                        "region": "United States"
+                    }
+                ],
+                "regions": [
+                    {
+                        "id": "region:united%20states",
+                        "title": "United States",
+                        "count": 8,
+                        "reference_image_url": "https://example.com/local.jpg"
+                    }
+                ]
+            }
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(SpeciesDictionaryOverviewResponse.self, from: data)
+
+        #expect(response.effectiveSchemaVersion == 1)
+        #expect(response.data.categories.first?.id == .all)
+        #expect(response.data.categories.last?.id == .yourRegion)
+        #expect(response.data.categories.last?.region == "United States")
+        #expect(response.data.regions.first?.title == "United States")
     }
 
     @Test func testGetSpeciesDictionaryCatalogConstructsPayloadAndParsesResponse() async throws {
@@ -576,23 +624,64 @@ struct SpeciesDictionaryTests {
             let cursor = try #require(payload["cursor"] as? [String: Any])
 
             #expect(payload["mode"] as? String == "catalog")
+            #expect(payload["category"] as? String == "region")
+            #expect(payload["region"] as? String == "United States")
             #expect(payload["query"] as? String == "Danaus")
             #expect(payload["limit"] as? Int == 25)
             #expect(cursor["scientific_name"] as? String == "Danaus plexippus")
             #expect(cursor["species_id"] as? String == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
+            #expect(cursor["created_at"] as? String == "2026-06-01T12:00:00Z")
             return (mockResponse, testData)
         }
 
         let response = try await MerianNetworkClient.shared.getSpeciesDictionaryCatalog(
+            category: .region,
+            region: " United States ",
             query: " Danaus ",
             limit: 25,
             cursor: SpeciesDictionaryCatalogCursor(
                 scientificName: "Danaus plexippus",
-                speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+                speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                createdAt: "2026-06-01T12:00:00Z"
             )
         )
 
         #expect(response.nextCursor?.speciesId == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
+    }
+
+    @Test func testGetSpeciesDictionaryOverviewConstructsPayloadAndParsesResponse() async throws {
+        let testData = """
+        {
+            "schema_version": 1,
+            "data": {
+                "categories": [],
+                "regions": []
+            }
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+            #expect(request.httpMethod == "POST")
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            #expect(payload["mode"] as? String == "overview")
+            #expect(payload["user_region"] as? String == "US")
+            return (mockResponse, testData)
+        }
+
+        let response = try await MerianNetworkClient.shared.getSpeciesDictionaryOverview(
+            userRegion: " US "
+        )
+
+        #expect(response.effectiveSchemaVersion == 1)
+        #expect(response.data.categories.isEmpty)
     }
 
     @Test func testSpeciesDictionaryTreeResponseDecodesGraphPayload() throws {

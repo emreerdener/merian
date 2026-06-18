@@ -97,7 +97,7 @@ V40 through V43 live in `SchemaVersions.swift` alongside the migration plan.
 | Messages sharing | `apps/ios/Merian/Features/Messages/`, `apps/ios/messages/MerianMessagesExtension/` | App Group scan-share cache, iMessage scan library UI, image/card/text insertion, and scan/library deep links. |
 | Photos share import | `apps/ios/Merian/Features/ShareImport/`, `apps/ios/share/MerianShareExtension/` | Paused and de-shipped as of 2026-05-19. Source, tests, backend queueing, shared auth/session migration, App Group settings/receipts, and reconciliation code remain parked for a future rebuild, but the app target does not embed `MerianShareExtension`. |
 | Profile | `apps/ios/Merian/Features/Profile/` | Profile tab, settings, in-app changelog, public username editing, RevenueCat plan screens, geoprivacy, notifications, achievements, heatmap, export, danger-zone actions. |
-| Species Dictionary | `apps/ios/Merian/Features/SpeciesDictionary/` | Public species dictionary page, reference gallery, similar-species entry points, preferred common-name display, and species observation charts. |
+| Species Dictionary | `apps/ios/Merian/Features/SpeciesDictionary/` | Public species dictionary page, Explore Dictionary category overview/catalog, reference gallery, similar-species entry points, preferred common-name display, and species observation charts. |
 | Onboarding | `apps/ios/Merian/Features/Onboarding/` | Permission priming flow and `hasCompletedOnboarding` gate. |
 
 ## Public Web App

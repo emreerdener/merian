@@ -34,6 +34,14 @@ struct ExploreView: View {
         )
     }
 
+    private var isDictionarySearchActive: Bool {
+        !dictionarySearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var dictionaryUserRegionIdentifier: String? {
+        Locale.current.region?.identifier
+    }
+
     init(
         initialPostId: String? = nil,
         initialTargetCommentId: String? = nil,
@@ -89,11 +97,15 @@ struct ExploreView: View {
                             .zIndex(1)
                     }
 
-                    SpeciesDictionaryCatalogView(
-                        isSearchEnabled: false,
-                        showsNavigationTitle: false,
-                        searchText: $dictionarySearchText
-                    )
+                    if isDictionarySearchActive {
+                        SpeciesDictionaryCatalogView(
+                            isSearchEnabled: false,
+                            showsNavigationTitle: false,
+                            searchText: $dictionarySearchText
+                        )
+                    } else {
+                        SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
+                    }
                 }
                 .background(Color(uiColor: .systemGroupedBackground))
                 .tag(ExploreTab.dictionary)
@@ -133,6 +145,27 @@ struct ExploreView: View {
                     showsCloseButton: false
                 )
                 .toolbar(.hidden, for: .tabBar)
+            }
+            .navigationDestination(for: SpeciesDictionaryCategoryRoute.self) { route in
+                switch route {
+                case .catalog(let title, let category, let region):
+                    SpeciesDictionaryCatalogView(
+                        isSearchEnabled: false,
+                        showsNavigationTitle: true,
+                        navigationTitle: title,
+                        category: category,
+                        region: region
+                    )
+                    .toolbar(.hidden, for: .tabBar)
+                case .taxonomy:
+                    TaxonomyTreeCanvasView(showsNavigationTitle: true) { speciesRoute in
+                        navigationPath.append(speciesRoute)
+                    }
+                    .toolbar(.hidden, for: .tabBar)
+                case .regions:
+                    SpeciesDictionaryRegionsView(userRegion: dictionaryUserRegionIdentifier)
+                        .toolbar(.hidden, for: .tabBar)
+                }
             }
             .navigationDestination(for: ExploreHashtagRoute.self) { route in
                 ExploreHashtagPostsView(

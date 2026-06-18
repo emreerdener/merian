@@ -1113,6 +1113,8 @@ final class MerianNetworkClient {
     }
 
     func getSpeciesDictionaryCatalog(
+        category: SpeciesDictionaryCatalogCategory = .all,
+        region: String? = nil,
         query: String? = nil,
         limit: Int = 40,
         cursor: SpeciesDictionaryCatalogCursor? = nil
@@ -1122,19 +1124,55 @@ final class MerianNetworkClient {
             "mode": "catalog",
             "limit": limit
         ]
+        if category != .all {
+            payload["category"] = category.rawValue
+        }
+        if let region = region?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+            payload["region"] = region
+        }
         if let query = query?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
             payload["query"] = query
         }
         if let cursor {
-            payload["cursor"] = [
+            var cursorPayload: [String: Any] = [
                 "scientific_name": cursor.scientificName,
                 "species_id": cursor.speciesId
             ]
+            if let createdAt = cursor.createdAt {
+                cursorPayload["created_at"] = createdAt
+            }
+            payload["cursor"] = cursorPayload
         }
 
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(SpeciesDictionaryCatalogResponse.self, from: data)
+    }
+
+    func getSpeciesDictionaryCatalog(
+        query: String? = nil,
+        limit: Int = 40,
+        cursor: SpeciesDictionaryCatalogCursor? = nil
+    ) async throws -> SpeciesDictionaryCatalogResponse {
+        try await getSpeciesDictionaryCatalog(
+            category: .all,
+            region: nil,
+            query: query,
+            limit: limit,
+            cursor: cursor
+        )
+    }
+
+    func getSpeciesDictionaryOverview(userRegion: String? = nil) async throws -> SpeciesDictionaryOverviewResponse {
+        let functionUrl = try endpointURL("species-dictionary")
+        var payload: [String: Any] = ["mode": "overview"]
+        if let userRegion = userRegion?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+            payload["user_region"] = userRegion
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(SpeciesDictionaryOverviewResponse.self, from: data)
     }
 
     func getSpeciesDictionaryTree() async throws -> SpeciesDictionaryTreeResponse {

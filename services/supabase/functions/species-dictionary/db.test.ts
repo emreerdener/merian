@@ -2,6 +2,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import {
   buildExternalSpeciesDictionaryPayload,
   buildSpeciesDictionaryCatalogItem,
+  buildSpeciesDictionaryOverview,
   buildSpeciesDictionaryPayload,
   buildSpeciesDictionaryTree,
   firstReferenceImageUrl,
@@ -314,35 +315,94 @@ Deno.test("species-dictionary helpers - validates request body", () => {
 Deno.test("species-dictionary helpers - validates catalog request body", () => {
   assertEquals(parseSpeciesDictionaryRequest({ mode: "catalog" }), {
     mode: "catalog",
+    category: "all",
     limit: 40,
   });
   assertEquals(
     parseSpeciesDictionaryRequest({
       mode: "catalog",
+      category: "recently_added",
       query: "  monarch   butterfly ",
       limit: 250,
       cursor: {
         scientific_name: "  Danaus   plexippus ",
         species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+        created_at: "2026-06-01T12:00:00Z",
       },
     }),
     {
       mode: "catalog",
+      category: "recently_added",
       query: "monarch butterfly",
       limit: 100,
       cursor: {
         scientificName: "Danaus plexippus",
         speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+        createdAt: "2026-06-01T12:00:00Z",
       },
+    },
+  );
+  assertEquals(
+    parseSpeciesDictionaryRequest({
+      mode: "catalog",
+      category: "region",
+      region: " United   States ",
+    }),
+    {
+      mode: "catalog",
+      category: "region",
+      region: "United States",
+      limit: 40,
+    },
+  );
+  assertEquals(parseSpeciesDictionaryRequest({ mode: "overview" }), {
+    mode: "overview",
+  });
+  assertEquals(
+    parseSpeciesDictionaryRequest({
+      mode: "overview",
+      user_region: " United   States ",
+    }),
+    {
+      mode: "overview",
+      userRegion: "United States",
     },
   );
   assertEquals(parseSpeciesDictionaryRequest({ mode: "tree" }), {
     mode: "tree",
   });
   assertEquals(parseSpeciesDictionaryRequest({ mode: "detail" }), {
-    error: "mode must be catalog or tree when provided.",
+    error: "mode must be catalog, overview, or tree when provided.",
     status: 400,
   });
+  assertEquals(
+    parseSpeciesDictionaryRequest({ mode: "catalog", category: "region" }),
+    {
+      error: "region is required when category is region.",
+      status: 400,
+    },
+  );
+  assertEquals(
+    parseSpeciesDictionaryRequest({ mode: "catalog", category: "popular" }),
+    {
+      error: "category must be all, region, or recently_added.",
+      status: 400,
+    },
+  );
+  assertEquals(
+    parseSpeciesDictionaryRequest({
+      mode: "catalog",
+      category: "recently_added",
+      cursor: {
+        scientific_name: "Danaus plexippus",
+        species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      },
+    }),
+    {
+      error: "cursor.created_at is required when category is recently_added.",
+      status: 400,
+    },
+  );
   assertEquals(
     parseSpeciesDictionaryRequest({
       mode: "catalog",
@@ -356,6 +416,75 @@ Deno.test("species-dictionary helpers - validates catalog request body", () => {
       status: 400,
     },
   );
+});
+
+Deno.test("species-dictionary helpers - builds overview categories and regions", () => {
+  const overview = buildSpeciesDictionaryOverview(
+    [
+      speciesRow({
+        id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+        scientific_name: "Danaus plexippus",
+        native_region: "United States",
+        created_at: "2026-06-01T12:00:00Z",
+      }),
+      speciesRow({
+        id: "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
+        scientific_name: "Danaus gilippus",
+        native_region: "North America",
+        created_at: "2026-06-03T12:00:00Z",
+      }),
+      speciesRow({
+        id: "3cf79982-e5ee-4e3d-8d65-274527e6ae03",
+        scientific_name: "Papilio glaucus",
+        native_region: "United States",
+        created_at: "2026-06-02T12:00:00Z",
+      }),
+      speciesRow({
+        id: "4cf79982-e5ee-4e3d-8d65-274527e6ae04",
+        scientific_name: "Testus ignotus",
+        native_region: "Unknown",
+        created_at: "2026-06-04T12:00:00Z",
+      }),
+    ],
+    new Map([
+      [
+        "3cf79982-e5ee-4e3d-8d65-274527e6ae03",
+        "https://example.com/tiger-swallowtail.jpg",
+      ],
+      [
+        "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
+        "https://example.com/queen.jpg",
+      ],
+    ]),
+    "US",
+  );
+
+  assertEquals(overview.categories.map((category) => category.id), [
+    "all",
+    "your_region",
+    "taxonomy",
+    "recently_added",
+  ]);
+  assertEquals(
+    overview.categories.find((category) => category.id === "your_region")
+      ?.count,
+    2,
+  );
+  assertEquals(
+    overview.categories.find((category) => category.id === "your_region")
+      ?.region,
+    "United States",
+  );
+  assertEquals(
+    overview.categories.find((category) => category.id === "recently_added")
+      ?.reference_image_url,
+    "https://example.com/queen.jpg",
+  );
+  assertEquals(overview.regions.map((region) => region.title), [
+    "United States",
+    "North America",
+  ]);
+  assertEquals(overview.regions[0].count, 2);
 });
 
 Deno.test("species-dictionary helpers - builds taxonomy tree payload", () => {
@@ -489,6 +618,8 @@ function speciesRow(
     habitat_description: string | null;
     gbif_taxon_key: number | null;
     group_tags: string[];
+    native_region: string | null;
+    created_at: string | null;
   }>,
 ) {
   return {
@@ -510,5 +641,7 @@ function speciesRow(
     habitat_description: overrides.habitat_description ?? null,
     gbif_taxon_key: overrides.gbif_taxon_key ?? null,
     group_tags: overrides.group_tags ?? [],
+    native_region: overrides.native_region ?? "North America",
+    created_at: overrides.created_at ?? "2026-01-01T00:00:00Z",
   };
 }
