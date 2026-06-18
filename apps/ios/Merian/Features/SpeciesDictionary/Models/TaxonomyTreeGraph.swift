@@ -137,40 +137,9 @@ struct TaxonomyTreeGraph: Equatable {
             .map { $0 }
     }
 
-    func visibleNodeIDs(focusedNodeID: String?, selectedNodeID: String?, scale: CGFloat) -> Set<String> {
+    func visibleNodeIDs(focusedNodeID _: String?, selectedNodeID _: String?, scale _: CGFloat) -> Set<String> {
         guard !nodes.isEmpty else { return [] }
-        let selectedLineage = selectedNodeID.map { ancestorIDs(of: $0).union([$0]) } ?? []
-
-        if let focusedNodeID {
-            var ids = ancestorIDs(of: focusedNodeID)
-            ids.insert(focusedNodeID)
-            ids.formUnion(descendantIDs(of: focusedNodeID))
-
-            if let focus = node(id: focusedNodeID),
-               focus.rank.sortIndex < TaxonomyTreeRank.family.sortIndex,
-               scale < 1.05 {
-                ids = ids.filter { id in
-                    guard let node = node(id: id) else { return false }
-                    return node.rank != .species || selectedLineage.contains(id)
-                }
-            }
-
-            ids.formUnion(selectedLineage)
-            return ids
-        }
-
-        let maxRank: TaxonomyTreeRank
-        if scale < 0.72 {
-            maxRank = .order
-        } else if scale < 1.05 {
-            maxRank = .genus
-        } else {
-            maxRank = .species
-        }
-
-        var ids = Set(nodes.filter { $0.rank.sortIndex <= maxRank.sortIndex }.map(\.id))
-        ids.formUnion(selectedLineage)
-        return ids
+        return Set(nodes.map(\.id))
     }
 
     private static func nodeSort(_ lhs: TaxonomyTreeNode, _ rhs: TaxonomyTreeNode) -> Bool {

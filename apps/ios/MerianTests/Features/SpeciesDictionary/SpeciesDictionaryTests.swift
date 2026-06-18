@@ -703,8 +703,8 @@ struct SpeciesDictionaryTests {
         #expect(danausNode.speciesCount == 2)
         #expect(monarchNode.dictionaryRoute?.scientificName == "Danaus plexippus")
         #expect(graph.searchResults(for: "monarch").first?.id == monarchID)
-        #expect(graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 0.6).contains(monarchID) == false)
-        #expect(graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: monarchID, scale: 0.6).contains(monarchID) == true)
+        #expect(graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 0.6).contains(monarchID))
+        #expect(graph.visibleNodeIDs(focusedNodeID: danausID, selectedNodeID: nil, scale: 0.6).count == graph.nodes.count)
 
         let layout = TaxonomyTreeLayout.make(
             graph: graph,
