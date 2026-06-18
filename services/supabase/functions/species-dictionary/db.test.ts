@@ -11,6 +11,7 @@ import {
   referenceImagesFromRows,
   resolveCommonName,
   sanitizeAlternativeCommonNames,
+  speciesIdsFromUserScanRows,
   speciesReferenceImageLookupBatches,
 } from "./db.ts";
 
@@ -115,6 +116,33 @@ Deno.test("species-dictionary helpers - batches reference image lookups", () => 
     [["a", "b"], ["c", "d"], ["e"]],
   );
   assertEquals(speciesReferenceImageLookupBatches(["a"], 0), [["a"]]);
+});
+
+Deno.test("species-dictionary helpers - extracts scanned tree species ids", () => {
+  assertEquals(
+    speciesIdsFromUserScanRows([
+      {
+        species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+        confirmed_species_id: null,
+      },
+      {
+        species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+        confirmed_species_id: "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
+      },
+      {
+        species_id: "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
+        confirmed_species_id: null,
+      },
+      {
+        species_id: null,
+        confirmed_species_id: null,
+      },
+    ]),
+    [
+      "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
+    ],
+  );
 });
 
 Deno.test("species-dictionary helpers - sanitize alternative names", () => {

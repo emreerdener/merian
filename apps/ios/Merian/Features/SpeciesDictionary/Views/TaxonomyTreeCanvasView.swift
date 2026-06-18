@@ -84,8 +84,6 @@ struct TaxonomyTreeCanvasView: View {
                 .offset(viewModel.currentOffset)
                 .contentShape(Rectangle())
                 .gesture(viewModel.dragGesture)
-                .simultaneousGesture(viewModel.magnificationGesture)
-                .animation(.snappy(duration: 0.22), value: viewModel.scale)
                 .animation(.snappy(duration: 0.22), value: viewModel.focusedNodeID)
                 .animation(.snappy(duration: 0.22), value: viewModel.selectedNodeID)
 
@@ -99,8 +97,6 @@ struct TaxonomyTreeCanvasView: View {
                     if !searchResults.isEmpty {
                         TaxonomyTreeSearchResultsView(results: searchResults) { node in
                             let targetScale = node.isSpecies && viewModel.scale < 1.05 ? 1.08 : viewModel.scale
-                            viewModel.select(node)
-                            viewModel.setScale(targetScale)
                             let targetVisibleNodeIDs = viewModel.graph.visibleNodeIDs(
                                 focusedNodeID: viewModel.focusedNodeID,
                                 selectedNodeID: node.id,
@@ -111,7 +107,11 @@ struct TaxonomyTreeCanvasView: View {
                                 visibleNodeIDs: targetVisibleNodeIDs,
                                 minimumSize: proxy.size
                             )
-                            viewModel.center(nodeID: node.id, positions: targetLayout.positions, viewportSize: proxy.size)
+                            withAnimation(.snappy(duration: 0.22)) {
+                                viewModel.select(node)
+                                viewModel.setScale(targetScale)
+                                viewModel.center(nodeID: node.id, positions: targetLayout.positions, viewportSize: proxy.size)
+                            }
                         }
                     }
                 }
@@ -144,13 +144,19 @@ struct TaxonomyTreeCanvasView: View {
                 TaxonomyTreeFloatingControls(
                     canClearFocus: viewModel.focusedNodeID != nil || viewModel.selectedNodeID != nil,
                     onZoomOut: {
-                        viewModel.zoom(by: 0.86)
+                        withAnimation(.snappy(duration: 0.22)) {
+                            viewModel.zoom(by: 0.86, viewportSize: proxy.size)
+                        }
                     },
                     onZoomIn: {
-                        viewModel.zoom(by: 1.18)
+                        withAnimation(.snappy(duration: 0.22)) {
+                            viewModel.zoom(by: 1.18, viewportSize: proxy.size)
+                        }
                     },
                     onReset: {
-                        viewModel.resetView()
+                        withAnimation(.snappy(duration: 0.22)) {
+                            viewModel.resetView()
+                        }
                     }
                 )
                 .position(
@@ -164,8 +170,10 @@ struct TaxonomyTreeCanvasView: View {
                         node: selectedNode,
                         isFocused: viewModel.focusedNodeID == selectedNode.id,
                         onFocus: {
-                            viewModel.focus(on: selectedNode.id)
-                            viewModel.center(nodeID: selectedNode.id, positions: layout.positions, viewportSize: proxy.size)
+                            withAnimation(.snappy(duration: 0.22)) {
+                                viewModel.focus(on: selectedNode.id)
+                                viewModel.center(nodeID: selectedNode.id, positions: layout.positions, viewportSize: proxy.size)
+                            }
                         },
                         onClearFocus: {
                             viewModel.clearFocus()
@@ -178,6 +186,7 @@ struct TaxonomyTreeCanvasView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .simultaneousGesture(viewModel.magnificationGesture(in: proxy.size))
         }
     }
 
@@ -193,9 +202,9 @@ struct TaxonomyTreeCanvasView: View {
 
     private var emptyState: some View {
         ContentUnavailableView(
-            "No taxonomy yet",
+            "No scanned taxonomy yet",
             systemImage: "point.3.connected.trianglepath.dotted",
-            description: Text("The tree appears when dictionary species have loaded.")
+            description: Text("The tree appears after your biological scans are matched to dictionary species.")
         )
     }
 
@@ -228,6 +237,8 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
 
     private let minScale: CGFloat = 0.46
     private let maxScale: CGFloat = 2.25
+    private var magnifyStartScale: CGFloat?
+    private var magnifyStartOffset: CGSize = .zero
 
     var selectedNode: TaxonomyTreeNode? {
         graph.node(id: selectedNodeID)
@@ -279,15 +290,33 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
             }
     }
 
-    var magnificationGesture: some Gesture {
-        MagnificationGesture()
+    func magnificationGesture(in viewportSize: CGSize) -> some Gesture {
+        MagnifyGesture()
             .onChanged { [weak self] value in
                 guard let self else { return }
-                scale = clampedScale(baseScale * value)
+                if magnifyStartScale == nil {
+                    magnifyStartScale = scale
+                    magnifyStartOffset = currentOffset
+                    dragOffset = .zero
+                }
+
+                let startScale = magnifyStartScale ?? scale
+                let anchor = CGPoint(
+                    x: value.startAnchor.x * viewportSize.width,
+                    y: value.startAnchor.y * viewportSize.height
+                )
+                applyScale(
+                    clampedScale(startScale * value.magnification),
+                    anchoredAt: anchor,
+                    startingScale: startScale,
+                    startingOffset: magnifyStartOffset
+                )
             }
             .onEnded { [weak self] _ in
                 guard let self else { return }
                 baseScale = scale
+                magnifyStartScale = nil
+                magnifyStartOffset = offset
             }
     }
 
@@ -330,8 +359,24 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         baseScale = scale
     }
 
-    func zoom(by multiplier: CGFloat) {
-        scale = clampedScale(scale * multiplier)
+    func zoom(by multiplier: CGFloat, viewportSize: CGSize) {
+        zoom(
+            by: multiplier,
+            anchoredAt: CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2)
+        )
+    }
+
+    func zoom(by multiplier: CGFloat, anchoredAt anchor: CGPoint) {
+        setScale(clampedScale(scale * multiplier), anchoredAt: anchor)
+    }
+
+    func setScale(_ value: CGFloat, anchoredAt anchor: CGPoint) {
+        applyScale(
+            clampedScale(value),
+            anchoredAt: anchor,
+            startingScale: scale,
+            startingOffset: currentOffset
+        )
         baseScale = scale
     }
 
@@ -361,6 +406,29 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
 
     private func clampedScale(_ value: CGFloat) -> CGFloat {
         min(maxScale, max(minScale, value))
+    }
+
+    private func applyScale(
+        _ nextScale: CGFloat,
+        anchoredAt anchor: CGPoint,
+        startingScale: CGFloat,
+        startingOffset: CGSize
+    ) {
+        guard startingScale > 0 else {
+            scale = nextScale
+            return
+        }
+
+        let anchoredContentPoint = CGPoint(
+            x: (anchor.x - startingOffset.width) / startingScale,
+            y: (anchor.y - startingOffset.height) / startingScale
+        )
+        scale = nextScale
+        offset = CGSize(
+            width: anchor.x - anchoredContentPoint.x * nextScale,
+            height: anchor.y - anchoredContentPoint.y * nextScale
+        )
+        dragOffset = .zero
     }
 }
 

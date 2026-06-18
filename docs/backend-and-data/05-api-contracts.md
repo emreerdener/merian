@@ -582,9 +582,10 @@ and causes `CaptureWorkspaceView` to prompt re-authentication instead.
 
 ## Public Species Dictionary Edge Node
 
-The `/species-dictionary` Edge Function returns public species-level dictionary
-data for the standalone Species Dictionary Page. It is deliberately separate
-from both the Insight scan and Explore post-detail contracts:
+The `/species-dictionary` Edge Function returns species-level dictionary data
+for the standalone Species Dictionary Page, Explore Dictionary catalog, and
+Tree of Life canvas. It is deliberately separate from both the Insight scan and
+Explore post-detail contracts:
 
 - Insight scan data can include local media, user review state, field notes, and
   per-scan AI reasoning.
@@ -592,10 +593,12 @@ from both the Insight scan and Explore post-detail contracts:
 - Species dictionary data includes only canonical dictionary fields and
   reference imagery.
 
-The function has `verify_jwt = false` in `services/supabase/config.toml` and
-does not call `requireAuth`. It may receive normal app auth headers from
-`MerianNetworkClient`, but identity is not read and must not affect the
-response.
+The function has `verify_jwt = false` in `services/supabase/config.toml`. Detail
+and catalog requests do not call `requireAuth`; they may receive normal app auth
+headers from `MerianNetworkClient`, but identity is not read and must not affect
+those responses. Tree mode does call `requireAuth` because the graph membership
+is scoped to the signed-in user's scan library, but the returned nodes still use
+only the public species projection.
 
 The response is built through the shared public species projection in
 `services/supabase/functions/_shared/publicSpeciesProjection.ts`. That module
@@ -703,7 +706,7 @@ Catalog mode:
 ```
 
 - `mode: "catalog"` returns a compact cursor-paginated list for the Explore
-  Dictionary catalog and Tree of Life canvas.
+  Dictionary catalog.
 - `limit` defaults to `40` and is capped at `100`.
 - `query` is optional, trims/collapses whitespace, and filters scientific names.
 - `cursor` carries the last `scientific_name` and `species_id` returned.
@@ -716,7 +719,10 @@ Caching:
 - `200 OK` responses include
   `Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800`
   and `Vary: Accept-Encoding`.
-- `400`, `404`, and `500` responses do not include public cache headers.
+- Tree mode sends `Cache-Control: private, no-store` and
+  `Vary: Authorization, Accept-Encoding` because the species set depends on the
+  authenticated user's scans.
+- `400`, `401`, `404`, and `500` responses do not include public cache headers.
 - iOS adds a 10-minute, 64-key in-memory memo cache in `MerianNetworkClient`,
   keyed by normalized `species_id` and scientific name. The cache is route-local
   only and never persists species pages to disk.

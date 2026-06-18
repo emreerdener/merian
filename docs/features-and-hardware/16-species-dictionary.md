@@ -149,7 +149,7 @@ MerianNetworkClient.shared.getSpeciesDictionary(scientificName:)
 MerianNetworkClient.shared.getSpeciesDictionary(speciesId:scientificName:)
 ```
 
-That method POSTs to the public `species-dictionary` Edge Function:
+That method POSTs to the `species-dictionary` Edge Function:
 
 ```json
 {
@@ -208,10 +208,10 @@ Successful responses are wrapped in a `data` envelope:
 }
 ```
 
-The endpoint is public by design and has `verify_jwt = false`. It may receive
-normal app auth headers from `MerianNetworkClient`, but the function does not
-require or read identity. The response must remain species-level public
-dictionary data only.
+The default detail lookup is public by design and has `verify_jwt = false`. It
+may receive normal app auth headers from `MerianNetworkClient`, but the detail
+and catalog paths do not require or read identity. Those responses must remain
+species-level public dictionary data only.
 
 `schema_version = 1` is the shared public species contract used by the
 dictionary page and Explore detail similar-species projection. iOS treats the
@@ -272,7 +272,7 @@ content.
 
 ### Tree Mode
 
-The Tree of Life canvas uses the same public Edge Function with `mode: "tree"`:
+The Tree of Life canvas uses the same Edge Function with `mode: "tree"`:
 
 ```json
 {
@@ -327,10 +327,18 @@ The response keeps the shared schema version and returns a graph payload:
 }
 ```
 
-Tree mode is still species-level public data only. It adds graph-ready taxonomy
-nodes, parent/child edges, species counts, representative species, and preview
-fields so the iOS canvas can search, zoom, focus branches, and show species
-previews without exposing scans, users, locations, comments, or field notes.
+Tree mode requires the user's auth session because the species set is scoped to
+that user's non-deleted biological scans. It reads `confirmed_species_id` first,
+then falls back to `species_id`, dedupes those IDs, and fetches matching
+`species_dictionary` rows through the same public species projection used by
+detail and catalog responses.
+
+The tree response is still species-level public data only. It adds graph-ready
+taxonomy nodes, parent/child edges, species counts, representative species, and
+preview fields so the iOS canvas can search, zoom, focus branches, and show
+species previews without exposing scan IDs, users, media, locations, comments,
+Explore posts, or field notes. Empty scan libraries return an empty graph and
+the iOS canvas shows a scanned-taxonomy empty state.
 
 Observation pattern charts use a separate public endpoint:
 
@@ -349,17 +357,19 @@ contract, cache behavior, annotation mappings, and privacy rules.
 
 ## Caching
 
-Successful `/species-dictionary` responses are public and slow-changing, so the
-Edge Function sends:
+Successful detail and catalog `/species-dictionary` responses are public and
+slow-changing, so the Edge Function sends:
 
 ```http
 Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800
 Vary: Accept-Encoding
 ```
 
-Only `200 OK` dictionary responses are cacheable. `400`, `404`, and `500`
-responses do not opt into public caching, so missing rows and transient errors
-can recover immediately after data is added or fixed.
+Tree mode sends `Cache-Control: private, no-store` and
+`Vary: Authorization, Accept-Encoding` because the graph membership depends on
+the signed-in user's scan library. `400`, `401`, `404`, and `500` responses do
+not opt into public caching, so missing rows, auth failures, and transient
+errors can recover immediately after data is added or fixed.
 
 The iOS client also memoizes recently opened dictionary pages inside
 `MerianNetworkClient`. The cache is in memory only, capped at 64 keys, and

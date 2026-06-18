@@ -141,8 +141,13 @@ export interface SpeciesDictionaryTreeResult {
   edges: SpeciesDictionaryTreeEdge[];
 }
 
-export const SPECIES_DICTIONARY_TREE_PAGE_SIZE = 500;
+export const USER_SCANNED_SPECIES_TREE_PAGE_SIZE = 500;
 export const SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE = 100;
+
+export interface UserScanSpeciesRow {
+  species_id?: string | null;
+  confirmed_species_id?: string | null;
+}
 
 export interface SpeciesDictionaryRequestResult {
   mode?: "catalog" | "tree";
@@ -297,10 +302,14 @@ export async function fetchSpeciesDictionaryCatalog(
   return { data: items, nextCursor };
 }
 
-export async function fetchSpeciesDictionaryTree(
+export async function fetchUserScannedSpeciesDictionaryTree(
+  userId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<SpeciesDictionaryTreeResult> {
-  const rows = await fetchSpeciesDictionaryTreeRows(supabaseAdmin);
+  const rows = await fetchUserScannedSpeciesDictionaryRows(
+    userId,
+    supabaseAdmin,
+  );
   const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
     rows.map((row) => row.id),
     supabaseAdmin,
@@ -309,33 +318,90 @@ export async function fetchSpeciesDictionaryTree(
   return buildSpeciesDictionaryTree(rows, firstImageBySpeciesId);
 }
 
-async function fetchSpeciesDictionaryTreeRows(
+async function fetchUserScannedSpeciesDictionaryRows(
+  userId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<SpeciesDictionaryRow[]> {
-  const rows: SpeciesDictionaryRow[] = [];
+  const scanRows: UserScanSpeciesRow[] = [];
   let from = 0;
 
   while (true) {
-    const to = from + SPECIES_DICTIONARY_TREE_PAGE_SIZE - 1;
+    const to = from + USER_SCANNED_SPECIES_TREE_PAGE_SIZE - 1;
+    const { data, error } = await supabaseAdmin
+      .from("scans")
+      .select("species_id, confirmed_species_id")
+      .eq("user_id", userId)
+      .eq("is_tombstoned", false)
+      .eq("is_biological_subject", true)
+      .order("timestamp", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(
+        `Failed to fetch user scanned species: ${error.message}`,
+      );
+    }
+
+    const page = (data ?? []) as UserScanSpeciesRow[];
+    scanRows.push(...page);
+    if (page.length < USER_SCANNED_SPECIES_TREE_PAGE_SIZE) break;
+    from += USER_SCANNED_SPECIES_TREE_PAGE_SIZE;
+  }
+
+  const speciesIds = speciesIdsFromUserScanRows(scanRows);
+  return fetchSpeciesDictionaryRowsByIds(speciesIds, supabaseAdmin);
+}
+
+export function speciesIdsFromUserScanRows(
+  rows: UserScanSpeciesRow[],
+): string[] {
+  const seen = new Set<string>();
+  const speciesIds: string[] = [];
+
+  for (const row of rows) {
+    const speciesId = stringValue(row.confirmed_species_id) ??
+      stringValue(row.species_id);
+    if (!speciesId) continue;
+
+    const key = speciesId.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    speciesIds.push(speciesId);
+  }
+
+  return speciesIds;
+}
+
+async function fetchSpeciesDictionaryRowsByIds(
+  speciesIds: string[],
+  supabaseAdmin: SupabaseClient,
+): Promise<SpeciesDictionaryRow[]> {
+  if (speciesIds.length === 0) return [];
+
+  const rows: SpeciesDictionaryRow[] = [];
+  for (
+    const batch of speciesReferenceImageLookupBatches(
+      speciesIds,
+      SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE,
+    )
+  ) {
     const { data, error } = await supabaseAdmin
       .from("species_dictionary")
       .select(
         "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags",
       )
+      .in("id", batch)
       .order("scientific_name", { ascending: true })
-      .order("id", { ascending: true })
-      .range(from, to);
+      .order("id", { ascending: true });
 
     if (error) {
       throw new Error(
-        `Failed to fetch species dictionary tree: ${error.message}`,
+        `Failed to fetch scanned species dictionary rows: ${error.message}`,
       );
     }
 
-    const page = (data ?? []) as SpeciesDictionaryRow[];
-    rows.push(...page);
-    if (page.length < SPECIES_DICTIONARY_TREE_PAGE_SIZE) break;
-    from += SPECIES_DICTIONARY_TREE_PAGE_SIZE;
+    rows.push(...((data ?? []) as SpeciesDictionaryRow[]));
   }
 
   return rows;

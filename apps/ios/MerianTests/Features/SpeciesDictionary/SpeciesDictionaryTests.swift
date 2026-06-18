@@ -719,6 +719,29 @@ struct SpeciesDictionaryTests {
         #expect(layout.size.height >= 480)
     }
 
+    @Test func testTaxonomyTreeZoomPreservesAnchorContentPoint() {
+        let viewModel = TaxonomyTreeCanvasViewModel()
+        viewModel.scale = 1
+        viewModel.baseScale = 1
+        viewModel.offset = CGSize(width: -120, height: 80)
+
+        let anchor = CGPoint(x: 180, y: 260)
+        let before = CGPoint(
+            x: (anchor.x - viewModel.offset.width) / viewModel.scale,
+            y: (anchor.y - viewModel.offset.height) / viewModel.scale
+        )
+
+        viewModel.zoom(by: 1.5, anchoredAt: anchor)
+
+        let after = CGPoint(
+            x: (anchor.x - viewModel.offset.width) / viewModel.scale,
+            y: (anchor.y - viewModel.offset.height) / viewModel.scale
+        )
+        #expect(abs(before.x - after.x) < 0.001)
+        #expect(abs(before.y - after.y) < 0.001)
+        #expect(viewModel.scale == 1.5)
+    }
+
     private static func taxonomyTreePayload() -> SpeciesDictionaryTreePayload {
         let taxonomy = SpeciesDictionaryTaxonomy(
             kingdom: "Animalia",

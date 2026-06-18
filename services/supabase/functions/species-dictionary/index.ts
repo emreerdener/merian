@@ -1,13 +1,14 @@
 // deno-lint-ignore no-import-prefix
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { requireAuth } from "../_shared/auth.ts";
 import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
 import { logStructuredError } from "../_shared/edgeHandler.ts";
 import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjection.ts";
 import {
   fetchSpeciesDictionary,
   fetchSpeciesDictionaryCatalog,
-  fetchSpeciesDictionaryTree,
+  fetchUserScannedSpeciesDictionaryTree,
   parseSpeciesDictionaryRequest,
 } from "./db.ts";
 
@@ -15,6 +16,11 @@ const publicDictionaryCacheHeaders = {
   "Cache-Control":
     "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800",
   "Vary": "Accept-Encoding",
+};
+
+const privateDictionaryCacheHeaders = {
+  "Cache-Control": "private, no-store",
+  "Vary": "Authorization, Accept-Encoding",
 };
 
 serve(async (req: Request) => {
@@ -60,7 +66,14 @@ serve(async (req: Request) => {
     }
 
     if (parsedRequest.mode === "tree") {
-      const tree = await fetchSpeciesDictionaryTree(supabaseAdmin);
+      const { user, response } = await requireAuth(req, supabaseAdmin);
+      if (response) return response;
+      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+      const tree = await fetchUserScannedSpeciesDictionaryTree(
+        user.id,
+        supabaseAdmin,
+      );
 
       return jsonResponse(
         {
@@ -68,7 +81,7 @@ serve(async (req: Request) => {
           data: tree,
         },
         200,
-        publicDictionaryCacheHeaders,
+        privateDictionaryCacheHeaders,
       );
     }
 
