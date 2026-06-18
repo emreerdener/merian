@@ -424,6 +424,7 @@ private struct TaxonomyTreeEdgesCanvas: View {
 private struct TaxonomyTreeControlBar: View {
     @Binding var searchText: String
     let breadcrumb: String?
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -459,6 +460,11 @@ private struct TaxonomyTreeControlBar: View {
             TextField("Search taxonomy", text: $searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($isSearchFocused)
+                .onSubmit {
+                    isSearchFocused = false
+                }
                 .font(.subheadline)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
