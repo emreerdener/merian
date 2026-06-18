@@ -76,6 +76,10 @@ export interface SpeciesDictionaryCatalogRequest {
   cursor?: SpeciesDictionaryCatalogCursor;
 }
 
+export interface SpeciesDictionaryTreeRequest {
+  mode: "tree";
+}
+
 export interface SpeciesDictionaryCatalogItem {
   id: string;
   scientific_name: string;
@@ -93,8 +97,52 @@ export interface SpeciesDictionaryCatalogResult {
   nextCursor: SpeciesDictionaryCatalogCursor | null;
 }
 
+export type TaxonomyTreeRank =
+  | "kingdom"
+  | "phylum"
+  | "class"
+  | "order"
+  | "family"
+  | "genus"
+  | "species";
+
+export interface SpeciesDictionaryTreeSpecies {
+  id: string;
+  scientific_name: string;
+  common_name: string;
+  content_quality: string;
+  taxonomy: SpeciesDictionaryTaxonomy | null;
+  iucn_red_list_status: string | null;
+  hazard_type: string | null;
+  group_tags: string[];
+  reference_image_url: string | null;
+}
+
+export interface SpeciesDictionaryTreeNode {
+  id: string;
+  rank: TaxonomyTreeRank;
+  title: string;
+  subtitle: string | null;
+  parent_id: string | null;
+  species_count: number;
+  child_count: number;
+  lineage: SpeciesDictionaryTaxonomy | null;
+  representative_species: SpeciesDictionaryTreeSpecies | null;
+  species: SpeciesDictionaryTreeSpecies | null;
+}
+
+export interface SpeciesDictionaryTreeEdge {
+  from: string;
+  to: string;
+}
+
+export interface SpeciesDictionaryTreeResult {
+  nodes: SpeciesDictionaryTreeNode[];
+  edges: SpeciesDictionaryTreeEdge[];
+}
+
 export interface SpeciesDictionaryRequestResult {
-  mode?: "catalog";
+  mode?: "catalog" | "tree";
   speciesId?: string;
   scientificName?: string;
   query?: string;
@@ -111,8 +159,12 @@ export function parseSpeciesDictionaryRequest(
     return parseSpeciesDictionaryCatalogRequest(body);
   }
 
+  if (body.mode === "tree") {
+    return { mode: "tree" };
+  }
+
   if (body.mode !== undefined && body.mode !== null) {
-    return { error: "mode must be catalog when provided.", status: 400 };
+    return { error: "mode must be catalog or tree when provided.", status: 400 };
   }
 
   const rawSpeciesId = body.species_id;
@@ -237,6 +289,147 @@ export async function fetchSpeciesDictionaryCatalog(
     : null;
 
   return { data: items, nextCursor };
+}
+
+export async function fetchSpeciesDictionaryTree(
+  supabaseAdmin: SupabaseClient,
+): Promise<SpeciesDictionaryTreeResult> {
+  const { data, error } = await supabaseAdmin
+    .from("species_dictionary")
+    .select(
+      "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags",
+    )
+    .order("scientific_name", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch species dictionary tree: ${error.message}`,
+    );
+  }
+
+  const rows = (data ?? []) as SpeciesDictionaryRow[];
+  const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
+    rows.map((row) => row.id),
+    supabaseAdmin,
+  );
+
+  return buildSpeciesDictionaryTree(rows, firstImageBySpeciesId);
+}
+
+export function buildSpeciesDictionaryTree(
+  rows: SpeciesDictionaryRow[],
+  firstImageBySpeciesId: Map<string, string> = new Map(),
+): SpeciesDictionaryTreeResult {
+  const nodesById = new Map<string, SpeciesDictionaryTreeNode>();
+  const edgesById = new Map<string, SpeciesDictionaryTreeEdge>();
+  const sortedRows = rows.slice().sort((lhs, rhs) => {
+    const lhsName = (stringValue(lhs.scientific_name) ?? "").toLocaleLowerCase();
+    const rhsName = (stringValue(rhs.scientific_name) ?? "").toLocaleLowerCase();
+    if (lhsName === rhsName) {
+      return (stringValue(lhs.id) ?? "").localeCompare(stringValue(rhs.id) ?? "");
+    }
+    return lhsName.localeCompare(rhsName);
+  });
+
+  for (const row of sortedRows) {
+    const referenceImageUrl = firstImageBySpeciesId.get(row.id) ??
+      firstReferenceImageUrl(row.reference_image_url);
+    const catalogItem = buildSpeciesDictionaryCatalogItem(
+      row,
+      referenceImageUrl,
+    );
+    const treeSpecies: SpeciesDictionaryTreeSpecies = {
+      id: catalogItem.id,
+      scientific_name: catalogItem.scientific_name,
+      common_name: catalogItem.common_name,
+      content_quality: catalogItem.content_quality,
+      taxonomy: catalogItem.taxonomy,
+      iucn_red_list_status: catalogItem.iucn_red_list_status,
+      hazard_type: catalogItem.hazard_type,
+      group_tags: catalogItem.group_tags,
+      reference_image_url: catalogItem.reference_image_url,
+    };
+    const lineageValues: Array<[TaxonomyTreeRank, string]> = [
+      ["kingdom", taxonomyDisplayValue(row.kingdom)],
+      ["phylum", taxonomyDisplayValue(row.phylum)],
+      ["class", taxonomyDisplayValue(row.class)],
+      ["order", taxonomyDisplayValue(row.order)],
+      ["family", taxonomyDisplayValue(row.family)],
+      ["genus", taxonomyDisplayValue(row.genus)],
+    ];
+
+    let parentId: string | null = null;
+    const pathParts: string[] = [];
+    const lineage: Partial<SpeciesDictionaryTaxonomy> = {};
+
+    for (const [rank, value] of lineageValues) {
+      pathParts.push(taxonomyKey(value));
+      const nodeId = `taxonomy:${rank}:${pathParts.join("/")}`;
+      setLineageValue(lineage, rank, value);
+      const node = nodesById.get(nodeId) ?? {
+        id: nodeId,
+        rank,
+        title: value,
+        subtitle: taxonomyRankTitle(rank),
+        parent_id: parentId,
+        species_count: 0,
+        child_count: 0,
+        lineage: completeLineage(lineage),
+        representative_species: treeSpecies,
+        species: null,
+      };
+
+      node.species_count += 1;
+      if (!node.representative_species?.reference_image_url &&
+        treeSpecies.reference_image_url) {
+        node.representative_species = treeSpecies;
+      }
+      nodesById.set(nodeId, node);
+
+      if (parentId) {
+        const edge = { from: parentId, to: nodeId };
+        edgesById.set(`${edge.from}->${edge.to}`, edge);
+      }
+      parentId = nodeId;
+    }
+
+    const speciesNodeId = `species:${row.id}`;
+    nodesById.set(speciesNodeId, {
+      id: speciesNodeId,
+      rank: "species",
+      title: treeSpecies.common_name,
+      subtitle: treeSpecies.scientific_name,
+      parent_id: parentId,
+      species_count: 1,
+      child_count: 0,
+      lineage: treeSpecies.taxonomy,
+      representative_species: treeSpecies,
+      species: treeSpecies,
+    });
+
+    if (parentId) {
+      const edge = { from: parentId, to: speciesNodeId };
+      edgesById.set(`${edge.from}->${edge.to}`, edge);
+    }
+  }
+
+  const childCounts = new Map<string, number>();
+  for (const edge of edgesById.values()) {
+    childCounts.set(edge.from, (childCounts.get(edge.from) ?? 0) + 1);
+  }
+
+  const nodes = Array.from(nodesById.values())
+    .map((node) => ({
+      ...node,
+      child_count: childCounts.get(node.id) ?? 0,
+    }))
+    .sort(taxonomyTreeNodeSort);
+  const edges = Array.from(edgesById.values()).sort((lhs, rhs) =>
+    `${lhs.from}->${lhs.to}`.localeCompare(`${rhs.from}->${rhs.to}`)
+  );
+
+  return { nodes, edges };
 }
 
 export function buildSpeciesDictionaryCatalogItem(
@@ -557,6 +750,85 @@ function normalizeOptionalScientificName(
   }
 
   return { scientificName };
+}
+
+function taxonomyDisplayValue(value: string | null | undefined): string {
+  const normalized = (stringValue(value) ?? "").trim().replace(/\s+/g, " ");
+  return normalized || "Unclassified";
+}
+
+function taxonomyKey(value: string): string {
+  const normalized = value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+  return encodeURIComponent(normalized || "unclassified");
+}
+
+function taxonomyRankTitle(rank: TaxonomyTreeRank): string {
+  switch (rank) {
+    case "kingdom":
+      return "Kingdom";
+    case "phylum":
+      return "Phylum";
+    case "class":
+      return "Class";
+    case "order":
+      return "Order";
+    case "family":
+      return "Family";
+    case "genus":
+      return "Genus";
+    case "species":
+      return "Species";
+  }
+}
+
+function setLineageValue(
+  lineage: Partial<SpeciesDictionaryTaxonomy>,
+  rank: TaxonomyTreeRank,
+  value: string,
+): void {
+  if (rank === "species") return;
+  lineage[rank] = value;
+}
+
+function completeLineage(
+  lineage: Partial<SpeciesDictionaryTaxonomy>,
+): SpeciesDictionaryTaxonomy {
+  return {
+    kingdom: lineage.kingdom ?? null,
+    phylum: lineage.phylum ?? null,
+    class: lineage.class ?? null,
+    order: lineage.order ?? null,
+    family: lineage.family ?? null,
+    genus: lineage.genus ?? null,
+  };
+}
+
+function taxonomyTreeNodeSort(
+  lhs: SpeciesDictionaryTreeNode,
+  rhs: SpeciesDictionaryTreeNode,
+): number {
+  const rankDelta = taxonomyRankSortValue(lhs.rank) -
+    taxonomyRankSortValue(rhs.rank);
+  if (rankDelta !== 0) return rankDelta;
+  const parentDelta = (stringValue(lhs.parent_id) ?? "").localeCompare(
+    stringValue(rhs.parent_id) ?? "",
+  );
+  if (parentDelta !== 0) return parentDelta;
+  const titleDelta = lhs.title.localeCompare(rhs.title);
+  if (titleDelta !== 0) return titleDelta;
+  return lhs.id.localeCompare(rhs.id);
+}
+
+function taxonomyRankSortValue(rank: TaxonomyTreeRank): number {
+  return [
+    "kingdom",
+    "phylum",
+    "class",
+    "order",
+    "family",
+    "genus",
+    "species",
+  ].indexOf(rank);
 }
 
 function normalizeCatalogLimit(

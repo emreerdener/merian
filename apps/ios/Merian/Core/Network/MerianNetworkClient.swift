@@ -1137,6 +1137,14 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(SpeciesDictionaryCatalogResponse.self, from: data)
     }
 
+    func getSpeciesDictionaryTree() async throws -> SpeciesDictionaryTreeResponse {
+        let functionUrl = try endpointURL("species-dictionary")
+        let payload: [String: Any] = ["mode": "tree"]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(SpeciesDictionaryTreeResponse.self, from: data)
+    }
+
     func getSpeciesObservationStats(
         speciesId: String? = nil,
         scientificName: String

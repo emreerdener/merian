@@ -12,9 +12,10 @@ and controls a horizontally paged root shell.
   paginated catalog powered by the public `species_dictionary` table through
   the existing `/species-dictionary` Edge Function.
 - **Tree** shows `TaxonomyTreeCanvasView`, an interactive Tree of Life canvas
-  built from catalog entries. Users can pan, zoom, tap nodes to highlight nearby
-  connections, and tap species nodes to open the existing Species Dictionary
-  detail page.
+  powered by the `species-dictionary` Edge Function's `mode: "tree"` graph
+  response. Users can pan, zoom, search, focus branches, inspect lineage
+  highlights, and open a species preview before navigating to the existing
+  Species Dictionary detail page.
 
 ## Navigation
 
@@ -25,16 +26,20 @@ Map, Dictionary, then Tree. The old top Feed/Map segmented control is not shown.
 The bottom menu is intentionally root-scoped. It is hidden on pushed post
 details, catalog detail pages, hashtag lists, author profile sheets, comments,
 notification sheets, and the Insight sheet. Dictionary rows and Tree species
-nodes still push `SpeciesDictionaryRoute` into the sheet's existing
+preview actions still push `SpeciesDictionaryRoute` into the sheet's existing
 `NavigationPath`.
 
 ## Data Boundaries
 
 Dictionary and Tree use species-level public data only. The catalog mode returns
 compact species rows with taxonomy, content quality, tags, status fields, and a
-single reference image URL. It does not include user scans, field notes,
-comments, locations, or Explore post content.
+single reference image URL. The tree mode returns public taxonomy nodes, edges,
+species counts, representative species, reference thumbnails, and status fields.
+Neither mode includes user scans, field notes, comments, locations, or Explore
+post content.
 
-The Tree MVP derives its graph client-side from catalog taxonomy fields. Missing
-taxonomy ranks are grouped under `Unclassified`; no new taxonomy schema,
-migration, or precomputed graph table is required.
+Tree node IDs are stable lineage keys such as
+`taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus`,
+while species leaves use `species:<species_dictionary.id>`. Missing taxonomy
+ranks are grouped under `Unclassified`; no new taxonomy schema, migration, or
+precomputed graph table is required for this version.

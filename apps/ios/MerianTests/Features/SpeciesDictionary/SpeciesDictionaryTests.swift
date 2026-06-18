@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import Merian
@@ -594,72 +595,220 @@ struct SpeciesDictionaryTests {
         #expect(response.nextCursor?.speciesId == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
     }
 
-    @Test func testTaxonomyTreeGraphDedupesAndRoutesSpecies() throws {
-        let monarch = catalogItem(
-            id: "species-monarch",
-            commonName: "Monarch Butterfly",
-            scientificName: "Danaus plexippus",
-            family: "Nymphalidae",
-            genus: "Danaus"
-        )
-        let queen = catalogItem(
-            id: "species-queen",
-            commonName: "Queen Butterfly",
-            scientificName: "Danaus gilippus",
-            family: "Nymphalidae",
-            genus: "Danaus"
-        )
-        let unknown = catalogItem(
-            id: "species-unknown",
-            commonName: "Mystery",
-            scientificName: "Mysteria incognita",
-            kingdom: nil,
-            phylum: nil,
-            className: nil,
-            order: nil,
-            family: nil,
-            genus: nil
-        )
+    @Test func testSpeciesDictionaryTreeResponseDecodesGraphPayload() throws {
+        let data = """
+        {
+            "schema_version": 1,
+            "data": {
+                "nodes": [
+                    {
+                        "id": "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus",
+                        "rank": "genus",
+                        "title": "Danaus",
+                        "subtitle": "Genus",
+                        "parent_id": "taxonomy:family:animalia/arthropoda/insecta/lepidoptera/nymphalidae",
+                        "species_count": 2,
+                        "child_count": 2,
+                        "lineage": {
+                            "kingdom": "Animalia",
+                            "phylum": "Arthropoda",
+                            "class": "Insecta",
+                            "order": "Lepidoptera",
+                            "family": "Nymphalidae",
+                            "genus": "Danaus"
+                        },
+                        "representative_species": {
+                            "id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                            "scientific_name": "Danaus plexippus",
+                            "common_name": "Monarch Butterfly",
+                            "content_quality": "complete",
+                            "taxonomy": {
+                                "kingdom": "Animalia",
+                                "phylum": "Arthropoda",
+                                "class": "Insecta",
+                                "order": "Lepidoptera",
+                                "family": "Nymphalidae",
+                                "genus": "Danaus"
+                            },
+                            "iucn_red_list_status": "least concern",
+                            "hazard_type": "none",
+                            "group_tags": ["animal", "insect"],
+                            "reference_image_url": "https://example.com/monarch.jpg"
+                        },
+                        "species": null
+                    }
+                ],
+                "edges": [
+                    {
+                        "from": "taxonomy:family:animalia/arthropoda/insecta/lepidoptera/nymphalidae",
+                        "to": "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus"
+                    }
+                ]
+            }
+        }
+        """.data(using: .utf8)!
 
-        let graph = TaxonomyTreeGraphBuilder.build(from: [monarch, queen, unknown])
-        let genusNodes = graph.nodes.filter { $0.rank == .genus && $0.title == "Danaus" }
-        let unclassifiedNodes = graph.nodes.filter { $0.title == "Unclassified" }
-        let speciesNode = try #require(graph.nodes.first { $0.id == "species|species-monarch" })
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(SpeciesDictionaryTreeResponse.self, from: data)
 
-        #expect(genusNodes.count == 1)
-        #expect(unclassifiedNodes.count >= 1)
-        #expect(speciesNode.dictionaryRoute?.scientificName == "Danaus plexippus")
-        #expect(graph.edges.contains { $0.to == "species|species-monarch" })
+        #expect(response.effectiveSchemaVersion == 1)
+        #expect(response.data.nodes.first?.rank == .genus)
+        #expect(response.data.nodes.first?.lineage?.className == "Insecta")
+        #expect(response.data.nodes.first?.representativeSpecies?.dictionaryRoute.scientificName == "Danaus plexippus")
+        #expect(response.data.edges.first?.id.contains("->") == true)
     }
 
-    private func catalogItem(
-        id: String,
-        commonName: String,
-        scientificName: String,
-        kingdom: String? = "Animalia",
-        phylum: String? = "Arthropoda",
-        className: String? = "Insecta",
-        order: String? = "Lepidoptera",
-        family: String?,
-        genus: String?
-    ) -> SpeciesDictionaryCatalogItem {
-        SpeciesDictionaryCatalogItem(
-            id: id,
-            scientificName: scientificName,
-            commonName: commonName,
+    @Test func testGetSpeciesDictionaryTreeConstructsPayloadAndParsesResponse() async throws {
+        let testData = """
+        {
+            "schema_version": 1,
+            "data": {
+                "nodes": [],
+                "edges": []
+            }
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+            #expect(request.httpMethod == "POST")
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            #expect(payload["mode"] as? String == "tree")
+            #expect(payload["limit"] == nil)
+            #expect(payload["query"] == nil)
+            return (mockResponse, testData)
+        }
+
+        let response = try await MerianNetworkClient.shared.getSpeciesDictionaryTree()
+
+        #expect(response.data.nodes.isEmpty)
+        #expect(response.data.edges.isEmpty)
+    }
+
+    @Test func testTaxonomyTreeGraphSearchVisibilityLayoutAndRouting() throws {
+        let graph = TaxonomyTreeGraphBuilder.build(from: Self.taxonomyTreePayload())
+        let danausID = "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus"
+        let monarchID = "species:1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+        let danausNode = try #require(graph.node(id: danausID))
+        let monarchNode = try #require(graph.node(id: monarchID))
+
+        #expect(danausNode.speciesCount == 2)
+        #expect(monarchNode.dictionaryRoute?.scientificName == "Danaus plexippus")
+        #expect(graph.searchResults(for: "monarch").first?.id == monarchID)
+        #expect(graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: nil, scale: 0.6).contains(monarchID) == false)
+        #expect(graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: monarchID, scale: 0.6).contains(monarchID) == true)
+
+        let layout = TaxonomyTreeLayout.make(
+            graph: graph,
+            visibleNodeIDs: graph.visibleNodeIDs(focusedNodeID: nil, selectedNodeID: monarchID, scale: 1.2),
+            minimumSize: CGSize(width: 320, height: 480)
+        )
+        let genusPosition = try #require(layout.positions[danausID])
+        let speciesPosition = try #require(layout.positions[monarchID])
+
+        #expect(genusPosition.x < speciesPosition.x)
+        #expect(layout.size.width >= 320)
+        #expect(layout.size.height >= 480)
+    }
+
+    private static func taxonomyTreePayload() -> SpeciesDictionaryTreePayload {
+        let taxonomy = SpeciesDictionaryTaxonomy(
+            kingdom: "Animalia",
+            phylum: "Arthropoda",
+            className: "Insecta",
+            order: "Lepidoptera",
+            family: "Nymphalidae",
+            genus: "Danaus"
+        )
+        let monarch = SpeciesDictionaryTreeSpecies(
+            id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch Butterfly",
             contentQuality: .complete,
-            taxonomy: SpeciesDictionaryTaxonomy(
-                kingdom: kingdom,
-                phylum: phylum,
-                className: className,
-                order: order,
-                family: family,
-                genus: genus
-            ),
+            taxonomy: taxonomy,
+            iucnRedListStatus: "least concern",
+            hazardType: "none",
+            groupTags: ["animal", "insect"],
+            referenceImageUrl: "https://example.com/monarch.jpg"
+        )
+        let queen = SpeciesDictionaryTreeSpecies(
+            id: "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
+            scientificName: "Danaus gilippus",
+            commonName: "Queen Butterfly",
+            contentQuality: .complete,
+            taxonomy: taxonomy,
             iucnRedListStatus: nil,
             hazardType: nil,
-            groupTags: [],
+            groupTags: ["animal", "insect"],
             referenceImageUrl: nil
         )
+        let lineageIDs = [
+            "taxonomy:kingdom:animalia",
+            "taxonomy:phylum:animalia/arthropoda",
+            "taxonomy:class:animalia/arthropoda/insecta",
+            "taxonomy:order:animalia/arthropoda/insecta/lepidoptera",
+            "taxonomy:family:animalia/arthropoda/insecta/lepidoptera/nymphalidae",
+            "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus"
+        ]
+        let ranks: [SpeciesDictionaryTreeRank] = [.kingdom, .phylum, .className, .order, .family, .genus]
+        let titles = ["Animalia", "Arthropoda", "Insecta", "Lepidoptera", "Nymphalidae", "Danaus"]
+        let nodes = zip(lineageIDs.indices, lineageIDs).map { pair in
+            let index = pair.0
+            let id = pair.1
+            return SpeciesDictionaryTreeNodePayload(
+                id: id,
+                rank: ranks[index],
+                title: titles[index],
+                subtitle: ranks[index].title,
+                parentId: index == 0 ? nil : lineageIDs[index - 1],
+                speciesCount: 2,
+                childCount: index == lineageIDs.count - 1 ? 2 : 1,
+                lineage: taxonomy,
+                representativeSpecies: monarch,
+                species: nil
+            )
+        } + [
+            SpeciesDictionaryTreeNodePayload(
+                id: "species:1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                rank: .species,
+                title: "Monarch Butterfly",
+                subtitle: "Danaus plexippus",
+                parentId: lineageIDs.last,
+                speciesCount: 1,
+                childCount: 0,
+                lineage: taxonomy,
+                representativeSpecies: monarch,
+                species: monarch
+            ),
+            SpeciesDictionaryTreeNodePayload(
+                id: "species:2cf79982-e5ee-4e3d-8d65-274527e6ae02",
+                rank: .species,
+                title: "Queen Butterfly",
+                subtitle: "Danaus gilippus",
+                parentId: lineageIDs.last,
+                speciesCount: 1,
+                childCount: 0,
+                lineage: taxonomy,
+                representativeSpecies: queen,
+                species: queen
+            )
+        ]
+        let lineageEdges = zip(lineageIDs.dropLast(), lineageIDs.dropFirst()).map {
+            SpeciesDictionaryTreeEdgePayload(from: $0, to: $1)
+        }
+        let speciesEdges = [
+            SpeciesDictionaryTreeEdgePayload(from: lineageIDs.last!, to: "species:1cf79982-e5ee-4e3d-8d65-274527e6ae01"),
+            SpeciesDictionaryTreeEdgePayload(from: lineageIDs.last!, to: "species:2cf79982-e5ee-4e3d-8d65-274527e6ae02")
+        ]
+
+        return SpeciesDictionaryTreePayload(nodes: nodes, edges: lineageEdges + speciesEdges)
     }
 }

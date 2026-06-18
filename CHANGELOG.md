@@ -28,8 +28,9 @@ TestFlight, App Store, support, and QA.
   load dictionary pages when users navigate to them.
 - Added an Explore bottom menu for Feed, Map, Dictionary, and Tree, with
   horizontal swiping across the same section order.
-- Added a searchable Species Dictionary catalog and an interactive Tree of Life
-  canvas that can open species dictionary pages from species nodes.
+- Added a searchable Species Dictionary catalog and a backend-backed Tree of
+  Life explorer with search, zoom-aware taxonomy detail, branch focus, lineage
+  highlighting, and species preview cards before opening Dictionary pages.
 - Added a common-name picker for Explore sharing and editing so posts use the
   known species name you choose.
 - Added `@username` mentions in Explore comments, with scoped suggestions for

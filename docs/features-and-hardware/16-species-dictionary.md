@@ -221,7 +221,7 @@ functions, and future web clients should use it before depending on new fields.
 ### Catalog Mode
 
 The same `/species-dictionary` function also supports the Explore Dictionary
-catalog and Tree of Life canvas through a compact catalog mode:
+catalog through a compact catalog mode:
 
 ```json
 {
@@ -266,9 +266,71 @@ list:
 ```
 
 Catalog rows are intentionally compact. They include enough species-level public
-data for list cards and taxonomy graph building, then route into
-`SpeciesDictionaryPageContentView` for full reference imagery, overview,
-habitat, observation charts, and similar-species content.
+data for list cards, then route into `SpeciesDictionaryPageContentView` for full
+reference imagery, overview, habitat, observation charts, and similar-species
+content.
+
+### Tree Mode
+
+The Tree of Life canvas uses the same public Edge Function with `mode: "tree"`:
+
+```json
+{
+  "mode": "tree"
+}
+```
+
+The response keeps the shared schema version and returns a graph payload:
+
+```json
+{
+  "schema_version": 1,
+  "data": {
+    "nodes": [
+      {
+        "id": "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus",
+        "rank": "genus",
+        "title": "Danaus",
+        "subtitle": "Genus",
+        "parent_id": "taxonomy:family:animalia/arthropoda/insecta/lepidoptera/nymphalidae",
+        "species_count": 2,
+        "child_count": 2,
+        "lineage": {
+          "kingdom": "Animalia",
+          "phylum": "Arthropoda",
+          "class": "Insecta",
+          "order": "Lepidoptera",
+          "family": "Nymphalidae",
+          "genus": "Danaus"
+        },
+        "representative_species": {
+          "id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+          "scientific_name": "Danaus plexippus",
+          "common_name": "Monarch Butterfly",
+          "content_quality": "complete",
+          "taxonomy": { "kingdom": "Animalia" },
+          "iucn_red_list_status": "least concern",
+          "hazard_type": "none",
+          "group_tags": ["animal", "insect"],
+          "reference_image_url": "https://..."
+        },
+        "species": null
+      }
+    ],
+    "edges": [
+      {
+        "from": "taxonomy:family:animalia/arthropoda/insecta/lepidoptera/nymphalidae",
+        "to": "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus"
+      }
+    ]
+  }
+}
+```
+
+Tree mode is still species-level public data only. It adds graph-ready taxonomy
+nodes, parent/child edges, species counts, representative species, and preview
+fields so the iOS canvas can search, zoom, focus branches, and show species
+previews without exposing scans, users, locations, comments, or field notes.
 
 Observation pattern charts use a separate public endpoint:
 

@@ -11,7 +11,8 @@
           "items": [
             "Explore now has a bottom menu for Feed, Map, Dictionary, and Tree.",
             "You can swipe from Feed to Map to Dictionary to Tree, or jump directly with the bottom menu.",
-            "Dictionary opens a searchable species catalog, and Tree shows an interactive taxonomy canvas that can open species dictionary pages."
+            "Dictionary opens a searchable species catalog.",
+            "Tree now has a richer Tree of Life canvas with search, zoom-aware detail, branch focus, lineage highlighting, and species previews before opening dictionary pages."
           ]
         }
       ]

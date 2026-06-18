@@ -7,6 +7,7 @@ import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjectio
 import {
   fetchSpeciesDictionary,
   fetchSpeciesDictionaryCatalog,
+  fetchSpeciesDictionaryTree,
   parseSpeciesDictionaryRequest,
 } from "./db.ts";
 
@@ -52,6 +53,19 @@ serve(async (req: Request) => {
               species_id: catalog.nextCursor.speciesId,
             }
             : null,
+        },
+        200,
+        publicDictionaryCacheHeaders,
+      );
+    }
+
+    if (parsedRequest.mode === "tree") {
+      const tree = await fetchSpeciesDictionaryTree(supabaseAdmin);
+
+      return jsonResponse(
+        {
+          schema_version: PUBLIC_SPECIES_SCHEMA_VERSION,
+          data: tree,
         },
         200,
         publicDictionaryCacheHeaders,

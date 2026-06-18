@@ -15,6 +15,13 @@ struct SpeciesDictionaryCatalogResponse: Decodable {
     var effectiveSchemaVersion: Int { schemaVersion ?? 0 }
 }
 
+struct SpeciesDictionaryTreeResponse: Decodable {
+    let schemaVersion: Int?
+    let data: SpeciesDictionaryTreePayload
+
+    var effectiveSchemaVersion: Int { schemaVersion ?? 0 }
+}
+
 struct SpeciesDictionaryCatalogCursor: Codable, Equatable, Hashable {
     let scientificName: String
     let speciesId: String
@@ -56,6 +63,77 @@ struct SpeciesDictionaryCatalogItem: Decodable, Equatable, Identifiable, Hashabl
             return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         } ? data : nil
     }
+
+    var dictionaryRoute: SpeciesDictionaryRoute {
+        SpeciesDictionaryRoute(
+            scientificName: scientificName,
+            speciesId: id,
+            entryPoint: .exploreDictionaryCatalog
+        )
+    }
+}
+
+struct SpeciesDictionaryTreePayload: Decodable, Equatable {
+    let nodes: [SpeciesDictionaryTreeNodePayload]
+    let edges: [SpeciesDictionaryTreeEdgePayload]
+}
+
+enum SpeciesDictionaryTreeRank: String, CaseIterable, Decodable, Equatable, Hashable {
+    case kingdom
+    case phylum
+    case className = "class"
+    case order
+    case family
+    case genus
+    case species
+
+    var title: String {
+        switch self {
+        case .kingdom: "Kingdom"
+        case .phylum: "Phylum"
+        case .className: "Class"
+        case .order: "Order"
+        case .family: "Family"
+        case .genus: "Genus"
+        case .species: "Species"
+        }
+    }
+
+    var sortIndex: Int {
+        Self.allCases.firstIndex(of: self) ?? 0
+    }
+}
+
+struct SpeciesDictionaryTreeNodePayload: Decodable, Equatable, Identifiable, Hashable {
+    let id: String
+    let rank: SpeciesDictionaryTreeRank
+    let title: String
+    let subtitle: String?
+    let parentId: String?
+    let speciesCount: Int
+    let childCount: Int
+    let lineage: SpeciesDictionaryTaxonomy?
+    let representativeSpecies: SpeciesDictionaryTreeSpecies?
+    let species: SpeciesDictionaryTreeSpecies?
+}
+
+struct SpeciesDictionaryTreeEdgePayload: Decodable, Equatable, Identifiable, Hashable {
+    let from: String
+    let to: String
+
+    var id: String { "\(from)->\(to)" }
+}
+
+struct SpeciesDictionaryTreeSpecies: Decodable, Equatable, Identifiable, Hashable {
+    let id: String
+    let scientificName: String
+    let commonName: String
+    let contentQuality: SpeciesDictionaryContentQuality?
+    let taxonomy: SpeciesDictionaryTaxonomy?
+    let iucnRedListStatus: String?
+    let hazardType: String?
+    let groupTags: [String]
+    let referenceImageUrl: String?
 
     var dictionaryRoute: SpeciesDictionaryRoute {
         SpeciesDictionaryRoute(

@@ -3,8 +3,10 @@ import {
   buildExternalSpeciesDictionaryPayload,
   buildSpeciesDictionaryCatalogItem,
   buildSpeciesDictionaryPayload,
+  buildSpeciesDictionaryTree,
   firstReferenceImageUrl,
   parseSpeciesDictionaryRequest,
+  publicSpeciesProjectionForbiddenKeys,
   referenceImagesFrom,
   referenceImagesFromRows,
   resolveCommonName,
@@ -294,8 +296,11 @@ Deno.test("species-dictionary helpers - validates catalog request body", () => {
       },
     },
   );
+  assertEquals(parseSpeciesDictionaryRequest({ mode: "tree" }), {
+    mode: "tree",
+  });
   assertEquals(parseSpeciesDictionaryRequest({ mode: "detail" }), {
-    error: "mode must be catalog when provided.",
+    error: "mode must be catalog or tree when provided.",
     status: 400,
   });
   assertEquals(
@@ -311,6 +316,80 @@ Deno.test("species-dictionary helpers - validates catalog request body", () => {
       status: 400,
     },
   );
+});
+
+Deno.test("species-dictionary helpers - builds taxonomy tree payload", () => {
+  const tree = buildSpeciesDictionaryTree(
+    [
+      speciesRow({
+        id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+        scientific_name: "Danaus plexippus",
+        common_names: { en: "Monarch Butterfly" },
+        family: "Nymphalidae",
+        genus: "Danaus",
+      }),
+      speciesRow({
+        id: "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
+        scientific_name: "Danaus gilippus",
+        common_names: { en: "Queen Butterfly" },
+        family: "Nymphalidae",
+        genus: "Danaus",
+      }),
+      speciesRow({
+        id: "3cf79982-e5ee-4e3d-8d65-274527e6ae03",
+        scientific_name: "Mysteria incognita",
+        common_names: {},
+        kingdom: null,
+        phylum: null,
+        class: null,
+        order: null,
+        family: null,
+        genus: null,
+      }),
+    ],
+    new Map([
+      [
+        "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+        "https://example.com/monarch.jpg",
+      ],
+    ]),
+  );
+
+  const danausNode = tree.nodes.find((node) =>
+    node.id ===
+      "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus"
+  );
+  const monarchNode = tree.nodes.find((node) =>
+    node.id === "species:1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+  );
+  const unclassifiedKingdom = tree.nodes.find((node) =>
+    node.id === "taxonomy:kingdom:unclassified"
+  );
+
+  assertEquals(danausNode?.species_count, 2);
+  assertEquals(danausNode?.child_count, 2);
+  assertEquals(danausNode?.representative_species?.reference_image_url, "https://example.com/monarch.jpg");
+  assertEquals(monarchNode?.species?.scientific_name, "Danaus plexippus");
+  assertEquals(monarchNode?.parent_id, danausNode?.id);
+  assertEquals(unclassifiedKingdom?.title, "Unclassified");
+  assertEquals(
+    tree.edges.some((edge) =>
+      edge.from === danausNode?.id && edge.to === monarchNode?.id
+    ),
+    true,
+  );
+});
+
+Deno.test("species-dictionary helpers - taxonomy tree omits forbidden public fields", () => {
+  const tree = buildSpeciesDictionaryTree([
+    speciesRow({
+      id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      scientific_name: "Danaus plexippus",
+      common_names: { en: "Monarch Butterfly" },
+    }),
+  ]);
+
+  assertEquals(publicSpeciesProjectionForbiddenKeys(tree), []);
 });
 
 Deno.test("species-dictionary helpers - builds catalog item payload", () => {
@@ -346,3 +425,47 @@ Deno.test("species-dictionary helpers - builds catalog item payload", () => {
   assertEquals(item.group_tags, ["animal", "insect"]);
   assertEquals(item.reference_image_url, "https://example.com/reference.jpg");
 });
+
+function speciesRow(
+  overrides: Partial<{
+    id: string;
+    scientific_name: string;
+    common_names: Record<string, unknown>;
+    alternative_common_names: string[];
+    kingdom: string | null;
+    phylum: string | null;
+    class: string | null;
+    order: string | null;
+    family: string | null;
+    genus: string | null;
+    wikipedia_url: string | null;
+    reference_image_url: string | null;
+    wikipedia_overview: string | null;
+    hazard_type: string | null;
+    iucn_red_list_status: string | null;
+    habitat_description: string | null;
+    gbif_taxon_key: number | null;
+    group_tags: string[];
+  }>,
+) {
+  return {
+    id: overrides.id ?? "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+    scientific_name: overrides.scientific_name ?? "Danaus plexippus",
+    common_names: overrides.common_names ?? { en: "Monarch Butterfly" },
+    alternative_common_names: overrides.alternative_common_names ?? [],
+    kingdom: overrides.kingdom === undefined ? "Animalia" : overrides.kingdom,
+    phylum: overrides.phylum === undefined ? "Arthropoda" : overrides.phylum,
+    class: overrides.class === undefined ? "Insecta" : overrides.class,
+    order: overrides.order === undefined ? "Lepidoptera" : overrides.order,
+    family: overrides.family === undefined ? "Nymphalidae" : overrides.family,
+    genus: overrides.genus === undefined ? "Danaus" : overrides.genus,
+    wikipedia_url: overrides.wikipedia_url ?? null,
+    reference_image_url: overrides.reference_image_url ?? null,
+    wikipedia_overview: overrides.wikipedia_overview ?? null,
+    hazard_type: overrides.hazard_type ?? null,
+    iucn_red_list_status: overrides.iucn_red_list_status ?? null,
+    habitat_description: overrides.habitat_description ?? null,
+    gbif_taxon_key: overrides.gbif_taxon_key ?? null,
+    group_tags: overrides.group_tags ?? [],
+  };
+}
