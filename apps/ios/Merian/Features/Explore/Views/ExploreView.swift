@@ -82,17 +82,19 @@ struct ExploreView: View {
                     Label("Map", systemImage: "map")
                 }
 
-                SpeciesDictionaryCatalogView(
-                    isSearchEnabled: false,
-                    showsNavigationTitle: false,
-                    searchText: $dictionarySearchText
-                )
-                .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 10) {
                     if navigationPath.isEmpty {
                         ExploreDictionarySearchBar(text: $dictionarySearchText)
-                            .padding(.bottom, 8)
+                            .padding(.top, 12)
                     }
+
+                    SpeciesDictionaryCatalogView(
+                        isSearchEnabled: false,
+                        showsNavigationTitle: false,
+                        searchText: $dictionarySearchText
+                    )
                 }
+                .background(Color(uiColor: .systemGroupedBackground))
                 .tag(ExploreTab.dictionary)
                 .tabItem {
                     Label("Dictionary", systemImage: "book.closed")
