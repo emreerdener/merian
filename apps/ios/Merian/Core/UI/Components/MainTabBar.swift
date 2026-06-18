@@ -14,7 +14,7 @@ struct MainTabBar: View {
         FloatingNavigationMenu {
             // 1. Map/Explore Network
             FloatingNavigationMenuButton(
-                iconName: "safari",
+                iconName: "safari.fill",
                 title: "Explore",
                 accessibilityIdentifier: "MainTabBar_Explore",
                 action: {
@@ -28,7 +28,7 @@ struct MainTabBar: View {
 
             // 2. Local Taxonomy Library
             FloatingNavigationMenuButton(
-                iconName: "rectangle.stack",
+                iconName: "rectangle.stack.fill",
                 title: "Scans",
                 accessibilityIdentifier: "MainTabBar_Scans",
                 action: {
@@ -40,7 +40,7 @@ struct MainTabBar: View {
 
             // 3. User Identity Profile 
             FloatingNavigationMenuButton(
-                iconName: "person",
+                iconName: "person.fill",
                 title: "Profile",
                 accessibilityIdentifier: "MainTabBar_Profile",
                 action: { 

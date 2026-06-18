@@ -86,6 +86,7 @@ struct ExploreView: View {
                     if navigationPath.isEmpty {
                         ExploreDictionarySearchBar(text: $dictionarySearchText)
                             .padding(.top, 12)
+                            .zIndex(1)
                     }
 
                     SpeciesDictionaryCatalogView(
