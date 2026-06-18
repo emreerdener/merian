@@ -233,7 +233,6 @@ struct CaptureWorkspaceView: View {
                             isScansOpen: $viewModel.activeSheet.mapped(to: .scans),
                             isUserProfileOpen: $viewModel.activeSheet.mapped(to: .profile)
                         )
-                        .padding(.bottom, 8)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     } else {
                         ActiveScanToolbar(

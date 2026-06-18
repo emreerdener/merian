@@ -158,7 +158,7 @@ struct CaptureControlBar: View {
                 .animation(.easeInOut(duration: 0.2), value: audioCaptureManager.isRecording)
                 .animation(.easeInOut(duration: 0.2), value: audioCaptureManager.pendingPlaybackPath == nil)
             }
-            .padding(.bottom, 140)
+            .padding(.bottom, 124)
             .background {
                 GeometryReader { proxy in
                     Color.clear
