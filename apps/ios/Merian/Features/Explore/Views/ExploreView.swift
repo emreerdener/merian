@@ -11,13 +11,13 @@ enum ExploreTab: Hashable {
     var navigationTitle: String {
         switch self {
         case .feed:
-            "Feed"
+            "Explore feed"
         case .map:
-            "Map"
+            "Explore map"
         case .dictionary:
-            "Dictionary"
+            "Species dictionary"
         case .tree:
-            "Tree"
+            "Tree of life"
         }
     }
 }

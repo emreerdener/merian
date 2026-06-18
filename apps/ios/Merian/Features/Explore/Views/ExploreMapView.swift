@@ -4,6 +4,7 @@ import SwiftUI
 
 struct ExploreMapView: View {
     private static let approximateCoordinateRadiusMeters: CLLocationDistance = 10_000
+    private static let tabBarOverlayClearance: CGFloat = 28
 
     private enum PreviewCardDragAxis {
         case horizontal
@@ -232,6 +233,7 @@ struct ExploreMapView: View {
             }
         }
         .padding(.top, 14)
+        .padding(.bottom, Self.tabBarOverlayClearance)
         .animation(.spring(response: 0.28, dampingFraction: 0.84), value: activePreviewCenterPost != nil)
         .animation(.easeInOut(duration: 0.18), value: viewModel.needsSearchInArea)
         .animation(.easeInOut(duration: 0.18), value: viewModel.isOffline)
