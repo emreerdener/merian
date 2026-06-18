@@ -69,7 +69,6 @@ struct ExploreMapView: View {
             overlayChrome
         }
         .background(Color(uiColor: .systemBackground))
-        .containerRelativeFrame(.horizontal)
         .task {
             await viewModel.loadInitialData(using: environmentContextManager)
             feedViewModel.refreshPreferredSpeciesNames(

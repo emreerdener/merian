@@ -37,10 +37,13 @@ struct ExploreView: View {
 
     private let allowsInsightPresentation: Bool
 
-    private var tabSelectionBinding: Binding<ExploreTab?> {
+    private var activeTabBinding: Binding<ExploreTab> {
         Binding(
             get: { activeTab },
-            set: { if let value = $0 { activeTab = value } }
+            set: { newValue in
+                guard newValue != activeTab else { return }
+                selectExploreTab(newValue)
+            }
         )
     }
 
@@ -66,57 +69,54 @@ struct ExploreView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ExploreFeedTabContent(
-                        viewModel: viewModel,
-                        onOpenPostDetail: { openPostDetail(for: $0) },
-                        onOpenAuthorProfile: { openAuthorProfile(for: $0) },
-                        onOpenHashtag: openHashtag,
-                        onOpenInsight: allowsInsightPresentation ? { openInsight(for: $0) } : nil
-                    )
-                    .id(ExploreTab.feed)
-
-                    ExploreMapView(
-                        viewModel: mapViewModel,
-                        feedViewModel: viewModel,
-                        postStore: viewModel.store,
-                        onOpenDetail: { post, focusCommentComposer in
-                            openPostDetail(for: post, focusCommentComposer: focusCommentComposer)
-                        }
-                    )
-                        .id(ExploreTab.map)
-
-                    SpeciesDictionaryCatalogView(
-                        isSearchEnabled: false,
-                        showsNavigationTitle: false,
-                        searchText: $dictionarySearchText
-                    )
-                        .containerRelativeFrame(.horizontal)
-                        .id(ExploreTab.dictionary)
-
-                    TaxonomyTreeCanvasView(showsNavigationTitle: false) { speciesRoute in
-                        navigationPath.append(speciesRoute)
-                    }
-                    .containerRelativeFrame(.horizontal)
-                    .id(ExploreTab.tree)
+            TabView(selection: activeTabBinding) {
+                ExploreFeedTabContent(
+                    viewModel: viewModel,
+                    onOpenPostDetail: { openPostDetail(for: $0) },
+                    onOpenAuthorProfile: { openAuthorProfile(for: $0) },
+                    onOpenHashtag: openHashtag,
+                    onOpenInsight: allowsInsightPresentation ? { openInsight(for: $0) } : nil
+                )
+                .tag(ExploreTab.feed)
+                .tabItem {
+                    Label("Feed", systemImage: "photo.stack")
                 }
-                .scrollTargetLayout()
-            }
-            .scrollTargetBehavior(.paging)
-            .scrollPosition(id: tabSelectionBinding)
-            .safeAreaInset(edge: .bottom) {
-                if navigationPath.isEmpty {
-                    VStack(spacing: 10) {
-                        if activeTab == .dictionary {
-                            ExploreDictionarySearchBar(text: $dictionarySearchText)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
 
-                        ExploreBottomMenu(activeTab: activeTab, onSelect: selectExploreTab)
+                ExploreMapView(
+                    viewModel: mapViewModel,
+                    feedViewModel: viewModel,
+                    postStore: viewModel.store,
+                    onOpenDetail: { post, focusCommentComposer in
+                        openPostDetail(for: post, focusCommentComposer: focusCommentComposer)
                     }
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                )
+                .tag(ExploreTab.map)
+                .tabItem {
+                    Label("Map", systemImage: "map")
+                }
+
+                SpeciesDictionaryCatalogView(
+                    isSearchEnabled: false,
+                    showsNavigationTitle: false,
+                    searchText: $dictionarySearchText
+                )
+                .safeAreaInset(edge: .bottom) {
+                    if navigationPath.isEmpty {
+                        ExploreDictionarySearchBar(text: $dictionarySearchText)
+                            .padding(.bottom, 8)
+                    }
+                }
+                .tag(ExploreTab.dictionary)
+                .tabItem {
+                    Label("Dictionary", systemImage: "book.closed")
+                }
+
+                TaxonomyTreeCanvasView(showsNavigationTitle: false) { speciesRoute in
+                    navigationPath.append(speciesRoute)
+                }
+                .tag(ExploreTab.tree)
+                .tabItem {
+                    Label("Tree", systemImage: "point.3.connected.trianglepath.dotted")
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
@@ -133,6 +133,7 @@ struct ExploreView: View {
                     notificationReplyThreadTarget: route.notificationReplyThreadTarget,
                     allowsInsightPresentation: allowsInsightPresentation
                 )
+                .toolbar(.hidden, for: .tabBar)
             }
             .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
                 SpeciesDictionaryPageContentView(
@@ -141,6 +142,7 @@ struct ExploreView: View {
                     entryPoint: route.entryPoint,
                     showsCloseButton: false
                 )
+                .toolbar(.hidden, for: .tabBar)
             }
             .navigationDestination(for: ExploreHashtagRoute.self) { route in
                 ExploreHashtagPostsView(
@@ -148,6 +150,7 @@ struct ExploreView: View {
                     route: route,
                     allowsInsightPresentation: allowsInsightPresentation
                 )
+                .toolbar(.hidden, for: .tabBar)
             }
             .toolbar { exploreToolbar }
         }
@@ -462,7 +465,6 @@ private struct ExploreFeedTabContent: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
-        .containerRelativeFrame(.horizontal)
         .alert("Turn On Location", isPresented: $isLocationSettingsAlertPresented) {
             Button("Not Now", role: .cancel) {}
             Button("Settings") {
