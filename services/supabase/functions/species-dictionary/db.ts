@@ -141,6 +141,9 @@ export interface SpeciesDictionaryTreeResult {
   edges: SpeciesDictionaryTreeEdge[];
 }
 
+export const SPECIES_DICTIONARY_TREE_PAGE_SIZE = 500;
+export const SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE = 100;
+
 export interface SpeciesDictionaryRequestResult {
   mode?: "catalog" | "tree";
   speciesId?: string;
@@ -164,7 +167,10 @@ export function parseSpeciesDictionaryRequest(
   }
 
   if (body.mode !== undefined && body.mode !== null) {
-    return { error: "mode must be catalog or tree when provided.", status: 400 };
+    return {
+      error: "mode must be catalog or tree when provided.",
+      status: 400,
+    };
   }
 
   const rawSpeciesId = body.species_id;
@@ -294,27 +300,45 @@ export async function fetchSpeciesDictionaryCatalog(
 export async function fetchSpeciesDictionaryTree(
   supabaseAdmin: SupabaseClient,
 ): Promise<SpeciesDictionaryTreeResult> {
-  const { data, error } = await supabaseAdmin
-    .from("species_dictionary")
-    .select(
-      "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags",
-    )
-    .order("scientific_name", { ascending: true })
-    .order("id", { ascending: true });
-
-  if (error) {
-    throw new Error(
-      `Failed to fetch species dictionary tree: ${error.message}`,
-    );
-  }
-
-  const rows = (data ?? []) as SpeciesDictionaryRow[];
+  const rows = await fetchSpeciesDictionaryTreeRows(supabaseAdmin);
   const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
     rows.map((row) => row.id),
     supabaseAdmin,
   );
 
   return buildSpeciesDictionaryTree(rows, firstImageBySpeciesId);
+}
+
+async function fetchSpeciesDictionaryTreeRows(
+  supabaseAdmin: SupabaseClient,
+): Promise<SpeciesDictionaryRow[]> {
+  const rows: SpeciesDictionaryRow[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + SPECIES_DICTIONARY_TREE_PAGE_SIZE - 1;
+    const { data, error } = await supabaseAdmin
+      .from("species_dictionary")
+      .select(
+        "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags",
+      )
+      .order("scientific_name", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(
+        `Failed to fetch species dictionary tree: ${error.message}`,
+      );
+    }
+
+    const page = (data ?? []) as SpeciesDictionaryRow[];
+    rows.push(...page);
+    if (page.length < SPECIES_DICTIONARY_TREE_PAGE_SIZE) break;
+    from += SPECIES_DICTIONARY_TREE_PAGE_SIZE;
+  }
+
+  return rows;
 }
 
 export function buildSpeciesDictionaryTree(
@@ -324,10 +348,14 @@ export function buildSpeciesDictionaryTree(
   const nodesById = new Map<string, SpeciesDictionaryTreeNode>();
   const edgesById = new Map<string, SpeciesDictionaryTreeEdge>();
   const sortedRows = rows.slice().sort((lhs, rhs) => {
-    const lhsName = (stringValue(lhs.scientific_name) ?? "").toLocaleLowerCase();
-    const rhsName = (stringValue(rhs.scientific_name) ?? "").toLocaleLowerCase();
+    const lhsName = (stringValue(lhs.scientific_name) ?? "")
+      .toLocaleLowerCase();
+    const rhsName = (stringValue(rhs.scientific_name) ?? "")
+      .toLocaleLowerCase();
     if (lhsName === rhsName) {
-      return (stringValue(lhs.id) ?? "").localeCompare(stringValue(rhs.id) ?? "");
+      return (stringValue(lhs.id) ?? "").localeCompare(
+        stringValue(rhs.id) ?? "",
+      );
     }
     return lhsName.localeCompare(rhsName);
   });
@@ -381,8 +409,10 @@ export function buildSpeciesDictionaryTree(
       };
 
       node.species_count += 1;
-      if (!node.representative_species?.reference_image_url &&
-        treeSpecies.reference_image_url) {
+      if (
+        !node.representative_species?.reference_image_url &&
+        treeSpecies.reference_image_url
+      ) {
         node.representative_species = treeSpecies;
       }
       nodesById.set(nodeId, node);
@@ -438,9 +468,11 @@ export function buildSpeciesDictionaryCatalogItem(
     row.reference_image_url,
   ),
 ): SpeciesDictionaryCatalogItem {
-  const payload = buildSpeciesDictionaryPayload(row, [], referenceImageUrl
-    ? [{ url: referenceImageUrl, source: "gbif" }]
-    : []);
+  const payload = buildSpeciesDictionaryPayload(
+    row,
+    [],
+    referenceImageUrl ? [{ url: referenceImageUrl, source: "gbif" }] : [],
+  );
 
   return {
     id: payload.id,
@@ -707,24 +739,59 @@ async function fetchFirstReferenceImagesForSpecies(
   );
   if (uniqueSpeciesIds.length === 0) return new Map();
 
-  const { data, error } = await supabaseAdmin
-    .from("species_reference_images")
-    .select("id, species_id, url, sort_order, created_at")
-    .in("species_id", uniqueSpeciesIds)
-    .order("species_id", { ascending: true })
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true });
+  const rows: SpeciesReferenceImageRow[] = [];
+  for (
+    const batch of speciesReferenceImageLookupBatches(
+      uniqueSpeciesIds,
+      SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE,
+    )
+  ) {
+    const { data, error } = await supabaseAdmin
+      .from("species_reference_images")
+      .select("id, species_id, url, sort_order, created_at")
+      .in("species_id", batch)
+      .order("species_id", { ascending: true })
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
 
-  if (error) {
-    throw new Error(
-      `Failed to fetch lookalike reference images: ${error.message}`,
+    if (error) {
+      throw new Error(
+        `Failed to fetch species reference image previews: ${error.message}`,
+      );
+    }
+
+    rows.push(...((data ?? []) as SpeciesReferenceImageRow[]));
+  }
+
+  return firstReferenceImageUrlsBySpeciesId(rows);
+}
+
+export function speciesReferenceImageLookupBatches(
+  speciesIds: string[],
+  batchSize = SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE,
+): string[][] {
+  const normalizedBatchSize = Math.max(1, Math.floor(batchSize));
+  const uniqueSpeciesIds = Array.from(
+    new Set(
+      speciesIds
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0),
+    ),
+  );
+  const batches: string[][] = [];
+
+  for (
+    let index = 0;
+    index < uniqueSpeciesIds.length;
+    index += normalizedBatchSize
+  ) {
+    batches.push(
+      uniqueSpeciesIds.slice(index, index + normalizedBatchSize),
     );
   }
 
-  return firstReferenceImageUrlsBySpeciesId(
-    data as SpeciesReferenceImageRow[] | null,
-  );
+  return batches;
 }
 
 function relationValue<T>(value: T | T[] | null | undefined): T | undefined {

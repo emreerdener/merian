@@ -11,6 +11,7 @@ import {
   referenceImagesFromRows,
   resolveCommonName,
   sanitizeAlternativeCommonNames,
+  speciesReferenceImageLookupBatches,
 } from "./db.ts";
 
 Deno.test("species-dictionary helpers - resolve common name fallback order", () => {
@@ -103,6 +104,17 @@ Deno.test("species-dictionary helpers - first reference image reads legacy cache
     "https://upload.wikimedia.org/monarch.jpg",
   );
   assertEquals(firstReferenceImageUrl(null), null);
+});
+
+Deno.test("species-dictionary helpers - batches reference image lookups", () => {
+  assertEquals(
+    speciesReferenceImageLookupBatches(
+      ["a", "b", "a", " ", "c", "d", "e"],
+      2,
+    ),
+    [["a", "b"], ["c", "d"], ["e"]],
+  );
+  assertEquals(speciesReferenceImageLookupBatches(["a"], 0), [["a"]]);
 });
 
 Deno.test("species-dictionary helpers - sanitize alternative names", () => {
@@ -368,7 +380,10 @@ Deno.test("species-dictionary helpers - builds taxonomy tree payload", () => {
 
   assertEquals(danausNode?.species_count, 2);
   assertEquals(danausNode?.child_count, 2);
-  assertEquals(danausNode?.representative_species?.reference_image_url, "https://example.com/monarch.jpg");
+  assertEquals(
+    danausNode?.representative_species?.reference_image_url,
+    "https://example.com/monarch.jpg",
+  );
   assertEquals(monarchNode?.species?.scientific_name, "Danaus plexippus");
   assertEquals(monarchNode?.parent_id, danausNode?.id);
   assertEquals(unclassifiedKingdom?.title, "Unclassified");
