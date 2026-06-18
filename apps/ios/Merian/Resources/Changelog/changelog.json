@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-18-explore-discovery-menu",
+      "date": "2026-06-18",
+      "title": "Explore discovery menu",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Explore now has a bottom menu for Feed, Map, Dictionary, and Tree.",
+            "You can swipe from Feed to Map to Dictionary to Tree, or jump directly with the bottom menu.",
+            "Dictionary opens a searchable species catalog, and Tree shows an interactive taxonomy canvas that can open species dictionary pages."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-17-durable-biological-media",
       "date": "2026-06-17",
       "title": "Durable biological evidence",

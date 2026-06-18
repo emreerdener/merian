@@ -7,9 +7,9 @@ enum ExplorePostComposerMode {
     var title: String {
         switch self {
         case .create:
-            return "Share"
+            return "Share with community"
         case .edit:
-            return "Edit"
+            return "Edit post"
         }
     }
 
@@ -70,9 +70,9 @@ enum ExplorePostLocationSharing: String, CaseIterable, Identifiable, Decodable, 
     var detail: String {
         switch self {
         case .open:
-            return "Use the discovery location on Explore Map when safe."
+            return "Show broad label and add to Explore Map."
         case .obscured:
-            return "Show a broad public label; keep it off Explore Map."
+            return "Show broad label and keep off Explore Map."
         case .privateLocation:
             return "Share this post without public location."
         }
@@ -164,8 +164,8 @@ struct ExplorePostComposerView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     discoveryPreview
-                    locationSharingEditor
                     fieldNotesEditor
+                    locationSharingEditor
                     hashtagsEditor
                 }
                 .padding(.horizontal, 16)

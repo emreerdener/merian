@@ -53,6 +53,7 @@ struct ExploreBadgePolicyTests {
             speciesCommonName: "Common Milkweed",
             speciesScientificName: "Asclepias syriaca",
             publicLocationLabel: nil,
+            locationSharing: nil,
             timeOfDay: nil,
             currentMonth: nil,
             weatherCondition: nil,

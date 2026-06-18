@@ -1,6 +1,7 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import {
   buildExternalSpeciesDictionaryPayload,
+  buildSpeciesDictionaryCatalogItem,
   buildSpeciesDictionaryPayload,
   firstReferenceImageUrl,
   parseSpeciesDictionaryRequest,
@@ -266,4 +267,82 @@ Deno.test("species-dictionary helpers - validates request body", () => {
     error: "Missing required parameter: species_id or scientific_name",
     status: 400,
   });
+});
+
+Deno.test("species-dictionary helpers - validates catalog request body", () => {
+  assertEquals(parseSpeciesDictionaryRequest({ mode: "catalog" }), {
+    mode: "catalog",
+    limit: 40,
+  });
+  assertEquals(
+    parseSpeciesDictionaryRequest({
+      mode: "catalog",
+      query: "  monarch   butterfly ",
+      limit: 250,
+      cursor: {
+        scientific_name: "  Danaus   plexippus ",
+        species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      },
+    }),
+    {
+      mode: "catalog",
+      query: "monarch butterfly",
+      limit: 100,
+      cursor: {
+        scientificName: "Danaus plexippus",
+        speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      },
+    },
+  );
+  assertEquals(parseSpeciesDictionaryRequest({ mode: "detail" }), {
+    error: "mode must be catalog when provided.",
+    status: 400,
+  });
+  assertEquals(
+    parseSpeciesDictionaryRequest({
+      mode: "catalog",
+      cursor: {
+        scientific_name: "Danaus plexippus",
+        species_id: "not-a-uuid",
+      },
+    }),
+    {
+      error: "cursor.species_id must be a valid UUID.",
+      status: 400,
+    },
+  );
+});
+
+Deno.test("species-dictionary helpers - builds catalog item payload", () => {
+  const item = buildSpeciesDictionaryCatalogItem(
+    {
+      id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      scientific_name: "Danaus plexippus",
+      common_names: { en: "Monarch Butterfly" },
+      alternative_common_names: ["Milkweed Butterfly"],
+      kingdom: "Animalia",
+      phylum: "Arthropoda",
+      class: "Insecta",
+      order: "Lepidoptera",
+      family: "Nymphalidae",
+      genus: "Danaus",
+      wikipedia_url: "https://en.wikipedia.org/wiki/Danaus_plexippus",
+      reference_image_url: "https://example.com/legacy.jpg",
+      wikipedia_overview:
+        "The monarch butterfly is a milkweed butterfly in the family Nymphalidae.",
+      hazard_type: "none",
+      iucn_red_list_status: "least concern",
+      habitat_description: "Open meadows and milkweed patches.",
+      gbif_taxon_key: 5139790,
+      group_tags: ["animal", "insect", "animal"],
+    },
+    "https://example.com/reference.jpg",
+  );
+
+  assertEquals(item.id, "1cf79982-e5ee-4e3d-8d65-274527e6ae01");
+  assertEquals(item.common_name, "Monarch Butterfly");
+  assertEquals(item.content_quality, "complete");
+  assertEquals(item.taxonomy?.family, "Nymphalidae");
+  assertEquals(item.group_tags, ["animal", "insect"]);
+  assertEquals(item.reference_image_url, "https://example.com/reference.jpg");
 });

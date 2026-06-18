@@ -5,6 +5,21 @@ import UIKit
 enum ExploreTab: Hashable {
     case feed
     case map
+    case dictionary
+    case tree
+
+    var navigationTitle: String {
+        switch self {
+        case .feed:
+            "Feed"
+        case .map:
+            "Map"
+        case .dictionary:
+            "Dictionary"
+        case .tree:
+            "Tree"
+        }
+    }
 }
 
 struct ExploreView: View {
@@ -18,6 +33,7 @@ struct ExploreView: View {
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var activeTab: ExploreTab = .feed
+    @State private var dictionarySearchText = ""
 
     private let allowsInsightPresentation: Bool
 
@@ -70,13 +86,41 @@ struct ExploreView: View {
                         }
                     )
                         .id(ExploreTab.map)
+
+                    SpeciesDictionaryCatalogView(
+                        isSearchEnabled: false,
+                        showsNavigationTitle: false,
+                        searchText: $dictionarySearchText
+                    )
+                        .containerRelativeFrame(.horizontal)
+                        .id(ExploreTab.dictionary)
+
+                    TaxonomyTreeCanvasView(showsNavigationTitle: false) { speciesRoute in
+                        navigationPath.append(speciesRoute)
+                    }
+                    .containerRelativeFrame(.horizontal)
+                    .id(ExploreTab.tree)
                 }
                 .scrollTargetLayout()
             }
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: tabSelectionBinding)
-            .scrollDisabled(activeTab == .map)
+            .safeAreaInset(edge: .bottom) {
+                if navigationPath.isEmpty {
+                    VStack(spacing: 10) {
+                        if activeTab == .dictionary {
+                            ExploreDictionarySearchBar(text: $dictionarySearchText)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+
+                        ExploreBottomMenu(activeTab: activeTab, onSelect: selectExploreTab)
+                    }
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
             .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle(activeTab.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ExplorePostRoute.self) { route in
                 ExplorePostDetailView(
@@ -219,18 +263,6 @@ struct ExploreView: View {
             }
         }
 
-        ToolbarItem(placement: .principal) {
-            Picker("View", selection: $activeTab) {
-                Text("Feed").tag(ExploreTab.feed)
-                Text("Map").tag(ExploreTab.map)
-            }
-            .pickerStyle(.segmented)
-            .padding(.bottom, 1)
-            .background(Capsule().fill(.regularMaterial))
-            .clipShape(Capsule())
-            .frame(width: 180)
-        }
-
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 0) {
                 bellButton
@@ -267,6 +299,11 @@ struct ExploreView: View {
     private func openHashtag(_ hashtag: String) {
         HapticManager.shared.triggerSelectionPulse()
         navigationPath.append(ExploreHashtagRoute(hashtag: hashtag))
+    }
+
+    private func selectExploreTab(_ tab: ExploreTab) {
+        HapticManager.shared.triggerSelectionPulse()
+        activeTab = tab
     }
 
     private func openInsight(for post: ExplorePost) {

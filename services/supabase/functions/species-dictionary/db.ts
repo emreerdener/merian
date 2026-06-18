@@ -64,9 +64,42 @@ interface LookalikeSpeciesRow {
   iucn_red_list_status?: string | null;
 }
 
+export interface SpeciesDictionaryCatalogCursor {
+  scientificName: string;
+  speciesId: string;
+}
+
+export interface SpeciesDictionaryCatalogRequest {
+  mode: "catalog";
+  query?: string;
+  limit: number;
+  cursor?: SpeciesDictionaryCatalogCursor;
+}
+
+export interface SpeciesDictionaryCatalogItem {
+  id: string;
+  scientific_name: string;
+  common_name: string;
+  content_quality: string;
+  taxonomy: SpeciesDictionaryTaxonomy | null;
+  iucn_red_list_status: string | null;
+  hazard_type: string | null;
+  group_tags: string[];
+  reference_image_url: string | null;
+}
+
+export interface SpeciesDictionaryCatalogResult {
+  data: SpeciesDictionaryCatalogItem[];
+  nextCursor: SpeciesDictionaryCatalogCursor | null;
+}
+
 export interface SpeciesDictionaryRequestResult {
+  mode?: "catalog";
   speciesId?: string;
   scientificName?: string;
+  query?: string;
+  limit?: number;
+  cursor?: SpeciesDictionaryCatalogCursor;
   error?: string;
   status?: number;
 }
@@ -74,6 +107,14 @@ export interface SpeciesDictionaryRequestResult {
 export function parseSpeciesDictionaryRequest(
   body: Record<string, unknown>,
 ): SpeciesDictionaryRequestResult {
+  if (body.mode === "catalog") {
+    return parseSpeciesDictionaryCatalogRequest(body);
+  }
+
+  if (body.mode !== undefined && body.mode !== null) {
+    return { error: "mode must be catalog when provided.", status: 400 };
+  }
+
   const rawSpeciesId = body.species_id;
   if (rawSpeciesId !== undefined && rawSpeciesId !== null) {
     if (typeof rawSpeciesId !== "string") {
@@ -117,6 +158,108 @@ export function parseSpeciesDictionaryRequest(
   }
 
   return { scientificName };
+}
+
+export function parseSpeciesDictionaryCatalogRequest(
+  body: Record<string, unknown>,
+): SpeciesDictionaryRequestResult {
+  const limit = normalizeCatalogLimit(body.limit);
+  if (limit?.error) return limit;
+
+  const query = normalizeOptionalCatalogQuery(body.query);
+  if (query?.error) return query;
+
+  const cursor = normalizeOptionalCatalogCursor(body.cursor);
+  if (cursor?.error) return cursor;
+
+  const result: SpeciesDictionaryRequestResult = {
+    mode: "catalog",
+    limit: limit?.limit ?? 40,
+  };
+  if (query?.query) result.query = query.query;
+  if (cursor?.cursor) result.cursor = cursor.cursor;
+  return result;
+}
+
+export async function fetchSpeciesDictionaryCatalog(
+  request: SpeciesDictionaryCatalogRequest,
+  supabaseAdmin: SupabaseClient,
+): Promise<SpeciesDictionaryCatalogResult> {
+  const requestedLimit = Math.max(1, Math.min(100, Math.floor(request.limit)));
+  const fetchLimit = requestedLimit + 1;
+  const queryText = request.query?.trim().replace(/\s+/g, " ");
+
+  let catalogQuery = supabaseAdmin
+    .from("species_dictionary")
+    .select(
+      "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags",
+    )
+    .order("scientific_name", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(fetchLimit);
+
+  if (queryText) {
+    catalogQuery = catalogQuery.ilike("scientific_name", `%${queryText}%`);
+  }
+
+  if (request.cursor) {
+    catalogQuery = catalogQuery.or(
+      `scientific_name.gt.${request.cursor.scientificName},and(scientific_name.eq.${request.cursor.scientificName},id.gt.${request.cursor.speciesId})`,
+    );
+  }
+
+  const { data, error } = await catalogQuery;
+  if (error) {
+    throw new Error(
+      `Failed to fetch species dictionary catalog: ${error.message}`,
+    );
+  }
+
+  const rows = ((data ?? []) as SpeciesDictionaryRow[]).slice(0, fetchLimit);
+  const visibleRows = rows.slice(0, requestedLimit);
+  const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
+    visibleRows.map((row) => row.id),
+    supabaseAdmin,
+  );
+  const items = visibleRows.map((row) =>
+    buildSpeciesDictionaryCatalogItem(
+      row,
+      firstImageBySpeciesId.get(row.id) ??
+        firstReferenceImageUrl(row.reference_image_url),
+    )
+  );
+  const lastVisibleRow = visibleRows[visibleRows.length - 1];
+  const nextCursor = rows.length > requestedLimit && lastVisibleRow
+    ? {
+      scientificName: lastVisibleRow.scientific_name,
+      speciesId: lastVisibleRow.id,
+    }
+    : null;
+
+  return { data: items, nextCursor };
+}
+
+export function buildSpeciesDictionaryCatalogItem(
+  row: SpeciesDictionaryRow,
+  referenceImageUrl: string | null = firstReferenceImageUrl(
+    row.reference_image_url,
+  ),
+): SpeciesDictionaryCatalogItem {
+  const payload = buildSpeciesDictionaryPayload(row, [], referenceImageUrl
+    ? [{ url: referenceImageUrl, source: "gbif" }]
+    : []);
+
+  return {
+    id: payload.id,
+    scientific_name: payload.scientific_name,
+    common_name: payload.common_name,
+    content_quality: payload.content_quality,
+    taxonomy: payload.taxonomy,
+    iucn_red_list_status: payload.iucn_red_list_status,
+    hazard_type: payload.hazard_type,
+    group_tags: payload.group_tags,
+    reference_image_url: referenceImageUrl,
+  };
 }
 
 export async function fetchSpeciesDictionary(
@@ -414,6 +557,69 @@ function normalizeOptionalScientificName(
   }
 
   return { scientificName };
+}
+
+function normalizeCatalogLimit(
+  value: unknown,
+): SpeciesDictionaryRequestResult | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return { error: "limit must be a number when provided.", status: 400 };
+  }
+
+  return { limit: Math.max(1, Math.min(100, Math.floor(value))) };
+}
+
+function normalizeOptionalCatalogQuery(
+  value: unknown,
+): SpeciesDictionaryRequestResult | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") {
+    return { error: "query must be a string when provided.", status: 400 };
+  }
+
+  const query = value.trim().replace(/\s+/g, " ");
+  if (!query) return undefined;
+  if (query.length > 80) {
+    return { error: "query is too long.", status: 400 };
+  }
+
+  return { query };
+}
+
+function normalizeOptionalCatalogCursor(
+  value: unknown,
+): SpeciesDictionaryRequestResult | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return { error: "cursor must be an object when provided.", status: 400 };
+  }
+
+  const cursor = value as Record<string, unknown>;
+  const scientificNameValue = cursor.scientific_name ?? cursor.scientificName;
+  const speciesIdValue = cursor.species_id ?? cursor.speciesId;
+
+  if (typeof scientificNameValue !== "string") {
+    return { error: "cursor.scientific_name must be a string.", status: 400 };
+  }
+  if (typeof speciesIdValue !== "string" || !isUuid(speciesIdValue.trim())) {
+    return { error: "cursor.species_id must be a valid UUID.", status: 400 };
+  }
+
+  const scientificName = scientificNameValue.trim().replace(/\s+/g, " ");
+  if (!scientificName) {
+    return { error: "cursor.scientific_name must be a string.", status: 400 };
+  }
+  if (scientificName.length > 160) {
+    return { error: "cursor.scientific_name is too long.", status: 400 };
+  }
+
+  return {
+    cursor: {
+      scientificName,
+      speciesId: speciesIdValue.trim(),
+    },
+  };
 }
 
 function isUuid(value: string): boolean {

@@ -7,6 +7,65 @@ struct SpeciesDictionaryResponse: Decodable {
     var effectiveSchemaVersion: Int { schemaVersion ?? 0 }
 }
 
+struct SpeciesDictionaryCatalogResponse: Decodable {
+    let schemaVersion: Int?
+    let data: [SpeciesDictionaryCatalogItem]
+    let nextCursor: SpeciesDictionaryCatalogCursor?
+
+    var effectiveSchemaVersion: Int { schemaVersion ?? 0 }
+}
+
+struct SpeciesDictionaryCatalogCursor: Codable, Equatable, Hashable {
+    let scientificName: String
+    let speciesId: String
+}
+
+struct SpeciesDictionaryCatalogItem: Decodable, Equatable, Identifiable, Hashable {
+    let id: String
+    let scientificName: String
+    let commonName: String
+    let contentQuality: SpeciesDictionaryContentQuality?
+    let taxonomy: SpeciesDictionaryTaxonomy?
+    let iucnRedListStatus: String?
+    let hazardType: String?
+    let groupTags: [String]
+    let referenceImageUrl: String?
+
+    var taxonomyData: TaxonomyData? {
+        guard let taxonomy else { return nil }
+        let data = TaxonomyData(
+            kingdom: taxonomy.kingdom,
+            phylum: taxonomy.phylum,
+            className: taxonomy.className,
+            order: taxonomy.order,
+            family: taxonomy.family,
+            genus: taxonomy.genus
+        )
+
+        let values = [
+            data.kingdom,
+            data.phylum,
+            data.className,
+            data.order,
+            data.family,
+            data.genus
+        ]
+
+        return values.contains { value in
+            guard let value else { return false }
+            return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } ? data : nil
+    }
+
+    var dictionaryRoute: SpeciesDictionaryRoute {
+        SpeciesDictionaryRoute(
+            scientificName: scientificName,
+            speciesId: id,
+            entryPoint: .exploreDictionaryCatalog
+        )
+    }
+}
+
 struct SpeciesDictionaryEntry: Decodable, Equatable, Identifiable {
     let id: String
     let scientificName: String
@@ -89,7 +148,7 @@ struct SpeciesDictionaryEntry: Decodable, Equatable, Identifiable {
     }
 }
 
-enum SpeciesDictionaryContentQuality: String, Decodable, Equatable {
+enum SpeciesDictionaryContentQuality: String, Decodable, Equatable, Hashable {
     case complete
     case sparse
     case needsEnrichment = "needs_enrichment"
@@ -97,7 +156,7 @@ enum SpeciesDictionaryContentQuality: String, Decodable, Equatable {
     var telemetryValue: String { rawValue }
 }
 
-struct SpeciesDictionaryTaxonomy: Decodable, Equatable {
+struct SpeciesDictionaryTaxonomy: Decodable, Equatable, Hashable {
     let kingdom: String?
     let phylum: String?
     let className: String?
@@ -268,6 +327,7 @@ enum SpeciesDictionaryEntryPoint: String, Equatable, Hashable {
     case insightSimilarSpecies = "insight_similar_species"
     case exploreDetailDictionary = "explore_detail_dictionary"
     case exploreDetailSimilarSpecies = "explore_detail_similar_species"
+    case exploreDictionaryCatalog = "explore_dictionary_catalog"
     case speciesDictionarySimilarSpecies = "species_dictionary_similar_species"
     case search
     case deepLink = "deep_link"

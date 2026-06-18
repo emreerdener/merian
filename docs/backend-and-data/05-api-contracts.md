@@ -688,6 +688,29 @@ existing nullable fields may remain `null`, and clients should ignore unknown
 keys. A versioned endpoint path should be introduced only for a breaking change
 such as removing/renaming fields or changing a field's type.
 
+Catalog mode:
+
+```json
+{
+  "mode": "catalog",
+  "query": "Danaus",
+  "limit": 40,
+  "cursor": {
+    "scientific_name": "Danaus plexippus",
+    "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+  }
+}
+```
+
+- `mode: "catalog"` returns a compact cursor-paginated list for the Explore
+  Dictionary catalog and Tree of Life canvas.
+- `limit` defaults to `40` and is capped at `100`.
+- `query` is optional, trims/collapses whitespace, and filters scientific names.
+- `cursor` carries the last `scientific_name` and `species_id` returned.
+- Response rows include `id`, `scientific_name`, `common_name`,
+  `content_quality`, nullable `taxonomy`, status fields, `group_tags`, and one
+  `reference_image_url`; full page content still requires a detail request.
+
 Caching:
 
 - `200 OK` responses include

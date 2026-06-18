@@ -26,6 +26,10 @@ TestFlight, App Store, support, and QA.
   feature notes, and in-progress work.
 - Added extra species dictionary data fetches so undiscovered species can still
   load dictionary pages when users navigate to them.
+- Added an Explore bottom menu for Feed, Map, Dictionary, and Tree, with
+  horizontal swiping across the same section order.
+- Added a searchable Species Dictionary catalog and an interactive Tree of Life
+  canvas that can open species dictionary pages from species nodes.
 - Added a common-name picker for Explore sharing and editing so posts use the
   known species name you choose.
 - Added `@username` mentions in Explore comments, with scoped suggestions for

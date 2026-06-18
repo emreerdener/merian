@@ -218,6 +218,58 @@ dictionary page and Explore detail similar-species projection. iOS treats the
 key as optional for backward compatibility with older mocks or deployed
 functions, and future web clients should use it before depending on new fields.
 
+### Catalog Mode
+
+The same `/species-dictionary` function also supports the Explore Dictionary
+catalog and Tree of Life canvas through a compact catalog mode:
+
+```json
+{
+  "mode": "catalog",
+  "query": "Danaus",
+  "limit": 40,
+  "cursor": {
+    "scientific_name": "Danaus plexippus",
+    "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+  }
+}
+```
+
+The response keeps the shared schema version and returns a cursor-paginated
+list:
+
+```json
+{
+  "schema_version": 1,
+  "data": [
+    {
+      "id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      "scientific_name": "Danaus plexippus",
+      "common_name": "Monarch Butterfly",
+      "content_quality": "complete",
+      "taxonomy": {
+        "kingdom": "Animalia",
+        "phylum": "Arthropoda",
+        "class": "Insecta",
+        "order": "Lepidoptera",
+        "family": "Nymphalidae",
+        "genus": "Danaus"
+      },
+      "iucn_red_list_status": "least concern",
+      "hazard_type": "none",
+      "group_tags": ["animal", "insect"],
+      "reference_image_url": "https://..."
+    }
+  ],
+  "next_cursor": null
+}
+```
+
+Catalog rows are intentionally compact. They include enough species-level public
+data for list cards and taxonomy graph building, then route into
+`SpeciesDictionaryPageContentView` for full reference imagery, overview,
+habitat, observation charts, and similar-species content.
+
 Observation pattern charts use a separate public endpoint:
 
 ```swift

@@ -506,4 +506,160 @@ struct SpeciesDictionaryTests {
 
         #expect(viewModel.state == .notFound)
     }
+
+    @Test func testSpeciesDictionaryCatalogResponseDecodesItemsAndCursor() throws {
+        let data = """
+        {
+            "schema_version": 1,
+            "data": [
+                {
+                    "id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                    "scientific_name": "Danaus plexippus",
+                    "common_name": "Monarch Butterfly",
+                    "content_quality": "complete",
+                    "taxonomy": {
+                        "kingdom": "Animalia",
+                        "phylum": "Arthropoda",
+                        "class": "Insecta",
+                        "order": "Lepidoptera",
+                        "family": "Nymphalidae",
+                        "genus": "Danaus"
+                    },
+                    "iucn_red_list_status": "least concern",
+                    "hazard_type": "none",
+                    "group_tags": ["animal", "insect"],
+                    "reference_image_url": "https://example.com/monarch.jpg"
+                }
+            ],
+            "next_cursor": {
+                "scientific_name": "Danaus plexippus",
+                "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+            }
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let response = try decoder.decode(SpeciesDictionaryCatalogResponse.self, from: data)
+
+        #expect(response.effectiveSchemaVersion == 1)
+        #expect(response.data.first?.commonName == "Monarch Butterfly")
+        #expect(response.data.first?.taxonomy?.className == "Insecta")
+        #expect(response.data.first?.referenceImageUrl == "https://example.com/monarch.jpg")
+        #expect(response.nextCursor?.scientificName == "Danaus plexippus")
+        #expect(response.data.first?.dictionaryRoute.entryPoint == .exploreDictionaryCatalog)
+    }
+
+    @Test func testGetSpeciesDictionaryCatalogConstructsPayloadAndParsesResponse() async throws {
+        let testData = """
+        {
+            "schema_version": 1,
+            "data": [],
+            "next_cursor": {
+                "scientific_name": "Danaus plexippus",
+                "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+            }
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+            #expect(request.httpMethod == "POST")
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let cursor = try #require(payload["cursor"] as? [String: Any])
+
+            #expect(payload["mode"] as? String == "catalog")
+            #expect(payload["query"] as? String == "Danaus")
+            #expect(payload["limit"] as? Int == 25)
+            #expect(cursor["scientific_name"] as? String == "Danaus plexippus")
+            #expect(cursor["species_id"] as? String == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
+            return (mockResponse, testData)
+        }
+
+        let response = try await MerianNetworkClient.shared.getSpeciesDictionaryCatalog(
+            query: " Danaus ",
+            limit: 25,
+            cursor: SpeciesDictionaryCatalogCursor(
+                scientificName: "Danaus plexippus",
+                speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
+            )
+        )
+
+        #expect(response.nextCursor?.speciesId == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
+    }
+
+    @Test func testTaxonomyTreeGraphDedupesAndRoutesSpecies() throws {
+        let monarch = catalogItem(
+            id: "species-monarch",
+            commonName: "Monarch Butterfly",
+            scientificName: "Danaus plexippus",
+            family: "Nymphalidae",
+            genus: "Danaus"
+        )
+        let queen = catalogItem(
+            id: "species-queen",
+            commonName: "Queen Butterfly",
+            scientificName: "Danaus gilippus",
+            family: "Nymphalidae",
+            genus: "Danaus"
+        )
+        let unknown = catalogItem(
+            id: "species-unknown",
+            commonName: "Mystery",
+            scientificName: "Mysteria incognita",
+            kingdom: nil,
+            phylum: nil,
+            className: nil,
+            order: nil,
+            family: nil,
+            genus: nil
+        )
+
+        let graph = TaxonomyTreeGraphBuilder.build(from: [monarch, queen, unknown])
+        let genusNodes = graph.nodes.filter { $0.rank == .genus && $0.title == "Danaus" }
+        let unclassifiedNodes = graph.nodes.filter { $0.title == "Unclassified" }
+        let speciesNode = try #require(graph.nodes.first { $0.id == "species|species-monarch" })
+
+        #expect(genusNodes.count == 1)
+        #expect(unclassifiedNodes.count >= 1)
+        #expect(speciesNode.dictionaryRoute?.scientificName == "Danaus plexippus")
+        #expect(graph.edges.contains { $0.to == "species|species-monarch" })
+    }
+
+    private func catalogItem(
+        id: String,
+        commonName: String,
+        scientificName: String,
+        kingdom: String? = "Animalia",
+        phylum: String? = "Arthropoda",
+        className: String? = "Insecta",
+        order: String? = "Lepidoptera",
+        family: String?,
+        genus: String?
+    ) -> SpeciesDictionaryCatalogItem {
+        SpeciesDictionaryCatalogItem(
+            id: id,
+            scientificName: scientificName,
+            commonName: commonName,
+            contentQuality: .complete,
+            taxonomy: SpeciesDictionaryTaxonomy(
+                kingdom: kingdom,
+                phylum: phylum,
+                className: className,
+                order: order,
+                family: family,
+                genus: genus
+            ),
+            iucnRedListStatus: nil,
+            hazardType: nil,
+            groupTags: [],
+            referenceImageUrl: nil
+        )
+    }
 }

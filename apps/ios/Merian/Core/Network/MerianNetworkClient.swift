@@ -1112,6 +1112,31 @@ final class MerianNetworkClient {
         try await performSpeciesDictionaryRequest(speciesId: speciesId, scientificName: scientificName)
     }
 
+    func getSpeciesDictionaryCatalog(
+        query: String? = nil,
+        limit: Int = 40,
+        cursor: SpeciesDictionaryCatalogCursor? = nil
+    ) async throws -> SpeciesDictionaryCatalogResponse {
+        let functionUrl = try endpointURL("species-dictionary")
+        var payload: [String: Any] = [
+            "mode": "catalog",
+            "limit": limit
+        ]
+        if let query = query?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+            payload["query"] = query
+        }
+        if let cursor {
+            payload["cursor"] = [
+                "scientific_name": cursor.scientificName,
+                "species_id": cursor.speciesId
+            ]
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(SpeciesDictionaryCatalogResponse.self, from: data)
+    }
+
     func getSpeciesObservationStats(
         speciesId: String? = nil,
         scientificName: String

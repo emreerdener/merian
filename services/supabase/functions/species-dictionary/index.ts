@@ -4,7 +4,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
 import { logStructuredError } from "../_shared/edgeHandler.ts";
 import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjection.ts";
-import { fetchSpeciesDictionary, parseSpeciesDictionaryRequest } from "./db.ts";
+import {
+  fetchSpeciesDictionary,
+  fetchSpeciesDictionaryCatalog,
+  parseSpeciesDictionaryRequest,
+} from "./db.ts";
 
 const publicDictionaryCacheHeaders = {
   "Cache-Control":
@@ -22,17 +26,44 @@ serve(async (req: Request) => {
     if (parsedBody instanceof Response) return parsedBody;
 
     const parsedRequest = parseSpeciesDictionaryRequest(parsedBody);
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
+    if (parsedRequest.mode === "catalog") {
+      const catalog = await fetchSpeciesDictionaryCatalog(
+        {
+          mode: "catalog",
+          query: parsedRequest.query,
+          limit: parsedRequest.limit ?? 40,
+          cursor: parsedRequest.cursor,
+        },
+        supabaseAdmin,
+      );
+
+      return jsonResponse(
+        {
+          schema_version: PUBLIC_SPECIES_SCHEMA_VERSION,
+          data: catalog.data,
+          next_cursor: catalog.nextCursor
+            ? {
+              scientific_name: catalog.nextCursor.scientificName,
+              species_id: catalog.nextCursor.speciesId,
+            }
+            : null,
+        },
+        200,
+        publicDictionaryCacheHeaders,
+      );
+    }
+
     if (!parsedRequest.speciesId && !parsedRequest.scientificName) {
       return jsonResponse(
         { error: parsedRequest.error },
         parsedRequest.status ?? 400,
       );
     }
-
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
 
     const data = await fetchSpeciesDictionary(parsedRequest, supabaseAdmin);
     if (!data) {

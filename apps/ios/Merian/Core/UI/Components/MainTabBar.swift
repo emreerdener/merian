@@ -11,10 +11,9 @@ struct MainTabBar: View {
     
     // MARK: - Visual Layout
     var body: some View {
-        HStack(spacing: 48) {
-            
+        FloatingNavigationMenu {
             // 1. Map/Explore Network
-            TabBarButton(
+            FloatingNavigationMenuButton(
                 iconName: "safari",
                 title: "Explore",
                 accessibilityIdentifier: "MainTabBar_Explore",
@@ -28,7 +27,7 @@ struct MainTabBar: View {
             )
 
             // 2. Local Taxonomy Library
-            TabBarButton(
+            FloatingNavigationMenuButton(
                 iconName: "rectangle.stack",
                 title: "Scans",
                 accessibilityIdentifier: "MainTabBar_Scans",
@@ -40,7 +39,7 @@ struct MainTabBar: View {
             )
 
             // 3. User Identity Profile 
-            TabBarButton(
+            FloatingNavigationMenuButton(
                 iconName: "person",
                 title: "Profile",
                 accessibilityIdentifier: "MainTabBar_Profile",
@@ -50,28 +49,6 @@ struct MainTabBar: View {
                 }
             )
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 32)
-        .background(
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.16), radius: 15, x: 0, y: 8)
-        )
-        .overlay(
-            Capsule()
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.5),
-                            Color.white.opacity(0.1),
-                            Color.white.opacity(0.3)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 0.5
-                )
-        )
         .task {
             await refreshExploreBadge()
         }
@@ -125,58 +102,5 @@ struct MainTabBar: View {
             in: recentPosts,
             lastSeenSharedAt: appSettings.lastSeenExplorePostSharedAt
         )
-    }
-}
-
-// MARK: - Internal Component Layout Wrappers
-
-private struct TabBarButton: View {
-    // MARK: - Properties
-    let iconName: String
-    let title: String
-    let accessibilityIdentifier: String
-    let action: () -> Void
-    var isDisabled: Bool = false
-    var showBadge: Bool = false
-    var chipText: String?
-
-    // MARK: - Visual Layout
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: iconName)
-                    .font(.system(size: 20, weight: .regular))
-                    .frame(height: 24)
-                    .overlay(alignment: .topTrailing) {
-                        if showBadge {
-                            Circle()
-                                .fill(Color.red)
-                                .frame(width: 8, height: 8)
-                                .offset(x: 4, y: -2)
-                        }
-
-                        if let chipText {
-                            Text(chipText)
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(Color.green)
-                                )
-                                .fixedSize()
-                                .offset(x: 16, y: -10)
-                        }
-                    }
-                Text(title)
-                    .font(.system(size: 10, weight: .semibold))
-            }
-            .foregroundColor(.primary)
-            .contentShape(Rectangle())
-        }
-        .disabled(isDisabled)
-        .opacity(isDisabled ? 0.4 : 1.0)
-        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
