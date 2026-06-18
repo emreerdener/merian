@@ -7,19 +7,6 @@ enum ExploreTab: Hashable {
     case map
     case dictionary
     case tree
-
-    var navigationTitle: String {
-        switch self {
-        case .feed:
-            "Explore feed"
-        case .map:
-            "Explore map"
-        case .dictionary:
-            "Species dictionary"
-        case .tree:
-            "Tree of life"
-        }
-    }
 }
 
 struct ExploreView: View {
@@ -120,7 +107,7 @@ struct ExploreView: View {
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle(activeTab.navigationTitle)
+            .navigationTitle("Explore")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ExplorePostRoute.self) { route in
                 ExplorePostDetailView(

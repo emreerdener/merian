@@ -50,7 +50,7 @@ struct TaxonomyTreeCanvasView: View {
             let positions = nodePositions(in: graph, size: proxy.size)
             let selectedNeighborIDs = selectedNeighborIDs(in: graph)
 
-            ZStack {
+            ZStack(alignment: .topLeading) {
                 Color(uiColor: .systemGroupedBackground)
                     .ignoresSafeArea()
 
@@ -182,7 +182,6 @@ struct TaxonomyTreeCanvasView: View {
     private func nodePositions(in graph: TaxonomyTreeGraph, size: CGSize) -> [String: CGPoint] {
         let canvasSize = canvasSize(for: graph)
         let width = max(size.width, canvasSize.width)
-        let height = max(size.height, canvasSize.height)
         let rankGroups = Dictionary(grouping: graph.nodes, by: \.rank)
         var positions: [String: CGPoint] = [:]
 
@@ -191,7 +190,7 @@ struct TaxonomyTreeCanvasView: View {
                 lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
             }
             let x = CGFloat(rank.rawValue) * 170 + 90
-            let startY = max(64, (height - CGFloat(nodes.count - 1) * 76) / 2)
+            let startY: CGFloat = 72
 
             for (index, node) in nodes.enumerated() {
                 positions[node.id] = CGPoint(
