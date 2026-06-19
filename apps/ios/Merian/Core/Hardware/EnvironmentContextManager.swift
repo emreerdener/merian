@@ -40,6 +40,9 @@ import WeatherKit
     private var geocodeKeys: [String] = []
     private let geocodeCacheLimit = 200
     private var activeGeocodeTasks: [String: Task<String?, Never>] = [:]
+    private var regionGeocodeCache: [String: String] = [:]
+    private var regionGeocodeKeys: [String] = []
+    private var activeRegionGeocodeTasks: [String: Task<String?, Never>] = [:]
 
     // MARK: - Initialization
     private override init() {
@@ -103,6 +106,26 @@ import WeatherKit
         }
 
         return lastKnownLocation
+    }
+
+    /// Resolves the user's physical ISO country/region code only when location access is already authorized.
+    /// This intentionally avoids requesting location permission so passive surfaces can fall back to locale.
+    func currentAuthorizedRegionIdentifier() async -> String? {
+        checkAuthorization()
+        guard Self.allowsPassiveRegionResolution(for: locationAuthorizationStatus) else { return nil }
+
+        let location: CLLocation?
+        if let lastKnownLocation {
+            location = lastKnownLocation
+        } else {
+            location = await requestSingleLocation()
+            if let location {
+                cachedLocation = location
+            }
+        }
+
+        guard let location else { return nil }
+        return await reverseGeocodeRegionIdentifier(location: location)
     }
 
     // MARK: - Live Location Tracking
@@ -241,6 +264,66 @@ import WeatherKit
 
         activeGeocodeTasks[key] = task
         return await task.value
+    }
+
+    private func reverseGeocodeRegionIdentifier(location: CLLocation) async -> String? {
+        let key = String(format: "%.3f,%.3f", location.coordinate.latitude, location.coordinate.longitude)
+        if let cached = regionGeocodeCache[key] {
+            return cached
+        }
+
+        if let existingTask = activeRegionGeocodeTasks[key] {
+            return await existingTask.value
+        }
+
+        let task = Task { @MainActor [weak self] () -> String? in
+            guard let self = self else { return nil }
+            let geocoder = CLGeocoder()
+            let regionIdentifier: String? = await withTaskCancellationHandler {
+                await withCheckedContinuation { continuation in
+                    geocoder.reverseGeocodeLocation(location) { placemarks, error in
+                        if error != nil {
+                            continuation.resume(returning: nil)
+                            return
+                        }
+
+                        continuation.resume(
+                            returning: Self.normalizedRegionIdentifier(
+                                placemarks?.first?.isoCountryCode
+                            )
+                        )
+                    }
+                }
+            } onCancel: {
+                geocoder.cancelGeocode()
+            }
+
+            if let regionIdentifier {
+                if self.regionGeocodeKeys.count >= self.geocodeCacheLimit {
+                    let oldest = self.regionGeocodeKeys.removeFirst()
+                    self.regionGeocodeCache.removeValue(forKey: oldest)
+                }
+                self.regionGeocodeKeys.append(key)
+                self.regionGeocodeCache[key] = regionIdentifier
+            }
+
+            self.activeRegionGeocodeTasks.removeValue(forKey: key)
+            return regionIdentifier
+        }
+
+        activeRegionGeocodeTasks[key] = task
+        return await task.value
+    }
+
+    static func normalizedRegionIdentifier(_ value: String?) -> String? {
+        let normalized = value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+        return normalized?.isEmpty == false ? normalized : nil
+    }
+
+    static func allowsPassiveRegionResolution(for status: CLAuthorizationStatus) -> Bool {
+        status == .authorizedWhenInUse || status == .authorizedAlways
     }
 
     private func requestSingleLocation() async -> CLLocation? {

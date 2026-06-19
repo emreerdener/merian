@@ -38,4 +38,19 @@ struct EnvironmentContextManagerTests {
         #expect(context.weatherTemperature == nil, "Environment mappings cannot attempt Weather API resolution without physical coordinate limits")
         #expect(context.locationName == nil, "Reverse Geocode must aggressively halt if permissions are denied")
     }
+
+    @Test func testPassiveRegionResolutionRequiresExistingAuthorization() {
+        #expect(EnvironmentContextManager.allowsPassiveRegionResolution(for: .authorizedWhenInUse))
+        #expect(EnvironmentContextManager.allowsPassiveRegionResolution(for: .authorizedAlways))
+        #expect(!EnvironmentContextManager.allowsPassiveRegionResolution(for: .notDetermined))
+        #expect(!EnvironmentContextManager.allowsPassiveRegionResolution(for: .denied))
+        #expect(!EnvironmentContextManager.allowsPassiveRegionResolution(for: .restricted))
+    }
+
+    @Test func testRegionIdentifierNormalizationTrimsAndUppercasesISOCode() {
+        #expect(EnvironmentContextManager.normalizedRegionIdentifier(" us ") == "US")
+        #expect(EnvironmentContextManager.normalizedRegionIdentifier("ca") == "CA")
+        #expect(EnvironmentContextManager.normalizedRegionIdentifier("   ") == nil)
+        #expect(EnvironmentContextManager.normalizedRegionIdentifier(nil) == nil)
+    }
 }

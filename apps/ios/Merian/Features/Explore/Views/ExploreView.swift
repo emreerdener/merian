@@ -12,6 +12,7 @@ enum ExploreTab: Hashable {
 struct ExploreView: View {
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(AppSettings.self) private var appSettings
+    @Environment(EnvironmentContextManager.self) private var environmentContextManager
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = ExploreFeedViewModel()
@@ -21,6 +22,7 @@ struct ExploreView: View {
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var activeTab: ExploreTab = .feed
     @State private var dictionarySearchText = ""
+    @State private var dictionaryUserRegionIdentifier = Self.defaultDictionaryUserRegionIdentifier()
 
     private let allowsInsightPresentation: Bool
 
@@ -36,10 +38,6 @@ struct ExploreView: View {
 
     private var isDictionarySearchActive: Bool {
         !dictionarySearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var dictionaryUserRegionIdentifier: String? {
-        Locale.current.region?.identifier
     }
 
     init(
@@ -198,6 +196,10 @@ struct ExploreView: View {
             if newValue == .map {
                 AppTelemetry.trackExploreMapOpened()
             }
+        }
+        .task(id: activeTab) {
+            guard activeTab == .dictionary else { return }
+            await refreshDictionaryUserRegionFromAuthorizedLocation()
         }
         .task {
             await viewModel.startUnreadNotificationUpdates()
@@ -459,6 +461,20 @@ struct ExploreView: View {
             HapticManager.shared.triggerErrorThump()
             viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
         }
+    }
+
+    private static func defaultDictionaryUserRegionIdentifier() -> String? {
+        EnvironmentContextManager.normalizedRegionIdentifier(Locale.current.region?.identifier)
+    }
+
+    @MainActor
+    private func refreshDictionaryUserRegionFromAuthorizedLocation() async {
+        guard let regionIdentifier = await environmentContextManager.currentAuthorizedRegionIdentifier(),
+              regionIdentifier != dictionaryUserRegionIdentifier else {
+            return
+        }
+
+        dictionaryUserRegionIdentifier = regionIdentifier
     }
 }
 

@@ -235,10 +235,11 @@ The response returns image-backed category summaries for `All`, `Your Region`,
 `Taxonomy`, and `Recently Added`, a featured species card with overview copy,
 high-level group summaries such as Birds and Plants, plus region summaries
 derived from `species_dictionary.native_region`.
-`user_region` may be an ISO region code from `Locale.current.region?.identifier`;
-the function expands codes such as `US` for native-region matching. iOS includes
-`cache_buster` so overview requests bypass old cached response bodies while
-category thumbnails are randomized.
+`user_region` may be an ISO region code from an already-authorized physical
+location or, when location is unavailable/not granted, from
+`Locale.current.region?.identifier`; the function expands codes such as `US`
+for native-region matching. iOS includes `cache_buster` so overview requests
+bypass old cached response bodies while category thumbnails are randomized.
 
 ```json
 {

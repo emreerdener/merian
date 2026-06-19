@@ -72,6 +72,9 @@ TestFlight, App Store, support, and QA.
 - Species dictionary galleries now admit more published Merian photos by
   lowering the Merian reference-image quality gate while keeping the species
   confidence gate in place.
+- Explore Dictionary now uses already-granted location access to improve the
+  Your Region category, while falling back to the device locale without showing
+  a Dictionary-specific permission prompt.
 
 ### Fixed
 
