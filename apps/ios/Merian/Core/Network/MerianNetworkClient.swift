@@ -1115,6 +1115,7 @@ final class MerianNetworkClient {
     func getSpeciesDictionaryCatalog(
         category: SpeciesDictionaryCatalogCategory = .all,
         region: String? = nil,
+        group: String? = nil,
         query: String? = nil,
         limit: Int = 40,
         cursor: SpeciesDictionaryCatalogCursor? = nil
@@ -1129,6 +1130,9 @@ final class MerianNetworkClient {
         }
         if let region = region?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
             payload["region"] = region
+        }
+        if let group = group?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+            payload["group"] = group
         }
         if let query = query?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
             payload["query"] = query
@@ -1157,6 +1161,7 @@ final class MerianNetworkClient {
         try await getSpeciesDictionaryCatalog(
             category: .all,
             region: nil,
+            group: nil,
             query: query,
             limit: limit,
             cursor: cursor
@@ -1165,7 +1170,10 @@ final class MerianNetworkClient {
 
     func getSpeciesDictionaryOverview(userRegion: String? = nil) async throws -> SpeciesDictionaryOverviewResponse {
         let functionUrl = try endpointURL("species-dictionary")
-        var payload: [String: Any] = ["mode": "overview"]
+        var payload: [String: Any] = [
+            "mode": "overview",
+            "cache_buster": UUID().uuidString
+        ]
         if let userRegion = userRegion?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
             payload["user_region"] = userRegion
         }

@@ -32,6 +32,7 @@ struct SpeciesDictionaryTreeResponse: Decodable {
 enum SpeciesDictionaryCatalogCategory: String, Codable, Equatable, Hashable {
     case all
     case region
+    case group
     case recentlyAdded = "recently_added"
 }
 
@@ -105,8 +106,41 @@ struct SpeciesDictionaryCatalogItem: Decodable, Equatable, Identifiable, Hashabl
 }
 
 struct SpeciesDictionaryOverview: Decodable, Equatable {
+    let featuredSpecies: SpeciesDictionaryFeaturedSpecies?
     let categories: [SpeciesDictionaryCategorySummary]
+    let groups: [SpeciesDictionaryGroupSummary]
     let regions: [SpeciesDictionaryRegionSummary]
+
+    private enum CodingKeys: String, CodingKey {
+        case featuredSpecies
+        case categories
+        case groups
+        case regions
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        featuredSpecies = try container.decodeIfPresent(SpeciesDictionaryFeaturedSpecies.self, forKey: .featuredSpecies)
+        categories = try container.decode([SpeciesDictionaryCategorySummary].self, forKey: .categories)
+        groups = try container.decodeIfPresent([SpeciesDictionaryGroupSummary].self, forKey: .groups) ?? []
+        regions = try container.decode([SpeciesDictionaryRegionSummary].self, forKey: .regions)
+    }
+}
+
+struct SpeciesDictionaryFeaturedSpecies: Decodable, Equatable, Identifiable, Hashable {
+    let id: String
+    let scientificName: String
+    let commonName: String
+    let overview: String?
+    let referenceImageUrl: String?
+
+    var dictionaryRoute: SpeciesDictionaryRoute {
+        SpeciesDictionaryRoute(
+            scientificName: scientificName,
+            speciesId: id,
+            entryPoint: .exploreDictionaryCatalog
+        )
+    }
 }
 
 struct SpeciesDictionaryCategorySummary: Decodable, Equatable, Identifiable, Hashable {
@@ -116,6 +150,13 @@ struct SpeciesDictionaryCategorySummary: Decodable, Equatable, Identifiable, Has
     let count: Int
     let referenceImageUrl: String?
     let region: String?
+}
+
+struct SpeciesDictionaryGroupSummary: Decodable, Equatable, Identifiable, Hashable {
+    let id: String
+    let title: String
+    let count: Int
+    let referenceImageUrl: String?
 }
 
 struct SpeciesDictionaryRegionSummary: Decodable, Equatable, Identifiable, Hashable {

@@ -355,6 +355,19 @@ Deno.test("species-dictionary helpers - validates catalog request body", () => {
       limit: 40,
     },
   );
+  assertEquals(
+    parseSpeciesDictionaryRequest({
+      mode: "catalog",
+      category: "group",
+      group: " Birds ",
+    }),
+    {
+      mode: "catalog",
+      category: "group",
+      group: "birds",
+      limit: 40,
+    },
+  );
   assertEquals(parseSpeciesDictionaryRequest({ mode: "overview" }), {
     mode: "overview",
   });
@@ -385,7 +398,25 @@ Deno.test("species-dictionary helpers - validates catalog request body", () => {
   assertEquals(
     parseSpeciesDictionaryRequest({ mode: "catalog", category: "popular" }),
     {
-      error: "category must be all, region, or recently_added.",
+      error: "category must be all, region, group, or recently_added.",
+      status: 400,
+    },
+  );
+  assertEquals(
+    parseSpeciesDictionaryRequest({ mode: "catalog", category: "group" }),
+    {
+      error: "group is required when category is group.",
+      status: 400,
+    },
+  );
+  assertEquals(
+    parseSpeciesDictionaryRequest({
+      mode: "catalog",
+      category: "group",
+      group: "dinosaurs",
+    }),
+    {
+      error: "group is not supported.",
       status: 400,
     },
   );
@@ -430,8 +461,11 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
       speciesRow({
         id: "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
         scientific_name: "Danaus gilippus",
+        common_names: { en: "Queen Butterfly" },
         native_region: "North America",
         created_at: "2026-06-03T12:00:00Z",
+        wikipedia_overview:
+          "The queen butterfly is a milkweed butterfly found across warm habitats and often featured in species guides.",
       }),
       speciesRow({
         id: "3cf79982-e5ee-4e3d-8d65-274527e6ae03",
@@ -444,6 +478,29 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
         scientific_name: "Testus ignotus",
         native_region: "Unknown",
         created_at: "2026-06-04T12:00:00Z",
+      }),
+      speciesRow({
+        id: "5cf79982-e5ee-4e3d-8d65-274527e6ae05",
+        scientific_name: "Quercus alba",
+        common_names: { en: "White Oak" },
+        kingdom: "Plantae",
+        class: "Magnoliopsida",
+        native_region: "North America",
+      }),
+      speciesRow({
+        id: "6cf79982-e5ee-4e3d-8d65-274527e6ae06",
+        scientific_name: "Turdus migratorius",
+        common_names: { en: "American Robin" },
+        class: "Aves",
+        native_region: "North America",
+      }),
+      speciesRow({
+        id: "7cf79982-e5ee-4e3d-8d65-274527e6ae07",
+        scientific_name: "Amanita muscaria",
+        common_names: { en: "Fly Agaric" },
+        kingdom: "Fungi",
+        class: "Agaricomycetes",
+        native_region: "Northern Hemisphere",
       }),
     ],
     new Map([
@@ -475,16 +532,48 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
       ?.region,
     "United States",
   );
+  const allReferenceImageUrl = overview.categories.find((category) =>
+    category.id === "all"
+  )?.reference_image_url;
+  const taxonomyReferenceImageUrl = overview.categories.find((category) =>
+    category.id === "taxonomy"
+  )?.reference_image_url;
+  assertEquals(allReferenceImageUrl === taxonomyReferenceImageUrl, false);
+  assertEquals(overview.featured_species?.scientific_name, "Danaus gilippus");
+  assertEquals(overview.featured_species?.common_name, "Queen Butterfly");
+  assertEquals(
+    overview.featured_species?.overview,
+    "The queen butterfly is a milkweed butterfly found across warm habitats and often featured in species guides.",
+  );
+  assertEquals(
+    overview.featured_species?.reference_image_url,
+    "https://example.com/queen.jpg",
+  );
+  assertEquals(overview.groups.map((group) => group.id), [
+    "plants",
+    "birds",
+    "insects",
+    "fungi",
+  ]);
+  assertEquals(
+    overview.groups.find((group) => group.id === "plants")?.count,
+    1,
+  );
+  assertEquals(
+    overview.groups.find((group) => group.id === "insects")?.count,
+    4,
+  );
   assertEquals(
     overview.categories.find((category) => category.id === "recently_added")
       ?.reference_image_url,
     "https://example.com/queen.jpg",
   );
   assertEquals(overview.regions.map((region) => region.title), [
-    "United States",
     "North America",
+    "United States",
+    "Northern Hemisphere",
   ]);
-  assertEquals(overview.regions[0].count, 2);
+  assertEquals(overview.regions[0].count, 3);
 });
 
 Deno.test("species-dictionary helpers - builds taxonomy tree payload", () => {

@@ -32,9 +32,11 @@ TestFlight, App Store, support, and QA.
   Tree of Life explorer that uses your scanned taxonomy, with search,
   zoom-aware detail, branch focus, lineage highlighting, and species preview
   cards before opening Dictionary pages.
-- Added Dictionary category browsing with image cards for All, Your Region,
-  Taxonomy, and Recently Added, plus region rows backed by dictionary-native
-  range metadata.
+- Added Dictionary category browsing with a featured species card, image cards
+  for All, Your Region, Taxonomy, and Recently Added, plus region rows backed by
+  dictionary-native range metadata.
+- Added high-level Dictionary group cards for broad browse paths such as Plants,
+  Birds, Insects, Fungi, Mammals, and Reptiles & Amphibians.
 - Added a common-name picker for Explore sharing and editing so posts use the
   known species name you choose.
 - Added `@username` mentions in Explore comments, with scoped suggestions for

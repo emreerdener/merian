@@ -558,6 +558,13 @@ struct SpeciesDictionaryTests {
         {
             "schema_version": 1,
             "data": {
+                "featured_species": {
+                    "id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+                    "scientific_name": "Danaus plexippus",
+                    "common_name": "Monarch Butterfly",
+                    "overview": "The monarch butterfly is a milkweed butterfly known for long-distance migration.",
+                    "reference_image_url": "https://example.com/featured.jpg"
+                },
                 "categories": [
                     {
                         "id": "all",
@@ -574,6 +581,14 @@ struct SpeciesDictionaryTests {
                         "count": 8,
                         "reference_image_url": "https://example.com/local.jpg",
                         "region": "United States"
+                    }
+                ],
+                "groups": [
+                    {
+                        "id": "birds",
+                        "title": "Birds",
+                        "count": 12,
+                        "reference_image_url": "https://example.com/bird.jpg"
                     }
                 ],
                 "regions": [
@@ -593,9 +608,12 @@ struct SpeciesDictionaryTests {
         let response = try decoder.decode(SpeciesDictionaryOverviewResponse.self, from: data)
 
         #expect(response.effectiveSchemaVersion == 1)
+        #expect(response.data.featuredSpecies?.commonName == "Monarch Butterfly")
+        #expect(response.data.featuredSpecies?.dictionaryRoute.speciesId == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
         #expect(response.data.categories.first?.id == .all)
         #expect(response.data.categories.last?.id == .yourRegion)
         #expect(response.data.categories.last?.region == "United States")
+        #expect(response.data.groups.first?.title == "Birds")
         #expect(response.data.regions.first?.title == "United States")
     }
 
@@ -624,8 +642,8 @@ struct SpeciesDictionaryTests {
             let cursor = try #require(payload["cursor"] as? [String: Any])
 
             #expect(payload["mode"] as? String == "catalog")
-            #expect(payload["category"] as? String == "region")
-            #expect(payload["region"] as? String == "United States")
+            #expect(payload["category"] as? String == "group")
+            #expect(payload["group"] as? String == "birds")
             #expect(payload["query"] as? String == "Danaus")
             #expect(payload["limit"] as? Int == 25)
             #expect(cursor["scientific_name"] as? String == "Danaus plexippus")
@@ -635,8 +653,8 @@ struct SpeciesDictionaryTests {
         }
 
         let response = try await MerianNetworkClient.shared.getSpeciesDictionaryCatalog(
-            category: .region,
-            region: " United States ",
+            category: .group,
+            group: " birds ",
             query: " Danaus ",
             limit: 25,
             cursor: SpeciesDictionaryCatalogCursor(
@@ -673,6 +691,7 @@ struct SpeciesDictionaryTests {
 
             #expect(payload["mode"] as? String == "overview")
             #expect(payload["user_region"] as? String == "US")
+            #expect((payload["cache_buster"] as? String)?.isEmpty == false)
             return (mockResponse, testData)
         }
 

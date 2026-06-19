@@ -19,6 +19,11 @@ const publicDictionaryCacheHeaders = {
   "Vary": "Accept-Encoding",
 };
 
+const overviewDictionaryCacheHeaders = {
+  "Cache-Control": "no-store",
+  "Vary": "Accept-Encoding",
+};
+
 const privateDictionaryCacheHeaders = {
   "Cache-Control": "private, no-store",
   "Vary": "Authorization, Accept-Encoding",
@@ -46,6 +51,7 @@ serve(async (req: Request) => {
           category: parsedRequest.category,
           query: parsedRequest.query,
           region: parsedRequest.region,
+          group: parsedRequest.group,
           limit: parsedRequest.limit ?? 40,
           cursor: parsedRequest.cursor,
         },
@@ -84,7 +90,7 @@ serve(async (req: Request) => {
           data: overview,
         },
         200,
-        publicDictionaryCacheHeaders,
+        overviewDictionaryCacheHeaders,
       );
     }
 

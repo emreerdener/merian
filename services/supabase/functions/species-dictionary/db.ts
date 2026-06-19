@@ -73,6 +73,7 @@ export interface SpeciesDictionaryCatalogCursor {
 export type SpeciesDictionaryCatalogCategory =
   | "all"
   | "region"
+  | "group"
   | "recently_added";
 
 export type SpeciesDictionaryOverviewCategoryId =
@@ -86,6 +87,7 @@ export interface SpeciesDictionaryCatalogRequest {
   category?: SpeciesDictionaryCatalogCategory;
   query?: string;
   region?: string;
+  group?: string;
   limit: number;
   cursor?: SpeciesDictionaryCatalogCursor;
 }
@@ -120,6 +122,13 @@ export interface SpeciesDictionaryCategorySummary {
   region: string | null;
 }
 
+export interface SpeciesDictionaryGroupSummary {
+  id: string;
+  title: string;
+  count: number;
+  reference_image_url: string | null;
+}
+
 export interface SpeciesDictionaryRegionSummary {
   id: string;
   title: string;
@@ -127,8 +136,18 @@ export interface SpeciesDictionaryRegionSummary {
   reference_image_url: string | null;
 }
 
+export interface SpeciesDictionaryFeaturedSpecies {
+  id: string;
+  scientific_name: string;
+  common_name: string;
+  overview: string | null;
+  reference_image_url: string | null;
+}
+
 export interface SpeciesDictionaryOverviewResult {
+  featured_species: SpeciesDictionaryFeaturedSpecies | null;
   categories: SpeciesDictionaryCategorySummary[];
+  groups: SpeciesDictionaryGroupSummary[];
   regions: SpeciesDictionaryRegionSummary[];
 }
 
@@ -186,6 +205,54 @@ export const SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE = 100;
 export const SPECIES_DICTIONARY_OVERVIEW_REGION_LIMIT = 24;
 const SPECIES_DICTIONARY_CATALOG_SELECT =
   "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags, native_region, created_at";
+const HIGH_LEVEL_SPECIES_GROUPS = [
+  {
+    id: "plants",
+    title: "Plants",
+    filters: ["kingdom.ilike.Plantae", "group_tags.cs.{plant}"],
+  },
+  {
+    id: "birds",
+    title: "Birds",
+    filters: ["class.ilike.Aves", "group_tags.cs.{bird}"],
+  },
+  {
+    id: "insects",
+    title: "Insects",
+    filters: [
+      "class.ilike.Insecta",
+      "class.ilike.Entognatha",
+      "class.ilike.Arachnida",
+      "group_tags.cs.{insect}",
+      "group_tags.cs.{arachnid}",
+    ],
+  },
+  {
+    id: "fungi",
+    title: "Fungi",
+    filters: [
+      "kingdom.ilike.Fungi",
+      "group_tags.cs.{fungus}",
+      "group_tags.cs.{fungi}",
+    ],
+  },
+  {
+    id: "mammals",
+    title: "Mammals",
+    filters: ["class.ilike.Mammalia", "group_tags.cs.{mammal}"],
+  },
+  {
+    id: "reptiles_amphibians",
+    title: "Reptiles & Amphibians",
+    filters: [
+      "class.ilike.Reptilia",
+      "class.ilike.Amphibia",
+      "order.ilike.Squamata",
+      "group_tags.cs.{reptile}",
+      "group_tags.cs.{amphibian}",
+    ],
+  },
+] as const;
 
 export interface UserScanSpeciesRow {
   species_id?: string | null;
@@ -199,6 +266,7 @@ export interface SpeciesDictionaryRequestResult {
   scientificName?: string;
   query?: string;
   region?: string;
+  group?: string;
   userRegion?: string;
   limit?: number;
   cursor?: SpeciesDictionaryCatalogCursor;
@@ -292,6 +360,9 @@ export function parseSpeciesDictionaryCatalogRequest(
   const region = normalizeOptionalRegion(body.region);
   if (region?.error) return region;
 
+  const group = normalizeOptionalGroup(body.group);
+  if (group?.error) return group;
+
   const cursor = normalizeOptionalCatalogCursor(body.cursor);
   if (cursor?.error) return cursor;
 
@@ -312,6 +383,13 @@ export function parseSpeciesDictionaryCatalogRequest(
     };
   }
 
+  if (category?.category === "group" && !group?.group) {
+    return {
+      error: "group is required when category is group.",
+      status: 400,
+    };
+  }
+
   const result: SpeciesDictionaryRequestResult = {
     mode: "catalog",
     category: category?.category ?? "all",
@@ -319,6 +397,7 @@ export function parseSpeciesDictionaryCatalogRequest(
   };
   if (query?.query) result.query = query.query;
   if (region?.region) result.region = region.region;
+  if (group?.group) result.group = group.group;
   if (cursor?.cursor) result.cursor = cursor.cursor;
   return result;
 }
@@ -347,6 +426,13 @@ export async function fetchSpeciesDictionaryCatalog(
       "native_region",
       `%${regionFilter.trim().replace(/\s+/g, " ")}%`,
     );
+  }
+
+  if (category === "group" && request.group) {
+    const groupDefinition = highLevelSpeciesGroup(request.group);
+    if (groupDefinition) {
+      catalogQuery = catalogQuery.or(groupDefinition.filters.join(","));
+    }
   }
 
   if (category === "recently_added") {
@@ -699,15 +785,20 @@ export function buildSpeciesDictionaryOverview(
       regionKeysMatch(normalizedRegionKey(region.title), normalizedUserRegion)
     )?.title ?? normalizedRegionTitle(userRegion))
     : null;
+  const categoryReferenceImageUrls = randomRepresentativeImageUrlPair(
+    rows,
+    firstImageBySpeciesId,
+  );
 
   return {
+    featured_species: buildFeaturedSpeciesSummary(rows, firstImageBySpeciesId),
     categories: [
       {
         id: "all",
         title: "All",
         subtitle: "Browse every species in the dictionary",
         count: rows.length,
-        reference_image_url: representativeImageUrl(rows, firstImageBySpeciesId),
+        reference_image_url: categoryReferenceImageUrls[0],
         region: null,
       },
       {
@@ -728,7 +819,7 @@ export function buildSpeciesDictionaryOverview(
         title: "Taxonomy",
         subtitle: "Explore species by biological lineage",
         count: rows.length,
-        reference_image_url: representativeImageUrl(rows, firstImageBySpeciesId),
+        reference_image_url: categoryReferenceImageUrls[1],
         region: null,
       },
       {
@@ -743,7 +834,45 @@ export function buildSpeciesDictionaryOverview(
         region: null,
       },
     ],
+    groups: buildSpeciesDictionaryGroupSummaries(rows, firstImageBySpeciesId),
     regions,
+  };
+}
+
+function buildFeaturedSpeciesSummary(
+  rows: SpeciesDictionaryRow[],
+  firstImageBySpeciesId: Map<string, string>,
+): SpeciesDictionaryFeaturedSpecies | null {
+  const candidatesWithOverviewAndImage = rows.filter((row) =>
+    referenceImageUrlForRow(row, firstImageBySpeciesId) &&
+    normalizedOverview(row.wikipedia_overview)
+  );
+  const candidatesWithImage = rows.filter((row) =>
+    referenceImageUrlForRow(row, firstImageBySpeciesId)
+  );
+  const candidatesWithOverview = rows.filter((row) =>
+    normalizedOverview(row.wikipedia_overview)
+  );
+  const candidates = candidatesWithOverviewAndImage.length > 0
+    ? candidatesWithOverviewAndImage
+    : candidatesWithImage.length > 0
+    ? candidatesWithImage
+    : candidatesWithOverview.length > 0
+    ? candidatesWithOverview
+    : rows;
+
+  if (candidates.length === 0) return null;
+
+  const row = candidates[Math.floor(Math.random() * candidates.length)];
+  const referenceImageUrl = referenceImageUrlForRow(row, firstImageBySpeciesId);
+  const catalogItem = buildSpeciesDictionaryCatalogItem(row, referenceImageUrl);
+
+  return {
+    id: catalogItem.id,
+    scientific_name: catalogItem.scientific_name,
+    common_name: catalogItem.common_name,
+    overview: normalizedOverview(row.wikipedia_overview),
+    reference_image_url: catalogItem.reference_image_url,
   };
 }
 
@@ -1203,6 +1332,66 @@ function buildSpeciesDictionaryRegionSummaries(
     .slice(0, SPECIES_DICTIONARY_OVERVIEW_REGION_LIMIT);
 }
 
+function buildSpeciesDictionaryGroupSummaries(
+  rows: SpeciesDictionaryRow[],
+  firstImageBySpeciesId: Map<string, string>,
+): SpeciesDictionaryGroupSummary[] {
+  return HIGH_LEVEL_SPECIES_GROUPS
+    .map((group) => {
+      const groupRows = rows.filter((row) => rowMatchesHighLevelGroup(row, group.id));
+      return {
+        id: group.id,
+        title: group.title,
+        count: groupRows.length,
+        reference_image_url: representativeImageUrl(groupRows, firstImageBySpeciesId),
+      };
+    })
+    .filter((group) => group.count > 0);
+}
+
+function rowMatchesHighLevelGroup(
+  row: SpeciesDictionaryRow,
+  groupId: string,
+): boolean {
+  const kingdom = normalizedTaxonomyValue(row.kingdom);
+  const className = normalizedTaxonomyValue(row.class);
+  const order = normalizedTaxonomyValue(row.order);
+  const groupTags = new Set(
+    (row.group_tags ?? []).map((tag) => normalizedTaxonomyValue(tag)),
+  );
+
+  switch (groupId) {
+    case "plants":
+      return kingdom === "plantae" || groupTags.has("plant");
+    case "birds":
+      return className === "aves" || groupTags.has("bird");
+    case "insects":
+      return className === "insecta" ||
+        className === "entognatha" ||
+        className === "arachnida" ||
+        groupTags.has("insect") ||
+        groupTags.has("arachnid");
+    case "fungi":
+      return kingdom === "fungi" ||
+        groupTags.has("fungus") ||
+        groupTags.has("fungi");
+    case "mammals":
+      return className === "mammalia" || groupTags.has("mammal");
+    case "reptiles_amphibians":
+      return className === "reptilia" ||
+        className === "amphibia" ||
+        order === "squamata" ||
+        groupTags.has("reptile") ||
+        groupTags.has("amphibian");
+    default:
+      return false;
+  }
+}
+
+function normalizedTaxonomyValue(value: unknown): string {
+  return stringValue(value)?.trim().toLocaleLowerCase() ?? "";
+}
+
 function representativeImageUrl(
   rows: SpeciesDictionaryRow[],
   firstImageBySpeciesId: Map<string, string>,
@@ -1214,12 +1403,48 @@ function representativeImageUrl(
   return null;
 }
 
+function randomRepresentativeImageUrlPair(
+  rows: SpeciesDictionaryRow[],
+  firstImageBySpeciesId: Map<string, string>,
+): [string | null, string | null] {
+  const urls = uniqueRepresentativeImageUrls(rows, firstImageBySpeciesId);
+  if (urls.length === 0) return [null, null];
+  if (urls.length === 1) return [urls[0], urls[0]];
+
+  const firstIndex = Math.floor(Math.random() * urls.length);
+  const remainingUrls = urls.filter((_, index) => index !== firstIndex);
+  const secondIndex = Math.floor(Math.random() * remainingUrls.length);
+  return [urls[firstIndex], remainingUrls[secondIndex]];
+}
+
+function uniqueRepresentativeImageUrls(
+  rows: SpeciesDictionaryRow[],
+  firstImageBySpeciesId: Map<string, string>,
+): string[] {
+  const urls: string[] = [];
+  const seenUrls = new Set<string>();
+
+  for (const row of rows) {
+    const url = referenceImageUrlForRow(row, firstImageBySpeciesId);
+    if (!url || seenUrls.has(url)) continue;
+    seenUrls.add(url);
+    urls.push(url);
+  }
+
+  return urls;
+}
+
 function referenceImageUrlForRow(
   row: SpeciesDictionaryRow,
   firstImageBySpeciesId: Map<string, string>,
 ): string | null {
   return firstImageBySpeciesId.get(row.id) ??
     firstReferenceImageUrl(row.reference_image_url);
+}
+
+function normalizedOverview(value: unknown): string | null {
+  const overview = stringValue(value)?.trim().replace(/\s+/g, " ");
+  return overview || null;
 }
 
 function speciesDictionaryCreatedAtDescending(
@@ -1274,15 +1499,36 @@ function normalizeOptionalCatalogCategory(
   if (!category) return undefined;
   if (
     category === "all" || category === "region" ||
-    category === "recently_added"
+    category === "group" || category === "recently_added"
   ) {
     return { category };
   }
 
   return {
-    error: "category must be all, region, or recently_added.",
+    error: "category must be all, region, group, or recently_added.",
     status: 400,
   };
+}
+
+function normalizeOptionalGroup(
+  value: unknown,
+): SpeciesDictionaryRequestResult | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") {
+    return { error: "group must be a string when provided.", status: 400 };
+  }
+
+  const group = value.trim().toLocaleLowerCase();
+  if (!group) return undefined;
+  if (!highLevelSpeciesGroup(group)) {
+    return { error: "group is not supported.", status: 400 };
+  }
+
+  return { group };
+}
+
+function highLevelSpeciesGroup(groupId: string) {
+  return HIGH_LEVEL_SPECIES_GROUPS.find((group) => group.id === groupId);
 }
 
 function normalizeOptionalRegion(

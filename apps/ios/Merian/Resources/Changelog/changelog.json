@@ -11,7 +11,8 @@
           "items": [
             "Explore now has a bottom menu for Feed, Map, Dictionary, and Tree.",
             "You can swipe from Feed to Map to Dictionary to Tree, or jump directly with the bottom menu.",
-            "Dictionary opens with image category cards for All, Your Region, Taxonomy, and Recently Added, plus region rows for browsing local range metadata.",
+            "Dictionary opens with a featured species card, image category cards for All, Your Region, Taxonomy, and Recently Added, plus region rows for browsing local range metadata.",
+            "Dictionary also includes high-level browse cards for broad groups like Plants, Birds, Insects, Fungi, Mammals, and Reptiles & Amphibians.",
             "Tree now has a richer personal Tree of Life canvas based on your scanned taxonomy, with search, zoom-aware detail, branch focus, lineage highlighting, and species previews before opening dictionary pages."
           ]
         }

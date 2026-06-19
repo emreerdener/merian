@@ -157,6 +157,15 @@ struct ExploreView: View {
                         region: region
                     )
                     .toolbar(.hidden, for: .tabBar)
+                case .group(let title, let group):
+                    SpeciesDictionaryCatalogView(
+                        isSearchEnabled: false,
+                        showsNavigationTitle: true,
+                        navigationTitle: title,
+                        category: .group,
+                        group: group
+                    )
+                    .toolbar(.hidden, for: .tabBar)
                 case .taxonomy:
                     TaxonomyTreeCanvasView(showsNavigationTitle: true) { speciesRoute in
                         navigationPath.append(speciesRoute)

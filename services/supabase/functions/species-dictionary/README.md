@@ -85,12 +85,16 @@ added inside this version, nullable fields may remain `null`, and clients must
 ignore unknown keys. Breaking changes require a new versioned contract rather
 than silently changing this shape.
 
-Successful `200 OK` responses include public cache headers:
+Successful detail and catalog `200 OK` responses include public cache headers:
 
 ```http
 Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800
 Vary: Accept-Encoding
 ```
+
+Overview mode returns the featured species card plus category, high-level group,
+and region summaries. It uses `Cache-Control: no-store` so randomized category
+thumbnails and featured species choices can refresh on each request.
 
 `400`, `404`, and `500` responses do not include those cache headers. Missing
 rows and transient failures must be able to recover as soon as the backing

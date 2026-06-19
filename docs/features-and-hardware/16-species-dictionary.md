@@ -226,20 +226,31 @@ landing view through overview mode:
 ```json
 {
   "mode": "overview",
-  "user_region": "US"
+  "user_region": "US",
+  "cache_buster": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
 The response returns image-backed category summaries for `All`, `Your Region`,
-`Taxonomy`, and `Recently Added`, plus region summaries derived from
-`species_dictionary.native_region`. `user_region` may be an ISO region code from
-`Locale.current.region?.identifier`; the function expands codes such as `US` for
-native-region matching.
+`Taxonomy`, and `Recently Added`, a featured species card with overview copy,
+high-level group summaries such as Birds and Plants, plus region summaries
+derived from `species_dictionary.native_region`.
+`user_region` may be an ISO region code from `Locale.current.region?.identifier`;
+the function expands codes such as `US` for native-region matching. iOS includes
+`cache_buster` so overview requests bypass old cached response bodies while
+category thumbnails are randomized.
 
 ```json
 {
   "schema_version": 1,
   "data": {
+    "featured_species": {
+      "id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      "scientific_name": "Danaus plexippus",
+      "common_name": "Monarch Butterfly",
+      "overview": "The monarch butterfly is a milkweed butterfly known for long-distance migration.",
+      "reference_image_url": "https://..."
+    },
     "categories": [
       {
         "id": "your_region",
@@ -248,6 +259,14 @@ native-region matching.
         "count": 8,
         "reference_image_url": "https://...",
         "region": "United States"
+      }
+    ],
+    "groups": [
+      {
+        "id": "birds",
+        "title": "Birds",
+        "count": 12,
+        "reference_image_url": "https://..."
       }
     ],
     "regions": [
@@ -280,7 +299,10 @@ Catalog mode powers search results and category detail pages:
 ```
 
 `category` defaults to `all` for backward compatibility. `region` is required
-when `category` is `region` and may also be an ISO region code. `recently_added` sorts by
+when `category` is `region` and may also be an ISO region code. `group` is
+required when `category` is `group`; supported high-level groups are `plants`,
+`birds`, `insects`, `fungi`, `mammals`, and `reptiles_amphibians`.
+`recently_added` sorts by
 `species_dictionary.created_at DESC, id DESC`; other catalog views sort by
 `scientific_name ASC, id ASC`. The response keeps the shared schema version and
 returns a cursor-paginated list:
