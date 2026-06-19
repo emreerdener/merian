@@ -3317,6 +3317,61 @@ Response:
 
 ---
 
+## Deno `/submit-feedback-survey` Edge Node
+
+Accepts the one-time beta feedback survey from the iOS app. The endpoint is
+authenticated through `withEdgeHandler`; the server ignores any client-provided
+user identity and stores the response under the JWT user id.
+
+### Request Payload
+
+```json
+{
+  "survey_campaign_id": "beta_feedback_2026_06",
+  "satisfaction_rating": 4,
+  "recommendation_rating": 9,
+  "used_features": ["identify_found_subject", "browse_explore"],
+  "most_useful_features": ["camera_identification", "insight_sheet"],
+  "confusing_or_disappointing": "Occasionally slow on older devices.",
+  "wished_next": "More collection organization tools.",
+  "bug_status": "workaround",
+  "bug_details": "Retrying fixed one failed scan.",
+  "may_follow_up": false,
+  "contact": "",
+  "app_version": "1.0",
+  "build_number": "99",
+  "platform": "ios",
+  "device_model": "iPhone",
+  "os_version": "19.0",
+  "locale": "en_US",
+  "timezone": "America/Chicago"
+}
+```
+
+Validation rules:
+
+- `survey_campaign_id` must match the active one-time campaign.
+- Satisfaction must be an integer from 1 to 5.
+- Recommendation must be an integer from 0 to 10.
+- Feature/use values must be from the native survey enum sets.
+- Free-text fields are trimmed and capped at 4,000 characters.
+- Follow-up fields are retained for API compatibility. The current native
+  survey sends `may_follow_up: false` and an empty `contact` value.
+
+### Response Payload
+
+```json
+{
+  "success": true
+}
+```
+
+Responses are stored in `public.feedback_survey_responses` with RLS enabled.
+Users can insert and read their own rows; product review happens through
+Supabase dashboard/service-role tooling rather than public app APIs.
+
+---
+
 ## Deno `/auto-purge-nonbio` Edge Node
 
 A daily cron-job endpoint responsible for removing stale

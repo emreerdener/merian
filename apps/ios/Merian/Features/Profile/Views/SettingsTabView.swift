@@ -21,6 +21,7 @@ struct SettingsTabView: View {
     @State private var captureModeOrderSettingsActive = false
     @State private var showTestExploreOnboarding = false
     @State private var showPaywall = false
+    @State private var showFeedbackSurvey = false
     @State private var toastMessage: String?
 
     var body: some View {
@@ -52,7 +53,8 @@ struct SettingsTabView: View {
                 Community(
                     changelogActive: $changelogActive,
                     safariUrl: $safariUrl,
-                    showSafari: $showSafari
+                    showSafari: $showSafari,
+                    showFeedbackSurvey: $showFeedbackSurvey
                 )
 
                 DangerZone(
@@ -104,6 +106,9 @@ struct SettingsTabView: View {
             .sheet(isPresented: $showPaywall) {
                 PaywallView()
                     .environment(RevenueCatManager.shared)
+            }
+            .sheet(isPresented: $showFeedbackSurvey) {
+                FeedbackSurveyView()
             }
             .sheet(isPresented: $showTestExploreOnboarding) {
                 ExploreOnboardingPrompt(

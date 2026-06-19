@@ -37,6 +37,9 @@ struct CaptureWorkspaceView: View {
 
     // MARK: - Staged Description Sheet
     @State private var stagedDescriptionEditIndex: Int?
+    @State private var showFeedbackSurvey = false
+    @State private var hasEvaluatedFeedbackSurveyPrompt = false
+    @State private var feedbackSurveyPresentedProactively = false
 
     /// Dedicated scroll-position state for the pager. Decoupled from captureMode so that
     /// scrollPosition(id:) never writes captureMode directly — eliminating the "onChange(of:
@@ -286,6 +289,9 @@ struct CaptureWorkspaceView: View {
                 defaultGeoprivacy: profileViewModel.defaultGeoprivacy
             )
         }
+        .task(id: feedbackPromptSignature) {
+            await presentFeedbackSurveyIfEligible()
+        }
         .sheet(
             isPresented: Binding(
                 get: { stagedDescriptionEditIndex != nil },
@@ -319,6 +325,15 @@ struct CaptureWorkspaceView: View {
                     stagedDescriptionEditIndex = nil
                 }
             )
+        }
+        .sheet(isPresented: $showFeedbackSurvey, onDismiss: {
+            guard feedbackSurveyPresentedProactively else { return }
+            feedbackSurveyPresentedProactively = false
+            if appSettings.feedbackSurveySubmittedCampaignId != FeedbackSurveyCampaign.currentId {
+                appSettings.feedbackSurveyDismissedCampaignId = FeedbackSurveyCampaign.currentId
+            }
+        }) {
+            FeedbackSurveyView()
         }
 
         // MARK: - View Modifiers
@@ -517,6 +532,33 @@ struct CaptureWorkspaceView: View {
             guard abs(viewModel.composingZoneVerticalCenter - verticalCenter) > 0.001 else { return }
             viewModel.composingZoneVerticalCenter = verticalCenter
         }
+    }
+
+    private var feedbackPromptSignature: String {
+        [
+            String(messageShareCacheRecords.count),
+            String(appSettings.hasCompletedOnboarding),
+            appSettings.feedbackSurveyDismissedCampaignId,
+            appSettings.feedbackSurveySubmittedCampaignId
+        ].joined(separator: "|")
+    }
+
+    private func presentFeedbackSurveyIfEligible() async {
+        guard !hasEvaluatedFeedbackSurveyPrompt else { return }
+        guard FeedbackSurveyPromptPolicy.shouldPrompt(
+            completedScanCount: messageShareCacheRecords.count,
+            hasCompletedOnboarding: appSettings.hasCompletedOnboarding,
+            dismissedCampaignId: appSettings.feedbackSurveyDismissedCampaignId,
+            submittedCampaignId: appSettings.feedbackSurveySubmittedCampaignId
+        ) else {
+            return
+        }
+
+        hasEvaluatedFeedbackSurveyPrompt = true
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        guard !Task.isCancelled else { return }
+        feedbackSurveyPresentedProactively = true
+        showFeedbackSurvey = true
     }
 }
 

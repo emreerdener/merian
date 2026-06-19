@@ -476,8 +476,11 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
       speciesRow({
         id: "4cf79982-e5ee-4e3d-8d65-274527e6ae04",
         scientific_name: "Testus ignotus",
+        common_names: { en: "Newest Test Species" },
         native_region: "Unknown",
         created_at: "2026-06-04T12:00:00Z",
+        wikipedia_overview:
+          "The newest test species is used to verify recently added dictionary highlights.",
       }),
       speciesRow({
         id: "5cf79982-e5ee-4e3d-8d65-274527e6ae05",
@@ -512,6 +515,10 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
         "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
         "https://example.com/queen.jpg",
       ],
+      [
+        "4cf79982-e5ee-4e3d-8d65-274527e6ae04",
+        "https://example.com/newest-test-species.jpg",
+      ],
     ]),
     "US",
   );
@@ -539,15 +546,15 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
     category.id === "taxonomy"
   )?.reference_image_url;
   assertEquals(allReferenceImageUrl === taxonomyReferenceImageUrl, false);
-  assertEquals(overview.featured_species?.scientific_name, "Danaus gilippus");
-  assertEquals(overview.featured_species?.common_name, "Queen Butterfly");
+  assertEquals(overview.featured_species?.scientific_name, "Testus ignotus");
+  assertEquals(overview.featured_species?.common_name, "Newest Test Species");
   assertEquals(
     overview.featured_species?.overview,
-    "The queen butterfly is a milkweed butterfly found across warm habitats and often featured in species guides.",
+    "The newest test species is used to verify recently added dictionary highlights.",
   );
   assertEquals(
     overview.featured_species?.reference_image_url,
-    "https://example.com/queen.jpg",
+    "https://example.com/newest-test-species.jpg",
   );
   assertEquals(overview.groups.map((group) => group.id), [
     "plants",
@@ -566,7 +573,7 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
   assertEquals(
     overview.categories.find((category) => category.id === "recently_added")
       ?.reference_image_url,
-    "https://example.com/queen.jpg",
+    "https://example.com/newest-test-species.jpg",
   );
   assertEquals(overview.regions.map((region) => region.title), [
     "North America",

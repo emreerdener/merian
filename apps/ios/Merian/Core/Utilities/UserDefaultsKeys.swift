@@ -83,6 +83,10 @@ enum UserDefaultsKeys {
     static let hasSeenExploreNewChip = "hasSeenExploreNewChip"
     /// Whether the Explore feed has a newer post than the one the user most recently saw.
     static let hasUnseenExplorePost = "hasUnseenExplorePost"
+    /// One-time feedback survey campaign id the user dismissed.
+    static let feedbackSurveyDismissedCampaignId = "feedbackSurveyDismissedCampaignId"
+    /// One-time feedback survey campaign id the user submitted.
+    static let feedbackSurveySubmittedCampaignId = "feedbackSurveySubmittedCampaignId"
     /// Prefix for per-scan Explore share state. Append the local `scanId` to form the full key.
     /// e.g. `"sharedExplorePostId_1234-uuid"` → the published Explore post id for that scan.
     static let sharedExplorePostIdPrefix = "sharedExplorePostId_"
@@ -1137,6 +1141,24 @@ final class AppSettings {
     var lastSeenExplorePostSharedAt: String {
         didSet { persistString(lastSeenExplorePostSharedAt, oldValue: oldValue, key: UserDefaultsKeys.lastSeenExplorePostSharedAt) }
     }
+    var feedbackSurveyDismissedCampaignId: String {
+        didSet {
+            persistString(
+                feedbackSurveyDismissedCampaignId,
+                oldValue: oldValue,
+                key: UserDefaultsKeys.feedbackSurveyDismissedCampaignId
+            )
+        }
+    }
+    var feedbackSurveySubmittedCampaignId: String {
+        didSet {
+            persistString(
+                feedbackSurveySubmittedCampaignId,
+                oldValue: oldValue,
+                key: UserDefaultsKeys.feedbackSurveySubmittedCampaignId
+            )
+        }
+    }
     var invertZoomDirection: Bool {
         didSet { persistBool(invertZoomDirection, oldValue: oldValue, key: UserDefaultsKeys.invertZoomDirection) }
     }
@@ -1194,6 +1216,8 @@ final class AppSettings {
             UserDefaultsKeys.hasSeenExploreNewChip: false,
             UserDefaultsKeys.hasUnseenExplorePost: false,
             UserDefaultsKeys.lastSeenExplorePostSharedAt: "",
+            UserDefaultsKeys.feedbackSurveyDismissedCampaignId: "",
+            UserDefaultsKeys.feedbackSurveySubmittedCampaignId: "",
             UserDefaultsKeys.invertZoomDirection: false,
             UserDefaultsKeys.zoomSideLeft: true,
             UserDefaultsKeys.zoomSliderVisible: true,
@@ -1225,6 +1249,8 @@ final class AppSettings {
         hasSeenExploreNewChip = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreNewChip)
         hasUnseenExplorePost = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenExplorePost)
         lastSeenExplorePostSharedAt = userDefaults.string(forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt) ?? ""
+        feedbackSurveyDismissedCampaignId = userDefaults.string(forKey: UserDefaultsKeys.feedbackSurveyDismissedCampaignId) ?? ""
+        feedbackSurveySubmittedCampaignId = userDefaults.string(forKey: UserDefaultsKeys.feedbackSurveySubmittedCampaignId) ?? ""
         invertZoomDirection = userDefaults.bool(forKey: UserDefaultsKeys.invertZoomDirection)
         zoomSideLeft = userDefaults.bool(forKey: UserDefaultsKeys.zoomSideLeft)
         zoomSliderVisible = userDefaults.bool(forKey: UserDefaultsKeys.zoomSliderVisible)
@@ -1287,6 +1313,8 @@ final class AppSettings {
         hasSeenExploreNewChip = userDefaults.bool(forKey: UserDefaultsKeys.hasSeenExploreNewChip)
         hasUnseenExplorePost = userDefaults.bool(forKey: UserDefaultsKeys.hasUnseenExplorePost)
         lastSeenExplorePostSharedAt = userDefaults.string(forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt) ?? ""
+        feedbackSurveyDismissedCampaignId = userDefaults.string(forKey: UserDefaultsKeys.feedbackSurveyDismissedCampaignId) ?? ""
+        feedbackSurveySubmittedCampaignId = userDefaults.string(forKey: UserDefaultsKeys.feedbackSurveySubmittedCampaignId) ?? ""
         invertZoomDirection = userDefaults.bool(forKey: UserDefaultsKeys.invertZoomDirection)
         zoomSideLeft = userDefaults.bool(forKey: UserDefaultsKeys.zoomSideLeft)
         zoomSliderVisible = userDefaults.bool(forKey: UserDefaultsKeys.zoomSliderVisible)

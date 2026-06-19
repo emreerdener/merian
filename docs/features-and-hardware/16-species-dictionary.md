@@ -232,9 +232,20 @@ landing view through overview mode:
 ```
 
 The response returns image-backed category summaries for `All`, `Your Region`,
-`Taxonomy`, and `Recently Added`, a featured species card with overview copy,
-high-level group summaries such as Birds and Plants, plus region summaries
-derived from `species_dictionary.native_region`.
+`Taxonomy`, and `Recently Added`, a Recently Added featured species card with
+overview copy, graphic-led high-level group summaries such as Birds and Plants,
+plus region summaries derived from `species_dictionary.native_region`. iOS uses
+that featured card as the visible Recently Added entry point, renders `Your
+Region` as a full-width MapKit snapshot card when a matched native-region
+catalog exists, and moves `All` into a bottom row link. The region snapshot uses
+the backend-matched native region and falls back to a default United States map
+only when MapKit geocoding cannot resolve that region label. If the overview has
+no non-empty region summaries with species counts, iOS hides the Region section
+and the "Browse all regions" row instead of showing an empty regional path.
+Catalog detail pages opened from overview cards or rows, including Birds,
+Mammals, All, Your Region, and Recently Added, keep the same paginated species
+row list but add toolbar search, matching the Scans library search presentation,
+that filters within the active category.
 `user_region` may be an ISO region code from an already-authorized physical
 location or, when location is unavailable/not granted, from
 `Locale.current.region?.identifier`; the function expands codes such as `US`

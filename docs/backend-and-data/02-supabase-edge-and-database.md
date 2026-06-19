@@ -1003,6 +1003,17 @@ Users can flag incorrect taxonomy results from `InsightSheetView`:
 - **`scans` table update**: Sets `is_flagged = true` and writes debug context to
   `human_intervention_notes` on the parent scan.
 
+The one-time beta product survey uses a separate feedback path rather than the
+moderation queue:
+
+- **`submit-feedback-survey`**: Accepts authenticated survey responses for the
+  active `beta_feedback_2026_06` campaign, validates ratings/enums/text caps,
+  and stores the response under the JWT user id.
+- **`feedback_survey_responses` table**: Stores private product feedback with
+  app/build/device context, ratings, selected answers, free text, and
+  `created_at`. RLS allows users to insert/read only their own rows; product
+  review happens through Supabase dashboard/service-role tooling.
+
 ## Account Deletion & Data Preservation (`safe-delete`)
 
 Account deletions use the `apply_user_tombstone` PL/pgSQL function

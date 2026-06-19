@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-19-beta-feedback-survey",
+      "date": "2026-06-19",
+      "title": "Beta feedback survey",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "A one-time beta feedback survey now asks how Merian is working for testers after meaningful use.",
+            "You can also open the survey from Settings in the Resources section.",
+            "Survey responses are saved privately so the team can review polish, performance, bugs, and feature requests."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-18-explore-discovery-menu",
       "date": "2026-06-18",
       "title": "Explore discovery menu",
@@ -9,12 +24,11 @@
         {
           "title": "Added",
           "items": [
-            "Explore now has a bottom menu for Feed, Map, Dictionary, and Tree.",
-            "You can swipe from Feed to Map to Dictionary to Tree, or jump directly with the bottom menu.",
-            "Dictionary opens with a featured species card, image category cards for All, Your Region, Taxonomy, and Recently Added, plus region rows for browsing local range metadata.",
+            "Explore now has a bottom menu for Feed, Map, and Dictionary.",
+            "You can swipe from Feed to Map to Dictionary, or jump directly with the bottom menu.",
+            "Dictionary opens with a Recently Added featured species card, a full-width Your Region map card when local entries are available, an All row, plus region rows for browsing local range metadata. Region browsing stays hidden when no region records are available.",
             "Your Region can use already-granted location access for a better local match, while falling back to the device locale without a Dictionary-specific permission prompt.",
-            "Dictionary also includes high-level browse cards for broad groups like Plants, Birds, Insects, Fungi, Mammals, and Reptiles & Amphibians.",
-            "Tree now has a richer personal Tree of Life canvas based on your scanned taxonomy, with search, zoom-aware detail, branch focus, lineage highlighting, and species previews before opening dictionary pages."
+            "Dictionary also includes custom graphic browse cards for broad groups like Plants, Birds, Insects, Fungi, Mammals, and Reptiles & Amphibians, with toolbar search available inside those species lists."
           ]
         }
       ]

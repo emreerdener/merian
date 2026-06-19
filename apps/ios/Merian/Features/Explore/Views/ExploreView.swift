@@ -111,13 +111,15 @@ struct ExploreView: View {
                     Label("Dictionary", systemImage: "book.closed")
                 }
 
-                TaxonomyTreeCanvasView(showsNavigationTitle: false) { speciesRoute in
-                    navigationPath.append(speciesRoute)
-                }
-                .tag(ExploreTab.tree)
-                .tabItem {
-                    Label("Tree", systemImage: "point.3.connected.trianglepath.dotted")
-                }
+                #if targetEnvironment(simulator)
+                    TaxonomyTreeCanvasView(showsNavigationTitle: false) { speciesRoute in
+                        navigationPath.append(speciesRoute)
+                    }
+                    .tag(ExploreTab.tree)
+                    .tabItem {
+                        Label("Tree", systemImage: "point.3.connected.trianglepath.dotted")
+                    }
+                #endif
             }
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Explore")
@@ -149,6 +151,7 @@ struct ExploreView: View {
                 case .catalog(let title, let category, let region):
                     SpeciesDictionaryCatalogView(
                         isSearchEnabled: false,
+                        isBottomSearchEnabled: true,
                         showsNavigationTitle: true,
                         navigationTitle: title,
                         category: category,
@@ -158,6 +161,7 @@ struct ExploreView: View {
                 case .group(let title, let group):
                     SpeciesDictionaryCatalogView(
                         isSearchEnabled: false,
+                        isBottomSearchEnabled: true,
                         showsNavigationTitle: true,
                         navigationTitle: title,
                         category: .group,

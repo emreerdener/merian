@@ -11,17 +11,21 @@ and controls a horizontally paged root shell.
 - **Dictionary** shows `SpeciesDictionaryCatalogView`, a searchable and
   paginated catalog powered by the public `species_dictionary` table through
   the existing `/species-dictionary` Edge Function.
-- **Tree** shows `TaxonomyTreeCanvasView`, an interactive Tree of Life canvas
-  powered by the `species-dictionary` Edge Function's `mode: "tree"` graph
-  response for the signed-in user's scanned taxonomy. Users can pan, zoom,
-  search, focus branches, inspect lineage highlights, and open a species
-  preview before navigating to the existing Species Dictionary detail page.
+- **Tree** is still in development and is only included in simulator builds.
+  It shows `TaxonomyTreeCanvasView`, an interactive Tree of Life canvas powered
+  by the `species-dictionary` Edge Function's `mode: "tree"` graph response for
+  the signed-in user's scanned taxonomy. Users can pan, zoom, search, focus
+  branches, inspect lineage highlights, and open a species preview before
+  navigating to the existing Species Dictionary detail page.
 
 ## Navigation
 
 `ExploreView` owns the root section state through `ExploreTab`. Bottom-menu
-taps set the active section, while horizontal swipes page in the order Feed,
-Map, Dictionary, then Tree. The old top Feed/Map segmented control is not shown.
+taps set the active section, while horizontal swipes page in the production
+order Feed, Map, then Dictionary. Simulator builds also include Tree at the end
+of the pager so the canvas can continue to be developed without exposing it in
+archived TestFlight or App Store builds. The old top Feed/Map segmented control
+is not shown.
 
 The bottom menu is intentionally root-scoped. It is hidden on pushed post
 details, catalog detail pages, hashtag lists, author profile sheets, comments,

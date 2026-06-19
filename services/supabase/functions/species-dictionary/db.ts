@@ -421,7 +421,8 @@ export async function fetchSpeciesDictionaryCatalog(
   }
 
   if (category === "region" && request.region) {
-    const regionFilter = normalizedRegionTitle(request.region) ?? request.region;
+    const regionFilter = normalizedRegionTitle(request.region) ??
+      request.region;
     catalogQuery = catalogQuery.ilike(
       "native_region",
       `%${regionFilter.trim().replace(/\s+/g, " ")}%`,
@@ -445,7 +446,9 @@ export async function fetchSpeciesDictionaryCatalog(
       .order("id", { ascending: true });
   }
 
-  if (request.cursor && category === "recently_added" && request.cursor.createdAt) {
+  if (
+    request.cursor && category === "recently_added" && request.cursor.createdAt
+  ) {
     catalogQuery = catalogQuery.or(
       `created_at.lt.${request.cursor.createdAt},and(created_at.eq.${request.cursor.createdAt},id.lt.${request.cursor.speciesId})`,
     );
@@ -777,7 +780,10 @@ export function buildSpeciesDictionaryOverview(
   const normalizedUserRegion = normalizedRegionKey(userRegion);
   const userRegionRows = normalizedUserRegion
     ? rows.filter((row) =>
-      regionKeysMatch(normalizedRegionKey(row.native_region), normalizedUserRegion)
+      regionKeysMatch(
+        normalizedRegionKey(row.native_region),
+        normalizedUserRegion,
+      )
     )
     : [];
   const userRegionTitle = userRegionRows.length > 0
@@ -791,7 +797,10 @@ export function buildSpeciesDictionaryOverview(
   );
 
   return {
-    featured_species: buildFeaturedSpeciesSummary(rows, firstImageBySpeciesId),
+    featured_species: buildFeaturedSpeciesSummary(
+      sortedRows,
+      firstImageBySpeciesId,
+    ),
     categories: [
       {
         id: "all",
@@ -843,6 +852,9 @@ function buildFeaturedSpeciesSummary(
   rows: SpeciesDictionaryRow[],
   firstImageBySpeciesId: Map<string, string>,
 ): SpeciesDictionaryFeaturedSpecies | null {
+  const recentlyAddedRows = rows.slice().sort(
+    speciesDictionaryCreatedAtDescending,
+  );
   const candidatesWithOverviewAndImage = rows.filter((row) =>
     referenceImageUrlForRow(row, firstImageBySpeciesId) &&
     normalizedOverview(row.wikipedia_overview)
@@ -863,7 +875,10 @@ function buildFeaturedSpeciesSummary(
 
   if (candidates.length === 0) return null;
 
-  const row = candidates[Math.floor(Math.random() * candidates.length)];
+  const row =
+    recentlyAddedRows.find((recentRow) =>
+      candidates.some((candidate) => candidate.id === recentRow.id)
+    ) ?? candidates[0];
   const referenceImageUrl = referenceImageUrlForRow(row, firstImageBySpeciesId);
   const catalogItem = buildSpeciesDictionaryCatalogItem(row, referenceImageUrl);
 
@@ -1338,12 +1353,17 @@ function buildSpeciesDictionaryGroupSummaries(
 ): SpeciesDictionaryGroupSummary[] {
   return HIGH_LEVEL_SPECIES_GROUPS
     .map((group) => {
-      const groupRows = rows.filter((row) => rowMatchesHighLevelGroup(row, group.id));
+      const groupRows = rows.filter((row) =>
+        rowMatchesHighLevelGroup(row, group.id)
+      );
       return {
         id: group.id,
         title: group.title,
         count: groupRows.length,
-        reference_image_url: representativeImageUrl(groupRows, firstImageBySpeciesId),
+        reference_image_url: representativeImageUrl(
+          groupRows,
+          firstImageBySpeciesId,
+        ),
       };
     })
     .filter((group) => group.count > 0);
@@ -1548,7 +1568,9 @@ function normalizeOptionalRegion(
   return { region };
 }
 
-function normalizedRegionTitle(value: string | null | undefined): string | null {
+function normalizedRegionTitle(
+  value: string | null | undefined,
+): string | null {
   const region = stringValue(value)?.trim().replace(/\s+/g, " ");
   if (region && isUnknownRegionTitle(region)) return null;
   if (region && /^[A-Za-z]{2}$/.test(region)) {

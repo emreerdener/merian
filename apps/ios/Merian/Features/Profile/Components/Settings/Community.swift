@@ -7,6 +7,7 @@ struct Community: View {
     @Binding var changelogActive: Bool
     @Binding var safariUrl: URL?
     @Binding var showSafari: Bool
+    @Binding var showFeedbackSurvey: Bool
     
     var body: some View {
         Section {
@@ -19,6 +20,9 @@ struct Community: View {
                 if let url = MerianWebURL.supportEmail {
                     UIApplication.shared.open(url)
                 }
+            }
+            Button("Give us feedback") {
+                showFeedbackSurvey = true
             }
             Button("Changelog") {
                 changelogActive = true

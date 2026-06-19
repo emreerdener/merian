@@ -26,22 +26,25 @@ TestFlight, App Store, support, and QA.
   feature notes, and in-progress work.
 - Added extra species dictionary data fetches so undiscovered species can still
   load dictionary pages when users navigate to them.
-- Added an Explore bottom menu for Feed, Map, Dictionary, and Tree, with
-  horizontal swiping across the same section order.
-- Added a searchable Species Dictionary catalog and a backend-backed personal
-  Tree of Life explorer that uses your scanned taxonomy, with search,
-  zoom-aware detail, branch focus, lineage highlighting, and species preview
-  cards before opening Dictionary pages.
-- Added Dictionary category browsing with a featured species card, image cards
-  for All, Your Region, Taxonomy, and Recently Added, plus region rows backed by
-  dictionary-native range metadata.
-- Added high-level Dictionary group cards for broad browse paths such as Plants,
-  Birds, Insects, Fungi, Mammals, and Reptiles & Amphibians.
+- Added an Explore bottom menu for Feed, Map, and Dictionary, with horizontal
+  swiping across the same section order.
+- Added a searchable Species Dictionary catalog with category browsing,
+  Dictionary detail pages, and species reference imagery.
+- Added Dictionary category browsing with a Recently Added featured species
+  card, a full-width Your Region map card when local entries are available, an
+  All row, plus region rows backed by dictionary-native range metadata. Region
+  browsing stays hidden when no region records are available.
+- Added high-level Dictionary group cards with custom graphics for broad browse
+  paths such as Plants, Birds, Insects, Fungi, Mammals, and Reptiles &
+  Amphibians, with toolbar search available inside those species lists.
 - Added a common-name picker for Explore sharing and editing so posts use the
   known species name you choose.
 - Added `@username` mentions in Explore comments, with scoped suggestions for
   post authors, visible thread participants, and followed users plus mention
   notifications.
+- Added a one-time beta feedback survey with a warm intro screen, proactive
+  prompt after meaningful use, Settings access, and private Supabase response
+  storage.
 
 ### Changed
 

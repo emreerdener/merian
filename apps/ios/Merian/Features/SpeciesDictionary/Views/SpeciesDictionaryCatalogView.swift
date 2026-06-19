@@ -1,4 +1,7 @@
+import CoreLocation
+import MapKit
 import SwiftUI
+import UIKit
 
 enum SpeciesDictionaryCategoryRoute: Hashable {
     case catalog(title: String, category: SpeciesDictionaryCatalogCategory, region: String?)
@@ -9,6 +12,7 @@ enum SpeciesDictionaryCategoryRoute: Hashable {
 
 struct SpeciesDictionaryCatalogView: View {
     let isSearchEnabled: Bool
+    let isBottomSearchEnabled: Bool
     let showsNavigationTitle: Bool
     let navigationTitle: String
     let category: SpeciesDictionaryCatalogCategory
@@ -26,6 +30,7 @@ struct SpeciesDictionaryCatalogView: View {
 
     init(
         isSearchEnabled: Bool = true,
+        isBottomSearchEnabled: Bool = false,
         showsNavigationTitle: Bool = true,
         navigationTitle: String = "Dictionary",
         category: SpeciesDictionaryCatalogCategory = .all,
@@ -34,6 +39,7 @@ struct SpeciesDictionaryCatalogView: View {
         searchText: Binding<String>? = nil
     ) {
         self.isSearchEnabled = isSearchEnabled
+        self.isBottomSearchEnabled = isBottomSearchEnabled
         self.showsNavigationTitle = showsNavigationTitle
         self.navigationTitle = navigationTitle
         self.category = category
@@ -60,6 +66,10 @@ struct SpeciesDictionaryCatalogView: View {
         .modifier(SpeciesDictionaryCatalogSearchModifier(
             searchText: searchTextBinding,
             isEnabled: isSearchEnabled && externalSearchText == nil
+        ))
+        .modifier(SpeciesDictionaryBottomSearchModifier(
+            searchText: searchTextBinding,
+            isEnabled: isBottomSearchEnabled && externalSearchText == nil
         ))
         .task {
             await loadInitialCatalog()
@@ -217,11 +227,12 @@ struct SpeciesDictionaryOverviewView: View {
             let gridSpacing: CGFloat = 12
             let availableWidth = max(0, geometry.size.width - horizontalPadding * 2)
             let cardSize = floor((availableWidth - gridSpacing) / 2)
+            let groupCardHeight = SpeciesDictionaryGroupCard.preferredHeight(for: cardSize)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if let featuredSpecies = overview.featuredSpecies {
-                        NavigationLink(value: featuredSpecies.dictionaryRoute) {
+                        NavigationLink(value: recentlyAddedRoute) {
                             SpeciesDictionaryFeaturedSpeciesCard(
                                 species: featuredSpecies,
                                 width: availableWidth
@@ -230,94 +241,90 @@ struct SpeciesDictionaryOverviewView: View {
                         .buttonStyle(.plain)
                     }
 
-                    VStack(spacing: gridSpacing) {
-                        ForEach(categoryRowIndices(for: overview.categories), id: \.self) { rowIndex in
-                            HStack(spacing: gridSpacing) {
-                                ForEach(0..<2, id: \.self) { columnIndex in
-                                    let categoryIndex = rowIndex * 2 + columnIndex
-                                    if overview.categories.indices.contains(categoryIndex) {
-                                        let category = overview.categories[categoryIndex]
-                                        NavigationLink(value: route(for: category)) {
-                                            SpeciesDictionaryCategoryCard(
-                                                category: category,
-                                                size: cardSize
-                                            )
-                                        }
-                                        .buttonStyle(.plain)
-                                    } else {
-                                        Color.clear
-                                            .frame(width: cardSize, height: cardSize)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if !overview.groups.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Browse by Type")
-                                .font(.headline)
-                                .padding(.horizontal, 2)
-
-                            VStack(spacing: gridSpacing) {
-                                ForEach(groupRowIndices(for: overview.groups), id: \.self) { rowIndex in
-                                    HStack(spacing: gridSpacing) {
-                                        ForEach(0..<2, id: \.self) { columnIndex in
-                                            let groupIndex = rowIndex * 2 + columnIndex
-                                            if overview.groups.indices.contains(groupIndex) {
-                                                let group = overview.groups[groupIndex]
-                                                NavigationLink(
-                                                    value: SpeciesDictionaryCategoryRoute.group(
-                                                        title: group.title,
-                                                        group: group.id
-                                                    )
-                                                ) {
-                                                    SpeciesDictionaryGroupCard(
-                                                        group: group,
-                                                        size: cardSize
-                                                    )
-                                                }
-                                                .buttonStyle(.plain)
-                                            } else {
-                                                Color.clear
-                                                    .frame(width: cardSize, height: cardSize)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Regions")
-                            .font(.headline)
-                            .padding(.horizontal, 2)
-
-                        NavigationLink(value: SpeciesDictionaryCategoryRoute.regions) {
-                            SpeciesDictionaryRegionRow(
-                                title: "Browse all regions",
-                                count: overview.regions.count,
-                                referenceImageUrl: overview.regions.first?.referenceImageUrl,
-                                systemImage: "globe.americas"
+                    if let regionCategory = category(.yourRegion, in: overview),
+                       shouldShowRegionMapCard(for: regionCategory) {
+                        NavigationLink(value: route(for: regionCategory)) {
+                            SpeciesDictionaryRegionMapCard(
+                                category: regionCategory,
+                                width: availableWidth
                             )
                         }
                         .buttonStyle(.plain)
+                    }
 
-                        ForEach(overview.regions) { region in
-                            NavigationLink(
-                                value: SpeciesDictionaryCategoryRoute.catalog(
-                                    title: region.title,
-                                    category: .region,
-                                    region: region.title
-                                )
-                            ) {
+                    if !overview.groups.isEmpty {
+                        VStack(spacing: gridSpacing) {
+                            ForEach(groupRowIndices(for: overview.groups), id: \.self) { rowIndex in
+                                HStack(spacing: gridSpacing) {
+                                    ForEach(0..<2, id: \.self) { columnIndex in
+                                        let groupIndex = rowIndex * 2 + columnIndex
+                                        if overview.groups.indices.contains(groupIndex) {
+                                            let group = overview.groups[groupIndex]
+                                            NavigationLink(
+                                                value: SpeciesDictionaryCategoryRoute.group(
+                                                    title: group.title,
+                                                    group: group.id
+                                                )
+                                            ) {
+                                                SpeciesDictionaryGroupCard(
+                                                    group: group,
+                                                    width: cardSize,
+                                                    height: groupCardHeight
+                                                )
+                                            }
+                                            .buttonStyle(.plain)
+                                        } else {
+                                            Color.clear
+                                                .frame(width: cardSize, height: groupCardHeight)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let visibleRegions = visibleRegions(in: overview)
+                    if !visibleRegions.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Regions")
+                                .font(.headline)
+                                .padding(.horizontal, 2)
+
+                            NavigationLink(value: SpeciesDictionaryCategoryRoute.regions) {
                                 SpeciesDictionaryRegionRow(
-                                    title: region.title,
-                                    count: region.count,
-                                    referenceImageUrl: region.referenceImageUrl,
-                                    systemImage: "mappin.and.ellipse"
+                                    title: "Browse all regions",
+                                    count: visibleRegions.count,
+                                    referenceImageUrl: visibleRegions.first?.referenceImageUrl,
+                                    systemImage: "globe.americas"
                                 )
+                            }
+                            .buttonStyle(.plain)
+
+                            ForEach(visibleRegions) { region in
+                                NavigationLink(
+                                    value: SpeciesDictionaryCategoryRoute.catalog(
+                                        title: region.title,
+                                        category: .region,
+                                        region: region.title
+                                    )
+                                ) {
+                                    SpeciesDictionaryRegionRow(
+                                        title: region.title,
+                                        count: region.count,
+                                        referenceImageUrl: region.referenceImageUrl,
+                                        systemImage: "mappin.and.ellipse"
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    let bottomCategories = bottomOverviewCategories(for: overview)
+                    if !bottomCategories.isEmpty {
+                        ForEach(bottomCategories) { category in
+                            NavigationLink(value: route(for: category)) {
+                                SpeciesDictionaryOverviewRow(category: category)
                             }
                             .buttonStyle(.plain)
                         }
@@ -371,6 +378,37 @@ struct SpeciesDictionaryOverviewView: View {
         isLoading = false
     }
 
+    private var recentlyAddedRoute: SpeciesDictionaryCategoryRoute {
+        .catalog(title: "Recently Added", category: .recentlyAdded, region: nil)
+    }
+
+    private func category(
+        _ id: SpeciesDictionaryOverviewCategoryID,
+        in overview: SpeciesDictionaryOverview
+    ) -> SpeciesDictionaryCategorySummary? {
+        overview.categories.first { $0.id == id }
+    }
+
+    private func bottomOverviewCategories(
+        for overview: SpeciesDictionaryOverview
+    ) -> [SpeciesDictionaryCategorySummary] {
+        [.all].compactMap { category($0, in: overview) }
+    }
+
+    private func shouldShowRegionMapCard(
+        for category: SpeciesDictionaryCategorySummary
+    ) -> Bool {
+        category.region?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty != nil
+            && category.count >= 1
+    }
+
+    private func visibleRegions(in overview: SpeciesDictionaryOverview) -> [SpeciesDictionaryRegionSummary] {
+        overview.regions.filter { region in
+            region.count >= 1
+                && region.title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty != nil
+        }
+    }
+
     private func route(for category: SpeciesDictionaryCategorySummary) -> SpeciesDictionaryCategoryRoute {
         switch category.id {
         case .all:
@@ -386,10 +424,6 @@ struct SpeciesDictionaryOverviewView: View {
         case .recentlyAdded:
             return .catalog(title: "Recently Added", category: .recentlyAdded, region: nil)
         }
-    }
-
-    private func categoryRowIndices(for categories: [SpeciesDictionaryCategorySummary]) -> Range<Int> {
-        0..<Int(ceil(Double(categories.count) / 2.0))
     }
 
     private func groupRowIndices(for groups: [SpeciesDictionaryGroupSummary]) -> Range<Int> {
@@ -412,10 +446,14 @@ private struct SpeciesDictionaryFeaturedSpeciesCard: View {
                 .clipped()
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Featured Species")
+                Text("Recently Added")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(uiColor: .tertiarySystemGroupedBackground))
+                    .clipShape(Capsule())
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(species.commonName)
@@ -481,149 +519,343 @@ private struct SpeciesDictionaryFeaturedSpeciesCard: View {
     }
 }
 
-private struct SpeciesDictionaryCategoryCard: View {
+private struct SpeciesDictionaryRegionMapCard: View {
     let category: SpeciesDictionaryCategorySummary
-    let size: CGFloat
+    let width: CGFloat
+
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var snapshotImage: UIImage?
+    @State private var isLoadingSnapshot = false
+
+    private var imageHeight: CGFloat {
+        max(150, min(190, width * 0.44))
+    }
+
+    private var regionTitle: String {
+        category.region?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? localeRegionTitle
+            ?? Self.defaultFallbackRegionTitle
+    }
+
+    private var mapQuery: String {
+        category.region?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? localeRegionTitle
+            ?? Self.defaultFallbackRegionTitle
+    }
+
+    private var localeRegionTitle: String? {
+        guard let regionIdentifier = Locale.current.region?.identifier else { return nil }
+        return Locale.current.localizedString(forRegionCode: regionIdentifier)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+    }
+
+    private var snapshotTaskID: String {
+        [
+            mapQuery,
+            "\(Int(width.rounded()))",
+            colorScheme == .dark ? "dark" : "light"
+        ].joined(separator: "|")
+    }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            cardImage
-                .frame(width: size, height: size)
+        VStack(alignment: .leading, spacing: 0) {
+            mapImage
+                .frame(width: width, height: imageHeight)
                 .clipped()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Your Region")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(uiColor: .tertiarySystemGroupedBackground))
+                    .clipShape(Capsule())
+
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(regionTitle)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+
+                        Text("\(category.count) species")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+
+                if let subtitle = category.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+        }
+        .frame(width: width)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .task(id: snapshotTaskID) {
+            await loadSnapshot()
+        }
+    }
+
+    @ViewBuilder
+    private var mapImage: some View {
+        if let snapshotImage {
+            Image(uiImage: snapshotImage)
+                .resizable()
+                .scaledToFill()
+        } else {
+            ZStack {
+                Rectangle()
+                    .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+
+                if isLoadingSnapshot {
+                    ProgressView()
+                } else {
+                    Image(systemName: "map")
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func loadSnapshot() async {
+        isLoadingSnapshot = true
+        let image = await Self.snapshotImage(
+            for: mapQuery,
+            width: width,
+            height: imageHeight,
+            colorScheme: colorScheme
+        )
+        guard !Task.isCancelled else { return }
+        snapshotImage = image
+        isLoadingSnapshot = false
+    }
+
+    private static func snapshotImage(
+        for query: String,
+        width: CGFloat,
+        height: CGFloat,
+        colorScheme: ColorScheme
+    ) async -> UIImage? {
+        let geocoder = CLGeocoder()
+        let placemark = (try? await geocoder.geocodeAddressString(query))?.first
+        let coordinate = placemark?.location?.coordinate
+
+        let options = MKMapSnapshotter.Options()
+        if let placemark, let coordinate {
+            options.region = snapshotRegion(for: placemark, coordinate: coordinate)
+        } else {
+            options.region = defaultFallbackRegion
+        }
+        options.size = CGSize(width: max(width, 240), height: max(height, 140))
+        options.scale = UIScreen.main.scale
+        options.showsBuildings = false
+        options.pointOfInterestFilter = .excludingAll
+        options.traitCollection = UITraitCollection(
+            userInterfaceStyle: colorScheme == .dark ? .dark : .light
+        )
+
+        let snapshotter = MKMapSnapshotter(options: options)
+        return await withCheckedContinuation { continuation in
+            snapshotter.start(with: DispatchQueue.global(qos: .userInitiated)) { snapshot, _ in
+                continuation.resume(returning: snapshot?.image)
+            }
+        }
+    }
+
+    private static func snapshotRegion(
+        for placemark: CLPlacemark,
+        coordinate: CLLocationCoordinate2D
+    ) -> MKCoordinateRegion {
+        let radius = (placemark.region as? CLCircularRegion)?.radius ?? 650_000
+        let clampedRadius = min(max(radius, 80_000), 4_500_000)
+        let latitudeDelta = min(max((clampedRadius / 111_000) * 2.2, 0.45), 60)
+        let longitudeScale = max(cos(coordinate.latitude * .pi / 180), 0.24)
+        let longitudeDelta = min(max(latitudeDelta / longitudeScale, 0.45), 80)
+
+        return MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(
+                latitudeDelta: latitudeDelta,
+                longitudeDelta: longitudeDelta
+            )
+        )
+    }
+
+    private static let defaultFallbackRegionTitle = "United States"
+
+    private static let defaultFallbackRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 39.8283, longitude: -98.5795),
+        span: MKCoordinateSpan(latitudeDelta: 28, longitudeDelta: 54)
+    )
+}
+
+private struct SpeciesDictionaryOverviewRow: View {
+    let category: SpeciesDictionaryCategorySummary
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+
+                Image(systemName: iconName)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 52, height: 52)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(category.title)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
 
                 Text(countLabel)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            .padding(9)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.ultraThinMaterial)
-            .environment(\.colorScheme, .dark)
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "chevron.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.tertiary)
         }
-        .frame(width: size, height: size)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
-    @ViewBuilder
-    private var cardImage: some View {
-        if let referenceImageUrl = category.referenceImageUrl,
-           let url = URL(string: referenceImageUrl) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: size, height: size)
-                        .clipped()
-                default:
-                    placeholderImage
-                }
-            }
-        } else {
-            placeholderImage
-        }
-    }
-
-    private var placeholderImage: some View {
-        Rectangle()
-            .fill(Color(uiColor: .tertiarySystemGroupedBackground))
-            .frame(width: size, height: size)
-            .overlay {
-                Image(systemName: iconName)
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .offset(y: -20)
-            }
+    private var countLabel: String {
+        "\(category.count) species"
     }
 
     private var iconName: String {
         switch category.id {
         case .all: "book.closed"
-        case .yourRegion: "location"
         case .taxonomy: "point.3.connected.trianglepath.dotted"
+        case .yourRegion: "location"
         case .recentlyAdded: "sparkles"
         }
-    }
-
-    private var countLabel: String {
-        "\(category.count) Species"
     }
 }
 
 private struct SpeciesDictionaryGroupCard: View {
     let group: SpeciesDictionaryGroupSummary
-    let size: CGFloat
+    let width: CGFloat
+    let height: CGFloat
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            cardImage
-                .frame(width: size, height: size)
-                .clipped()
+        VStack(spacing: 6) {
+            groupGraphic
+                .frame(width: graphicSize, height: graphicSize)
+                .padding(.top, topInset)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(spacing: 3) {
                 Text(group.title)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.76)
 
-                Text("\(group.count) Species")
+                Text("\(group.count) species discovered")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.76)
             }
-            .padding(9)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.ultraThinMaterial)
-            .environment(\.colorScheme, .dark)
+            .frame(maxWidth: .infinity)
+            .frame(height: textBandHeight, alignment: .top)
         }
-        .frame(width: size, height: size)
+        .padding(.horizontal, 10)
+        .padding(.bottom, bottomInset)
+        .frame(width: width, height: height)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
+    static func preferredHeight(for width: CGFloat) -> CGFloat {
+        topInset + min(width * 0.76, 138) + 6 + max(46, width * 0.28) + bottomInset
+    }
+
     @ViewBuilder
-    private var cardImage: some View {
-        if let referenceImageUrl = group.referenceImageUrl,
-           let url = URL(string: referenceImageUrl) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: size, height: size)
-                        .clipped()
-                default:
-                    placeholderImage
-                }
-            }
+    private var groupGraphic: some View {
+        if let assetName {
+            Image(assetName)
+                .resizable()
+                .scaledToFit()
         } else {
             placeholderImage
         }
     }
 
     private var placeholderImage: some View {
-        Rectangle()
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
             .fill(Color(uiColor: .tertiarySystemGroupedBackground))
-            .frame(width: size, height: size)
             .overlay {
                 Image(systemName: iconName)
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.system(size: 30, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .offset(y: -20)
             }
+    }
+
+    private var graphicSize: CGFloat {
+        min(width * 0.76, 138)
+    }
+
+    private var textBandHeight: CGFloat {
+        max(46, width * 0.28)
+    }
+
+    private var topInset: CGFloat {
+        Self.topInset
+    }
+
+    private var bottomInset: CGFloat {
+        Self.bottomInset
+    }
+
+    private var assetName: String? {
+        switch group.id {
+        case "plants": "dictionary-plant"
+        case "birds": "dictionary-bird"
+        case "insects": "dictionary-butterfly"
+        case "fungi": "dictionary-mushrooms"
+        case "mammals": "dictionary-squirrel"
+        case "reptiles_amphibians": "dictionary-turtle"
+        default: nil
+        }
     }
 
     private var iconName: String {
@@ -637,6 +869,9 @@ private struct SpeciesDictionaryGroupCard: View {
         default: "square.grid.2x2"
         }
     }
+
+    private static let topInset: CGFloat = 10
+    private static let bottomInset: CGFloat = 12
 }
 
 private struct SpeciesDictionaryRegionRow: View {
@@ -728,7 +963,12 @@ struct SpeciesDictionaryRegionsView: View {
                     .buttonStyle(.borderedProminent)
                 }
             } else if let overview {
-                regionList(overview)
+                let visibleRegions = visibleRegions(in: overview)
+                if visibleRegions.isEmpty {
+                    emptyState
+                } else {
+                    regionList(visibleRegions)
+                }
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
@@ -739,10 +979,18 @@ struct SpeciesDictionaryRegionsView: View {
         }
     }
 
-    private func regionList(_ overview: SpeciesDictionaryOverview) -> some View {
+    private var emptyState: some View {
+        ContentUnavailableView(
+            "No regions found",
+            systemImage: "map",
+            description: Text("Region browsing will appear when dictionary records include native-region data.")
+        )
+    }
+
+    private func regionList(_ regions: [SpeciesDictionaryRegionSummary]) -> some View {
         ScrollView {
             LazyVStack(spacing: 10) {
-                ForEach(overview.regions) { region in
+                ForEach(regions) { region in
                     NavigationLink(
                         value: SpeciesDictionaryCategoryRoute.catalog(
                             title: region.title,
@@ -780,6 +1028,13 @@ struct SpeciesDictionaryRegionsView: View {
             errorMessage = ExploreErrorFormatter.message(for: error)
         }
         isLoading = false
+    }
+
+    private func visibleRegions(in overview: SpeciesDictionaryOverview) -> [SpeciesDictionaryRegionSummary] {
+        overview.regions.filter { region in
+            region.count >= 1
+                && region.title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty != nil
+        }
     }
 }
 
@@ -878,6 +1133,26 @@ private struct SpeciesDictionaryCatalogSearchModifier: ViewModifier {
             content.searchable(
                 text: $searchText,
                 placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Search species"
+            )
+        } else {
+            content
+        }
+    }
+}
+
+private struct SpeciesDictionaryBottomSearchModifier: ViewModifier {
+    @Binding var searchText: String
+    let isEnabled: Bool
+    @State private var isSearchPresented = false
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.searchable(
+                text: $searchText,
+                isPresented: $isSearchPresented,
+                placement: .toolbar,
                 prompt: "Search species"
             )
         } else {

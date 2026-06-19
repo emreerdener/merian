@@ -408,6 +408,9 @@ verify_jwt = false
 [functions.flag-issue]
 verify_jwt = false
 
+[functions.submit-feedback-survey]
+verify_jwt = false
+
 [functions.auto-purge-nonbio]
 verify_jwt = false
 
