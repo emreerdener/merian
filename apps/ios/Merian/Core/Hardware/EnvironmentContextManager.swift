@@ -315,14 +315,14 @@ import WeatherKit
         return await task.value
     }
 
-    static func normalizedRegionIdentifier(_ value: String?) -> String? {
+    nonisolated static func normalizedRegionIdentifier(_ value: String?) -> String? {
         let normalized = value?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .uppercased()
         return normalized?.isEmpty == false ? normalized : nil
     }
 
-    static func allowsPassiveRegionResolution(for status: CLAuthorizationStatus) -> Bool {
+    nonisolated static func allowsPassiveRegionResolution(for status: CLAuthorizationStatus) -> Bool {
         status == .authorizedWhenInUse || status == .authorizedAlways
     }
 
