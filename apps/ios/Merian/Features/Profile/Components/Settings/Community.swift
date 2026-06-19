@@ -11,14 +11,9 @@ struct Community: View {
     
     var body: some View {
         Section {
-            Button("Rate merian") {
+            Button("Rate Merian") {
                 if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                     SKStoreReviewController.requestReview(in: scene)
-                }
-            }
-            Button("Suggest a feature / Report a bug") {
-                if let url = MerianWebURL.supportEmail {
-                    UIApplication.shared.open(url)
                 }
             }
             Button("Give us feedback") {

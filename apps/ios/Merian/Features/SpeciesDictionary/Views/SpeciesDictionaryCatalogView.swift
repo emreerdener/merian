@@ -96,8 +96,8 @@ struct SpeciesDictionaryCatalogView: View {
                 }
 
                 if isLoadingMore {
-                    ProgressView()
-                        .padding(.vertical, 16)
+                    SpeciesDictionaryCatalogRowSkeleton()
+                    SpeciesDictionaryCatalogRowSkeleton()
                 }
             }
             .padding(.horizontal, 16)
@@ -110,13 +110,17 @@ struct SpeciesDictionaryCatalogView: View {
     }
 
     private var loadingState: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-            Text("Loading species")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+        ScrollView {
+            LazyVStack(spacing: 10) {
+                ForEach(0..<7, id: \.self) { _ in
+                    SpeciesDictionaryCatalogRowSkeleton()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityHidden(true)
     }
 
     private var emptyState: some View {
@@ -341,13 +345,44 @@ struct SpeciesDictionaryOverviewView: View {
     }
 
     private var loadingState: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-            Text("Loading dictionary")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+        GeometryReader { geometry in
+            let horizontalPadding: CGFloat = 16
+            let gridSpacing: CGFloat = 12
+            let availableWidth = max(0, geometry.size.width - horizontalPadding * 2)
+            let cardSize = floor((availableWidth - gridSpacing) / 2)
+            let groupCardHeight = SpeciesDictionaryGroupCard.preferredHeight(for: cardSize)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    SpeciesDictionaryFeaturedSkeletonCard(width: availableWidth)
+                    SpeciesDictionaryMapSkeletonCard(width: availableWidth)
+
+                    VStack(spacing: gridSpacing) {
+                        ForEach(0..<2, id: \.self) { _ in
+                            HStack(spacing: gridSpacing) {
+                                SpeciesDictionaryGroupSkeletonCard(width: cardSize, height: groupCardHeight)
+                                SpeciesDictionaryGroupSkeletonCard(width: cardSize, height: groupCardHeight)
+                            }
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        SpeciesDictionarySkeletonBlock(width: 92, height: 20, cornerRadius: 5)
+                            .padding(.horizontal, 2)
+
+                        ForEach(0..<3, id: \.self) { _ in
+                            SpeciesDictionaryOverviewRowSkeleton()
+                        }
+                    }
+
+                    SpeciesDictionaryOverviewRowSkeleton()
+                }
+                .padding(.horizontal, horizontalPadding)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityHidden(true)
     }
 
     private func errorState(message: String) -> some View {
@@ -624,18 +659,15 @@ private struct SpeciesDictionaryRegionMapCard: View {
                 .resizable()
                 .scaledToFill()
         } else {
-            ZStack {
-                Rectangle()
-                    .fill(Color(uiColor: .tertiarySystemGroupedBackground))
-
-                if isLoadingSnapshot {
-                    ProgressView()
-                } else {
-                    Image(systemName: "map")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(.secondary)
+            Rectangle()
+                .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+                .overlay {
+                    if !isLoadingSnapshot {
+                        Image(systemName: "map")
+                            .font(.system(size: 34, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
-            }
         }
     }
 
@@ -939,6 +971,149 @@ private struct SpeciesDictionaryRegionRow: View {
     }
 }
 
+private struct SpeciesDictionaryFeaturedSkeletonCard: View {
+    let width: CGFloat
+
+    private var imageHeight: CGFloat {
+        max(160, min(220, width * 0.52))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SpeciesDictionarySkeletonBlock(width: width, height: imageHeight, cornerRadius: 0)
+
+            VStack(alignment: .leading, spacing: 8) {
+                SpeciesDictionarySkeletonBlock(width: 112, height: 20, cornerRadius: 10)
+                SpeciesDictionarySkeletonBlock(width: width * 0.62, height: 20)
+                SpeciesDictionarySkeletonBlock(width: width * 0.42, height: 14)
+                SpeciesDictionarySkeletonBlock(width: width * 0.82, height: 12)
+                SpeciesDictionarySkeletonBlock(width: width * 0.68, height: 12)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+        }
+        .frame(width: width)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct SpeciesDictionaryMapSkeletonCard: View {
+    let width: CGFloat
+
+    private var imageHeight: CGFloat {
+        max(150, min(190, width * 0.44))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SpeciesDictionarySkeletonBlock(width: width, height: imageHeight, cornerRadius: 0)
+
+            VStack(alignment: .leading, spacing: 8) {
+                SpeciesDictionarySkeletonBlock(width: 92, height: 20, cornerRadius: 10)
+                SpeciesDictionarySkeletonBlock(width: width * 0.46, height: 20)
+                SpeciesDictionarySkeletonBlock(width: width * 0.28, height: 14)
+                SpeciesDictionarySkeletonBlock(width: width * 0.72, height: 12)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+        }
+        .frame(width: width)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct SpeciesDictionaryGroupSkeletonCard: View {
+    let width: CGFloat
+    let height: CGFloat
+
+    private var graphicSize: CGFloat {
+        min(width * 0.76, 138)
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            SpeciesDictionarySkeletonBlock(width: graphicSize, height: graphicSize)
+                .padding(.top, 10)
+
+            VStack(spacing: 6) {
+                SpeciesDictionarySkeletonBlock(width: width * 0.62, height: 14)
+                SpeciesDictionarySkeletonBlock(width: width * 0.48, height: 11)
+            }
+            .frame(maxWidth: .infinity)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.bottom, 12)
+        .frame(width: width, height: height)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct SpeciesDictionaryOverviewRowSkeleton: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            SpeciesDictionarySkeletonBlock(width: 52, height: 52)
+
+            VStack(alignment: .leading, spacing: 7) {
+                SpeciesDictionarySkeletonBlock(width: 144, height: 16)
+                SpeciesDictionarySkeletonBlock(width: 76, height: 13)
+            }
+
+            Spacer(minLength: 8)
+
+            SpeciesDictionarySkeletonBlock(width: 8, height: 18, cornerRadius: 4)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct SpeciesDictionaryCatalogRowSkeleton: View {
+    private let thumbnailSize: CGFloat = 88
+
+    var body: some View {
+        HStack(spacing: 12) {
+            SpeciesDictionarySkeletonBlock(width: thumbnailSize, height: thumbnailSize)
+
+            VStack(alignment: .leading, spacing: 8) {
+                SpeciesDictionarySkeletonBlock(width: 150, height: 16)
+                SpeciesDictionarySkeletonBlock(width: 122, height: 12)
+                SpeciesDictionarySkeletonBlock(width: 94, height: 10)
+            }
+
+            Spacer(minLength: 8)
+
+            SpeciesDictionarySkeletonBlock(width: 8, height: 18, cornerRadius: 4)
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+    }
+}
+
+private struct SpeciesDictionarySkeletonBlock: View {
+    let width: CGFloat
+    let height: CGFloat
+    var cornerRadius: CGFloat = 8
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+            .frame(width: width, height: height)
+            .redacted(reason: .placeholder)
+    }
+}
+
 struct SpeciesDictionaryRegionsView: View {
     let userRegion: String?
 
@@ -949,8 +1124,7 @@ struct SpeciesDictionaryRegionsView: View {
     var body: some View {
         Group {
             if isLoading && overview == nil {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                regionLoadingState
             } else if let errorMessage, overview == nil {
                 ContentUnavailableView {
                     Label("Regions unavailable", systemImage: "exclamationmark.triangle")
@@ -985,6 +1159,18 @@ struct SpeciesDictionaryRegionsView: View {
             systemImage: "map",
             description: Text("Region browsing will appear when dictionary records include native-region data.")
         )
+    }
+
+    private var regionLoadingState: some View {
+        ScrollView {
+            LazyVStack(spacing: 10) {
+                ForEach(0..<7, id: \.self) { _ in
+                    SpeciesDictionaryOverviewRowSkeleton()
+                }
+            }
+            .padding(16)
+        }
+        .accessibilityHidden(true)
     }
 
     private func regionList(_ regions: [SpeciesDictionaryRegionSummary]) -> some View {
