@@ -401,31 +401,31 @@ private struct SpeciesDictionaryFeaturedSpeciesCard: View {
     let species: SpeciesDictionaryFeaturedSpecies
     let width: CGFloat
 
-    private var height: CGFloat {
-        max(220, min(280, width * 0.68))
+    private var imageHeight: CGFloat {
+        max(160, min(220, width * 0.52))
     }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        VStack(alignment: .leading, spacing: 0) {
             cardImage
-                .frame(width: width, height: height)
+                .frame(width: width, height: imageHeight)
                 .clipped()
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Featured Species")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.78))
+                    .foregroundStyle(.secondary)
                     .textCase(.uppercase)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(species.commonName)
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
 
                     Text(species.scientificName)
                         .font(.subheadline.italic())
-                        .foregroundStyle(.white.opacity(0.82))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
 
@@ -433,16 +433,16 @@ private struct SpeciesDictionaryFeaturedSpeciesCard: View {
                    !overview.isEmpty {
                     Text(overview)
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.9))
-                        .lineLimit(2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
                 }
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.ultraThinMaterial)
-            .environment(\.colorScheme, .dark)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
         }
-        .frame(width: width, height: height)
+        .frame(width: width)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .combine)
@@ -458,7 +458,7 @@ private struct SpeciesDictionaryFeaturedSpeciesCard: View {
                     image
                         .resizable()
                         .scaledToFill()
-                        .frame(width: width, height: height)
+                        .frame(width: width, height: imageHeight)
                         .clipped()
                 default:
                     placeholderImage
@@ -472,12 +472,11 @@ private struct SpeciesDictionaryFeaturedSpeciesCard: View {
     private var placeholderImage: some View {
         Rectangle()
             .fill(Color(uiColor: .tertiarySystemGroupedBackground))
-            .frame(width: width, height: height)
+            .frame(width: width, height: imageHeight)
             .overlay {
                 Image(systemName: "leaf")
                     .font(.system(size: 34, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .offset(y: -28)
             }
     }
 }
