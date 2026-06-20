@@ -55,6 +55,9 @@ TestFlight, App Store, support, and QA.
 
 ### Changed
 
+- Rebuilt Community identification around versioned Merian taxonomy, queued
+  consensus processing, and projection-driven Explore graduation so unresolved
+  requests stay out of normal Explore until verified.
 - Removed search from the Explore Dictionary Tree view so the header toggle
   opens directly into the pan-and-zoom taxonomy canvas.
 - Removed the filled top heading background from the Explore Dictionary Tree

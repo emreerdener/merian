@@ -217,26 +217,28 @@ Ordering uses `public.public_species_reference_image_source_rank(...)`:
 Merian images first, then Wikipedia, then GBIF, with `sort_order`,
 `created_at`, and `id` as tie-breakers.
 
-### `taxon_nodes`
+### `taxonomy_versions`, `taxon_nodes`, `taxon_names`
 
-First-class taxonomy nodes for Community Identification. Added in
-`20260620120000_add_community_identifications.sql`.
+Community Identification uses a pinned Merian taxonomy graph. Added in
+`20260620120000_add_community_identifications.sql` and hardened in
+`20260620143000_rebuild_community_identification_core.sql`.
 
-- `id` (UUID): Durable taxon node identifier used by Edge functions and Swift
-  decoders.
-- `path` (`LTREE`, unique): Hierarchical path used for ancestor/descendant
-  comparisons during consensus rollup.
-- `parent_id` (UUID nullable): Parent node pointer for local traversal.
-- `rank` (TEXT): One of `kingdom`, `phylum`, `class`, `order`, `family`,
-  `genus`, or `species`.
-- `scientific_name` / `common_name`: Display labels. Species rows derive the
-  common name from `species_dictionary.common_names`.
-- `species_id` (UUID nullable, unique): Present only for species-rank nodes and
-  linked to `species_dictionary`.
+- `taxonomy_versions`: Version records for Merian dictionary taxonomy with
+  `draft`, `active`, and `retired` status. Only one Merian dictionary version is
+  active at a time.
+- `taxon_nodes`: Durable taxonomy nodes scoped by `taxonomy_version_id`.
+  `(taxonomy_version_id, path)` is unique, so future taxonomy refreshes do not
+  rewrite historical IDs.
+- `taxon_names`: Search names for scientific names, common names, and synonyms.
+  The active version is seeded from `species_dictionary.common_names` and
+  `alternative_common_names`.
+- `taxon_node_replacements`: Optional future mapping from retired nodes to newer
+  nodes without mutating old identifications.
 
-`sync_taxon_nodes_from_species_dictionary()` backfills and maintains this table
-from dictionary taxonomy. The AI scan result is only an anchor for community
-requests; it is not counted as a consensus vote.
+`refresh_taxonomy_nodes_from_species_dictionary()` builds a draft version from
+the current Merian dictionary and activates it atomically. Community requests pin
+their `taxonomy_version_id`; the AI scan result is only an anchor label, not a
+consensus vote.
 
 ### `explore_community_requests`
 
@@ -245,24 +247,29 @@ One active Ask the Community request per Explore post. Status is
 
 - `post_id` / `scan_id` / `requested_by`: Connect the request to the existing
   Explore post, source scan, and requester.
+- `taxonomy_version_id`: Pins the request, its search results, and its
+  identifications to one taxonomy version.
 - `initial_taxon_node_id`: The AI-derived starting label.
 - `current_community_taxon_node_id`: Finest active community consensus, if any.
 - `resolved_taxon_node_id` and `resolved_observation_taxon_node_id`: Public
   resolved projection once the request graduates.
 - `consensus_score`, `consensus_identification_count`, `consensus_rank`: Cached
-  consensus state recalculated after identification mutations.
+  consensus state maintained by queued consensus jobs.
+- `consensus_processing_state`: `idle`, `queued`, `processing`, or `failed`.
 - `note`, `requested_at`, `resolved_at`, `withdrawn_at`, `updated_at`: Request
   metadata and lifecycle timestamps.
 
-Normal Explore feed, map, author, and hashtag projections exclude `needs_id`
-requests and include the post again only when status becomes `resolved`.
+Normal Explore feed, map, author, and hashtag reads use
+`explore_observation_projection`, excluding `community_needs_id` posts and
+including them again when the projection becomes `community_resolved`.
 
 ### `explore_identifications`
 
 Append-only human identification audit rows for community requests.
 
 - `request_id`, `post_id`, `user_id`: Request, Explore post, and identifier.
-- `taxon_node_id`: Chosen taxon.
+- `taxon_node_id` / `taxonomy_version_id`: Chosen taxon within the request's
+  pinned taxonomy version.
 - `disagreement_mode`: `implicit_support`, `explicit_disagreement`, or
   `maverick`.
 - `is_genus_best_possible`: Marks a genus-level consensus as good enough to
@@ -273,6 +280,31 @@ Append-only human identification audit rows for community requests.
 
 A partial unique index enforces one active identification per user per request.
 Changing an ID withdraws the old active row and inserts a new row.
+
+### `community_consensus_jobs`, `community_consensus_events`
+
+Consensus recalculation is queued instead of driven by a heavy row trigger.
+
+- `community_consensus_jobs`: One coalesced pending/failed/completed job per
+  request. Submit, withdraw, and restore enqueue a job and attempt one immediate
+  best-effort process pass.
+- `community_consensus_events`: Append-only state-change history recording old
+  and new status, taxon, score, count, rank, reason, and job ID.
+
+Consensus still uses active human IDs only: at least two IDs, score strictly
+greater than `2 / 3`, ancestor IDs neutral unless explicit disagreement,
+species-level consensus resolving immediately, and genus resolving only when an
+exact genus ID marks it as the best practical level.
+
+### `explore_observation_projection`
+
+One public projection row per Explore post. Projection state is `normal`,
+`community_needs_id`, `community_resolved`, or `withdrawn`.
+
+Community request creation sets the post to `community_needs_id`. Consensus
+resolution sets it to `community_resolved` and points `public_taxon_node_id` at
+the resolved community taxon. V1 does not mutate `scans.species_id` or
+`confirmed_species_id`.
 
 **Backfill and compatibility**: the migration splits, trims, and dedupes
 `species_dictionary.reference_image_url` into this table, preserving order.

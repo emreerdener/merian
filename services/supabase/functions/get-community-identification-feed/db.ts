@@ -11,6 +11,9 @@ export interface CommunityIdentificationFeedRow {
   author_username?: string | null;
   author_avatar_url?: string | null;
   author_is_pro?: boolean;
+  taxonomy_version_id?: string | null;
+  projection_state?: string | null;
+  consensus_processing_state?: string | null;
   current_taxon_id?: string | null;
   current_common_name?: string | null;
   current_scientific_name?: string | null;

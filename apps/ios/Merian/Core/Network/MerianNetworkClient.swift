@@ -1040,12 +1040,19 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(CommunityIdentificationDetailResponse.self, from: data).data
     }
 
-    func searchCommunityTaxa(query: String, limit: Int = 20) async throws -> [CommunityTaxonSearchResult] {
+    func searchCommunityTaxa(
+        query: String,
+        limit: Int = 20,
+        taxonomyVersionId: String? = nil
+    ) async throws -> [CommunityTaxonSearchResult] {
         let functionUrl = try endpointURL("search-community-taxa")
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "query": query,
             "limit": limit
         ]
+        if let taxonomyVersionId {
+            payload["taxonomy_version_id"] = taxonomyVersionId
+        }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(CommunityTaxonSearchResponse.self, from: data).data

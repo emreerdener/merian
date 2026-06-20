@@ -2,7 +2,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
-import { normalizeLimit } from "../_shared/explore.ts";
+import { normalizeLimit, requireUuid } from "../_shared/explore.ts";
 import { normalizeCommunitySearchQuery } from "../_shared/communityIdentification.ts";
 
 serve((req: Request) =>
@@ -16,12 +16,16 @@ serve((req: Request) =>
 
     const query = normalizeCommunitySearchQuery(body.query);
     const limit = normalizeLimit(body.limit, 20, 50);
+    const taxonomyVersionId = body.taxonomy_version_id == null
+      ? null
+      : requireUuid(body.taxonomy_version_id, "taxonomy_version_id");
 
     const { data, error } = await supabaseAdmin.rpc(
       "search_community_taxa",
       {
         query_text: query,
         max_limit: limit,
+        target_taxonomy_version_id: taxonomyVersionId,
       },
     );
 

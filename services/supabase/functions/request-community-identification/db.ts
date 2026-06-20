@@ -14,6 +14,7 @@ export interface CommunityRequestRow {
   status: "needs_id" | "resolved" | "withdrawn";
   note?: string | null;
   initial_taxon_node_id?: string | null;
+  taxonomy_version_id?: string | null;
   current_community_taxon_node_id?: string | null;
   resolved_taxon_node_id?: string | null;
   consensus_score?: number | null;
@@ -24,22 +25,43 @@ export interface CommunityRequestRow {
 async function fetchInitialTaxonNodeId(
   speciesId: string | null,
   supabaseAdmin: SupabaseClient,
-): Promise<string | null> {
+): Promise<{ id: string; taxonomyVersionId: string } | null> {
   if (!speciesId) return null;
 
   await supabaseAdmin.rpc("sync_taxon_nodes_from_species_dictionary");
 
+  const { data: activeVersion, error: activeVersionError } = await supabaseAdmin
+    .from("taxonomy_versions")
+    .select("id")
+    .eq("source", "merian_dictionary")
+    .eq("status", "active")
+    .order("activated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (activeVersionError) {
+    throw new Error(
+      `Failed to resolve active taxonomy version: ${activeVersionError.message}`,
+    );
+  }
+
+  const taxonomyVersionId = (activeVersion as { id?: string } | null)?.id;
+  if (!taxonomyVersionId) return null;
+
   const { data, error } = await supabaseAdmin
     .from("taxon_nodes")
-    .select("id")
+    .select("id,taxonomy_version_id")
     .eq("species_id", speciesId)
+    .eq("taxonomy_version_id", taxonomyVersionId)
     .maybeSingle();
 
   if (error) {
     throw new Error(`Failed to resolve initial taxon node: ${error.message}`);
   }
 
-  return (data as { id?: string } | null)?.id ?? null;
+  const row = data as { id?: string; taxonomy_version_id?: string } | null;
+  if (!row?.id || !row.taxonomy_version_id) return null;
+  return { id: row.id, taxonomyVersionId: row.taxonomy_version_id };
 }
 
 async function upsertCommunityExplorePost(
@@ -127,7 +149,7 @@ export async function requestCommunityIdentification(
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("explore_community_requests")
     .select(
-      "id,post_id,scan_id,requested_by,requested_at,status,note,initial_taxon_node_id,current_community_taxon_node_id,resolved_taxon_node_id,consensus_score,consensus_identification_count,consensus_rank",
+      "id,post_id,scan_id,requested_by,requested_at,status,note,initial_taxon_node_id,taxonomy_version_id,current_community_taxon_node_id,resolved_taxon_node_id,consensus_score,consensus_identification_count,consensus_rank",
     )
     .eq("post_id", post.id)
     .maybeSingle();
@@ -142,12 +164,12 @@ export async function requestCommunityIdentification(
     return existing as CommunityRequestRow;
   }
 
-  const initialTaxonNodeId = await fetchInitialTaxonNodeId(
+  const initialTaxonNode = await fetchInitialTaxonNodeId(
     scan.confirmed_species_id ?? scan.species_id,
     supabaseAdmin,
   );
 
-  if (!initialTaxonNodeId) {
+  if (!initialTaxonNode) {
     throw makeHttpError(
       409,
       "This scan does not have enough taxonomy context to request community identification.",
@@ -160,7 +182,8 @@ export async function requestCommunityIdentification(
     requested_by: userId,
     note,
     status: "needs_id",
-    initial_taxon_node_id: initialTaxonNodeId,
+    initial_taxon_node_id: initialTaxonNode.id,
+    taxonomy_version_id: initialTaxonNode.taxonomyVersionId,
     current_community_taxon_node_id: null,
     resolved_taxon_node_id: null,
     resolved_observation_taxon_node_id: null,
@@ -173,7 +196,7 @@ export async function requestCommunityIdentification(
   };
 
   const selection =
-    "id,post_id,scan_id,requested_by,requested_at,status,note,initial_taxon_node_id,current_community_taxon_node_id,resolved_taxon_node_id,consensus_score,consensus_identification_count,consensus_rank";
+    "id,post_id,scan_id,requested_by,requested_at,status,note,initial_taxon_node_id,taxonomy_version_id,current_community_taxon_node_id,resolved_taxon_node_id,consensus_score,consensus_identification_count,consensus_rank";
   const { data, error } = existing
     ? await supabaseAdmin
       .from("explore_community_requests")
@@ -189,7 +212,9 @@ export async function requestCommunityIdentification(
 
   if (error || !data) {
     throw new Error(
-      `Failed to create community request: ${error?.message ?? "Unknown error"}`,
+      `Failed to create community request: ${
+        error?.message ?? "Unknown error"
+      }`,
     );
   }
 

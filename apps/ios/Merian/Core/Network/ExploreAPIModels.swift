@@ -395,6 +395,9 @@ struct CommunityIdentificationFeedItem: Decodable, Identifiable, Equatable {
     let authorUsername: String?
     let authorAvatarUrl: String?
     let authorIsPro: Bool?
+    let taxonomyVersionId: String?
+    let projectionState: String?
+    let consensusProcessingState: String?
     let currentTaxonId: String?
     let currentCommonName: String?
     let currentScientificName: String?
@@ -439,6 +442,9 @@ struct CommunityIdentificationDetail: Decodable, Identifiable, Equatable {
     let authorUsername: String?
     let authorAvatarUrl: String?
     let authorIsPro: Bool?
+    let taxonomyVersionId: String?
+    let projectionState: String?
+    let consensusProcessingState: String?
     let currentTaxonId: String?
     let currentCommonName: String?
     let currentScientificName: String?
@@ -470,6 +476,10 @@ struct CommunityIdentificationDetail: Decodable, Identifiable, Equatable {
     var publicDisplayLocationLabel: String? {
         ExploreLocationPrivacy.displayLabel(from: publicLocationLabel)
     }
+
+    var isConsensusUpdating: Bool {
+        consensusProcessingState == "queued" || consensusProcessingState == "processing"
+    }
 }
 
 struct CommunityIdentification: Decodable, Identifiable, Equatable {
@@ -478,10 +488,12 @@ struct CommunityIdentification: Decodable, Identifiable, Equatable {
     let authorName: String
     let authorAvatarUrl: String?
     let taxonId: String
+    let taxonomyVersionId: String?
     let commonName: String?
     let scientificName: String
     let rank: String
     let disagreementMode: CommunityIdentificationDisagreementMode
+    let roleLabel: String?
     let isGenusBestPossible: Bool
     let reasoning: String?
     let createdAt: String
@@ -495,10 +507,19 @@ struct CommunityIdentification: Decodable, Identifiable, Equatable {
     var displayRank: String {
         CommunityTaxonDisplay.rankTitle(rank)
     }
+
+    var displayRole: String? {
+        guard let roleLabel, !roleLabel.isEmpty else { return nil }
+        return roleLabel
+            .split(separator: "_")
+            .map { $0.capitalized }
+            .joined(separator: " ")
+    }
 }
 
 struct CommunityTaxonSearchResult: Decodable, Identifiable, Equatable {
     let taxonId: String
+    let taxonomyVersionId: String?
     let commonName: String?
     let scientificName: String
     let rank: String
@@ -533,11 +554,13 @@ struct CommunityIdentificationRequest: Decodable, Equatable {
     let status: CommunityIdentificationRequestStatus
     let note: String?
     let initialTaxonNodeId: String?
+    let taxonomyVersionId: String?
     let currentCommunityTaxonNodeId: String?
     let resolvedTaxonNodeId: String?
     let consensusScore: Double?
     let consensusIdentificationCount: Int
     let consensusRank: String?
+    let consensusProcessingState: String?
 }
 
 struct CommunityIdentificationMutation: Decodable, Equatable {

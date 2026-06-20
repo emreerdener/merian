@@ -40,19 +40,21 @@ Dictionary rows and Tree species preview actions still push
 Community request details use `ExploreCommunityIdentificationDetailView`, which
 loads `/get-community-identification-detail`, renders a consensus panel and
 identification timeline, and pins a **Suggest ID** action at the bottom. The
-taxonomy search sheet calls `/search-community-taxa`; exact or descendant IDs
-submit immediately, ancestor IDs ask whether the user is only less specific or
-explicitly disagreeing, and sibling/unrelated IDs ask for confirmation plus
-optional reasoning.
+taxonomy search sheet calls `/search-community-taxa` with the request's pinned
+taxonomy version. Exact or descendant species IDs submit immediately, genus IDs
+can ask whether genus is as specific as it can get, ancestor IDs ask whether the
+user is only less specific or explicitly disagreeing, and sibling/unrelated IDs
+ask for confirmation plus optional reasoning.
 
 ## Data Boundaries
 
-Feed, Map, author, hashtag, and detail Explore RPCs exclude posts while their
-community request status is `needs_id`. Once the community consensus resolves
-at species, or at genus when users mark that as the best practical ID, the post
-graduates back into normal Explore projections with the resolved community
-taxon driving the public common/scientific-name projection. V1 does not mutate
-`scans.species_id` or `confirmed_species_id`.
+Feed, Map, author, hashtag, and detail Explore RPCs read
+`explore_observation_projection` and exclude posts while their projection state
+is `community_needs_id`. Once the community consensus resolves at species, or
+at genus when users mark that as the best practical ID, the projection becomes
+`community_resolved` and the resolved community taxon drives the public
+common/scientific-name display. V1 does not mutate `scans.species_id` or
+`confirmed_species_id`.
 
 Dictionary and Tree use species-level public data only. The catalog mode returns
 compact species rows with taxonomy, content quality, tags, status fields, and a

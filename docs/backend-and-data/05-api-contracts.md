@@ -120,7 +120,8 @@ metadata when no custom avatar exists.
 
 Community Identification is the Ask the Community queue under Explore. It is
 backed by `taxon_nodes`, `explore_community_requests`, and
-`explore_identifications`.
+`explore_identifications`, with versioned taxonomy, queued consensus jobs, and
+the `explore_observation_projection` public feed boundary.
 
 ### `/request-community-identification`
 
@@ -140,7 +141,8 @@ The response envelope is:
     "post_id": "explore post uuid",
     "scan_id": "scan uuid",
     "status": "needs_id",
-    "initial_taxon_node_id": "taxon uuid"
+    "initial_taxon_node_id": "taxon uuid",
+    "taxonomy_version_id": "taxonomy version uuid"
   }
 }
 ```
@@ -150,28 +152,35 @@ The response envelope is:
 Returns unresolved `needs_id` requests for the Community tab. Optional
 `latitude` and `longitude` sort local public-coordinate requests first, followed
 by recent requests. Cursor fields are `before_requested_at` and
-`before_request_id`.
+`before_request_id`. Rows may include `taxonomy_version_id`, `projection_state`,
+and `consensus_processing_state`.
 
 ### `/get-community-identification-detail`
 
 Returns one visible request with author identity, current consensus state,
 privacy-safe location fields, and the full identification timeline. Tombstoned
 scans, unshared posts, blocked relationships, and shadowbanned authors are
-filtered out server-side.
+filtered out server-side. Identification timeline rows include a computed
+`role_label` such as `supporting`, `leading`, `maverick`, or `withdrawn`.
 
 ### `/search-community-taxa`
 
-Searches `taxon_nodes` by common or scientific name and returns `taxon_id`,
-`common_name`, `scientific_name`, `rank`, `path`, and `species_id`. The Swift
-client uses `path` to decide whether a selected ID is exact, descendant,
-ancestor, or conflicting before presenting any disagreement sheet.
+Searches active-version `taxon_nodes` through `taxon_names` by scientific name,
+common name, or synonym. Accepts optional `taxonomy_version_id`; request detail
+searches should pass the request's pinned version. Returns `taxon_id`,
+`taxonomy_version_id`, `common_name`, `scientific_name`, `rank`, `path`, and
+`species_id`. The Swift client uses `path` to decide whether a selected ID is
+exact, descendant, ancestor, or conflicting before presenting any disagreement
+sheet.
 
 ### `/submit-community-identification`
 
 Accepts `request_id`, `taxon_id`, optional `disagreement_mode`, optional
-`reasoning`, and optional `is_genus_best_possible`. The backend withdraws the
-current user's previous active ID for the request, inserts a new audit row, and
-recalculates consensus. Consensus uses active human IDs only: at least two
+`reasoning`, and optional `is_genus_best_possible`. The backend validates that
+the taxon belongs to the request's pinned taxonomy version, withdraws the
+current user's previous active ID, inserts a new audit row, enqueues a
+consensus job, and attempts one immediate best-effort processing pass.
+Consensus rules are unchanged: active human IDs only, at least two
 identifications, score strictly greater than `2 / 3`, sibling/unrelated votes
 counting against a candidate, and coarse ancestor IDs staying neutral unless
 explicitly marked as disagreement. Species consensus resolves immediately;
@@ -181,8 +190,27 @@ best practical.
 ### `/withdraw-community-identification` and `/restore-community-identification`
 
 Accept `identification_id` and mutate only the authenticated user's own rows.
-Withdraw and restore keep the audit trail intact and trigger consensus
-recalculation.
+Withdraw and restore keep the audit trail intact, enqueue consensus work, and
+attempt immediate best-effort processing.
+
+### `/refresh-taxonomy-nodes`
+
+Internal service-role endpoint. Rebuilds a draft taxonomy version from
+`species_dictionary`, seeds `taxon_names`, activates the version atomically, and
+retires the previous Merian dictionary version. Optional body:
+
+```json
+{ "source_revision": "species-dictionary-2026-06-20" }
+```
+
+### `/process-community-consensus-jobs`
+
+Internal service-role endpoint. Processes pending or retryable failed
+`community_consensus_jobs`. Optional body:
+
+```json
+{ "limit": 25 }
+```
 
 ---
 

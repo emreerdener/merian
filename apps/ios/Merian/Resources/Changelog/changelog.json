@@ -13,6 +13,12 @@
             "Biological insights can request community help with optional notes and post-level location sharing.",
             "Community request details include consensus status, an identification timeline, taxonomy search, disagreement prompts, and withdraw/restore actions."
           ]
+        },
+        {
+          "title": "Changed",
+          "items": [
+            "Community identification now uses versioned taxonomy, queued consensus processing, and verified Explore graduation behind the scenes."
+          ]
         }
       ]
     },

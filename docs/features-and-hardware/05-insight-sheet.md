@@ -137,8 +137,9 @@ actions when `canRequestCommunityIdentification` is true. The CTA opens
 and choose the same Open/Obscured/Private post-level location sharing used by
 Explore sharing. Submission calls `/request-community-identification`, creating
 or reusing the scan's Explore post and flagging it as a `needs_id` community
-request. That post is then hidden from the normal Explore feed/map/author/hashtag
-projections until the community consensus resolves.
+request. That post is then marked `community_needs_id` in
+`explore_observation_projection` and hidden from the normal Explore
+feed/map/author/hashtag projections until the community consensus resolves.
 
 ---
 

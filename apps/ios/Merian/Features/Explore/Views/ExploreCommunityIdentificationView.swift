@@ -299,6 +299,7 @@ struct ExploreCommunityIdentificationDetailView: View {
             if let detail {
                 CommunityTaxonomySearchSheet(
                     currentPath: detail.currentPath,
+                    taxonomyVersionId: detail.taxonomyVersionId,
                     onSelect: handleTaxonSelection
                 )
             }
@@ -391,6 +392,15 @@ struct ExploreCommunityIdentificationDetailView: View {
 
         switch taxon.relationship(to: detail.currentPath) {
         case .exact, .descendant:
+            if taxon.rank == "genus" {
+                pendingResolver = CommunityDisagreementResolverContext(
+                    taxon: taxon,
+                    currentName: detail.displayName,
+                    relationship: taxon.relationship(to: detail.currentPath)
+                )
+                return
+            }
+
             Task {
                 await submit(
                     taxon: taxon,
@@ -533,6 +543,12 @@ private struct CommunityConsensusPanel: View {
                     .foregroundStyle(.secondary)
             }
 
+            if detail.isConsensusUpdating {
+                Label("Consensus updating", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if let location = detail.publicDisplayLocationLabel {
                 Label(location, systemImage: "location")
                     .font(.caption)
@@ -590,7 +606,7 @@ private struct CommunityIdentificationRow: View {
                         .font(.subheadline)
                         .fontWeight(.semibold)
 
-                    Text("\(identification.displayRank) by \(identification.authorName)")
+                    Text(identificationSubtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -621,10 +637,19 @@ private struct CommunityIdentificationRow: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .opacity(identification.withdrawnAt == nil ? 1 : 0.64)
     }
+
+    private var identificationSubtitle: String {
+        if let role = identification.displayRole {
+            return "\(identification.displayRank) - \(role) by \(identification.authorName)"
+        }
+
+        return "\(identification.displayRank) by \(identification.authorName)"
+    }
 }
 
 private struct CommunityTaxonomySearchSheet: View {
     let currentPath: String?
+    let taxonomyVersionId: String?
     let onSelect: (CommunityTaxonSearchResult) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -694,7 +719,10 @@ private struct CommunityTaxonomySearchSheet: View {
         do {
             try await Task.sleep(nanoseconds: 250_000_000)
             guard !Task.isCancelled else { return }
-            results = try await MerianNetworkClient.shared.searchCommunityTaxa(query: trimmed)
+            results = try await MerianNetworkClient.shared.searchCommunityTaxa(
+                query: trimmed,
+                taxonomyVersionId: taxonomyVersionId
+            )
             errorMessage = results.isEmpty ? "No matching taxa found." : nil
         } catch is CancellationError {
         } catch {

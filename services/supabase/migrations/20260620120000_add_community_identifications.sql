@@ -483,71 +483,10 @@ ON public.explore_identifications
 FOR EACH ROW
 EXECUTE FUNCTION public.recalculate_explore_community_consensus_trigger();
 
-DO $$
-DECLARE
-    function_signature TEXT;
-    target_function REGPROCEDURE;
-    function_definition TEXT;
-    patched_definition TEXT;
-BEGIN
-    FOREACH function_signature IN ARRAY ARRAY[
-        'public.get_explore_post(uuid, uuid)',
-        'public.get_explore_feed(uuid, integer, timestamp with time zone, uuid)',
-        'public.get_explore_feed_trending(uuid, integer, integer, timestamp with time zone, uuid)',
-        'public.get_explore_feed_nearby(uuid, double precision, double precision, integer, timestamp with time zone, uuid)',
-        'public.get_explore_feed_following(uuid, integer, timestamp with time zone, uuid)',
-        'public.get_explore_author_posts(uuid, uuid, integer, timestamp with time zone, uuid)',
-        'public.get_explore_hashtag_posts(uuid, text, integer, timestamp with time zone, uuid)',
-        'public.get_explore_map_posts(uuid, double precision, double precision, double precision, double precision, integer)'
-    ] LOOP
-        target_function := TO_REGPROCEDURE(function_signature);
-        IF target_function IS NULL THEN
-            RAISE EXCEPTION 'Could not find Explore RPC % to patch community request projection', function_signature;
-        END IF;
-
-        function_definition := PG_GET_FUNCTIONDEF(target_function);
-        patched_definition := function_definition;
-
-        patched_definition := REPLACE(
-            patched_definition,
-            'LEFT JOIN public.species_dictionary sd
-        ON sd.id = COALESCE(s.confirmed_species_id, s.species_id)',
-            'LEFT JOIN public.species_dictionary sd
-        ON sd.id = COALESCE(s.confirmed_species_id, s.species_id)
-    LEFT JOIN public.explore_community_requests ecr
-        ON ecr.post_id = ep.id
-       AND ecr.withdrawn_at IS NULL
-       AND ecr.status IN (''needs_id'', ''resolved'')
-    LEFT JOIN public.taxon_nodes community_taxon
-        ON community_taxon.id = ecr.resolved_taxon_node_id'
-        );
-
-        patched_definition := REPLACE(
-            patched_definition,
-            'public.explore_post_species_common_name(ep.species_common_name, sd.common_names, sd.scientific_name) AS species_common_name',
-            'public.explore_post_community_common_name(ecr.status::TEXT, community_taxon.common_name, community_taxon.scientific_name, ep.species_common_name, sd.common_names, sd.scientific_name) AS species_common_name'
-        );
-
-        patched_definition := REPLACE(
-            patched_definition,
-            'COALESCE(sd.scientific_name, ''Unknown Subject'') AS species_scientific_name',
-            'public.explore_post_community_scientific_name(ecr.status::TEXT, community_taxon.scientific_name, sd.scientific_name) AS species_scientific_name'
-        );
-
-        patched_definition := REPLACE(
-            patched_definition,
-            'WHERE ep.unshared_at IS NULL',
-            'WHERE ep.unshared_at IS NULL
-      AND COALESCE(ecr.status::TEXT, ''resolved'') <> ''needs_id'''
-        );
-
-        IF patched_definition = function_definition THEN
-            RAISE EXCEPTION 'Explore RPC % did not contain expected community patch points', function_signature;
-        END IF;
-
-        EXECUTE patched_definition;
-    END LOOP;
-END $$;
+-- Explore feed graduation is patched in
+-- 20260620143000_rebuild_community_identification_core.sql through
+-- explore_observation_projection. Keeping the first migration focused on the
+-- request/identification tables avoids brittle text rewrites of existing RPCs.
 
 CREATE OR REPLACE FUNCTION public.get_community_identification_feed(
     self_id UUID,
