@@ -1,12 +1,17 @@
 # Explore Root Pager
 
 The Explore sheet uses a root-only bottom menu as its primary section
-navigation. The menu uses the shared floating capsule chrome from `MainTabBar`
-and controls a horizontally paged root shell.
+navigation. The menu uses native tab-bar chrome and controls a horizontally
+paged root shell.
 
 ## Sections
 
 - **Feed** shows the public Explore feed.
+- **Community** shows the Ask the Community queue for unresolved identification
+  requests. It uses `ExploreCommunityIdentificationView`, a two-column image
+  grid sorted by nearby public coordinates when available and then recency.
+  Cards show the request image, current anchor or consensus label, ID count, and
+  privacy-safe location label.
 - **Map** shows open-location public discoveries.
 - **Dictionary** shows `SpeciesDictionaryCatalogView`, a searchable and
   paginated catalog powered by the public `species_dictionary` table through
@@ -22,18 +27,32 @@ and controls a horizontally paged root shell.
 
 `ExploreView` owns the root section state through `ExploreTab`. Bottom-menu
 taps set the active section, while horizontal swipes page in the production
-order Feed, Map, then Dictionary. Simulator builds also include Tree at the end
-of the pager so the canvas can continue to be developed without exposing it in
-archived TestFlight or App Store builds. The old top Feed/Map segmented control
-is not shown.
+order Feed, Community, Map, then Dictionary. Simulator builds keep Tree inside
+the Dictionary header toggle rather than exposing it as a separate root
+bottom-menu item. The old top Feed/Map segmented control is not shown.
 
 The bottom menu is intentionally root-scoped. It is hidden on pushed post
-details, catalog detail pages, hashtag lists, author profile sheets, comments,
-notification sheets, and the Insight sheet. Dictionary rows and Tree species
-preview actions still push `SpeciesDictionaryRoute` into the sheet's existing
-`NavigationPath`.
+details, Community request details, catalog detail pages, hashtag lists, author
+profile sheets, comments, notification sheets, and the Insight sheet.
+Dictionary rows and Tree species preview actions still push
+`SpeciesDictionaryRoute` into the sheet's existing `NavigationPath`.
+
+Community request details use `ExploreCommunityIdentificationDetailView`, which
+loads `/get-community-identification-detail`, renders a consensus panel and
+identification timeline, and pins a **Suggest ID** action at the bottom. The
+taxonomy search sheet calls `/search-community-taxa`; exact or descendant IDs
+submit immediately, ancestor IDs ask whether the user is only less specific or
+explicitly disagreeing, and sibling/unrelated IDs ask for confirmation plus
+optional reasoning.
 
 ## Data Boundaries
+
+Feed, Map, author, hashtag, and detail Explore RPCs exclude posts while their
+community request status is `needs_id`. Once the community consensus resolves
+at species, or at genus when users mark that as the best practical ID, the post
+graduates back into normal Explore projections with the resolved community
+taxon driving the public common/scientific-name projection. V1 does not mutate
+`scans.species_id` or `confirmed_species_id`.
 
 Dictionary and Tree use species-level public data only. The catalog mode returns
 compact species rows with taxonomy, content quality, tags, status fields, and a

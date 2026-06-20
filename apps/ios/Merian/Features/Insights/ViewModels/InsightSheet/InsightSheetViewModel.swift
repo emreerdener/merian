@@ -73,6 +73,8 @@ final class InsightSheetViewModel {
         var isSharingToExplore = false
         var isUpdatingExplorePostContent = false
         var isUpdatingExploreFieldNotes = false
+        var isRequestingCommunityIdentification = false
+        var isCommunityRequestSheetPresented = false
         var showExploreOnboarding = false
         var sharedExplorePostId: String?
         var sharedExploreHashtags: [String] = []

@@ -160,6 +160,42 @@ extension InsightSheetViewModel {
         }
     }
 
+    func requestCommunityIdentification(
+        note: String?,
+        locationSharing: ExplorePostLocationSharing,
+        modelContext: ModelContext
+    ) async {
+        guard canRequestCommunityIdentification,
+              let record = fetchActiveLocalRecord(modelContext: modelContext),
+              !state.isRequestingCommunityIdentification else { return }
+
+        state.isRequestingCommunityIdentification = true
+        defer { state.isRequestingCommunityIdentification = false }
+
+        do {
+            let request = try await MerianNetworkClient.shared.requestCommunityIdentification(
+                scan: record,
+                speciesCommonName: resolvedHeaderTitle,
+                note: note,
+                locationSharing: locationSharing
+            )
+            cacheSharedExplorePostId(request.postId, for: record.id)
+            state.sharedExploreLocationSharing = locationSharing
+            state.isCommunityRequestSheetPresented = false
+            HapticManager.shared.triggerSuccessPulse()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                state.toastMessage = "Asked the community"
+                toastActionTitle = nil
+                toastAction = nil
+            }
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                state.toastMessage = ExploreErrorFormatter.message(for: error)
+            }
+        }
+    }
+
     private func persistComposerPreferredCommonName(_ name: String, modelContext: ModelContext) {
         guard let scientificName = inferenceEngine?.speciesData?.scientificName else { return }
         let didSave = SpeciesPreferredNameRepository.setPreferredName(

@@ -102,6 +102,24 @@ struct InsightContentView: View {
                 .presentationDetents([.height(400)])
             }
         }
+        .sheet(isPresented: $viewModel.state.isCommunityRequestSheetPresented) {
+            if let speciesData = inferenceEngine.speciesData {
+                CommunityIdentificationRequestSheet(
+                    speciesName: viewModel.resolvedHeaderTitle,
+                    scientificName: speciesData.scientificName,
+                    isSubmitting: viewModel.state.isRequestingCommunityIdentification,
+                    onSubmit: { note, locationSharing in
+                        Task {
+                            await viewModel.requestCommunityIdentification(
+                                note: note,
+                                locationSharing: locationSharing,
+                                modelContext: modelContext
+                            )
+                        }
+                    }
+                )
+            }
+        }
         .sheet(isPresented: $viewModel.state.isCandidateSwipePresented) {
             let candidates = viewModel.reviewAlternativeCandidates
             if let speciesData = inferenceEngine.speciesData, !candidates.isEmpty {

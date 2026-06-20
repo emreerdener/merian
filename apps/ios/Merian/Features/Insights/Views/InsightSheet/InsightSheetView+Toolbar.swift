@@ -56,6 +56,9 @@ extension InsightSheetView {
                 HapticManager.shared.triggerSuccessPulse()
                 Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
             } : nil,
+            onAskCommunity: viewModel.canRequestCommunityIdentification ? {
+                viewModel.state.isCommunityRequestSheetPresented = true
+            } : nil,
             isAlreadyFlagged: viewModel.isAlreadyFlagged,
             isAnalyzing: viewModel.isProcessing
         )

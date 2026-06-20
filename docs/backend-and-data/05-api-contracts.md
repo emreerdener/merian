@@ -116,6 +116,76 @@ metadata when no custom avatar exists.
 
 ---
 
+## Community Identification Edge Nodes
+
+Community Identification is the Ask the Community queue under Explore. It is
+backed by `taxon_nodes`, `explore_community_requests`, and
+`explore_identifications`.
+
+### `/request-community-identification`
+
+Creates or reopens an Explore post as a `needs_id` community request. The
+request is gated to the authenticated user's biological scan with shareable
+media. It accepts `scan_id`, optional `note`, optional `location_sharing`
+(`open`, `obscured`, `private`), optional `species_common_name`, and optional
+`restored_object_keys` for media repair.
+
+The response envelope is:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "request uuid",
+    "post_id": "explore post uuid",
+    "scan_id": "scan uuid",
+    "status": "needs_id",
+    "initial_taxon_node_id": "taxon uuid"
+  }
+}
+```
+
+### `/get-community-identification-feed`
+
+Returns unresolved `needs_id` requests for the Community tab. Optional
+`latitude` and `longitude` sort local public-coordinate requests first, followed
+by recent requests. Cursor fields are `before_requested_at` and
+`before_request_id`.
+
+### `/get-community-identification-detail`
+
+Returns one visible request with author identity, current consensus state,
+privacy-safe location fields, and the full identification timeline. Tombstoned
+scans, unshared posts, blocked relationships, and shadowbanned authors are
+filtered out server-side.
+
+### `/search-community-taxa`
+
+Searches `taxon_nodes` by common or scientific name and returns `taxon_id`,
+`common_name`, `scientific_name`, `rank`, `path`, and `species_id`. The Swift
+client uses `path` to decide whether a selected ID is exact, descendant,
+ancestor, or conflicting before presenting any disagreement sheet.
+
+### `/submit-community-identification`
+
+Accepts `request_id`, `taxon_id`, optional `disagreement_mode`, optional
+`reasoning`, and optional `is_genus_best_possible`. The backend withdraws the
+current user's previous active ID for the request, inserts a new audit row, and
+recalculates consensus. Consensus uses active human IDs only: at least two
+identifications, score strictly greater than `2 / 3`, sibling/unrelated votes
+counting against a candidate, and coarse ancestor IDs staying neutral unless
+explicitly marked as disagreement. Species consensus resolves immediately;
+genus consensus resolves only when at least one exact genus ID marks genus as
+best practical.
+
+### `/withdraw-community-identification` and `/restore-community-identification`
+
+Accept `identification_id` and mutate only the authenticated user's own rows.
+Withdraw and restore keep the audit trail intact and trigger consensus
+recalculation.
+
+---
+
 ## Deno `/share-import-scan` Edge Node
 
 Parked endpoint for queueing one image shared from the native iOS Photos share

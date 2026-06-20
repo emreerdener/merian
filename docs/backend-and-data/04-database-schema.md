@@ -217,6 +217,63 @@ Ordering uses `public.public_species_reference_image_source_rank(...)`:
 Merian images first, then Wikipedia, then GBIF, with `sort_order`,
 `created_at`, and `id` as tie-breakers.
 
+### `taxon_nodes`
+
+First-class taxonomy nodes for Community Identification. Added in
+`20260620120000_add_community_identifications.sql`.
+
+- `id` (UUID): Durable taxon node identifier used by Edge functions and Swift
+  decoders.
+- `path` (`LTREE`, unique): Hierarchical path used for ancestor/descendant
+  comparisons during consensus rollup.
+- `parent_id` (UUID nullable): Parent node pointer for local traversal.
+- `rank` (TEXT): One of `kingdom`, `phylum`, `class`, `order`, `family`,
+  `genus`, or `species`.
+- `scientific_name` / `common_name`: Display labels. Species rows derive the
+  common name from `species_dictionary.common_names`.
+- `species_id` (UUID nullable, unique): Present only for species-rank nodes and
+  linked to `species_dictionary`.
+
+`sync_taxon_nodes_from_species_dictionary()` backfills and maintains this table
+from dictionary taxonomy. The AI scan result is only an anchor for community
+requests; it is not counted as a consensus vote.
+
+### `explore_community_requests`
+
+One active Ask the Community request per Explore post. Status is
+`needs_id`, `resolved`, or `withdrawn`.
+
+- `post_id` / `scan_id` / `requested_by`: Connect the request to the existing
+  Explore post, source scan, and requester.
+- `initial_taxon_node_id`: The AI-derived starting label.
+- `current_community_taxon_node_id`: Finest active community consensus, if any.
+- `resolved_taxon_node_id` and `resolved_observation_taxon_node_id`: Public
+  resolved projection once the request graduates.
+- `consensus_score`, `consensus_identification_count`, `consensus_rank`: Cached
+  consensus state recalculated after identification mutations.
+- `note`, `requested_at`, `resolved_at`, `withdrawn_at`, `updated_at`: Request
+  metadata and lifecycle timestamps.
+
+Normal Explore feed, map, author, and hashtag projections exclude `needs_id`
+requests and include the post again only when status becomes `resolved`.
+
+### `explore_identifications`
+
+Append-only human identification audit rows for community requests.
+
+- `request_id`, `post_id`, `user_id`: Request, Explore post, and identifier.
+- `taxon_node_id`: Chosen taxon.
+- `disagreement_mode`: `implicit_support`, `explicit_disagreement`, or
+  `maverick`.
+- `is_genus_best_possible`: Marks a genus-level consensus as good enough to
+  graduate.
+- `reasoning`: Optional explanation for conflicts.
+- `withdrawn_at` / `restored_at`: Withdraw/restore lifecycle without deleting
+  history.
+
+A partial unique index enforces one active identification per user per request.
+Changing an ID withdraws the old active row and inserts a new row.
+
 **Backfill and compatibility**: the migration splits, trims, and dedupes
 `species_dictionary.reference_image_url` into this table, preserving order.
 `upsertSpeciesDictionary` dual-writes verified cache URLs into this table for

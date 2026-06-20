@@ -1,0 +1,37 @@
+// deno-lint-ignore no-import-prefix
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
+import { parseJsonBody, requireParams } from "../_shared/http.ts";
+import { requireUuid } from "../_shared/explore.ts";
+
+serve((req: Request) =>
+  withEdgeHandler(req, async (user, supabaseAdmin) => {
+    const parsedBody = await parseJsonBody(req);
+    if (parsedBody instanceof Response) return parsedBody;
+    const body = parsedBody;
+
+    const paramErr = requireParams(body, ["identification_id"]);
+    if (paramErr) return paramErr;
+
+    const identificationId = requireUuid(
+      body.identification_id,
+      "identification_id",
+    );
+
+    const { data, error } = await supabaseAdmin.rpc(
+      "withdraw_explore_community_identification",
+      {
+        self_id: user.id,
+        target_identification_id: identificationId,
+      },
+    );
+
+    if (error) {
+      throw new Error(
+        `Failed to withdraw community identification: ${error.message}`,
+      );
+    }
+
+    return jsonResponse({ success: true, data }, 200);
+  })
+);

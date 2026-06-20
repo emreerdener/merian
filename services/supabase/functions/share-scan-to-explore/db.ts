@@ -3,7 +3,7 @@ import { getR2Config } from "../_shared/aws.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
 
-interface ShareEligibleScanRow {
+export interface ShareEligibleScanRow {
   id: string;
   user_id: string;
   geoprivacy: string;

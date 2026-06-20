@@ -39,6 +39,7 @@ struct TopToolbar: ToolbarContent {
     var onReanalyze: (() -> Void)?
     var onReviewAlternatives: (() -> Void)?
     var onConfirmIdentification: (() -> Void)?
+    var onAskCommunity: (() -> Void)?
     let isAlreadyFlagged: Bool
     let isAnalyzing: Bool
     
@@ -107,6 +108,11 @@ struct TopToolbar: ToolbarContent {
             if let onReanalyze = onReanalyze {
                 Button(action: onReanalyze) {
                     Label("Reanalyze species", systemImage: "arrow.2.circlepath")
+                }
+            }
+            if let onAskCommunity = onAskCommunity {
+                Button(action: onAskCommunity) {
+                    Label("Ask the Community", systemImage: "person.2")
                 }
             }
             if !isAlreadyFlagged {

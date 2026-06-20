@@ -329,6 +329,259 @@ struct ExploreHashtagPostCursor: Equatable {
     }
 }
 
+struct CommunityIdentificationFeedResponse: Decodable {
+    let data: [CommunityIdentificationFeedItem]
+}
+
+struct CommunityIdentificationDetailResponse: Decodable {
+    let data: CommunityIdentificationDetail
+}
+
+struct CommunityTaxonSearchResponse: Decodable {
+    let data: [CommunityTaxonSearchResult]
+}
+
+struct CommunityIdentificationRequestResponse: Decodable {
+    let success: Bool
+    let data: CommunityIdentificationRequest
+}
+
+struct CommunityIdentificationMutationResponse: Decodable {
+    let success: Bool
+    let data: CommunityIdentificationMutation
+}
+
+struct CommunityIdentificationCursor: Equatable {
+    let beforeRequestedAt: String?
+    let beforeRequestId: String?
+
+    static let empty = CommunityIdentificationCursor(
+        beforeRequestedAt: nil,
+        beforeRequestId: nil
+    )
+
+    var isEmpty: Bool {
+        beforeRequestedAt == nil && beforeRequestId == nil
+    }
+}
+
+enum CommunityIdentificationRequestStatus: String, Decodable, Equatable {
+    case needsId = "needs_id"
+    case resolved
+    case withdrawn
+}
+
+enum CommunityIdentificationDisagreementMode: String, Codable, Equatable {
+    case implicitSupport = "implicit_support"
+    case explicitDisagreement = "explicit_disagreement"
+    case maverick
+}
+
+enum CommunityTaxonPathRelationship: Equatable {
+    case exact
+    case descendant
+    case ancestor
+    case conflict
+}
+
+struct CommunityIdentificationFeedItem: Decodable, Identifiable, Equatable {
+    let requestId: String
+    let postId: String
+    let scanId: String
+    let heroImageUrl: String
+    let requestedAt: String
+    let authorUserId: String
+    let authorName: String
+    let authorUsername: String?
+    let authorAvatarUrl: String?
+    let authorIsPro: Bool?
+    let currentTaxonId: String?
+    let currentCommonName: String?
+    let currentScientificName: String?
+    let currentRank: String?
+    let currentPath: String?
+    let initialTaxonId: String?
+    let initialCommonName: String?
+    let initialScientificName: String?
+    let initialRank: String?
+    let initialPath: String?
+    let consensusScore: Double?
+    let identificationCount: Int
+    let viewerHasIdentified: Bool
+    let publicLocationLabel: String?
+    let locationSharing: ExplorePostLocationSharing?
+
+    var id: String { requestId }
+
+    var displayName: String {
+        CommunityTaxonDisplay.name(commonName: currentCommonName, scientificName: currentScientificName)
+    }
+
+    var displayRank: String {
+        CommunityTaxonDisplay.rankTitle(currentRank)
+    }
+
+    var publicDisplayLocationLabel: String? {
+        ExploreLocationPrivacy.displayLabel(from: publicLocationLabel)
+    }
+}
+
+struct CommunityIdentificationDetail: Decodable, Identifiable, Equatable {
+    let requestId: String
+    let postId: String
+    let scanId: String
+    let heroImageUrl: String
+    let requestedAt: String
+    let status: CommunityIdentificationRequestStatus
+    let note: String?
+    let authorUserId: String
+    let authorName: String
+    let authorUsername: String?
+    let authorAvatarUrl: String?
+    let authorIsPro: Bool?
+    let currentTaxonId: String?
+    let currentCommonName: String?
+    let currentScientificName: String?
+    let currentRank: String?
+    let currentPath: String?
+    let initialTaxonId: String?
+    let initialCommonName: String?
+    let initialScientificName: String?
+    let initialRank: String?
+    let initialPath: String?
+    let resolvedTaxonId: String?
+    let consensusScore: Double?
+    let identificationCount: Int
+    let viewerIdentificationId: String?
+    let publicLocationLabel: String?
+    let locationSharing: ExplorePostLocationSharing?
+    let identifications: [CommunityIdentification]
+
+    var id: String { requestId }
+
+    var displayName: String {
+        CommunityTaxonDisplay.name(commonName: currentCommonName, scientificName: currentScientificName)
+    }
+
+    var displayRank: String {
+        CommunityTaxonDisplay.rankTitle(currentRank)
+    }
+
+    var publicDisplayLocationLabel: String? {
+        ExploreLocationPrivacy.displayLabel(from: publicLocationLabel)
+    }
+}
+
+struct CommunityIdentification: Decodable, Identifiable, Equatable {
+    let id: String
+    let userId: String
+    let authorName: String
+    let authorAvatarUrl: String?
+    let taxonId: String
+    let commonName: String?
+    let scientificName: String
+    let rank: String
+    let disagreementMode: CommunityIdentificationDisagreementMode
+    let isGenusBestPossible: Bool
+    let reasoning: String?
+    let createdAt: String
+    let withdrawnAt: String?
+    let isViewer: Bool
+
+    var displayName: String {
+        CommunityTaxonDisplay.name(commonName: commonName, scientificName: scientificName)
+    }
+
+    var displayRank: String {
+        CommunityTaxonDisplay.rankTitle(rank)
+    }
+}
+
+struct CommunityTaxonSearchResult: Decodable, Identifiable, Equatable {
+    let taxonId: String
+    let commonName: String?
+    let scientificName: String
+    let rank: String
+    let path: String
+    let speciesId: String?
+
+    var id: String { taxonId }
+
+    var displayName: String {
+        CommunityTaxonDisplay.name(commonName: commonName, scientificName: scientificName)
+    }
+
+    var displayRank: String {
+        CommunityTaxonDisplay.rankTitle(rank)
+    }
+
+    func relationship(to currentPath: String?) -> CommunityTaxonPathRelationship {
+        guard let currentPath, !currentPath.isEmpty else { return .conflict }
+        if path == currentPath { return .exact }
+        if path.hasPrefix(currentPath + ".") { return .descendant }
+        if currentPath.hasPrefix(path + ".") { return .ancestor }
+        return .conflict
+    }
+}
+
+struct CommunityIdentificationRequest: Decodable, Equatable {
+    let id: String
+    let postId: String
+    let scanId: String
+    let requestedBy: String
+    let requestedAt: String
+    let status: CommunityIdentificationRequestStatus
+    let note: String?
+    let initialTaxonNodeId: String?
+    let currentCommunityTaxonNodeId: String?
+    let resolvedTaxonNodeId: String?
+    let consensusScore: Double?
+    let consensusIdentificationCount: Int
+    let consensusRank: String?
+}
+
+struct CommunityIdentificationMutation: Decodable, Equatable {
+    let id: String
+    let requestId: String
+    let postId: String
+    let userId: String
+    let taxonNodeId: String
+    let disagreementMode: CommunityIdentificationDisagreementMode
+    let isGenusBestPossible: Bool
+    let reasoning: String?
+    let createdAt: String
+    let withdrawnAt: String?
+    let restoredAt: String?
+}
+
+enum CommunityTaxonDisplay {
+    static func name(commonName: String?, scientificName: String?) -> String {
+        if let commonName = commonName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !commonName.isEmpty {
+            return commonName
+        }
+        if let scientificName = scientificName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !scientificName.isEmpty {
+            return scientificName
+        }
+        return "Unknown taxon"
+    }
+
+    static func rankTitle(_ rank: String?) -> String {
+        guard let rank else { return "Taxon" }
+        switch rank.lowercased() {
+        case "kingdom": return "Kingdom"
+        case "phylum": return "Phylum"
+        case "class": return "Class"
+        case "order": return "Order"
+        case "family": return "Family"
+        case "genus": return "Genus"
+        case "species": return "Species"
+        default: return "Taxon"
+        }
+    }
+}
+
 struct ExploreAuthorProfile: Decodable, Equatable {
     let authorUserId: String
     let authorName: String

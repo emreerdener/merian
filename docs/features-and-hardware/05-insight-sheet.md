@@ -106,6 +106,7 @@ var canReviewAlternatives: Bool { guard queuedContext == nil else { return false
 var canConfirm: Bool       { guard queuedContext == nil else { return false }; /* reviewAlternativeCandidates is non-empty */ }
 var isAlreadyFlagged: Bool { guard queuedContext == nil else { return false }; /* speciesData.isFlagged || isReviewLocked */ }
 var canShareToExplore: Bool { /* false unless the active record has a resolved biological identification */ }
+var canRequestCommunityIdentification: Bool { canShareToExplore && activeImageCount > 0 }
 
 // Content routing — derived from queuedContext / isProcessing / speciesData.
 // InsightContentView switches on this enum rather than duplicating the guard chain.
@@ -129,6 +130,15 @@ Historical unresolved biological placeholders (`Unknown Subject` / `Taxonomy Una
 `InsightSheetView` also queries SwiftData directly via `@Query` for non-deleted `[ScanCollection]` rows (reverse-sorted by `createdAt`) to populate the collection management toolbar. Soft-deleted collections (`isDeleted == true`) are intentionally excluded so a collection that is pending remote deletion never reappears in the add-to-collection menu.
 
 Explore share state in the bottom toolbar uses a two-step hydration path. `InsightSheetViewModel.fetchLocalRecord(for:modelContext:)` first restores `sharedExplorePostId` from the per-scan `UserDefaults` cache so the button can immediately render `View post` on same-device relaunch. `InsightSheetView.task(id: scanId)` then calls `/get-scan-explore-share-state` in the background and reconciles that authoritative server answer back into the same cache. The server response also carries the saved post-level `location_sharing` for live posts, or the scan's current geoprivacy as the default for new shares, so the share/edit composer can hydrate Open, Obscured, or Private without mutating the underlying scan. This keeps the toolbar fast on-device while also correcting stale cache after reinstall, cross-device share/unshare, or remote visibility changes.
+
+`TopToolbar` also exposes **Ask the Community** beside the identification
+actions when `canRequestCommunityIdentification` is true. The CTA opens
+`CommunityIdentificationRequestSheet`, where the user can add an optional note
+and choose the same Open/Obscured/Private post-level location sharing used by
+Explore sharing. Submission calls `/request-community-identification`, creating
+or reusing the scan's Explore post and flagging it as a `needs_id` community
+request. That post is then hidden from the normal Explore feed/map/author/hashtag
+projections until the community consensus resolves.
 
 ---
 

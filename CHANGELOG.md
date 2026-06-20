@@ -8,6 +8,9 @@ TestFlight, App Store, support, and QA.
 
 ### Added
 
+- Added a Community tab to Explore for Ask the Community identification
+  requests, with an Insight-sheet CTA, community request queue, taxonomy search,
+  disagreement prompts, and backend consensus storage.
 - Added durable 7-day Pro pass infrastructure that verifies purchases through
   RevenueCat while Merian tracks and expires the timed access window in
   Supabase.

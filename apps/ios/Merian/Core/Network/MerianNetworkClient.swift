@@ -1003,6 +1003,90 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(ExploreFeedResponse.self, from: data).data
     }
 
+    func getCommunityIdentificationFeed(
+        limit: Int = 30,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        cursor: CommunityIdentificationCursor? = nil
+    ) async throws -> [CommunityIdentificationFeedItem] {
+        let functionUrl = try endpointURL("get-community-identification-feed")
+        var payload: [String: Any] = ["limit": limit]
+
+        if let latitude {
+            payload["latitude"] = latitude
+        }
+
+        if let longitude {
+            payload["longitude"] = longitude
+        }
+
+        if let cursor,
+           let beforeRequestedAt = cursor.beforeRequestedAt,
+           let beforeRequestId = cursor.beforeRequestId {
+            payload["before_requested_at"] = beforeRequestedAt
+            payload["before_request_id"] = beforeRequestId
+        }
+
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(CommunityIdentificationFeedResponse.self, from: data).data
+    }
+
+    func getCommunityIdentificationDetail(requestId: String) async throws -> CommunityIdentificationDetail {
+        let functionUrl = try endpointURL("get-community-identification-detail")
+        let payload: [String: Any] = ["request_id": requestId]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(CommunityIdentificationDetailResponse.self, from: data).data
+    }
+
+    func searchCommunityTaxa(query: String, limit: Int = 20) async throws -> [CommunityTaxonSearchResult] {
+        let functionUrl = try endpointURL("search-community-taxa")
+        let payload: [String: Any] = [
+            "query": query,
+            "limit": limit
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(CommunityTaxonSearchResponse.self, from: data).data
+    }
+
+    func submitCommunityIdentification(
+        requestId: String,
+        taxonId: String,
+        disagreementMode: CommunityIdentificationDisagreementMode,
+        reasoning: String?,
+        isGenusBestPossible: Bool
+    ) async throws -> CommunityIdentificationMutation {
+        let functionUrl = try endpointURL("submit-community-identification")
+        var payload: [String: Any] = [
+            "request_id": requestId,
+            "taxon_id": taxonId,
+            "disagreement_mode": disagreementMode.rawValue,
+            "is_genus_best_possible": isGenusBestPossible
+        ]
+        payload["reasoning"] = reasoning ?? NSNull()
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(CommunityIdentificationMutationResponse.self, from: data).data
+    }
+
+    func withdrawCommunityIdentification(identificationId: String) async throws -> CommunityIdentificationMutation {
+        let functionUrl = try endpointURL("withdraw-community-identification")
+        let payload: [String: Any] = ["identification_id": identificationId]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(CommunityIdentificationMutationResponse.self, from: data).data
+    }
+
+    func restoreCommunityIdentification(identificationId: String) async throws -> CommunityIdentificationMutation {
+        let functionUrl = try endpointURL("restore-community-identification")
+        let payload: [String: Any] = ["identification_id": identificationId]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(CommunityIdentificationMutationResponse.self, from: data).data
+    }
+
     func getExploreMapPoints(
         northLatitude: Double,
         southLatitude: Double,
@@ -1657,6 +1741,67 @@ final class MerianNetworkClient {
                 speciesCommonName: speciesCommonName,
                 fieldNotes: fieldNotes,
                 hashtags: hashtags,
+                locationSharing: locationSharing
+            )
+        }
+    }
+
+    func requestCommunityIdentification(
+        scanId: String,
+        restoredObjectKeys: [String]? = nil,
+        speciesCommonName: String? = nil,
+        note: String? = nil,
+        locationSharing: ExplorePostLocationSharing? = nil
+    ) async throws -> CommunityIdentificationRequest {
+        let functionUrl = try endpointURL("request-community-identification")
+        var payload: [String: Any] = [
+            "scan_id": scanId,
+            "note": note ?? NSNull()
+        ]
+        if let locationSharing {
+            payload["location_sharing"] = locationSharing.rawValue
+        }
+        let trimmedCommonName = speciesCommonName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedCommonName, !trimmedCommonName.isEmpty {
+            payload["species_common_name"] = trimmedCommonName
+        }
+        if let restoredObjectKeys, !restoredObjectKeys.isEmpty {
+            payload["restored_object_keys"] = restoredObjectKeys
+        }
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(CommunityIdentificationRequestResponse.self, from: data).data
+    }
+
+    func requestCommunityIdentification(
+        scan: LocalScanRecord,
+        speciesCommonName: String? = nil,
+        note: String? = nil,
+        locationSharing: ExplorePostLocationSharing? = nil
+    ) async throws -> CommunityIdentificationRequest {
+        let mediaSnapshot = ExploreShareMediaSnapshot(scan: scan)
+        do {
+            return try await requestCommunityIdentification(
+                scanId: mediaSnapshot.scanId,
+                speciesCommonName: speciesCommonName,
+                note: note,
+                locationSharing: locationSharing
+            )
+        } catch {
+            guard shouldAttemptExploreMediaRestore(after: error) else {
+                throw error
+            }
+
+            let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: mediaSnapshot)
+            guard !restoredObjectKeys.isEmpty else {
+                throw error
+            }
+
+            return try await requestCommunityIdentification(
+                scanId: mediaSnapshot.scanId,
+                restoredObjectKeys: restoredObjectKeys,
+                speciesCommonName: speciesCommonName,
+                note: note,
                 locationSharing: locationSharing
             )
         }

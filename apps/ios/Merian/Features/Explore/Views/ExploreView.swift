@@ -4,6 +4,7 @@ import UIKit
 
 enum ExploreTab: Hashable {
     case feed
+    case community
     case map
     case dictionary
 }
@@ -78,6 +79,14 @@ struct ExploreView: View {
                 .tag(ExploreTab.feed)
                 .tabItem {
                     Label("Feed", systemImage: "photo.stack")
+                }
+
+                ExploreCommunityIdentificationView { route in
+                    navigationPath.append(route)
+                }
+                .tag(ExploreTab.community)
+                .tabItem {
+                    Label("Community", systemImage: "person.2")
                 }
 
                 ExploreMapView(
@@ -164,6 +173,10 @@ struct ExploreView: View {
                     allowsInsightPresentation: allowsInsightPresentation
                 )
                 .toolbar(.hidden, for: .tabBar)
+            }
+            .navigationDestination(for: ExploreCommunityRequestRoute.self) { route in
+                ExploreCommunityIdentificationDetailView(requestId: route.requestId)
+                    .toolbar(.hidden, for: .tabBar)
             }
             .toolbar { exploreToolbar }
         }

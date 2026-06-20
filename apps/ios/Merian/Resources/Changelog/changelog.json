@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-20-community-identification",
+      "date": "2026-06-20",
+      "title": "Community identification",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Explore now has a Community tab for Ask the Community identification requests.",
+            "Biological insights can request community help with optional notes and post-level location sharing.",
+            "Community request details include consensus status, an identification timeline, taxonomy search, disagreement prompts, and withdraw/restore actions."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-19-explore-dictionary-tree-toggle",
       "date": "2026-06-19",
       "title": "Dictionary tree toggle",

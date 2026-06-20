@@ -157,6 +157,10 @@ extension InsightSheetViewModel {
             inferenceEngine?.speciesData?.isBiological == true
     }
 
+    var canRequestCommunityIdentification: Bool {
+        canShareToExplore && activeImageCount > 0
+    }
+
     var isAlreadyFlagged: Bool {
         guard queuedContext == nil else { return false }
         return inferenceEngine?.speciesData?.isFlagged ?? false
