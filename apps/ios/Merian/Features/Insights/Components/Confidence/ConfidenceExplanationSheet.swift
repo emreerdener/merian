@@ -9,13 +9,13 @@ struct ConfidenceExplanationSheet: View {
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
     var aiScientificName: String?
+    var onAskCommunity: (() -> Void)?
 
     @Environment(EnvironmentContextManager.self) private var environmentContext
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @State private var isFlagPresented = false
     @State private var isSwipeModalPresented = false
     @State private var showPaywall = false
     @State private var localRefinementRecord: LocalScanRecord?
@@ -52,7 +52,6 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var headerTitle: String {
-        if isFlagged { return "Under review" }
         if userIdentificationOverride != nil || userConfirmedIdentification { return "Confirmed" }
         guard let score = confidenceScore else { return "Analysis" }
         let pct = Int(round(score * 100))
@@ -107,14 +106,9 @@ struct ConfidenceExplanationSheet: View {
                         onReset: {
                             HapticManager.shared.triggerLightImpact()
                             Task { await inferenceEngine.resetIdentificationReview(modelContext: modelContext) }
-                        }
-                    )
-                    .padding(.horizontal, 16)
-                } else if isFlagged {
-                    UnderReviewView(
-                        onUndo: {
-                            HapticManager.shared.triggerLightImpact()
-                            Task { await inferenceEngine.unflagAIIdentification(modelContext: modelContext) }
+                        },
+                        onAskCommunity: onAskCommunity.map { action in
+                            { openCommunityRequestAfterDismiss(action) }
                         }
                     )
                     .padding(.horizontal, 16)
@@ -150,8 +144,8 @@ struct ConfidenceExplanationSheet: View {
                         aiScientificName: aiScientificName ?? "Unknown subject",
                         inferenceTier: inferenceTier,
                         confirmButtonTitle: confirmButtonTitle,
-                        onFlagIssue: {
-                            isFlagPresented = true
+                        onAskCommunity: onAskCommunity.map { action in
+                            { openCommunityRequestAfterDismiss(action) }
                         },
                         onMatchConfirmed: nil,
                         onRefineScan: refinementAction,
@@ -160,7 +154,7 @@ struct ConfidenceExplanationSheet: View {
                     .padding(.horizontal, 16)
                 }
 
-                if !userConfirmedIdentification && userIdentificationOverride == nil && !isFlagged {
+                if !userConfirmedIdentification && userIdentificationOverride == nil {
                     ConfidenceSpectrum(inferenceTier: inferenceTier)
                 }
 
@@ -172,11 +166,6 @@ struct ConfidenceExplanationSheet: View {
             .padding(.top, 32)
             .padding(.bottom, 48)
         }
-        .sheet(isPresented: $isFlagPresented) {
-            if let scanId = inferenceEngine.speciesData?.scanId {
-                FlagIdentificationModal(scanId: scanId)
-            }
-        }
         .sheet(isPresented: $isSwipeModalPresented) {
             
             CandidateSwipeModal(
@@ -187,8 +176,8 @@ struct ConfidenceExplanationSheet: View {
                 onConfirmOriginal: {
                     Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
                 },
-                onFlagIssue: {
-                    isFlagPresented = true
+                onAskCommunity: onAskCommunity.map { action in
+                    { openCommunityRequestAfterDismiss(action) }
                 },
                 onRefineScan: refinementAction
             )
@@ -221,6 +210,16 @@ struct ConfidenceExplanationSheet: View {
                 localRefinementRecord = record
             } else {
                 localRefinementRecord = nil
+            }
+        }
+    }
+
+    private func openCommunityRequestAfterDismiss(_ action: @escaping () -> Void) {
+        dismiss()
+        Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            await MainActor.run {
+                action()
             }
         }
     }

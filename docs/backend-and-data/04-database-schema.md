@@ -1406,11 +1406,9 @@ historical scan:
 - `userConfirmedIdentification: Bool` — mirrors
   `LocalScanRecord.userConfirmedIdentification`. Cloud-synced. Drives the
   "Confirmed" state in `ConfidenceBadge`.
-- `isFlagged: Bool` — mirrors `LocalScanRecord.isFlagged`. When `true`,
-  overrides the `ConfidenceBadge` state natively to display an "Under Review"
-  status and smoothly unmounts `CandidatesCard` from the view hierarchy via
-  `EmptyView()`. Tapping the badge allows the user to undo the flag via
-  `unflagAIIdentification`, which persists locally.
+- `isFlagged: Bool` — mirrors `LocalScanRecord.isFlagged`. Legacy V31
+  moderation field retained for schema compatibility; it no longer affects the
+  Insight confidence badge or candidate-review UI.
 
 **`SpeciesData` mutable display fields**: Three `SpeciesData` properties are
 declared `var` (not `let`) specifically because the identification override
@@ -1619,12 +1617,10 @@ Tracks locally synchronized species scans for the Scans library.
   submission. Replaced the singular `observationContextJSON` field from V38 as
   part of the mixed-media migration. Mirrors the structured description entries
   that are serialized into `capturedMediaJSON` in V40.)
-- `isFlagged`: Bool (Added in `MerianSchemaV31`, defaults to `false`. Indicates
-  the user rejected the AI payload and opted to flag the local scan for upstream
-  moderation review. Drives the `ConfidenceBadge` 'Under Review' state in UI,
-  which mounts `UnderReviewView` inside the explanation sheet. A lightweight
-  migration (`migrateV30toV31`) handles the schema bump without data
-  transformation.)
+- `isFlagged`: Bool (Added in `MerianSchemaV31`, defaults to `false`. Legacy
+  local moderation flag retained for schema compatibility. It no longer drives
+  the Insight confidence badge, candidate review visibility, or an in-app
+  identification-flag flow.)
 - `imageQualityScore`: Int? (Added in `MerianSchemaV30`. Gemini's 0–100 overall
   image quality rating for the captured photo, persisted from
   `image_quality.overall_score` in the `/identify` response. Immutable after

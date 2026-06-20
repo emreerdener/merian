@@ -28,7 +28,6 @@ struct TopToolbar: ToolbarContent {
     
     let commonName: String
     let isCommonNameScrolledPast: Bool
-    @Binding var isIdentificationFlagPresented: Bool
     @Binding var isSavingPhotos: Bool
     @Binding var showDeleteConfirmation: Bool
     let hasUserPhotos: Bool
@@ -40,7 +39,6 @@ struct TopToolbar: ToolbarContent {
     var onReviewAlternatives: (() -> Void)?
     var onConfirmIdentification: (() -> Void)?
     var onAskCommunity: (() -> Void)?
-    let isAlreadyFlagged: Bool
     let isAnalyzing: Bool
     
     var body: some ToolbarContent {
@@ -112,12 +110,7 @@ struct TopToolbar: ToolbarContent {
             }
             if let onAskCommunity = onAskCommunity {
                 Button(action: onAskCommunity) {
-                    Label("Ask the Community", systemImage: "person.2")
-                }
-            }
-            if !isAlreadyFlagged {
-                Button(action: { isIdentificationFlagPresented = true }) {
-                    Label("Flag for review", systemImage: "flag")
+                    Label("Ask the community", systemImage: "person.2")
                 }
             }
         }

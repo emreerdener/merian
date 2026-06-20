@@ -11,6 +11,10 @@ TestFlight, App Store, support, and QA.
 - Added a Community tab to Explore for Ask the Community identification
   requests, with an Insight-sheet CTA, community request queue, taxonomy search,
   disagreement prompts, and backend consensus storage.
+- Added a View action to the Ask the Community confirmation toast so new
+  requests can open directly in the Community detail page.
+- Added Ask the Community as the recovery path when users reject every
+  identification candidate.
 - Added durable 7-day Pro pass infrastructure that verifies purchases through
   RevenueCat while Merian tracks and expires the timed access window in
   Supabase.
@@ -54,6 +58,9 @@ TestFlight, App Store, support, and QA.
   stays focused on Feed, Map, and Dictionary.
 
 ### Changed
+
+- Removed the unused identification-review action from Insight and candidate
+  review flows.
 
 - Rebuilt Community identification around versioned Merian taxonomy, queued
   consensus processing, and projection-driven Explore graduation so unresolved

@@ -28,9 +28,12 @@ struct CandidateReviewVisibilityPolicyTests {
 
     @Test func testReviewStatesSuppressVisibleCandidates() {
         #expect(!isVisible(primaryConfidence: 0.84, tier: "pro", candidateConfidence: 0.82, userConfirmedIdentification: true))
-        #expect(!isVisible(primaryConfidence: 0.84, tier: "pro", candidateConfidence: 0.82, isFlagged: true))
         #expect(!isVisible(primaryConfidence: 0.84, tier: "pro", candidateConfidence: 0.82, alternativesExhausted: true))
         #expect(!isVisible(primaryConfidence: 0.84, tier: "pro", candidateConfidence: 0.82, userIdentificationOverride: "Danaus plexippus"))
+    }
+
+    @Test func testLegacyFlagDoesNotSuppressVisibleCandidates() {
+        #expect(isVisible(primaryConfidence: 0.84, tier: "pro", candidateConfidence: 0.82, isFlagged: true))
     }
 
     @Test func testSubjectGuardsSuppressVisibleCandidates() {

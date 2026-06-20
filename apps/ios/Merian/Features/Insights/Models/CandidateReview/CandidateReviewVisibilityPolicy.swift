@@ -23,7 +23,6 @@ enum CandidateReviewVisibilityPolicy {
               !isHumanSubject,
               userIdentificationOverride == nil,
               !userConfirmedIdentification,
-              !isFlagged,
               !alternativesExhausted,
               let primaryConfidence
         else {
@@ -105,7 +104,6 @@ enum CandidateReviewVisibilityPolicy {
               !candidates.isEmpty,
               userIdentificationOverride == nil,
               !userConfirmedIdentification,
-              !isFlagged,
               !alternativesExhausted,
               let primaryConfidence
         else {

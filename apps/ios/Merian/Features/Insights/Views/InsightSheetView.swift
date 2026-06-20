@@ -18,6 +18,7 @@ struct InsightSheetView: View {
     var initialScanId: String?
     var allowsExplorePresentation: Bool
     var presentationStyle: InsightPresentationStyle
+    var onOpenCommunityIdentificationRequest: ((String) -> Void)?
 
     // MARK: - State
     @State var viewModel: InsightSheetViewModel
@@ -31,13 +32,15 @@ struct InsightSheetView: View {
         initialScanId: String? = nil,
         inferenceEngine: InferenceEngine? = nil,
         allowsExplorePresentation: Bool = true,
-        presentationStyle: InsightPresentationStyle = .sheet
+        presentationStyle: InsightPresentationStyle = .sheet,
+        onOpenCommunityIdentificationRequest: ((String) -> Void)? = nil
     ) {
         _isPresented = isPresented
         self.queuedScan = queuedScan
         self.initialScanId = initialScanId
         self.allowsExplorePresentation = allowsExplorePresentation
         self.presentationStyle = presentationStyle
+        self.onOpenCommunityIdentificationRequest = onOpenCommunityIdentificationRequest
         _viewModel = State(
             initialValue: InsightSheetViewModel(
                 queuedContext: queuedScan,
@@ -113,6 +116,7 @@ struct InsightSheetView: View {
         }) {
             ExploreView(
                 initialPostId: viewModel.state.sharedExplorePostId,
+                initialCommunityRequestId: viewModel.state.sharedCommunityIdentificationRequestId,
                 allowsInsightPresentation: false
             )
         }
@@ -253,11 +257,36 @@ private extension InsightSheetView {
             .merianSystemFeedback(
                 toastMessage: $viewModel.state.toastMessage,
                 toastActionTitle: $viewModel.toastActionTitle,
-                toastAction: $viewModel.toastAction,
+                toastAction: toastActionBinding,
                 showCelebration: $viewModel.state.showCelebration,
                 commonNameForCelebration: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
             )
             .ignoresSafeArea(edges: .top)
+    }
+
+    @MainActor
+    private var toastActionBinding: Binding<(() -> Void)?> {
+        Binding(
+            get: {
+                guard let action = viewModel.toastAction else { return nil }
+                guard !allowsExplorePresentation,
+                      viewModel.state.toastMessage == "Asked the community",
+                      viewModel.toastActionTitle == "View",
+                      let requestId = viewModel.state.sharedCommunityIdentificationRequestId
+                else {
+                    return action
+                }
+
+                return {
+                    if let onOpenCommunityIdentificationRequest {
+                        onOpenCommunityIdentificationRequest(requestId)
+                    } else {
+                        AppEventPublisher.shared.send(.openCommunityIdentificationRequest(requestId: requestId))
+                    }
+                }
+            },
+            set: { viewModel.toastAction = $0 }
+        )
     }
 
     @MainActor

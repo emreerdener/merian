@@ -1,12 +1,12 @@
 import SwiftUI
 
 /// Surface presented when the AI has low confidence and there are NO alternative candidates
-/// for the user to review. It prompts the user to either confirm the AI's match or flag it.
+/// for the user to review. It prompts the user to either confirm the AI's match or ask the community.
 struct CandidateVerificationView: View {
     let isWeakMatch: Bool
     let confirmButtonTitle: String
     let onConfirm: () -> Void
-    var onFlagIssue: (() -> Void)?
+    var onAskCommunity: (() -> Void)?
     var onRefineScan: (() -> Void)?
     let onDismiss: () -> Void
     var showDismissButton: Bool = true
@@ -37,19 +37,21 @@ struct CandidateVerificationView: View {
                 VStack(spacing: 12) {
                     SlideToConfirm(label: confirmButtonTitle, onConfirm: onConfirm)
                     
-                     Button {
-                        HapticManager.shared.triggerMediumPulse()
-                        onFlagIssue?()
-                    } label: {
-                        Text("Flag as incorrect")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color.orange.opacity(0.15))
-                            .foregroundColor(.orange)
-                            .clipShape(Capsule())
+                    if let onAskCommunity {
+                        Button {
+                            HapticManager.shared.triggerMediumPulse()
+                            onAskCommunity()
+                        } label: {
+                            Text("Ask the community")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(Color.blue.opacity(0.14))
+                                .foregroundColor(.blue)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             
@@ -86,7 +88,7 @@ struct CandidateVerificationView: View {
         isWeakMatch: true,
         confirmButtonTitle: "Confirm viceroy",
         onConfirm: {},
-        onFlagIssue: {},
+        onAskCommunity: {},
         onDismiss: {}
     )
     .padding()

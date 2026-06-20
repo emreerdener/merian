@@ -57,7 +57,6 @@ final class InsightSheetViewModel {
         var isCommonNameScrolledPast = false
         var isFieldNotesSheetPresented = false
         var isFlagIssuePresented = false
-        var isIdentificationFlagPresented = false
         var showDeleteConfirmation = false
         var showSaveSuccessAlert = false
         var showNewCollectionAlert = false
@@ -77,6 +76,7 @@ final class InsightSheetViewModel {
         var isCommunityRequestSheetPresented = false
         var showExploreOnboarding = false
         var sharedExplorePostId: String?
+        var sharedCommunityIdentificationRequestId: String?
         var sharedExploreHashtags: [String] = []
         var sharedExploreLocationSharing: ExplorePostLocationSharing?
         var exploreFieldNotesArePublic = false

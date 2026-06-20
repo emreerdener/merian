@@ -26,7 +26,6 @@ extension InsightSheetView {
         TopToolbar(
             commonName: viewModel.resolvedHeaderTitle,
             isCommonNameScrolledPast: viewModel.state.isCommonNameScrolledPast,
-            isIdentificationFlagPresented: $viewModel.state.isIdentificationFlagPresented,
             isSavingPhotos: $viewModel.state.isSavingPhotos,
             showDeleteConfirmation: $viewModel.state.showDeleteConfirmation,
             hasUserPhotos: viewModel.hasUserPhotos,
@@ -59,7 +58,6 @@ extension InsightSheetView {
             onAskCommunity: viewModel.canRequestCommunityIdentification ? {
                 viewModel.state.isCommunityRequestSheetPresented = true
             } : nil,
-            isAlreadyFlagged: viewModel.isAlreadyFlagged,
             isAnalyzing: viewModel.isProcessing
         )
 

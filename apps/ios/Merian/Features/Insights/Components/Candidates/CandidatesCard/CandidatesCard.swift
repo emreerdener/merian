@@ -10,9 +10,8 @@ struct CandidatesCard: View {
     let aiScientificName: String
     let inferenceTier: String?
     let confirmButtonTitle: String
-    /// Called when the user taps "No, incorrect" and there are no candidates to choose from.
-    /// The caller should route to the flag/report flow.
-    var onFlagIssue: (() -> Void)?
+    /// Called when the user wants human help because the AI/candidates did not resolve the ID.
+    var onAskCommunity: (() -> Void)?
     var onMatchConfirmed: (() -> Void)?
     var onRefineScan: (() -> Void)?
     var showDismissButton: Bool = true
@@ -46,7 +45,7 @@ struct CandidatesCard: View {
                         onMatchConfirmed?()
                         Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
                     },
-                    onFlagIssue: onFlagIssue,
+                    onAskCommunity: onAskCommunity,
                     onRefineScan: onRefineScan,
                     onDismiss: { dismissedScanId = inferenceEngine.speciesData?.scanId },
                     showDismissButton: showDismissButton
@@ -78,7 +77,7 @@ struct CandidatesCard: View {
                     onMatchConfirmed?()
                     Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) }
                 },
-                onFlagIssue: onFlagIssue,
+                onAskCommunity: onAskCommunity,
                 onRefineScan: onRefineScan
             )
         }

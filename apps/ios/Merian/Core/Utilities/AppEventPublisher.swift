@@ -46,6 +46,8 @@ enum AppEvent {
     case explorePostNeedsRefresh(postId: String)
     /// Dispatched after a local scan's Explore publication state changes.
     case exploreShareStateChanged(scanId: String, postId: String?)
+    /// Dispatched after a community identification request should open in Explore.
+    case openCommunityIdentificationRequest(requestId: String)
     /// Dispatched after OAuth sign-in/linking or session restore refreshes the public Explore author identity.
     case publicAuthorIdentityChanged(previousUserId: String?, currentUserId: String)
 }

@@ -79,10 +79,10 @@ struct PaywallView: View {
                     brandHeader
                         .padding(.top, 28)
 
-                    planPicker
-
                     heroCarousel
                         .padding(.horizontal, -20)
+
+                    planPicker
 
                     comparisonSection
 

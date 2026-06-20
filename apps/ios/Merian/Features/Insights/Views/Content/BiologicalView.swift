@@ -52,6 +52,9 @@ struct BiologicalView: View {
                 userConfirmedIdentification: inferenceEngine.speciesData?.userConfirmedIdentification ?? false,
                 isFlagged: inferenceEngine.speciesData?.isFlagged ?? false,
                 aiScientificName: inferenceEngine.speciesData?.aiScientificName,
+                onAskCommunity: viewModel.canRequestCommunityIdentification ? {
+                    viewModel.state.isCommunityRequestSheetPresented = true
+                } : nil,
                 onScrollOffsetChange: { maxY in
                     viewModel.evaluateScrollOffset(minY: maxY)
                 },
@@ -96,7 +99,9 @@ struct BiologicalView: View {
                         aiScientificName: primaryAIName,
                         inferenceTier: inferenceEngine.speciesData?.inferenceTier,
                         confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
-                        onFlagIssue: { viewModel.state.isIdentificationFlagPresented = true },
+                        onAskCommunity: viewModel.canRequestCommunityIdentification ? {
+                            viewModel.state.isCommunityRequestSheetPresented = true
+                        } : nil,
                         onMatchConfirmed: { viewModel.state.toastMessage = "Match confirmed" },
                         onRefineScan: refinementAction
                     )

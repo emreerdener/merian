@@ -161,11 +161,6 @@ extension InsightSheetViewModel {
         canShareToExplore && activeImageCount > 0
     }
 
-    var isAlreadyFlagged: Bool {
-        guard queuedContext == nil else { return false }
-        return inferenceEngine?.speciesData?.isFlagged ?? false
-    }
-
     // MARK: - Content Routing
 
     enum ContentMode: Equatable {

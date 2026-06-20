@@ -11,6 +11,7 @@ struct InsightHeader: View {
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
     var aiScientificName: String?
+    var onAskCommunity: (() -> Void)?
     var onScrollOffsetChange: ((CGFloat) -> Void)?
     /// Alternative English common names for this species, excluding the current headline.
     var alternativeCommonNames: [String]?
@@ -25,7 +26,8 @@ struct InsightHeader: View {
                     userIdentificationOverride: userIdentificationOverride,
                     userConfirmedIdentification: userConfirmedIdentification,
                     isFlagged: isFlagged,
-                    aiScientificName: aiScientificName
+                    aiScientificName: aiScientificName,
+                    onAskCommunity: onAskCommunity
                 )
 
             // MARK: - Subtitle and Title

@@ -7,6 +7,7 @@ struct ConfidenceBadge: View {
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
     var aiScientificName: String?
+    var onAskCommunity: (() -> Void)?
     /// When set, the badge shows an analyzing state with this phrase as its label.
     /// The explanation sheet is suppressed while analyzing.
     var analyzingPhrase: String?
@@ -41,10 +42,6 @@ struct ConfidenceBadge: View {
             let label = phrase.hasSuffix("...") ? phrase : phrase + "..."
             return BadgePayload(label: label, color: .blue, icon: "sparkle")
         }
-        if isFlagged {
-            return BadgePayload(label: "Under review", color: .orange, icon: "flag.fill")
-        }
-
         if userIdentificationOverride != nil || userConfirmedIdentification {
             return BadgePayload(label: "Confirmed", color: .green, icon: "checkmark.circle.fill")
         }
@@ -61,7 +58,7 @@ struct ConfidenceBadge: View {
     }
     
     var body: some View {
-        if analyzingPhrase != nil || isFlagged || userIdentificationOverride != nil || userConfirmedIdentification || (confidenceScore ?? 0) > 0 {
+        if analyzingPhrase != nil || userIdentificationOverride != nil || userConfirmedIdentification || (confidenceScore ?? 0) > 0 {
             let data = badgeData
             let isAnalyzing = analyzingPhrase != nil
             
@@ -202,7 +199,8 @@ struct ConfidenceBadge: View {
                     userIdentificationOverride: userIdentificationOverride,
                     userConfirmedIdentification: userConfirmedIdentification,
                     isFlagged: isFlagged,
-                    aiScientificName: aiScientificName
+                    aiScientificName: aiScientificName,
+                    onAskCommunity: onAskCommunity
                 )
                 .presentationDetents(allowedDetents, selection: $activeDetent)
                     .presentationCornerRadius(32)

@@ -180,13 +180,16 @@ extension InsightSheetViewModel {
                 locationSharing: locationSharing
             )
             cacheSharedExplorePostId(request.postId, for: record.id)
+            state.sharedCommunityIdentificationRequestId = request.id
             state.sharedExploreLocationSharing = locationSharing
             state.isCommunityRequestSheetPresented = false
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                 state.toastMessage = "Asked the community"
-                toastActionTitle = nil
-                toastAction = nil
+                toastActionTitle = "View"
+                toastAction = { [weak self] in
+                    self?.state.showExploreSheet = true
+                }
             }
         } catch {
             HapticManager.shared.triggerErrorThump()
@@ -290,6 +293,8 @@ extension InsightSheetViewModel {
         if bumpRevision {
             sharedExploreStateRevision &+= 1
         }
+
+        state.sharedCommunityIdentificationRequestId = nil
 
         guard scanId != nil else {
             state.sharedExplorePostId = nil

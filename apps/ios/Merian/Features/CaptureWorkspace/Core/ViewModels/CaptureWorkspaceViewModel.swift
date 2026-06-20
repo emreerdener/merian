@@ -116,6 +116,7 @@ final class CaptureWorkspaceViewModel {
     // MARK: - UI & Navigation State
     var activeSheet: ActiveSheet?
     var pendingExplorePostId: String?
+    var pendingCommunityIdentificationRequestId: String?
     var pendingExploreTargetCommentId: String?
     var pendingExploreTargetReplyParentCommentId: String?
     var explorePresentationIdentity = UUID()
@@ -246,6 +247,8 @@ final class CaptureWorkspaceViewModel {
                         targetCommentId: targetCommentId,
                         targetReplyParentCommentId: targetReplyParentCommentId
                     )
+                case .openCommunityIdentificationRequest(let requestId):
+                    self?.handleCommunityIdentificationRoute(requestId: requestId)
                 case .triggerRefinement(let scanId, let initialDescription, let entryPoint):
                     self?.startRefinementScan(
                         scanId: scanId,
@@ -379,8 +382,19 @@ final class CaptureWorkspaceViewModel {
     ) {
         protectExternalRouteFromImmediateSessionTimeoutReset()
         pendingExplorePostId = postId
+        pendingCommunityIdentificationRequestId = nil
         pendingExploreTargetCommentId = targetCommentId
         pendingExploreTargetReplyParentCommentId = targetReplyParentCommentId
+        explorePresentationIdentity = UUID()
+        activeSheet = .explore
+    }
+
+    private func handleCommunityIdentificationRoute(requestId: String) {
+        protectExternalRouteFromImmediateSessionTimeoutReset()
+        pendingExplorePostId = nil
+        pendingCommunityIdentificationRequestId = requestId
+        pendingExploreTargetCommentId = nil
+        pendingExploreTargetReplyParentCommentId = nil
         explorePresentationIdentity = UUID()
         activeSheet = .explore
     }

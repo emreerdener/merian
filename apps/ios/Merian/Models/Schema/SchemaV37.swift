@@ -76,8 +76,8 @@ extension MerianSchemaV37 {
         /// Suppresses the "Was the AI correct?" prompt on re-open. Not synced to cloud.
         @Attribute var userConfirmedIdentification: Bool = false
 
-        /// Set to true when the user flags an identification for manual moderation review.
-        /// Retains the "Under Review" state across app sessions locally.
+        /// Legacy local moderation flag retained for schema compatibility.
+        /// No longer drives Insight confidence or candidate-review UI.
         @Attribute var isFlagged: Bool = false
 
         @Attribute var iucnRedListStatus: String?

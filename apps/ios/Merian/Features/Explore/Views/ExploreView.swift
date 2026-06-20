@@ -48,12 +48,18 @@ struct ExploreView: View {
 
     init(
         initialPostId: String? = nil,
+        initialCommunityRequestId: String? = nil,
         initialTargetCommentId: String? = nil,
         initialTargetReplyParentCommentId: String? = nil,
         allowsInsightPresentation: Bool = true
     ) {
         self.allowsInsightPresentation = allowsInsightPresentation
-        if let postId = initialPostId {
+        if let requestId = initialCommunityRequestId {
+            var initialPath = NavigationPath()
+            initialPath.append(ExploreCommunityRequestRoute(requestId: requestId))
+            _navigationPath = State(initialValue: initialPath)
+            _activeTab = State(initialValue: .community)
+        } else if let postId = initialPostId {
             var initialPath = NavigationPath()
             initialPath.append(ExplorePostRoute(
                 postId: postId,
@@ -121,7 +127,8 @@ struct ExploreView: View {
                     targetCommentId: route.targetCommentId,
                     targetReplyParentCommentId: route.targetReplyParentCommentId,
                     notificationReplyThreadTarget: route.notificationReplyThreadTarget,
-                    allowsInsightPresentation: allowsInsightPresentation
+                    allowsInsightPresentation: allowsInsightPresentation,
+                    onOpenCommunityIdentificationRequest: openCommunityIdentificationRequest
                 )
                 .toolbar(.hidden, for: .tabBar)
             }
@@ -251,7 +258,11 @@ struct ExploreView: View {
                 ),
                 initialScanId: route.scanId,
                 inferenceEngine: inferenceEngine,
-                allowsExplorePresentation: false
+                allowsExplorePresentation: false,
+                onOpenCommunityIdentificationRequest: { requestId in
+                    selectedInsightRoute = nil
+                    openCommunityIdentificationRequest(requestId)
+                }
             )
         }
         .sheet(item: $selectedAuthorProfileRoute) { route in
@@ -264,6 +275,8 @@ struct ExploreView: View {
             switch event {
             case .explorePostNeedsRefresh(let postId):
                 Task { await viewModel.refreshPost(postId: postId) }
+            case .openCommunityIdentificationRequest(let requestId):
+                openCommunityIdentificationRequest(requestId)
             case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
                 selectedAuthorProfileRoute = selectedAuthorProfileRoute.flatMap { route in
                     authorIdentityChangeAffects(route.authorUserId, previousUserId: previousUserId, currentUserId: currentUserId)
@@ -378,6 +391,13 @@ struct ExploreView: View {
     private func openHashtag(_ hashtag: String) {
         HapticManager.shared.triggerSelectionPulse()
         navigationPath.append(ExploreHashtagRoute(hashtag: hashtag))
+    }
+
+    private func openCommunityIdentificationRequest(_ requestId: String) {
+        var requestPath = NavigationPath()
+        requestPath.append(ExploreCommunityRequestRoute(requestId: requestId))
+        activeTab = .community
+        navigationPath = requestPath
     }
 
     private func selectExploreTab(_ tab: ExploreTab) {

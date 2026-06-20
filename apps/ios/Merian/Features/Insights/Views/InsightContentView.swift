@@ -94,14 +94,6 @@ struct InsightContentView: View {
                 }
             }
         }
-        .sheet(isPresented: $viewModel.state.isIdentificationFlagPresented) {
-            if let scanId = inferenceEngine.speciesData?.scanId {
-                FlagIdentificationModal(scanId: scanId) {
-                    withAnimation { viewModel.state.toastMessage = "Report submitted. Thanks!" }
-                }
-                .presentationDetents([.height(400)])
-            }
-        }
         .sheet(isPresented: $viewModel.state.isCommunityRequestSheetPresented) {
             if let speciesData = inferenceEngine.speciesData {
                 CommunityIdentificationRequestSheet(
@@ -129,7 +121,9 @@ struct InsightContentView: View {
                     aiScientificName: speciesData.scientificName,
                     confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
                     onConfirmOriginal: { Task { await inferenceEngine.confirmAIIdentification(modelContext: modelContext) } },
-                    onFlagIssue: { viewModel.state.isIdentificationFlagPresented = true },
+                    onAskCommunity: {
+                        viewModel.state.isCommunityRequestSheetPresented = true
+                    },
                     onRefineScan: {
                         guard let scanIdStr = speciesData.scanId else { return }
                         HapticManager.shared.triggerSelectionPulse()

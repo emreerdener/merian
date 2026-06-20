@@ -123,7 +123,6 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.canConfirm == false)
         #expect(viewModel.canReviewAlternatives == false)
         #expect(viewModel.canReanalyze == true)
-        #expect(viewModel.isAlreadyFlagged == false)
     }
 
     @Test func testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates() {
@@ -154,7 +153,6 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.canConfirm == true)
         #expect(viewModel.canReviewAlternatives == true)
         #expect(viewModel.canReanalyze == true)
-        #expect(viewModel.isAlreadyFlagged == false)
     }
 
     @Test func testFetchLocalRecord() async throws {

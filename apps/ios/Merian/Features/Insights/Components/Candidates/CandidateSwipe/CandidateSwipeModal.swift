@@ -10,7 +10,7 @@ struct CandidateSwipeModal: View {
     let aiScientificName: String
     let confirmButtonTitle: String
     let onConfirmOriginal: () -> Void
-    var onFlagIssue: (() -> Void)?
+    var onAskCommunity: (() -> Void)?
     var onRefineScan: (() -> Void)?
 
     // MARK: - Environment
@@ -38,13 +38,21 @@ struct CandidateSwipeModal: View {
 
     // MARK: - Initialization
     
-    init(isPresented: Binding<Bool>, candidates: [IdentificationCandidate], aiScientificName: String, confirmButtonTitle: String, onConfirmOriginal: @escaping () -> Void, onFlagIssue: (() -> Void)?, onRefineScan: (() -> Void)? = nil) {
+    init(
+        isPresented: Binding<Bool>,
+        candidates: [IdentificationCandidate],
+        aiScientificName: String,
+        confirmButtonTitle: String,
+        onConfirmOriginal: @escaping () -> Void,
+        onAskCommunity: (() -> Void)?,
+        onRefineScan: (() -> Void)? = nil
+    ) {
         self._isPresented = isPresented
         self.originalCandidates = candidates
         self.aiScientificName = aiScientificName
         self.confirmButtonTitle = confirmButtonTitle
         self.onConfirmOriginal = onConfirmOriginal
-        self.onFlagIssue = onFlagIssue
+        self.onAskCommunity = onAskCommunity
         self.onRefineScan = onRefineScan
         self._session = State(initialValue: CandidateSwipeSession(candidates: candidates))
     }
@@ -249,7 +257,7 @@ extension CandidateSwipeModal {
     // MARK: Post-Review States
     
     /// Displayed when the user has rejected all alternatives in the stack or grid.
-    /// Acts as an escape hatch to either confirm the original match, flag for review, or start over.
+    /// Acts as an escape hatch to either confirm the original match, ask the community, or start over.
     private var exhaustedStateContent: some View {
         VStack(spacing: 32) {
             originalScanThumbnail
@@ -284,15 +292,15 @@ extension CandidateSwipeModal {
                     }, color: .orange)
                 }
 
-                if onFlagIssue != nil {
-                    SlideToConfirm(label: "Flag for review", onConfirm: {
+                if onAskCommunity != nil {
+                    SlideToConfirm(label: "Ask the community", onConfirm: {
                         isDismissing = true
                         isPresented = false
                         Task {
                             try? await Task.sleep(nanoseconds: 300_000_000)
-                            await MainActor.run { onFlagIssue?() }
+                            await MainActor.run { onAskCommunity?() }
                         }
-                    }, color: .red)
+                    }, color: .blue)
                 }
             }
             .padding(.horizontal, 24)

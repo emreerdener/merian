@@ -11,6 +11,7 @@ struct ExplorePostDetailView: View {
     let notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget?
     let allowsInsightPresentation: Bool
     let allowsAuthorProfilePresentation: Bool
+    let onOpenCommunityIdentificationRequest: ((String) -> Void)?
 
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
@@ -58,7 +59,8 @@ struct ExplorePostDetailView: View {
         targetReplyParentCommentId: String? = nil,
         notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget? = nil,
         allowsInsightPresentation: Bool,
-        allowsAuthorProfilePresentation: Bool = true
+        allowsAuthorProfilePresentation: Bool = true,
+        onOpenCommunityIdentificationRequest: ((String) -> Void)? = nil
     ) {
         self.viewModel = viewModel
         self.postId = postId
@@ -69,6 +71,7 @@ struct ExplorePostDetailView: View {
         self.notificationReplyThreadTarget = notificationReplyThreadTarget
         self.allowsInsightPresentation = allowsInsightPresentation
         self.allowsAuthorProfilePresentation = allowsAuthorProfilePresentation
+        self.onOpenCommunityIdentificationRequest = onOpenCommunityIdentificationRequest
     }
 
     private var currentPost: ExplorePost? {
@@ -350,7 +353,11 @@ struct ExplorePostDetailView: View {
                 ),
                 initialScanId: route.scanId,
                 inferenceEngine: inferenceEngine,
-                allowsExplorePresentation: false
+                allowsExplorePresentation: false,
+                onOpenCommunityIdentificationRequest: { requestId in
+                    selectedInsightRoute = nil
+                    onOpenCommunityIdentificationRequest?(requestId)
+                }
             )
         }
         .sheet(item: $selectedAuthorProfileRoute) { route in

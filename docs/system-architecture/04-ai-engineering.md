@@ -609,16 +609,17 @@ or audio attached:
     `confidenceScore >= 0.80` within `0.15` of the primary confidence. The same
     thresholds feed the Needs review smart collection. Baseline guards suppress
     candidate review for unknown, non-biological, human, confirmed, overridden,
-    flagged, and alternatives-exhausted scans.
+    and alternatives-exhausted scans. Legacy flag values no longer suppress
+    candidate review.
   - **User identification review** (`MerianSchemaV29`): Users can confirm or
     override the AI's identification from the policy-visible `CandidatesCard` or
     the confidence explanation sheet. The pending card shows a direct
     confirmation affordance plus a Review alternatives path that opens
     `CandidateSwipeModal`; the swipe modal owns stack/grid review, skip/reject,
     candidate confirmation, exhausted-state recovery, optional reanalysis, and
-    flag routing. The scan insight top menu uses the same policy-filtered
+    Ask the Community routing. The scan insight top menu uses the same policy-filtered
     candidate list for `Confirm species` and `Review alternatives`, while
-    `Reanalyze species` and `Flag for review` remain separately gated.
+    `Reanalyze species` and `Ask the community` remain separately gated.
     - `InferenceEngine` exposes three methods for this flow:
     - `applyIdentificationOverride(scientificName:modelContext:)`: Immediately
       wipes all stale contextual fields (`wikipediaOverview`,
@@ -639,8 +640,9 @@ or audio attached:
       `updateScanWithOverride` (passing `.aiConfirmed`), and syncs all three
       review variables to `public.scans` via `syncIdentificationReviewToCloud`.
     - `resetIdentificationReview(modelContext:)`: Clears
-      `userIdentificationOverride`, `userConfirmedIdentification`, `isFlagged`,
-      and `alternativesExhausted`, reverts `speciesData.scientificName` to
+      `userIdentificationOverride`, `userConfirmedIdentification`, the legacy
+      `isFlagged` bit, and `alternativesExhausted`, reverts
+      `speciesData.scientificName` to
       `aiScientificName`, persists locally (passing `.unreviewed`), zeros the
       review columns via `syncIdentificationReviewToCloud`, and re-hydrates the
       AI's original species data via `fetchAndPatchOverrideData`. Called by
