@@ -1757,6 +1757,24 @@ BEGIN
             );
         END IF;
 
+        -- Some Explore RPCs, notably nearby after post-level geoprivacy
+        -- projection, have a different species join shape. The author join is
+        -- stable across these public Explore reads and lets us add the
+        -- projection without changing return columns.
+        IF patched_definition NOT LIKE '%public.explore_observation_projection eop%' THEN
+            patched_definition := REPLACE(
+                patched_definition,
+                'JOIN public.users u
+        ON u.id = ep.user_id',
+                'JOIN public.users u
+        ON u.id = ep.user_id
+    LEFT JOIN public.explore_observation_projection eop
+        ON eop.post_id = ep.id
+    LEFT JOIN public.taxon_nodes community_taxon
+        ON community_taxon.id = eop.public_taxon_node_id'
+            );
+        END IF;
+
         has_projection_join := patched_definition LIKE '%public.explore_observation_projection eop%';
 
         patched_definition := REPLACE(
@@ -1801,6 +1819,11 @@ BEGIN
                 'WHERE ep.unshared_at IS NULL
       AND COALESCE(eop.projection_state::TEXT, ''normal'') <> ''community_needs_id'''
             );
+        END IF;
+
+        IF has_projection_join
+           AND patched_definition NOT LIKE '%COALESCE(eop.projection_state::TEXT, ''normal'') <> ''community_needs_id''%' THEN
+            RAISE EXCEPTION 'Explore RPC % could not be patched with community projection filter', function_signature;
         END IF;
 
         IF patched_definition = function_definition THEN
