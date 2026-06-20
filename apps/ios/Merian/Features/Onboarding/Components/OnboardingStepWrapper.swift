@@ -59,7 +59,7 @@ struct OnboardingStepWrapper: View {
             // 2. Messaging Display
             VStack(spacing: 16) {
                 Text(title)
-                    .font(.system(.largeTitle, design: .serif).weight(.bold))
+                    .font(.system(size: 44, weight: .bold))
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)

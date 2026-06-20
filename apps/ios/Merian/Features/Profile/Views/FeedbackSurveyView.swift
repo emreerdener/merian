@@ -121,8 +121,13 @@ struct FeedbackSurveyView: View {
                 }
             }
             .onAppear {
-                if appSettings.feedbackSurveySubmittedCampaignId == FeedbackSurveyCampaign.currentId {
+                if FeedbackSurveyCampaign.isSubmittedStateActive(
+                    submittedCampaignId: appSettings.feedbackSurveySubmittedCampaignId,
+                    submittedAt: appSettings.feedbackSurveySubmittedAt
+                ) {
                     step = .success
+                } else if case .success = step {
+                    resetSurvey()
                 }
             }
             .alert("Survey not sent", isPresented: Binding(
@@ -572,6 +577,7 @@ struct FeedbackSurveyView: View {
                 try await MerianNetworkClient.shared.submitFeedbackSurvey(submission)
                 await MainActor.run {
                     appSettings.feedbackSurveySubmittedCampaignId = FeedbackSurveyCampaign.currentId
+                    appSettings.feedbackSurveySubmittedAt = Date().timeIntervalSince1970
                     isSubmitting = false
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         step = .success
@@ -584,6 +590,21 @@ struct FeedbackSurveyView: View {
                 }
             }
         }
+    }
+
+    private func resetSurvey() {
+        step = .intro
+        satisfactionRating = nil
+        recommendationRating = nil
+        usedFeatures = []
+        mostUsefulFeatures = []
+        confusingOrDisappointing = ""
+        wishedNext = ""
+        bugStatus = .no
+        bugDetails = ""
+        validationMessage = nil
+        submissionErrorMessage = nil
+        isSubmitting = false
     }
 
 }

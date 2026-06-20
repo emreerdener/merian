@@ -87,48 +87,15 @@ struct TaxonomyTreeCanvasView: View {
                 .animation(.snappy(duration: 0.22), value: viewModel.focusedNodeID)
                 .animation(.snappy(duration: 0.22), value: viewModel.selectedNodeID)
 
-                VStack(spacing: 8) {
+                if viewModel.breadcrumbText != nil {
                     TaxonomyTreeControlBar(
-                        searchText: $viewModel.searchText,
                         breadcrumb: viewModel.breadcrumbText
                     )
-
-                    let searchResults = viewModel.searchResults
-                    if !searchResults.isEmpty {
-                        TaxonomyTreeSearchResultsView(results: searchResults) { node in
-                            let targetScale = node.isSpecies && viewModel.scale < 1.05 ? 1.08 : viewModel.scale
-                            let targetVisibleNodeIDs = viewModel.graph.visibleNodeIDs(
-                                focusedNodeID: viewModel.focusedNodeID,
-                                selectedNodeID: node.id,
-                                scale: targetScale
-                            )
-                            let targetLayout = TaxonomyTreeLayout.make(
-                                graph: viewModel.graph,
-                                visibleNodeIDs: targetVisibleNodeIDs,
-                                minimumSize: proxy.size
-                            )
-                            withAnimation(.snappy(duration: 0.22)) {
-                                viewModel.select(node)
-                                viewModel.setScale(targetScale)
-                                viewModel.center(nodeID: node.id, positions: targetLayout.positions, viewportSize: proxy.size)
-                            }
-                        }
-                    }
-                }
-                .frame(width: max(0, proxy.size.width - 28), alignment: .topLeading)
-                .padding(.horizontal, 14)
-                .padding(.top, 12)
-                .padding(.bottom, 12)
-                .frame(width: proxy.size.width, alignment: .topLeading)
-                .background(alignment: .top) {
-                    Color(uiColor: .systemGroupedBackground)
-                        .overlay(alignment: .bottom) {
-                            Rectangle()
-                                .fill(Color.black.opacity(0.07))
-                                .frame(height: 1 / UIScreen.main.scale)
-                        }
-                        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 3)
-                        .ignoresSafeArea(edges: .top)
+                    .frame(width: max(0, proxy.size.width - 28), alignment: .topLeading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+                    .frame(width: proxy.size.width, alignment: .topLeading)
                 }
 
                 if viewModel.isLoading {
@@ -233,7 +200,6 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     @Published var dragOffset: CGSize = .zero
     @Published var scale: CGFloat = 0.78
     @Published var baseScale: CGFloat = 0.78
-    @Published var searchText = ""
 
     private let minScale: CGFloat = 0.46
     private let maxScale: CGFloat = 2.25
@@ -257,10 +223,6 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         var ids = graph.connectedIDs(for: selectedNodeID)
         ids.formUnion(graph.ancestorIDs(of: selectedNodeID))
         return ids
-    }
-
-    var searchResults: [TaxonomyTreeNode] {
-        graph.searchResults(for: searchText)
     }
 
     var breadcrumbText: String? {
@@ -352,7 +314,6 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     func resetView() {
         selectedNodeID = nil
         focusedNodeID = nil
-        searchText = ""
         offset = .zero
         dragOffset = .zero
         scale = 0.78
@@ -490,68 +451,23 @@ private struct TaxonomyTreeEdgesCanvas: View {
 }
 
 private struct TaxonomyTreeControlBar: View {
-    @Binding var searchText: String
     let breadcrumb: String?
-    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            searchField
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity)
-                .clipped()
-                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            if let breadcrumb {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    Text(breadcrumb)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .padding(.horizontal, 4)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .clipped()
+        if let breadcrumb {
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(breadcrumb)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .padding(.horizontal, 4)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipped()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
         }
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
-
-            TextField("Search taxonomy", text: $searchText)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .focused($isSearchFocused)
-                .onSubmit {
-                    isSearchFocused = false
-                }
-                .font(.subheadline)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity)
-                .clipped()
-
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .frame(width: 24, height: 24)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .clipped()
     }
 }
 
@@ -575,49 +491,68 @@ private struct TaxonomyTreeFloatingControls: View {
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
                 .frame(width: 50, height: 50)
-                .background(Color(uiColor: .secondarySystemGroupedBackground), in: Circle())
-                .overlay(
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.72), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
+                .background {
+                    TaxonomyTreeLiquidGlassButtonBackground()
+                }
         }
         .buttonStyle(.plain)
+        .contentShape(Circle())
         .accessibilityLabel(label)
     }
 }
 
-private struct TaxonomyTreeSearchResultsView: View {
-    let results: [TaxonomyTreeNode]
-    let onSelect: (TaxonomyTreeNode) -> Void
-
+private struct TaxonomyTreeLiquidGlassButtonBackground: View {
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(results) { node in
-                    Button {
-                        onSelect(node)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(node.title)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                            Text(node.rank.title)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        .frame(width: 132, alignment: .leading)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
+        Circle()
+            .fill(.ultraThinMaterial)
+            .overlay {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.28),
+                                Color.white.opacity(0.08),
+                                Color.black.opacity(0.05)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .blendMode(.screen)
             }
-            .padding(.vertical, 1)
-        }
+            .overlay(alignment: .topLeading) {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color.white.opacity(0.55),
+                                Color.white.opacity(0.0)
+                            ],
+                            center: .topLeading,
+                            startRadius: 2,
+                            endRadius: 36
+                        )
+                    )
+                    .padding(4)
+                    .blendMode(.screen)
+            }
+            .overlay {
+                Circle()
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.72),
+                                Color.white.opacity(0.18),
+                                Color.white.opacity(0.38)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            }
+            .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
+            .shadow(color: .white.opacity(0.18), radius: 1, x: 0, y: -1)
     }
 }
 

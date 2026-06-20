@@ -4,6 +4,17 @@ import UIKit
 enum FeedbackSurveyCampaign {
     static let currentId = "beta_feedback_2026_06"
     static let meaningfulCompletedScanCount = 3
+    static let repeatSubmissionCooldown: TimeInterval = 24 * 60 * 60
+
+    static func isSubmittedStateActive(
+        campaignId: String = currentId,
+        submittedCampaignId: String,
+        submittedAt: TimeInterval,
+        now: Date = Date()
+    ) -> Bool {
+        guard submittedCampaignId == campaignId, submittedAt > 0 else { return false }
+        return now.timeIntervalSince1970 - submittedAt < repeatSubmissionCooldown
+    }
 }
 
 enum FeedbackSurveyFeatureUse: String, CaseIterable, Identifiable, Codable {

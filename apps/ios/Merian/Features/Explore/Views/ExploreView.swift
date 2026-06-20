@@ -6,6 +6,10 @@ enum ExploreTab: Hashable {
     case feed
     case map
     case dictionary
+}
+
+private enum ExploreDictionaryMode: Hashable {
+    case dictionary
     case tree
 }
 
@@ -21,6 +25,7 @@ struct ExploreView: View {
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var activeTab: ExploreTab = .feed
+    @State private var activeDictionaryMode: ExploreDictionaryMode = .dictionary
     @State private var dictionarySearchText = ""
     @State private var dictionaryUserRegionIdentifier = Self.defaultDictionaryUserRegionIdentifier()
 
@@ -88,38 +93,12 @@ struct ExploreView: View {
                     Label("Map", systemImage: "map")
                 }
 
-                VStack(spacing: 10) {
-                    if navigationPath.isEmpty {
-                        ExploreDictionarySearchBar(text: $dictionarySearchText)
-                            .padding(.top, 12)
-                            .zIndex(1)
-                    }
-
-                    if isDictionarySearchActive {
-                        SpeciesDictionaryCatalogView(
-                            isSearchEnabled: false,
-                            showsNavigationTitle: false,
-                            searchText: $dictionarySearchText
-                        )
-                    } else {
-                        SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
-                    }
-                }
+                dictionaryTabContent
                 .background(Color(uiColor: .systemGroupedBackground))
                 .tag(ExploreTab.dictionary)
                 .tabItem {
                     Label("Dictionary", systemImage: "book.closed")
                 }
-
-                #if targetEnvironment(simulator)
-                    TaxonomyTreeCanvasView(showsNavigationTitle: false) { speciesRoute in
-                        navigationPath.append(speciesRoute)
-                    }
-                    .tag(ExploreTab.tree)
-                    .tabItem {
-                        Label("Tree", systemImage: "point.3.connected.trianglepath.dotted")
-                    }
-                #endif
             }
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Explore")
@@ -304,11 +283,57 @@ struct ExploreView: View {
             }
         }
 
+        if shouldShowDictionaryModePicker {
+            ToolbarItem(placement: .principal) {
+                Picker("Dictionary view", selection: $activeDictionaryMode) {
+                    Text("Catalog").tag(ExploreDictionaryMode.dictionary)
+                    Text("Tree").tag(ExploreDictionaryMode.tree)
+                }
+                .pickerStyle(.segmented)
+                .padding(.bottom, 1)
+                .background(Capsule().fill(.regularMaterial))
+                .clipShape(Capsule())
+                .frame(width: 220)
+            }
+        }
+
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 0) {
                 bellButton
             }
         }
+    }
+
+    @ViewBuilder
+    private var dictionaryTabContent: some View {
+        switch activeDictionaryMode {
+        case .dictionary:
+            VStack(spacing: 10) {
+                if navigationPath.isEmpty {
+                    ExploreDictionarySearchBar(text: $dictionarySearchText)
+                        .padding(.top, 12)
+                        .zIndex(1)
+                }
+
+                if isDictionarySearchActive {
+                    SpeciesDictionaryCatalogView(
+                        isSearchEnabled: false,
+                        showsNavigationTitle: false,
+                        searchText: $dictionarySearchText
+                    )
+                } else {
+                    SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
+                }
+            }
+        case .tree:
+            TaxonomyTreeCanvasView(showsNavigationTitle: false) { speciesRoute in
+                navigationPath.append(speciesRoute)
+            }
+        }
+    }
+
+    private var shouldShowDictionaryModePicker: Bool {
+        activeTab == .dictionary && navigationPath.isEmpty
     }
 
     private func openPostDetail(

@@ -8,6 +8,7 @@ import {
   buildPublicSpeciesDictionaryPayload,
   firstReferenceImageUrl,
   firstReferenceImageUrlsBySpeciesId,
+  isPublicBiologicalSpeciesRow,
   type PublicReferenceImageSource,
   type PublicSimilarSpecies,
   publicSimilarSpeciesMetadata,
@@ -414,6 +415,7 @@ export async function fetchSpeciesDictionaryCatalog(
   let catalogQuery = supabaseAdmin
     .from("species_dictionary")
     .select(SPECIES_DICTIONARY_CATALOG_SELECT)
+    .or("gbif_taxon_key.not.is.null,kingdom.not.is.null")
     .limit(fetchLimit);
 
   if (queryText) {
@@ -465,7 +467,9 @@ export async function fetchSpeciesDictionaryCatalog(
     );
   }
 
-  const rows = ((data ?? []) as SpeciesDictionaryRow[]).slice(0, fetchLimit);
+  const rows = ((data ?? []) as SpeciesDictionaryRow[])
+    .filter(isPublicBiologicalSpeciesRow)
+    .slice(0, fetchLimit);
   const visibleRows = rows.slice(0, requestedLimit);
   const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
     visibleRows.map((row) => row.id),
@@ -497,6 +501,7 @@ export async function fetchSpeciesDictionaryOverview(
   const { data, error } = await supabaseAdmin
     .from("species_dictionary")
     .select(SPECIES_DICTIONARY_CATALOG_SELECT)
+    .or("gbif_taxon_key.not.is.null,kingdom.not.is.null")
     .order("scientific_name", { ascending: true })
     .order("id", { ascending: true });
 
@@ -506,7 +511,8 @@ export async function fetchSpeciesDictionaryOverview(
     );
   }
 
-  const rows = (data ?? []) as SpeciesDictionaryRow[];
+  const rows = ((data ?? []) as SpeciesDictionaryRow[])
+    .filter(isPublicBiologicalSpeciesRow);
   const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
     rows.map((row) => row.id),
     supabaseAdmin,
@@ -615,7 +621,11 @@ async function fetchSpeciesDictionaryRowsByIds(
       );
     }
 
-    rows.push(...((data ?? []) as SpeciesDictionaryRow[]));
+    rows.push(
+      ...((data ?? []) as SpeciesDictionaryRow[]).filter(
+        isPublicBiologicalSpeciesRow,
+      ),
+    );
   }
 
   return rows;
@@ -627,18 +637,20 @@ export function buildSpeciesDictionaryTree(
 ): SpeciesDictionaryTreeResult {
   const nodesById = new Map<string, SpeciesDictionaryTreeNode>();
   const edgesById = new Map<string, SpeciesDictionaryTreeEdge>();
-  const sortedRows = rows.slice().sort((lhs, rhs) => {
-    const lhsName = (stringValue(lhs.scientific_name) ?? "")
-      .toLocaleLowerCase();
-    const rhsName = (stringValue(rhs.scientific_name) ?? "")
-      .toLocaleLowerCase();
-    if (lhsName === rhsName) {
-      return (stringValue(lhs.id) ?? "").localeCompare(
-        stringValue(rhs.id) ?? "",
-      );
-    }
-    return lhsName.localeCompare(rhsName);
-  });
+  const sortedRows = rows.filter(isPublicBiologicalSpeciesRow).sort(
+    (lhs, rhs) => {
+      const lhsName = (stringValue(lhs.scientific_name) ?? "")
+        .toLocaleLowerCase();
+      const rhsName = (stringValue(rhs.scientific_name) ?? "")
+        .toLocaleLowerCase();
+      if (lhsName === rhsName) {
+        return (stringValue(lhs.id) ?? "").localeCompare(
+          stringValue(rhs.id) ?? "",
+        );
+      }
+      return lhsName.localeCompare(rhsName);
+    },
+  );
 
   for (const row of sortedRows) {
     const referenceImageUrl = firstImageBySpeciesId.get(row.id) ??
@@ -772,14 +784,17 @@ export function buildSpeciesDictionaryOverview(
   firstImageBySpeciesId: Map<string, string> = new Map(),
   userRegion?: string,
 ): SpeciesDictionaryOverviewResult {
-  const sortedRows = rows.slice().sort(speciesDictionaryCreatedAtDescending);
+  const biologicalRows = rows.filter(isPublicBiologicalSpeciesRow);
+  const sortedRows = biologicalRows.slice().sort(
+    speciesDictionaryCreatedAtDescending,
+  );
   const regions = buildSpeciesDictionaryRegionSummaries(
-    rows,
+    biologicalRows,
     firstImageBySpeciesId,
   );
   const normalizedUserRegion = normalizedRegionKey(userRegion);
   const userRegionRows = normalizedUserRegion
-    ? rows.filter((row) =>
+    ? biologicalRows.filter((row) =>
       regionKeysMatch(
         normalizedRegionKey(row.native_region),
         normalizedUserRegion,
@@ -792,7 +807,7 @@ export function buildSpeciesDictionaryOverview(
     )?.title ?? normalizedRegionTitle(userRegion))
     : null;
   const categoryReferenceImageUrls = randomRepresentativeImageUrlPair(
-    rows,
+    biologicalRows,
     firstImageBySpeciesId,
   );
 
@@ -806,7 +821,7 @@ export function buildSpeciesDictionaryOverview(
         id: "all",
         title: "All",
         subtitle: "Browse every species in the dictionary",
-        count: rows.length,
+        count: biologicalRows.length,
         reference_image_url: categoryReferenceImageUrls[0],
         region: null,
       },
@@ -827,7 +842,7 @@ export function buildSpeciesDictionaryOverview(
         id: "taxonomy",
         title: "Taxonomy",
         subtitle: "Explore species by biological lineage",
-        count: rows.length,
+        count: biologicalRows.length,
         reference_image_url: categoryReferenceImageUrls[1],
         region: null,
       },
@@ -835,7 +850,7 @@ export function buildSpeciesDictionaryOverview(
         id: "recently_added",
         title: "Recently Added",
         subtitle: "Newest entries added to the database",
-        count: rows.length,
+        count: biologicalRows.length,
         reference_image_url: representativeImageUrl(
           sortedRows,
           firstImageBySpeciesId,
@@ -843,7 +858,10 @@ export function buildSpeciesDictionaryOverview(
         region: null,
       },
     ],
-    groups: buildSpeciesDictionaryGroupSummaries(rows, firstImageBySpeciesId),
+    groups: buildSpeciesDictionaryGroupSummaries(
+      biologicalRows,
+      firstImageBySpeciesId,
+    ),
     regions,
   };
 }
@@ -919,6 +937,7 @@ export async function fetchSpeciesDictionary(
       ? await fetchExternalSpeciesDictionary(normalizedLookup.scientificName)
       : null;
   }
+  if (!isPublicBiologicalSpeciesRow(row)) return null;
 
   const similarSpecies = await fetchSimilarSpecies(row.id, supabaseAdmin);
   const referenceImages = await fetchReferenceImages(

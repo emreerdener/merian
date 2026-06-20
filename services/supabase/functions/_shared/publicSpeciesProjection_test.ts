@@ -5,6 +5,7 @@ import {
 import {
   buildPublicSpeciesDictionaryPayload,
   classifyPublicSpeciesContentQuality,
+  isPublicBiologicalSpeciesRow,
   PUBLIC_SPECIES_SCHEMA_VERSION,
   publicSimilarSpeciesMetadata,
   publicSpeciesProjectionForbiddenKeys,
@@ -264,6 +265,53 @@ Deno.test("public species projection - content quality is classified from core p
       habitat_description: "Open fields, meadows, and roadsides.",
     }),
     "complete",
+  );
+});
+
+Deno.test("public species projection - non-biological encyclopedia rows are not public species", () => {
+  const availabilityRow = {
+    id: "bad-row",
+    scientific_name: "Availability",
+    common_names: { en: "Availability" },
+    alternative_common_names: [],
+    kingdom: null,
+    phylum: null,
+    class: null,
+    order: null,
+    family: null,
+    genus: null,
+    wikipedia_url: "https://en.wikipedia.org/wiki/Availability",
+    reference_image_url: null,
+    wikipedia_overview:
+      "In reliability engineering, the term availability has a meaning unrelated to biological taxonomy.",
+    hazard_type: null,
+    iucn_red_list_status: null,
+    habitat_description: null,
+    gbif_taxon_key: null,
+    group_tags: [],
+  };
+
+  assertEquals(isPublicBiologicalSpeciesRow(availabilityRow), false);
+  assertEquals(
+    isPublicBiologicalSpeciesRow({
+      ...availabilityRow,
+      scientific_name: "Danaus plexippus",
+      common_names: { en: "Monarch Butterfly" },
+      kingdom: "Animalia",
+      order: "Lepidoptera",
+      wikipedia_url: null,
+      wikipedia_overview: null,
+    }),
+    true,
+  );
+  assertEquals(
+    isPublicBiologicalSpeciesRow({
+      ...availabilityRow,
+      scientific_name: "Sparse taxon",
+      common_names: { en: "Sparse Taxon" },
+      gbif_taxon_key: 12345,
+    }),
+    true,
   );
 });
 

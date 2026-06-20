@@ -371,15 +371,6 @@ actor ProfileDatabaseActor {
         let projection = loadStatsProjection()
         let awards = awardPayloads(for: projection)
 
-        guard !projection.records.isEmpty else {
-            return ProfileAllStatsPayload(
-                speciesCount: 0,
-                streak: 0,
-                heatmap: ProfileHeatmapData(totalCaptures: 0, currentMonthCaptures: 0, yearString: "", weeks: []),
-                awards: awards
-            )
-        }
-
         let now = Date()
         let streak = calculateStreak(from: projection.timestamps, now: now)
         let heatmap = buildHeatmapData(from: projection.timestamps, now: now)

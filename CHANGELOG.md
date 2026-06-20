@@ -44,10 +44,20 @@ TestFlight, App Store, support, and QA.
   notifications.
 - Added a one-time beta feedback survey with a warm intro screen, proactive
   prompt after meaningful use, Settings access, and private Supabase response
-  storage.
+  storage. Manual survey access now resets after a 24-hour thank-you cooldown so
+  testers can send fresh feedback again without being proactively re-prompted.
+- Added a Catalog/Tree segmented control to the Explore Dictionary header,
+  keeping the taxonomy tree inside Dictionary while the Explore bottom menu
+  stays focused on Feed, Map, and Dictionary.
 
 ### Changed
 
+- Removed search from the Explore Dictionary Tree view so the header toggle
+  opens directly into the pan-and-zoom taxonomy canvas.
+- Removed the filled top heading background from the Explore Dictionary Tree
+  canvas for a cleaner full-canvas view.
+- Updated the Explore Dictionary Tree zoom and locate controls with liquid-glass
+  circular button chrome.
 - Candidate review prompts now appear only for non-strong identifications or
   strong IDs with a competitive alternative, while Merian still keeps stored
   candidates available for recovery and future review flows. The Needs review
@@ -81,6 +91,11 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed Species Dictionary catalog and overview surfaces so non-biological
+  encyclopedia rows are filtered out before they can appear as dictionary
+  records.
+- Fixed the profile scan heatmap so brand-new or empty libraries still show the
+  empty contribution cells instead of collapsing the grid.
 - Fixed Explore Map geoprivacy so only open-location discoveries appear on the
   map; obscured and private posts stay off the map while other eligible Explore
   surfaces continue to respect their privacy-safe public fields.

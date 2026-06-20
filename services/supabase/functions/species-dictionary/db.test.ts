@@ -505,6 +505,21 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
         class: "Agaricomycetes",
         native_region: "Northern Hemisphere",
       }),
+      speciesRow({
+        id: "8cf79982-e5ee-4e3d-8d65-274527e6ae08",
+        scientific_name: "Availability",
+        common_names: { en: "Availability" },
+        kingdom: null,
+        phylum: null,
+        class: null,
+        order: null,
+        family: null,
+        genus: null,
+        native_region: "Internet",
+        created_at: "2026-06-05T12:00:00Z",
+        wikipedia_overview:
+          "In reliability engineering, availability describes whether a system is operational rather than a biological species.",
+      }),
     ],
     new Map([
       [
@@ -518,6 +533,10 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
       [
         "4cf79982-e5ee-4e3d-8d65-274527e6ae04",
         "https://example.com/newest-test-species.jpg",
+      ],
+      [
+        "8cf79982-e5ee-4e3d-8d65-274527e6ae08",
+        "https://example.com/not-a-species.jpg",
       ],
     ]),
     "US",
@@ -548,6 +567,10 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
   assertEquals(allReferenceImageUrl === taxonomyReferenceImageUrl, false);
   assertEquals(overview.featured_species?.scientific_name, "Testus ignotus");
   assertEquals(overview.featured_species?.common_name, "Newest Test Species");
+  assertEquals(
+    overview.categories.find((category) => category.id === "all")?.count,
+    7,
+  );
   assertEquals(
     overview.featured_species?.overview,
     "The newest test species is used to verify recently added dictionary highlights.",
@@ -630,6 +653,9 @@ Deno.test("species-dictionary helpers - builds taxonomy tree payload", () => {
   const unclassifiedKingdom = tree.nodes.find((node) =>
     node.id === "taxonomy:kingdom:unclassified"
   );
+  const invalidSpeciesNode = tree.nodes.find((node) =>
+    node.id === "species:3cf79982-e5ee-4e3d-8d65-274527e6ae03"
+  );
 
   assertEquals(danausNode?.species_count, 2);
   assertEquals(danausNode?.child_count, 2);
@@ -639,7 +665,8 @@ Deno.test("species-dictionary helpers - builds taxonomy tree payload", () => {
   );
   assertEquals(monarchNode?.species?.scientific_name, "Danaus plexippus");
   assertEquals(monarchNode?.parent_id, danausNode?.id);
-  assertEquals(unclassifiedKingdom?.title, "Unclassified");
+  assertEquals(unclassifiedKingdom, undefined);
+  assertEquals(invalidSpeciesNode, undefined);
   assertEquals(
     tree.edges.some((edge) =>
       edge.from === danausNode?.id && edge.to === monarchNode?.id

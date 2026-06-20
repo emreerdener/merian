@@ -237,7 +237,10 @@ overview copy, graphic-led high-level group summaries such as Birds and Plants,
 plus region summaries derived from `species_dictionary.native_region`. iOS uses
 that featured card as the visible Recently Added entry point, renders `Your
 Region` as a full-width MapKit snapshot card when a matched native-region
-catalog exists, and moves `All` into a bottom row link. The region snapshot uses
+catalog exists, and moves `All` into a bottom row link. Explore keeps Dictionary
+as the only bottom-navigation entry for species reference surfaces; the root
+Dictionary tab exposes a header segmented control that switches between the
+Catalog overview/search content and the Tree canvas. The region snapshot uses
 the backend-matched native region and falls back to a default United States map
 only when MapKit geocoding cannot resolve that region label. If the overview has
 no non-empty region summaries with species counts, iOS hides the Region section
@@ -246,6 +249,11 @@ Catalog detail pages opened from overview cards or rows, including Birds,
 Mammals, All, Your Region, and Recently Added, keep the same paginated species
 row list but add toolbar search, matching the Scans library search presentation,
 that filters within the active category.
+Overview, catalog, and tree results are gated to public biological taxa: a row
+must have a scientific name plus either a positive GBIF taxon key or usable
+biological taxonomy with a kingdom and at least one downstream rank. Rows that
+only resolve to generic encyclopedia concepts are filtered out before they can
+appear as dictionary records.
 `user_region` may be an ISO region code from an already-authorized physical
 location or, when location is unavailable/not granted, from
 `Locale.current.region?.identifier`; the function expands codes such as `US`
@@ -353,7 +361,9 @@ content.
 
 ### Tree Mode
 
-The Tree of Life canvas uses the same Edge Function with `mode: "tree"`:
+The Tree of Life canvas is available from the Explore Dictionary header segment
+instead of as a separate Explore bottom-navigation tab. It uses the same Edge
+Function with `mode: "tree"`:
 
 ```json
 {
@@ -416,7 +426,7 @@ detail and catalog responses.
 
 The tree response is still species-level public data only. It adds graph-ready
 taxonomy nodes, parent/child edges, species counts, representative species, and
-preview fields so the iOS canvas can search, zoom, focus branches, and show
+preview fields so the iOS canvas can zoom, focus branches, and show
 species previews without exposing scan IDs, users, media, locations, comments,
 Explore posts, or field notes. Empty scan libraries return an empty graph and
 the iOS canvas shows a scanned-taxonomy empty state.

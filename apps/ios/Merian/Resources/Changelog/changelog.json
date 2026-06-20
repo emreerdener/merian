@@ -2,6 +2,48 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-19-explore-dictionary-tree-toggle",
+      "date": "2026-06-19",
+      "title": "Dictionary tree toggle",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Explore Dictionary now has a header control for switching between the Catalog and taxonomy Tree views.",
+            "The Explore bottom menu stays focused on Feed, Map, and Dictionary while the Tree lives inside Dictionary.",
+            "The Tree view now opens directly into the pan-and-zoom taxonomy canvas without its own search field or filled top heading background.",
+            "The Tree zoom and locate controls now use liquid-glass circular buttons."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-06-19-species-dictionary-biological-filter",
+      "date": "2026-06-19",
+      "title": "Species Dictionary biological filter",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Species Dictionary catalog and overview surfaces now filter out non-biological encyclopedia rows before they can appear as dictionary records."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-06-19-profile-heatmap-empty-grid",
+      "date": "2026-06-19",
+      "title": "Profile heatmap empty grid",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Profiles with no scans now still show the empty contribution cells in the scan heatmap instead of a collapsed grid."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-19-beta-feedback-survey",
       "date": "2026-06-19",
       "title": "Beta feedback survey",
@@ -11,7 +53,8 @@
           "items": [
             "A one-time beta feedback survey now asks how Merian is working for testers after meaningful use.",
             "You can also open the survey from Settings in the Resources section.",
-            "Survey responses are saved privately so the team can review polish, performance, bugs, and feature requests."
+            "Survey responses are saved privately so the team can review polish, performance, bugs, and feature requests.",
+            "After submitting, the thank-you state resets after 24 hours so you can send fresh feedback again from Settings."
           ]
         }
       ]

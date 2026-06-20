@@ -52,6 +52,11 @@ final class ProfileDatabaseActorTests: XCTestCase {
 
         XCTAssertEqual(payload.awards.count, AchievementType.allCases.count, "Brand-new accounts should still receive the full locked achievements set.")
         XCTAssertTrue(payload.awards.allSatisfy { !$0.isCompleted && $0.currentCount == 0 }, "Empty libraries should render achievements as locked with zero progress.")
+        XCTAssertEqual(payload.heatmap.totalCaptures, 0)
+        XCTAssertEqual(payload.heatmap.currentMonthCaptures, 0)
+        XCTAssertEqual(payload.heatmap.weeks.count, 52, "Brand-new accounts should still render an empty contribution grid.")
+        XCTAssertTrue(payload.heatmap.weeks.allSatisfy { $0.days.count == 7 }, "Every empty heatmap week should keep the full seven-day geometry.")
+        XCTAssertTrue(payload.heatmap.weeks.flatMap(\.days).allSatisfy { $0.count <= 0 }, "Empty heatmaps should only contain zero-count past cells or future placeholders.")
     }
 
     func testProfileProjectionCacheRefreshesAfterInsertedScan() async throws {

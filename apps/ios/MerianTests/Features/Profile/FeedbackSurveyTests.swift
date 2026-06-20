@@ -51,6 +51,32 @@ struct FeedbackSurveyTests {
         ))
     }
 
+    @Test func submittedStateExpiresAfterRepeatSubmissionCooldown() {
+        let submittedAt: TimeInterval = 1_000
+        let stillCoolingDown = Date(
+            timeIntervalSince1970: submittedAt + FeedbackSurveyCampaign.repeatSubmissionCooldown - 1
+        )
+        let readyForMoreFeedback = Date(
+            timeIntervalSince1970: submittedAt + FeedbackSurveyCampaign.repeatSubmissionCooldown
+        )
+
+        #expect(FeedbackSurveyCampaign.isSubmittedStateActive(
+            submittedCampaignId: FeedbackSurveyCampaign.currentId,
+            submittedAt: submittedAt,
+            now: stillCoolingDown
+        ))
+        #expect(!FeedbackSurveyCampaign.isSubmittedStateActive(
+            submittedCampaignId: FeedbackSurveyCampaign.currentId,
+            submittedAt: submittedAt,
+            now: readyForMoreFeedback
+        ))
+        #expect(!FeedbackSurveyCampaign.isSubmittedStateActive(
+            submittedCampaignId: FeedbackSurveyCampaign.currentId,
+            submittedAt: 0,
+            now: stillCoolingDown
+        ))
+    }
+
     @Test func submitFeedbackSurveyEncodesSurveyPayload() async throws {
         let mockResponse = HTTPURLResponse(
             url: URL(string: "https://example.com")!,

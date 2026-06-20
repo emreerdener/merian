@@ -1,3 +1,5 @@
+import { normalizeTaxonomyValue } from "./taxonomy.ts";
+
 export type PublicReferenceImageSource = "wikipedia" | "gbif" | "merian";
 export type PublicSpeciesContentQuality =
   | "complete"
@@ -485,6 +487,14 @@ export function publicSpeciesProjectionForbiddenKeys(
   return hits;
 }
 
+export function isPublicBiologicalSpeciesRow(
+  row: PublicSpeciesDictionaryRow,
+): boolean {
+  if (!stringValue(row.scientific_name)) return false;
+  return positiveInteger(row.gbif_taxon_key) !== null ||
+    hasMeaningfulTaxonomy(row);
+}
+
 export function stringValue(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -617,15 +627,36 @@ function hasPublicHabitatOrDistribution(
 }
 
 function hasMeaningfulTaxonomy(row: PublicSpeciesDictionaryRow): boolean {
-  const values = [
-    row.kingdom,
+  if (!usablePublicTaxonomyValue(row.kingdom)) return false;
+
+  return [
     row.phylum,
     row.class,
     row.order,
     row.family,
     row.genus,
-  ].filter((value) => stringValue(value) !== null);
-  return values.length >= 2;
+  ].some((value) => usablePublicTaxonomyValue(value) !== null);
+}
+
+function usablePublicTaxonomyValue(
+  value: string | null | undefined,
+): string | null {
+  const normalized = normalizeTaxonomyValue(value);
+  if (!normalized) return null;
+
+  const key = normalized.toLowerCase();
+  if (
+    key === "unavailable" ||
+    key === "not available" ||
+    key === "n/a" ||
+    key === "none" ||
+    key === "null" ||
+    key === "undefined"
+  ) {
+    return null;
+  }
+
+  return normalized;
 }
 
 function collectForbiddenKeys(

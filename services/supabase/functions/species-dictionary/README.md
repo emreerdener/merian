@@ -95,6 +95,10 @@ Vary: Accept-Encoding
 Overview mode returns the featured species card plus category, high-level group,
 and region summaries. It uses `Cache-Control: no-store` so randomized category
 thumbnails and featured species choices can refresh on each request.
+Overview, catalog, and tree modes only publish rows that look like biological
+taxa: a row must have a scientific name plus either a positive GBIF taxon key or
+usable taxonomy with a kingdom and at least one downstream rank. This prevents
+generic encyclopedia concepts from appearing as Species Dictionary records.
 
 `400`, `404`, and `500` responses do not include those cache headers. Missing
 rows and transient failures must be able to recover as soon as the backing

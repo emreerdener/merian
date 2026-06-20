@@ -87,6 +87,8 @@ enum UserDefaultsKeys {
     static let feedbackSurveyDismissedCampaignId = "feedbackSurveyDismissedCampaignId"
     /// One-time feedback survey campaign id the user submitted.
     static let feedbackSurveySubmittedCampaignId = "feedbackSurveySubmittedCampaignId"
+    /// Seconds-since-epoch timestamp for the latest feedback survey submission.
+    static let feedbackSurveySubmittedAt = "feedbackSurveySubmittedAt"
     /// Prefix for per-scan Explore share state. Append the local `scanId` to form the full key.
     /// e.g. `"sharedExplorePostId_1234-uuid"` → the published Explore post id for that scan.
     static let sharedExplorePostIdPrefix = "sharedExplorePostId_"
@@ -1159,6 +1161,15 @@ final class AppSettings {
             )
         }
     }
+    var feedbackSurveySubmittedAt: TimeInterval {
+        didSet {
+            persistDouble(
+                feedbackSurveySubmittedAt,
+                oldValue: oldValue,
+                key: UserDefaultsKeys.feedbackSurveySubmittedAt
+            )
+        }
+    }
     var invertZoomDirection: Bool {
         didSet { persistBool(invertZoomDirection, oldValue: oldValue, key: UserDefaultsKeys.invertZoomDirection) }
     }
@@ -1218,6 +1229,7 @@ final class AppSettings {
             UserDefaultsKeys.lastSeenExplorePostSharedAt: "",
             UserDefaultsKeys.feedbackSurveyDismissedCampaignId: "",
             UserDefaultsKeys.feedbackSurveySubmittedCampaignId: "",
+            UserDefaultsKeys.feedbackSurveySubmittedAt: 0,
             UserDefaultsKeys.invertZoomDirection: false,
             UserDefaultsKeys.zoomSideLeft: true,
             UserDefaultsKeys.zoomSliderVisible: true,
@@ -1251,6 +1263,7 @@ final class AppSettings {
         lastSeenExplorePostSharedAt = userDefaults.string(forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt) ?? ""
         feedbackSurveyDismissedCampaignId = userDefaults.string(forKey: UserDefaultsKeys.feedbackSurveyDismissedCampaignId) ?? ""
         feedbackSurveySubmittedCampaignId = userDefaults.string(forKey: UserDefaultsKeys.feedbackSurveySubmittedCampaignId) ?? ""
+        feedbackSurveySubmittedAt = userDefaults.double(forKey: UserDefaultsKeys.feedbackSurveySubmittedAt)
         invertZoomDirection = userDefaults.bool(forKey: UserDefaultsKeys.invertZoomDirection)
         zoomSideLeft = userDefaults.bool(forKey: UserDefaultsKeys.zoomSideLeft)
         zoomSliderVisible = userDefaults.bool(forKey: UserDefaultsKeys.zoomSliderVisible)
@@ -1315,6 +1328,7 @@ final class AppSettings {
         lastSeenExplorePostSharedAt = userDefaults.string(forKey: UserDefaultsKeys.lastSeenExplorePostSharedAt) ?? ""
         feedbackSurveyDismissedCampaignId = userDefaults.string(forKey: UserDefaultsKeys.feedbackSurveyDismissedCampaignId) ?? ""
         feedbackSurveySubmittedCampaignId = userDefaults.string(forKey: UserDefaultsKeys.feedbackSurveySubmittedCampaignId) ?? ""
+        feedbackSurveySubmittedAt = userDefaults.double(forKey: UserDefaultsKeys.feedbackSurveySubmittedAt)
         invertZoomDirection = userDefaults.bool(forKey: UserDefaultsKeys.invertZoomDirection)
         zoomSideLeft = userDefaults.bool(forKey: UserDefaultsKeys.zoomSideLeft)
         zoomSliderVisible = userDefaults.bool(forKey: UserDefaultsKeys.zoomSliderVisible)
@@ -1333,6 +1347,11 @@ final class AppSettings {
     }
 
     private func persistInt(_ newValue: Int, oldValue: Int, key: String) {
+        guard !isReloadingFromDefaults, newValue != oldValue else { return }
+        userDefaults.set(newValue, forKey: key)
+    }
+
+    private func persistDouble(_ newValue: Double, oldValue: Double, key: String) {
         guard !isReloadingFromDefaults, newValue != oldValue else { return }
         userDefaults.set(newValue, forKey: key)
     }
