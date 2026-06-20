@@ -11,6 +11,7 @@
           "items": [
             "Explore now has a Community tab for Ask the Community identification requests.",
             "Biological insights can request community help with optional notes and post-level location sharing.",
+            "The Community Suggest ID sheet now opens with AI-derived starting suggestions when available.",
             "Ask the Community confirmations now include a View action that opens the new request directly.",
             "When all identification candidates are rejected, Ask the Community is now offered as the next step.",
             "Community request details include consensus status, an identification timeline, taxonomy search, disagreement prompts, and withdraw/restore actions."
@@ -20,7 +21,9 @@
           "title": "Changed",
           "items": [
             "Community identification now uses versioned taxonomy, queued consensus processing, and verified Explore graduation behind the scenes.",
-            "The unused identification-review action has been removed from Insight and candidate review flows."
+            "The unused identification-review action has been removed from Insight and candidate review flows.",
+            "Community identification sheets now use icon close controls and a cleaner disagreement reason field.",
+            "Community identification timelines now hide internal consensus labels from user-facing copy."
           ]
         }
       ]

@@ -161,7 +161,13 @@ Returns one visible request with author identity, current consensus state,
 privacy-safe location fields, and the full identification timeline. Tombstoned
 scans, unshared posts, blocked relationships, and shadowbanned authors are
 filtered out server-side. Identification timeline rows include a computed
-`role_label` such as `supporting`, `leading`, `maverick`, or `withdrawn`.
+`role_label` such as `supporting`, `leading`, `maverick`, or `withdrawn` for
+internal consensus/audit behavior; clients should not expose these labels as
+user-facing copy. The response also includes additive `suggested_taxa` for the
+Suggest ID sheet, derived from the initial AI taxon plus resolvable
+`scans.candidates` entries in the request's pinned taxonomy version. Suggested
+taxa use the same taxon fields as search results and may include
+`suggestion_source`, `confidence_score`, and `distinguishing_feature`.
 
 ### `/search-community-taxa`
 

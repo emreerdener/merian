@@ -11,6 +11,7 @@ TestFlight, App Store, support, and QA.
 - Added a Community tab to Explore for Ask the Community identification
   requests, with an Insight-sheet CTA, community request queue, taxonomy search,
   disagreement prompts, and backend consensus storage.
+- Added AI-derived starting suggestions to the Community Suggest ID sheet.
 - Added a View action to the Ask the Community confirmation toast so new
   requests can open directly in the Community detail page.
 - Added Ask the Community as the recovery path when users reject every
@@ -61,6 +62,10 @@ TestFlight, App Store, support, and QA.
 
 - Removed the unused identification-review action from Insight and candidate
   review flows.
+- Polished Community identification sheets with icon close controls and a
+  cleaner disagreement reason field.
+- Kept internal Community identification consensus labels out of the public
+  identification timeline.
 
 - Rebuilt Community identification around versioned Merian taxonomy, queued
   consensus processing, and projection-driven Explore graduation so unresolved

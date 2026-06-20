@@ -461,6 +461,7 @@ struct CommunityIdentificationDetail: Decodable, Identifiable, Equatable {
     let viewerIdentificationId: String?
     let publicLocationLabel: String?
     let locationSharing: ExplorePostLocationSharing?
+    let suggestedTaxa: [CommunityTaxonSearchResult]?
     let identifications: [CommunityIdentification]
 
     var id: String { requestId }
@@ -507,14 +508,6 @@ struct CommunityIdentification: Decodable, Identifiable, Equatable {
     var displayRank: String {
         CommunityTaxonDisplay.rankTitle(rank)
     }
-
-    var displayRole: String? {
-        guard let roleLabel, !roleLabel.isEmpty else { return nil }
-        return roleLabel
-            .split(separator: "_")
-            .map { $0.capitalized }
-            .joined(separator: " ")
-    }
 }
 
 struct CommunityTaxonSearchResult: Decodable, Identifiable, Equatable {
@@ -525,6 +518,33 @@ struct CommunityTaxonSearchResult: Decodable, Identifiable, Equatable {
     let rank: String
     let path: String
     let speciesId: String?
+    let suggestionSource: CommunityTaxonSuggestionSource?
+    let confidenceScore: Double?
+    let distinguishingFeature: String?
+
+    init(
+        taxonId: String,
+        taxonomyVersionId: String?,
+        commonName: String?,
+        scientificName: String,
+        rank: String,
+        path: String,
+        speciesId: String?,
+        suggestionSource: CommunityTaxonSuggestionSource? = nil,
+        confidenceScore: Double? = nil,
+        distinguishingFeature: String? = nil
+    ) {
+        self.taxonId = taxonId
+        self.taxonomyVersionId = taxonomyVersionId
+        self.commonName = commonName
+        self.scientificName = scientificName
+        self.rank = rank
+        self.path = path
+        self.speciesId = speciesId
+        self.suggestionSource = suggestionSource
+        self.confidenceScore = confidenceScore
+        self.distinguishingFeature = distinguishingFeature
+    }
 
     var id: String { taxonId }
 
@@ -542,6 +562,20 @@ struct CommunityTaxonSearchResult: Decodable, Identifiable, Equatable {
         if path.hasPrefix(currentPath + ".") { return .descendant }
         if currentPath.hasPrefix(path + ".") { return .ancestor }
         return .conflict
+    }
+}
+
+enum CommunityTaxonSuggestionSource: String, Decodable, Equatable {
+    case aiInitial = "ai_initial"
+    case aiCandidate = "ai_candidate"
+
+    var displayLabel: String {
+        switch self {
+        case .aiInitial:
+            "AI suggestion"
+        case .aiCandidate:
+            "Alternative from scan analysis"
+        }
     }
 }
 

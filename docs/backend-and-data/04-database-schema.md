@@ -262,6 +262,9 @@ One active Ask the Community request per Explore post. Status is
 Normal Explore feed, map, author, and hashtag reads use
 `explore_observation_projection`, excluding `community_needs_id` posts and
 including them again when the projection becomes `community_resolved`.
+Community detail responses derive initial Suggest ID options from this pinned
+taxonomy version: the initial AI taxon plus any resolvable `scans.candidates`
+entries, capped and deduplicated server-side.
 
 ### `explore_identifications`
 

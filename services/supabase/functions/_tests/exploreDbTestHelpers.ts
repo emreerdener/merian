@@ -119,6 +119,7 @@ type InsertScanOptions = {
   isTombstoned?: boolean;
   semanticLocation?: string | null;
   publicLocationLabel?: string | null;
+  candidates?: Array<Record<string, unknown>> | null;
 };
 
 export async function insertScan(
@@ -142,7 +143,8 @@ export async function insertScan(
         geoprivacy,
         is_tombstoned,
         semantic_location,
-        public_location_label
+        public_location_label,
+        candidates
       )
       VALUES (
         $1,
@@ -159,7 +161,8 @@ export async function insertScan(
         $12,
         $13,
         $14,
-        $15
+        $15,
+        $16::jsonb
       )
     `,
     [
@@ -179,6 +182,7 @@ export async function insertScan(
       options.isTombstoned ?? false,
       options.semanticLocation ?? null,
       options.publicLocationLabel ?? null,
+      options.candidates == null ? null : JSON.stringify(options.candidates),
     ],
   );
 }

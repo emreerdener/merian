@@ -300,6 +300,7 @@ struct ExploreCommunityIdentificationDetailView: View {
                 CommunityTaxonomySearchSheet(
                     currentPath: detail.currentPath,
                     taxonomyVersionId: detail.taxonomyVersionId,
+                    initialSuggestions: detail.suggestedTaxa ?? [],
                     onSelect: handleTaxonSelection
                 )
             }
@@ -639,17 +640,14 @@ private struct CommunityIdentificationRow: View {
     }
 
     private var identificationSubtitle: String {
-        if let role = identification.displayRole {
-            return "\(identification.displayRank) - \(role) by \(identification.authorName)"
-        }
-
-        return "\(identification.displayRank) by \(identification.authorName)"
+        "\(identification.displayRank) by \(identification.authorName)"
     }
 }
 
 private struct CommunityTaxonomySearchSheet: View {
     let currentPath: String?
     let taxonomyVersionId: String?
+    let initialSuggestions: [CommunityTaxonSearchResult]
     let onSelect: (CommunityTaxonSearchResult) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -661,34 +659,36 @@ private struct CommunityTaxonomySearchSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if isSearching {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                        Spacer()
-                    }
-                }
-
-                ForEach(results) { result in
-                    Button {
-                        onSelect(result)
-                        dismiss()
-                    } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(result.displayName)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                            Text("\(result.displayRank) - \(result.scientificName)")
+                if isShowingInitialSuggestions {
+                    Section("Suggested from AI analysis") {
+                        if initialSuggestions.isEmpty {
+                            Text("No AI suggestions are available for this request.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(initialSuggestions) { suggestion in
+                                taxonButton(for: suggestion)
+                            }
                         }
                     }
-                }
+                } else {
+                    if isSearching {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                            Spacer()
+                        }
+                    }
 
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    ForEach(results) { result in
+                        taxonButton(for: result)
+                    }
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .navigationTitle("Suggest ID")
@@ -699,9 +699,33 @@ private struct CommunityTaxonomySearchSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .imageOverlayToolbarIconChrome(
+                                isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground,
+                                foregroundColor: .primary
+                            )
+                    }
+                    .accessibilityLabel("Close")
+                    .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
                 }
             }
+        }
+    }
+
+    private var isShowingInitialSuggestions: Bool {
+        query.trimmingCharacters(in: .whitespacesAndNewlines).count < 2
+    }
+
+    private func taxonButton(for result: CommunityTaxonSearchResult) -> some View {
+        Button {
+            onSelect(result)
+            dismiss()
+        } label: {
+            CommunityTaxonSearchRow(result: result)
         }
     }
 
@@ -727,6 +751,27 @@ private struct CommunityTaxonomySearchSheet: View {
         } catch is CancellationError {
         } catch {
             errorMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+}
+
+private struct CommunityTaxonSearchRow: View {
+    let result: CommunityTaxonSearchResult
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(result.displayName)
+                .font(.body)
+                .foregroundStyle(.primary)
+            Text("\(result.displayRank) - \(result.scientificName)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let label = result.suggestionSource?.displayLabel {
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
@@ -759,11 +804,7 @@ private struct CommunityDisagreementResolverSheet: View {
                     .foregroundStyle(.secondary)
 
                 if context.relationship == .conflict {
-                    TextEditor(text: $reasoning)
-                        .frame(minHeight: 120)
-                        .padding(8)
-                        .background(Color(uiColor: .secondarySystemGroupedBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    reasonField
                 }
 
                 if context.taxon.rank == "genus" {
@@ -799,11 +840,43 @@ private struct CommunityDisagreementResolverSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .imageOverlayToolbarIconChrome(
+                                isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground,
+                                foregroundColor: .primary
+                            )
+                    }
+                    .accessibilityLabel("Close")
+                    .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
                 }
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private var reasonField: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TextField("Optional reason", text: $reasoning, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.body)
+                .lineLimit(4...7)
+
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 128, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 
     private var title: String {

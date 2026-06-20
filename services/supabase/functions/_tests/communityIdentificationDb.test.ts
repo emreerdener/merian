@@ -19,6 +19,13 @@ type ProjectionRow = {
   public_taxon_node_id: string | null;
 };
 
+type SuggestedTaxon = {
+  taxon_id: string;
+  scientific_name: string;
+  suggestion_source: "ai_initial" | "ai_candidate";
+  distinguishing_feature: string | null;
+};
+
 Deno.test("Community ID DB - versioned search, queued consensus, and projection graduation", async () => {
   await withExploreDbTest(
     "communityIdentificationDb.test",
@@ -27,6 +34,8 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
       const identifierA = crypto.randomUUID();
       const identifierB = crypto.randomUUID();
       const speciesId = crypto.randomUUID();
+      const candidateHighSpeciesId = crypto.randomUUID();
+      const candidateLowSpeciesId = crypto.randomUUID();
       const scanId = crypto.randomUUID();
       const postId = crypto.randomUUID();
       const requestId = crypto.randomUUID();
@@ -35,6 +44,8 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
       await insertUser(client, identifierA, "Identifier A");
       await insertUser(client, identifierB, "Identifier B");
       await insertSpecies(client, speciesId, "Rosa communitatis");
+      await insertSpecies(client, candidateHighSpeciesId, "Rosa alternata");
+      await insertSpecies(client, candidateLowSpeciesId, "Rosa minor");
       await insertScan(client, {
         id: scanId,
         userId: ownerId,
@@ -44,6 +55,32 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
         geoprivacy: "open",
         gpsLatPublic: 30.2672,
         gpsLongPublic: -97.7431,
+        candidates: [
+          {
+            scientific_name: "Rosa communitatis",
+            common_name: "Community Rose",
+            confidence_score: 0.99,
+            distinguishing_feature: "same as the initial taxon",
+          },
+          {
+            scientific_name: "Rosa minor",
+            common_name: "Little Rose",
+            confidence_score: 0.62,
+            distinguishing_feature: "smaller leaflets",
+          },
+          {
+            scientific_name: "Rosa alternata",
+            common_name: "Alternate Rose",
+            confidence_score: 0.91,
+            distinguishing_feature: "alternate leaflet pattern",
+          },
+          {
+            scientific_name: "Rosa nowhere",
+            common_name: "Unresolved Rose",
+            confidence_score: 0.88,
+            distinguishing_feature: "not in taxonomy",
+          },
+        ],
       });
       await insertExplorePost(client, { id: postId, userId: ownerId, scanId });
 
@@ -69,6 +106,20 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
       assertEquals(taxonRows.rows[0].taxonomy_version_id, taxonomyVersionId);
 
       const speciesTaxonId = taxonRows.rows[0].taxon_id;
+
+      const candidateTaxonRows = await client.queryObject<SearchRow>(
+        `
+        SELECT taxon_id, taxonomy_version_id, scientific_name
+        FROM public.search_community_taxa($1, 10, $2)
+        WHERE scientific_name IN ('Rosa alternata', 'Rosa minor')
+      `,
+        ["rosa", taxonomyVersionId],
+      );
+      const candidateTaxonIdsByName = new Map(
+        candidateTaxonRows.rows.map((
+          row,
+        ) => [row.scientific_name, row.taxon_id]),
+      );
 
       await client.queryArray(
         `
@@ -99,6 +150,39 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
         "community_needs_id",
       );
       assertEquals(initialProjection.rows[0].public_taxon_node_id, null);
+
+      const detailRows = await client.queryObject<{
+        suggested_taxa: SuggestedTaxon[];
+      }>(
+        `
+        SELECT suggested_taxa
+        FROM public.get_community_identification_detail($1, $2)
+      `,
+        [ownerId, requestId],
+      );
+      const suggestions = detailRows.rows[0].suggested_taxa;
+
+      assertEquals(
+        suggestions.map((suggestion) => suggestion.scientific_name),
+        ["Rosa communitatis", "Rosa alternata", "Rosa minor"],
+      );
+      assertEquals(
+        suggestions.map((suggestion) => suggestion.suggestion_source),
+        ["ai_initial", "ai_candidate", "ai_candidate"],
+      );
+      assertEquals(suggestions[0].taxon_id, speciesTaxonId);
+      assertEquals(
+        suggestions[1].taxon_id,
+        candidateTaxonIdsByName.get("Rosa alternata"),
+      );
+      assertEquals(
+        suggestions[2].taxon_id,
+        candidateTaxonIdsByName.get("Rosa minor"),
+      );
+      assertEquals(
+        suggestions[1].distinguishing_feature,
+        "alternate leaflet pattern",
+      );
 
       await client.queryObject(
         `
