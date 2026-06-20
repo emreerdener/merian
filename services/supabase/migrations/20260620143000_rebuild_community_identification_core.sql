@@ -1823,6 +1823,16 @@ BEGIN
 
         IF has_projection_join
            AND patched_definition NOT LIKE '%COALESCE(eop.projection_state::TEXT, ''normal'') <> ''community_needs_id''%' THEN
+            patched_definition := REPLACE(
+                patched_definition,
+                '      AND ep.unshared_at IS NULL',
+                '      AND ep.unshared_at IS NULL
+      AND COALESCE(eop.projection_state::TEXT, ''normal'') <> ''community_needs_id'''
+            );
+        END IF;
+
+        IF has_projection_join
+           AND patched_definition NOT LIKE '%COALESCE(eop.projection_state::TEXT, ''normal'') <> ''community_needs_id''%' THEN
             RAISE EXCEPTION 'Explore RPC % could not be patched with community projection filter', function_signature;
         END IF;
 
