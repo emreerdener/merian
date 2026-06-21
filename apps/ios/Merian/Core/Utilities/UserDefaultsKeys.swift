@@ -83,6 +83,10 @@ enum UserDefaultsKeys {
     static let hasSeenExploreOnboarding = "hasSeenExploreOnboarding"
     /// Whether the user has dismissed the one-time Explore tab "New" chip.
     static let hasSeenExploreNewChip = "hasSeenExploreNewChip"
+    /// Whether the user has dismissed the Explore Identify requests banner.
+    static let hasDismissedIdentifyRequestsBanner = "hasDismissedIdentifyRequestsBanner"
+    /// Whether the user has dismissed the Explore Identify activity banner.
+    static let hasDismissedIdentifyActivityBanner = "hasDismissedIdentifyActivityBanner"
     /// Whether the Explore feed has a newer post than the one the user most recently saw.
     static let hasUnseenExplorePost = "hasUnseenExplorePost"
     /// One-time feedback survey campaign id the user dismissed.

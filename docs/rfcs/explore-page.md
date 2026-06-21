@@ -61,7 +61,7 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 
 The Explore feed and map shell are now live. The current shipped implementation is:
 
-- `ExploreView` uses a bottom-menu root pager with `Feed`, `Map`, and `Dictionary` sections in one horizontally paged shell. The old Feed/Map toolbar segment is removed; the bottom menu remains the precise section selector when map gestures compete with pager swipes. Simulator builds also include the in-development Tree section, but archived builds hide it from TestFlight and App Store users.
+- `ExploreView` uses bottom navigation for `Observations`, `Identify`, and `Dictionary`. Observations owns a root-only Feed/Map header toggle with Feed first, while Dictionary keeps Tree behind its Catalog/Tree header toggle.
 - `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction. At broad zooms, individual posts still use simple indicator dots; at close zooms, the shipped client upgrades them into circular scan thumbnails when the visible result set is small enough.
 - Publication state and post geoprivacy live on `explore_posts`. Spatial reads use post-owned `public_latitude` / `public_longitude`; Explore Map reads them through `public.get_explore_map_posts(...)` and `get-explore-map-points`, and Nearby uses the same stored projection for radius matching. Non-owned spatial results require saved `location_sharing = 'open'`.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` so newly shared scans with exact coordinates are normalized/backfilled correctly before map reads.
@@ -963,7 +963,7 @@ Client behavior:
 - Normalize privacy-safe spatial output through post-owned `explore_posts.public_latitude` / `public_longitude` fields and `public.get_explore_map_posts(...)`
 - Add cluster and point rendering in `ExploreMapView`
 - Add a preview-card selection model that routes into `ExplorePostDetailView`
-- Reuse the Explore root pager; map panning may share horizontal gestures with the pager, while the bottom menu remains the precise section selector.
+- Reuse the Explore root navigation, with Map grouped under the Observations Feed/Map header toggle rather than exposed as its own bottom item.
 
 ### Phase 7: Fast Follow Ups
 

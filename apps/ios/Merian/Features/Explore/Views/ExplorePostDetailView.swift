@@ -476,15 +476,7 @@ struct ExplorePostDetailView: View {
                             allowsAuthorProfilePresentation: allowsAuthorProfilePresentation
                         )
                     } label: {
-                        Text("#\(hashtag)")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.tint)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(Color.accentColor.opacity(0.12))
-                            )
+                        ExploreHashtagPill(hashtag: hashtag)
                     }
                     .buttonStyle(.plain)
                 }

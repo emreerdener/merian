@@ -22,7 +22,16 @@ enum CommunityIdentificationMode: Hashable, CaseIterable {
         case .requests:
             "Help identify open requests from Merian explorers."
         case .activity:
-            "Recent consensus outcomes and updates will appear here."
+            "See recent consensus decisions from Merian explorers."
+        }
+    }
+
+    var bannerTitle: String {
+        switch self {
+        case .requests:
+            "Ask the community"
+        case .activity:
+            "Community activity"
         }
     }
 }
@@ -40,6 +49,8 @@ struct ExploreCommunityIdentificationView: View {
     @State private var isLoadingMore = false
     @State private var hasReachedEnd = false
     @State private var errorMessage: String?
+    @AppStorage(UserDefaultsKeys.hasDismissedIdentifyRequestsBanner) private var hasDismissedRequestsBanner = false
+    @AppStorage(UserDefaultsKeys.hasDismissedIdentifyActivityBanner) private var hasDismissedActivityBanner = false
 
     private let pageSize = 30
     private let columns = [
@@ -79,9 +90,9 @@ struct ExploreCommunityIdentificationView: View {
     private var requestsContent: some View {
         ScrollView {
             VStack(spacing: 0) {
-                communityHeader
-
                 requestScopeFilter
+
+                communityBanner
 
                 Group {
                     if isLoadingInitialPage && items.isEmpty {
@@ -106,7 +117,7 @@ struct ExploreCommunityIdentificationView: View {
     private var activityContent: some View {
         ScrollView {
             VStack(spacing: 0) {
-                communityHeader
+                communityBanner
 
                 ContentUnavailableView(
                     "Activity",
@@ -120,22 +131,17 @@ struct ExploreCommunityIdentificationView: View {
         }
     }
 
-    private var communityHeader: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Ask the community")
-                    .font(.title2)
-                    .fontWeight(.bold)
-
-                Text(activeMode.description)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+    @ViewBuilder
+    private var communityBanner: some View {
+        if isCommunityBannerVisible {
+            CommunityIdentificationBanner(
+                title: activeMode.bannerTitle,
+                description: activeMode.description,
+                onDismiss: dismissActiveBanner
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.top, 18)
-        .padding(.bottom, 8)
     }
 
     private var requestScopeFilter: some View {
@@ -148,6 +154,26 @@ struct ExploreCommunityIdentificationView: View {
                 requestScope = scope
             }
         )
+    }
+
+    private var isCommunityBannerVisible: Bool {
+        switch activeMode {
+        case .requests:
+            !hasDismissedRequestsBanner
+        case .activity:
+            !hasDismissedActivityBanner
+        }
+    }
+
+    private func dismissActiveBanner() {
+        withAnimation(.snappy(duration: 0.2)) {
+            switch activeMode {
+            case .requests:
+                hasDismissedRequestsBanner = true
+            case .activity:
+                hasDismissedActivityBanner = true
+            }
+        }
     }
 
     private var requestGrid: some View {
@@ -293,6 +319,54 @@ struct ExploreCommunityIdentificationView: View {
 
     private var communitySortLongitude: Double? {
         environmentContextManager.lastKnownLocation?.coordinate.longitude
+    }
+}
+
+private struct CommunityIdentificationBanner: View {
+    let title: String
+    let description: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image("identify")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 88, height: 88)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+
+                Text(description)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 40, height: 40)
+                    .background(Color(uiColor: .tertiarySystemGroupedBackground), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss \(title) banner")
+        }
+        .padding(.leading, 0)
+        .padding(.trailing, 16)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 

@@ -5,8 +5,12 @@ import UIKit
 enum ExploreTab: Hashable {
     case feed
     case community
-    case map
     case dictionary
+}
+
+private enum ExploreDiscoveryMode: Hashable {
+    case feed
+    case map
 }
 
 private enum ExploreDictionaryMode: Hashable {
@@ -26,6 +30,7 @@ struct ExploreView: View {
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var activeTab: ExploreTab = .feed
+    @State private var activeDiscoveryMode: ExploreDiscoveryMode = .feed
     @State private var activeDictionaryMode: ExploreDictionaryMode = .dictionary
     @State private var activeCommunityMode: CommunityIdentificationMode = .requests
     @State private var dictionarySearchText = ""
@@ -76,16 +81,10 @@ struct ExploreView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             TabView(selection: activeTabBinding) {
-                ExploreFeedTabContent(
-                    viewModel: viewModel,
-                    onOpenPostDetail: { openPostDetail(for: $0) },
-                    onOpenAuthorProfile: { openAuthorProfile(for: $0) },
-                    onOpenHashtag: openHashtag,
-                    onOpenInsight: allowsInsightPresentation ? { openInsight(for: $0) } : nil
-                )
+                discoveryTabContent
                 .tag(ExploreTab.feed)
                 .tabItem {
-                    Label("Feed", systemImage: "photo.stack")
+                    Label("Observations", systemImage: "photo.stack")
                 }
 
                 ExploreCommunityIdentificationView(activeMode: $activeCommunityMode) { route in
@@ -96,24 +95,11 @@ struct ExploreView: View {
                     Label("Identify", systemImage: "person.crop.badge.magnifyingglass.fill")
                 }
 
-                ExploreMapView(
-                    viewModel: mapViewModel,
-                    feedViewModel: viewModel,
-                    postStore: viewModel.store,
-                    onOpenDetail: { post, focusCommentComposer in
-                        openPostDetail(for: post, focusCommentComposer: focusCommentComposer)
-                    }
-                )
-                .tag(ExploreTab.map)
-                .tabItem {
-                    Label("Map", systemImage: "map")
-                }
-
                 dictionaryTabContent
                 .background(Color(uiColor: .systemGroupedBackground))
                 .tag(ExploreTab.dictionary)
                 .tabItem {
-                    Label("Dictionary", systemImage: "book.closed")
+                    Label("Index", systemImage: "book.closed")
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
@@ -196,7 +182,7 @@ struct ExploreView: View {
         .onChange(of: viewModel.store.changeVersion) { _, _ in
             viewModel.refreshPreferredSpeciesNames(modelContext: modelContext)
         }
-        .onChange(of: activeTab) { _, newValue in
+        .onChange(of: activeDiscoveryMode) { _, newValue in
             if newValue == .map {
                 AppTelemetry.trackExploreMapOpened()
             }
@@ -310,6 +296,20 @@ struct ExploreView: View {
             }
         }
 
+        if shouldShowDiscoveryModePicker {
+            ToolbarItem(placement: .principal) {
+                Picker("Observations view", selection: $activeDiscoveryMode) {
+                    Text("Feed").tag(ExploreDiscoveryMode.feed)
+                    Text("Map").tag(ExploreDiscoveryMode.map)
+                }
+                .pickerStyle(.segmented)
+                .padding(.bottom, 1)
+                .background(Capsule().fill(.regularMaterial))
+                .clipShape(Capsule())
+                .frame(width: 220)
+            }
+        }
+
         if shouldShowDictionaryModePicker {
             ToolbarItem(placement: .principal) {
                 Picker("Dictionary view", selection: $activeDictionaryMode) {
@@ -349,6 +349,29 @@ struct ExploreView: View {
     }
 
     @ViewBuilder
+    private var discoveryTabContent: some View {
+        switch activeDiscoveryMode {
+        case .feed:
+            ExploreFeedTabContent(
+                viewModel: viewModel,
+                onOpenPostDetail: { openPostDetail(for: $0) },
+                onOpenAuthorProfile: { openAuthorProfile(for: $0) },
+                onOpenHashtag: openHashtag,
+                onOpenInsight: allowsInsightPresentation ? { openInsight(for: $0) } : nil
+            )
+        case .map:
+            ExploreMapView(
+                viewModel: mapViewModel,
+                feedViewModel: viewModel,
+                postStore: viewModel.store,
+                onOpenDetail: { post, focusCommentComposer in
+                    openPostDetail(for: post, focusCommentComposer: focusCommentComposer)
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
     private var dictionaryTabContent: some View {
         switch activeDictionaryMode {
         case .dictionary:
@@ -374,6 +397,10 @@ struct ExploreView: View {
                 navigationPath.append(speciesRoute)
             }
         }
+    }
+
+    private var shouldShowDiscoveryModePicker: Bool {
+        activeTab == .feed && navigationPath.isEmpty
     }
 
     private var shouldShowDictionaryModePicker: Bool {

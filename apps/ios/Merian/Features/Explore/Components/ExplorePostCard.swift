@@ -17,6 +17,28 @@ struct ExploreProBadge: View {
     }
 }
 
+struct ExploreHashtagPill: View {
+    let hashtag: String
+
+    var body: some View {
+        Text("#\(hashtag)")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(Color.accentColor)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.clear)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(Color.secondary.opacity(0.45), lineWidth: 1)
+            )
+    }
+}
+
 struct ExplorePostCard: View {
     let post: ExplorePost
     let speciesDisplayName: String
@@ -258,17 +280,7 @@ struct ExplorePostCard: View {
                 HStack(spacing: 8) {
                     ForEach(hashtags, id: \.self) { hashtag in
                         Button(action: { onOpenHashtag?(hashtag) }) {
-                            Text("#\(hashtag)")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tint)
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(Color.accentColor.opacity(0.12))
-                                )
+                            ExploreHashtagPill(hashtag: hashtag)
                         }
                         .buttonStyle(.plain)
                         .disabled(onOpenHashtag == nil)

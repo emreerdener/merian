@@ -45,6 +45,7 @@
             "Community identification now uses versioned taxonomy, queued consensus processing, and verified Explore graduation behind the scenes.",
             "Low-confidence Insight shares now default to asking Identify for help, while direct Explore publishing remains available behind a confirmation.",
             "Resolved Identify requests now stay out of normal Explore until the owner explicitly publishes them.",
+            "Explore hashtag pills now use transparent backgrounds, gray borders, and blue text on feed cards and post detail pages.",
             "The unused identification-review action has been removed from Insight and candidate review flows.",
             "Community identification sheets now use icon close controls and a cleaner disagreement reason field.",
             "Community identification timelines now hide internal consensus labels from user-facing copy."
@@ -61,7 +62,7 @@
           "title": "Added",
           "items": [
             "Explore Dictionary now has a header control for switching between the Catalog and taxonomy Tree views.",
-            "The Explore bottom menu stays focused on Feed, Map, and Dictionary while the Tree lives inside Dictionary.",
+            "The Explore bottom menu stays focused on Observations, Identify, and Dictionary while Feed/Map and Catalog/Tree live in header controls.",
             "The Tree view now opens directly into the pan-and-zoom taxonomy canvas without its own search field or filled top heading background.",
             "The Tree zoom and locate controls now use liquid-glass circular buttons."
           ]
@@ -118,8 +119,8 @@
         {
           "title": "Added",
           "items": [
-            "Explore now has a bottom menu for Feed, Map, and Dictionary.",
-            "You can swipe from Feed to Map to Dictionary, or jump directly with the bottom menu.",
+            "Explore now has bottom navigation for Observations, Identify, and Dictionary.",
+            "Observations now has a header control for switching between Feed and Map, with Feed first.",
             "Dictionary opens with a Recently Added featured species card, a full-width Your Region map card when local entries are available, an All row, plus region rows for browsing local range metadata. Region browsing stays hidden when no region records are available.",
             "Your Region can use already-granted location access for a better local match, while falling back to the device locale without a Dictionary-specific permission prompt.",
             "Dictionary also includes custom graphic browse cards for broad groups like Plants, Birds, Insects, Fungi, Mammals, and Reptiles & Amphibians, with toolbar search available inside those species lists."

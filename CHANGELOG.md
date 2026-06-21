@@ -50,8 +50,8 @@ TestFlight, App Store, support, and QA.
   feature notes, and in-progress work.
 - Added extra species dictionary data fetches so undiscovered species can still
   load dictionary pages when users navigate to them.
-- Added an Explore bottom menu for Feed, Map, and Dictionary, with horizontal
-  swiping across the same section order.
+- Added an Explore bottom navigation for Observations, Identify, and
+  Dictionary, with Feed and Map grouped inside the Observations header toggle.
 - Added a searchable Species Dictionary catalog with category browsing,
   Dictionary detail pages, and species reference imagery.
 - Added Dictionary category browsing with a Recently Added featured species
@@ -72,7 +72,7 @@ TestFlight, App Store, support, and QA.
   testers can send fresh feedback again without being proactively re-prompted.
 - Added a Catalog/Tree segmented control to the Explore Dictionary header,
   keeping the taxonomy tree inside Dictionary while the Explore bottom menu
-  stays focused on Feed, Map, and Dictionary.
+  stays focused on Observations, Identify, and Dictionary.
 
 ### Changed
 
@@ -80,6 +80,8 @@ TestFlight, App Store, support, and QA.
   direct Explore publishing remains available behind a confirmation.
 - Resolved Identify requests now stay out of normal Explore until the owner
   explicitly publishes them.
+- Refined Explore hashtag pills with transparent backgrounds, gray borders, and
+  blue text on feed cards and post detail pages.
 - Removed the unused identification-review action from Insight and candidate
   review flows.
 - Polished Community identification sheets with icon close controls and a

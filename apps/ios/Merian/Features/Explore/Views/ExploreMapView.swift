@@ -276,7 +276,7 @@ struct ExploreMapView: View {
             }
             .padding(.horizontal)
         }
-        .padding(.top, 0)
+        .padding(.top, 8)
         .padding(.bottom, 8)
     }
 

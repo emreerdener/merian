@@ -1,21 +1,23 @@
 # Explore Root Pager
 
-The Explore sheet uses a root-only bottom menu as its primary section
-navigation. The menu uses native tab-bar chrome and controls a horizontally
-paged root shell.
+The Explore sheet uses root-only bottom navigation as its primary section
+navigation. The menu uses native tab-bar chrome for Observations, Identify, and
+Dictionary.
 
 ## Sections
 
-- **Feed** shows the public Explore feed.
+- **Observations** shows either the public Explore feed or the Explore map. A
+  root-only header toggle keeps Feed first and Map second.
 - **Identify** shows the Ask the Community queue for unresolved identification
   requests. It uses `ExploreCommunityIdentificationView`, a two-column image
   grid sorted by nearby public coordinates when available and then recency.
   Cards show the request image, current anchor or consensus label, ID count, and
   privacy-safe location label.
-- **Map** shows open-location public discoveries. It includes a horizontal
-  species-type filter row below the Explore heading; the filter button opens a
-  sheet with the region's available categories, and active categories filter the
-  map payload before clusters or individual waypoints render.
+- **Map** lives inside Observations and shows open-location public discoveries.
+  It includes a horizontal species-type filter row below the Explore heading;
+  the filter button opens a sheet with the region's available categories, and
+  active categories filter the map payload before clusters or individual
+  waypoints render.
 - **Dictionary** shows `SpeciesDictionaryCatalogView`, a searchable and
   paginated catalog powered by the public `species_dictionary` table through
   the existing `/species-dictionary` Edge Function.
@@ -29,10 +31,10 @@ paged root shell.
 ## Navigation
 
 `ExploreView` owns the root section state through `ExploreTab`. Bottom-menu
-taps set the active section, while horizontal swipes page in the production
-order Feed, Identify, Map, then Dictionary. Simulator builds keep Tree inside
-the Dictionary header toggle rather than exposing it as a separate root
-bottom-menu item. The old top Feed/Map segmented control is not shown.
+taps set the active section in the production order Observations, Identify, then
+Dictionary. Observations owns a Feed/Map header toggle, and Dictionary keeps
+Tree inside its Catalog/Tree header toggle rather than exposing either Map or
+Tree as a separate root bottom-menu item.
 
 The bottom menu is intentionally root-scoped. It is hidden on pushed post
 details, Identify request details, catalog detail pages, hashtag lists, author
