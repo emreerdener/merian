@@ -83,6 +83,9 @@ extension InsightSheetView {
                     )
                 }
             } : nil,
+            onAskCommunity: viewModel.canRequestCommunityIdentification ? {
+                viewModel.state.isCommunityRequestSheetPresented = true
+            } : nil,
             isSharingToExplore: viewModel.state.isSharingToExplore,
             isUpdatingExplorePostContent: viewModel.state.isUpdatingExplorePostContent,
             isUpdatingExploreFieldNotes: viewModel.state.isUpdatingExploreFieldNotes,
@@ -91,9 +94,13 @@ extension InsightSheetView {
             fieldNotesPreview: viewModel.shareableFieldNotes,
             sharedExploreHashtags: viewModel.state.sharedExploreHashtags,
             sharedExplorePostId: viewModel.state.sharedExplorePostId,
+            shareRecommendation: viewModel.shareRecommendation,
             sharedExploreLocationSharing: viewModel.state.sharedExploreLocationSharing,
             fieldNotesArePublicOnExplore: viewModel.state.exploreFieldNotesArePublic,
             onViewInExplore: allowsExplorePresentation ? {
+                viewModel.state.showExploreSheet = true
+            } : nil,
+            onViewCommunityRequest: allowsExplorePresentation && viewModel.state.sharedCommunityIdentificationRequestId != nil ? {
                 viewModel.state.showExploreSheet = true
             } : nil,
             onUpdateFieldNotesVisibility: { isPublic in

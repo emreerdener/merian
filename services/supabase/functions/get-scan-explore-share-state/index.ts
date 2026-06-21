@@ -29,6 +29,9 @@ serve((req: Request) =>
         scan_id: scanId,
         post_id: null,
         shared_at: null,
+        community_request_id: null,
+        community_request_status: null,
+        is_explore_feed_visible: false,
         location_sharing: "obscured",
       },
     }, 200);

@@ -93,6 +93,54 @@ export async function fetchShareEligibleScan(
   return row;
 }
 
+export async function assertCommunityRequestCanPublishToExplore(
+  scanId: string,
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("explore_community_requests")
+    .select("id,status")
+    .eq("scan_id", scanId)
+    .eq("requested_by", userId)
+    .neq("status", "withdrawn")
+    .order("requested_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to inspect community request: ${error.message}`);
+  }
+
+  const row = data as { status?: string } | null;
+  if (row?.status === "needs_id") {
+    throw makeHttpError(
+      409,
+      "Wait for the community to identify this request before sharing it to Explore.",
+    );
+  }
+}
+
+export async function markResolvedCommunityRequestPublishedToExplore(
+  postId: string,
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("explore_community_requests")
+    .update({ explore_published_at: new Date().toISOString() })
+    .eq("post_id", postId)
+    .eq("requested_by", userId)
+    .eq("status", "resolved")
+    .is("explore_published_at", null);
+
+  if (error) {
+    throw new Error(
+      `Failed to mark community request as Explore-published: ${error.message}`,
+    );
+  }
+}
+
 export async function upsertExplorePost(
   scanId: string,
   userId: string,

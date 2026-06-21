@@ -86,6 +86,15 @@ AS $$
     LEFT JOIN public.taxon_nodes initial_taxon
         ON initial_taxon.id = ecr.initial_taxon_node_id
     LEFT JOIN LATERAL (
+        SELECT ei.id
+        FROM public.explore_identifications ei
+        WHERE ei.request_id = ecr.id
+          AND ei.user_id = self_id
+          AND ei.withdrawn_at IS NULL
+        ORDER BY ei.created_at DESC
+        LIMIT 1
+    ) viewer_identification ON TRUE
+    LEFT JOIN LATERAL (
         WITH raw_suggestions AS (
             SELECT
                 initial_taxon.id AS taxon_id,

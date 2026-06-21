@@ -43,6 +43,8 @@
           "title": "Changed",
           "items": [
             "Community identification now uses versioned taxonomy, queued consensus processing, and verified Explore graduation behind the scenes.",
+            "Low-confidence Insight shares now default to asking Identify for help, while direct Explore publishing remains available behind a confirmation.",
+            "Resolved Identify requests now stay out of normal Explore until the owner explicitly publishes them.",
             "The unused identification-review action has been removed from Insight and candidate review flows.",
             "Community identification sheets now use icon close controls and a cleaner disagreement reason field.",
             "Community identification timelines now hide internal consensus labels from user-facing copy."

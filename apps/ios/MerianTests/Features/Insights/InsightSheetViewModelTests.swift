@@ -155,6 +155,62 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.canReanalyze == true)
     }
 
+    @Test func testShareRecommendationUsesFlashStrongThreshold() {
+        let lowConfidence = shareRecommendationViewModel(confidence: 0.94, inferenceTier: "flash")
+        #expect(lowConfidence.shareRecommendation == .askCommunity)
+        #expect(lowConfidence.requiresExplorePublishConfirmation == true)
+
+        let strongConfidence = shareRecommendationViewModel(confidence: 0.95, inferenceTier: "flash")
+        #expect(strongConfidence.shareRecommendation == .publishToExplore)
+        #expect(strongConfidence.requiresExplorePublishConfirmation == false)
+    }
+
+    @Test func testShareRecommendationUsesProStrongThreshold() {
+        let lowConfidence = shareRecommendationViewModel(confidence: 0.84, inferenceTier: "pro")
+        #expect(lowConfidence.shareRecommendation == .askCommunity)
+
+        let strongConfidence = shareRecommendationViewModel(confidence: 0.85, inferenceTier: "pro")
+        #expect(strongConfidence.shareRecommendation == .publishToExplore)
+    }
+
+    @Test func testShareRecommendationTreatsMissingConfidenceAsAskCommunity() {
+        let missingConfidenceFallback = shareRecommendationViewModel(confidence: 0, inferenceTier: nil)
+        #expect(missingConfidenceFallback.shareRecommendation == .askCommunity)
+        #expect(missingConfidenceFallback.requiresExplorePublishConfirmation == true)
+    }
+
+    @Test func testShareRecommendationTreatsReviewedIdentificationAsExploreReady() {
+        let confirmed = shareRecommendationViewModel(
+            confidence: 0.42,
+            inferenceTier: "flash",
+            userConfirmedIdentification: true
+        )
+        #expect(confirmed.shareRecommendation == .publishToExplore)
+
+        let overridden = shareRecommendationViewModel(
+            confidence: 0.42,
+            inferenceTier: "flash",
+            userIdentificationOverride: "Rosa gallica"
+        )
+        #expect(overridden.shareRecommendation == .publishToExplore)
+    }
+
+    @Test func testShareRecommendationRestoresCommunityRequestStates() {
+        let pending = shareRecommendationViewModel(confidence: 0.99, inferenceTier: "flash")
+        pending.state.sharedCommunityIdentificationRequestId = "request_pending"
+        pending.state.sharedCommunityIdentificationStatus = .needsId
+        #expect(pending.shareRecommendation == .communityPending)
+
+        let resolved = shareRecommendationViewModel(confidence: 0.99, inferenceTier: "flash")
+        resolved.state.sharedCommunityIdentificationRequestId = "request_resolved"
+        resolved.state.sharedCommunityIdentificationStatus = .resolved
+        #expect(resolved.shareRecommendation == .communityResolvedNeedsPublish)
+
+        resolved.state.sharedExplorePostId = "post_visible"
+        resolved.state.isExploreFeedVisible = true
+        #expect(resolved.shareRecommendation == .publishToExplore)
+    }
+
     @Test func testFetchLocalRecord() async throws {
         // Validation that the viewmodel gracefully pulls state and assigns local memory
         let ctx = try createIsolatedContext()
@@ -193,6 +249,41 @@ struct InsightSheetViewModelTests {
 
         #expect(viewModel.activeLocalRecord?.id == record.id)
         #expect(viewModel.state.sharedExplorePostId == sharedPostId)
+    }
+
+    private func shareRecommendationViewModel(
+        confidence: Double,
+        inferenceTier: String?,
+        userIdentificationOverride: String? = nil,
+        userConfirmedIdentification: Bool = false
+    ) -> InsightSheetViewModel {
+        let viewModel = InsightSheetViewModel()
+        let record = LocalScanRecord(
+            speciesId: "share_recommendation_species",
+            scientificName: "Rosa gallica",
+            commonName: "French Rose",
+            coverImagePath: "rose.webp"
+        )
+        viewModel.activeLocalRecordId = record.id
+        viewModel.toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record)
+
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: record.id,
+            commonName: "French Rose",
+            scientificName: "Rosa gallica",
+            insightData: InsightData(aiReasoning: "A rose with visible petals.", hazardType: "none"),
+            confidenceScore: confidence,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild",
+            inferenceTier: inferenceTier,
+            userIdentificationOverride: userIdentificationOverride,
+            userConfirmedIdentification: userConfirmedIdentification
+        )
+        viewModel.inferenceEngine = engine
+        return viewModel
     }
 
     @Test func testToolbarSnapshotSurvivesLocalRecordDeletion() async throws {
@@ -271,6 +362,26 @@ struct InsightSheetViewModelTests {
         ExploreShareStateStore.setSharedPostId(nil, for: record.id)
         viewModel.refreshSharedExploreStateFromLocalCache()
 
+        #expect(viewModel.state.sharedExplorePostId == nil)
+    }
+
+    @Test func testLocalCacheRefreshPreservesRestoredCommunityRequestState() async throws {
+        let ctx = try createIsolatedContext()
+        let viewModel = InsightSheetViewModel()
+        let record = LocalScanRecord(speciesId: "community_refresh_test", scientificName: "Rosa", commonName: "Rose")
+
+        ctx.insert(record)
+        try ctx.save()
+
+        viewModel.fetchLocalRecord(for: record.id, modelContext: ctx)
+        viewModel.state.sharedCommunityIdentificationRequestId = "request_refresh_test"
+        viewModel.state.sharedCommunityIdentificationStatus = .needsId
+
+        ExploreShareStateStore.setSharedPostId(nil, for: record.id)
+        viewModel.refreshSharedExploreStateFromLocalCache()
+
+        #expect(viewModel.state.sharedCommunityIdentificationRequestId == "request_refresh_test")
+        #expect(viewModel.state.sharedCommunityIdentificationStatus == .needsId)
         #expect(viewModel.state.sharedExplorePostId == nil)
     }
 

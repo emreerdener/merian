@@ -3,14 +3,18 @@ import SwiftUI
 struct InsightShareButton: View {
     enum PendingAction {
         case externalShare
+        case askCommunity
         case composeExplorePost
+        case publishExploreAnyway
         case editExplorePost
+        case viewCommunityRequest
         case viewInExplore
     }
 
     let shareExternally: () -> Void
     let onShareToExplore: ((ExplorePostComposerDraft) -> Void)?
     let onEditExplorePost: ((ExplorePostComposerDraft) -> Void)?
+    let onAskCommunity: (() -> Void)?
     let isSharingToExplore: Bool
     let isUpdatingExplorePostContent: Bool
     let isUpdatingExploreFieldNotes: Bool
@@ -24,19 +28,26 @@ struct InsightShareButton: View {
     var hashtagSuggestionContext: ExploreHashtagSuggestionContext
     var sharedExploreHashtags: [String]
     var sharedExplorePostId: String?
+    var shareRecommendation: InsightShareRecommendation
     var initialLocationSharing: ExplorePostLocationSharing
     var fieldNotesArePublicOnExplore: Bool
     var onViewInExplore: (() -> Void)?
+    var onViewCommunityRequest: (() -> Void)?
     var onUpdateFieldNotesVisibility: ((Bool) async -> FieldNotesVisibilityUpdateFeedback)?
     
     @Environment(\.colorScheme) var colorScheme
     @State var showingOptions = false
     @State var showingExploreComposer = false
+    @State var showingExplorePublishConfirmation = false
     @State var pendingAction: PendingAction?
     @State var fieldNotesVisibilityFeedback: FieldNotesVisibilityUpdateFeedback?
 
     private var showsExploreAction: Bool {
-        onShareToExplore != nil || onEditExplorePost != nil || onViewInExplore != nil
+        onShareToExplore != nil
+            || onEditExplorePost != nil
+            || onAskCommunity != nil
+            || onViewCommunityRequest != nil
+            || onViewInExplore != nil
     }
 
     var hasFieldNotesToShare: Bool {
@@ -57,19 +68,53 @@ struct InsightShareButton: View {
     }
 
     var exploreHeadline: String {
-        sharedExplorePostId != nil ? "Published" : "Share with community"
+        if sharedExplorePostId != nil {
+            return "Published"
+        }
+
+        switch shareRecommendation {
+        case .askCommunity:
+            return "Ask the community"
+        case .communityPending:
+            return "Identify request"
+        case .communityResolvedNeedsPublish:
+            return "Ready to publish"
+        case .publishToExplore:
+            return "Share with community"
+        }
     }
 
     // BUTTONS TEXT
     var exploreActionTitle: String {
-        sharedExplorePostId != nil ? "View post" : "Share discovery"
+        if sharedExplorePostId != nil {
+            return "View post"
+        }
+
+        switch shareRecommendation {
+        case .askCommunity:
+            return "Ask for ID"
+        case .communityPending:
+            return "View request"
+        case .communityResolvedNeedsPublish, .publishToExplore:
+            return "Share discovery"
+        }
     }
 
     var exploreDescription: String {
         if sharedExplorePostId != nil {
             return "This discovery is visible to the community."
         }
-        return "Publish this discovery so others can learn and explore."
+
+        switch shareRecommendation {
+        case .askCommunity:
+            return "This match is not strong yet. Make it public as an identification request before publishing it to Explore."
+        case .communityPending:
+            return "This scan is public in Identify while the community reviews the ID."
+        case .communityResolvedNeedsPublish:
+            return "The community identified this request. Publish it to Explore when you are ready."
+        case .publishToExplore:
+            return "Publish this discovery so others can learn and explore."
+        }
     }
 
     var primaryBlue: Color {
@@ -106,6 +151,14 @@ struct InsightShareButton: View {
             shareOptionsSheet
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        }
+        .alert("Publish to Explore anyway?", isPresented: $showingExplorePublishConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Publish anyway") {
+                showingExploreComposer = true
+            }
+        } message: {
+            Text("This ID is not confirmed yet. Ask the community first when you want help preventing an incorrect discovery from appearing in Explore.")
         }
         .sheet(isPresented: $showingExploreComposer) {
             ExplorePostComposerView(

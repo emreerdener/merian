@@ -1,5 +1,12 @@
 import SwiftUI
 
+enum InsightShareRecommendation: Equatable {
+    case publishToExplore
+    case askCommunity
+    case communityPending
+    case communityResolvedNeedsPublish
+}
+
 extension InsightSheetViewModel {
     var hasUserPhotos: Bool {
         !activeMedia.imagePathsForUpload.isEmpty || activeMedia.liveImageData != nil
@@ -159,6 +166,52 @@ extension InsightSheetViewModel {
 
     var canRequestCommunityIdentification: Bool {
         canShareToExplore && activeImageCount > 0
+    }
+
+    var shareRecommendation: InsightShareRecommendation {
+        if state.sharedExplorePostId != nil, state.isExploreFeedVisible {
+            return .publishToExplore
+        }
+
+        switch state.sharedCommunityIdentificationStatus {
+        case .needsId:
+            return .communityPending
+        case .resolved:
+            return .communityResolvedNeedsPublish
+        case .withdrawn, nil:
+            break
+        }
+
+        guard canRequestCommunityIdentification else {
+            return .publishToExplore
+        }
+
+        if hasUserReviewedIdentification || hasStrongAIIdentification {
+            return .publishToExplore
+        }
+
+        return .askCommunity
+    }
+
+    var requiresExplorePublishConfirmation: Bool {
+        switch shareRecommendation {
+        case .askCommunity, .communityPending:
+            return true
+        case .publishToExplore, .communityResolvedNeedsPublish:
+            return false
+        }
+    }
+
+    private var hasUserReviewedIdentification: Bool {
+        guard let speciesData = inferenceEngine?.speciesData else { return false }
+        return speciesData.userConfirmedIdentification
+            || speciesData.userIdentificationOverride?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    private var hasStrongAIIdentification: Bool {
+        guard let speciesData = inferenceEngine?.speciesData else { return false }
+        let bands = MerianConfig.confidenceBands(forInferenceTier: speciesData.inferenceTier)
+        return speciesData.confidenceScore >= bands.strong
     }
 
     // MARK: - Content Routing

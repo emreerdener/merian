@@ -113,6 +113,9 @@ struct InsightSheetView: View {
             set: { viewModel.state.showExploreSheet = $0 }
         ), onDismiss: {
             viewModel.refreshSharedExploreStateFromLocalCache()
+            Task {
+                await viewModel.refreshSharedExploreStateFromServer(modelContext: modelContext)
+            }
         }) {
             ExploreView(
                 initialPostId: viewModel.state.sharedExplorePostId,

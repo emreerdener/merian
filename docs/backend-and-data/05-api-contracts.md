@@ -1871,6 +1871,10 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   media URLs expired but the client can provide owner-scoped
   `restored_object_keys`, the function promotes safe media back into
   `image_storage_urls` before sharing.
+- When the scan has an active Identify request, sharing to Explore is blocked
+  until that request resolves. Publishing a resolved Identify request marks the
+  request with `explore_published_at` and promotes the existing post into normal
+  Explore surfaces without creating a duplicate post.
 - `unshare-explore-post` soft-removes the post from the public feed via
   `unshared_at` without deleting the underlying scan.
 - `field_notes` is optional and capped at 1000 characters. It is a public copy
@@ -2040,6 +2044,9 @@ Current response shape:
     "scan_id": "uuid",
     "post_id": "uuid",
     "shared_at": "2026-04-29T22:18:03.000Z",
+    "community_request_id": "uuid-or-null",
+    "community_request_status": "needs_id|resolved|withdrawn|null",
+    "is_explore_feed_visible": false,
     "location_sharing": "obscured"
   }
 }
@@ -2050,6 +2057,14 @@ Behavior notes:
 - the lookup is owner-only: it reads only scans where `scans.user_id = self_id`
 - when a live Explore post exists, `location_sharing` is the post-owned value
   used to hydrate share/edit options
+- `community_request_id` and `community_request_status` restore the Identify
+  request state for scans that have been made public as community ID requests
+- `is_explore_feed_visible` is true only when the post belongs in normal Explore
+  feed/map/author/hashtag surfaces
+- pending Identify requests and resolved-but-unpublished Identify requests
+  return their request state with `is_explore_feed_visible = false`; resolved
+  requests become feed-visible only after the owner explicitly publishes them
+  to Explore
 - when no live post exists, `location_sharing` falls back to the scan's current
   geoprivacy so a new share composer can seed the default option
 - the endpoint does not mutate scan or post geoprivacy

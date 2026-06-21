@@ -130,6 +130,16 @@ Historical unresolved biological placeholders (`Unknown Subject` / `Taxonomy Una
 
 Explore share state in the bottom toolbar uses a two-step hydration path. `InsightSheetViewModel.fetchLocalRecord(for:modelContext:)` first restores `sharedExplorePostId` from the per-scan `UserDefaults` cache so the button can immediately render `View post` on same-device relaunch. `InsightSheetView.task(id: scanId)` then calls `/get-scan-explore-share-state` in the background and reconciles that authoritative server answer back into the same cache. The server response also carries the saved post-level `location_sharing` for live posts, or the scan's current geoprivacy as the default for new shares, so the share/edit composer can hydrate Open, Obscured, or Private without mutating the underlying scan. This keeps the toolbar fast on-device while also correcting stale cache after reinstall, cross-device share/unshare, or remote visibility changes.
 
+The Share sheet routes low-confidence biological scans through Identify by
+default. A Strong AI result uses the configured inference-tier threshold
+(Flash `>= 0.95`, Pro `>= 0.85`); anything below that, or a missing confidence
+value from restored state, defaults the primary Share action to **Ask the
+Community** when image media is available. User-confirmed identifications,
+manual user overrides, existing feed-visible posts, and community-resolved
+requests ready for owner publication keep **Share to Explore** as the primary
+path. A direct low-confidence Explore publish remains available before an
+Identify request exists, but it requires an explicit warning confirmation.
+
 `TopToolbar` also exposes **Ask the Community** beside the identification
 actions when `canRequestCommunityIdentification` is true. The CTA opens
 `CommunityIdentificationRequestSheet`, where the user can add an optional note
@@ -138,7 +148,9 @@ Explore sharing. Submission calls `/request-community-identification`, creating
 or reusing the scan's Explore post and flagging it as a `needs_id` community
 request. That post is then marked `community_needs_id` in
 `explore_observation_projection` and hidden from the normal Explore
-feed/map/author/hashtag projections until the community consensus resolves.
+feed/map/author/hashtag projections. Resolved community requests remain public
+inside Identify, but they do not enter normal Explore surfaces until the owner
+explicitly publishes them afterward.
 
 ---
 

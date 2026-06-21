@@ -27,6 +27,7 @@ extension InsightSheetViewModel {
                 locationSharing: locationSharing
             )
             cacheSharedExplorePostId(response.postId, for: scanId)
+            state.isExploreFeedVisible = true
             state.sharedExploreHashtags = hashtags
             state.sharedExploreLocationSharing = response.locationSharing ?? locationSharing
             state.exploreFieldNotesArePublic = notesForPost != nil
@@ -68,6 +69,7 @@ extension InsightSheetViewModel {
                 locationSharing: draft.locationSharing
             )
             cacheSharedExplorePostId(response.postId, for: scanId)
+            state.isExploreFeedVisible = true
             state.sharedExploreHashtags = draft.hashtags
             state.sharedExploreLocationSharing = response.locationSharing ?? draft.locationSharing
             state.exploreFieldNotesArePublic = draft.publicFieldNotes != nil
@@ -179,8 +181,12 @@ extension InsightSheetViewModel {
                 note: note,
                 locationSharing: locationSharing
             )
-            cacheSharedExplorePostId(request.postId, for: record.id)
+            ExploreShareStateStore.setSharedPostId(nil, for: record.id)
+            AppEventPublisher.shared.send(.exploreShareStateChanged(scanId: record.id, postId: nil))
+            state.sharedExplorePostId = nil
+            state.isExploreFeedVisible = false
             state.sharedCommunityIdentificationRequestId = request.id
+            state.sharedCommunityIdentificationStatus = request.status
             state.sharedExploreLocationSharing = locationSharing
             state.isCommunityRequestSheetPresented = false
             HapticManager.shared.triggerSuccessPulse()
@@ -216,8 +222,13 @@ extension InsightSheetViewModel {
 // Removed presentShareSheet as this logic was extracted into ShareSheetUtility
     func refreshSharedExploreStateFromLocalCache(scanId: String? = nil) {
         let resolvedScanId = scanId ?? activeLocalRecordId ?? inferenceEngine?.speciesData?.scanId
+        let cachedPostId = resolvedScanId.flatMap { ExploreShareStateStore.sharedPostId(for: $0) }
+        if cachedPostId == nil, state.sharedCommunityIdentificationRequestId != nil {
+            return
+        }
+
         applySharedExplorePostId(
-            resolvedScanId.flatMap { ExploreShareStateStore.sharedPostId(for: $0) },
+            cachedPostId,
             for: resolvedScanId,
             bumpRevision: true
         )
@@ -237,13 +248,21 @@ extension InsightSheetViewModel {
             guard requestToken == sharedExploreStateRequestToken else { return }
             guard requestRevision == sharedExploreStateRevision else { return }
 
-            ExploreShareStateStore.setSharedPostId(shareState.postId, for: scanId)
-            applySharedExplorePostId(shareState.postId, for: scanId, bumpRevision: false)
-            state.sharedExploreLocationSharing = shareState.locationSharing
-            await refreshExploreFieldNotesVisibility(
-                postId: shareState.postId,
-                modelContext: modelContext
+            ExploreShareStateStore.setSharedPostId(
+                shareState.isExploreFeedVisible ? shareState.postId : nil,
+                for: scanId
             )
+            applySharedExploreShareState(shareState, for: scanId, bumpRevision: false)
+            state.sharedExploreLocationSharing = shareState.locationSharing
+            if shareState.isExploreFeedVisible {
+                await refreshExploreFieldNotesVisibility(
+                    postId: shareState.postId,
+                    modelContext: modelContext
+                )
+            } else {
+                state.exploreFieldNotesArePublic = false
+                state.sharedExploreHashtags = []
+            }
         } catch {
             // Keep the optimistic local cache when the authoritative refresh is unavailable.
         }
@@ -295,6 +314,8 @@ extension InsightSheetViewModel {
         }
 
         state.sharedCommunityIdentificationRequestId = nil
+        state.sharedCommunityIdentificationStatus = nil
+        state.isExploreFeedVisible = false
 
         guard scanId != nil else {
             state.sharedExplorePostId = nil
@@ -305,9 +326,45 @@ extension InsightSheetViewModel {
 
         let trimmed = postId?.trimmingCharacters(in: .whitespacesAndNewlines)
         state.sharedExplorePostId = (trimmed?.isEmpty == false) ? trimmed : nil
+        state.isExploreFeedVisible = state.sharedExplorePostId != nil
         if state.sharedExplorePostId == nil {
             state.exploreFieldNotesArePublic = false
             state.sharedExploreLocationSharing = nil
+        }
+    }
+
+    private func applySharedExploreShareState(
+        _ shareState: ExploreScanShareState,
+        for scanId: String?,
+        bumpRevision: Bool
+    ) {
+        if bumpRevision {
+            sharedExploreStateRevision &+= 1
+        }
+
+        guard scanId != nil else {
+            state.sharedExplorePostId = nil
+            state.sharedCommunityIdentificationRequestId = nil
+            state.sharedCommunityIdentificationStatus = nil
+            state.isExploreFeedVisible = false
+            state.exploreFieldNotesArePublic = false
+            state.sharedExploreLocationSharing = nil
+            return
+        }
+
+        let trimmedPostId = shareState.postId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let feedPostId = shareState.isExploreFeedVisible ? trimmedPostId : nil
+        state.sharedExplorePostId = (feedPostId?.isEmpty == false) ? feedPostId : nil
+        state.isExploreFeedVisible = state.sharedExplorePostId != nil
+        state.sharedCommunityIdentificationRequestId = shareState.communityRequestId?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if state.sharedCommunityIdentificationRequestId?.isEmpty == true {
+            state.sharedCommunityIdentificationRequestId = nil
+        }
+        state.sharedCommunityIdentificationStatus = shareState.communityRequestStatus
+
+        if state.sharedExplorePostId == nil {
+            state.exploreFieldNotesArePublic = false
         }
     }
 }

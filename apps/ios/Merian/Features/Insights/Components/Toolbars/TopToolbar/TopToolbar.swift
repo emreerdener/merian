@@ -91,6 +91,10 @@ struct TopToolbar: ToolbarContent {
         Button(action: onFieldNotes) {
             Label(hasFieldNotes ? "Update field notes" : "Add field notes", systemImage: "square.and.pencil")
         }
+
+         Button(role: .destructive, action: { showDeleteConfirmation = true }) {
+                Label("Delete scan", systemImage: "trash")
+        }
         
         Section("Identification") {
             if let onConfirmIdentification = onConfirmIdentification {
@@ -115,11 +119,6 @@ struct TopToolbar: ToolbarContent {
             }
         }
         
-        Section {
-            Button(role: .destructive, action: { showDeleteConfirmation = true }) {
-                Label("Delete scan", systemImage: "trash")
-            }
-        }
     }
 }
 

@@ -51,7 +51,9 @@ extension InsightSheetViewModel {
                 Task {
                     try? await Task.sleep(nanoseconds: 3_000_000_000)
                     guard !Task.isCancelled else { return }
-                    if self.canShareToExplore && !self.appSettings.hasSeenExploreOnboarding {
+                    if self.canShareToExplore,
+                       self.shareRecommendation == .publishToExplore,
+                       !self.appSettings.hasSeenExploreOnboarding {
                         self.appSettings.hasSeenExploreOnboarding = true
                         withAnimation {
                             self.state.showExploreOnboarding = true

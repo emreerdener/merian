@@ -253,6 +253,10 @@ One active Ask the Community request per Explore post. Status is
 - `current_community_taxon_node_id`: Finest active community consensus, if any.
 - `resolved_taxon_node_id` and `resolved_observation_taxon_node_id`: Public
   resolved projection once the request graduates.
+- `explore_published_at`: Owner-controlled publish marker for resolved
+  community requests. Until this is set, a resolved request remains visible in
+  Identify but is excluded from normal Explore feed, map, author, and hashtag
+  reads.
 - `consensus_score`, `consensus_identification_count`, `consensus_rank`: Cached
   consensus state maintained by queued consensus jobs.
 - `consensus_processing_state`: `idle`, `queued`, `processing`, or `failed`.
@@ -261,7 +265,8 @@ One active Ask the Community request per Explore post. Status is
 
 Normal Explore feed, map, author, and hashtag reads use
 `explore_observation_projection`, excluding `community_needs_id` posts and
-including them again when the projection becomes `community_resolved`.
+excluding `community_resolved` posts until their request has
+`explore_published_at` set by the owner.
 Community detail responses derive initial Suggest ID options from this pinned
 taxonomy version: the initial AI taxon plus any resolvable `scans.candidates`
 entries, capped and deduplicated server-side.
@@ -308,7 +313,9 @@ One public projection row per Explore post. Projection state is `normal`,
 
 Community request creation sets the post to `community_needs_id`. Consensus
 resolution sets it to `community_resolved` and points `public_taxon_node_id` at
-the resolved community taxon. V1 does not mutate `scans.species_id` or
+the resolved community taxon. Normal Explore surfaces still hide
+`community_resolved` projections until the owner explicitly publishes the
+resolved request to Explore. V1 does not mutate `scans.species_id` or
 `confirmed_species_id`.
 
 **Backfill and compatibility**: the migration splits, trims, and dedupes

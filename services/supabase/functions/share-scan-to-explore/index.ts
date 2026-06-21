@@ -8,7 +8,9 @@ import {
   syncPublicAuthorIdentity,
 } from "../_shared/explore.ts";
 import {
+  assertCommunityRequestCanPublishToExplore,
   fetchShareEligibleScan,
+  markResolvedCommunityRequestPublishedToExplore,
   replaceExplorePostHashtags,
   upsertExplorePost,
 } from "./db.ts";
@@ -170,6 +172,11 @@ serve((req: Request) =>
       restoredObjectKeys,
       supabaseAdmin,
     );
+    await assertCommunityRequestCanPublishToExplore(
+      scanId,
+      user.id,
+      supabaseAdmin,
+    );
     const locationSharing = requestedLocationSharing ?? scan.geoprivacy;
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
     const post = await upsertExplorePost(
@@ -181,6 +188,11 @@ serve((req: Request) =>
       supabaseAdmin,
     );
     await replaceExplorePostHashtags(post.id, hashtags, supabaseAdmin);
+    await markResolvedCommunityRequestPublishedToExplore(
+      post.id,
+      user.id,
+      supabaseAdmin,
+    );
 
     return jsonResponse({
       success: true,

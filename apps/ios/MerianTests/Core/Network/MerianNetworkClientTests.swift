@@ -226,15 +226,19 @@ struct MerianNetworkClientTests {
     }
 
     @Test func testGetExploreShareStateConstructsPayloadAndParsesJSON() async throws {
-        let testData = """
+        let testData = Data("""
         {
             "data": {
                 "scan_id": "scan-share-123",
                 "post_id": "post-share-456",
-                "shared_at": "2026-04-29T22:18:03.000Z"
+                "shared_at": "2026-04-29T22:18:03.000Z",
+                "community_request_id": null,
+                "community_request_status": null,
+                "is_explore_feed_visible": true,
+                "location_sharing": "open"
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
 
         MockURLProtocol.mockEndpoints["/get-scan-explore-share-state"] = { request in
@@ -252,6 +256,41 @@ struct MerianNetworkClientTests {
         #expect(response.scanId == "scan-share-123")
         #expect(response.postId == "post-share-456")
         #expect(response.sharedAt == "2026-04-29T22:18:03.000Z")
+        #expect(response.communityRequestId == nil)
+        #expect(response.communityRequestStatus == nil)
+        #expect(response.isExploreFeedVisible == true)
+        #expect(response.locationSharing == .open)
+    }
+
+    @Test func testGetExploreShareStateParsesCommunityRequestState() async throws {
+        let testData = Data("""
+        {
+            "data": {
+                "scan_id": "scan-share-community-123",
+                "post_id": "post-share-community-456",
+                "shared_at": "2026-04-29T22:18:03.000Z",
+                "community_request_id": "request-share-community-789",
+                "community_request_status": "needs_id",
+                "is_explore_feed_visible": false,
+                "location_sharing": "obscured"
+            }
+        }
+        """.utf8)
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/get-scan-explore-share-state"] = { request in
+            #expect(request.url?.path.hasSuffix("/get-scan-explore-share-state") == true)
+            return (mockResponse, testData)
+        }
+
+        let response = try await MerianNetworkClient.shared.getExploreShareState(scanId: "scan-share-community-123")
+
+        #expect(response.scanId == "scan-share-community-123")
+        #expect(response.postId == "post-share-community-456")
+        #expect(response.communityRequestId == "request-share-community-789")
+        #expect(response.communityRequestStatus == .needsId)
+        #expect(response.isExploreFeedVisible == false)
+        #expect(response.locationSharing == .obscured)
     }
 
     @Test func testExplorePostDetailDecodesSimilarSpecies() throws {

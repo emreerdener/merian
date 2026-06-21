@@ -76,6 +76,10 @@ TestFlight, App Store, support, and QA.
 
 ### Changed
 
+- Low-confidence Insight shares now default to asking Identify for help, while
+  direct Explore publishing remains available behind a confirmation.
+- Resolved Identify requests now stay out of normal Explore until the owner
+  explicitly publishes them.
 - Removed the unused identification-review action from Insight and candidate
   review flows.
 - Polished Community identification sheets with icon close controls and a

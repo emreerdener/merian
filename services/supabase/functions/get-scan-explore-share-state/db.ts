@@ -4,6 +4,9 @@ export interface ExploreScanShareStateRow {
   scan_id: string;
   post_id?: string | null;
   shared_at?: string | null;
+  community_request_id?: string | null;
+  community_request_status?: "needs_id" | "resolved" | "withdrawn" | null;
+  is_explore_feed_visible: boolean;
   location_sharing: "open" | "obscured" | "private";
 }
 

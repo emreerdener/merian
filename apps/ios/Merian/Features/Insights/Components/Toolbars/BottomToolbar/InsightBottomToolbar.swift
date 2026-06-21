@@ -12,6 +12,7 @@ struct InsightBottomToolbar: ToolbarContent {
     let shareExternally: () -> Void
     let onShareToExplore: ((ExplorePostComposerDraft) -> Void)?
     let onEditExplorePost: ((ExplorePostComposerDraft) -> Void)?
+    let onAskCommunity: (() -> Void)?
     let isSharingToExplore: Bool
     let isUpdatingExplorePostContent: Bool
     let isUpdatingExploreFieldNotes: Bool
@@ -20,9 +21,11 @@ struct InsightBottomToolbar: ToolbarContent {
     var fieldNotesPreview: String?
     var sharedExploreHashtags: [String]
     var sharedExplorePostId: String?
+    var shareRecommendation: InsightShareRecommendation
     var sharedExploreLocationSharing: ExplorePostLocationSharing?
     var fieldNotesArePublicOnExplore: Bool
     var onViewInExplore: (() -> Void)?
+    var onViewCommunityRequest: (() -> Void)?
     var onUpdateFieldNotesVisibility: ((Bool) async -> FieldNotesVisibilityUpdateFeedback)?
     
     var body: some ToolbarContent {
@@ -34,6 +37,7 @@ struct InsightBottomToolbar: ToolbarContent {
                     shareExternally: shareExternally,
                     onShareToExplore: onShareToExplore,
                     onEditExplorePost: onEditExplorePost,
+                    onAskCommunity: onAskCommunity,
                     isSharingToExplore: isSharingToExplore,
                     isUpdatingExplorePostContent: isUpdatingExplorePostContent,
                     isUpdatingExploreFieldNotes: isUpdatingExploreFieldNotes,
@@ -67,11 +71,11 @@ struct InsightBottomToolbar: ToolbarContent {
                     ),
                     sharedExploreHashtags: sharedExploreHashtags,
                     sharedExplorePostId: sharedExplorePostId,
-                    initialLocationSharing: sharedExplorePostId == nil
-                        ? defaultLocationSharing
-                        : (sharedExploreLocationSharing ?? defaultLocationSharing),
+                    shareRecommendation: shareRecommendation,
+                    initialLocationSharing: sharedExploreLocationSharing ?? defaultLocationSharing,
                     fieldNotesArePublicOnExplore: fieldNotesArePublicOnExplore,
                     onViewInExplore: onViewInExplore,
+                    onViewCommunityRequest: onViewCommunityRequest,
                     onUpdateFieldNotesVisibility: onUpdateFieldNotesVisibility
                 )
 

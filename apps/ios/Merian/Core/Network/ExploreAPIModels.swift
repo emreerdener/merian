@@ -1258,7 +1258,35 @@ struct ExploreScanShareState: Decodable, Equatable {
     let scanId: String
     let postId: String?
     let sharedAt: String?
+    let communityRequestId: String?
+    let communityRequestStatus: CommunityIdentificationRequestStatus?
+    let isExploreFeedVisible: Bool
     let locationSharing: ExplorePostLocationSharing?
+
+    private enum CodingKeys: String, CodingKey {
+        case scanId
+        case postId
+        case sharedAt
+        case communityRequestId
+        case communityRequestStatus
+        case isExploreFeedVisible
+        case locationSharing
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        scanId = try container.decode(String.self, forKey: .scanId)
+        postId = try container.decodeIfPresent(String.self, forKey: .postId)
+        sharedAt = try container.decodeIfPresent(String.self, forKey: .sharedAt)
+        communityRequestId = try container.decodeIfPresent(String.self, forKey: .communityRequestId)
+        communityRequestStatus = try container.decodeIfPresent(
+            CommunityIdentificationRequestStatus.self,
+            forKey: .communityRequestStatus
+        )
+        isExploreFeedVisible = try container.decodeIfPresent(Bool.self, forKey: .isExploreFeedVisible)
+            ?? (postId != nil && communityRequestId == nil)
+        locationSharing = try container.decodeIfPresent(ExplorePostLocationSharing.self, forKey: .locationSharing)
+    }
 }
 
 struct ExploreLikeResponse: Decodable {

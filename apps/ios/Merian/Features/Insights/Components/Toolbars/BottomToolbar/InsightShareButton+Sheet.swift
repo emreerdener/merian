@@ -151,7 +151,7 @@ extension InsightShareButton {
 
             if sharedExplorePostId == nil {
                 Button {
-                    pendingAction = .composeExplorePost
+                    pendingAction = primaryExplorePanelAction
                     showingOptions = false
                 } label: {
                     HStack(alignment: .center) {
@@ -174,6 +174,8 @@ extension InsightShareButton {
                 .buttonStyle(.plain)
                 .foregroundStyle(exploreActionForegroundColor)
                 .disabled(isSharingToExplore)
+
+                secondaryCommunityActions
             } else {
                 HStack(spacing: 10) {
                     if onEditExplorePost != nil {
@@ -218,6 +220,49 @@ extension InsightShareButton {
         )
     }
 
+    @ViewBuilder
+    private var secondaryCommunityActions: some View {
+        switch shareRecommendation {
+        case .askCommunity:
+            if onShareToExplore != nil {
+                exploreSecondaryActionButton(
+                    title: "Publish anyway",
+                    systemImage: "exclamationmark.triangle",
+                    isDisabled: isSharingToExplore
+                ) {
+                    pendingAction = .publishExploreAnyway
+                    showingOptions = false
+                }
+            }
+        case .communityPending:
+            EmptyView()
+        case .communityResolvedNeedsPublish:
+            if onViewCommunityRequest != nil {
+                exploreSecondaryActionButton(
+                    title: "View request",
+                    systemImage: "person.crop.circle.badge.questionmark",
+                    isDisabled: false
+                ) {
+                    pendingAction = .viewCommunityRequest
+                    showingOptions = false
+                }
+            }
+        case .publishToExplore:
+            EmptyView()
+        }
+    }
+
+    private var primaryExplorePanelAction: PendingAction {
+        switch shareRecommendation {
+        case .askCommunity:
+            onAskCommunity == nil ? .composeExplorePost : .askCommunity
+        case .communityPending:
+            onViewCommunityRequest == nil ? .publishExploreAnyway : .viewCommunityRequest
+        case .communityResolvedNeedsPublish, .publishToExplore:
+            .composeExplorePost
+        }
+    }
+
     func handlePendingAction() {
         guard let pendingAction else { return }
         self.pendingAction = nil
@@ -225,10 +270,16 @@ extension InsightShareButton {
         switch pendingAction {
         case .externalShare:
             shareExternally()
+        case .askCommunity:
+            onAskCommunity?()
         case .composeExplorePost:
             showingExploreComposer = true
+        case .publishExploreAnyway:
+            showingExplorePublishConfirmation = true
         case .editExplorePost:
             showingExploreComposer = true
+        case .viewCommunityRequest:
+            onViewCommunityRequest?()
         case .viewInExplore:
             onViewInExplore?()
         }

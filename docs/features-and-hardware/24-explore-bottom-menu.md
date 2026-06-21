@@ -55,7 +55,9 @@ Feed, Map, author, hashtag, and detail Explore RPCs read
 `explore_observation_projection` and exclude posts while their projection state
 is `community_needs_id`. Once the community consensus resolves at species, or
 at genus when users mark that as the best practical ID, the projection becomes
-`community_resolved` and the resolved community taxon drives the public
+`community_resolved`, but normal Explore surfaces continue to exclude it until
+the owner explicitly publishes the resolved request to Explore. After that
+publish action, the resolved community taxon drives the public
 common/scientific-name display. V1 does not mutate `scans.species_id` or
 `confirmed_species_id`.
 
