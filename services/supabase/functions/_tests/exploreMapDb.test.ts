@@ -23,6 +23,8 @@ type ExploreMapRow = {
   latitude: number;
   longitude: number;
   coordinate_visibility: "exact" | "obscured";
+  taxonomy_kingdom: string | null;
+  taxonomy_class: string | null;
 };
 
 Deno.test("Explore map DB - newly shared scan with exact coordinates is queryable even when public coordinates were omitted at insert time", async () => {
@@ -82,7 +84,7 @@ Deno.test("Explore map DB - newly shared scan with exact coordinates is queryabl
 
     const mapRows = await client.queryObject<ExploreMapRow>(
       `
-        SELECT post_id, latitude, longitude, coordinate_visibility
+        SELECT post_id, latitude, longitude, coordinate_visibility, taxonomy_kingdom, taxonomy_class
         FROM public.get_explore_map_posts(
           $1,
           30.6,
@@ -100,6 +102,8 @@ Deno.test("Explore map DB - newly shared scan with exact coordinates is queryabl
     assertAlmostEquals(mapRows.rows[0].latitude, 30.2672, 0.0001);
     assertAlmostEquals(mapRows.rows[0].longitude, -97.7431, 0.0001);
     assertEquals(mapRows.rows[0].coordinate_visibility, "exact");
+    assertEquals(mapRows.rows[0].taxonomy_kingdom, "Plantae");
+    assertEquals(mapRows.rows[0].taxonomy_class, "Magnoliopsida");
   });
 });
 

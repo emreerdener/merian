@@ -7,11 +7,24 @@ enum ExploreNotificationType: String, Decodable {
     case commentReply = "comment_reply"
     case commentMention = "comment_mention"
     case follow
+    case communityIdentificationAdded = "community_identification_added"
+    case communityRequestResolved = "community_request_resolved"
+    case communityIdentificationHelped = "community_identification_helped"
+
+    var isCommunityNotification: Bool {
+        switch self {
+        case .communityIdentificationAdded, .communityRequestResolved, .communityIdentificationHelped:
+            return true
+        case .likeAggregated, .comment, .commentReaction, .commentReply, .commentMention, .follow:
+            return false
+        }
+    }
 }
 
 struct ExploreNotification: Decodable, Identifiable, Equatable {
     let notificationId: String
     let postId: String?
+    let communityRequestId: String?
     let type: ExploreNotificationType
     let commentId: String?
     let parentCommentId: String?
@@ -23,6 +36,9 @@ struct ExploreNotification: Decodable, Identifiable, Equatable {
     let actionCount: Int
     var isRead: Bool
     let isReplyToViewerComment: Bool?
+    let communityTaxonCommonName: String?
+    let communityTaxonScientificName: String?
+    let communityRequestDisplayName: String?
     let createdAt: String
     let updatedAt: String
 

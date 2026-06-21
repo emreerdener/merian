@@ -27,6 +27,7 @@ struct ExploreView: View {
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var activeTab: ExploreTab = .feed
     @State private var activeDictionaryMode: ExploreDictionaryMode = .dictionary
+    @State private var activeCommunityMode: CommunityIdentificationMode = .requests
     @State private var dictionarySearchText = ""
     @State private var dictionaryUserRegionIdentifier = Self.defaultDictionaryUserRegionIdentifier()
 
@@ -87,12 +88,12 @@ struct ExploreView: View {
                     Label("Feed", systemImage: "photo.stack")
                 }
 
-                ExploreCommunityIdentificationView { route in
+                ExploreCommunityIdentificationView(activeMode: $activeCommunityMode) { route in
                     navigationPath.append(route)
                 }
                 .tag(ExploreTab.community)
                 .tabItem {
-                    Label("Community", systemImage: "person.2")
+                    Label("Identify", systemImage: "person.crop.badge.magnifyingglass.fill")
                 }
 
                 ExploreMapView(
@@ -323,9 +324,26 @@ struct ExploreView: View {
             }
         }
 
-        ToolbarItem(placement: .topBarTrailing) {
-            HStack(spacing: 0) {
-                bellButton
+        if shouldShowCommunityModePicker {
+            ToolbarItem(placement: .principal) {
+                Picker("Identify view", selection: $activeCommunityMode) {
+                    ForEach(CommunityIdentificationMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.bottom, 1)
+                .background(Capsule().fill(.regularMaterial))
+                .clipShape(Capsule())
+                .frame(width: 240)
+            }
+        }
+
+        if navigationPath.isEmpty {
+            ToolbarItem(placement: .topBarTrailing) {
+                HStack(spacing: 0) {
+                    bellButton
+                }
             }
         }
     }
@@ -360,6 +378,10 @@ struct ExploreView: View {
 
     private var shouldShowDictionaryModePicker: Bool {
         activeTab == .dictionary && navigationPath.isEmpty
+    }
+
+    private var shouldShowCommunityModePicker: Bool {
+        activeTab == .community && navigationPath.isEmpty
     }
 
     private func openPostDetail(
@@ -475,6 +497,13 @@ struct ExploreView: View {
     }
 
     private func openNotification(_ notification: ExploreNotification) async {
+        if notification.type.isCommunityNotification,
+           let requestId = notification.communityRequestId {
+            viewModel.dismissNotifications()
+            openCommunityIdentificationRequest(requestId)
+            return
+        }
+
         guard let postId = notification.postId else { return }
 
         do {
@@ -693,21 +722,14 @@ private struct ExploreFeedTabContent: View {
             VStack(spacing: 0) {
                 filterBar
                 
-                EmptyStateView(
-                    iconName: "exclamationmark.triangle",
-                    title: "Couldn’t load posts",
+                ExploreUnavailableStateView(
+                    title: "Explore unavailable",
                     message: message
                 ) {
-                    Button {
-                        Task { await refreshFeed() }
-                    } label: {
-                        Text("Try again")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                    }
-                    .buttonStyle(.borderedProminent)
+                    Task { await refreshFeed() }
                 }
-                .padding(.top, 60)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 520)
             }
         }
         .refreshable {
@@ -1061,18 +1083,11 @@ struct ExploreHashtagPostsView: View {
     }
 
     private func errorState(message: String) -> some View {
-        EmptyStateView(
-            iconName: "exclamationmark.triangle",
-            title: "Couldn’t load hashtag",
+        ExploreUnavailableStateView(
+            title: "Hashtag unavailable",
             message: message
         ) {
-            Button {
-                Task { await reloadPosts() }
-            } label: {
-                Text("Try again")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .buttonStyle(.borderedProminent)
+            Task { await reloadPosts() }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

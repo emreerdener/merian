@@ -41,8 +41,11 @@ export interface CommunityIdentificationLocation {
   longitude: number | null;
 }
 
+export type CommunityIdentificationFeedScope = "all" | "mine";
+
 export async function fetchCommunityIdentificationFeed(
   userId: string,
+  scope: CommunityIdentificationFeedScope,
   limit: number,
   cursor: CommunityIdentificationCursor,
   location: CommunityIdentificationLocation,
@@ -55,6 +58,7 @@ export async function fetchCommunityIdentificationFeed(
     before_request_id: cursor.beforeRequestId,
     viewer_latitude: location.latitude,
     viewer_longitude: location.longitude,
+    request_scope: scope,
   };
 
   const { data, error } = await supabaseAdmin.rpc(

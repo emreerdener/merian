@@ -6,6 +6,7 @@ export interface PushDeviceRegistrationInput {
   environment: "sandbox" | "production";
   exploreEnabled: boolean;
   commentMentionsEnabled: boolean;
+  communityIdentificationsEnabled: boolean;
 }
 
 export async function upsertPushDeviceRegistration(
@@ -22,6 +23,7 @@ export async function upsertPushDeviceRegistration(
       environment: input.environment,
       explore_enabled: input.exploreEnabled,
       comment_mentions_enabled: input.commentMentionsEnabled,
+      community_identifications_enabled: input.communityIdentificationsEnabled,
       is_active: true,
       last_registered_at: new Date().toISOString(),
       last_error_at: null,

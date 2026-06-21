@@ -9,6 +9,20 @@ import {
 } from "../_shared/explore.ts";
 import { fetchExploreMapPosts } from "./db.ts";
 import { buildExploreMapPayload } from "./cluster.ts";
+import { ExploreMapSpeciesCategory } from "./types.ts";
+
+const ALLOWED_SPECIES_CATEGORIES = new Set<ExploreMapSpeciesCategory>([
+  "plants",
+  "fungi",
+  "birds",
+  "mammals",
+  "reptiles",
+  "amphibians",
+  "fish",
+  "insects",
+  "arachnids",
+  "other",
+]);
 
 function makeHttpError(
   status: number,
@@ -47,6 +61,21 @@ function normalizeZoomLevel(value: unknown): number {
   return Math.max(0, Math.min(value, 20));
 }
 
+function normalizeSpeciesCategories(value: unknown): ExploreMapSpeciesCategory[] {
+  if (!Array.isArray(value)) return [];
+
+  const categories: ExploreMapSpeciesCategory[] = [];
+  for (const rawCategory of value) {
+    if (typeof rawCategory !== "string") continue;
+    const category = rawCategory.trim().toLowerCase() as ExploreMapSpeciesCategory;
+    if (ALLOWED_SPECIES_CATEGORIES.has(category) && !categories.includes(category)) {
+      categories.push(category);
+    }
+  }
+
+  return categories;
+}
+
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     let body: Record<string, unknown>;
@@ -82,6 +111,7 @@ serve((req: Request) =>
     );
     const zoomLevel = normalizeZoomLevel(body.zoom_level);
     const limit = normalizeLimit(body.limit, 500, 500);
+    const speciesCategories = normalizeSpeciesCategories(body.species_categories);
 
     await refreshExploreAuthorStateBestEffort(
       user.id,
@@ -105,6 +135,6 @@ serve((req: Request) =>
       supabaseAdmin,
     );
 
-    return jsonResponse(buildExploreMapPayload(rows, zoomLevel), 200);
+    return jsonResponse(buildExploreMapPayload(rows, zoomLevel, speciesCategories), 200);
   })
 );

@@ -265,6 +265,8 @@ including them again when the projection becomes `community_resolved`.
 Community detail responses derive initial Suggest ID options from this pinned
 taxonomy version: the initial AI taxon plus any resolvable `scans.candidates`
 entries, capped and deduplicated server-side.
+The Community request queue can be scoped to all visible unresolved requests or
+to unresolved requests created by the viewer.
 
 ### `explore_identifications`
 
@@ -985,8 +987,12 @@ in migration `20260427010000_add_explore_notifications.sql`.
 - `post_id` (UUID FK → `explore_posts.id`, CASCADE DELETE, nullable): The post
   the activity belongs to. `NULL` for follow notifications because they are not
   post-backed.
+- `community_request_id` (UUID FK → `explore_community_requests.id`, nullable):
+  Present for Community Identification notifications.
 - `type` (`public.explore_notification_type`): `'like_aggregated'` | `'comment'`
-  | `'comment_reaction'` | `'follow'`.
+  | `'comment_reaction'` | `'comment_reply'` | `'comment_mention'` |
+  `'follow'` | `'community_identification_added'` |
+  `'community_request_resolved'` | `'community_identification_helped'`.
 - `comment_id` (UUID FK → `explore_post_comments.id`, nullable): Present for
   comment and comment-reaction notifications.
 - `reaction_emoji` (TEXT, nullable): Present only for `'comment_reaction'` rows
@@ -1017,6 +1023,9 @@ in migration `20260427010000_add_explore_notifications.sql`.
 - Partial unique index on `(user_id, triggering_user_id, type)` where
   `type = 'follow'` guarantees one follow notification row per follower/followee
   pair.
+- Partial unique indexes on `(user_id, community_request_id, type)` guarantee
+  one active notification row per recipient/request for each Community
+  notification type.
 - Row Level Security allows users to `SELECT` and `UPDATE` only their own
   notification rows.
 
@@ -1038,6 +1047,9 @@ in migration `20260427010000_add_explore_notifications.sql`.
 - Follow notification triggers create a postless `follow` row after a follow
   insert when the follower is not shadowbanned and the users do not block each
   other. The row is deleted when the follow is removed.
+- Community identification triggers aggregate new active IDs for the request
+  owner, create an owner notification when consensus resolves, and create
+  helper notifications for active compatible identifiers.
 - A post-level trigger deletes Explore notifications when
   `explore_posts.unshared_at` is set, keeping the activity feed aligned with the
   existing soft-unshare model.
@@ -1045,8 +1057,9 @@ in migration `20260427010000_add_explore_notifications.sql`.
   other.
 - A push-delivery trigger invokes the `send-push-notification` Edge Function for
   newly inserted visible post-backed rows and for like/comment-reaction
-  aggregate updates where `action_count` increased. It intentionally skips
-  `type = 'follow'`.
+  aggregate updates where `action_count` increased. It also dispatches Community
+  request notifications and Community aggregate updates where `action_count`
+  increased. It intentionally skips `type = 'follow'`.
 
 ### `user_push_devices`
 
@@ -1066,6 +1079,9 @@ Remote push device registry for Explore activity delivery. Added in migration
   remote pushes for `comment_mention` Explore notifications. Defaults to
   `TRUE` and is independent from `explore_enabled`, which controls
   likes/comments/replies on the viewer's own Explore activity.
+- `community_identifications_enabled` (BOOLEAN): Whether this device should
+  receive remote pushes for Community Identification updates. Defaults to
+  `TRUE` and is independent from regular Explore activity pushes.
 - `is_active` (BOOLEAN): Disabled when APNs reports a terminal token failure.
 - `last_registered_at` (TIMESTAMPTZ): Last successful registration heartbeat
   from the app.
@@ -1214,7 +1230,8 @@ coordinates to the client contract.
   Returns the owner's in-app Explore activity feed. Like rows are aggregated,
   comment rows are filtered against comment soft deletes and both-direction user
   blocks, follow rows are validated against the active `user_follows`
-  relationship, and `recent_actor_names` preserves the server-side actor order
+  relationship, Community rows include `community_request_id` and request/taxon
+  display fields, and `recent_actor_names` preserves the server-side actor order
   from `recent_actor_ids`. Follow rows have `post_id = NULL` and are
   informational only. Paging is stable on
   `(updated_at DESC, notification_id DESC)` so new activity does not cause
@@ -1227,9 +1244,9 @@ coordinates to the client contract.
 - `public.get_explore_push_notification_payload(target_notification_id UUID)`:
   Internal push-delivery projection used by `send-push-notification`. It filters
   hidden/unshared/blocked activity the same way the in-app feed does and returns
-  APNs-safe actor names plus comment body text for one post-backed notification
-  row. Follow notifications are skipped before push dispatch and have no post
-  payload.
+  APNs-safe actor names plus comment body text or Community request/taxon
+  display fields for one pushable notification row. Follow notifications are
+  skipped before push dispatch and have no post payload.
 - `public.reparent_user_follows(ghost_id UUID, target_user_id UUID)`:
   Ghost-merge helper that inserts target-user copies of ghost follower/followee
   rows, ignores conflicts, and deletes rows still referencing the ghost or any

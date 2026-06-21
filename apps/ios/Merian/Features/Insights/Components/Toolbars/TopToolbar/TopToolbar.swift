@@ -100,7 +100,7 @@ struct TopToolbar: ToolbarContent {
             }
             if let onReviewAlternatives = onReviewAlternatives {
                 Button(action: onReviewAlternatives) {
-                    Label("Review alternatives", systemImage: "list.bullet")
+                    Label("Review alternatives", systemImage: "person.fill.checkmark.and.xmark")
                 }
             }
             if let onReanalyze = onReanalyze {
@@ -110,7 +110,7 @@ struct TopToolbar: ToolbarContent {
             }
             if let onAskCommunity = onAskCommunity {
                 Button(action: onAskCommunity) {
-                    Label("Ask the community", systemImage: "person.2")
+                    Label("Ask the community", systemImage: "person.crop.badge.magnifyingglass")
                 }
             }
         }

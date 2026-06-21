@@ -4,6 +4,7 @@ export interface ExplorePushNotificationPayload {
   notification_id: string;
   recipient_user_id: string;
   post_id: string;
+  community_request_id: string | null;
   comment_id: string | null;
   parent_comment_id: string | null;
   type:
@@ -11,13 +12,19 @@ export interface ExplorePushNotificationPayload {
     | "comment"
     | "comment_reaction"
     | "comment_reply"
-    | "comment_mention";
+    | "comment_mention"
+    | "community_identification_added"
+    | "community_request_resolved"
+    | "community_identification_helped";
   action_count: number;
   reaction_emoji: string | null;
   comment_body: string | null;
   triggering_user_name: string | null;
   recent_actor_names: string[] | null;
   is_reply_to_viewer_comment: boolean | null;
+  community_taxon_common_name: string | null;
+  community_taxon_scientific_name: string | null;
+  community_request_display_name: string | null;
   unread_count?: number | null;
 }
 
@@ -28,7 +35,16 @@ export interface PushDeviceRow {
   environment: "sandbox" | "production";
   explore_enabled: boolean;
   comment_mentions_enabled: boolean;
+  community_identifications_enabled: boolean;
   is_active: boolean;
+}
+
+function isCommunityNotificationType(
+  notificationType: ExplorePushNotificationPayload["type"],
+): boolean {
+  return notificationType === "community_identification_added" ||
+    notificationType === "community_request_resolved" ||
+    notificationType === "community_identification_helped";
 }
 
 export async function fetchExplorePushNotificationPayload(
@@ -56,7 +72,7 @@ export async function fetchEligiblePushDevices(
   let query = supabaseAdmin
     .from("user_push_devices")
     .select(
-      "id, device_token, platform, environment, explore_enabled, comment_mentions_enabled, is_active",
+      "id, device_token, platform, environment, explore_enabled, comment_mentions_enabled, community_identifications_enabled, is_active",
     )
     .eq("user_id", userId)
     .eq("platform", "ios")
@@ -64,6 +80,8 @@ export async function fetchEligiblePushDevices(
 
   if (notificationType === "comment_mention") {
     query = query.eq("comment_mentions_enabled", true);
+  } else if (isCommunityNotificationType(notificationType)) {
+    query = query.eq("community_identifications_enabled", true);
   } else {
     query = query.eq("explore_enabled", true);
   }

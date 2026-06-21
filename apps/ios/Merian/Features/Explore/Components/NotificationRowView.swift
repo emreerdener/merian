@@ -47,7 +47,7 @@ struct NotificationRowView: View {
                     ProgressView()
                         .progressViewStyle(.circular)
                         .padding(.top, 2)
-                } else if notification.postId != nil {
+                } else if notification.postId != nil || notification.communityRequestId != nil {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.tertiary)
@@ -96,6 +96,12 @@ struct NotificationRowView: View {
             return "face.smiling.fill"
         case .follow:
             return "person.crop.circle.badge.plus"
+        case .communityIdentificationAdded:
+            return "person.2.wave.2.fill"
+        case .communityRequestResolved:
+            return "checkmark.seal.fill"
+        case .communityIdentificationHelped:
+            return "sparkles"
         }
     }
 
@@ -113,6 +119,12 @@ struct NotificationRowView: View {
             return .orange
         case .follow:
             return .green
+        case .communityIdentificationAdded:
+            return .teal
+        case .communityRequestResolved:
+            return .green
+        case .communityIdentificationHelped:
+            return .indigo
         }
     }
 
@@ -130,6 +142,12 @@ struct NotificationRowView: View {
             return Color.orange.opacity(0.14)
         case .follow:
             return Color.green.opacity(0.12)
+        case .communityIdentificationAdded:
+            return Color.teal.opacity(0.14)
+        case .communityRequestResolved:
+            return Color.green.opacity(0.12)
+        case .communityIdentificationHelped:
+            return Color.indigo.opacity(0.12)
         }
     }
 
@@ -168,6 +186,12 @@ struct NotificationRowView: View {
         case .follow:
             let actorName = trimmed(notification.triggeringUserName) ?? "Someone"
             return "\(actorName) followed you."
+        case .communityIdentificationAdded:
+            return communityIdentificationSummaryText()
+        case .communityRequestResolved:
+            return "Your Community request was identified."
+        case .communityIdentificationHelped:
+            return "Your ID helped resolve a request."
         }
     }
 
@@ -181,6 +205,8 @@ struct NotificationRowView: View {
             return trimmed(notification.commentBody)
         case .follow:
             return nil
+        case .communityIdentificationAdded, .communityRequestResolved, .communityIdentificationHelped:
+            return communityDisplayName()
         }
     }
 
@@ -252,6 +278,49 @@ struct NotificationRowView: View {
             }
             return "\(actorNames[0]), \(actorNames[1]), \(actorNames[2]), and \(othersCount) \(othersCount == 1 ? "other" : "others") \(reactionText)"
         }
+    }
+
+    private func communityIdentificationSummaryText() -> String {
+        let actorNames = notification.recentActorNames.compactMap(trimmed)
+        let othersCount = max(notification.actionCount - actorNames.count, 0)
+
+        switch actorNames.count {
+        case 0:
+            if notification.actionCount == 1 {
+                return "Someone suggested an ID for your request."
+            }
+            return "\(notification.actionCount) people suggested IDs for your request."
+        case 1:
+            if othersCount == 0 {
+                return "\(actorNames[0]) suggested an ID for your request."
+            }
+            return """
+            \(actorNames[0]) and \(othersCount) \
+            \(othersCount == 1 ? "other" : "others") suggested IDs for your request.
+            """
+        case 2:
+            if othersCount == 0 {
+                return "\(actorNames[0]) and \(actorNames[1]) suggested IDs for your request."
+            }
+            return """
+            \(actorNames[0]), \(actorNames[1]), and \(othersCount) \
+            \(othersCount == 1 ? "other" : "others") suggested IDs for your request.
+            """
+        default:
+            if othersCount == 0 {
+                return "\(actorNames[0]), \(actorNames[1]), and \(actorNames[2]) suggested IDs for your request."
+            }
+            return """
+            \(actorNames[0]), \(actorNames[1]), \(actorNames[2]), and \(othersCount) \
+            \(othersCount == 1 ? "other" : "others") suggested IDs for your request.
+            """
+        }
+    }
+
+    private func communityDisplayName() -> String? {
+        trimmed(notification.communityRequestDisplayName)
+            ?? trimmed(notification.communityTaxonCommonName)
+            ?? trimmed(notification.communityTaxonScientificName)
     }
 
     private func trimmed(_ rawText: String?) -> String? {

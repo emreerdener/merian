@@ -200,18 +200,11 @@ struct ExploreAuthorProfileSheet: View {
     }
 
     private func errorState(message: String) -> some View {
-        EmptyStateView(
-            imageName: "fireflies",
+        ExploreUnavailableStateView(
             title: "Profile unavailable",
             message: message
         ) {
-            Button {
-                Task { await loadProfile(force: true) }
-            } label: {
-                Text("Try again")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .buttonStyle(.borderedProminent)
+            Task { await loadProfile(force: true) }
         }
     }
 

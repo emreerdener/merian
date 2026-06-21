@@ -18,6 +18,7 @@ struct ExploreMapView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var ignoreNextBackgroundTap = false
     @State private var isShowingDiscoveriesSheet = false
+    @State private var isShowingFilterSheet = false
     @State private var cardDragOffset: CGSize = .zero
     @State private var activeCardDragAxis: PreviewCardDragAxis?
     @State private var previewCarouselStepWidth: CGFloat = 0
@@ -36,7 +37,7 @@ struct ExploreMapView: View {
     }
 
     private var effectiveShowsThumbnail: Bool {
-        viewModel.mode == .posts && !viewModel.posts.isEmpty && effectiveZoomLevel >= 11.5
+        viewModel.mode == .posts && !viewModel.visiblePosts.isEmpty && effectiveZoomLevel >= 11.5
     }
 
     let onOpenDetail: (ExplorePost, Bool) -> Void
@@ -55,13 +56,13 @@ struct ExploreMapView: View {
                     .background(Color.black.opacity(0.6))
                     .clipShape(Capsule())
             } else if let errorMessage = viewModel.errorMessage,
-               viewModel.posts.isEmpty,
-               viewModel.clusters.isEmpty,
+               viewModel.visiblePosts.isEmpty,
+               viewModel.visibleClusters.isEmpty,
                !viewModel.isLoading {
                 stateCard(
-                    title: "Couldn’t load the map",
+                    title: "Map unavailable",
                     message: errorMessage,
-                    actionTitle: "Try again",
+                    actionTitle: "Retry",
                     action: { Task { await viewModel.searchCurrentArea() } }
                 )
                 .padding(.horizontal, 20)
@@ -73,7 +74,7 @@ struct ExploreMapView: View {
         .task {
             await viewModel.loadInitialData(using: environmentContextManager)
             feedViewModel.refreshPreferredSpeciesNames(
-                for: viewModel.posts.map(\.speciesScientificName),
+                for: viewModel.visiblePosts.map(\.speciesScientificName),
                 modelContext: modelContext
             )
         }
@@ -107,6 +108,9 @@ struct ExploreMapView: View {
         .sheet(isPresented: $isShowingDiscoveriesSheet) {
             discoveriesSheet
         }
+        .sheet(isPresented: $isShowingFilterSheet) {
+            filterSheet
+        }
     }
 
     private var mapLayer: some View {
@@ -118,7 +122,7 @@ struct ExploreMapView: View {
                     .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
             }
 
-            ForEach(viewModel.clusters) { cluster in
+            ForEach(viewModel.visibleClusters) { cluster in
                 Annotation("", coordinate: cluster.coordinate, anchor: .center) {
                     Button {
                         AppTelemetry.trackExploreMapClusterTapped()
@@ -132,7 +136,7 @@ struct ExploreMapView: View {
                 .annotationTitles(.hidden)
             }
 
-            ForEach(viewModel.posts) { post in
+            ForEach(viewModel.visiblePosts) { post in
                 Annotation("", coordinate: post.coordinate, anchor: .bottom) {
                     Button {
                         if viewModel.selectedPostId != post.id {
@@ -176,7 +180,7 @@ struct ExploreMapView: View {
             continuousZoomLevel = nil
         }
         .overlay {
-            if viewModel.isLoading && viewModel.posts.isEmpty && viewModel.clusters.isEmpty {
+            if viewModel.isLoading && viewModel.visiblePosts.isEmpty && viewModel.visibleClusters.isEmpty {
                 ProgressView()
                     .progressViewStyle(.circular)
                     .padding(18)
@@ -187,7 +191,9 @@ struct ExploreMapView: View {
     }
 
     private var overlayChrome: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 8) {
+            mapFilterBar
+
             if viewModel.isOffline {
                 offlineBanner
             }
@@ -232,18 +238,79 @@ struct ExploreMapView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding(.top, 14)
+        .padding(.top, 0)
         .padding(.bottom, Self.tabBarOverlayClearance)
         .animation(.spring(response: 0.28, dampingFraction: 0.84), value: activePreviewCenterPost != nil)
         .animation(.easeInOut(duration: 0.18), value: viewModel.needsSearchInArea)
         .animation(.easeInOut(duration: 0.18), value: viewModel.isOffline)
     }
 
+    private var mapFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                mapFilterPill(
+                    title: viewModel.hasActiveSpeciesFilters
+                        ? "Filters \(viewModel.selectedSpeciesCategories.count.formatted())"
+                        : "Filters",
+                    isSelected: viewModel.hasActiveSpeciesFilters
+                ) {
+                    isShowingFilterSheet = true
+                }
+                .accessibilityLabel("Map filters")
+
+                mapFilterPill(
+                    title: "All",
+                    isSelected: !viewModel.hasActiveSpeciesFilters
+                ) {
+                    Task { await viewModel.clearSpeciesFilters() }
+                }
+
+                ForEach(viewModel.visibleCategoryCounts) { categoryCount in
+                    mapFilterPill(
+                        title: categoryCount.category.title,
+                        isSelected: viewModel.selectedSpeciesCategories.contains(categoryCount.category)
+                    ) {
+                        Task { await viewModel.toggleSpeciesFilter(categoryCount.category) }
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+        .padding(.top, 0)
+        .padding(.bottom, 8)
+    }
+
+    private func mapFilterPill(
+        title: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .lineLimit(1)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .foregroundStyle(isSelected ? Color(uiColor: .systemBackground) : Color.primary)
+                .background {
+                    if isSelected {
+                        Capsule().fill(Color.primary)
+                    } else {
+                        Capsule().fill(.regularMaterial)
+                    }
+                }
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
     private var showsEmptyBanner: Bool {
         !viewModel.isLoading
             && viewModel.errorMessage == nil
-            && viewModel.posts.isEmpty
-            && viewModel.clusters.isEmpty
+            && viewModel.visiblePosts.isEmpty
+            && viewModel.visibleClusters.isEmpty
             && viewModel.lastCommittedRegion != nil
     }
 
@@ -254,7 +321,7 @@ struct ExploreMapView: View {
 
     private var activePreviewCenterMapPost: ExploreMapPost? {
         if let previewCarouselAnchorPostId,
-           let anchoredPost = viewModel.posts.first(where: { $0.id == previewCarouselAnchorPostId }) {
+           let anchoredPost = viewModel.visiblePosts.first(where: { $0.id == previewCarouselAnchorPostId }) {
             return anchoredPost
         }
 
@@ -276,9 +343,9 @@ struct ExploreMapView: View {
     }
 
     private var infoChip: some View {
-        let label = viewModel.mode == .clusters
-            ? discoveriesInViewLabel(count: viewModel.visibleCount, usesCompactCount: true)
-            : discoveriesInViewLabel(count: viewModel.posts.count)
+        let label = viewModel.mode == .clusters && !viewModel.visibleClusters.isEmpty
+            ? discoveriesInViewLabel(count: viewModel.visibleDiscoveryCount, usesCompactCount: true)
+            : discoveriesInViewLabel(count: viewModel.visiblePosts.count)
 
         return Button {
             isShowingDiscoveriesSheet = true
@@ -375,7 +442,7 @@ struct ExploreMapView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: 16) {
-                    ForEach(viewModel.posts) { mapPost in
+                    ForEach(viewModel.visiblePosts) { mapPost in
                         let post = postStore.post(id: mapPost.id) ?? mapPost.asExplorePost
                         ExploreMapPreviewCard(
                             post: post,
@@ -399,12 +466,74 @@ struct ExploreMapView: View {
                 }
                 .padding()
             }
-            .navigationTitle(discoveriesInViewLabel(count: viewModel.posts.count))
+            .navigationTitle(discoveriesInViewLabel(count: viewModel.visiblePosts.count))
             .navigationBarTitleDisplayMode(.inline)
             .background(Color(uiColor: .systemGroupedBackground))
         }
         .presentationDragIndicator(.visible)
         .presentationDetents([.medium, .large])
+    }
+
+    private var filterSheet: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    Button {
+                        Task { await viewModel.clearSpeciesFilters() }
+                    } label: {
+                        ExploreMapFilterSheetRow(
+                            title: "All species",
+                            subtitle: discoveriesInViewLabel(count: totalAvailableDiscoveryCount),
+                            systemImage: "map",
+                            isSelected: !viewModel.hasActiveSpeciesFilters
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    ForEach(viewModel.visibleCategoryCounts) { categoryCount in
+                        Button {
+                            Task { await viewModel.toggleSpeciesFilter(categoryCount.category) }
+                        } label: {
+                            ExploreMapFilterSheetRow(
+                                title: categoryCount.category.title,
+                                subtitle: categoryCount.count >= 1
+                                    ? discoveriesInViewLabel(count: categoryCount.count)
+                                    : "Filter map",
+                                systemImage: categoryCount.category.symbolName,
+                                isSelected: viewModel.selectedSpeciesCategories.contains(categoryCount.category)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Map filters")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Reset") {
+                        Task { await viewModel.clearSpeciesFilters() }
+                    }
+                    .disabled(!viewModel.hasActiveSpeciesFilters)
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        isShowingFilterSheet = false
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .background(Color(uiColor: .systemGroupedBackground))
+        }
+        .presentationDragIndicator(.visible)
+        .presentationDetents([.medium, .large])
+    }
+
+    private var totalAvailableDiscoveryCount: Int {
+        let countedTotal = viewModel.categoryCounts.reduce(0) { $0 + $1.count }
+        return max(countedTotal, viewModel.visibleCount)
     }
 
     private func openPost(_ post: ExplorePost, focusCommentComposer: Bool) {
@@ -767,6 +896,45 @@ private struct ExploreMapClusterBubble: View {
                     .stroke(Color.white.opacity(0.5), lineWidth: 0.75)
             )
             .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 5)
+    }
+}
+
+private struct ExploreMapFilterSheetRow: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(isSelected ? Color.white : Color.accentColor)
+                .frame(width: 38, height: 38)
+                .background(isSelected ? Color.accentColor : Color.accentColor.opacity(0.12))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.45))
+        }
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

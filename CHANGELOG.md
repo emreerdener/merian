@@ -8,10 +8,26 @@ TestFlight, App Store, support, and QA.
 
 ### Added
 
-- Added a Community tab to Explore for Ask the Community identification
+- Added dynamic species-type filters to Explore Map, with horizontal filter
+  pills, a detailed filter sheet, and backend-backed category counts for the
+  current map region.
+- Added an Identify tab to Explore for Ask the Community identification
   requests, with an Insight-sheet CTA, community request queue, taxonomy search,
   disagreement prompts, and backend consensus storage.
 - Added AI-derived starting suggestions to the Community Suggest ID sheet.
+- Added Requests and Activity modes to the Identify header, with an All/Yours
+  request filter and an Activity placeholder for future consensus updates.
+- Added owner-only Community request options with an Edit Request sheet for
+  updating request notes and location sharing.
+- Added reporting to Community request detail menus for requests owned by other
+  users.
+- Updated Community request detail images to extend into the top edge of the
+  sheet, matching the Insight image presentation.
+- Replaced the Community request loading spinner with skeleton request cards.
+- Unified Explore error states around the Dictionary unavailable layout and
+  Retry action style.
+- Added Community identification notifications for new IDs, resolved requests,
+  and helped consensus outcomes, with a dedicated Profile push preference.
 - Added a View action to the Ask the Community confirmation toast so new
   requests can open directly in the Community detail page.
 - Added Ask the Community as the recovery path when users reject every

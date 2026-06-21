@@ -1,4 +1,15 @@
 export type ExploreCoordinateVisibility = "exact" | "obscured";
+export type ExploreMapSpeciesCategory =
+  | "plants"
+  | "fungi"
+  | "birds"
+  | "mammals"
+  | "reptiles"
+  | "amphibians"
+  | "fish"
+  | "insects"
+  | "arachnids"
+  | "other";
 
 export interface ExploreMapPostRow {
   post_id: string;
@@ -15,6 +26,8 @@ export interface ExploreMapPostRow {
   author_is_pro?: boolean;
   species_common_name: string;
   species_scientific_name: string;
+  taxonomy_kingdom?: string | null;
+  taxonomy_class?: string | null;
   public_location_label?: string | null;
   location_sharing: "open" | "obscured" | "private";
   time_of_day?: string | null;
@@ -27,6 +40,11 @@ export interface ExploreMapPostRow {
   is_owned_by_viewer: boolean;
 }
 
+export interface ExploreMapCategoryCount {
+  category: ExploreMapSpeciesCategory;
+  count: number;
+}
+
 export interface ExploreMapCluster {
   id: string;
   latitude: number;
@@ -37,6 +55,7 @@ export interface ExploreMapCluster {
 export interface ExploreMapPointsPayload {
   mode: "clusters" | "posts";
   visible_count: number;
+  category_counts: ExploreMapCategoryCount[];
   clusters: ExploreMapCluster[];
   posts: ExploreMapPostRow[];
 }

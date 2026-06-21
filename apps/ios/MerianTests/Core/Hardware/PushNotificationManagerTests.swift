@@ -68,7 +68,7 @@ struct PushNotificationManagerTests {
         manager.handleNotificationAction(
             userInfo: [
                 "type": "explore_activity",
-                "postId": expectedPostId,
+                "postId": expectedPostId
             ],
             actionIdentifier: UNNotificationDefaultActionIdentifier
         )
@@ -84,5 +84,36 @@ struct PushNotificationManagerTests {
         }
 
         #expect(postId == expectedPostId)
+    }
+
+    @Test func testCommunityNotificationTapPublishesRequestDeepLinkEvent() async throws {
+        let manager = PushNotificationManager.shared
+        let publisher = AppEventPublisher.shared.publisher
+        let expectedRequestId = "community-request-123"
+        var receivedEvent: AppEvent?
+        let cancellable = publisher.sink { event in
+            receivedEvent = event
+        }
+        defer { cancellable.cancel() }
+
+        manager.handleNotificationAction(
+            userInfo: [
+                "type": "explore_activity",
+                "communityRequestId": expectedRequestId
+            ],
+            actionIdentifier: UNNotificationDefaultActionIdentifier
+        )
+
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while receivedEvent == nil && ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+
+        guard case .openCommunityIdentificationRequest(let requestId)? = receivedEvent else {
+            Issue.record("Expected a Community request deep-link event from the push tap handler.")
+            return
+        }
+
+        #expect(requestId == expectedRequestId)
     }
 }

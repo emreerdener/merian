@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-20-explore-map-filters",
+      "date": "2026-06-20",
+      "title": "Explore Map filters",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Explore Map now has horizontal species-type filter pills for the current region.",
+            "The first filter pill opens a detailed filter sheet for selecting map species types.",
+            "Map filters now use backend category counts so visible clusters and discoveries match the active species filters."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-20-community-identification",
       "date": "2026-06-20",
       "title": "Community identification",
@@ -9,9 +24,16 @@
         {
           "title": "Added",
           "items": [
-            "Explore now has a Community tab for Ask the Community identification requests.",
+            "Explore now has an Identify tab for Ask the Community identification requests.",
             "Biological insights can request community help with optional notes and post-level location sharing.",
             "The Community Suggest ID sheet now opens with AI-derived starting suggestions when available.",
+            "Identify now has Requests and Activity modes in the header, plus an All/Yours request filter.",
+            "Your own Community requests now have an options menu for editing the request note and location sharing.",
+            "Community requests from other explorers now have a report action in the options menu.",
+            "Community request detail images now extend into the top edge of the sheet, matching Insight image presentation.",
+            "Community requests now load with skeleton cards instead of a spinner.",
+            "Explore error states now use the same unavailable layout and Retry action style as Dictionary.",
+            "Community identification notifications now cover new IDs, resolved requests, and helped consensus outcomes, with a dedicated Profile push preference.",
             "Ask the Community confirmations now include a View action that opens the new request directly.",
             "When all identification candidates are rejected, Ask the Community is now offered as the next step.",
             "Community request details include consensus status, an identification timeline, taxonomy search, disagreement prompts, and withdraw/restore actions."

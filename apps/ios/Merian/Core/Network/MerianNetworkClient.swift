@@ -1005,12 +1005,16 @@ final class MerianNetworkClient {
 
     func getCommunityIdentificationFeed(
         limit: Int = 30,
+        scope: CommunityIdentificationFeedScope = .all,
         latitude: Double? = nil,
         longitude: Double? = nil,
         cursor: CommunityIdentificationCursor? = nil
     ) async throws -> [CommunityIdentificationFeedItem] {
         let functionUrl = try endpointURL("get-community-identification-feed")
-        var payload: [String: Any] = ["limit": limit]
+        var payload: [String: Any] = [
+            "limit": limit,
+            "scope": scope.rawValue
+        ]
 
         if let latitude {
             payload["latitude"] = latitude
@@ -1038,6 +1042,22 @@ final class MerianNetworkClient {
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(CommunityIdentificationDetailResponse.self, from: data).data
+    }
+
+    func updateCommunityIdentificationRequest(
+        requestId: String,
+        note: String?,
+        locationSharing: ExplorePostLocationSharing
+    ) async throws -> CommunityRequestUpdate {
+        let functionUrl = try endpointURL("update-community-identification-request")
+        let payload: [String: Any] = [
+            "request_id": requestId,
+            "note": note ?? NSNull(),
+            "location_sharing": locationSharing.rawValue
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(CommunityRequestUpdateResponse.self, from: data).data
     }
 
     func searchCommunityTaxa(
@@ -1100,10 +1120,11 @@ final class MerianNetworkClient {
         eastLongitude: Double,
         westLongitude: Double,
         zoomLevel: Double,
-        limit: Int = 500
+        limit: Int = 500,
+        speciesCategories: Set<ExploreMapSpeciesCategory> = []
     ) async throws -> ExploreMapPointsResponse {
         let functionUrl = try endpointURL("get-explore-map-points")
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "north_latitude": northLatitude,
             "south_latitude": southLatitude,
             "east_longitude": eastLongitude,
@@ -1111,6 +1132,9 @@ final class MerianNetworkClient {
             "zoom_level": zoomLevel,
             "limit": limit
         ]
+        if !speciesCategories.isEmpty {
+            payload["species_categories"] = speciesCategories.map(\.rawValue).sorted()
+        }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(ExploreMapPointsResponse.self, from: data)
@@ -1673,7 +1697,8 @@ final class MerianNetworkClient {
         deviceToken: String,
         environment: String,
         exploreEnabled: Bool,
-        commentMentionsEnabled: Bool
+        commentMentionsEnabled: Bool,
+        communityIdentificationsEnabled: Bool
     ) async throws {
         let functionUrl = try endpointURL("register-push-device")
         let payload: [String: Any] = [
@@ -1681,7 +1706,8 @@ final class MerianNetworkClient {
             "platform": "ios",
             "environment": environment,
             "explore_enabled": exploreEnabled,
-            "comment_mentions_enabled": commentMentionsEnabled
+            "comment_mentions_enabled": commentMentionsEnabled,
+            "community_identifications_enabled": communityIdentificationsEnabled
         ]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)

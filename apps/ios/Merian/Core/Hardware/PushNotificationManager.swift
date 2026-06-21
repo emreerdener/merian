@@ -27,9 +27,14 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
             && UserDefaults.standard.bool(forKey: UserDefaultsKeys.isExploreNotificationsEnabled)
     }
 
-    private var effectiveExploreCommentMentionPushEnabled: Bool {
+    private var exploreMentionPushEnabled: Bool {
         UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
             && UserDefaults.standard.bool(forKey: UserDefaultsKeys.isExploreCommentMentionNotificationsEnabled)
+    }
+
+    private var communityIdPushEnabled: Bool {
+        UserDefaults.standard.bool(forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
+            && UserDefaults.standard.bool(forKey: UserDefaultsKeys.isCommunityIdentificationNotificationsEnabled)
     }
 
     private override init() {
@@ -128,7 +133,8 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
                 deviceToken: deviceToken,
                 environment: currentPushEnvironment,
                 exploreEnabled: effectiveExplorePushEnabled,
-                commentMentionsEnabled: effectiveExploreCommentMentionPushEnabled
+                commentMentionsEnabled: exploreMentionPushEnabled,
+                communityIdentificationsEnabled: communityIdPushEnabled
             )
         } catch {
             MerianLog.hardware.error(
@@ -256,9 +262,22 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
 
     /// Extracted for testability since `UNNotificationResponse` cannot be cleanly mocked in XCTest.
     nonisolated func handleNotificationAction(userInfo: [AnyHashable: Any], actionIdentifier: String) {
-        if let type = userInfo["type"] as? String, type == "explore_activity",
-           let postId = userInfo["postId"] as? String {
+        if let type = userInfo["type"] as? String, type == "explore_activity" {
             guard actionIdentifier != UNNotificationDismissActionIdentifier else { return }
+
+            let requestId = (userInfo["communityRequestId"] as? String)
+                ?? (userInfo["community_request_id"] as? String)
+            if let requestId {
+                Task { @MainActor in
+                    MerianLog.hardware.debug(
+                        "Community push notification tapped — routing to requestId \(requestId, privacy: .private)"
+                    )
+                    AppEventPublisher.shared.send(.openCommunityIdentificationRequest(requestId: requestId))
+                }
+                return
+            }
+
+            guard let postId = userInfo["postId"] as? String else { return }
             let commentId = userInfo["commentId"] as? String ?? userInfo["comment_id"] as? String
             let parentCommentId = userInfo["parentCommentId"] as? String ?? userInfo["parent_comment_id"] as? String
             Task { @MainActor in

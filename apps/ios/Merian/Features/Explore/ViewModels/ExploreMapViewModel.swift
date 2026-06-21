@@ -6,6 +6,7 @@ import SwiftUI
 
 private struct ExploreMapCacheEntry {
     var region: MKCoordinateRegion
+    var speciesCategories: Set<ExploreMapSpeciesCategory>
     var response: ExploreMapPointsResponse
     var lastAccessedAt: Date
 
@@ -30,6 +31,9 @@ final class ExploreMapViewModel {
     var posts: [ExploreMapPost] = []
     var selectedPostId: String?
     var visibleCount = 0
+    var categoryCounts: [ExploreMapCategoryCount] = []
+    var selectedSpeciesCategories: Set<ExploreMapSpeciesCategory> = []
+    private var appliedSpeciesCategories: Set<ExploreMapSpeciesCategory> = []
 
     @ObservationIgnored private let maxPostLimit = 500
     @ObservationIgnored private let thumbnailZoomLevelThreshold = 11.5
@@ -42,6 +46,7 @@ final class ExploreMapViewModel {
     )
     @ObservationIgnored private var cachedResponses: [ExploreMapCacheEntry] = []
     @ObservationIgnored private var debounceSearchTask: Task<Void, Never>?
+    @ObservationIgnored private var needsRefreshAfterCurrentLoad = false
 
     private func scheduleAutomaticSearch() {
         debounceSearchTask?.cancel()
@@ -54,14 +59,70 @@ final class ExploreMapViewModel {
 
     var selectedPost: ExploreMapPost? {
         guard let selectedPostId else { return nil }
-        return posts.first(where: { $0.id == selectedPostId })
+        return visiblePosts.first(where: { $0.id == selectedPostId })
+    }
+
+    var hasActiveSpeciesFilters: Bool {
+        !selectedSpeciesCategories.isEmpty
+    }
+
+    var visiblePosts: [ExploreMapPost] {
+        if appliedSpeciesCategories == selectedSpeciesCategories {
+            return posts
+        }
+
+        guard hasActiveSpeciesFilters, appliedSpeciesCategories.isEmpty else { return [] }
+        return posts.filter { post in
+            selectedSpeciesCategories.contains(Self.speciesCategory(for: post))
+        }
+    }
+
+    var visibleClusters: [ExploreMapCluster] {
+        guard appliedSpeciesCategories == selectedSpeciesCategories else { return [] }
+        guard hasActiveSpeciesFilters else { return clusters }
+        return categoryCounts.isEmpty ? [] : clusters
+    }
+
+    var visibleDiscoveryCount: Int {
+        if mode == .clusters && !visibleClusters.isEmpty {
+            return visibleCount
+        }
+
+        return visiblePosts.count
+    }
+
+    var visibleCategoryCounts: [ExploreMapCategoryCount] {
+        let availableCategories = Set(categoryCounts.map(\.category))
+        let defaultCounts = ExploreMapSpeciesCategory.defaultFilters
+            .filter { !availableCategories.contains($0) }
+            .map { ExploreMapCategoryCount(category: $0, count: 0) }
+        let selectedCounts = selectedSpeciesCategories
+            .subtracting(availableCategories)
+            .subtracting(ExploreMapSpeciesCategory.defaultFilters)
+            .map { ExploreMapCategoryCount(category: $0, count: 0) }
+
+        return (categoryCounts + defaultCounts + selectedCounts)
+            .filter {
+                $0.count >= 1
+                    || ExploreMapSpeciesCategory.defaultFilters.contains($0.category)
+                    || selectedSpeciesCategories.contains($0.category)
+            }
+            .sorted { lhs, rhs in
+                if lhs.category.sortPriority != rhs.category.sortPriority {
+                    return lhs.category.sortPriority < rhs.category.sortPriority
+                }
+                if lhs.count != rhs.count {
+                    return lhs.count > rhs.count
+                }
+                return lhs.category.title < rhs.category.title
+            }
     }
 
     /// Determines whether map waypoints should be rendered as thumbnail images instead of generic dots.
     /// Thumbnails are automatically displayed whenever the map is zoomed in past the `thumbnailZoomLevelThreshold`,
     /// providing immediate visual context for discoveries in the area.
     var showsThumbnailWaypoints: Bool {
-        guard mode == .posts, !posts.isEmpty else { return false }
+        guard mode == .posts, !visiblePosts.isEmpty else { return false }
         guard let region = visibleRegion ?? lastCommittedRegion else { return false }
         return zoomLevel(for: region) >= thumbnailZoomLevelThreshold
     }
@@ -125,13 +186,34 @@ final class ExploreMapViewModel {
         selectedPostId = postId
     }
 
+    func clearSpeciesFilters() async {
+        await setSpeciesFilters([])
+    }
+
+    func toggleSpeciesFilter(_ category: ExploreMapSpeciesCategory) async {
+        var nextFilters = selectedSpeciesCategories
+        if nextFilters.contains(category) {
+            nextFilters.remove(category)
+        } else {
+            nextFilters.insert(category)
+        }
+        await setSpeciesFilters(nextFilters)
+    }
+
+    func setSpeciesFilters(_ categories: Set<ExploreMapSpeciesCategory>) async {
+        guard categories != selectedSpeciesCategories else { return }
+        selectedSpeciesCategories = categories
+        selectedPostId = nil
+        await searchCurrentArea()
+    }
+
     func post(relativeTo postId: String?, by offset: Int) -> ExploreMapPost? {
         guard let postId,
-              let currentIndex = posts.firstIndex(where: { $0.id == postId }) else {
+              let currentIndex = visiblePosts.firstIndex(where: { $0.id == postId }) else {
             return nil
         }
         guard let targetIndex = wrappedPostIndex(from: currentIndex, offset: offset) else { return nil }
-        return posts[targetIndex]
+        return visiblePosts[targetIndex]
     }
 
     func post(relativeToSelectedBy offset: Int) -> ExploreMapPost? {
@@ -164,6 +246,8 @@ final class ExploreMapViewModel {
                 authorIsPro: canonical.authorIsPro,
                 speciesCommonName: canonical.speciesCommonName,
                 speciesScientificName: canonical.speciesScientificName,
+                taxonomyKingdom: mapPost.taxonomyKingdom,
+                taxonomyClass: mapPost.taxonomyClass,
                 publicLocationLabel: canonical.publicLocationLabel,
                 locationSharing: canonical.locationSharing,
                 timeOfDay: canonical.timeOfDay,
@@ -177,7 +261,7 @@ final class ExploreMapViewModel {
             )
         }
 
-        if let selectedPostId, posts.contains(where: { $0.id == selectedPostId }) == false {
+        if let selectedPostId, visiblePosts.contains(where: { $0.id == selectedPostId }) == false {
             self.selectedPostId = nil
         }
     }
@@ -197,7 +281,10 @@ final class ExploreMapViewModel {
     }
 
     private func fetchMapPoints(for region: MKCoordinateRegion) async {
-        guard !isLoading else { return }
+        guard !isLoading else {
+            needsRefreshAfterCurrentLoad = true
+            return
+        }
 
         let now = Date()
         let cachedWasFresh = applyCachedResponseIfAvailable(for: region, now: now)
@@ -206,7 +293,19 @@ final class ExploreMapViewModel {
         }
 
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            isLoading = false
+
+            if needsRefreshAfterCurrentLoad {
+                needsRefreshAfterCurrentLoad = false
+                let refreshRegion = visibleRegion ?? region
+                Task { @MainActor [weak self] in
+                    await self?.fetchMapPoints(for: refreshRegion)
+                }
+            }
+        }
+
+        let requestedSpeciesCategories = selectedSpeciesCategories
 
         do {
             let response = try await MerianNetworkClient.shared.getExploreMapPoints(
@@ -215,10 +314,11 @@ final class ExploreMapViewModel {
                 eastLongitude: region.eastLongitude,
                 westLongitude: region.westLongitude,
                 zoomLevel: zoomLevel(for: region),
-                limit: maxPostLimit
+                limit: maxPostLimit,
+                speciesCategories: requestedSpeciesCategories
             )
-            storeCachedResponse(response, for: region, now: now)
-            apply(response: response, for: region)
+            storeCachedResponse(response, for: region, speciesCategories: requestedSpeciesCategories, now: now)
+            apply(response: response, for: region, speciesCategories: requestedSpeciesCategories)
         } catch let error as MerianError {
             if case .httpError(let statusCode, _) = error, statusCode == 503 {
                 hasServiceUnavailableError = true
@@ -253,18 +353,24 @@ final class ExploreMapViewModel {
         }
     }
 
-    private func apply(response: ExploreMapPointsResponse, for region: MKCoordinateRegion) {
+    private func apply(
+        response: ExploreMapPointsResponse,
+        for region: MKCoordinateRegion,
+        speciesCategories: Set<ExploreMapSpeciesCategory>
+    ) {
         mode = response.mode
         clusters = response.clusters
         posts = Array(response.posts.prefix(maxPostLimit))
         visibleCount = response.visibleCount
+        categoryCounts = response.categoryCounts
+        appliedSpeciesCategories = speciesCategories
         errorMessage = nil
         hasServiceUnavailableError = false
         isOffline = false
         needsSearchInArea = false
         lastCommittedRegion = region
 
-        if let selectedPostId, posts.contains(where: { $0.id == selectedPostId }) == false {
+        if let selectedPostId, visiblePosts.contains(where: { $0.id == selectedPostId }) == false {
             self.selectedPostId = nil
         }
     }
@@ -300,22 +406,39 @@ final class ExploreMapViewModel {
 
         let cachedEntry = cachedResponses[cacheIndex]
         cachedResponses[cacheIndex].lastAccessedAt = now
-        apply(response: cachedEntry.response, for: region)
+        apply(response: cachedEntry.response, for: region, speciesCategories: cachedEntry.speciesCategories)
         pruneCachedResponses(around: region)
 
         return now.timeIntervalSince(cachedEntry.lastAccessedAt) < freshCacheTTL
     }
 
-    private func cachedResponseIndex(for region: MKCoordinateRegion) -> Int? {
-        cachedResponses.indices
-            .filter { regionsAreCacheCompatible(cachedResponses[$0].region, region) }
+    private func cachedResponseIndex(
+        for region: MKCoordinateRegion,
+        speciesCategories: Set<ExploreMapSpeciesCategory>? = nil
+    ) -> Int? {
+        let requestedSpeciesCategories = speciesCategories ?? selectedSpeciesCategories
+        return cachedResponses.indices
+            .filter {
+                regionsAreCacheCompatible(cachedResponses[$0].region, region)
+                    && cachedResponses[$0].speciesCategories == requestedSpeciesCategories
+            }
             .max(by: { cachedResponses[$0].lastAccessedAt < cachedResponses[$1].lastAccessedAt })
     }
 
-    private func storeCachedResponse(_ response: ExploreMapPointsResponse, for region: MKCoordinateRegion, now: Date) {
-        let entry = ExploreMapCacheEntry(region: region, response: response, lastAccessedAt: now)
+    private func storeCachedResponse(
+        _ response: ExploreMapPointsResponse,
+        for region: MKCoordinateRegion,
+        speciesCategories: Set<ExploreMapSpeciesCategory>,
+        now: Date
+    ) {
+        let entry = ExploreMapCacheEntry(
+            region: region,
+            speciesCategories: speciesCategories,
+            response: response,
+            lastAccessedAt: now
+        )
 
-        if let existingIndex = cachedResponseIndex(for: region) {
+        if let existingIndex = cachedResponseIndex(for: region, speciesCategories: speciesCategories) {
             cachedResponses[existingIndex] = entry
         } else {
             cachedResponses.append(entry)
@@ -370,17 +493,50 @@ final class ExploreMapViewModel {
 
     private var selectedPostIndex: Int? {
         guard let currentSelectedPostId = selectedPostId else { return nil }
-        return posts.firstIndex(where: { $0.id == currentSelectedPostId })
+        return visiblePosts.firstIndex(where: { $0.id == currentSelectedPostId })
     }
 
     private func wrappedPostIndex(from startIndex: Int, offset: Int) -> Int? {
-        guard posts.indices.contains(startIndex) else { return nil }
+        let filteredPosts = visiblePosts
+        guard filteredPosts.indices.contains(startIndex) else { return nil }
         guard offset != 0 else { return startIndex }
-        guard posts.count > 1 else { return nil }
+        guard filteredPosts.count > 1 else { return nil }
 
-        let count = posts.count
+        let count = filteredPosts.count
         let rawIndex = (startIndex + offset) % count
         return rawIndex >= 0 ? rawIndex : rawIndex + count
+    }
+
+    private static func speciesCategory(for post: ExploreMapPost) -> ExploreMapSpeciesCategory {
+        let kingdom = post.taxonomyKingdom?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        let className = post.taxonomyClass?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+
+        if kingdom == "plantae" {
+            return .plants
+        }
+
+        if kingdom == "fungi" {
+            return .fungi
+        }
+
+        switch className {
+        case "aves":
+            return .birds
+        case "mammalia":
+            return .mammals
+        case "reptilia", "squamata":
+            return .reptiles
+        case "amphibia":
+            return .amphibians
+        case "actinopterygii", "chondrichthyes", "sarcopterygii":
+            return .fish
+        case "insecta", "entognatha":
+            return .insects
+        case "arachnida":
+            return .arachnids
+        default:
+            return .other
+        }
     }
 }
 

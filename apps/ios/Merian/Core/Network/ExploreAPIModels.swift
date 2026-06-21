@@ -333,6 +333,20 @@ struct CommunityIdentificationFeedResponse: Decodable {
     let data: [CommunityIdentificationFeedItem]
 }
 
+enum CommunityIdentificationFeedScope: String, CaseIterable, Hashable {
+    case all
+    case mine
+
+    var title: String {
+        switch self {
+        case .all:
+            "All"
+        case .mine:
+            "Yours"
+        }
+    }
+}
+
 struct CommunityIdentificationDetailResponse: Decodable {
     let data: CommunityIdentificationDetail
 }
@@ -611,6 +625,19 @@ struct CommunityIdentificationMutation: Decodable, Equatable {
     let restoredAt: String?
 }
 
+struct CommunityRequestUpdateResponse: Decodable, Equatable {
+    let success: Bool
+    let data: CommunityRequestUpdate
+}
+
+struct CommunityRequestUpdate: Decodable, Equatable {
+    let id: String
+    let postId: String
+    let note: String?
+    let locationSharing: ExplorePostLocationSharing
+    let updatedAt: String
+}
+
 enum CommunityTaxonDisplay {
     static func name(commonName: String?, scientificName: String?) -> String {
         if let commonName = commonName?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -754,8 +781,95 @@ enum ExploreCoordinateVisibility: String, Decodable {
 struct ExploreMapPointsResponse: Decodable {
     let mode: ExploreMapMode
     let visibleCount: Int
+    let categoryCounts: [ExploreMapCategoryCount]
     let clusters: [ExploreMapCluster]
     let posts: [ExploreMapPost]
+
+    private enum CodingKeys: String, CodingKey {
+        case mode
+        case visibleCount
+        case categoryCounts
+        case clusters
+        case posts
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mode = try container.decode(ExploreMapMode.self, forKey: .mode)
+        visibleCount = try container.decode(Int.self, forKey: .visibleCount)
+        categoryCounts = try container.decodeIfPresent([ExploreMapCategoryCount].self, forKey: .categoryCounts) ?? []
+        clusters = try container.decode([ExploreMapCluster].self, forKey: .clusters)
+        posts = try container.decode([ExploreMapPost].self, forKey: .posts)
+    }
+}
+
+enum ExploreMapSpeciesCategory: String, Codable, CaseIterable, Identifiable {
+    case plants
+    case fungi
+    case birds
+    case mammals
+    case reptiles
+    case amphibians
+    case fish
+    case insects
+    case arachnids
+    case other
+
+    static let defaultFilters: [ExploreMapSpeciesCategory] = [
+        .birds,
+        .insects,
+        .plants,
+        .fungi,
+        .mammals,
+        .reptiles,
+        .amphibians,
+        .fish,
+        .arachnids,
+        .other
+    ]
+
+    var id: String { rawValue }
+
+    var sortPriority: Int {
+        Self.defaultFilters.firstIndex(of: self) ?? Self.defaultFilters.count
+    }
+
+    var title: String {
+        switch self {
+        case .plants: return "Plants"
+        case .fungi: return "Fungi"
+        case .birds: return "Birds"
+        case .mammals: return "Mammals"
+        case .reptiles: return "Reptiles"
+        case .amphibians: return "Amphibians"
+        case .fish: return "Fish"
+        case .insects: return "Insects"
+        case .arachnids: return "Arachnids"
+        case .other: return "Other"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .plants: return "leaf"
+        case .fungi: return "circle.hexagongrid"
+        case .birds: return "bird"
+        case .mammals: return "pawprint"
+        case .reptiles: return "lizard"
+        case .amphibians: return "drop"
+        case .fish: return "fish"
+        case .insects: return "ladybug"
+        case .arachnids: return "ant"
+        case .other: return "sparkle"
+        }
+    }
+}
+
+struct ExploreMapCategoryCount: Decodable, Identifiable, Equatable {
+    let category: ExploreMapSpeciesCategory
+    let count: Int
+
+    var id: ExploreMapSpeciesCategory { category }
 }
 
 struct ExploreMapCluster: Decodable, Identifiable, Equatable {
@@ -784,6 +898,8 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
     let authorIsPro: Bool?
     let speciesCommonName: String
     let speciesScientificName: String
+    let taxonomyKingdom: String?
+    let taxonomyClass: String?
     let publicLocationLabel: String?
     let locationSharing: ExplorePostLocationSharing?
     let timeOfDay: String?

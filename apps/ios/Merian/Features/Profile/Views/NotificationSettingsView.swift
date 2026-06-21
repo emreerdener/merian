@@ -9,6 +9,7 @@ struct NotificationSettingsView: View {
         case achievements
         case explore
         case exploreCommentMentions
+        case communityIdentifications
     }
 
     @Environment(AppSettings.self) private var appSettings
@@ -69,10 +70,27 @@ struct NotificationSettingsView: View {
                         }
                     }
                 )
+                SettingsToggleRow(
+                    title: "Community identifications",
+                    description: """
+                    Receive pushes when people identify your requests, consensus resolves, \
+                    or your ID helps resolve a request.
+                    """,
+                    isOn: binding(
+                        for: $appSettings.isCommunityIdentificationNotificationsEnabled,
+                        target: .communityIdentifications
+                    ) {
+                        Task { @MainActor in
+                            await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
+                                reason: "community_identifications_setting_changed"
+                            )
+                        }
+                    }
+                )
             } header: {
                 Text("Explore")
             } footer: {
-                Text("These controls affect remote Explore activity pushes only. The in-app notifications feed remains available inside Explore.")
+                Text("These controls affect remote Explore and Community pushes only. The in-app notifications feed remains available inside Explore.")
             }
         }
         .navigationTitle("Notifications")
@@ -154,6 +172,13 @@ struct NotificationSettingsView: View {
             Task { @MainActor in
                 await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
                     reason: "explore_comment_mentions_setting_enabled_after_authorization"
+                )
+            }
+        case .communityIdentifications:
+            appSettings.isCommunityIdentificationNotificationsEnabled = true
+            Task { @MainActor in
+                await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
+                    reason: "community_identifications_setting_enabled_after_authorization"
                 )
             }
         }

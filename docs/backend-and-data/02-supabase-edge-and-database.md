@@ -680,8 +680,9 @@ public user.
 The map path is intentionally split into two layers.
 `public.get_explore_map_posts(...)` is the privacy-safe SQL projection over
 `explore_posts`, `scans`, `users`, and `species_dictionary`;
-`get-explore-map-points` adds zoom-aware clustering and returns either clusters
-or individual post rows. Explore now stores the author-selected post
+`get-explore-map-points` adds species-type category counts, applies requested
+species categories before clustering, and returns either clusters or individual
+post rows. Explore now stores the author-selected post
 geoprivacy on `explore_posts.location_sharing` and projects post-owned public
 map fields when that value is `open`. `obscured` and `private` posts can still
 be visible on non-map Explore surfaces when otherwise eligible, but the map does

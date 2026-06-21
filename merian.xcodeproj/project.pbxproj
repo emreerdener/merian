@@ -277,6 +277,7 @@
 		8508A5B0E866ADB55CC8EEE8 /* ExplorePostDetailTopSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A7FC80FF62754982088811 /* ExplorePostDetailTopSection.swift */; };
 		85F9CF449E4916399A71B71F /* CandidateImageExpandedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 485FF228092493A29E82C5BB /* CandidateImageExpandedView.swift */; };
 		8638468ECEBB75DA58AA2635 /* FieldNotesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E762188E7218098CBCCC72F /* FieldNotesSheet.swift */; };
+		867F5BCE2E8C24CE4CE807BB /* ExploreUnavailableStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9ED5CFF9847FFDE362B5A12 /* ExploreUnavailableStateView.swift */; };
 		8826B19268129624F2D87D25 /* Community.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE77AD677713EA5D8F12C3D6 /* Community.swift */; };
 		89143DCFA1EF1A9D5B72F894 /* SocialGuardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E53EEAA4B495EBA59F7F561 /* SocialGuardManager.swift */; };
 		89C14283CD7068004A2830DF /* ExploreReferenceGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBEE249F779C601D3C7E5962 /* ExploreReferenceGallery.swift */; };
@@ -1001,6 +1002,7 @@
 		E999B58935F3B8EF6145A616 /* ImageFileWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageFileWrapper.swift; sourceTree = "<group>"; };
 		E9B928112D44DE81D10CF1AD /* SchemaV26.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV26.swift; sourceTree = "<group>"; };
 		E9EC753AE70DD2CA7F9B43EA /* NotificationRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRowView.swift; sourceTree = "<group>"; };
+		E9ED5CFF9847FFDE362B5A12 /* ExploreUnavailableStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreUnavailableStateView.swift; sourceTree = "<group>"; };
 		EA0932DD25BDB999B8437589 /* ScansHeatmap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScansHeatmap.swift; sourceTree = "<group>"; };
 		EB3494165903F5203C7E3BD9 /* CameraManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManagerTests.swift; sourceTree = "<group>"; };
 		EB3F8DA892B52497EA357073 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
@@ -2101,6 +2103,7 @@
 				C9570977DF2C085D2FE4F386 /* ExplorePostDetailCommentsSection.swift */,
 				E2A7FC80FF62754982088811 /* ExplorePostDetailTopSection.swift */,
 				DBEE249F779C601D3C7E5962 /* ExploreReferenceGallery.swift */,
+				E9ED5CFF9847FFDE362B5A12 /* ExploreUnavailableStateView.swift */,
 				E9EC753AE70DD2CA7F9B43EA /* NotificationRowView.swift */,
 				49FE43C7105D31D8DE8EF2B2 /* DetailCards */,
 			);
@@ -2858,7 +2861,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2650;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0B94C342D2F7F49D11202598 = {
 						DevelopmentTeam = "$(MERIAN_DEVELOPMENT_TEAM)";
@@ -3224,6 +3227,7 @@
 				8508A5B0E866ADB55CC8EEE8 /* ExplorePostDetailTopSection.swift in Sources */,
 				C8842B61DC9A8825420BEDD5 /* ExplorePostDetailView.swift in Sources */,
 				89C14283CD7068004A2830DF /* ExploreReferenceGallery.swift in Sources */,
+				867F5BCE2E8C24CE4CE807BB /* ExploreUnavailableStateView.swift in Sources */,
 				1B1CD14D538E4F4C31CDF2F1 /* ExploreView.swift in Sources */,
 				5E16712054E5EAE254B0B1F0 /* ExploreWidgetCache.swift in Sources */,
 				0CE96750AE32B54DE217FB1E /* ExploreWidgetSnapshotWriter.swift in Sources */,

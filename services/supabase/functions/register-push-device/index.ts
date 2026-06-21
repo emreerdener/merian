@@ -56,9 +56,23 @@ serve((req: Request) =>
       );
     }
 
+    if (
+      body.community_identifications_enabled !== undefined &&
+      typeof body.community_identifications_enabled !== "boolean"
+    ) {
+      return jsonResponse(
+        { error: "community_identifications_enabled must be a boolean." },
+        400,
+      );
+    }
+
     const commentMentionsEnabled =
       typeof body.comment_mentions_enabled === "boolean"
         ? body.comment_mentions_enabled
+        : body.explore_enabled;
+    const communityIdentificationsEnabled =
+      typeof body.community_identifications_enabled === "boolean"
+        ? body.community_identifications_enabled
         : body.explore_enabled;
 
     await upsertPushDeviceRegistration(user.id, {
@@ -67,6 +81,7 @@ serve((req: Request) =>
       environment: body.environment,
       exploreEnabled: body.explore_enabled,
       commentMentionsEnabled,
+      communityIdentificationsEnabled,
     }, supabaseAdmin);
 
     return jsonResponse({ success: true }, 200);

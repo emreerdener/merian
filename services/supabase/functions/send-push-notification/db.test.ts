@@ -56,3 +56,20 @@ Deno.test("fetchEligiblePushDevices gates comment mentions by mention preference
     ["comment_mentions_enabled", true],
   ]);
 });
+
+Deno.test("fetchEligiblePushDevices gates Community pushes by Community identification preference", async () => {
+  const client = new FakeSupabaseClient();
+
+  await fetchEligiblePushDevices(
+    "user-1",
+    "community_request_resolved",
+    client as never,
+  );
+
+  assertEquals(client.query.filters, [
+    ["user_id", "user-1"],
+    ["platform", "ios"],
+    ["is_active", true],
+    ["community_identifications_enabled", true],
+  ]);
+});

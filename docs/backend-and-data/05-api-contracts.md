@@ -149,11 +149,13 @@ The response envelope is:
 
 ### `/get-community-identification-feed`
 
-Returns unresolved `needs_id` requests for the Community tab. Optional
-`latitude` and `longitude` sort local public-coordinate requests first, followed
-by recent requests. Cursor fields are `before_requested_at` and
-`before_request_id`. Rows may include `taxonomy_version_id`, `projection_state`,
-and `consensus_processing_state`.
+Returns unresolved `needs_id` requests for the Identify tab. Optional
+`scope` accepts `all` or `mine` and defaults to `all`; `mine` returns unresolved
+requests created by the authenticated viewer. Optional `latitude` and
+`longitude` sort local public-coordinate requests first, followed by recent
+requests. Cursor fields are `before_requested_at` and `before_request_id`. Rows
+may include `taxonomy_version_id`, `projection_state`, and
+`consensus_processing_state`.
 
 ### `/get-community-identification-detail`
 
@@ -168,6 +170,14 @@ Suggest ID sheet, derived from the initial AI taxon plus resolvable
 `scans.candidates` entries in the request's pinned taxonomy version. Suggested
 taxa use the same taxon fields as search results and may include
 `suggestion_source`, `confidence_score`, and `distinguishing_feature`.
+
+### `/update-community-identification-request`
+
+Updates the authenticated request owner’s editable request info. Accepts
+`request_id`, optional `note`, and required `location_sharing` (`open`,
+`obscured`, `private`). The backend only updates non-withdrawn requests owned
+by the current user and also updates the backing Explore post’s
+`location_sharing`.
 
 ### `/search-community-taxa`
 
@@ -1640,7 +1650,8 @@ request body is:
   "east_longitude": -97.517,
   "west_longitude": -98.001,
   "zoom_level": 10.7,
-  "limit": 500
+  "limit": 500,
+  "species_categories": ["birds", "insects"]
 }
 ```
 
@@ -1649,12 +1660,19 @@ request body is:
 - `zoom_level` is used only to decide whether the response should be clustered
   or return individual posts.
 - `limit` is optional and capped at `500`.
+- `species_categories` is optional. Allowed values are `plants`, `fungi`,
+  `birds`, `mammals`, `reptiles`, `amphibians`, `fish`, `insects`,
+  `arachnids`, and `other`.
 
 The Edge Function reads `public.get_explore_map_posts(...)` and then applies
-zoom-aware clustering in
+species-type filters and zoom-aware clustering in
 `services/supabase/functions/get-explore-map-points/cluster.ts`. The shipped
 behavior is:
 
+- category counts are computed from the unfiltered privacy-safe rows in the
+  current region
+- selected species categories are applied before clustering, so clusters and
+  waypoints reflect the active filters
 - when the visible result set is small, return `mode: "posts"`
 - when the viewport is broad or dense, return `mode: "clusters"`
 - at close zooms, individual posts are still capped to prevent annotation
@@ -1666,6 +1684,10 @@ Current response shapes:
 {
   "mode": "clusters",
   "visible_count": 243,
+  "category_counts": [
+    { "category": "birds", "count": 82 },
+    { "category": "insects", "count": 51 }
+  ],
   "clusters": [
     {
       "id": "3015:2057",
@@ -1682,6 +1704,10 @@ Current response shapes:
 {
   "mode": "posts",
   "visible_count": 24,
+  "category_counts": [
+    { "category": "birds", "count": 12 },
+    { "category": "insects", "count": 8 }
+  ],
   "clusters": [],
   "posts": [
     {
@@ -1698,6 +1724,8 @@ Current response shapes:
       "author_avatar_url": "https://...",
       "species_common_name": "Monarch Butterfly",
       "species_scientific_name": "Danaus plexippus",
+      "taxonomy_kingdom": "Animalia",
+      "taxonomy_class": "Insecta",
       "public_location_label": "Austin, TX",
       "location_sharing": "open",
       "time_of_day": "afternoon",
@@ -2234,6 +2262,9 @@ Returns the viewer's in-app Explore activity feed. The request body is optional:
   location fields, not notification visibility.
 - Follow notifications are validated against an active follow relationship and
   blocked or shadowbanned actors are filtered out.
+- Community Identification notifications include `community_request_id` plus
+  display fields for the current or resolved taxon, and the client routes them
+  to the Community request detail instead of regular post detail.
 - Pagination is cursor-based on `(updated_at DESC, notification_id DESC)`.
   Follow-up page requests send:
 
@@ -2253,6 +2284,7 @@ Current response shape:
     {
       "notification_id": "uuid",
       "post_id": "uuid",
+      "community_request_id": null,
       "type": "like_aggregated",
       "comment_id": null,
       "reaction_emoji": null,
@@ -2262,6 +2294,9 @@ Current response shape:
       "recent_actor_names": ["User C", "User B"],
       "action_count": 2,
       "is_read": false,
+      "community_taxon_common_name": null,
+      "community_taxon_scientific_name": null,
+      "community_request_display_name": null,
       "created_at": "2026-04-27T12:00:00.000Z",
       "updated_at": "2026-04-27T12:05:00.000Z"
     },
@@ -2309,6 +2344,25 @@ Current response shape:
       "is_read": false,
       "created_at": "2026-05-05T10:00:00.000Z",
       "updated_at": "2026-05-05T10:05:00.000Z"
+    },
+    {
+      "notification_id": "uuid",
+      "post_id": "uuid",
+      "community_request_id": "uuid",
+      "type": "community_request_resolved",
+      "comment_id": null,
+      "reaction_emoji": null,
+      "triggering_user_id": null,
+      "triggering_user_name": null,
+      "comment_body": null,
+      "recent_actor_names": [],
+      "action_count": 1,
+      "is_read": false,
+      "community_taxon_common_name": "Pinwheel",
+      "community_taxon_scientific_name": "Aeonium haworthii",
+      "community_request_display_name": "Pinwheel",
+      "created_at": "2026-06-20T19:30:00.000Z",
+      "updated_at": "2026-06-20T19:30:00.000Z"
     },
     {
       "notification_id": "uuid",
@@ -2373,7 +2427,8 @@ activity pushes:
   "platform": "ios",
   "environment": "sandbox",
   "explore_enabled": true,
-  "comment_mentions_enabled": true
+  "comment_mentions_enabled": true,
+  "community_identifications_enabled": true
 }
 ```
 
@@ -2390,6 +2445,11 @@ activity pushes:
   clients. When present, `comment_mention` payloads require
   `comment_mentions_enabled` to be true. Other Explore activity payloads
   require `explore_enabled` to be true.
+- `community_identifications_enabled` is optional for compatibility with older
+  clients. New installs default this setting on. When omitted, the server treats
+  the Community preference like the submitted `explore_enabled` value for older
+  clients. Community Identification payloads require
+  `community_identifications_enabled` to be true.
 - The server stores these rows in `public.user_push_devices`. Delivery failures
   from APNs feed back into that table via `last_error_*` fields and `is_active`.
 
@@ -2458,7 +2518,8 @@ The Explore detail page additionally uses:
 - `/check-public-username` and `/update-public-username` from the Profile
   account card username editor
 - `/register-push-device` to sync the APNs token, the Explore-specific push
-  preference, and the independent comment mention push preference
+  preference, the independent comment mention push preference, and the
+  independent Community identification push preference
 
 The Explore map additionally uses:
 
@@ -2485,8 +2546,9 @@ the iOS client directly; it is triggered server-side from
 `public.explore_post_notifications`. Follow notifications are excluded from push
 dispatch and remain in-app only. Comment mention pushes are dispatched only to
 devices with `comment_mentions_enabled` enabled; regular Explore activity pushes
-use `explore_enabled`. The in-app notification row is still retained even when
-the related push toggle is off.
+use `explore_enabled`. Community Identification pushes include
+`communityRequestId` and use `community_identifications_enabled`. The in-app
+notification row is still retained even when the related push toggle is off.
 
 Preferred species display names are not part of the Explore endpoint payload.
 The iOS client syncs `user_species_preferences` directly through PostgREST under

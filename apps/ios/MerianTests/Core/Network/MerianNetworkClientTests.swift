@@ -515,6 +515,106 @@ struct MerianNetworkClientTests {
         #expect(posts.isEmpty)
     }
 
+    @Test func testGetCommunityIdentificationFeedConstructsScopedPayload() async throws {
+        let testData = """
+        {
+            "data": [
+                {
+                    "request_id": "request-mine-123",
+                    "post_id": "post-mine-123",
+                    "scan_id": "scan-mine-123",
+                    "hero_image_url": "https://example.com/community.webp",
+                    "requested_at": "2026-06-20T12:00:00.000Z",
+                    "author_user_id": "viewer-123",
+                    "author_name": "Viewer",
+                    "author_avatar_url": null,
+                    "taxonomy_version_id": "taxonomy-v1",
+                    "projection_state": "community_needs_id",
+                    "consensus_processing_state": "idle",
+                    "current_taxon_id": "taxon-1",
+                    "current_common_name": "Pinwheel",
+                    "current_scientific_name": "Aeonium haworthii",
+                    "current_rank": "species",
+                    "current_path": "plantae.tracheophyta.magnoliopsida.saxifragales.crassulaceae.aeonium.aeonium_haworthii",
+                    "initial_taxon_id": "taxon-1",
+                    "initial_common_name": "Pinwheel",
+                    "initial_scientific_name": "Aeonium haworthii",
+                    "initial_rank": "species",
+                    "initial_path": "plantae.tracheophyta.magnoliopsida.saxifragales.crassulaceae.aeonium.aeonium_haworthii",
+                    "consensus_score": null,
+                    "identification_count": 0,
+                    "viewer_has_identified": false,
+                    "public_location_label": "Austin, TX",
+                    "location_sharing": "open"
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/get-community-identification-feed"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["limit"] as? Int == 12)
+            #expect(payload["scope"] as? String == "mine")
+            #expect(payload["latitude"] as? Double == 30.2672)
+            #expect(payload["longitude"] as? Double == -97.7431)
+            #expect(payload["before_requested_at"] as? String == "2026-06-20T12:00:00.000Z")
+            #expect(payload["before_request_id"] as? String == "request-cursor-123")
+            return (mockResponse, testData)
+        }
+
+        let requests = try await MerianNetworkClient.shared.getCommunityIdentificationFeed(
+            limit: 12,
+            scope: .mine,
+            latitude: 30.2672,
+            longitude: -97.7431,
+            cursor: CommunityIdentificationCursor(
+                beforeRequestedAt: "2026-06-20T12:00:00.000Z",
+                beforeRequestId: "request-cursor-123"
+            )
+        )
+
+        #expect(requests.count == 1)
+        #expect(requests[0].id == "request-mine-123")
+    }
+
+    @Test func testUpdateCommunityIdentificationRequestConstructsPayload() async throws {
+        let testData = """
+        {
+            "success": true,
+            "data": {
+                "id": "request-edit-123",
+                "post_id": "post-edit-123",
+                "note": "Look near the leaf edges.",
+                "location_sharing": "obscured",
+                "updated_at": "2026-06-20T23:58:00.000Z"
+            }
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        MockURLProtocol.mockEndpoints["/update-community-identification-request"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["request_id"] as? String == "request-edit-123")
+            #expect(payload["note"] as? String == "Look near the leaf edges.")
+            #expect(payload["location_sharing"] as? String == "obscured")
+            return (mockResponse, testData)
+        }
+
+        let update = try await MerianNetworkClient.shared.updateCommunityIdentificationRequest(
+            requestId: "request-edit-123",
+            note: "Look near the leaf edges.",
+            locationSharing: .obscured
+        )
+
+        #expect(update.id == "request-edit-123")
+        #expect(update.postId == "post-edit-123")
+        #expect(update.note == "Look near the leaf edges.")
+        #expect(update.locationSharing == .obscured)
+    }
+
     @Test func testGetExploreAuthorProfileParsesProfilePayload() async throws {
         let testData = """
         {
@@ -912,6 +1012,7 @@ struct MerianNetworkClientTests {
             #expect(payload?["environment"] as? String == "sandbox")
             #expect(payload?["explore_enabled"] as? Bool == true)
             #expect(payload?["comment_mentions_enabled"] as? Bool == false)
+            #expect(payload?["community_identifications_enabled"] as? Bool == true)
             return (mockResponse, Data("{}".utf8))
         }
 
@@ -919,7 +1020,8 @@ struct MerianNetworkClientTests {
             deviceToken: "abc123",
             environment: "sandbox",
             exploreEnabled: true,
-            commentMentionsEnabled: false
+            commentMentionsEnabled: false,
+            communityIdentificationsEnabled: true
         )
     }
     

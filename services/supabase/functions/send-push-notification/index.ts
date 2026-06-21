@@ -94,9 +94,39 @@ function buildCommentBody(commentBody: string | null): string {
   return `${trimmed.slice(0, 117)}...`;
 }
 
+function communityDisplayName(payload: ExplorePushNotificationPayload): string {
+  return (
+    payload.community_request_display_name ??
+      payload.community_taxon_common_name ??
+      payload.community_taxon_scientific_name ??
+      "the request"
+  ).trim() || "the request";
+}
+
 function buildNotificationCopy(
   payload: ExplorePushNotificationPayload,
 ): NotificationCopy {
+  if (payload.type === "community_identification_added") {
+    return {
+      title: "Someone suggested an ID for your request",
+      body: `Open Community to review ${communityDisplayName(payload)}.`,
+    };
+  }
+
+  if (payload.type === "community_request_resolved") {
+    return {
+      title: "Your Community request was identified",
+      body: `Consensus reached ${communityDisplayName(payload)}.`,
+    };
+  }
+
+  if (payload.type === "community_identification_helped") {
+    return {
+      title: "Your ID helped resolve a request",
+      body: `The community identified ${communityDisplayName(payload)}.`,
+    };
+  }
+
   if (payload.type === "comment") {
     const actorName = typeof payload.triggering_user_name === "string" &&
         payload.triggering_user_name.length > 0
@@ -212,6 +242,7 @@ async function sendApnsPush(
   apnsTopic: string,
   notificationId: string,
   postId: string,
+  communityRequestId: string | null,
   commentId: string | null,
   parentCommentId: string | null,
   notificationType: string,
@@ -237,6 +268,7 @@ async function sendApnsPush(
         },
         type: "explore_activity",
         postId,
+        communityRequestId,
         commentId,
         parentCommentId,
         notificationId,
@@ -347,6 +379,7 @@ serve(async (req: Request) => {
           apnsTopic,
           payload.notification_id,
           payload.post_id,
+          payload.community_request_id,
           payload.comment_id,
           payload.parent_comment_id,
           payload.type,

@@ -766,6 +766,8 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
             authorIsPro: nil,
             speciesCommonName: "Monarch Butterfly",
             speciesScientificName: "Danaus plexippus",
+            taxonomyKingdom: "Animalia",
+            taxonomyClass: "Insecta",
             publicLocationLabel: "Austin, TX",
             locationSharing: nil,
             timeOfDay: nil,

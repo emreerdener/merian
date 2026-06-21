@@ -19,6 +19,11 @@ type ProjectionRow = {
   public_taxon_node_id: string | null;
 };
 
+type FeedScopeRow = {
+  request_id: string;
+  author_user_id: string;
+};
+
 type SuggestedTaxon = {
   taxon_id: string;
   scientific_name: string;
@@ -37,8 +42,11 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
       const candidateHighSpeciesId = crypto.randomUUID();
       const candidateLowSpeciesId = crypto.randomUUID();
       const scanId = crypto.randomUUID();
+      const otherScanId = crypto.randomUUID();
       const postId = crypto.randomUUID();
+      const otherPostId = crypto.randomUUID();
       const requestId = crypto.randomUUID();
+      const otherRequestId = crypto.randomUUID();
 
       await insertUser(client, ownerId, "Community Owner");
       await insertUser(client, identifierA, "Identifier A");
@@ -83,6 +91,21 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
         ],
       });
       await insertExplorePost(client, { id: postId, userId: ownerId, scanId });
+      await insertScan(client, {
+        id: otherScanId,
+        userId: identifierA,
+        speciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "open",
+        gpsLatPublic: 30.2672,
+        gpsLongPublic: -97.7431,
+      });
+      await insertExplorePost(client, {
+        id: otherPostId,
+        userId: identifierA,
+        scanId: otherScanId,
+      });
 
       const taxonomy = await client.queryObject<{ id: string }>(
         `
@@ -135,6 +158,27 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
       `,
         [requestId, postId, scanId, ownerId, taxonomyVersionId, speciesTaxonId],
       );
+      await client.queryArray(
+        `
+        INSERT INTO public.explore_community_requests (
+          id,
+          post_id,
+          scan_id,
+          requested_by,
+          taxonomy_version_id,
+          initial_taxon_node_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `,
+        [
+          otherRequestId,
+          otherPostId,
+          otherScanId,
+          identifierA,
+          taxonomyVersionId,
+          speciesTaxonId,
+        ],
+      );
 
       const initialProjection = await client.queryObject<ProjectionRow>(
         `
@@ -150,6 +194,43 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
         "community_needs_id",
       );
       assertEquals(initialProjection.rows[0].public_taxon_node_id, null);
+
+      const allScopeRows = await client.queryObject<FeedScopeRow>(
+        `
+        SELECT request_id, author_user_id
+        FROM public.get_community_identification_feed($1, 30, NULL, NULL, NULL, NULL, 'all')
+      `,
+        [ownerId],
+      );
+      const mineScopeRows = await client.queryObject<FeedScopeRow>(
+        `
+        SELECT request_id, author_user_id
+        FROM public.get_community_identification_feed($1, 30, NULL, NULL, NULL, NULL, 'mine')
+      `,
+        [ownerId],
+      );
+      const otherMineScopeRows = await client.queryObject<FeedScopeRow>(
+        `
+        SELECT request_id, author_user_id
+        FROM public.get_community_identification_feed($1, 30, NULL, NULL, NULL, NULL, 'mine')
+      `,
+        [identifierA],
+      );
+
+      assertEquals(
+        allScopeRows.rows.map((row) => row.request_id).sort(),
+        [requestId, otherRequestId].sort(),
+      );
+      assertEquals(
+        mineScopeRows.rows.map((row) => row.request_id),
+        [requestId],
+      );
+      assertEquals(mineScopeRows.rows[0].author_user_id, ownerId);
+      assertEquals(
+        otherMineScopeRows.rows.map((row) => row.request_id),
+        [otherRequestId],
+      );
+      assertEquals(otherMineScopeRows.rows[0].author_user_id, identifierA);
 
       const detailRows = await client.queryObject<{
         suggested_taxa: SuggestedTaxon[];
@@ -190,11 +271,61 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
       `,
         [identifierA, requestId, speciesTaxonId],
       );
+
+      const firstOwnerNotification = await client.queryObject<{
+        type: string;
+        action_count: number;
+        community_request_id: string | null;
+      }>(
+        `
+        SELECT type::text, action_count, community_request_id
+        FROM public.explore_post_notifications
+        WHERE user_id = $1
+          AND community_request_id = $2
+          AND type = 'community_identification_added'
+      `,
+        [ownerId, requestId],
+      );
+
+      assertEquals(firstOwnerNotification.rows[0].type, "community_identification_added");
+      assertEquals(firstOwnerNotification.rows[0].action_count, 1);
+      assertEquals(firstOwnerNotification.rows[0].community_request_id, requestId);
+
       await client.queryObject(
         `
         SELECT public.submit_explore_community_identification($1, $2, $3)
       `,
         [identifierB, requestId, speciesTaxonId],
+      );
+
+      const communityNotificationRows = await client.queryObject<{
+        user_id: string;
+        type: string;
+        action_count: number;
+      }>(
+        `
+        SELECT user_id, type::text, action_count
+        FROM public.explore_post_notifications
+        WHERE community_request_id = $1
+        ORDER BY type::text, user_id
+      `,
+        [requestId],
+      );
+
+      assertEquals(
+        communityNotificationRows.rows.map((row) => [
+          row.user_id,
+          row.type,
+          row.action_count,
+        ]),
+        [
+          [identifierA, "community_identification_helped", 1],
+          [identifierB, "community_identification_helped", 1],
+          [ownerId, "community_identification_added", 2],
+          [ownerId, "community_request_resolved", 1],
+        ].sort((left, right) =>
+          `${left[1]}-${left[0]}`.localeCompare(`${right[1]}-${right[0]}`)
+        ),
       );
 
       const resolvedProjection = await client.queryObject<ProjectionRow>(

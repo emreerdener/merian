@@ -12,6 +12,15 @@ import {
 } from "../_shared/explore.ts";
 import { makeHttpError } from "../_shared/communityIdentification.ts";
 import { fetchCommunityIdentificationFeed } from "./db.ts";
+import type { CommunityIdentificationFeedScope } from "./db.ts";
+
+function normalizeCommunityFeedScope(
+  value: unknown,
+): CommunityIdentificationFeedScope {
+  if (value == null) return "all";
+  if (value === "all" || value === "mine") return value;
+  throw makeHttpError(400, "scope must be one of: all, mine.");
+}
 
 serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -32,6 +41,7 @@ serve((req: Request) =>
       : requireUuid(body.before_request_id, "before_request_id");
     const latitude = normalizeLatitude(body.latitude, "latitude");
     const longitude = normalizeLongitude(body.longitude, "longitude");
+    const scope = normalizeCommunityFeedScope(body.scope);
 
     if ((beforeRequestedAt == null) != (beforeRequestId == null)) {
       throw makeHttpError(
@@ -51,6 +61,7 @@ serve((req: Request) =>
       await withExploreAuthorProBadges(
         await fetchCommunityIdentificationFeed(
           user.id,
+          scope,
           limit,
           { beforeRequestedAt, beforeRequestId },
           { latitude, longitude },

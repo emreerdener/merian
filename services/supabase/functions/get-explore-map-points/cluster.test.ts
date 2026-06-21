@@ -20,6 +20,8 @@ function makeRow(
     author_avatar_url: null,
     species_common_name: "Mushroom",
     species_scientific_name: "Fungus testus",
+    taxonomy_kingdom: "Fungi",
+    taxonomy_class: "Agaricomycetes",
     public_location_label: "Austin, TX",
     location_sharing: "open",
     time_of_day: null,
@@ -72,4 +74,31 @@ Deno.test("buildExploreMapPayload returns clusters when points are dense at lowe
   assertEquals(payload.posts.length, 0);
   assertEquals(payload.clusters.length > 0, true);
   assertEquals(payload.visible_count, 50);
+});
+
+Deno.test("buildExploreMapPayload returns dynamic category counts before filtering", () => {
+  const rows = [
+    makeRow("fungus", 30.2672, -97.7431),
+    {
+      ...makeRow("bird", 30.2673, -97.7432),
+      taxonomy_kingdom: "Animalia",
+      taxonomy_class: "Aves",
+    },
+    {
+      ...makeRow("insect", 30.2674, -97.7433),
+      taxonomy_kingdom: "Animalia",
+      taxonomy_class: "Insecta",
+    },
+  ];
+
+  const payload = buildExploreMapPayload(rows, 12, ["birds"]);
+
+  assertEquals(payload.mode, "posts");
+  assertEquals(payload.visible_count, 1);
+  assertEquals(payload.posts.map((post) => post.post_id), ["bird"]);
+  assertEquals(payload.category_counts, [
+    { category: "birds", count: 1 },
+    { category: "fungi", count: 1 },
+    { category: "insects", count: 1 },
+  ]);
 });

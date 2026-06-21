@@ -109,19 +109,11 @@ struct ExploreNotificationsSheet: View {
     }
 
     private func errorState(message: String) -> some View {
-        EmptyStateView(
-            iconName: "exclamationmark.triangle",
-            title: "Couldn’t load notifications",
+        ExploreUnavailableStateView(
+            title: "Notifications unavailable",
             message: message
         ) {
-            Button {
-                Task { await fetchNotifications(force: true) }
-            } label: {
-                Text("Try again")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-            }
-            .buttonStyle(.borderedProminent)
+            Task { await fetchNotifications(force: true) }
         }
     }
 
@@ -234,18 +226,11 @@ struct ExploreNotificationReplyThreadSheet: View {
     }
 
     private func errorState(message: String) -> some View {
-        EmptyStateView(
-            iconName: "bubble.left.and.exclamationmark.bubble.right",
-            title: "Couldn’t open reply",
+        ExploreUnavailableStateView(
+            title: "Reply unavailable",
             message: message
         ) {
-            Button {
-                Task { await loadThread() }
-            } label: {
-                Text("Try again")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .buttonStyle(.borderedProminent)
+            Task { await loadThread() }
         }
     }
 
