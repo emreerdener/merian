@@ -92,6 +92,34 @@ struct NotificationSettingsView: View {
             } footer: {
                 Text("These controls affect remote Explore and Community pushes only. The in-app notifications feed remains available inside Explore.")
             }
+
+            if hasAnyNotificationEnabled {
+                Section {
+                    Button(role: .destructive) {
+                        turnOffAllNotifications()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "bell.slash.fill")
+                                    .foregroundStyle(.red)
+                                    .font(.system(size: 17, weight: .medium))
+                                    .frame(width: 24)
+                                Text("Turn off all notifications")
+                                    .foregroundStyle(.red)
+                                Spacer()
+                            }
+                            Text("Stop Merian from sending notification alerts.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 36)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+                } footer: {
+                    Text("Your in-app activity and Explore notifications will still be available when you open Merian.")
+                }
+            }
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
@@ -120,6 +148,35 @@ struct NotificationSettingsView: View {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             Task { @MainActor in
                 authorizationStatus = settings.authorizationStatus
+            }
+        }
+    }
+
+    private var hasAnyNotificationEnabled: Bool {
+        appSettings.isPushNotificationsEnabled ||
+            appSettings.isAchievementNotificationsEnabled ||
+            appSettings.isExploreNotificationsEnabled ||
+            appSettings.isExploreCommentMentionNotificationsEnabled ||
+            appSettings.isCommunityIdentificationNotificationsEnabled
+    }
+
+    private func turnOffAllNotifications() {
+        let shouldSyncRemotePushRegistration = appSettings.isExploreNotificationsEnabled ||
+            appSettings.isExploreCommentMentionNotificationsEnabled ||
+            appSettings.isCommunityIdentificationNotificationsEnabled
+
+        appSettings.isPushNotificationsEnabled = false
+        appSettings.isAchievementNotificationsEnabled = false
+        appSettings.isExploreNotificationsEnabled = false
+        appSettings.isExploreCommentMentionNotificationsEnabled = false
+        appSettings.isCommunityIdentificationNotificationsEnabled = false
+        pendingPermissionToggle = nil
+
+        if shouldSyncRemotePushRegistration {
+            Task { @MainActor in
+                await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
+                    reason: "all_notification_settings_disabled"
+                )
             }
         }
     }

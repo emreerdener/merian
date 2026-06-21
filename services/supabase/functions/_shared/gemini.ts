@@ -1,4 +1,4 @@
-import { GoogleGenAI, Content } from "https://esm.sh/@google/genai@1.0.0";
+import { GoogleGenAI, Content } from "npm:@google/genai@1.0.0";
 
 // Instantiated once at module scope so warm isolate re-use avoids re-initialization overhead.
 export const _genAI = new GoogleGenAI({ apiKey: Deno.env.get("GEMINI_API_KEY")! });

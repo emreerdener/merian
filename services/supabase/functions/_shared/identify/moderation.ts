@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
-import { SafetyRating } from "https://esm.sh/@google/genai@1.0.0";
+import { SafetyRating } from "npm:@google/genai@1.0.0";
 
 import { copyR2Object, deleteR2Object, getR2Config } from "../aws.ts";
 import { logStructuredError } from "../edgeHandler.ts";

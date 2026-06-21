@@ -1,7 +1,7 @@
 import {
   Schema,
   Type,
-} from "https://esm.sh/@google/genai@1.0.0";
+} from "npm:@google/genai@1.0.0";
 
 // Alias for backward compat within this file
 type ResponseSchema = Schema;

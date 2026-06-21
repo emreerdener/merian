@@ -1,4 +1,4 @@
-import { Schema, Type } from "https://esm.sh/@google/genai@1.0.0";
+import { Schema, Type } from "npm:@google/genai@1.0.0";
 import { User } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { createFlashModel, extractJson } from "./gemini.ts";
 import { trackPostHogEvent } from "./posthog.ts";

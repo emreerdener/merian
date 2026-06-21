@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { Schema, Type } from "https://esm.sh/@google/genai@1.0.0";
+import { Schema, Type } from "npm:@google/genai@1.0.0";
 
 import {
   jsonResponse,

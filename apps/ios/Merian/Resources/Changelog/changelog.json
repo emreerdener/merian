@@ -10,7 +10,8 @@
           "title": "Changed",
           "items": [
             "Explore Tree now opens in a top-down taxonomy layout instead of the earlier sideways orientation.",
-            "Explore Dictionary and Tree controls now provide haptic feedback on button actions."
+            "Explore Dictionary and Tree controls now provide haptic feedback on button actions.",
+            "Notifications settings now include a single action to turn off every Merian notification category at once."
           ]
         },
         {

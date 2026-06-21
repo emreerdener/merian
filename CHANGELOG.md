@@ -82,6 +82,8 @@ TestFlight, App Store, support, and QA.
   sideways orientation.
 - Explore Dictionary and Tree controls now provide haptic feedback on button
   actions.
+- Notifications settings now include a single action to turn off every Merian
+  notification category at once.
 - Resolved Identify requests now stay out of normal Explore until the owner
   explicitly publishes them.
 - Refined Explore hashtag pills with transparent backgrounds, gray borders, and

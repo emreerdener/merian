@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { Part, SafetyRating } from "https://esm.sh/@google/genai@1.0.0";
+import { Part, SafetyRating } from "npm:@google/genai@1.0.0";
 
 import {
   jsonResponse,
