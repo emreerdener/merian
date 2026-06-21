@@ -68,6 +68,7 @@ struct CommunityIdentificationRequestSheet: View {
                     Button(isSubmitting ? "Sending..." : "Send") {
                         onSubmit(trimmedNote, locationSharing)
                     }
+                    .tint(.blue)
                     .disabled(isSubmitting)
                 }
             }

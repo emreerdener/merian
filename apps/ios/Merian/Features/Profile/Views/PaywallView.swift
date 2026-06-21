@@ -130,7 +130,7 @@ struct PaywallView: View {
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
-        .frame(height: 356)
+        .frame(height: 388)
         .simultaneousGesture(
             DragGesture(minimumDistance: 8)
                 .onChanged { _ in
@@ -490,7 +490,7 @@ private struct PaywallHeroSlideView: View {
                     .frame(maxWidth: .infinity)
                     .shadow(color: .black.opacity(0.12), radius: 14, y: 10)
             }
-            .frame(height: 228)
+            .frame(height: 276)
             .frame(maxWidth: .infinity)
 
             VStack(spacing: 7) {

@@ -100,6 +100,17 @@ struct InsightShareButton: View {
         }
     }
 
+    var exploreActionSystemImage: String {
+        switch shareRecommendation {
+        case .askCommunity:
+            return "person.crop.badge.magnifyingglass"
+        case .communityPending:
+            return "person.crop.circle.badge.questionmark"
+        case .communityResolvedNeedsPublish, .publishToExplore:
+            return "safari"
+        }
+    }
+
     var exploreDescription: String {
         if sharedExplorePostId != nil {
             return "This discovery is visible to the community."
@@ -107,7 +118,7 @@ struct InsightShareButton: View {
 
         switch shareRecommendation {
         case .askCommunity:
-            return "This match is not strong yet. Make it public as an identification request before publishing it to Explore."
+            return "Get help from other Merian explorers before adding this discovery to Explore observations."
         case .communityPending:
             return "This scan is public in Identify while the community reviews the ID."
         case .communityResolvedNeedsPublish:
@@ -158,7 +169,7 @@ struct InsightShareButton: View {
                 showingExploreComposer = true
             }
         } message: {
-            Text("This ID is not confirmed yet. Ask the community first when you want help preventing an incorrect discovery from appearing in Explore.")
+            Text("This ID has not been confirmed yet. Ask the community first if you want help verifying it before publishing.")
         }
         .sheet(isPresented: $showingExploreComposer) {
             ExplorePostComposerView(

@@ -2,8 +2,7 @@
   "images" : [
     {
       "filename" : "magnifying-glass.png",
-      "idiom" : "universal",
-      "scale" : "1x"
+      "idiom" : "universal"
     }
   ],
   "info" : {

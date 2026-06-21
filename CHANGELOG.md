@@ -85,7 +85,7 @@ TestFlight, App Store, support, and QA.
 - Resolved Identify requests now stay out of normal Explore until the owner
   explicitly publishes them.
 - Refined Explore hashtag pills with transparent backgrounds, gray borders, and
-  blue text on feed cards and post detail pages.
+  blue text on feed cards, post detail pages, and the post composer.
 - Removed the unused identification-review action from Insight and candidate
   review flows.
 - Polished Community identification sheets with icon close controls and a
@@ -135,6 +135,22 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed Explore feed hashtag rows so long hashtag sets can scroll edge to edge
+  without being clipped by card padding.
+- Fixed the Explore edit-post sheet so the Save footer stays compact instead of
+  expanding up the screen.
+- Fixed Explore Map selected discoveries so the active waypoint appears above
+  overlapping nearby waypoints.
+- Fixed Explore Map overlay controls so bottom-anchored actions stay pinned near
+  the tab bar when switching from Feed to Map.
+- Fixed the Identify header so returning from a community request no longer
+  flashes the generic Explore title before the segmented control returns.
+- Replaced Explore profile loading spinners with skeleton placeholders that
+  match the profile layout.
+- Fixed the Pro paywall hero carousel so the image glow no longer clips into a
+  hard edge at the top.
+- Updated the Insight share sheet Ask the Community artwork, action icons,
+  helper copy, and confirmation copy.
 - Fixed Explore Tree zoom controls jumping upward when selecting a taxonomy
   node.
 - Fixed Species Dictionary catalog and overview surfaces so non-biological

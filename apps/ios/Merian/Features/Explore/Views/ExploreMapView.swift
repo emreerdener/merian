@@ -70,6 +70,7 @@ struct ExploreMapView: View {
 
             overlayChrome
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemBackground))
         .task {
             await viewModel.loadInitialData(using: environmentContextManager)
@@ -125,6 +126,7 @@ struct ExploreMapView: View {
             ForEach(viewModel.visibleClusters) { cluster in
                 Annotation("", coordinate: cluster.coordinate, anchor: .center) {
                     Button {
+                        HapticManager.shared.triggerSelectionPulse()
                         AppTelemetry.trackExploreMapClusterTapped()
                         registerAnnotationTap()
                         viewModel.zoomIntoCluster(cluster)
@@ -136,32 +138,12 @@ struct ExploreMapView: View {
                 .annotationTitles(.hidden)
             }
 
-            ForEach(viewModel.visiblePosts) { post in
-                Annotation("", coordinate: post.coordinate, anchor: .bottom) {
-                    Button {
-                        if viewModel.selectedPostId != post.id {
-                            AppTelemetry.trackExploreMapPreviewOpened(
-                                coordinateVisibility: post.coordinateVisibility.rawValue
-                            )
-                        }
-                        registerAnnotationTap()
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                            viewModel.selectPost(post.id)
-                        }
-                    } label: {
-                        ExploreMapWaypoint(
-                            imageUrl: post.heroImageUrl,
-                            reloadGeneration: feedViewModel.mediaReloadGeneration,
-                            isSelected: viewModel.selectedPostId == post.id,
-                            isApproximate: post.coordinateVisibility == .obscured,
-                            showsThumbnail: effectiveShowsThumbnail,
-                            zoomLevel: effectiveZoomLevel,
-                            isNew: !postStore.containsFeedPost(id: post.id)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-                .annotationTitles(.hidden)
+            ForEach(viewModel.orderedMapPosts.filter { $0.id != viewModel.selectedPostId }) { post in
+                waypointAnnotation(for: post)
+            }
+
+            if let selectedPost = viewModel.selectedPost {
+                waypointAnnotation(for: selectedPost)
             }
         }
         .mapStyle(.standard)
@@ -204,6 +186,7 @@ struct ExploreMapView: View {
 
             if viewModel.needsSearchInArea {
                 Button {
+                    HapticManager.shared.triggerSelectionPulse()
                     AppTelemetry.trackExploreMapSearchTriggered(reason: "search_this_area")
                     Task { await viewModel.searchCurrentArea() }
                 } label: {
@@ -240,6 +223,7 @@ struct ExploreMapView: View {
         }
         .padding(.top, 0)
         .padding(.bottom, Self.tabBarOverlayClearance)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(.spring(response: 0.28, dampingFraction: 0.84), value: activePreviewCenterPost != nil)
         .animation(.easeInOut(duration: 0.18), value: viewModel.needsSearchInArea)
         .animation(.easeInOut(duration: 0.18), value: viewModel.isOffline)
@@ -285,7 +269,10 @@ struct ExploreMapView: View {
         isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        Button(action: {
+            HapticManager.shared.triggerSelectionPulse()
+            action()
+        }) {
             Text(title)
                 .font(.subheadline)
                 .fontWeight(.medium)
@@ -304,6 +291,35 @@ struct ExploreMapView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func waypointAnnotation(for post: ExploreMapPost) -> some MapContent {
+        Annotation("", coordinate: post.coordinate, anchor: .bottom) {
+            Button {
+                HapticManager.shared.triggerSelectionPulse()
+                if viewModel.selectedPostId != post.id {
+                    AppTelemetry.trackExploreMapPreviewOpened(
+                        coordinateVisibility: post.coordinateVisibility.rawValue
+                    )
+                }
+                registerAnnotationTap()
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                    viewModel.selectPost(post.id)
+                }
+            } label: {
+                ExploreMapWaypoint(
+                    imageUrl: post.heroImageUrl,
+                    reloadGeneration: feedViewModel.mediaReloadGeneration,
+                    isSelected: viewModel.selectedPostId == post.id,
+                    isApproximate: post.coordinateVisibility == .obscured,
+                    showsThumbnail: effectiveShowsThumbnail,
+                    zoomLevel: effectiveZoomLevel,
+                    isNew: !postStore.containsFeedPost(id: post.id)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .annotationTitles(.hidden)
     }
 
     private var showsEmptyBanner: Bool {
@@ -348,6 +364,7 @@ struct ExploreMapView: View {
             : discoveriesInViewLabel(count: viewModel.visiblePosts.count)
 
         return Button {
+            HapticManager.shared.triggerSelectionPulse()
             isShowingDiscoveriesSheet = true
         } label: {
             Text(label)
@@ -364,6 +381,7 @@ struct ExploreMapView: View {
 
     private var recenterButton: some View {
         Button {
+            HapticManager.shared.triggerSelectionPulse()
             AppTelemetry.trackExploreMapSearchTriggered(reason: "recenter")
             Task { await viewModel.recenter(using: environmentContextManager) }
         } label: {
@@ -479,6 +497,7 @@ struct ExploreMapView: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     Button {
+                        HapticManager.shared.triggerSelectionPulse()
                         Task { await viewModel.clearSpeciesFilters() }
                     } label: {
                         ExploreMapFilterSheetRow(
@@ -492,6 +511,7 @@ struct ExploreMapView: View {
 
                     ForEach(viewModel.visibleCategoryCounts) { categoryCount in
                         Button {
+                            HapticManager.shared.triggerSelectionPulse()
                             Task { await viewModel.toggleSpeciesFilter(categoryCount.category) }
                         } label: {
                             ExploreMapFilterSheetRow(
@@ -513,6 +533,7 @@ struct ExploreMapView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Reset") {
+                        HapticManager.shared.triggerSelectionPulse()
                         Task { await viewModel.clearSpeciesFilters() }
                     }
                     .disabled(!viewModel.hasActiveSpeciesFilters)
@@ -520,6 +541,7 @@ struct ExploreMapView: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
+                        HapticManager.shared.triggerSelectionPulse()
                         isShowingFilterSheet = false
                     }
                     .fontWeight(.semibold)
@@ -956,7 +978,10 @@ private struct ExploreMapPreviewCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 0) {
                 HStack(alignment: .center, spacing: 12) {
-                    Button(action: onOpen) {
+                    Button(action: {
+                        HapticManager.shared.triggerSelectionPulse()
+                        onOpen()
+                    }) {
                         ExploreHeroImageView(
                             imageUrl: post.heroImageUrl,
                             reloadGeneration: mediaReloadGeneration
@@ -1043,7 +1068,10 @@ private struct ExploreMapPreviewCard: View {
             .fixedSize(horizontal: false, vertical: true)
 
             // MARK: - View Discovery Button
-            Button(action: onOpen) {
+            Button(action: {
+                HapticManager.shared.triggerSelectionPulse()
+                onOpen()
+            }) {
                 Text("View discovery")
                     .font(.subheadline)
                     .fontWeight(.semibold)
@@ -1077,7 +1105,10 @@ private struct ExploreMapPreviewCard: View {
         isHighlighted: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        Button(action: {
+            HapticManager.shared.triggerSelectionPulse()
+            action()
+        }) {
             HStack(spacing: 7) {
                 Image(systemName: systemImage)
                     .font(.system(size: 13, weight: .semibold))

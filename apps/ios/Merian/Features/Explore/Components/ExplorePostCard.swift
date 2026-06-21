@@ -71,7 +71,6 @@ struct ExplorePostCard: View {
             mediaView
 
             hashtagRow
-                .padding(.horizontal, 16)
                 .padding(.top, 10)
 
             actionRow
@@ -286,6 +285,7 @@ struct ExplorePostCard: View {
                         .disabled(onOpenHashtag == nil)
                     }
                 }
+                .padding(.horizontal, 16)
                 .padding(.vertical, 2)
             }
         }

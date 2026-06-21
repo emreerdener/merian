@@ -193,39 +193,8 @@ struct ExplorePostComposerView: View {
                     .fontWeight(.semibold)
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 0) {
-                    Divider()
-                    
-                    Button(action: submit) {
-                        HStack(spacing: 8) {
-                            if isSaving {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .tint(.white)
-                            }
-                            Text(mode.actionTitle)
-                                .font(.headline)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .foregroundStyle(.white)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color(uiColor: .systemBlue))
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isSaving)
-                    .opacity(isSaving ? 0.7 : 1.0)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 24)
-                }
-                .background(
-                    Color(uiColor: .secondarySystemGroupedBackground)
-                        .ignoresSafeArea(edges: .bottom)
-                )
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                submitFooter
             }
         }
         .presentationDetents([.large])
@@ -448,38 +417,58 @@ struct ExplorePostComposerView: View {
         }
     }
 
+    private var submitFooter: some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            Button(action: submit) {
+                HStack(spacing: 8) {
+                    if isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    }
+                    Text(mode.actionTitle)
+                        .font(.headline)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .foregroundStyle(.white)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color(uiColor: .systemBlue))
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(isSaving)
+            .opacity(isSaving ? 0.7 : 1.0)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+    }
+
     @ViewBuilder
     private var suggestedHashtagChips: some View {
         let suggestions = currentHashtagSuggestions
         if !suggestions.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(suggestions, id: \.self) { hashtag in
-                            Button {
-                                addSuggestedHashtag(hashtag)
-                            } label: {
-                                Text("#\(hashtag)")
-                                    .font(.subheadline.weight(.semibold))
-                                    .lineLimit(1)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        Capsule(style: .continuous)
-                                            .fill(Color.accentColor.opacity(0.12))
-                                    )
-                                    .overlay(
-                                        Capsule(style: .continuous)
-                                            .stroke(Color.accentColor.opacity(0.22), lineWidth: 1)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(Color.accentColor)
-                            .accessibilityLabel("Add hashtag \(hashtag)")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(suggestions, id: \.self) { hashtag in
+                        Button {
+                            addSuggestedHashtag(hashtag)
+                        } label: {
+                            ExploreHashtagPill(hashtag: hashtag)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Add hashtag \(hashtag)")
                     }
-                    .padding(.horizontal, 16)
                 }
-                .padding(.horizontal, -16)
+                .padding(.horizontal, 16)
+            }
+            .padding(.horizontal, -16)
         }
     }
 

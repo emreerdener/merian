@@ -830,6 +830,26 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
         XCTAssertNil(viewModel.selectAdjacentPost(by: 1))
         XCTAssertEqual(viewModel.selectedPostId, onlyPost.id)
     }
+
+    func testOrderedMapPostsPutsSelectedPostAtEnd() {
+        let viewModel = ExploreMapViewModel()
+        let first = makeMapPost(id: "first", latitude: 30.267)
+        let second = makeMapPost(id: "second", latitude: 30.268)
+        let third = makeMapPost(id: "third", latitude: 30.269)
+
+        viewModel.posts = [first, second, third]
+
+        // When no post is selected, order is unchanged
+        XCTAssertEqual(viewModel.orderedMapPosts.map(\.id), ["first", "second", "third"])
+
+        // When a post is selected, it's moved to the end
+        viewModel.selectPost("second")
+        XCTAssertEqual(viewModel.orderedMapPosts.map(\.id), ["first", "third", "second"])
+
+        // When selection is cleared, order is unchanged
+        viewModel.selectPost(nil)
+        XCTAssertEqual(viewModel.orderedMapPosts.map(\.id), ["first", "second", "third"])
+    }
 }
 
 @MainActor

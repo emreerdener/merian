@@ -84,7 +84,7 @@ struct FloatingNavigationMenuButton: View {
                     }
 
                 Text(title)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 10))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }

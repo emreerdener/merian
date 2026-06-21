@@ -103,7 +103,7 @@ struct ExploreView: View {
                 }
             }
             .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle("Explore")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ExplorePostRoute.self) { route in
                 ExplorePostDetailView(

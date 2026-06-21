@@ -88,9 +88,8 @@ struct CandidateAlternativesView: View {
     }
 
     private var headingTitle: String {
-        let strength = isWeakMatch ? "possible" : "close"
-        let noun = candidates.count == 1 ? "match" : "matches"
-        return "\(candidates.count) \(strength) \(noun) found"
+        let noun = candidates.count == 1 ? "alternative identification" : "alternative identifications"
+        return "\(candidates.count) \(noun)"
     }
 
     private var actionButtons: some View {

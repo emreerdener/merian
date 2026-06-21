@@ -80,10 +80,10 @@ extension InsightShareButton {
                         .fill(Color.primary.opacity(0.1))
                         .frame(width: 58, height: 58)
 
-                    Image("compass")
+                    Image("identify")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -159,7 +159,7 @@ extension InsightShareButton {
                             isSharingToExplore
                                 ? "Sharing..."
                                 : exploreActionTitle,
-                            systemImage: "safari"
+                            systemImage: exploreActionSystemImage
                         )
                         .font(.headline)
                     }
@@ -227,7 +227,6 @@ extension InsightShareButton {
             if onShareToExplore != nil {
                 exploreSecondaryActionButton(
                     title: "Publish anyway",
-                    systemImage: "exclamationmark.triangle",
                     isDisabled: isSharingToExplore
                 ) {
                     pendingAction = .publishExploreAnyway
@@ -287,20 +286,26 @@ extension InsightShareButton {
 
     private func exploreSecondaryActionButton(
         title: String,
-        systemImage: String,
+        systemImage: String? = nil,
         isDisabled: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 11)
-                .frame(maxWidth: .infinity)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(primaryBlue.opacity(systemImage == "eye" ? 1 : 0.14))
-                )
+            HStack(spacing: 8) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                }
+
+                Text(title)
+            }
+            .font(.subheadline.weight(.semibold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(primaryBlue.opacity(systemImage == "eye" ? 1 : 0.14))
+            )
         }
         .buttonStyle(.plain)
         .foregroundStyle(systemImage == "eye" ? .white : primaryBlue)

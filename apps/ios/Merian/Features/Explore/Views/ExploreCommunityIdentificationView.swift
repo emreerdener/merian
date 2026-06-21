@@ -1033,6 +1033,7 @@ private struct CommunityIdentificationRequestEditSheet: View {
                     Button(isSaving ? "Saving..." : "Save") {
                         Task { await save() }
                     }
+                    .tint(.blue)
                     .disabled(isSaving)
                 }
             }

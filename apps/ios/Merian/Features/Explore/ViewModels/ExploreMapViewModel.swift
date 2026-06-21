@@ -77,6 +77,18 @@ final class ExploreMapViewModel {
         }
     }
 
+    var orderedMapPosts: [ExploreMapPost] {
+        let basePosts = visiblePosts
+        guard let selectedPostId,
+              let selectedIndex = basePosts.firstIndex(where: { $0.id == selectedPostId }) else {
+            return basePosts
+        }
+        var reordered = basePosts
+        let selectedPost = reordered.remove(at: selectedIndex)
+        reordered.append(selectedPost)
+        return reordered
+    }
+
     var visibleClusters: [ExploreMapCluster] {
         guard appliedSpeciesCategories == selectedSpeciesCategories else { return [] }
         guard hasActiveSpeciesFilters else { return clusters }
