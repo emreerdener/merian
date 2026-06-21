@@ -8,6 +8,9 @@ TestFlight, App Store, support, and QA.
 
 ### Added
 
+- Added smarter dog and cat scan labels so pet results can show a likely breed,
+  mix, coat pattern, or body type while keeping Merian's species taxonomy
+  unchanged.
 - Added dynamic species-type filters to Explore Map, with horizontal filter
   pills, a detailed filter sheet, and backend-backed category counts for the
   current map region.

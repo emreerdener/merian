@@ -258,6 +258,7 @@ final class ExploreMapViewModel {
                 authorIsPro: canonical.authorIsPro,
                 speciesCommonName: canonical.speciesCommonName,
                 speciesScientificName: canonical.speciesScientificName,
+                petIdentification: canonical.petIdentification,
                 taxonomyKingdom: mapPost.taxonomyKingdom,
                 taxonomyClass: mapPost.taxonomyClass,
                 publicLocationLabel: canonical.publicLocationLabel,

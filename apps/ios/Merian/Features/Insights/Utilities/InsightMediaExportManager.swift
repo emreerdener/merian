@@ -111,8 +111,15 @@ final class InsightMediaExportManager {
     func batchShareDiscovery(records: [LocalScanRecord], presentShareSheet: @escaping ([Any]) -> Void) {
         let payloads = records.map { scan -> SharePayload in
             let path = scan.capturedMediaSnapshot.primaryImagePath
+            let petLabel = scan.petIdentification?.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            let commonName: String
+            if let petLabel, !petLabel.isEmpty {
+                commonName = petLabel
+            } else {
+                commonName = scan.commonName
+            }
             return SharePayload(
-                commonName: scan.commonName,
+                commonName: commonName,
                 scientificName: scan.scientificName,
                 localImagePath: path,
                 approvedRemoteURLs: ApprovedRemoteMedia.urls(from: scan.referenceImageUrl)

@@ -51,6 +51,7 @@ The response is the feed-card Explore post projection with
       "hashtags": ["citybioblitz", "springcount"],
       "species_common_name": "River Birch",
       "species_scientific_name": "Betula nigra",
+      "pet_identification": null,
       "public_location_label": "Austin, TX",
       "location_sharing": "open",
       "like_count": 8,
@@ -70,6 +71,10 @@ same chips as feed and author-library cards.
 `author_username` is additive beside `author_name` and is stored without `@`.
 Clients preserve `author_name` for logged-in display labels and render
 `@author_username` for handles/default identities.
+
+Rows may include `pet_identification` for dog/cat scans. Its `label` is a
+scan-level display label only; hashtag membership and species navigation still
+use the public post and species fields.
 
 ## Visibility And Pagination
 

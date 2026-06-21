@@ -22,20 +22,21 @@ Merian is a field-ready biological identification app built around zero-friction
 ### Identification
 - Powered by **Google Gemini 2.5 Flash** (free tier) and **Gemini 2.5 Pro** (Pro tier), routed via Deno Edge Functions on Supabase. Private provider secrets never touch the client binary.
 - Structured JSON output schema enforced server-side: common name, scientific name, full Linnaean taxonomy, ecology type, IUCN Red List status, invasiveness flag, confidence score, dominant colors, categorical group tags, and a lookalike diagnostic comparison.
+- Dog and cat scans keep species-grade taxonomy (`Canis lupus familiaris` / `Felis catus`) while optionally carrying a separate pet label for confident breed, mix, coat-pattern, or body-type display.
 - Concurrent on-device `VNClassifyImageRequest` drives the scanning overlay's status phrases while the network round-trip runs.
 - Environmental telemetry attached to every inference call: GPS coordinates, elevation, LiDAR depth scale, weather condition and temperature, semantic location, zoom factor, time of day, month, and device locale.
 - `/identify-multimodal` is the shared live and replay endpoint for visual, audio, describe, and mixed submissions; queued media uploads through R2 staging before inference.
 
 ### Scans Library
 - Grid view of all personal captures, sorted by newest, oldest, or alphabetical.
-- **Semantic search** across common name, scientific name, ecology type, AI-generated color tags, categorical group tags (e.g. "bird", "songbird"), and Latin taxonomy fields. Searching "bird" resolves via a taxonomy class → plain-English synonym mapping, so neither Latin knowledge nor exact species names are required.
+- **Semantic search** across common name, scientific name, confident pet labels, ecology type, AI-generated color tags, categorical group tags (e.g. "bird", "songbird"), and Latin taxonomy fields. Searching "bird" resolves via a taxonomy class → plain-English synonym mapping, so neither Latin knowledge nor exact species names are required.
 - Category filter bar: All, Plants, Fungi, Insects, Birds, Mammals, Reptiles, Other.
 - User-created collections (albums) with many-to-many scan relationships, synced to Supabase.
 - Non-biological captures isolated in a dedicated view.
 - Pending queued captures render above completed scans with state-aware upload/inference affordances.
 
 ### Insight Sheet
-- Species header with common name, scientific name, and AI confidence spectrum (3-band visual scale).
+- Species header with common name, scientific name, and AI confidence spectrum (3-band visual scale). Confident dog/cat pet labels can headline the sheet while the domestic species and scientific name remain visible as taxonomy context.
 - Full Linnaean taxonomy (kingdom → genus).
 - Ecological description, Wikipedia extract, and in-app Safari link.
 - Image carousel combining live captures, additional staged images, and GBIF/Wikipedia reference images.
@@ -50,6 +51,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Share/unshare scans to Explore with optional public hashtags and a selectable
   common-name snapshot, browse hashtag post collections, like posts, comment,
   react to comments, follow authors, and receive Explore notifications.
+- Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
 - Author profile sheets expose privacy-scoped public stats and non-opening public achievements.
 - Home Screen widget caches image-only Explore snapshots through the shared App Group.
 - Public Explore share pages render at `https://merian.earth/explore/post/{postId}` through the Next.js web app.
@@ -127,7 +129,7 @@ Merian is a field-ready biological identification app built around zero-friction
 | Email Services | Resend |
 
 **Minimum deployment target**: iOS 17.2
-**Current schema**: MerianSchemaV43
+**Current schema**: MerianSchemaV44
 
 ---
 

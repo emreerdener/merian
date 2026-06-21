@@ -15,7 +15,11 @@ import {
   resolutionForUserRow,
   setTierResolutionCache,
 } from "../tierCache.ts";
-import { CachedSpeciesRow, IdentificationCandidate } from "./types.ts";
+import {
+  CachedSpeciesRow,
+  IdentificationCandidate,
+  PetIdentification,
+} from "./types.ts";
 
 export type ScanGeoprivacy = "open" | "obscured" | "private";
 
@@ -293,6 +297,7 @@ export interface ScanInsertRow {
   candidates?: IdentificationCandidate[] | null;
   image_quality_score?: number | null;
   is_live_capture?: boolean;
+  pet_identification?: PetIdentification | null;
   /** Structured observation context staged by the user; NULL for image-only scans. */
   user_observation_context?: Record<string, unknown> | null;
 }

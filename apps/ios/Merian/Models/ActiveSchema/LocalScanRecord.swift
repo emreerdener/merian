@@ -95,6 +95,10 @@ public final class LocalScanRecord {
     /// Nil for scans captured before V34 or species not yet enriched.
     @Attribute public var alternativeCommonNames: [String]?
 
+    /// JSON-encoded `PetIdentification` for dog/cat breed or coat labels.
+    /// Kept separate from scientific/common names so taxonomy remains species-grade.
+    @Attribute public var petIdentificationData: Data?
+
     @Attribute public var confirmedSpeciesId: String?
 
     // Changed to optional so SQLite lightweight migration can add the column correctly
@@ -172,6 +176,7 @@ public final class LocalScanRecord {
         isFlagged: Bool = false,
         imageQualityScore: Int? = nil,
         alternativeCommonNames: [String]? = nil,
+        petIdentificationData: Data? = nil,
         confirmedSpeciesId: String? = nil,
         userReviewStateRaw: String? = nil,
         fieldNotes: String? = nil
@@ -239,9 +244,17 @@ public final class LocalScanRecord {
         self.isFlagged = isFlagged
         self.imageQualityScore = imageQualityScore
         self.alternativeCommonNames = alternativeCommonNames
+        self.petIdentificationData = petIdentificationData
         self.confirmedSpeciesId = confirmedSpeciesId
         self.userReviewStateRaw = userReviewStateRaw
         self.fieldNotes = fieldNotes
+    }
+}
+
+extension LocalScanRecord {
+    var petIdentification: PetIdentification? {
+        guard let petIdentificationData else { return nil }
+        return try? JSONDecoder().decode(PetIdentification.self, from: petIdentificationData)
     }
 }
 

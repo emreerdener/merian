@@ -696,6 +696,17 @@ The transaction log for every successful identification.
   shapes documented during earlier describe experiments. `NULL` for image-only
   scans. Added in migration `20260414000000_add_user_observation_context.sql`.
   Never mutated after scan insertion.
+- `pet_identification` (JSONB, nullable): Optional dog/cat display metadata
+  added in migration `20260621120000_add_pet_identification_to_scans.sql`.
+  Populated only when the primary taxon remains `Canis lupus familiaris` or
+  `Felis catus`. Shape:
+  `{"species_group":"dog|cat","label":"...","label_type":"breed|breed_mix|coat_pattern|body_type","confidence_score":0.0-1.0,"evidence":["..."]}`.
+  The identify edge sanitizes this field before insert: labels are trimmed and
+  length-capped, evidence is capped to three entries, confidence is clamped,
+  generic labels such as "Dog", "Cat", "Domestic Dog", and "Domestic Cat" are
+  dropped, labels below `0.70` confidence are dropped, and non-dog/cat taxa
+  never receive this object. This field is not copied into
+  `species_dictionary`; species identity remains keyed by `scientific_name`.
 
 ### `scan_import_jobs`
 
@@ -1108,6 +1119,11 @@ author-selected `explore_posts.species_common_name` snapshot when one exists and
 falls back to dictionary English common names or the scientific name for legacy
 posts.
 
+The same Explore projections also expose `scans.pet_identification` when present.
+Clients may use `pet_identification.label` as the visible dog/cat card title,
+but the projected `species_common_name` and `species_scientific_name` remain
+unchanged for dictionary navigation, species statistics, and taxonomy surfaces.
+
 Migration `20260505120000_add_explore_feed_filters.sql` also added
 `public.haversine_distance_meters(...)`, which the nearby feed uses to
 radius-filter post-owned public coordinates without exposing raw scan
@@ -1367,7 +1383,7 @@ historical schema must also be schema-scoped snapshots; V41 owns
 without SwiftData casting V41 records to active `LocalScanRecord` or
 `OfflineQueuedScan`.
 
-The current active schema is `MerianSchemaV43`. Recent milestones:
+The current active schema is `MerianSchemaV44`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -1388,6 +1404,10 @@ The current active schema is `MerianSchemaV43`. Recent milestones:
 - V43 added AI-derived sex observation metadata (`sex`, `sexConfidence`,
   `sexEvidence`) to completed local scans, matching the cloud `scans` columns
   introduced by migration `20260518090000_add_scan_sex_metadata.sql`.
+- V44 added optional `petIdentificationData` to completed local scans. It stores
+  the sanitized dog/cat `PetIdentification` object from `public.scans` so
+  Insight, library search, sharing, and Explore can show a confident pet label
+  without rewriting species taxonomy or preferred-name data.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): Declares
 `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and
@@ -1407,9 +1427,19 @@ TypeScript types but optional in Swift (`String?`) for graceful decoding of
 pre-migration JSONB rows that have the two-field shape. `EdgeResponse`
 additionally contains a nested `ImageQuality` struct (`sharpness: Int?`,
 `framing: Int?`, `diagnostic_utility: Int?`, `overall_score: Int?`) and an
-`image_quality: ImageQuality?` field. When adding new fields to either Edge
+`image_quality: ImageQuality?` field. `EdgeResponse` may also include
+`pet_identification: PetIdentification?`, decoded into `SpeciesData` only when
+the sanitized confidence is displayable. When adding new fields to either Edge
 Function response, update both the TypeScript schema and the corresponding Swift
 `Codable` struct simultaneously.
+
+**`SpeciesData` pet display field** (`apps/ios/Merian/Models/SpeciesData.swift`):
+`PetIdentification` is a `Codable`, `Equatable`, `Hashable`, and `Sendable`
+value with `speciesGroup`, `label`, `labelType`, `confidenceScore`, and
+`evidence`. `SpeciesData.petIdentification` is optional and display-only. It
+can make the Insight headline read like "Australian Cattle Dog mix" while the
+subtitle still shows `Domestic Dog • Canis lupus familiaris`. It must not be
+stored as a species preferred common name.
 
 **`SpeciesData` override fields** (`apps/ios/Merian/Models/SpeciesData.swift`):
 `SpeciesData` carries four identification-review fields that are never part of
@@ -1462,6 +1492,7 @@ user cycles through overrides.
 **Historical Sync DTO** (`apps/ios/Merian/Core/Data/Database/ScanRepository.swift`):
 `HistoricalScanResponse` (the cloud sync DTO) includes
 `candidates: [CloudIdentificationCandidate]?`,
+`pet_identification: PetIdentification?`,
 `user_identification_override: String?`, `user_confirmed_identification: Bool?`,
 and `image_quality_score: Int?` fields. `CloudIdentificationCandidate` is a
 plain `Codable` struct (`scientific_name: String`, `confidence_score: Double`)
@@ -1552,6 +1583,11 @@ Tracks locally synchronized species scans for the Scans library.
 - `scientificName`: String
 - `commonName`: String
 - `confidenceScore`: Double?
+- `petIdentificationData`: Data? (Added in `MerianSchemaV44`. JSON-encoded
+  `PetIdentification` for confident dog/cat breed, mix, coat-pattern, or
+  body-type display. The computed `petIdentification` helper decodes this value
+  for Insight headlines, share/export text, Explore sync, and library search.
+  It does not alter `commonName`, `scientificName`, or species preference keys.)
 - `fieldNotes`: String? (Added in `MerianSchemaV42`. Private user-authored
   discovery notes. Local insight surfaces read and write this through
   `FieldNotesRepository`; Explore receives a public copy only when the user

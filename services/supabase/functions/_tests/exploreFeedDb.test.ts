@@ -7,6 +7,7 @@ import {
   insertUser,
   withExploreDbTest,
 } from "./exploreDbTestHelpers.ts";
+import type { PetIdentification } from "../_shared/identify/types.ts";
 
 type ExploreFeedRow = {
   post_id: string;
@@ -20,6 +21,11 @@ type ExploreLocationRow = {
 
 type ExploreSpeciesNameRow = {
   species_common_name: string;
+};
+
+type ExplorePetIdentificationRow = ExploreSpeciesNameRow & {
+  species_scientific_name: string;
+  pet_identification: PetIdentification | null;
 };
 
 type TrendingExploreFeedRow = ExploreFeedRow & {
@@ -306,6 +312,78 @@ Deno.test("Explore feed DB - post common-name snapshot overrides dictionary name
     assertEquals(preservedRows.rows[0]?.species_common_name, "Mule Deer");
     assertEquals(preservedFeedRows.rows[0]?.species_common_name, "Mule Deer");
   });
+});
+
+Deno.test("Explore feed DB - exposes pet identification without replacing species names", async () => {
+  await withExploreDbTest(
+    "exploreFeedDb.petIdentification.test",
+    async (client: Client) => {
+      const ownerId = crypto.randomUUID();
+      const viewerId = crypto.randomUUID();
+      const speciesId = crypto.randomUUID();
+      const scanId = crypto.randomUUID();
+      const postId = crypto.randomUUID();
+      const petIdentification: PetIdentification = {
+        species_group: "dog",
+        label: "Australian Cattle Dog",
+        label_type: "breed",
+        confidence_score: 0.91,
+        evidence: ["blue roan coat", "compact working-dog build"],
+      };
+
+      await insertUser(client, ownerId, "Pet Owner");
+      await insertUser(client, viewerId, "Pet Viewer");
+      await insertSpecies(client, speciesId, "Canis lupus familiaris");
+
+      await insertScan(client, {
+        id: scanId,
+        userId: ownerId,
+        speciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "open",
+        petIdentification,
+      });
+
+      await insertExplorePost(client, {
+        id: postId,
+        userId: ownerId,
+        scanId,
+        sharedAt: "2026-04-28T12:20:00.000Z",
+        speciesCommonName: "Domestic Dog",
+      });
+
+      const feedRows = await client.queryObject<ExplorePetIdentificationRow>(
+        `
+        SELECT species_common_name, species_scientific_name, pet_identification
+        FROM public.get_explore_feed($1, 20, NULL, NULL)
+        WHERE post_id = $2
+      `,
+        [viewerId, postId],
+      );
+
+      const postRows = await client.queryObject<ExplorePetIdentificationRow>(
+        `
+        SELECT species_common_name, species_scientific_name, pet_identification
+        FROM public.get_explore_post($1, $2)
+      `,
+        [viewerId, postId],
+      );
+
+      assertEquals(feedRows.rows[0]?.species_common_name, "Domestic Dog");
+      assertEquals(
+        feedRows.rows[0]?.species_scientific_name,
+        "Canis lupus familiaris",
+      );
+      assertEquals(feedRows.rows[0]?.pet_identification, petIdentification);
+      assertEquals(postRows.rows[0]?.species_common_name, "Domestic Dog");
+      assertEquals(
+        postRows.rows[0]?.species_scientific_name,
+        "Canis lupus familiaris",
+      );
+      assertEquals(postRows.rows[0]?.pet_identification, petIdentification);
+    },
+  );
 });
 
 Deno.test("Explore feed DB - canonical public location label repairs landmark-only legacy text", async () => {

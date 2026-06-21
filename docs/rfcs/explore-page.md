@@ -19,6 +19,8 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 - Feed cards may show:
   - Hero image
   - Species common name and scientific name
+  - Optional dog/cat pet label as the visible title when a scan carries
+    confident `pet_identification`
   - Author label
   - General location only, at city or state level
   - Author avatar for authenticated users when a public avatar URL is available
@@ -27,7 +29,9 @@ Merian Explore is a manual-share, image-only public feed of discoveries. V1 is i
 - The current V1 card layout is:
   - Author row above the image
   - Full-width square image
-  - Species common/scientific name plaque over the bottom-left of the image
+  - Species common/scientific name plaque over the bottom-left of the image,
+    with `pet_identification.label` allowed to replace only the visible title
+    text for confident dog/cat scans
   - Optional one-line scrolling hashtag chip row below the image
   - Action row below the tags or image
 - The current V1 detail layout is:
@@ -66,6 +70,10 @@ The Explore feed and map shell are now live. The current shipped implementation 
 - Publication state and post geoprivacy live on `explore_posts`. Spatial reads use post-owned `public_latitude` / `public_longitude`; Explore Map reads them through `public.get_explore_map_posts(...)` and `get-explore-map-points`, and Nearby uses the same stored projection for radius matching. Non-owned spatial results require saved `location_sharing = 'open'`.
 - Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` so newly shared scans with exact coordinates are normalized/backfilled correctly before map reads.
 - `ExplorePostStore` now owns shared Explore post state across feed, map, detail, comments, and notification-driven navigation, while `ExploreFeedViewModel` keeps feed-specific UI and pagination state.
+- Explore post projections can carry `pet_identification` from the backing scan.
+  Native clients may show its label on cards/detail/share text, while dictionary
+  links, species stats, and taxonomy routing continue to use
+  `species_scientific_name`.
 - The feed tab now ships a filter row with `Recent`, `Following`, `Trending`, and `Nearby`.
 - `Recent` remains the default mode and still uses the canonical `(shared_at, post_id)` cursor.
 - `Following` is an asymmetric-follow feed backed by followed authors' visible Explore posts. It uses the same `(shared_at, post_id)` cursor as `Recent` and does not change `Recent`, `Trending`, `Nearby`, or map results.

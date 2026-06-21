@@ -1,5 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { ExploreFeedFilter } from "../_shared/explore.ts";
+import type { PetIdentification } from "../_shared/identify/types.ts";
 
 export interface ExploreFeedRow {
   post_id: string;
@@ -14,6 +15,7 @@ export interface ExploreFeedRow {
   hashtags?: string[];
   species_common_name: string;
   species_scientific_name: string;
+  pet_identification?: PetIdentification | null;
   public_location_label?: string | null;
   location_sharing: "open" | "obscured" | "private";
   time_of_day?: string | null;

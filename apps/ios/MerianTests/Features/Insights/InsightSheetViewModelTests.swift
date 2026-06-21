@@ -76,6 +76,29 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.headerParagraphs.first == "A test object.")
     }
 
+    @Test func testPetIdentificationDrivesHeaderTitleWithoutReplacingTaxonomySubtitle() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "pet_header",
+            commonName: "Domestic Dog",
+            scientificName: "Canis lupus familiaris",
+            insightData: InsightData(aiReasoning: "A domestic dog.", hazardType: "none"),
+            confidenceScore: 0.94,
+            petIdentification: PetIdentification(
+                speciesGroup: "dog",
+                label: "Australian Cattle Dog",
+                labelType: "breed",
+                confidenceScore: 0.91,
+                evidence: ["blue roan coat"]
+            )
+        )
+        viewModel.inferenceEngine = engine
+
+        #expect(viewModel.resolvedHeaderTitle == "Australian Cattle Dog")
+        #expect(viewModel.headerSubtitle == "Domestic Dog • Canis lupus familiaris")
+    }
+
     @Test func testNonBiologicalHeaderTitleUsesFriendlyDisplayName() {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()

@@ -453,4 +453,30 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertTrue(payloadString.contains("insecta"))
         XCTAssertTrue(payloadString.contains("bug"))
     }
+
+    func testSearchDatabaseActorIndexesPetIdentificationLabel() async throws {
+        let scan = try createTestScan(
+            commonName: "Domestic Dog",
+            scientificName: "Canis lupus familiaris",
+            ecologyType: "mammal"
+        )
+        scan.petIdentificationData = try JSONEncoder().encode(PetIdentification(
+            speciesGroup: "dog",
+            label: "Australian Cattle Dog",
+            labelType: "breed",
+            confidenceScore: 0.91,
+            evidence: ["blue roan coat"]
+        ))
+
+        try context.save()
+
+        let actor = SearchDatabaseActor(modelContainer: container)
+        let payloads = await actor.extractSearchablePayloads(from: [scan.id])
+        let payloadString = try XCTUnwrap(payloads.first?.searchString)
+
+        XCTAssertTrue(payloadString.contains("australian cattle dog"))
+        XCTAssertTrue(payloadString.contains("domestic dog"))
+        XCTAssertTrue(payloadString.contains("canis lupus familiaris"))
+    }
+
 }

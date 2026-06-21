@@ -491,4 +491,49 @@ struct SpeciesDataTests {
 
         #expect(species.candidates == nil, "Absent candidates key must produce nil — not an empty array")
     }
+
+    @Test func testPetIdentificationDecodesFromEdgeResponse() throws {
+        let jsonString = """
+        {
+            "success": true,
+            "data": {
+                "is_biological_subject": true,
+                "scientific_name": "Canis lupus familiaris",
+                "common_name": "Domestic Dog",
+                "confidence_score": 0.94,
+                "insight_data": { "ai_reasoning": "A domestic dog.", "hazard_type": "none" },
+                "pet_identification": {
+                    "species_group": "dog",
+                    "label": "Australian Cattle Dog",
+                    "label_type": "breed",
+                    "confidence_score": 0.91,
+                    "evidence": ["blue roan coat", "compact build"]
+                }
+            }
+        }
+        """
+        let data = jsonString.data(using: .utf8)!
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: data)
+        let species = SpeciesData(fromEdgeResponse: wrapper.data, locationName: nil, weatherCondition: nil, weatherTemperatureF: nil)
+
+        #expect(species.commonName == "Domestic Dog")
+        #expect(species.scientificName == "Canis lupus familiaris")
+        #expect(species.petIdentification?.label == "Australian Cattle Dog")
+        #expect(species.petIdentification?.confidenceScore == 0.91)
+    }
+
+    @Test func testPetIdentificationRoundTripsThroughLocalEncoding() throws {
+        let pet = PetIdentification(
+            speciesGroup: "cat",
+            label: "Brown Tabby",
+            labelType: "coat_pattern",
+            confidenceScore: 0.88,
+            evidence: ["striped coat"]
+        )
+
+        let encoded = try JSONEncoder().encode(pet)
+        let decoded = try JSONDecoder().decode(PetIdentification.self, from: encoded)
+
+        #expect(decoded == pet)
+    }
 }

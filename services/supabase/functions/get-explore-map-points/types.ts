@@ -1,3 +1,5 @@
+import type { PetIdentification } from "../_shared/identify/types.ts";
+
 export type ExploreCoordinateVisibility = "exact" | "obscured";
 export type ExploreMapSpeciesCategory =
   | "plants"
@@ -26,6 +28,7 @@ export interface ExploreMapPostRow {
   author_is_pro?: boolean;
   species_common_name: string;
   species_scientific_name: string;
+  pet_identification?: PetIdentification | null;
   taxonomy_kingdom?: string | null;
   taxonomy_class?: string | null;
   public_location_label?: string | null;

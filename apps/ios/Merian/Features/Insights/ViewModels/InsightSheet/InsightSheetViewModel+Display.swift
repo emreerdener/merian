@@ -246,6 +246,10 @@ extension InsightSheetViewModel {
         if !species.isBiological || common.lowercased() == "not applicable" {
             return "Non-biological"
         }
+        if let petLabel = species.petIdentification?.label.trimmingCharacters(in: .whitespacesAndNewlines),
+           !petLabel.isEmpty {
+            return petLabel
+        }
         if let preferred = state.preferredCommonName, !preferred.isEmpty {
             return preferred
         }
@@ -281,7 +285,17 @@ extension InsightSheetViewModel {
     }
 
     var headerSubtitle: String {
-        inferenceEngine?.speciesData?.scientificName ?? "Awaiting taxonomy"
+        guard let species = inferenceEngine?.speciesData else {
+            return "Awaiting taxonomy"
+        }
+        if species.petIdentification?.isDisplayable == true {
+            let common = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let scientific = species.scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !common.isEmpty && !scientific.isEmpty {
+                return "\(common.capitalized) • \(scientific)"
+            }
+        }
+        return species.scientificName
     }
 
     var hazardType: String {

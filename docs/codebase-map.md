@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-06-15.
+Last reviewed: 2026-06-21.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -54,10 +54,10 @@ Web runtime config:
 The active schema is:
 
 ```swift
-typealias CurrentSchema = MerianSchemaV43
+typealias CurrentSchema = MerianSchemaV44
 ```
 
-`MerianSchemaV43` is declared in `apps/ios/Merian/Models/SchemaVersions.swift` and points
+`MerianSchemaV44` is declared in `apps/ios/Merian/Models/SchemaVersions.swift` and points
 at the global active model classes in `apps/ios/Merian/Models/ActiveSchema/`.
 
 Active persistent models:
@@ -79,9 +79,11 @@ Recent schema milestones:
   `OfflineQueuedScan`, while preserving the legacy UserDefaults bridge through
   `FieldNotesRepository`.
 - V43 introduced AI-derived sex observation metadata on completed local scans.
+- V44 added optional dog/cat pet-identification display metadata on completed
+  local scans.
 
 Historical schema snapshots V1 through V39 live under `apps/ios/Merian/Models/Schema/`.
-V40 through V43 live in `SchemaVersions.swift` alongside the migration plan.
+V40 through V44 live in `SchemaVersions.swift` alongside the migration plan.
 
 ## Feature Modules
 

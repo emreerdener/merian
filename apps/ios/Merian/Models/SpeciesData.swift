@@ -63,6 +63,71 @@ extension CaptureTelemetry {
 
 // MARK: - Species Data
 
+struct PetIdentification: Codable, Equatable, Hashable, Sendable {
+    let speciesGroup: String
+    let label: String
+    let labelType: String
+    let confidenceScore: Double
+    let evidence: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case speciesGroup
+        case label
+        case labelType
+        case confidenceScore
+        case evidence
+    }
+
+    private enum SnakeCodingKeys: String, CodingKey {
+        case speciesGroup = "species_group"
+        case label
+        case labelType = "label_type"
+        case confidenceScore = "confidence_score"
+        case evidence
+    }
+
+    init(
+        speciesGroup: String,
+        label: String,
+        labelType: String,
+        confidenceScore: Double,
+        evidence: [String]
+    ) {
+        self.speciesGroup = speciesGroup
+        self.label = label
+        self.labelType = labelType
+        self.confidenceScore = confidenceScore
+        self.evidence = evidence
+    }
+
+    init(from decoder: Decoder) throws {
+        let camelContainer = try decoder.container(keyedBy: CodingKeys.self)
+        let snakeContainer = try decoder.container(keyedBy: SnakeCodingKeys.self)
+        self.speciesGroup = try camelContainer.decodeIfPresent(String.self, forKey: .speciesGroup)
+            ?? snakeContainer.decode(String.self, forKey: .speciesGroup)
+        self.label = try camelContainer.decode(String.self, forKey: .label)
+        self.labelType = try camelContainer.decodeIfPresent(String.self, forKey: .labelType)
+            ?? snakeContainer.decode(String.self, forKey: .labelType)
+        self.confidenceScore = try camelContainer.decodeIfPresent(Double.self, forKey: .confidenceScore)
+            ?? snakeContainer.decode(Double.self, forKey: .confidenceScore)
+        self.evidence = try camelContainer.decodeIfPresent([String].self, forKey: .evidence)
+            ?? snakeContainer.decode([String].self, forKey: .evidence)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: SnakeCodingKeys.self)
+        try container.encode(speciesGroup, forKey: .speciesGroup)
+        try container.encode(label, forKey: .label)
+        try container.encode(labelType, forKey: .labelType)
+        try container.encode(confidenceScore, forKey: .confidenceScore)
+        try container.encode(evidence, forKey: .evidence)
+    }
+
+    var isDisplayable: Bool {
+        confidenceScore >= 0.70 && !label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 /// Parsed result from the AI edge function, representing a single identified biological observation.
 struct SpeciesData {
     let scanId: String?
@@ -119,6 +184,7 @@ struct SpeciesData {
     /// species_dictionary cache on subsequent cache hits. Nil on the first-ever
     /// scan of a new species (enrichment hasn't completed yet).
     var alternativeCommonNames: [String]?
+    var petIdentification: PetIdentification?
 
     /// Per-scan alternative candidates the model considered when confidence was below the
     /// tier-specific `MerianConfig.diagnosticTrigger` threshold. Nil for confident scans.
@@ -250,6 +316,7 @@ extension SpeciesData {
         self.gbifTaxonKey = edgeRes.gbif_taxon_key
         self.inferenceTier = edgeRes.inference_tier
         self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(edgeRes.alternative_common_names)
+        self.petIdentification = edgeRes.pet_identification?.isDisplayable == true ? edgeRes.pet_identification : nil
         self.candidates = edgeRes.candidates.map { entries in
             entries.map { 
                 let splitCandidateCommon = $0.common_name?.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -309,6 +376,7 @@ extension SpeciesData {
         gbifTaxonKey: Int? = nil,
         inferenceTier: String? = nil,
         alternativeCommonNames: [String]? = nil,
+        petIdentification: PetIdentification? = nil,
         candidates: [IdentificationCandidate]? = nil,
         imageQualityScore: Int? = nil,
         aiScientificName: String = "",
@@ -356,6 +424,7 @@ extension SpeciesData {
         self.gbifTaxonKey = gbifTaxonKey
         self.inferenceTier = inferenceTier
         self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(alternativeCommonNames)
+        self.petIdentification = petIdentification?.isDisplayable == true ? petIdentification : nil
         self.candidates = candidates
         self.imageQualityScore = imageQualityScore
         self.aiScientificName = aiScientificName.isEmpty ? scientificName : aiScientificName

@@ -3,7 +3,10 @@ import {
   assert,
   assertEquals,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
-import { sanitizeScientificName } from "./sanitize.ts";
+import {
+  sanitizePetIdentification,
+  sanitizeScientificName,
+} from "./sanitize.ts";
 import {
   type TierResolution,
   tierTelemetryProperties,
@@ -745,4 +748,115 @@ Deno.test("sanitize — multi-word author with 'ex' fully stripped", () => {
 
 Deno.test("sanitize — leading and trailing whitespace collapsed", () => {
   assertEquals(sanitizeScientificName("  Quercus  robur  "), "Quercus robur");
+});
+
+Deno.test("sanitize pet identification — keeps confident dog breed labels", () => {
+  assertEquals(
+    sanitizePetIdentification(
+      {
+        species_group: "dog",
+        label: "  Australian   Cattle Dog  ",
+        label_type: "breed",
+        confidence_score: 0.86,
+        evidence: [
+          "blue roan ticking",
+          "compact herding-dog build",
+          "broad head",
+          "extra evidence ignored",
+        ],
+      },
+      "Canis lupus familiaris",
+    ),
+    {
+      species_group: "dog",
+      label: "Australian Cattle Dog",
+      label_type: "breed",
+      confidence_score: 0.86,
+      evidence: [
+        "blue roan ticking",
+        "compact herding-dog build",
+        "broad head",
+      ],
+    },
+  );
+});
+
+Deno.test("sanitize pet identification — keeps cat coat patterns", () => {
+  assertEquals(
+    sanitizePetIdentification(
+      {
+        species_group: "cat",
+        label: "Brown Tabby",
+        label_type: "coat_pattern",
+        confidence_score: 0.74,
+        evidence: ["striped coat"],
+      },
+      "Felis catus",
+    ),
+    {
+      species_group: "cat",
+      label: "Brown Tabby",
+      label_type: "coat_pattern",
+      confidence_score: 0.74,
+      evidence: ["striped coat"],
+    },
+  );
+});
+
+Deno.test("sanitize pet identification — drops generic and low-confidence labels", () => {
+  assertEquals(
+    sanitizePetIdentification(
+      {
+        species_group: "dog",
+        label: "Domestic Dog",
+        label_type: "breed",
+        confidence_score: 0.91,
+        evidence: ["dog-like body"],
+      },
+      "Canis lupus familiaris",
+    ),
+    null,
+  );
+  assertEquals(
+    sanitizePetIdentification(
+      {
+        species_group: "cat",
+        label: "Tuxedo",
+        label_type: "coat_pattern",
+        confidence_score: 0.69,
+        evidence: ["black and white coat"],
+      },
+      "Felis catus",
+    ),
+    null,
+  );
+});
+
+Deno.test("sanitize pet identification — rejects mismatched and non-pet taxa", () => {
+  assertEquals(
+    sanitizePetIdentification(
+      {
+        species_group: "dog",
+        label: "Border Collie Mix",
+        label_type: "breed_mix",
+        confidence_score: 0.8,
+        evidence: ["black and white coat"],
+      },
+      "Felis catus",
+    ),
+    null,
+  );
+  assertEquals(
+    sanitizePetIdentification(
+      {
+        species_group: "dog",
+        label: "Border Collie Mix",
+        label_type: "breed_mix",
+        confidence_score: 0.8,
+        evidence: ["black and white coat"],
+      },
+      "Vulpes vulpes",
+    ),
+    null,
+  );
 });

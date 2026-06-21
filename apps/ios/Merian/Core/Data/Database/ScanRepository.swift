@@ -14,7 +14,7 @@ final class ScanRepository {
     // MARK: - Singleton
 
     static let shared = ScanRepository()
-    private static let historicalScanSelectColumns = "id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
+    private static let historicalScanSelectColumns = "id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, pet_identification, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
 
     // MARK: - Dependencies
 
@@ -369,6 +369,7 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let inference_tier: String?
     let custom_tags: [String]?
     let candidates: [CloudIdentificationCandidate]?
+    let pet_identification: PetIdentification?
     let user_identification_override: String?
     let user_confirmed_identification: Bool?
     let image_quality_score: Int?
@@ -603,6 +604,16 @@ actor HistoricalDatabaseActor {
                     })
                     chunkDidUpdate = true
                 }
+                if existing.petIdentificationData == nil, let petIdentification = res.pet_identification {
+                    existing.petIdentificationData = try? encoder.encode(petIdentification)
+                    chunkDidUpdate = true
+                }
+                if let petLabel = res.pet_identification?.label.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !petLabel.isEmpty,
+                   !existing.semanticTags.contains(where: { $0.localizedCaseInsensitiveCompare(petLabel) == .orderedSame }) {
+                    existing.semanticTags.append(petLabel)
+                    chunkDidUpdate = true
+                }
                 if let cloudOverride = res.user_identification_override,
                    existing.userIdentificationOverride != cloudOverride {
                     existing.userIdentificationOverride = cloudOverride
@@ -651,11 +662,17 @@ actor HistoricalDatabaseActor {
 
             let rawR2Image = scan.image_storage_urls?.first
             let additionalUrls = scan.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
-            let semanticTags: [String] = [cName, sciName] + (scan.colors ?? []) + (dict?.group_tags ?? [])
+            let semanticPetTags = [scan.pet_identification?.label].compactMap {
+                $0?.trimmingCharacters(in: .whitespacesAndNewlines)
+            }.filter { !$0.isEmpty }
+            let semanticTags: [String] = [cName, sciName] + semanticPetTags + (scan.colors ?? []) + (dict?.group_tags ?? [])
             let candidatesData: Data? = scan.candidates.flatMap { entries in
                 try? encoder.encode(entries.map {
                     IdentificationCandidate(scientificName: $0.scientific_name, commonName: $0.common_name, confidenceScore: $0.confidence_score, distinguishingFeature: $0.distinguishing_feature)
                 })
+            }
+            let petIdentificationData: Data? = scan.pet_identification.flatMap {
+                try? encoder.encode($0)
             }
 
             let record = LocalScanRecord(
@@ -705,7 +722,8 @@ actor HistoricalDatabaseActor {
                 hasBeenViewed: true,
                 userIdentificationOverride: scan.user_identification_override,
                 userConfirmedIdentification: scan.user_confirmed_identification ?? false,
-                imageQualityScore: scan.image_quality_score
+                imageQualityScore: scan.image_quality_score,
+                petIdentificationData: petIdentificationData
             )
             
             var newItems: [SerializedMediaItem] = []

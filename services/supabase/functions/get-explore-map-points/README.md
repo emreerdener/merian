@@ -62,6 +62,7 @@ Post mode:
       "author_avatar_url": "https://...",
       "species_common_name": "Monarch Butterfly",
       "species_scientific_name": "Danaus plexippus",
+      "pet_identification": null,
       "public_location_label": "Austin, TX",
       "location_sharing": "open",
       "like_count": 12,
@@ -93,6 +94,10 @@ Map rows require:
 but they stay off the map. Open posts can still return
 `coordinate_visibility = "obscured"` when protected-species or uncertainty rules
 rounded the stored public coordinate.
+
+`pet_identification`, when non-null, is display-only dog/cat metadata copied
+from the backing scan. Map previews may show its label, but species routing
+continues to use `species_scientific_name`.
 
 ## Local Verification
 

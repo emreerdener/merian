@@ -1,4 +1,5 @@
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
+import type { PetIdentification } from "../_shared/identify/types.ts";
 
 const DEFAULT_DB_URL =
   "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
@@ -120,6 +121,7 @@ type InsertScanOptions = {
   semanticLocation?: string | null;
   publicLocationLabel?: string | null;
   candidates?: Array<Record<string, unknown>> | null;
+  petIdentification?: PetIdentification | null;
 };
 
 export async function insertScan(
@@ -144,7 +146,8 @@ export async function insertScan(
         is_tombstoned,
         semantic_location,
         public_location_label,
-        candidates
+        candidates,
+        pet_identification
       )
       VALUES (
         $1,
@@ -162,7 +165,8 @@ export async function insertScan(
         $13,
         $14,
         $15,
-        $16::jsonb
+        $16::jsonb,
+        $17::jsonb
       )
     `,
     [
@@ -183,6 +187,9 @@ export async function insertScan(
       options.semanticLocation ?? null,
       options.publicLocationLabel ?? null,
       options.candidates == null ? null : JSON.stringify(options.candidates),
+      options.petIdentification == null
+        ? null
+        : JSON.stringify(options.petIdentification),
     ],
   );
 }

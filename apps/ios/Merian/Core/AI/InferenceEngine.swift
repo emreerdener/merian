@@ -1824,6 +1824,7 @@ private struct GBIFMedia: Decodable {
         self.activeMedia = record.capturedMediaSnapshot.activeScanMedia
 
         let candidatesRawData: Data? = record.candidatesData
+        let petIdentification = record.petIdentification
         let overrideName: String? = record.userIdentificationOverride
         // When a manual override is active, display the override scientific name as the title.
         // record.scientificName is preserved as the original-AI identifier and reused below
@@ -1917,6 +1918,7 @@ private struct GBIFMedia: Decodable {
             gbifTaxonKey: record.gbifTaxonKey,
             inferenceTier: record.inferenceTier,
             alternativeCommonNames: record.alternativeCommonNames,
+            petIdentification: petIdentification,
             candidates: nil,
             imageQualityScore: record.imageQualityScore,
             aiScientificName: recordScientificName,

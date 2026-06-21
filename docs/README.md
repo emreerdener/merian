@@ -8,7 +8,7 @@ This directory is the technical master reference for the native iOS application,
 - **Web frontend**: Next.js + Mantine app in `apps/web/`, initially serving public Explore share pages on `merian.earth`.
 - **Deployment target**: iOS 17.2 for the app and widget; watchOS 10.0 for the companion target.
 - **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is committed for convenience and should be regenerated after project-structure changes.
-- **Active SwiftData schema**: `MerianSchemaV43` via `typealias CurrentSchema = MerianSchemaV43` in `apps/ios/Merian/Models/Aliases.swift`.
+- **Active SwiftData schema**: `MerianSchemaV44` via `typealias CurrentSchema = MerianSchemaV44` in `apps/ios/Merian/Models/Aliases.swift`.
 - **Primary inference endpoint**: `/identify-multimodal` for visual, audio, describe, and mixed-media submissions. `/identify` remains documented for legacy/image-specific compatibility and shared backend primitives.
 
 ## Directory Structure
@@ -31,7 +31,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/backend-and-data/01-offline-sync-pipeline.md`](./backend-and-data/01-offline-sync-pipeline.md)** — Zero-data-loss architecture, SwiftData queues, and AppDelegate background URLSession mappings.
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)** — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species dictionary workers, and cron/webhook boundaries.
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)** — SwiftData actor model: `BackgroundDatabaseActor`, `HistoricalDatabaseActor`, and `FileIOActor`.
-- **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)** — Physical table maps for PostgreSQL and the SwiftData persistent schemas, including the V41 `CapturedMediaEntry` mixed-media model, V42 field-notes columns, V43 sex observation metadata, and Explore Community Identification versioned taxonomy, consensus jobs, projections, and request tables.
+- **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)** — Physical table maps for PostgreSQL and the SwiftData persistent schemas, including the V41 `CapturedMediaEntry` mixed-media model, V42 field-notes columns, V43 sex observation metadata, V44 pet-identification display metadata, and Explore Community Identification versioned taxonomy, consensus jobs, projections, and request tables.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, `/update-public-avatar`, Community Identification endpoints, parked `/share-import-scan`, `/species-dictionary`, `/species-observation-stats`, Explore detail similar species, and internal cron workers such as Merian reference-image refresh.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)** — CI-first Supabase deployment path, required GitHub secrets, local emergency fallback, and post-deploy smoke checks.
 

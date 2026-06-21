@@ -51,6 +51,7 @@ The response is the same card-shaped Explore post projection used by the feed:
       "hashtags": ["citybioblitz", "springcount"],
       "species_common_name": "River Birch",
       "species_scientific_name": "Betula nigra",
+      "pet_identification": null,
       "public_location_label": "Austin, TX",
       "location_sharing": "open",
       "time_of_day": "day",
@@ -75,6 +76,10 @@ post IDs so library cards keep the same `hashtags` array as feed cards.
 `author_name` remains the display label. `author_username` is the stable handle
 stored without `@` and should render as `@river_w` only where a handle is
 needed, or when a default/ghost identity has no separate display label.
+
+Rows may include `pet_identification` for dog/cat scans. Its `label` can be used
+as the visible card title, but the species common/scientific names remain the
+taxonomy source for dictionary links and stats.
 
 ## Pagination
 

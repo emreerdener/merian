@@ -47,6 +47,7 @@ export interface MerianIdentification {
   ecological_interactions?: string[];
   candidates?: IdentificationCandidate[] | null;
   image_quality?: ImageQuality;
+  pet_identification?: PetIdentification | null;
 }
 
 export interface IdentificationCandidate {
@@ -61,6 +62,14 @@ export interface ImageQuality {
   framing: number;
   diagnostic_utility: number;
   overall_score: number;
+}
+
+export interface PetIdentification {
+  species_group: "dog" | "cat";
+  label: string;
+  label_type: "breed" | "breed_mix" | "coat_pattern" | "body_type";
+  confidence_score: number;
+  evidence: string[];
 }
 
 export interface ObservationContextDTO {

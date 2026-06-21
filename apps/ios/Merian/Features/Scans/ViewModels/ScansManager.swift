@@ -505,6 +505,7 @@ struct RawScanSnapshot: Sendable {
     let id: String
     let commonName: String
     let scientificName: String
+    let petLabel: String?
     let ecologyType: String
     let semanticTags: [String]
     let customTags: [String]
@@ -531,6 +532,7 @@ struct RawScanSnapshot: Sendable {
         self.id = record.id
         self.commonName = record.commonName
         self.scientificName = record.scientificName
+        self.petLabel = record.petIdentification?.label
         self.ecologyType = record.ecologyType
         self.semanticTags = record.semanticTags
         self.customTags = record.customTags
@@ -559,6 +561,7 @@ actor SearchDatabaseActor {
     private static func buildSearchString(
         commonName: String,
         scientificName: String,
+        petLabel: String?,
         ecologyType: String,
         semanticTags: [String],
         customTags: [String],
@@ -580,13 +583,14 @@ actor SearchDatabaseActor {
         ecologicalInteractions: [String]?
     ) -> String {
         let tags = semanticTags.joined(separator: " ")
+        let petLabel = petLabel ?? ""
         let taxonomyTerms = [taxonomyClass, taxonomyOrder, taxonomyFamily]
             .compactMap { $0 }
             .joined(separator: " ")
         let groupName = commonGroupName(for: taxonomyClass)
         let hazard = hazardType == "none" ? "" : hazardType
 
-        return "\(commonName) \(scientificName) \(ecologyType) \(tags) \(customTags.joined(separator: " ")) \(isInvasive ? "invasive" : "") \(taxonomyTerms) \(groupName) \(aiReasoning ?? "") \(locationName ?? "") \(habitatDescription ?? "") \(weatherCondition ?? "") \(lifeStage ?? "") \(reproductiveCondition ?? "") \(sex ?? "") \(sexEvidence ?? "") \(similarSpecies?.joined(separator: " ") ?? "") \(iucnRedListStatus ?? "") \(hazard) \(ecologicalInteractions?.joined(separator: " ") ?? "")".lowercased()
+        return "\(commonName) \(scientificName) \(petLabel) \(ecologyType) \(tags) \(customTags.joined(separator: " ")) \(isInvasive ? "invasive" : "") \(taxonomyTerms) \(groupName) \(aiReasoning ?? "") \(locationName ?? "") \(habitatDescription ?? "") \(weatherCondition ?? "") \(lifeStage ?? "") \(reproductiveCondition ?? "") \(sex ?? "") \(sexEvidence ?? "") \(similarSpecies?.joined(separator: " ") ?? "") \(iucnRedListStatus ?? "") \(hazard) \(ecologicalInteractions?.joined(separator: " ") ?? "")".lowercased()
     }
 
     /// Builds `SearchableScan` payloads from pre-extracted `RawScanSnapshot` values.
@@ -604,6 +608,7 @@ actor SearchDatabaseActor {
                 searchString: Self.buildSearchString(
                     commonName: snapshot.commonName,
                     scientificName: snapshot.scientificName,
+                    petLabel: snapshot.petLabel,
                     ecologyType: snapshot.ecologyType,
                     semanticTags: snapshot.semanticTags,
                     customTags: snapshot.customTags,
@@ -661,6 +666,7 @@ actor SearchDatabaseActor {
                 searchString: Self.buildSearchString(
                     commonName: record.commonName,
                     scientificName: record.scientificName,
+                    petLabel: record.petIdentification?.label,
                     ecologyType: record.ecologyType,
                     semanticTags: record.semanticTags,
                     customTags: record.customTags,

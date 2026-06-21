@@ -740,7 +740,12 @@ struct ExplorePostDetailView: View {
 
     private func postSnapshotCommonName(for post: ExplorePost) -> String {
         let trimmed = post.speciesCommonName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? viewModel.resolvedSpeciesCommonName(for: post) : trimmed
+        return trimmed.isEmpty
+            ? viewModel.resolvedSpeciesCommonName(
+                scientificName: post.speciesScientificName,
+                fallbackCommonName: post.speciesCommonName
+            )
+            : trimmed
     }
 
     private func commonNameOptions(for post: ExplorePost) -> [String] {

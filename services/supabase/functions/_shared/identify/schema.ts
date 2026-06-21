@@ -1,7 +1,4 @@
-import {
-  Schema,
-  Type,
-} from "npm:@google/genai@1.0.0";
+import { Schema, Type } from "npm:@google/genai@1.0.0";
 
 // Alias for backward compat within this file
 type ResponseSchema = Schema;
@@ -31,6 +28,7 @@ You are an expert encyclopedic field-guide biologist and taxonomist. Your task i
 4. **Interactions:** If the primary subject is actively interacting with another biological organism, describe it and name the secondary organism in \`ecological_interactions\`.
 5. **Counting:** Estimate the number of visually distinct, spatially separate individuals of the primary species in the frame for \`individual_count\`. Estimate for edges. Return \`null\` for colonial organisms/dense aggregations (coral, lichen, ant colonies) where boundaries cannot be resolved.
 6. **Sex:** Report \`sex\` only for biological subjects when visible, described, or behavioral evidence supports it for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use \`not_applicable\` for human subjects. Use \`sex_confidence\` for evidence strength (0.0–1.0) and \`sex_evidence\` for a short phrase naming the exact visible cue. If the evidence is not diagnostic, return \`cannot_determine\`.
+7. **Dog/Cat Pet Layer:** When the primary taxon is \`Canis lupus familiaris\` or \`Felis catus\`, keep \`scientific_name\` and \`common_name\` taxonomic, and optionally populate \`pet_identification\` with the most specific visually supported pet label. For dogs, use a breed or visible breed mix only when distinctive morphology supports it. For cats, prefer coat pattern or body type unless a true breed is visually diagnostic. Never put the breed or coat label in \`scientific_name\`.
 
 # Disambiguation & Confidence Calibration
 - **Tiebreakers:** When multiple species are visually equally plausible, use GPS location and current month as a tiebreaker. Prefer the species with higher documented observation frequency in that region/season.
@@ -50,6 +48,14 @@ Score the image as a reference photo across these dimensions:
 - **framing:** (1–10) Subject fully in frame and isolated from chaotic background.
 - **diagnostic_utility:** (1–10) Taxonomic identification features clearly displayed (e.g., leaf venation, plumage, bark texture).
 - **overall_score:** (0–100) Holistic reference quality synthesizing all three dimensions.
+
+## Pet Identification
+Populate \`pet_identification\` only for domestic dogs and domestic cats. Use null for all other taxa.
+- **species_group:** \`dog\` for \`Canis lupus familiaris\`, \`cat\` for \`Felis catus\`.
+- **label:** Breed, visible breed mix, coat pattern, or body type in Title Case. Never return generic labels like Dog, Cat, Domestic Dog, Domestic Cat, or House Cat.
+- **label_type:** \`breed\`, \`breed_mix\`, \`coat_pattern\`, or \`body_type\`.
+- **confidence_score:** Confidence in the pet-specific label, based only on visible morphology.
+- **evidence:** 1–3 short visual cues supporting the label.
 
 ## Darwin Core Semantics Dictionary
 Output fields must align semantically with the Darwin Core data standard:
@@ -137,7 +143,11 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
             "The single most important visual feature that separates this candidate from the primary identification. Must reference a specific trait from extracted_visual_traits or a directly observable morphological difference (e.g. 'cap margin lacks striations', 'wing bars absent', 'leaf base asymmetric'). One concise clause — do not repeat the species name.",
         },
       },
-      required: ["scientific_name", "confidence_score", "distinguishing_feature"],
+      required: [
+        "scientific_name",
+        "confidence_score",
+        "distinguishing_feature",
+      ],
     },
     description:
       "ALWAYS provide exactly 2 alternative species candidates grounded in the extracted_visual_traits. Choose candidates that share the most observed traits with the primary identification — not just taxonomically related species. For each, distinguishing_feature must name the specific observable difference that rules it in or out.",
@@ -153,6 +163,45 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
     required: ["sharpness", "framing", "diagnostic_utility", "overall_score"],
     description:
       "Photographic quality scores for encyclopedic reference use. sharpness 1–10: focus and motion blur. framing 1–10: subject fully visible and isolated. diagnostic_utility 1–10: taxonomic features clearly displayed. overall_score 0–100: holistic reference quality.",
+  },
+  pet_identification: {
+    type: SchemaType.OBJECT,
+    nullable: true,
+    properties: {
+      species_group: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["dog", "cat"],
+      },
+      label: {
+        type: SchemaType.STRING,
+        description:
+          "Breed, visible breed mix, coat pattern, or body type in Title Case. Never generic Dog/Cat labels.",
+      },
+      label_type: {
+        type: SchemaType.STRING,
+        format: "enum",
+        enum: ["breed", "breed_mix", "coat_pattern", "body_type"],
+      },
+      confidence_score: {
+        type: SchemaType.NUMBER,
+        description:
+          "Confidence in this pet-specific label from visible morphology only.",
+      },
+      evidence: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+      },
+    },
+    required: [
+      "species_group",
+      "label",
+      "label_type",
+      "confidence_score",
+      "evidence",
+    ],
+    description:
+      "Optional domestic dog/cat pet label. Null for all non-dog/cat taxa and for unsupported pet labels.",
   },
 });
 
@@ -209,12 +258,14 @@ export const getMerianResponseSchema = (
         format: "enum",
         enum: ["wild", "urban", "domesticated", "unknown"],
         nullable: true,
-        description: "Biological subjects only. Null for non-biological subjects.",
+        description:
+          "Biological subjects only. Null for non-biological subjects.",
       },
       is_invasive: {
         type: SchemaType.BOOLEAN,
         nullable: true,
-        description: "Biological subjects only. Null for non-biological subjects.",
+        description:
+          "Biological subjects only. Null for non-biological subjects.",
       },
       life_stage: {
         type: SchemaType.STRING,
@@ -232,7 +283,8 @@ export const getMerianResponseSchema = (
           "unknown",
         ],
         nullable: true,
-        description: "Biological subjects only. Null for non-biological subjects.",
+        description:
+          "Biological subjects only. Null for non-biological subjects.",
       },
       reproductive_condition: {
         type: SchemaType.STRING,
@@ -252,7 +304,8 @@ export const getMerianResponseSchema = (
           "not_applicable",
         ],
         nullable: true,
-        description: "Biological subjects only. Null for non-biological subjects.",
+        description:
+          "Biological subjects only. Null for non-biological subjects.",
       },
       sex: {
         type: SchemaType.STRING,

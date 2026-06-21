@@ -73,6 +73,8 @@ struct EdgeResponse: Codable {
     /// The primary common_name value is always excluded from this array.
     let alternative_common_names: [String]?
 
+    let pet_identification: PetIdentification?
+
     /// Per-scan alternative candidates output by the model when it was genuinely uncertain.
     /// Only present when `confidence_score` is below the tier's `diagnosticTrigger` threshold.
     struct IdentificationCandidate: Codable {

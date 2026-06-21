@@ -61,7 +61,15 @@ export function sanitizeScientificName(name: string): string {
 // Author strings start after the specific epithet with an uppercase letter or "(".
 // Rank markers (var., subsp., f.) and hybrid markers (×) are not author strings.
 export function stripAuthors(name: string): string {
-  const rankMarkers = new Set(["var.", "subsp.", "f.", "ssp.", "cv.", "×", "x"]);
+  const rankMarkers = new Set([
+    "var.",
+    "subsp.",
+    "f.",
+    "ssp.",
+    "cv.",
+    "×",
+    "x",
+  ]);
   const tokens = name.split(" ");
   let cutAt = tokens.length;
 
@@ -88,9 +96,90 @@ export function normaliseBinomialCase(name: string): string {
     .map((token, i) => {
       if (token.startsWith("'") && token.endsWith("'")) return token; // cultivar — keep as-is
       if (token === "×") return token; // hybrid marker
-      if (i === genusIndex) return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase(); // genus
+      if (i === genusIndex) {
+        return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase(); // genus
+      }
       if (rankMarkers.has(token.toLowerCase())) return token.toLowerCase(); // rank marker
       return token.toLowerCase(); // specific epithet and infraspecific names
     })
     .join(" ");
+}
+
+export type SanitizedPetIdentification = {
+  species_group: "dog" | "cat";
+  label: string;
+  label_type: "breed" | "breed_mix" | "coat_pattern" | "body_type";
+  confidence_score: number;
+  evidence: string[];
+};
+
+const genericPetLabels = new Set([
+  "dog",
+  "cat",
+  "domestic dog",
+  "domestic cat",
+  "house cat",
+  "canis lupus familiaris",
+  "felis catus",
+]);
+
+const allowedPetLabelTypes = new Set([
+  "breed",
+  "breed_mix",
+  "coat_pattern",
+  "body_type",
+]);
+
+function expectedPetGroup(
+  scientificName: string | undefined,
+): "dog" | "cat" | null {
+  const normalized = scientificName?.trim().toLowerCase();
+  if (normalized === "canis lupus familiaris") return "dog";
+  if (normalized === "felis catus") return "cat";
+  return null;
+}
+
+function cleanPetText(value: unknown, maxLength: number): string | null {
+  if (typeof value !== "string") return null;
+  const cleaned = value.trim().replace(/\s+/g, " ");
+  if (!cleaned) return null;
+  return cleaned.slice(0, maxLength);
+}
+
+export function sanitizePetIdentification(
+  value: unknown,
+  scientificName: string | undefined,
+): SanitizedPetIdentification | null {
+  const speciesGroup = expectedPetGroup(scientificName);
+  if (!speciesGroup || value == null || typeof value !== "object") return null;
+
+  const input = value as Record<string, unknown>;
+  if (input.species_group !== speciesGroup) return null;
+
+  const label = cleanPetText(input.label, 80);
+  if (!label || genericPetLabels.has(label.toLowerCase())) return null;
+
+  const labelType = input.label_type;
+  if (typeof labelType !== "string" || !allowedPetLabelTypes.has(labelType)) {
+    return null;
+  }
+
+  const rawConfidence = Number(input.confidence_score);
+  if (!Number.isFinite(rawConfidence) || rawConfidence < 0.70) return null;
+  const confidenceScore = Math.min(1, Math.max(0, rawConfidence));
+
+  const evidence = Array.isArray(input.evidence)
+    ? input.evidence
+      .map((entry) => cleanPetText(entry, 120))
+      .filter((entry): entry is string => !!entry)
+      .slice(0, 3)
+    : [];
+
+  return {
+    species_group: speciesGroup,
+    label,
+    label_type: labelType as SanitizedPetIdentification["label_type"],
+    confidence_score: confidenceScore,
+    evidence,
+  };
 }

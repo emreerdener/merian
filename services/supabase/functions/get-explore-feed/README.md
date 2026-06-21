@@ -94,6 +94,26 @@ Every returned card row includes:
 display names when present. `author_username` is stored without `@`; clients
 render it as `@emre_e` for profile handles and for default/ghost author rows.
 
+## Response Pet Identification
+
+Feed rows may include sanitized dog/cat scan metadata:
+
+```json
+{
+  "pet_identification": {
+    "species_group": "dog",
+    "label": "Australian Cattle Dog mix",
+    "label_type": "breed_mix",
+    "confidence_score": 0.82,
+    "evidence": ["blue-roan ticking", "black saddle patch", "compact herding-dog build"]
+  }
+}
+```
+
+Clients may show `pet_identification.label` as the visible card title when
+present. `species_common_name` and `species_scientific_name` remain unchanged
+for dictionary links, stats, and taxonomy displays.
+
 ## Visibility Rules
 
 Every mode excludes:

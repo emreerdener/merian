@@ -26,7 +26,7 @@ extension InsightSheetViewModel {
     }
 
     func shareDiscovery(inferenceEngine: InferenceEngine) {
-        let commonName = inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
+        let commonName = resolvedHeaderTitle
         let scientificName = inferenceEngine.speciesData?.scientificName ?? "Awaiting taxonomy"
         let exportMedia = activeMedia
         let liveData = exportMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first

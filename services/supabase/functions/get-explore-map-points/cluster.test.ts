@@ -20,6 +20,7 @@ function makeRow(
     author_avatar_url: null,
     species_common_name: "Mushroom",
     species_scientific_name: "Fungus testus",
+    pet_identification: null,
     taxonomy_kingdom: "Fungi",
     taxonomy_class: "Agaricomycetes",
     public_location_label: "Austin, TX",

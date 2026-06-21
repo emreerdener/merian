@@ -42,6 +42,7 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     let hashtags: [String]?
     let speciesCommonName: String
     let speciesScientificName: String
+    let petIdentification: PetIdentification?
     let publicLocationLabel: String?
     let locationSharing: ExplorePostLocationSharing?
     let timeOfDay: String?
@@ -898,6 +899,7 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
     let authorIsPro: Bool?
     let speciesCommonName: String
     let speciesScientificName: String
+    let petIdentification: PetIdentification?
     let taxonomyKingdom: String?
     let taxonomyClass: String?
     let publicLocationLabel: String?
@@ -935,6 +937,7 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
             hashtags: nil,
             speciesCommonName: speciesCommonName,
             speciesScientificName: speciesScientificName,
+            petIdentification: petIdentification,
             publicLocationLabel: publicLocationLabel,
             locationSharing: locationSharing,
             timeOfDay: timeOfDay,
@@ -1003,6 +1006,7 @@ struct ExplorePostDetail: Decodable {
     let hashtags: [String]?
     let speciesDictionaryId: String?
     let alternativeCommonNames: [String]?
+    let petIdentification: PetIdentification?
     let taxonomyKingdom: String?
     let taxonomyPhylum: String?
     let taxonomyClass: String?

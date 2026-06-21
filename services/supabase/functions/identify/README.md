@@ -18,7 +18,9 @@ to modify the pipeline, modify the exact module below rather than cluttering
   prompt sent to Gemini Vision, as well as the strongly-typed
   `merianResponseSchema` defining what the AI is allowed to return. **Modify
   this file when you want to change how the Vision AI specifically behaves or
-  interprets subjects.**
+  interprets subjects.** Dog/cat breed, mix, coat-pattern, and body-type
+  display hints belong here as `pet_identification`, not as replacement species
+  taxonomy.
 - **`types.ts`** The structural contracts. Contains `MerianIdentification` and
   `ClientPayload` to ensure Swift client expectations remain strictly
   synchronized with Edge function output.
@@ -30,6 +32,11 @@ to modify the pipeline, modify the exact module below rather than cluttering
 - **`db.ts`** The Postgres transaction wrapper. Isolates heavy, multi-line
   Supabase interactions (like ghost user upserts) to keep the core orchestrator
   perfectly clean.
+- **`sanitize.ts`** The response guardrail layer. It normalizes AI output before
+  persistence, including `pet_identification`: labels are trimmed and
+  length-capped, evidence is capped, confidence is clamped, generic Dog/Cat
+  labels are dropped, low-confidence labels are dropped, and non-dog/cat taxa
+  never receive pet metadata.
 - **`../_shared/tierCache.ts`** The shared tier resolver used before model
   selection. It returns the raw database `subscription_tier` plus
   `effective_tier`, `plan`, and `trial_active` so trial Pro users route to
@@ -51,6 +58,28 @@ else silently _after_ the user receives their fast ID.
 - _Rule:_ Offload all encyclopedic text enrichment, GBIF API polling, PostHog
   telemetry inserts, species table caching, and R2 moderation purges into the
   Background Engine.
+
+## Pet Identification
+
+`common_name` and `scientific_name` remain the authoritative biological result.
+For `Canis lupus familiaris` and `Felis catus`, the response may also include:
+
+```json
+{
+  "pet_identification": {
+    "species_group": "dog",
+    "label": "Australian Cattle Dog mix",
+    "label_type": "breed_mix",
+    "confidence_score": 0.82,
+    "evidence": ["blue-roan ticking", "black saddle patch", "compact herding-dog build"]
+  }
+}
+```
+
+This object is scan-level display metadata. It is persisted to
+`public.scans.pet_identification` and exposed through sync/Explore, but it is
+not written to `species_dictionary` and must not alter species common-name
+preferences.
 
 ## Shared Micro-Agents
 

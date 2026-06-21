@@ -619,6 +619,7 @@ The species dictionary page must never expose:
 - per-scan AI reasoning
 - user review state
 - preferred common-name overrides
+- scan-level pet-identification labels
 
 If a future web frontend consumes this endpoint, it should be able to use the
 same response safely without an authenticated session.

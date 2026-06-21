@@ -1069,6 +1069,16 @@ enum MerianSchemaV43: VersionedSchema {
     }
 }
 
+enum MerianSchemaV44: VersionedSchema {
+    static var versionIdentifier = Schema.Version(44, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
+         ScanCollection.self, PendingCloudDeletionTask.self,
+         UserSpeciesPreference.self]
+    }
+}
+
 // MARK: - Migration Plan
 enum MerianMigrationPlan: SchemaMigrationPlan {
     private static func migrationNamespace(for context: ModelContext) -> String {
@@ -1171,7 +1181,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV40.self,
             MerianSchemaV41.self,
             MerianSchemaV42.self,
-            MerianSchemaV43.self
+            MerianSchemaV43.self,
+            MerianSchemaV44.self
         ]
     }
 
@@ -1218,9 +1229,15 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV39toV40,
             migrateV40toV41,
             migrateV41toV42,
-            migrateV42toV43
+            migrateV42toV43,
+            migrateV43toV44
         ]
     }
+
+    static let migrateV43toV44 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV43.self,
+        toVersion: MerianSchemaV44.self
+    )
 
     static let migrateV41toV42 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV41.self,

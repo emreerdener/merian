@@ -467,6 +467,15 @@ generated it. The Swift decoding layer applies `.capitalized` on rendering for
 display consistency. For geological targets, it relies wholly on the Gemini
 output (no cache override applies).
 
+**`pet_identification` source**: Dog and cat scans may include a separate
+display object when the primary species is `Canis lupus familiaris` or
+`Felis catus`. This object is not taxonomy. It is sanitized after Gemini
+generation and dropped when the label is generic, below `0.70` confidence, or
+attached to any non-dog/cat taxon. Dog labels may be a breed or visible mix; cat
+labels prefer visible coat pattern or body type unless a true breed is visually
+supported. Clients can use the label for Insight, search, sharing, and Explore
+display, while `common_name` and `scientific_name` remain authoritative.
+
 **Critical Edge Limitation (Gemini 2.5):** The model returns `400 Bad Request`
 when enum fields include descriptive strings. `ecology_type` must be formatted
 as a structural JSON `enum: ["wild", "urban", "domesticated", "unknown"]`
@@ -480,6 +489,7 @@ constraint in the Deno schema.
   "ecology_type": "wild",
   "scientific_name": "Danaus plexippus",
   "common_name": "Monarch Butterfly",
+  "pet_identification": null,
   "confidence_score": 0.98,
   "blur_score": 0.1,
   "is_invasive": false,
@@ -569,6 +579,12 @@ constraint in the Deno schema.
 > species" label. `hazard_type` inside `insight_data` comes from
 > `species_dictionary` on Cache Hit; on Cache Miss the live response defaults to
 > `"none"` until later enrichment fills species-level hazard metadata.
+> `pet_identification` is optional and nullable. For a confident dog scan, the
+> value may look like
+> `{"species_group":"dog","label":"Australian Cattle Dog mix","label_type":"breed_mix","confidence_score":0.82,"evidence":["blue-roan ticking","black saddle patch","compact herding-dog build"]}`.
+> The stored species would still be `Domestic Dog` /
+> `Canis lupus familiaris`.
+>
 > `candidates` is required in `merianResponseSchema`; `identify` strips it to
 > `null` only when `confidence_score >= diagnosticTrigger` (`0.99` for both
 > Flash and Pro), preserving candidates for Possible, Weak, and Strong scans
@@ -588,7 +604,8 @@ task handles:
    safety ratings and promotes media from staging to public storage
 3. **Species dictionary enrichment** (Cache Miss only) — calls
    `fetchExternalEnrichment` for Wikipedia/GBIF data
-4. **`insertScan`** — writes the final scan row to `public.scans`
+4. **`insertScan`** — writes the final scan row to `public.scans`, including
+   sanitized `pet_identification` when present
 5. **Group tags** — fires a background Flash call to populate
    `species_dictionary.group_tags` for first-time species
 
@@ -1246,6 +1263,7 @@ Current response shape:
       "hashtags": ["citybioblitz", "springcount"],
       "species_common_name": "Monarch Butterfly",
       "species_scientific_name": "Danaus plexippus",
+      "pet_identification": null,
       "public_location_label": "Austin, TX",
       "location_sharing": "open",
       "time_of_day": "afternoon",
@@ -1274,6 +1292,10 @@ tag text without leading `#`; it is `[]` for untagged posts.
 or editing. It should be preferred over dictionary names for the public post
 projection, while clients may still apply viewer-local preferred-name display on
 top of the DTO for personalized native surfaces.
+When `pet_identification` is non-null, native clients may use
+`pet_identification.label` as the visible dog/cat card title. That label does
+not replace `species_common_name`, `species_scientific_name`, dictionary routes,
+or species stats.
 
 ### `/get-explore-post`
 
@@ -1311,6 +1333,7 @@ Current response shape:
     "hashtags": ["citybioblitz", "springcount"],
     "species_common_name": "Monarch Butterfly",
     "species_scientific_name": "Danaus plexippus",
+    "pet_identification": null,
     "public_location_label": "Austin, TX",
     "location_sharing": "open",
     "time_of_day": "afternoon",
@@ -1529,6 +1552,7 @@ Current response shape:
         "author_avatar_url": "https://...",
         "species_common_name": "River Birch",
         "species_scientific_name": "Betula nigra",
+        "pet_identification": null,
         "public_location_label": "Austin, TX",
         "time_of_day": "day",
         "current_month": 5,
@@ -1724,6 +1748,7 @@ Current response shapes:
       "author_avatar_url": "https://...",
       "species_common_name": "Monarch Butterfly",
       "species_scientific_name": "Danaus plexippus",
+      "pet_identification": null,
       "taxonomy_kingdom": "Animalia",
       "taxonomy_class": "Insecta",
       "public_location_label": "Austin, TX",
@@ -2493,8 +2518,10 @@ rendering:
 - `public_location_label`
 - `species_common_name` (displayed through `ExploreFeedViewModel`'s
   SwiftData-backed preferred-name cache when the viewer has a
-  `UserSpeciesPreference`)
+  `UserSpeciesPreference`; dog/cat pet labels can sit above this display
+  resolver when `pet_identification` is present)
 - `species_scientific_name`
+- `pet_identification`
 - `hero_image_url`
 - `hashtags`
 - `like_count`

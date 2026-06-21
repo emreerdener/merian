@@ -9,6 +9,7 @@
         {
           "title": "Changed",
           "items": [
+            "Dog and cat scans can now show a likely breed, mix, coat pattern, or body type while Merian keeps the underlying species taxonomy unchanged.",
             "Explore Tree now opens in a top-down taxonomy layout instead of the earlier sideways orientation.",
             "Explore Dictionary and Tree controls now provide haptic feedback on button actions.",
             "Notifications settings now include a single action to turn off every Merian notification category at once."

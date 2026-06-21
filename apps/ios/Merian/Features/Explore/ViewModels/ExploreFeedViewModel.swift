@@ -286,7 +286,11 @@ final class ExploreFeedViewModel {
     }
 
     func resolvedSpeciesCommonName(for post: ExplorePost) -> String {
-        resolvedSpeciesCommonName(
+        if let petLabel = post.petIdentification?.label.trimmingCharacters(in: .whitespacesAndNewlines),
+           !petLabel.isEmpty {
+            return petLabel
+        }
+        return resolvedSpeciesCommonName(
             scientificName: post.speciesScientificName,
             fallbackCommonName: post.speciesCommonName
         )

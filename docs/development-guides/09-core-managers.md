@@ -571,7 +571,7 @@ These helpers remain as parked implementation support for a future rebuild.
   indexing task cannot overwrite a newer library snapshot.
 - **`searchString` composition**: Each scan's search index string is a robust
   concatenation of
-  `commonName + scientificName + ecologyType + semanticTags + taxonomyClass + taxonomyOrder + taxonomyFamily + commonGroupName + aiReasoning + locationName + habitatDescription + weatherCondition + lifeStage + reproductiveCondition + sex + sexEvidence + similarSpecies.joined() + iucnRedListStatus + hazardType + ecologicalInteractions`.
+  `commonName + scientificName + petLabel + ecologyType + semanticTags + taxonomyClass + taxonomyOrder + taxonomyFamily + commonGroupName + aiReasoning + locationName + habitatDescription + weatherCondition + lifeStage + reproductiveCondition + sex + sexEvidence + similarSpecies.joined() + iucnRedListStatus + hazardType + ecologicalInteractions`.
   The `commonGroupName` is derived by
   `SearchDatabaseActor.commonGroupName(for:)`, which maps Latin class names to
   plain-English synonyms (e.g. `"aves"` → `"bird birds avian"`). Combined with
@@ -597,7 +597,8 @@ These helpers remain as parked implementation support for a future rebuild.
   so category-only searches never re-evaluate taxonomy on every document.
 - **`semanticTags` composition**: Assembled at write time in
   `BackgroundDatabaseActor` and `ScanRepository` as
-  `[commonName, scientificName] + colors + groupTags`. `groupTags` are the 1–5
+  `[commonName, scientificName, optional pet label] + colors + groupTags`.
+  `groupTags` are the 1–5
   broad-to-specific categorical labels (e.g. `["animal", "bird", "songbird"]`)
   sourced from `species_dictionary.group_tags` — generated once per species by a
   background Gemini Flash call and returned in the `/identify` response on cache
@@ -760,6 +761,9 @@ and `KeychainManager` migration logic. Do not inline
   `ExploreFeedViewModel` owns the observable preferred-name cache and resolves
   feed cards, map previews, comments, detail titles, and share text from that
   cache; `ExplorePost` and `ExploreMapPost` remain pure network DTOs.
+- Dog/cat pet labels bypass this repository. They are scan-level
+  `PetIdentification` metadata, not user-selected species common-name
+  preferences, and must never be written to `UserSpeciesPreference`.
 - Successful SwiftData writes clear stale legacy keys instead of mirroring back
   to `UserDefaults`, so SwiftData is the only live source of truth.
 - This is intentionally not part of `AppSettings`: preferred common names are

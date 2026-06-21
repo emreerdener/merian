@@ -589,6 +589,12 @@ actor BackgroundDatabaseActor {
         isLiveCapture: Bool,
         fieldNotes: String? = nil
     ) -> LocalScanRecord {
+        let petIdentificationData = mappedData.petIdentification.flatMap {
+            try? JSONEncoder().encode($0)
+        }
+        let semanticPetTags = [mappedData.petIdentification?.label].compactMap {
+            $0?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
         let record = LocalScanRecord(
             id: recordId,
             speciesId: speciesId,
@@ -598,7 +604,7 @@ actor BackgroundDatabaseActor {
             captureDate: captureDate,
             capturedMediaJSON: capturedMediaJSON,
             coverImagePath: coverImagePath,
-            semanticTags: [mappedData.commonName, mappedData.scientificName] + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
+            semanticTags: [mappedData.commonName, mappedData.scientificName] + semanticPetTags + (mappedData.colors ?? []) + (mappedData.groupTags ?? []),
             hazardType: mappedData.insightData.hazardType,
             isBiological: mappedData.isBiological,
             isLiveCapture: isLiveCapture,
@@ -637,6 +643,7 @@ actor BackgroundDatabaseActor {
             inferenceTier: mappedData.inferenceTier,
             imageQualityScore: mappedData.imageQualityScore,
             alternativeCommonNames: mappedData.alternativeCommonNames,
+            petIdentificationData: petIdentificationData,
             fieldNotes: fieldNotes
         )
 

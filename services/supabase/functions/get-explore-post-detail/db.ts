@@ -1,4 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import type { PetIdentification } from "../_shared/identify/types.ts";
 import type { PublicSimilarSpecies } from "../_shared/publicSpeciesProjection.ts";
 
 export interface ExplorePostDetailRow {
@@ -8,6 +9,7 @@ export interface ExplorePostDetailRow {
   hashtags?: string[] | null;
   species_dictionary_id?: string | null;
   alternative_common_names?: string[] | null;
+  pet_identification?: PetIdentification | null;
   taxonomy_kingdom?: string | null;
   taxonomy_phylum?: string | null;
   taxonomy_class?: string | null;

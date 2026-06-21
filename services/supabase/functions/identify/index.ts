@@ -57,7 +57,10 @@ import {
   MEDIA_BUDGETS,
   readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
-import { sanitizeScientificName } from "./sanitize.ts";
+import {
+  sanitizePetIdentification,
+  sanitizeScientificName,
+} from "./sanitize.ts";
 import {
   fetchCachedSpecies,
   fetchCandidateCommonNames,
@@ -443,6 +446,10 @@ serve((req: Request) =>
         scientific_name: sanitizeScientificName(c.scientific_name),
       }));
     }
+    parsedData.pet_identification = sanitizePetIdentification(
+      parsedData.pet_identification,
+      parsedData.scientific_name,
+    );
 
     // Cap the candidates list — the LLM schema enforces this but extractJson is an
     // unvalidated cast. Five alternatives is more than enough for the UI swipe modal.
@@ -839,6 +846,7 @@ serve((req: Request) =>
             image_quality_score: parsedData.image_quality?.overall_score ??
               null,
             is_live_capture: parsedData.is_live_capture,
+            pet_identification: parsedData.pet_identification ?? null,
             user_observation_context: (observation_context != null &&
                 typeof observation_context === "object" &&
                 !Array.isArray(observation_context))
