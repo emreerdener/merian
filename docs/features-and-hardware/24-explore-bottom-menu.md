@@ -24,9 +24,10 @@ Dictionary.
 - **Tree** is still in development and is only included in simulator builds.
   It shows `TaxonomyTreeCanvasView`, an interactive Tree of Life canvas powered
   by the `species-dictionary` Edge Function's `mode: "tree"` graph response for
-  the signed-in user's scanned taxonomy. Users can pan, zoom, search, focus
-  branches, inspect lineage highlights, and open a species preview before
-  navigating to the existing Species Dictionary detail page.
+  the signed-in user's scanned taxonomy. The default tree orientation runs
+  top-down from higher taxonomy ranks into species leaves. Users can pan, zoom,
+  search, focus branches, inspect lineage highlights, and open a species
+  preview before navigating to the existing Species Dictionary detail page.
 
 ## Navigation
 

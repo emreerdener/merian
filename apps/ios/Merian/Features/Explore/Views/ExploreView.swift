@@ -183,9 +183,16 @@ struct ExploreView: View {
             viewModel.refreshPreferredSpeciesNames(modelContext: modelContext)
         }
         .onChange(of: activeDiscoveryMode) { _, newValue in
+            HapticManager.shared.triggerSelectionPulse()
             if newValue == .map {
                 AppTelemetry.trackExploreMapOpened()
             }
+        }
+        .onChange(of: activeDictionaryMode) { _, _ in
+            HapticManager.shared.triggerSelectionPulse()
+        }
+        .onChange(of: activeCommunityMode) { _, _ in
+            HapticManager.shared.triggerSelectionPulse()
         }
         .task(id: activeTab) {
             guard activeTab == .dictionary else { return }
@@ -290,7 +297,10 @@ struct ExploreView: View {
     @ToolbarContentBuilder
     private var exploreToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button(action: { dismiss() }) {
+            Button {
+                HapticManager.shared.triggerLightImpact(intensity: 0.45)
+                dismiss()
+            } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .bold))
             }
@@ -490,7 +500,10 @@ struct ExploreView: View {
 
     private var bellButton: some View {
         ZStack(alignment: .topTrailing) {
-            Button(action: { viewModel.presentNotifications() }) {
+            Button {
+                HapticManager.shared.triggerSelectionPulse()
+                viewModel.presentNotifications()
+            } label: {
                 Image(systemName: "bell")
                     .font(.system(size: 16, weight: .bold))
                     .frame(width: 24, height: 24)

@@ -78,6 +78,10 @@ TestFlight, App Store, support, and QA.
 
 - Low-confidence Insight shares now default to asking Identify for help, while
   direct Explore publishing remains available behind a confirmation.
+- Explore Tree now opens in a top-down taxonomy layout instead of the earlier
+  sideways orientation.
+- Explore Dictionary and Tree controls now provide haptic feedback on button
+  actions.
 - Resolved Identify requests now stay out of normal Explore until the owner
   explicitly publishes them.
 - Refined Explore hashtag pills with transparent backgrounds, gray borders, and
@@ -131,6 +135,8 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed Explore Tree zoom controls jumping upward when selecting a taxonomy
+  node.
 - Fixed Species Dictionary catalog and overview surfaces so non-biological
   encyclopedia rows are filtered out before they can appear as dictionary
   records.

@@ -128,7 +128,7 @@ struct TaxonomyTreeCanvasView: View {
                 )
                 .position(
                     x: max(58, proxy.size.width - 42),
-                    y: max(220, proxy.size.height - (selectedNode == nil ? 120 : 244))
+                    y: max(220, proxy.size.height - 120)
                 )
                 .zIndex(4)
 
@@ -418,11 +418,11 @@ private struct TaxonomyTreeEdgesCanvas: View {
                 )
                 var path = Path()
                 path.move(to: endpoints.start)
-                let midpointX = (endpoints.start.x + endpoints.end.x) / 2
+                let midpointY = (endpoints.start.y + endpoints.end.y) / 2
                 path.addCurve(
                     to: endpoints.end,
-                    control1: CGPoint(x: midpointX, y: endpoints.start.y),
-                    control2: CGPoint(x: midpointX, y: endpoints.end.y)
+                    control1: CGPoint(x: endpoints.start.x, y: midpointY),
+                    control2: CGPoint(x: endpoints.end.x, y: midpointY)
                 )
                 context.stroke(
                     path,
@@ -440,12 +440,12 @@ private struct TaxonomyTreeEdgesCanvas: View {
         to end: CGPoint,
         toSize endSize: CGSize
     ) -> (start: CGPoint, end: CGPoint) {
-        let startsToRight = end.x >= start.x
-        let startX = start.x + (startsToRight ? startSize.width / 2 : -startSize.width / 2)
-        let endX = end.x + (startsToRight ? -endSize.width / 2 : endSize.width / 2)
+        let startsAbove = end.y >= start.y
+        let startY = start.y + (startsAbove ? startSize.height / 2 : -startSize.height / 2)
+        let endY = end.y + (startsAbove ? -endSize.height / 2 : endSize.height / 2)
         return (
-            CGPoint(x: startX, y: start.y),
-            CGPoint(x: endX, y: end.y)
+            CGPoint(x: start.x, y: startY),
+            CGPoint(x: end.x, y: endY)
         )
     }
 }
@@ -486,7 +486,10 @@ private struct TaxonomyTreeFloatingControls: View {
     }
 
     private func controlButton(systemImage: String, action: @escaping () -> Void, label: String) -> some View {
-        Button(action: action) {
+        Button {
+            HapticManager.shared.triggerLightImpact(intensity: 0.48)
+            action()
+        } label: {
             Image(systemName: systemImage)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
@@ -796,6 +799,7 @@ private struct TaxonomyTreeSelectionDrawer: View {
             HStack(spacing: 10) {
                 if let route = node.dictionaryRoute {
                     Button {
+                        HapticManager.shared.triggerSelectionPulse()
                         onOpen(route)
                     } label: {
                         Label("Open", systemImage: "book")

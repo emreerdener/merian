@@ -822,7 +822,7 @@ struct SpeciesDictionaryTests {
         let genusPosition = try #require(layout.positions[danausID])
         let speciesPosition = try #require(layout.positions[monarchID])
 
-        #expect(genusPosition.x < speciesPosition.x)
+        #expect(genusPosition.y < speciesPosition.y)
         #expect(layout.size.width >= 320)
         #expect(layout.size.height >= 480)
     }

@@ -18,6 +18,7 @@ struct ExploreDictionarySearchBar: View {
 
             if !text.isEmpty {
                 Button {
+                    HapticManager.shared.triggerLightImpact(intensity: 0.4)
                     text = ""
                     isFocused = true
                 } label: {

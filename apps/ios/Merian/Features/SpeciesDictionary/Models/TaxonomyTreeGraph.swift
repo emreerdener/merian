@@ -187,10 +187,10 @@ struct TaxonomyTreeLayout: Equatable {
             return TaxonomyTreeLayout(positions: [:], size: minimumSize)
         }
 
-        let horizontalSpacing: CGFloat = 230
-        let verticalSpacing: CGFloat = 86
-        let leftPadding: CGFloat = 120
-        let topPadding: CGFloat = 88
+        let siblingSpacing: CGFloat = 190
+        let rankSpacing: CGFloat = 132
+        let leftPadding: CGFloat = 150
+        let topPadding: CGFloat = 100
         var positions: [String: CGPoint] = [:]
         var nextLeafIndex: CGFloat = 0
 
@@ -202,8 +202,8 @@ struct TaxonomyTreeLayout: Equatable {
                 visibleNodeIDs: visibleNodeIDs,
                 positions: &positions,
                 nextLeafIndex: &nextLeafIndex,
-                horizontalSpacing: horizontalSpacing,
-                verticalSpacing: verticalSpacing,
+                siblingSpacing: siblingSpacing,
+                rankSpacing: rankSpacing,
                 leftPadding: leftPadding,
                 topPadding: topPadding
             )
@@ -212,8 +212,8 @@ struct TaxonomyTreeLayout: Equatable {
 
         for node in graph.nodes where visibleNodeIDs.contains(node.id) && positions[node.id] == nil {
             positions[node.id] = CGPoint(
-                x: leftPadding + CGFloat(node.rank.sortIndex) * horizontalSpacing,
-                y: topPadding + nextLeafIndex * verticalSpacing
+                x: leftPadding + nextLeafIndex * siblingSpacing,
+                y: topPadding + CGFloat(node.rank.sortIndex) * rankSpacing
             )
             nextLeafIndex += 1
         }
@@ -221,8 +221,8 @@ struct TaxonomyTreeLayout: Equatable {
         let maxRankIndex = visibleNodeIDs
             .compactMap { graph.node(id: $0)?.rank.sortIndex }
             .max() ?? 0
-        let width = max(minimumSize.width, leftPadding * 2 + CGFloat(maxRankIndex) * horizontalSpacing + 220)
-        let height = max(minimumSize.height, topPadding * 2 + max(1, nextLeafIndex) * verticalSpacing)
+        let width = max(minimumSize.width, leftPadding * 2 + max(1, nextLeafIndex) * siblingSpacing)
+        let height = max(minimumSize.height, topPadding * 2 + CGFloat(maxRankIndex) * rankSpacing + 120)
 
         return TaxonomyTreeLayout(
             positions: positions,
@@ -237,8 +237,8 @@ struct TaxonomyTreeLayout: Equatable {
         visibleNodeIDs: Set<String>,
         positions: inout [String: CGPoint],
         nextLeafIndex: inout CGFloat,
-        horizontalSpacing: CGFloat,
-        verticalSpacing: CGFloat,
+        siblingSpacing: CGFloat,
+        rankSpacing: CGFloat,
         leftPadding: CGFloat,
         topPadding: CGFloat
     ) -> CGFloat {
@@ -248,31 +248,31 @@ struct TaxonomyTreeLayout: Equatable {
 
         let visibleChildren = (graph.childrenByParentID[nodeID] ?? [])
             .filter { visibleNodeIDs.contains($0) }
-        let yIndex: CGFloat
+        let xIndex: CGFloat
         if visibleChildren.isEmpty {
-            yIndex = nextLeafIndex
+            xIndex = nextLeafIndex
             nextLeafIndex += 1
         } else {
-            let childYValues = visibleChildren.map { childID in
+            let childXValues = visibleChildren.map { childID in
                 assignPosition(
                     nodeID: childID,
                     graph: graph,
                     visibleNodeIDs: visibleNodeIDs,
                     positions: &positions,
                     nextLeafIndex: &nextLeafIndex,
-                    horizontalSpacing: horizontalSpacing,
-                    verticalSpacing: verticalSpacing,
+                    siblingSpacing: siblingSpacing,
+                    rankSpacing: rankSpacing,
                     leftPadding: leftPadding,
                     topPadding: topPadding
                 )
             }
-            yIndex = childYValues.reduce(0, +) / CGFloat(childYValues.count)
+            xIndex = childXValues.reduce(0, +) / CGFloat(childXValues.count)
         }
 
         positions[nodeID] = CGPoint(
-            x: leftPadding + CGFloat(node.rank.sortIndex) * horizontalSpacing,
-            y: topPadding + yIndex * verticalSpacing
+            x: leftPadding + xIndex * siblingSpacing,
+            y: topPadding + CGFloat(node.rank.sortIndex) * rankSpacing
         )
-        return yIndex
+        return xIndex
     }
 }

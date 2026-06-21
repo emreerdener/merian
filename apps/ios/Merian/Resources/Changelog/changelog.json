@@ -2,6 +2,26 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-21-explore-tree-orientation",
+      "date": "2026-06-21",
+      "title": "Explore Tree orientation",
+      "sections": [
+        {
+          "title": "Changed",
+          "items": [
+            "Explore Tree now opens in a top-down taxonomy layout instead of the earlier sideways orientation.",
+            "Explore Dictionary and Tree controls now provide haptic feedback on button actions."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Explore Tree zoom controls no longer jump upward when selecting a taxonomy node."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-20-explore-map-filters",
       "date": "2026-06-20",
       "title": "Explore Map filters",
