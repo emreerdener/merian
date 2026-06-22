@@ -234,9 +234,11 @@ landing view through overview mode:
 The response returns image-backed category summaries for `All`, `Your Region`,
 `Taxonomy`, and `Recently Added`, a Recently Added featured species card with
 overview copy, graphic-led high-level group summaries such as Birds and Plants,
-plus region summaries derived from `species_dictionary.native_region`. iOS uses
-that featured card as the visible Recently Added entry point, renders `Your
-Region` as a full-width MapKit snapshot card when a matched native-region
+plus region summaries derived from `species_dictionary.native_region`.
+`Recently Added` is capped to the newest 40 biological entries for its overview
+count and representative image so it does not duplicate the `All` total. iOS
+uses that featured card as the visible Recently Added entry point, renders
+`Your Region` as a full-width MapKit snapshot card when a matched native-region
 catalog exists, and moves `All` into a bottom row link. Explore keeps Dictionary
 as the only bottom-navigation entry for species reference surfaces; the root
 Dictionary tab exposes a header segmented control that switches between the

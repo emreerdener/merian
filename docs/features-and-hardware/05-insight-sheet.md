@@ -168,10 +168,13 @@ with direct Explore sharing. The Ask affordance is gated on actual user image
 media, not a padded display count, so image-less historical/text scans cannot
 enter a request that the server cannot publish.
 
-The request sheet title is `Ask the community` in sentence case and stays
-centered because submission is not a trailing navigation item. The Send action
-lives at the bottom of the form as a full-width primary blue button and changes
-to `Sending...` while submission is in flight.
+The request sheet title is `Ask the community` in sentence case. The shared
+`CommunityIdentificationRequestSheet` is used for both new requests and existing
+request edits, with the primary action in the toolbar: `Send`/`Sending...` for
+new requests and `Save`/`Saving...` for edits. When the scan already has an
+active community request, the Insight share sheet shows horizontal **Edit** and
+**View** actions, then a separate **Publish to Explore** action with a visible
+reminder that the community is still reviewing the ID.
 
 ---
 

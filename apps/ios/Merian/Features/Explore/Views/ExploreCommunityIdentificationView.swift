@@ -307,7 +307,7 @@ struct ExploreCommunityIdentificationView: View {
     private var emptyStateDescription: String {
         switch requestFilter {
         case .mine:
-            "Ask the Community from an insight when you want help identifying one of your observations."
+            "Ask the community from an insight when you want help identifying one of your observations."
         case .all:
             "Identification requests will appear here when explorers ask for help."
         default:
@@ -588,6 +588,7 @@ struct ExploreCommunityIdentificationDetailView: View {
     @State private var isEditPresented = false
     @State private var pendingResolver: CommunityDisagreementResolverContext?
     @State private var isSubmitting = false
+    @State private var isUpdatingRequest = false
     @State private var isReporting = false
     @State private var toastMessage: String?
 
@@ -620,7 +621,7 @@ struct ExploreCommunityIdentificationDetailView: View {
                             Button {
                                 isEditPresented = true
                             } label: {
-                                Label("Edit post", systemImage: "square.and.pencil")
+                                Label("Edit request", systemImage: "square.and.pencil")
                             }
                         } else {
                             Button(role: .destructive) {
@@ -652,10 +653,24 @@ struct ExploreCommunityIdentificationDetailView: View {
         }
         .sheet(isPresented: $isEditPresented) {
             if let detail {
-                CommunityIdentificationRequestEditSheet(
-                    detail: detail,
-                    onSave: { note, locationSharing in
-                        try await saveRequestEdits(note: note, locationSharing: locationSharing)
+                CommunityIdentificationRequestSheet(
+                    speciesName: detail.displayName,
+                    scientificName: requestSheetScientificName(for: detail),
+                    existingRequestId: detail.requestId,
+                    initialNote: detail.note,
+                    initialLocationSharing: detail.locationSharing,
+                    shouldLoadExistingRequestDetail: false,
+                    isSubmitting: isUpdatingRequest,
+                    onLoadFailed: { message in
+                        toastMessage = message
+                    },
+                    onSubmit: { note, locationSharing in
+                        Task {
+                            await saveRequestEditsFromSheet(
+                                note: note,
+                                locationSharing: locationSharing
+                            )
+                        }
                     }
                 )
             }
@@ -766,6 +781,29 @@ struct ExploreCommunityIdentificationDetailView: View {
             locationSharing: locationSharing
         )
         await loadDetail()
+    }
+
+    private func saveRequestEditsFromSheet(
+        note: String?,
+        locationSharing: ExplorePostLocationSharing
+    ) async {
+        guard !isUpdatingRequest else { return }
+        isUpdatingRequest = true
+        defer { isUpdatingRequest = false }
+
+        do {
+            try await saveRequestEdits(note: note, locationSharing: locationSharing)
+            isEditPresented = false
+            HapticManager.shared.triggerSuccessPulse()
+            toastMessage = "Request updated"
+        } catch {
+            HapticManager.shared.triggerErrorThump()
+            toastMessage = ExploreErrorFormatter.message(for: error)
+        }
+    }
+
+    private func requestSheetScientificName(for detail: CommunityIdentificationDetail) -> String {
+        detail.currentScientificName ?? detail.initialScientificName ?? detail.displayRank
     }
 
     private func isOwnedByCurrentUser(_ detail: CommunityIdentificationDetail) -> Bool {
@@ -1191,119 +1229,6 @@ private struct CommunityIdentificationRow: View {
 
     private var identificationSubtitle: String {
         "\(identification.displayRank) by \(identification.authorName)"
-    }
-}
-
-private struct CommunityIdentificationRequestEditSheet: View {
-    let detail: CommunityIdentificationDetail
-    let onSave: (String?, ExplorePostLocationSharing) async throws -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var note: String
-    @State private var locationSharing: ExplorePostLocationSharing
-    @State private var isSaving = false
-    @State private var errorMessage: String?
-
-    init(
-        detail: CommunityIdentificationDetail,
-        onSave: @escaping (String?, ExplorePostLocationSharing) async throws -> Void
-    ) {
-        self.detail = detail
-        self.onSave = onSave
-        _note = State(initialValue: detail.note ?? "")
-        _locationSharing = State(initialValue: detail.locationSharing ?? .obscured)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(detail.displayName)
-                            .font(.headline)
-                        Text(detail.displayRank)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                Section("Request") {
-                    TextEditor(text: $note)
-                        .frame(minHeight: 120)
-                        .overlay(alignment: .topLeading) {
-                            if trimmedNote == nil {
-                                Text("What should identifiers know?")
-                                    .foregroundStyle(.secondary)
-                                    .padding(.top, 8)
-                                    .padding(.leading, 5)
-                                    .allowsHitTesting(false)
-                            }
-                        }
-                }
-
-                Section("Location") {
-                    Picker("Location Sharing", selection: $locationSharing) {
-                        ForEach(ExplorePostLocationSharing.allCases) { option in
-                            Text(option.title).tag(option)
-                        }
-                    }
-                }
-
-                if let errorMessage {
-                    Section {
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-                }
-            }
-            .navigationTitle("Edit request")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
-                            .imageOverlayToolbarIconChrome(
-                                isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground,
-                                foregroundColor: .primary
-                            )
-                    }
-                    .accessibilityLabel("Close")
-                    .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isSaving ? "Saving..." : "Save") {
-                        Task { await save() }
-                    }
-                    .tint(.blue)
-                    .disabled(isSaving)
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private var trimmedNote: String? {
-        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private func save() async {
-        guard !isSaving else { return }
-        isSaving = true
-        defer { isSaving = false }
-
-        do {
-            try await onSave(trimmedNote, locationSharing)
-            dismiss()
-        } catch {
-            errorMessage = ExploreErrorFormatter.message(for: error)
-        }
     }
 }
 

@@ -131,6 +131,21 @@ struct InsightShareButton: View {
         }
     }
 
+    var pendingCommunityPublishDisclaimer: String {
+        "The community is still reviewing this ID. Publish only if you are comfortable making it visible in Explore now."
+    }
+
+    var explorePublishConfirmationMessage: String {
+        switch shareRecommendation {
+        case .communityPending:
+            return pendingCommunityPublishDisclaimer
+        case .askCommunity:
+            return "This ID has not been confirmed yet. Ask the community first if you want help verifying it before publishing."
+        case .communityResolvedNeedsPublish, .publishToExplore:
+            return "Publish this discovery so others can learn and explore."
+        }
+    }
+
     var primaryBlue: Color {
         Color.accentColor
     }
@@ -172,7 +187,7 @@ struct InsightShareButton: View {
                 showingExploreComposer = true
             }
         } message: {
-            Text("This ID has not been confirmed yet. Ask the community first if you want help verifying it before publishing.")
+            Text(explorePublishConfirmationMessage)
         }
         .sheet(isPresented: $showingExploreComposer) {
             ExplorePostComposerView(

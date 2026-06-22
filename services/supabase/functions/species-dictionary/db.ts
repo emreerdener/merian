@@ -205,6 +205,7 @@ export interface SpeciesDictionaryTreeResult {
 export const USER_SCANNED_SPECIES_TREE_PAGE_SIZE = 500;
 export const SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE = 100;
 export const SPECIES_DICTIONARY_OVERVIEW_REGION_LIMIT = 24;
+export const SPECIES_DICTIONARY_RECENTLY_ADDED_OVERVIEW_LIMIT = 40;
 const SPECIES_DICTIONARY_CATALOG_SELECT =
   "id, scientific_name, common_names, alternative_common_names, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, wikipedia_overview, hazard_type, iucn_red_list_status, habitat_description, gbif_taxon_key, group_tags, native_region, created_at";
 const HIGH_LEVEL_SPECIES_GROUPS = [
@@ -789,6 +790,10 @@ export function buildSpeciesDictionaryOverview(
   const sortedRows = biologicalRows.slice().sort(
     speciesDictionaryCreatedAtDescending,
   );
+  const recentlyAddedRows = sortedRows.slice(
+    0,
+    SPECIES_DICTIONARY_RECENTLY_ADDED_OVERVIEW_LIMIT,
+  );
   const regions = buildSpeciesDictionaryRegionSummaries(
     biologicalRows,
     firstImageBySpeciesId,
@@ -851,9 +856,9 @@ export function buildSpeciesDictionaryOverview(
         id: "recently_added",
         title: "Recently Added",
         subtitle: "Newest entries added to the database",
-        count: biologicalRows.length,
+        count: recentlyAddedRows.length,
         reference_image_url: representativeImageUrl(
-          sortedRows,
+          recentlyAddedRows,
           firstImageBySpeciesId,
         ),
         region: null,

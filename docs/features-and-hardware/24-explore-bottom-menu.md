@@ -66,8 +66,14 @@ stays aligned with the current active ID count shown in detail.
 When an Insight already has an active community request, the Insight share flow
 opens the same request sheet in edit mode, prefills the current note and
 location sharing from request detail, and saves through
-`/update-community-identification-request`; new scans continue to use the sheet
-in create mode and call `/request-community-identification`.
+`/update-community-identification-request`. Opening **Edit request** from the
+community request detail menu uses that same `CommunityIdentificationRequestSheet`
+component, so Insight-originated edits and request-detail edits share the same
+toolbar Save action and form layout. Pending requests render horizontal **Edit**
+and **View** actions first, followed by a separate **Publish to Explore** action
+with a visible disclaimer that the community is still reviewing the ID. New
+scans continue to use the sheet in create mode and call
+`/request-community-identification`.
 
 The detail sheet intentionally leaves the image toolbar title empty. The image
 is the visual context, while the first body card names Merian's AI

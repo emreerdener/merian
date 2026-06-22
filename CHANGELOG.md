@@ -8,19 +8,22 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed the Explore Dictionary Recently Added row so its species count reflects
+  the newest entries instead of duplicating the full All total.
 - Fixed Ask the Community request ownership after account identity changes so
   requests stay associated with the signed-in user and remain visible under
   Yours.
 - Fixed Insight sharing and Ask the community requests for local scans whose
   cloud scan row was missing after background ingestion failed.
-- Fixed the Ask the community request sheet title casing and moved Send into a
-  primary blue button at the bottom of the form so the title stays centered.
+- Fixed the Ask the community request sheet title casing and kept Send/Save in
+  the sheet toolbar so create and edit requests use the same form style.
 - Fixed the proactive beta feedback survey so the third-scan prompt waits until
   the Insight sheet closes instead of competing with the result sheet.
 - Fixed Identify request cards so their submitted-ID badge refreshes after
   someone suggests, withdraws, or restores an ID from the detail screen.
-- Fixed the Ask the community sheet footer button styling and let existing
-  community requests be edited from the Insight share flow.
+- Fixed existing Ask the community request actions in the Insight share flow
+  with Edit/View buttons plus a Publish to Explore option and visible review
+  disclaimer.
 - Fixed Supabase Edge Function deploy reliability by routing runtime
   dependencies through the function import map and removing deploy-time
   deno.land/esm.sh runtime fetches from function graphs.

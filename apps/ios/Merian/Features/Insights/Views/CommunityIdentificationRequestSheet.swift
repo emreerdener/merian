@@ -4,7 +4,9 @@ struct CommunityIdentificationRequestSheet: View {
     let speciesName: String
     let scientificName: String
     let existingRequestId: String?
+    let initialNote: String?
     let initialLocationSharing: ExplorePostLocationSharing?
+    let shouldLoadExistingRequestDetail: Bool
     let isSubmitting: Bool
     let onLoadFailed: (String) -> Void
     let onSubmit: (String?, ExplorePostLocationSharing) -> Void
@@ -86,9 +88,14 @@ struct CommunityIdentificationRequestSheet: View {
                     .accessibilityLabel("Close")
                     .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
                 }
-            }
-            .safeAreaInset(edge: .bottom) {
-                submitButton
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(actionTitle) {
+                        onSubmit(trimmedNote, locationSharing)
+                    }
+                    .tint(.blue)
+                    .disabled(isSubmitting || isLoadingExistingRequest)
+                }
             }
             .task(id: existingRequestId) {
                 await loadExistingRequestIfNeeded()
@@ -112,22 +119,6 @@ struct CommunityIdentificationRequestSheet: View {
         return isEditingExistingRequest ? "Save" : "Send"
     }
 
-    private var submitButton: some View {
-        Button {
-            onSubmit(trimmedNote, locationSharing)
-        } label: {
-            Text(actionTitle)
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .disabled(isSubmitting || isLoadingExistingRequest)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.regularMaterial)
-    }
-
     private var trimmedNote: String? {
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
@@ -136,6 +127,7 @@ struct CommunityIdentificationRequestSheet: View {
     private func loadExistingRequestIfNeeded() async {
         guard let existingRequestId,
               existingRequestId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            note = initialNote ?? ""
             locationSharing = initialLocationSharing ?? .obscured
             hasLoadedExistingRequest = false
             loadErrorMessage = nil
@@ -143,9 +135,18 @@ struct CommunityIdentificationRequestSheet: View {
         }
         guard !hasLoadedExistingRequest else { return }
 
+        if let initialNote {
+            note = initialNote
+        }
         if let initialLocationSharing {
             locationSharing = initialLocationSharing
         }
+        guard shouldLoadExistingRequestDetail else {
+            hasLoadedExistingRequest = true
+            loadErrorMessage = nil
+            return
+        }
+
         isLoadingExistingRequest = true
         defer { isLoadingExistingRequest = false }
 

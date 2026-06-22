@@ -815,7 +815,12 @@ private struct SpeciesDictionaryOverviewRow: View {
     }
 
     private var countLabel: String {
-        "\(category.count) species"
+        switch category.id {
+        case .recentlyAdded:
+            "Newest \(category.count) species"
+        default:
+            "\(category.count) species"
+        }
     }
 
     private var iconName: String {

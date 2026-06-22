@@ -13,6 +13,7 @@ import {
   referenceImagesFromRows,
   resolveCommonName,
   sanitizeAlternativeCommonNames,
+  SPECIES_DICTIONARY_RECENTLY_ADDED_OVERVIEW_LIMIT,
   speciesIdsFromUserScanRows,
   speciesReferenceImageLookupBatches,
 } from "./db.ts";
@@ -631,6 +632,29 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
     "Northern Hemisphere",
   ]);
   assertEquals(overview.regions[0].count, 3);
+});
+
+Deno.test("species-dictionary helpers - recently added overview count is capped to newest entries", () => {
+  const rows = Array.from({ length: 45 }, (_, index) => {
+    const uuidSuffix = String(index + 1).padStart(12, "0");
+    return speciesRow({
+      id: `00000000-0000-0000-0000-${uuidSuffix}`,
+      scientific_name: `Species recentissima ${index + 1}`,
+      common_names: { en: `Recent Species ${index + 1}` },
+      created_at: new Date(Date.UTC(2026, 4, index + 1, 12)).toISOString(),
+    });
+  });
+  const overview = buildSpeciesDictionaryOverview(rows);
+
+  assertEquals(
+    overview.categories.find((category) => category.id === "all")?.count,
+    45,
+  );
+  assertEquals(
+    overview.categories.find((category) => category.id === "recently_added")
+      ?.count,
+    SPECIES_DICTIONARY_RECENTLY_ADDED_OVERVIEW_LIMIT,
+  );
 });
 
 Deno.test("species-dictionary helpers - featured species can be newest image-only row", () => {

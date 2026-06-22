@@ -100,7 +100,9 @@ struct InsightContentView: View {
                     speciesName: viewModel.resolvedHeaderTitle,
                     scientificName: speciesData.scientificName,
                     existingRequestId: viewModel.state.sharedCommunityIdentificationRequestId,
+                    initialNote: nil,
                     initialLocationSharing: viewModel.state.sharedExploreLocationSharing,
+                    shouldLoadExistingRequestDetail: true,
                     isSubmitting: viewModel.state.isRequestingCommunityIdentification,
                     onLoadFailed: { message in
                         viewModel.state.toastMessage = message

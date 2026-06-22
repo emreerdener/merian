@@ -149,7 +149,9 @@ extension InsightShareButton {
                 }
             }
 
-            if sharedExplorePostId == nil {
+            if sharedExplorePostId == nil, shareRecommendation == .communityPending {
+                pendingCommunityRequestActions
+            } else if sharedExplorePostId == nil {
                 Button {
                     pendingAction = primaryExplorePanelAction
                     showingOptions = false
@@ -218,6 +220,60 @@ extension InsightShareButton {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
+    }
+
+    private var pendingCommunityRequestActions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                if onEditCommunityRequest != nil {
+                    exploreSecondaryActionButton(
+                        title: "Edit",
+                        systemImage: "square.and.pencil",
+                        isProminent: true,
+                        isDisabled: false
+                    ) {
+                        pendingAction = .editCommunityRequest
+                        showingOptions = false
+                    }
+                }
+
+                if onViewCommunityRequest != nil {
+                    exploreSecondaryActionButton(
+                        title: "View",
+                        systemImage: "person.crop.circle.badge.questionmark",
+                        isDisabled: false
+                    ) {
+                        pendingAction = .viewCommunityRequest
+                        showingOptions = false
+                    }
+                }
+            }
+
+            if onShareToExplore != nil {
+                Button {
+                    pendingAction = .publishExploreAnyway
+                    showingOptions = false
+                } label: {
+                    Label("Publish to Explore", systemImage: "safari")
+                        .font(.headline)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 13)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(primaryBlue)
+                        )
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .disabled(isSharingToExplore)
+
+                Text(pendingCommunityPublishDisclaimer)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     @ViewBuilder
@@ -298,6 +354,7 @@ extension InsightShareButton {
     private func exploreSecondaryActionButton(
         title: String,
         systemImage: String? = nil,
+        isProminent: Bool = false,
         isDisabled: Bool,
         action: @escaping () -> Void
     ) -> some View {
@@ -315,12 +372,26 @@ extension InsightShareButton {
             .frame(maxWidth: .infinity)
             .background(
                 Capsule(style: .continuous)
-                    .fill(primaryBlue.opacity(systemImage == "eye" ? 1 : 0.14))
+                    .fill(secondaryActionFillColor(isProminent: isProminent, systemImage: systemImage))
             )
         }
         .buttonStyle(.plain)
-        .foregroundStyle(systemImage == "eye" ? .white : primaryBlue)
+        .foregroundStyle(secondaryActionForegroundColor(isProminent: isProminent, systemImage: systemImage))
         .disabled(isDisabled)
+    }
+
+    private func secondaryActionFillColor(isProminent: Bool, systemImage: String?) -> Color {
+        if isProminent {
+            return colorScheme == .dark ? .white : .black
+        }
+        return systemImage == "eye" ? primaryBlue : primaryBlue.opacity(0.14)
+    }
+
+    private func secondaryActionForegroundColor(isProminent: Bool, systemImage: String?) -> Color {
+        if isProminent {
+            return Color(uiColor: .systemBackground)
+        }
+        return systemImage == "eye" ? .white : primaryBlue
     }
 
     private func updateFieldNotesVisibility(isPublic: Bool) {
