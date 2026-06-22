@@ -15,6 +15,8 @@ TestFlight, App Store, support, and QA.
   cloud scan row was missing after background ingestion failed.
 - Fixed the Ask the community request sheet title casing and moved Send into a
   primary blue button at the bottom of the form so the title stays centered.
+- Fixed the proactive beta feedback survey so the third-scan prompt waits until
+  the Insight sheet closes instead of competing with the result sheet.
 
 ### Added
 

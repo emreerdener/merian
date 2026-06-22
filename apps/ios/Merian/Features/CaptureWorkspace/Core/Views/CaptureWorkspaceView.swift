@@ -39,6 +39,7 @@ struct CaptureWorkspaceView: View {
     @State private var stagedDescriptionEditIndex: Int?
     @State private var showFeedbackSurvey = false
     @State private var hasEvaluatedFeedbackSurveyPrompt = false
+    @State private var feedbackSurveyPromptPending = false
     @State private var feedbackSurveyPresentedProactively = false
 
     /// Dedicated scroll-position state for the pager. Decoupled from captureMode so that
@@ -290,7 +291,7 @@ struct CaptureWorkspaceView: View {
             )
         }
         .task(id: feedbackPromptSignature) {
-            await presentFeedbackSurveyIfEligible()
+            await armFeedbackSurveyPromptIfEligible()
         }
         .sheet(
             isPresented: Binding(
@@ -413,6 +414,10 @@ struct CaptureWorkspaceView: View {
                 // startSession() hardware call can never fire indiscriminately during
                 // backgrounding transitions when the UI naturally dismisses sheets.
                 cameraManager.startSession()
+            }
+
+            if newSheet == nil {
+                Task { await presentPendingFeedbackSurveyIfReady() }
             }
         }
         .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
@@ -543,7 +548,7 @@ struct CaptureWorkspaceView: View {
         ].joined(separator: "|")
     }
 
-    private func presentFeedbackSurveyIfEligible() async {
+    private func armFeedbackSurveyPromptIfEligible() async {
         guard !hasEvaluatedFeedbackSurveyPrompt else { return }
         guard FeedbackSurveyPromptPolicy.shouldPrompt(
             completedScanCount: messageShareCacheRecords.count,
@@ -555,8 +560,22 @@ struct CaptureWorkspaceView: View {
         }
 
         hasEvaluatedFeedbackSurveyPrompt = true
+        feedbackSurveyPromptPending = true
+        await presentPendingFeedbackSurveyIfReady()
+    }
+
+    private func presentPendingFeedbackSurveyIfReady() async {
+        guard feedbackSurveyPromptPending else { return }
+        guard viewModel.activeSheet == nil else { return }
+        guard !showFeedbackSurvey else { return }
+
         try? await Task.sleep(nanoseconds: 1_200_000_000)
         guard !Task.isCancelled else { return }
+        guard feedbackSurveyPromptPending else { return }
+        guard viewModel.activeSheet == nil else { return }
+        guard !showFeedbackSurvey else { return }
+
+        feedbackSurveyPromptPending = false
         feedbackSurveyPresentedProactively = true
         showFeedbackSurvey = true
     }
