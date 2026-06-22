@@ -163,8 +163,8 @@ The response envelope is:
 
 ### `/get-community-identification-feed`
 
-Returns unresolved `needs_id` requests for the Identify tab. Optional
-`scope` accepts `all` or `mine` and defaults to `all`; `mine` returns unresolved
+Returns unresolved `needs_id` requests for the Identify tab. Optional `scope`
+accepts `all` or `mine` and defaults to `all`; `mine` returns unresolved
 requests created by the authenticated viewer. Optional `latitude` and
 `longitude` sort local public-coordinate requests first, followed by recent
 requests. Cursor fields are `before_requested_at` and `before_request_id`. Rows
@@ -229,9 +229,8 @@ Example `suggested_taxa` shape:
 
 Updates the authenticated request owner’s editable request info. Accepts
 `request_id`, optional `note`, and required `location_sharing` (`open`,
-`obscured`, `private`). The backend only updates non-withdrawn requests owned
-by the current user and also updates the backing Explore post’s
-`location_sharing`.
+`obscured`, `private`). The backend only updates non-withdrawn requests owned by
+the current user and also updates the backing Explore post’s `location_sharing`.
 
 ### `/search-community-taxa`
 
@@ -242,27 +241,26 @@ caches them into the active Community Taxonomy Index, and searches again. GBIF
 failures do not block local results. Accepts optional `taxonomy_version_id`;
 request detail searches should pass the request's pinned version.
 
-Rows return `taxon_id`, `taxonomy_version_id`, `common_name`,
-`scientific_name`, `rank`, `path`, `species_id`, `gbif_taxon_key`, `source`,
-`is_in_dictionary`, `accepted_gbif_taxon_key`, and `taxonomic_status`.
-`species_id = null` is valid for GBIF-only taxa that have not been materialized
-into Merian's enriched Dictionary yet. The Swift client uses `path` to decide
-whether a selected ID is exact, descendant, ancestor, or conflicting before
-presenting any disagreement sheet.
+Rows return `taxon_id`, `taxonomy_version_id`, `common_name`, `scientific_name`,
+`rank`, `path`, `species_id`, `gbif_taxon_key`, `source`, `is_in_dictionary`,
+`accepted_gbif_taxon_key`, and `taxonomic_status`. `species_id = null` is valid
+for GBIF-only taxa that have not been materialized into Merian's enriched
+Dictionary yet. The Swift client uses `path` to decide whether a selected ID is
+exact, descendant, ancestor, or conflicting before presenting any disagreement
+sheet.
 
 ### `/submit-community-identification`
 
 Accepts `request_id`, `taxon_id`, optional `disagreement_mode`, optional
 `reasoning`, and optional `is_genus_best_possible`. The backend validates that
 the taxon belongs to the request's pinned taxonomy version, withdraws the
-current user's previous active ID, inserts a new audit row, enqueues a
-consensus job, and attempts one immediate best-effort processing pass.
-Consensus rules are unchanged: active human IDs only, at least two
-identifications, score strictly greater than `2 / 3`, sibling/unrelated votes
-counting against a candidate, and coarse ancestor IDs staying neutral unless
-explicitly marked as disagreement. Species consensus resolves immediately;
-genus consensus resolves only when at least one exact genus ID marks genus as
-best practical.
+current user's previous active ID, inserts a new audit row, enqueues a consensus
+job, and attempts one immediate best-effort processing pass. Consensus rules are
+unchanged: active human IDs only, at least two identifications, score strictly
+greater than `2 / 3`, sibling/unrelated votes counting against a candidate, and
+coarse ancestor IDs staying neutral unless explicitly marked as disagreement.
+Species consensus resolves immediately; genus consensus resolves only when at
+least one exact genus ID marks genus as best practical.
 
 ### `/withdraw-community-identification` and `/restore-community-identification`
 
@@ -643,15 +641,14 @@ constraint in the Deno schema.
 > `pet_identification` is optional and nullable. For a confident dog scan, the
 > value may look like
 > `{"species_group":"dog","label":"Australian Cattle Dog mix","label_type":"breed_mix","confidence_score":0.82,"evidence":["blue-roan ticking","black saddle patch","compact herding-dog build"]}`.
-> The stored species would still be `Domestic Dog` /
-> `Canis lupus familiaris`.
+> The stored species would still be `Domestic Dog` / `Canis lupus familiaris`.
 >
 > `candidates` is required in `merianResponseSchema`; `identify` strips it to
 > `null` only when `confidence_score >= diagnosticTrigger` (`0.99` for both
 > Flash and Pro), preserving candidates for Possible, Weak, and Strong scans
 > below that near-certain threshold. Candidates are scan-specific and persist to
-> `public.scans.candidates` plus `LocalScanRecord.candidatesData`, while
-> client display is separately gated by `CandidateReviewVisibilityPolicy`.
+> `public.scans.candidates` plus `LocalScanRecord.candidatesData`, while client
+> display is separately gated by `CandidateReviewVisibilityPolicy`.
 
 ### Background Ingestion & Media Moderation
 
@@ -775,8 +772,8 @@ and causes `CaptureWorkspaceView` to prompt re-authentication instead.
 ## Public Species Dictionary Edge Node
 
 The `/species-dictionary` Edge Function returns species-level dictionary data
-for the standalone Species Dictionary Page, Explore Dictionary catalog, and
-Tree of Life canvas. It is deliberately separate from both the Insight scan and
+for the standalone Species Dictionary Page, Explore Dictionary catalog, and Tree
+of Life canvas. It is deliberately separate from both the Insight scan and
 Explore post-detail contracts:
 
 - Insight scan data can include local media, user review state, field notes, and
@@ -1112,8 +1109,8 @@ Status values:
 - `fresh`: provider fetch completed and data exists.
 - `no_data`: provider fetch completed but no observation buckets were found.
 - `partial`: one or more provider buckets failed, but useful data is still
-  available. On cold cache misses, core stats may be returned as `partial`
-  while life-stage and sex annotation buckets refresh in the background.
+  available. On cold cache misses, core stats may be returned as `partial` while
+  life-stage and sex annotation buckets refresh in the background.
 - `stale`: a usable stale cache payload was returned while refresh work is
   deferred off the response path.
 - `unavailable`: provider refresh failed and no usable cache existed.
@@ -1234,8 +1231,8 @@ Post `location_sharing` controls public location output, not ordinary feed
 visibility. `private` posts can still appear in Recent, Following, Trending,
 profile, hashtag, and detail surfaces, but their public location fields are
 empty. The `nearby` filter is spatial and uses post-owned public coordinates;
-for non-owned posts this means only saved `location_sharing = "open"` posts
-with a stored public coordinate can match the radius query.
+for non-owned posts this means only saved `location_sharing = "open"` posts with
+a stored public coordinate can match the radius query.
 
 Primary request shapes:
 
@@ -1352,11 +1349,10 @@ tag text without leading `#`; it is `[]` for untagged posts.
 `species_common_name` is the post snapshot selected by the author when sharing
 or editing. It should be preferred over dictionary names for the public post
 projection, while clients may still apply viewer-local preferred-name display on
-top of the DTO for personalized native surfaces.
-When `pet_identification` is non-null, native clients may use
-`pet_identification.label` as the visible dog/cat card title. That label does
-not replace `species_common_name`, `species_scientific_name`, dictionary routes,
-or species stats.
+top of the DTO for personalized native surfaces. When `pet_identification` is
+non-null, native clients may use `pet_identification.label` as the visible
+dog/cat card title. That label does not replace `species_common_name`,
+`species_scientific_name`, dictionary routes, or species stats.
 
 ### `/get-explore-post`
 
@@ -1717,8 +1713,8 @@ Rules:
   together.
 - Pagination is stable on `(shared_at DESC, post_id DESC)`.
 - The endpoint applies the same unshared, tombstoned, missing-media,
-  missing-species, shadowban, and mutual-block filters as the Explore feed.
-  Post `location_sharing` controls public location fields, not tagged-post
+  missing-species, shadowban, and mutual-block filters as the Explore feed. Post
+  `location_sharing` controls public location fields, not tagged-post
   visibility.
 - The backing RPC is `public.get_explore_hashtag_posts(...)`, which reads the
   normalized `(tag, post_id)` edge index from `public.explore_post_hashtags`.
@@ -1746,8 +1742,8 @@ request body is:
   or return individual posts.
 - `limit` is optional and capped at `500`.
 - `species_categories` is optional. Allowed values are `plants`, `fungi`,
-  `birds`, `mammals`, `reptiles`, `amphibians`, `fish`, `insects`,
-  `arachnids`, and `other`.
+  `birds`, `mammals`, `reptiles`, `amphibians`, `fish`, `insects`, `arachnids`,
+  and `other`.
 
 The Edge Function reads `public.get_explore_map_posts(...)` and then applies
 species-type filters and zoom-aware clustering in
@@ -1979,12 +1975,12 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
 - Unsharing also purges any Explore notifications tied to that post so the
   activity feed cannot route into hidden content.
 - `location_sharing` is optional for backward compatibility. If omitted, the
-  share uses the scan's current geoprivacy. Valid values are `open`,
-  `obscured`, and `private`; legacy `hidden` is treated as `private`.
-- The Explore map reads post-owned public coordinates from `explore_posts`.
-  Only posts whose saved `location_sharing` is `open` can appear on the map or
-  match non-owned Nearby radius queries. Protected-species and uncertainty
-  rules can still store rounded public coordinates with
+  share uses the scan's current geoprivacy. Valid values are `open`, `obscured`,
+  and `private`; legacy `hidden` is treated as `private`.
+- The Explore map reads post-owned public coordinates from `explore_posts`. Only
+  posts whose saved `location_sharing` is `open` can appear on the map or match
+  non-owned Nearby radius queries. Protected-species and uncertainty rules can
+  still store rounded public coordinates with
   `coordinate_visibility = "obscured"`.
 - Updating the user's global/default geoprivacy or the backing scan's
   `geoprivacy` later does not overwrite an existing Explore post's explicit
@@ -2071,9 +2067,9 @@ Rules:
 - Requires an authenticated user through `withEdgeHandler`.
 - Input may include a leading `@`; normalization strips it.
 - Whitespace and punctuation separators normalize to underscores.
-- The stored username must be lowercase ASCII letters, numbers, and
-  underscores; 3 to 24 characters; start with a letter; end with a letter or
-  number; and contain no repeated underscores.
+- The stored username must be lowercase ASCII letters, numbers, and underscores;
+  3 to 24 characters; start with a letter; end with a letter or number; and
+  contain no repeated underscores.
 - Reserved names such as `admin`, `api`, `explore`, `merian`, `support`, and
   `system` are rejected with `400`.
 - Duplicate normalized usernames return `409`.
@@ -2151,8 +2147,8 @@ Behavior notes:
   feed/map/author/hashtag surfaces
 - pending Identify requests and resolved-but-unpublished Identify requests
   return their request state with `is_explore_feed_visible = false`; resolved
-  requests become feed-visible only after the owner explicitly publishes them
-  to Explore
+  requests become feed-visible only after the owner explicitly publishes them to
+  Explore
 - when no live post exists, `location_sharing` falls back to the scan's current
   geoprivacy so a new share composer can seed the default option
 - the endpoint does not mutate scan or post geoprivacy
@@ -2361,8 +2357,8 @@ Returns the viewer's in-app Explore activity feed. The request body is optional:
 - `limit` defaults to `50` and is capped server-side.
 - The read path mirrors Explore visibility rules: unshared posts, tombstoned
   scans, posts with no remaining media, shadowbanned owners, blocked actors, and
-  soft-deleted comments are filtered out. Post `location_sharing` controls public
-  location fields, not notification visibility.
+  soft-deleted comments are filtered out. Post `location_sharing` controls
+  public location fields, not notification visibility.
 - Follow notifications are validated against an active follow relationship and
   blocked or shadowbanned actors are filtered out.
 - Community Identification notifications include `community_request_id` plus
@@ -2546,8 +2542,8 @@ activity pushes:
   New installs default this setting on. When omitted, the server treats the
   mention preference like the submitted `explore_enabled` value for older
   clients. When present, `comment_mention` payloads require
-  `comment_mentions_enabled` to be true. Other Explore activity payloads
-  require `explore_enabled` to be true.
+  `comment_mentions_enabled` to be true. Other Explore activity payloads require
+  `explore_enabled` to be true.
 - `community_identifications_enabled` is optional for compatibility with older
   clients. New installs default this setting on. When omitted, the server treats
   the Community preference like the submitted `explore_enabled` value for older
@@ -2607,8 +2603,8 @@ The Explore detail page additionally uses:
 - `/get-explore-mention-suggestions` for trailing-token `@username` autocomplete
 - `mentions` from comment and reply rows for tappable mention spans that open
   `ExploreAuthorProfileSheet`
-- `author_username` from post/profile/comment rows for stable handle display
-  and default/ghost author labels
+- `author_username` from post/profile/comment rows for stable handle display and
+  default/ghost author labels
 - `author_avatar_url` from comment rows for both `ExploreCommentsSheet` and
   `ExplorePostDetailView`
 - cursor-based comment pagination on `(created_at, comment_id)` so long threads
@@ -2723,8 +2719,7 @@ ordered compositions of images, audio, and descriptive context.
   validated through `_shared/identify/media.ts` before decode/fetch.
 - The canonical request contract is camelCase telemetry (`gpsLatitude`,
   `semanticLocation`, `publicLocationLabel`, `geoprivacy`, `deviceTimeZone`,
-  etc.) plus
-  `observation_contexts: [{ freeText, addedAt? }]`, matching
+  etc.) plus `observation_contexts: [{ freeText, addedAt? }]`, matching
   `MerianNetworkClient.buildMultiModalRequest(...)` and the iOS
   `ObservationContext` model. The same Swift inference payload builder also
   backs `/identify` so visual and multimodal requests share telemetry
@@ -3244,9 +3239,10 @@ authenticated Google/Apple ID.
    user's ID to hijack their scans, the endpoint returns `403 Forbidden`.
 3. Transfers owned data before purge in this order: `scans`, `collections`,
    `explore_posts`, `explore_community_requests`, and follow rows. Community
-   request transfer is required because `explore_community_requests.requested_by`
-   references `public.users(id) ON DELETE CASCADE`; deleting the ghost public
-   user before reparenting would remove active Ask the Community requests.
+   request transfer is required because
+   `explore_community_requests.requested_by` references
+   `public.users(id) ON DELETE CASCADE`; deleting the ghost public user before
+   reparenting would remove active Ask the Community requests.
 4. Refreshes the target public Explore identity.
 5. Deletes the `ghost_id` via `.deleteUser(ghost_id)` and removes the ghost
    `public.users` row.
@@ -3514,9 +3510,109 @@ Manual service-role calls may also include:
 
 Per-species refreshes run with a concurrency cap of 4.
 
-Unsupported provenance keys (`common_names`, `habitat_description`, `lookalikes`,
-`group_tags`, `iucn_red_list_status`, and `hazard_type`) are skipped until
-curation/model refresh tooling exists.
+Unsupported provenance keys (`common_names`, `habitat_description`,
+`lookalikes`, `group_tags`, `iucn_red_list_status`, and `hazard_type`) are
+skipped until curation/model refresh tooling exists.
+
+---
+
+## Deno `/refresh-species-model-content` Edge Node (Cron Worker)
+
+Internal service-role worker for model-heavy species enrichment jobs. It is
+invoked hourly by `pg_cron`/`pg_net`, not by iOS clients.
+
+Scheduled call:
+
+```json
+{ "limit": 12 }
+```
+
+Manual service-role calls may also include `dry_run`, `as_of`, and
+`content_groups` with any of `habitat`, `lookalikes`, or `group_tags`.
+
+The worker claims matching `species_enrichment_jobs`, runs the same
+species-level biology primitives behind `enrich-scan`, persists results to
+`species_dictionary` / `species_lookalikes`, records provenance, and marks each
+job succeeded or failed. It does not attach media to species and does not change
+scan identity; scan-to-species attachment remains owner publish through
+`confirmed_species_id`.
+
+---
+
+## Deno `/community-taxonomy-status` Edge Node (Internal Status)
+
+Internal service-role endpoint for Community Taxonomy Index and species
+enrichment observability. It is read-only and is intended for operational
+dashboards, cron health checks, and manual rollout verification after GBIF cache
+imports or Community ID publish flows.
+
+### Authentication Enforcement
+
+- `verify_jwt = false` is configured for service-role calls.
+- The function still requires
+  `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and validates it with
+  `timingSafeCompare`.
+- Non-POST requests return `405`.
+
+### Request Payload
+
+All fields are optional:
+
+```json
+{
+  "import_run_limit": 10,
+  "job_limit": 10
+}
+```
+
+Both limits must be integers from `1` to `50`. `failure_limit` is accepted as a
+backward-compatible alias for `job_limit`.
+
+### Response Payload
+
+```json
+{
+  "success": true,
+  "generated_at": "2026-06-22T00:00:00.000Z",
+  "active_taxonomy": {
+    "id": "taxonomy-version-id",
+    "status": "active",
+    "source": "merian_dictionary",
+    "source_revision": "species_dictionary",
+    "node_count": 1000,
+    "species_node_count": 600,
+    "dictionary_species_count": 240,
+    "gbif_only_taxa_count": 360
+  },
+  "node_counts_by_source": [
+    { "key": "gbif", "count": 500 }
+  ],
+  "node_counts_by_rank": [
+    { "key": "species", "count": 600 }
+  ],
+  "latest_import_runs": [],
+  "enrichment_jobs": {
+    "counts": [
+      { "content_group": "habitat", "status": "queued", "count": 10 }
+    ],
+    "next_jobs": [],
+    "recent_failures": []
+  },
+  "coverage_targets": [
+    {
+      "slug": "birds",
+      "display_name": "Birds",
+      "indexed_species_count": 1000,
+      "dictionary_species_count": 600,
+      "coverage_ratio": 0.6
+    }
+  ]
+}
+```
+
+The endpoint does not refresh coverage, claim jobs, cache GBIF taxa, materialize
+Dictionary rows, or attach scan media. It only reports the current database
+state available to the service role.
 
 ---
 
@@ -3635,8 +3731,8 @@ Validation rules:
 - Recommendation must be an integer from 0 to 10.
 - Feature/use values must be from the native survey enum sets.
 - Free-text fields are trimmed and capped at 4,000 characters.
-- Follow-up fields are retained for API compatibility. The current native
-  survey sends `may_follow_up: false` and an empty `contact` value.
+- Follow-up fields are retained for API compatibility. The current native survey
+  sends `may_follow_up: false` and an empty `contact` value.
 
 ### Response Payload
 
@@ -3715,8 +3811,8 @@ Receives a raw RevenueCat Webhook structure wrapper targeting an internal JSON
   `subscription_tier` to `pro` and set `subscription_expires_at` to
   `purchased_at_ms + 7 days`. Other non-renewing products are ignored.
 - Standard subscription downgrades (`EXPIRATION`) revert the tier to `free`.
-- Pass refund/cancellation-style events downgrade immediately. Timed passes
-  that naturally reach `subscription_expires_at` are downgraded by the hourly
+- Pass refund/cancellation-style events downgrade immediately. Timed passes that
+  naturally reach `subscription_expires_at` are downgraded by the hourly
   `expire-subscription-passes` worker.
 - Existing scan media stays in place on tier changes. Both
   `public_uploads/free/` and `public_uploads/pro/` are durable scan-media

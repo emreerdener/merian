@@ -61,19 +61,18 @@ Tracks the global state of the anonymous/authenticated user.
 - `public_identity_source` (TEXT, NOT NULL): Source marker for the Explore
   author label. CHECK-constrained to `alias` | `derived_name` | `display_name`.
   Added in migration `20260425000000_add_explore_posts.sql`.
-- `public_avatar_url` (TEXT, nullable): Public Explore avatar URL projected
-  onto all public author surfaces. It resolves to `custom_avatar_url` when the
-  user has uploaded a Merian profile picture; otherwise it falls back to auth
+- `public_avatar_url` (TEXT, nullable): Public Explore avatar URL projected onto
+  all public author surfaces. It resolves to `custom_avatar_url` when the user
+  has uploaded a Merian profile picture; otherwise it falls back to auth
   metadata (`avatar_url` or `picture`) for authenticated users when available.
   `NULL` for ghost users or accounts with no avatar. Added in migration
   `20260426000000_add_public_author_avatar_to_explore.sql`; custom-avatar
-  precedence was added in
-  `20260528120000_add_custom_public_avatars.sql`.
+  precedence was added in `20260528120000_add_custom_public_avatars.sql`.
 - `custom_avatar_url` (TEXT, nullable): Public Cloudflare R2 URL for a user
-  uploaded profile picture under `https://media.merian.app/avatars/{userId}/...`.
-  This is durable profile media and must not be removed by scan purge jobs or
-  R2 lifecycle expiration rules. Added in
-  `20260528120000_add_custom_public_avatars.sql`.
+  uploaded profile picture under
+  `https://media.merian.app/avatars/{userId}/...`. This is durable profile media
+  and must not be removed by scan purge jobs or R2 lifecycle expiration rules.
+  Added in `20260528120000_add_custom_public_avatars.sql`.
 - `custom_avatar_updated_at` (TIMESTAMPTZ, nullable): Last successful custom
   avatar promotion time. Updated by `/update-public-avatar`.
 
@@ -82,14 +81,14 @@ Tracks the global state of the anonymous/authenticated user.
 maintain the Explore-facing identity projection. These functions never expose
 raw auth metadata directly; they copy only the safe public fields
 (`public_author_name`, `public_identity_source`, `public_avatar_url`) onto
-`public.users`. Username helpers
-`normalize_public_username(...)`, `is_valid_public_username(...)`, and
-`build_unique_public_username(...)` keep `public_username` valid and
-collision-safe. Avatar helpers keep uploaded profile pictures sticky across
-OAuth metadata refreshes: `resolve_public_avatar_url(custom_avatar_url, raw_meta)`
-returns the custom avatar first and only then falls back to provider metadata.
-`public_author_name` remains the display label; use `public_username` as the
-stable handle for profile surfaces and future mentions.
+`public.users`. Username helpers `normalize_public_username(...)`,
+`is_valid_public_username(...)`, and `build_unique_public_username(...)` keep
+`public_username` valid and collision-safe. Avatar helpers keep uploaded profile
+pictures sticky across OAuth metadata refreshes:
+`resolve_public_avatar_url(custom_avatar_url, raw_meta)` returns the custom
+avatar first and only then falls back to provider metadata. `public_author_name`
+remains the display label; use `public_username` as the stable handle for
+profile surfaces and future mentions.
 
 ### `species_dictionary`
 
@@ -172,12 +171,11 @@ The global source-of-truth for biological models.
   Hit response and the public `/species-dictionary` response; stored in
   `LocalScanRecord.alternativeCommonNames` (SwiftData V34) for scan surfaces
   only.
-- `inaturalist_taxon_id` (INTEGER, nullable): Stable public iNaturalist taxon
-  ID used by `/species-observation-stats` for observation charts. The stats
-  Edge Function writes this after exact scientific-name resolution so future
-  requests can use `taxon_id` rather than a name fallback. Constraint:
-  `NULL OR > 0`. Added in migration
-  `20260517190000_add_species_observation_stats.sql`.
+- `inaturalist_taxon_id` (INTEGER, nullable): Stable public iNaturalist taxon ID
+  used by `/species-observation-stats` for observation charts. The stats Edge
+  Function writes this after exact scientific-name resolution so future requests
+  can use `taxon_id` rather than a name fallback. Constraint: `NULL OR > 0`.
+  Added in migration `20260517190000_add_species_observation_stats.sql`.
 
 **Public dictionary projection**: `/species-dictionary` reads only safe
 species-level columns from this table: identifiers, canonical names, taxonomy,
@@ -213,9 +211,9 @@ migration `20260513030000_add_species_reference_images.sql`.
   timestamps.
 - RLS: anyone can read; non-service writes are not exposed by policy.
 
-Ordering uses `public.public_species_reference_image_source_rank(...)`:
-Merian images first, then Wikipedia, then GBIF, with `sort_order`,
-`created_at`, and `id` as tie-breakers.
+Ordering uses `public.public_species_reference_image_source_rank(...)`: Merian
+images first, then Wikipedia, then GBIF, with `sort_order`, `created_at`, and
+`id` as tie-breakers.
 
 ### `taxonomy_versions`, `taxon_nodes`, `taxon_names`
 
@@ -245,20 +243,23 @@ GBIF-backed Community Taxonomy Index in
   nodes without mutating old identifications.
 
 `refresh_taxonomy_nodes_from_species_dictionary()` builds a draft version from
-the current Merian dictionary and activates it atomically. Community requests pin
-their `taxonomy_version_id`; the AI scan result is only an anchor label, not a
-consensus vote.
+the current Merian dictionary and activates it atomically. Community requests
+pin their `taxonomy_version_id`; the AI scan result is only an anchor label, not
+a consensus vote.
 
 `sync_taxon_nodes_from_species_dictionary()` upserts Dictionary-backed taxa into
 the active taxonomy index in place and preserves existing GBIF-only nodes.
 `upsert_gbif_community_taxa(...)` caches GBIF search results and lineage into
 the active index so Community ID suggestions are no longer limited to enriched
-Dictionary species.
+Dictionary species. The service-role `community-taxonomy-status` endpoint
+reports the active taxonomy row, node counts by source/rank, GBIF-only taxon
+counts, recent import runs, enrichment queue health, and coverage targets
+without mutating taxonomy data.
 
 ### `explore_community_requests`
 
-One active Ask the Community request per Explore post. Status is
-`needs_id`, `resolved`, or `withdrawn`.
+One active Ask the Community request per Explore post. Status is `needs_id`,
+`resolved`, or `withdrawn`.
 
 - `post_id` / `scan_id` / `requested_by`: Connect the request to the existing
   Explore post, source scan, and requester. `requested_by` is the source of
@@ -269,17 +270,17 @@ One active Ask the Community request per Explore post. Status is
 - `initial_taxon_node_id`: The AI-derived starting label. Detail responses
   hydrate this `ai_initial` suggestion with the backing scan's
   `ai_confidence_score`, `ai_reasoning`, and top-level `inference_tier` so the
-  UI can present the starting ID, model tier, optional confidence, and
-  collapsed reasoning separately from community consensus.
+  UI can present the starting ID, model tier, optional confidence, and collapsed
+  reasoning separately from community consensus.
 - `current_community_taxon_node_id`: Finest active community consensus, if any.
 - `resolved_taxon_node_id` and `resolved_observation_taxon_node_id`: Public
   resolved projection once the request graduates.
-- `explore_published_at`: Owner-controlled publish marker for resolved
-  community requests. Until this is set, a resolved request remains visible in
-  Identify but is excluded from normal Explore feed, map, author, and hashtag
-  reads. Publishing a resolved species-level request materializes the resolved
-  taxon into `species_dictionary` when needed, links `taxon_nodes.species_id`,
-  and sets the source scan's `confirmed_species_id`.
+- `explore_published_at`: Owner-controlled publish marker for resolved community
+  requests. Until this is set, a resolved request remains visible in Identify
+  but is excluded from normal Explore feed, map, author, and hashtag reads.
+  Publishing a resolved species-level request materializes the resolved taxon
+  into `species_dictionary` when needed, links `taxon_nodes.species_id`, and
+  sets the source scan's `confirmed_species_id`.
 - `consensus_score`, `consensus_identification_count`, `consensus_rank`: Cached
   consensus state maintained by queued consensus jobs.
 - `consensus_processing_state`: `idle`, `queued`, `processing`, or `failed`.
@@ -289,17 +290,17 @@ One active Ask the Community request per Explore post. Status is
 Normal Explore feed, map, author, and hashtag reads use
 `explore_observation_projection`, excluding `community_needs_id` posts and
 excluding `community_resolved` posts until their request has
-`explore_published_at` set by the owner.
-Community detail responses derive initial Suggest ID options from this pinned
-taxonomy version: the initial AI taxon plus any resolvable `scans.candidates`
-entries, capped and deduplicated server-side. The initial suggestion is always
-kept as `suggestion_source = ai_initial`; its confidence comes from
+`explore_published_at` set by the owner. Community detail responses derive
+initial Suggest ID options from this pinned taxonomy version: the initial AI
+taxon plus any resolvable `scans.candidates` entries, capped and deduplicated
+server-side. The initial suggestion is always kept as
+`suggestion_source = ai_initial`; its confidence comes from
 `scans.ai_confidence_score`, its reasoning comes from `scans.ai_reasoning`, and
-the detail response's top-level `inference_tier` comes from `scans.inference_tier`.
-Alternative suggestions remain `suggestion_source = ai_candidate` and keep
-their candidate-level confidence and distinguishing feature.
-The Community request queue can be scoped to all visible unresolved requests or
-to unresolved requests created by the viewer.
+the detail response's top-level `inference_tier` comes from
+`scans.inference_tier`. Alternative suggestions remain
+`suggestion_source = ai_candidate` and keep their candidate-level confidence and
+distinguishing feature. The Community request queue can be scoped to all visible
+unresolved requests or to unresolved requests created by the viewer.
 
 ### `explore_identifications`
 
@@ -365,8 +366,8 @@ provenance fields were added in
   and index, scan-level `image_quality_score`, raw `ai_confidence_score`
   snapshot, confidence qualification source (`ai` or `confirmed_species`),
   author attribution snapshot, and qualification/promotion timestamps.
-- `reference_image_id` links to the public `species_reference_images` row when
-  a candidate is currently promoted.
+- `reference_image_id` links to the public `species_reference_images` row when a
+  candidate is currently promoted.
 - `(species_id, image_url)` is unique so duplicate Explore media for the same
   species collapse to the best candidate.
 - RLS is enabled with no anon/authenticated read policy; only `service_role`
@@ -494,9 +495,9 @@ and `lookalike_id`); without the explicit hint PostgREST cannot determine which
 FK to follow.
 
 **Shared public projection**: Deno Edge code uses
-`services/supabase/functions/_shared/publicSpeciesProjection.ts` for public species DTOs,
-common-name fallback, normalized/legacy reference-image mapping, and
-private-field contract checks. Explore detail uses matching SQL helpers
+`services/supabase/functions/_shared/publicSpeciesProjection.ts` for public
+species DTOs, common-name fallback, normalized/legacy reference-image mapping,
+and private-field contract checks. Explore detail uses matching SQL helpers
 (`public.public_species_common_name`,
 `public.public_species_reference_image_urls`,
 `public.public_species_first_reference_image_url`, and
@@ -542,12 +543,12 @@ Added in migration `20260513050000_add_species_content_provenance.sql`.
 - Primary key: `(species_id, content_key)`.
 - RLS: anyone can read; non-service writes are not exposed by policy.
 
-**Writers**: `services/supabase/functions/_shared/speciesContentProvenance.ts` owns the
-Deno row builders and best-effort upsert helper. The shared identify path, audio
-identify path, and `enrich-scan` write provenance when they update dictionary
-fields, reference-image-backed content, group tags, or durable lookalike rows.
-Provenance write failures are logged and do not fail the user-facing scan or
-dictionary response.
+**Writers**: `services/supabase/functions/_shared/speciesContentProvenance.ts`
+owns the Deno row builders and best-effort upsert helper. The shared identify
+path, audio identify path, and `enrich-scan` write provenance when they update
+dictionary fields, reference-image-backed content, group tags, or durable
+lookalike rows. Provenance write failures are logged and do not fail the
+user-facing scan or dictionary response.
 
 **Backfill**: the migration inserts low-confidence provenance rows for existing
 dictionary data, reference images, and lookalikes with
@@ -578,9 +579,13 @@ Operational queue for species-level hydration work. Added in
   context.
 
 `refresh-species-content` claims `gbif_wikipedia_reference` jobs first and uses
-the older provenance queue only as a fallback. New GBIF-backed species
+the older provenance queue only as a fallback. `refresh-species-model-content`
+claims `habitat`, `lookalikes`, and `group_tags` jobs and reuses the same
+species-level primitives behind `enrich-scan`. New GBIF-backed species
 materialized from Community ID publish enqueue all four content groups so
 external refresh and model-heavy enrichment can proceed independently.
+`community-taxonomy-status` exposes queue counts, next queued jobs, and recent
+failures for service-role monitoring.
 
 ### `taxonomy_coverage_targets`
 
@@ -593,7 +598,8 @@ Bounded taxonomy-completeness targets for future gamification. Added in
 - `indexed_species_count`, `dictionary_species_count`, `coverage_ratio`:
   Coverage metric where enriched Dictionary species are compared with indexed
   GBIF species in the target scope.
-- `last_computed_at`: Freshness marker for `refresh_taxonomy_coverage_targets()`.
+- `last_computed_at`: Freshness marker for
+  `refresh_taxonomy_coverage_targets()`.
 
 ### `scans`
 
@@ -614,7 +620,8 @@ The transaction log for every successful identification.
 - `gps_lat_public` / `gps_long_public` (Float): Same CHECK constraints as exact
   columns. These are scan-level privacy-safe coordinate projections used as an
   input to post-owned Explore location projection, not the public map source of
-  truth. Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added
+  truth. Migration
+  `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added
   `derive_public_scan_coordinate(...)` plus the
   `trg_sync_scan_public_coordinates` trigger so inserts/updates automatically
   normalize public coordinates from exact coordinates, geoprivacy, uncertainty,
@@ -625,8 +632,8 @@ The transaction log for every successful identification.
 - `geoprivacy` (ENUM): Per-scan privacy state (`open`, `obscured`, `private`).
   New identify/describe/audio inserts resolve this from the explicit request
   field when valid, otherwise from `users.default_geoprivacy`. Migration
-  `20260613100000_sync_user_default_geoprivacy_to_scans.sql` adds a user
-  default sync trigger so Settings changes reproject existing scans.
+  `20260613100000_sync_user_default_geoprivacy_to_scans.sql` adds a user default
+  sync trigger so Settings changes reproject existing scans.
 - `coordinate_uncertainty_in_meters` (INTEGER, nullable): Public-location
   uncertainty band paired with `gps_lat_public` / `gps_long_public`. The same
   trigger clamps obscured Explore-visible rows to a coarse uncertainty floor
@@ -643,10 +650,10 @@ The transaction log for every successful identification.
   `depth_scale_text` (Text)
 - `public_location_label` (TEXT, nullable): Sanitized public label used by
   Explore feeds, maps, share text, and hashtag suggestions. Trigger
-  `trg_set_scan_public_location_label` derives it from
-  `public_location_label` / `semantic_location` for open and obscured scans and
-  sets it to `NULL` for private scans. Local owner-facing UI must not treat
-  `semantic_location` as display-safe without checking geoprivacy.
+  `trg_set_scan_public_location_label` derives it from `public_location_label` /
+  `semantic_location` for open and obscured scans and sets it to `NULL` for
+  private scans. Local owner-facing UI must not treat `semantic_location` as
+  display-safe without checking geoprivacy.
 - `device_time_zone` (TEXT, nullable): IANA timezone identifier sent by the
   client as `deviceTimeZone` during identify, multimodal, describe, and audio
   ingestion. Added in migration
@@ -707,8 +714,7 @@ The transaction log for every successful identification.
   still persist candidates as an escape hatch. Client UI visibility is
   separately gated by `CandidateReviewVisibilityPolicy`. Only scans at or above
   `0.99` (effectively certain) have candidates stripped. `NULL` for those
-  near-certain scans and
-  all scans captured before migration
+  near-certain scans and all scans captured before migration
   `20260330000000_add_candidates_to_scans.sql`. Shape:
   `[{"scientific_name": "...", "confidence_score": 0.71}, ...]`. A partial index
   (`idx_scans_candidates_not_null WHERE candidates IS NOT NULL`) keeps index
@@ -736,10 +742,9 @@ The transaction log for every successful identification.
   `user_confirmed_identification = TRUE`, because it is a final owner-approved
   ID rather than positive feedback that the AI primary ID was correct. Serves as
   the authoritative source of truth for reference dataset extraction. Added in
-  migration
-  `20260330230000_add_confirmed_species_id_to_scans.sql`. Synced to the cloud in
-  the same `ReviewSyncPayload` PATCH as `user_identification_override` and
-  `user_confirmed_identification`.
+  migration `20260330230000_add_confirmed_species_id_to_scans.sql`. Synced to
+  the cloud in the same `ReviewSyncPayload` PATCH as
+  `user_identification_override` and `user_confirmed_identification`.
 - `user_review_state` (public.user_review_state enum, default `'unreviewed'`):
   The definitive typed state representing user feedback. Valid values:
   `unreviewed`, `ai_confirmed`, `user_overridden`. Added in migration
@@ -772,8 +777,8 @@ The transaction log for every successful identification.
   length-capped, evidence is capped to three entries, confidence is clamped,
   generic labels such as "Dog", "Cat", "Domestic Dog", and "Domestic Cat" are
   dropped, labels below `0.70` confidence are dropped, and non-dog/cat taxa
-  never receive this object. This field is not copied into
-  `species_dictionary`; species identity remains keyed by `scientific_name`.
+  never receive this object. This field is not copied into `species_dictionary`;
+  species identity remains keyed by `scientific_name`.
 
 ### `scan_import_jobs`
 
@@ -803,8 +808,7 @@ Added in migration `20260518100000_add_scan_import_jobs.sql`.
 
 Indexes:
 
-- Unique `(scan_id, user_id)` to prevent duplicate queue rows for a single
-  user.
+- Unique `(scan_id, user_id)` to prevent duplicate queue rows for a single user.
 - `(user_id, status, created_at DESC)` for user-scoped queue visibility and
   support diagnostics.
 
@@ -987,8 +991,8 @@ The `(tag, post_id)` lookup index powers `public.get_explore_hashtag_posts(...)`
 for the in-app tagged-post collection and is also intended for future event and
 BioBlitz matching without extracting tags from field notes or comments.
 
-**Current map-coordinate note**: The shipped Explore map reads post-owned
-public coordinates on `explore_posts`. Spatial reads only return posts whose
+**Current map-coordinate note**: The shipped Explore map reads post-owned public
+coordinates on `explore_posts`. Spatial reads only return posts whose
 `location_sharing` is `open`; `obscured` and `private` posts remain off-map and
 out of non-owned Nearby matches.
 
@@ -1079,9 +1083,9 @@ in migration `20260427010000_add_explore_notifications.sql`.
 - `community_request_id` (UUID FK → `explore_community_requests.id`, nullable):
   Present for Community Identification notifications.
 - `type` (`public.explore_notification_type`): `'like_aggregated'` | `'comment'`
-  | `'comment_reaction'` | `'comment_reply'` | `'comment_mention'` |
-  `'follow'` | `'community_identification_added'` |
-  `'community_request_resolved'` | `'community_identification_helped'`.
+  | `'comment_reaction'` | `'comment_reply'` | `'comment_mention'` | `'follow'`
+  | `'community_identification_added'` | `'community_request_resolved'` |
+  `'community_identification_helped'`.
 - `comment_id` (UUID FK → `explore_post_comments.id`, nullable): Present for
   comment and comment-reaction notifications.
 - `reaction_emoji` (TEXT, nullable): Present only for `'comment_reaction'` rows
@@ -1137,8 +1141,8 @@ in migration `20260427010000_add_explore_notifications.sql`.
   insert when the follower is not shadowbanned and the users do not block each
   other. The row is deleted when the follow is removed.
 - Community identification triggers aggregate new active IDs for the request
-  owner, create an owner notification when consensus resolves, and create
-  helper notifications for active compatible identifiers.
+  owner, create an owner notification when consensus resolves, and create helper
+  notifications for active compatible identifiers.
 - A post-level trigger deletes Explore notifications when
   `explore_posts.unshared_at` is set, keeping the activity feed aligned with the
   existing soft-unshare model.
@@ -1165,12 +1169,12 @@ Remote push device registry for Explore activity delivery. Added in migration
 - `explore_enabled` (BOOLEAN, default `TRUE`): Whether this device should
   receive remote Explore activity pushes.
 - `comment_mentions_enabled` (BOOLEAN): Whether this device should receive
-  remote pushes for `comment_mention` Explore notifications. Defaults to
-  `TRUE` and is independent from `explore_enabled`, which controls
+  remote pushes for `comment_mention` Explore notifications. Defaults to `TRUE`
+  and is independent from `explore_enabled`, which controls
   likes/comments/replies on the viewer's own Explore activity.
 - `community_identifications_enabled` (BOOLEAN): Whether this device should
-  receive remote pushes for Community Identification updates. Defaults to
-  `TRUE` and is independent from regular Explore activity pushes.
+  receive remote pushes for Community Identification updates. Defaults to `TRUE`
+  and is independent from regular Explore activity pushes.
 - `is_active` (BOOLEAN): Disabled when APNs reports a terminal token failure.
 - `last_registered_at` (TIMESTAMPTZ): Last successful registration heartbeat
   from the app.
@@ -1184,16 +1188,17 @@ Explore uses SQL RPCs to project a privacy-safe public read model out of
 `explore_posts`, `scans`, `users`, and `species_dictionary`.
 
 `public.explore_post_species_common_name(snapshot_common_name, common_names,
-scientific_name)` centralizes post-name fallback. Feed, detail, author, map, and
-hashtag post projections call this helper so an Explore post shows the
-author-selected `explore_posts.species_common_name` snapshot when one exists and
-falls back to dictionary English common names or the scientific name for legacy
-posts.
+scientific_name)`
+centralizes post-name fallback. Feed, detail, author, map, and hashtag post
+projections call this helper so an Explore post shows the author-selected
+`explore_posts.species_common_name` snapshot when one exists and falls back to
+dictionary English common names or the scientific name for legacy posts.
 
-The same Explore projections also expose `scans.pet_identification` when present.
-Clients may use `pet_identification.label` as the visible dog/cat card title,
-but the projected `species_common_name` and `species_scientific_name` remain
-unchanged for dictionary navigation, species statistics, and taxonomy surfaces.
+The same Explore projections also expose `scans.pet_identification` when
+present. Clients may use `pet_identification.label` as the visible dog/cat card
+title, but the projected `species_common_name` and `species_scientific_name`
+remain unchanged for dictionary navigation, species statistics, and taxonomy
+surfaces.
 
 Migration `20260505120000_add_explore_feed_filters.sql` also added
 `public.haversine_distance_meters(...)`, which the nearby feed uses to
@@ -1225,17 +1230,16 @@ coordinates to the client contract.
   populates `ranking_value` with the recent-like count used for pagination, and
   the cursor is stable on `(ranking_value DESC, shared_at DESC, post_id DESC)`.
 - `public.get_explore_feed_nearby(self_id UUID, target_latitude DOUBLE PRECISION, target_longitude DOUBLE PRECISION, max_limit INTEGER, before_shared_at TIMESTAMPTZ, before_post_id UUID)`:
-  The shipped `nearby` feed projection. It reads
-  `explore_posts.public_latitude` / `public_longitude`, which are populated
-  only from the post's saved `location_sharing` and the protected-species /
-  uncertainty safety rules. Non-owned posts therefore need post-level
-  `location_sharing = 'open'` and a stored public coordinate to match the radius
-  query; `obscured` and `private` posts remain visible in non-spatial Explore
-  feeds but cannot be discovered by Nearby. The RPC filters matches to roughly
-  50 miles around the viewer, then sorts surviving rows by
-  `(shared_at DESC, post_id DESC)`. This keeps the client feed feeling like
-  Explore rather than a pure nearest-neighbor list while preserving the same
-  coordinate boundary used by the map.
+  The shipped `nearby` feed projection. It reads `explore_posts.public_latitude`
+  / `public_longitude`, which are populated only from the post's saved
+  `location_sharing` and the protected-species / uncertainty safety rules.
+  Non-owned posts therefore need post-level `location_sharing = 'open'` and a
+  stored public coordinate to match the radius query; `obscured` and `private`
+  posts remain visible in non-spatial Explore feeds but cannot be discovered by
+  Nearby. The RPC filters matches to roughly 50 miles around the viewer, then
+  sorts surviving rows by `(shared_at DESC, post_id DESC)`. This keeps the
+  client feed feeling like Explore rather than a pure nearest-neighbor list
+  while preserving the same coordinate boundary used by the map.
 - `public.get_explore_post(self_id UUID, target_post_id UUID)`: Returns the same
   card projection as `get_explore_feed` for a single post. This is used by
   notification taps and future deep-link paths so routing does not depend on the
@@ -1245,12 +1249,11 @@ coordinates to the client contract.
   currently include `field_notes`, `species_dictionary_id`,
   `alternative_common_names`, taxonomy ranks (`kingdom`, `phylum`, `class`,
   `order`, `family`, `genus`), conditional public `ai_reasoning`,
-  `habitat_description`, `gbif_taxon_key`,
-  `iucn_red_list_status`, `wikipedia_url`, `reference_image_url`,
-  `wikipedia_overview`, and `similar_species` JSONB hydrated from
-  `species_lookalikes`. `reference_image_url` is still a comma-separated
-  compatibility string, but the RPC composes it through
-  `public.public_species_reference_image_urls(...)` from
+  `habitat_description`, `gbif_taxon_key`, `iucn_red_list_status`,
+  `wikipedia_url`, `reference_image_url`, `wikipedia_overview`, and
+  `similar_species` JSONB hydrated from `species_lookalikes`.
+  `reference_image_url` is still a comma-separated compatibility string, but the
+  RPC composes it through `public.public_species_reference_image_urls(...)` from
   `species_reference_images` first and falls back to
   `species_dictionary.reference_image_url`. `similar_species` is projected
   through `public.public_species_similar_species(...)` so common-name, thumbnail
@@ -1286,8 +1289,8 @@ coordinates to the client contract.
   accepts a resolved Identify request. It materializes the resolved species,
   sets `scans.confirmed_species_id`, and stamps `explore_published_at`.
 - `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 80, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE, p_species_confidence_threshold DOUBLE PRECISION DEFAULT 0.95)`:
-  Internal service-role helper used by `/refresh-merian-reference-images`.
-  It selects currently visible Explore posts, unnests all non-empty
+  Internal service-role helper used by `/refresh-merian-reference-images`. It
+  selects currently visible Explore posts, unnests all non-empty
   `scans.image_storage_urls`, requires `image_quality_score >= 80` by default,
   requires `ai_confidence_score >= 0.95` unless `confirmed_species_id` is
   present, resolves species via `COALESCE(confirmed_species_id, species_id)`,
@@ -1360,10 +1363,10 @@ coordinates to the client contract.
   rows, ignores conflicts, and deletes rows still referencing the ghost or any
   self-follow produced by the merge.
 - `public.repair_community_request_ownership_for_user(target_user_id UUID)`:
-  Repairs existing Ask the Community rows whose `requested_by` no longer
-  matches the owner of their backing `scans` row. This keeps the Identify Yours
-  filter, owner-only actions, and account-merge cleanup aligned after legacy
-  ghost ownership drift.
+  Repairs existing Ask the Community rows whose `requested_by` no longer matches
+  the owner of their backing `scans` row. This keeps the Identify Yours filter,
+  owner-only actions, and account-merge cleanup aligned after legacy ghost
+  ownership drift.
 
 These RPCs intentionally avoid raw auth metadata and private scan-only fields.
 Feed/detail/notification reads avoid coordinates entirely, while
@@ -1435,20 +1438,20 @@ that safely transpose old structures (e.g. `MerianSchemaV8` to `MerianSchemaV9`)
 without corrupting local scan data._
 
 **File layout:** The universally active models natively live in the global
-namespace within `apps/ios/Merian/Models/ActiveSchema/`. Historical schema snapshots live
-in their own file (`apps/ios/Merian/Models/Schema/SchemaV1.swift` through
-`SchemaV39.swift`). The file `apps/ios/Merian/Models/SchemaVersions.swift` declares
-`MerianMigrationPlan` — the ordered list of schemas and migration stages. When
-bumping to V{N+1}, follow the runbook at `.agents/workflows/schema_update.md`:
+namespace within `apps/ios/Merian/Models/ActiveSchema/`. Historical schema
+snapshots live in their own file (`apps/ios/Merian/Models/Schema/SchemaV1.swift`
+through `SchemaV39.swift`). The file
+`apps/ios/Merian/Models/SchemaVersions.swift` declares `MerianMigrationPlan` —
+the ordered list of schemas and migration stages. When bumping to V{N+1}, follow
+the runbook at `.agents/workflows/schema_update.md`:
 
 1. Manually freeze the outgoing schema V{N} from the current `ActiveSchema/`
    before any changes. Declare changed models inside the schema enum body, not
    in an extension, unless a documented macro bug requires otherwise.
 2. Update `SchemaV{N}.swift` or the V{N} block in `SchemaVersions.swift`
-   `models` array to use fully-qualified
-   `MerianSchemaV{N}.LocalScanRecord.self` references — this locks the checksum
-   and prevents the iOS 26 "equal model references" crash for custom migration
-   stages.
+   `models` array to use fully-qualified `MerianSchemaV{N}.LocalScanRecord.self`
+   references — this locks the checksum and prevents the iOS 26 "equal model
+   references" crash for custom migration stages.
 3. Create `SchemaV{N+1}.swift` tying its `models` array to the active global
    classes.
 4. Update `typealias CurrentSchema = MerianSchemaV{N+1}` in `Aliases.swift`.
@@ -1523,13 +1526,14 @@ the sanitized confidence is displayable. When adding new fields to either Edge
 Function response, update both the TypeScript schema and the corresponding Swift
 `Codable` struct simultaneously.
 
-**`SpeciesData` pet display field** (`apps/ios/Merian/Models/SpeciesData.swift`):
-`PetIdentification` is a `Codable`, `Equatable`, `Hashable`, and `Sendable`
-value with `speciesGroup`, `label`, `labelType`, `confidenceScore`, and
-`evidence`. `SpeciesData.petIdentification` is optional and display-only. It
-can make the Insight headline read like "Australian Cattle Dog mix" while the
-subtitle still shows `Domestic Dog • Canis lupus familiaris`. It must not be
-stored as a species preferred common name.
+**`SpeciesData` pet display field**
+(`apps/ios/Merian/Models/SpeciesData.swift`): `PetIdentification` is a
+`Codable`, `Equatable`, `Hashable`, and `Sendable` value with `speciesGroup`,
+`label`, `labelType`, `confidenceScore`, and `evidence`.
+`SpeciesData.petIdentification` is optional and display-only. It can make the
+Insight headline read like "Australian Cattle Dog mix" while the subtitle still
+shows `Domestic Dog • Canis lupus familiaris`. It must not be stored as a
+species preferred common name.
 
 **`SpeciesData` override fields** (`apps/ios/Merian/Models/SpeciesData.swift`):
 `SpeciesData` carries four identification-review fields that are never part of
@@ -1553,9 +1557,9 @@ historical scan:
 - `userConfirmedIdentification: Bool` — mirrors
   `LocalScanRecord.userConfirmedIdentification`. Cloud-synced. Drives the
   "Confirmed" state in `ConfidenceBadge`.
-- `isFlagged: Bool` — mirrors `LocalScanRecord.isFlagged`. Legacy V31
-  moderation field retained for schema compatibility; it no longer affects the
-  Insight confidence badge or candidate-review UI.
+- `isFlagged: Bool` — mirrors `LocalScanRecord.isFlagged`. Legacy V31 moderation
+  field retained for schema compatibility; it no longer affects the Insight
+  confidence badge or candidate-review UI.
 
 **`SpeciesData` mutable display fields**: Three `SpeciesData` properties are
 declared `var` (not `let`) specifically because the identification override
@@ -1579,7 +1583,8 @@ querying `species_dictionary` for the override species:
 making it a safe anchor for revert operations regardless of how many times the
 user cycles through overrides.
 
-**Historical Sync DTO** (`apps/ios/Merian/Core/Data/Database/ScanRepository.swift`):
+**Historical Sync DTO**
+(`apps/ios/Merian/Core/Data/Database/ScanRepository.swift`):
 `HistoricalScanResponse` (the cloud sync DTO) includes
 `candidates: [CloudIdentificationCandidate]?`,
 `pet_identification: PetIdentification?`,
@@ -1618,8 +1623,8 @@ mirror for migration safety and compatibility.
 - `coverImagePath`: String? (Added in `MerianSchemaV40`. First image extracted
   from the canonical media timeline, used for queue thumbnails without reparsing
   the full payload.)
-- `fieldNotes`: String? (Added in `MerianSchemaV42`. Private user-authored
-  notes captured while the scan is queued. These are carried through
+- `fieldNotes`: String? (Added in `MerianSchemaV42`. Private user-authored notes
+  captured while the scan is queued. These are carried through
   `BackgroundDatabaseActor` when the queued row becomes a `LocalScanRecord` and
   are resolved through `FieldNotesRepository` before falling back to the legacy
   UserDefaults bridge.)
@@ -1676,8 +1681,8 @@ Tracks locally synchronized species scans for the Scans library.
 - `petIdentificationData`: Data? (Added in `MerianSchemaV44`. JSON-encoded
   `PetIdentification` for confident dog/cat breed, mix, coat-pattern, or
   body-type display. The computed `petIdentification` helper decodes this value
-  for Insight headlines, share/export text, Explore sync, and library search.
-  It does not alter `commonName`, `scientificName`, or species preference keys.)
+  for Insight headlines, share/export text, Explore sync, and library search. It
+  does not alter `commonName`, `scientificName`, or species preference keys.)
 - `fieldNotes`: String? (Added in `MerianSchemaV42`. Private user-authored
   discovery notes. Local insight surfaces read and write this through
   `FieldNotesRepository`; Explore receives a public copy only when the user
@@ -1740,9 +1745,9 @@ Tracks locally synchronized species scans for the Scans library.
   historical cloud sync. `InferenceEngine.load(from:)` decodes this field back
   to `[IdentificationCandidate]` via `JSONDecoder` and sets it as
   `speciesData.candidates`. `nil` for scans at or above the diagnostic trigger
-  where the server stripped candidates, and for all scans captured before V28. A lightweight
-  migration (`migrateV27toV28`) handles the version bump — no data transform
-  required since the field is optional with a nil default.)
+  where the server stripped candidates, and for all scans captured before V28. A
+  lightweight migration (`migrateV27toV28`) handles the version bump — no data
+  transform required since the field is optional with a nil default.)
 - `userIdentificationOverride`: String? (Added in `MerianSchemaV29`. The
   scientific name the user selected when overriding the AI's primary
   identification via `CandidatesCard`. `nil` when the user confirmed the AI or

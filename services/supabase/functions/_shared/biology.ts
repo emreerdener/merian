@@ -35,7 +35,7 @@ export interface EncyclopedicData {
 }
 
 export async function fetchStaticEncyclopedicData(
-  user: User,
+  user: User | string,
   scientificName: string,
   locale = "en",
 ): Promise<EncyclopedicData> {
@@ -362,7 +362,7 @@ function normalizeLookalikeConfidence(value: unknown): number | null {
 // --- GROUP TAGS LOGIC --- //
 
 export async function fetchGroupTags(
-  user: User,
+  user: User | string,
   scientificName: string,
 ): Promise<{ group_tags: string[] | null; usage?: UsageMetadata } | null> {
   const model = createFlashModel(

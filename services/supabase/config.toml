@@ -517,6 +517,12 @@ verify_jwt = false
 [functions.refresh-species-content]
 verify_jwt = false
 
+[functions.refresh-species-model-content]
+verify_jwt = false
+
+[functions.community-taxonomy-status]
+verify_jwt = false
+
 [functions.refresh-merian-reference-images]
 verify_jwt = false
 

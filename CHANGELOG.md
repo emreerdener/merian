@@ -38,6 +38,12 @@ TestFlight, App Store, support, and QA.
   suggest taxa that are not yet enriched in Merian's Dictionary, plus
   first-class species enrichment jobs and the first Birds coverage target for
   future Dictionary-completeness progress.
+- Added a scheduled species model-content worker so newly materialized
+  Dictionary species can hydrate habitat, lookalikes, and group tags outside of
+  user scan sessions.
+- Added an internal Community Taxonomy status endpoint so taxonomy coverage,
+  GBIF import runs, and species enrichment queue health can be checked during
+  rollout.
 - Added smarter dog and cat scan labels so pet results can show a likely breed,
   mix, coat pattern, or body type while keeping Merian's species taxonomy
   unchanged.

@@ -536,6 +536,9 @@ EXCEPTION
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.search_community_taxa(TEXT, INTEGER);
+DROP FUNCTION IF EXISTS public.search_community_taxa(TEXT, INTEGER, UUID);
+
 CREATE OR REPLACE FUNCTION public.search_community_taxa(
     query_text TEXT,
     max_limit INTEGER DEFAULT 20,
