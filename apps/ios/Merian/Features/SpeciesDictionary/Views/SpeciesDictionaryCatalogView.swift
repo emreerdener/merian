@@ -825,7 +825,7 @@ private struct SpeciesDictionaryOverviewRow: View {
 
     private var iconName: String {
         switch category.id {
-        case .all: "book.closed"
+        case .all: "book"
         case .taxonomy: "point.3.connected.trianglepath.dotted"
         case .yourRegion: "location"
         case .recentlyAdded: "sparkles"
