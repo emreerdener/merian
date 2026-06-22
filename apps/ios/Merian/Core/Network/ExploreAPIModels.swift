@@ -348,6 +348,35 @@ enum CommunityIdentificationFeedScope: String, CaseIterable, Hashable {
     }
 }
 
+enum CommunityIdentificationRequestGroup: String, CaseIterable, Codable, Hashable {
+    case all
+    case plants
+    case birds
+    case insects
+    case fungi
+    case mammals
+    case reptilesAmphibians = "reptiles_amphibians"
+
+    var title: String {
+        switch self {
+        case .all:
+            "All"
+        case .plants:
+            "Plants"
+        case .birds:
+            "Birds"
+        case .insects:
+            "Insects"
+        case .fungi:
+            "Fungi"
+        case .mammals:
+            "Mammals"
+        case .reptilesAmphibians:
+            "Herps"
+        }
+    }
+}
+
 struct CommunityIdentificationDetailResponse: Decodable {
     let data: CommunityIdentificationDetail
 }
@@ -423,6 +452,7 @@ struct CommunityIdentificationFeedItem: Decodable, Identifiable, Equatable {
     let initialScientificName: String?
     let initialRank: String?
     let initialPath: String?
+    let requestGroup: CommunityIdentificationRequestGroup?
     let consensusScore: Double?
     let identificationCount: Int
     let viewerHasIdentified: Bool

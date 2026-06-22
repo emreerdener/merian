@@ -580,6 +580,7 @@ struct MerianNetworkClientTests {
                     "initial_scientific_name": "Aeonium haworthii",
                     "initial_rank": "species",
                     "initial_path": "plantae.tracheophyta.magnoliopsida.saxifragales.crassulaceae.aeonium.aeonium_haworthii",
+                    "request_group": "plants",
                     "consensus_score": null,
                     "identification_count": 0,
                     "viewer_has_identified": false,
@@ -596,6 +597,7 @@ struct MerianNetworkClientTests {
             let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
             #expect(payload["limit"] as? Int == 12)
             #expect(payload["scope"] as? String == "mine")
+            #expect(payload["group"] as? String == "plants")
             #expect(payload["latitude"] as? Double == 30.2672)
             #expect(payload["longitude"] as? Double == -97.7431)
             #expect(payload["before_requested_at"] as? String == "2026-06-20T12:00:00.000Z")
@@ -606,6 +608,7 @@ struct MerianNetworkClientTests {
         let requests = try await MerianNetworkClient.shared.getCommunityIdentificationFeed(
             limit: 12,
             scope: .mine,
+            group: .plants,
             latitude: 30.2672,
             longitude: -97.7431,
             cursor: CommunityIdentificationCursor(
@@ -616,6 +619,7 @@ struct MerianNetworkClientTests {
 
         #expect(requests.count == 1)
         #expect(requests[0].id == "request-mine-123")
+        #expect(requests[0].requestGroup == .plants)
     }
 
     @Test func testUpdateCommunityIdentificationRequestConstructsPayload() async throws {

@@ -6,8 +6,8 @@ struct FloatingNavigationMenu<Content: View>: View {
     @ViewBuilder let content: Content
 
     init(
-        spacing: CGFloat = 48,
-        horizontalPadding: CGFloat = 32,
+        spacing: CGFloat = FloatingNavigationMenuMetrics.itemSpacing,
+        horizontalPadding: CGFloat = FloatingNavigationMenuMetrics.horizontalPadding,
         @ViewBuilder content: () -> Content
     ) {
         self.spacing = spacing
@@ -19,7 +19,7 @@ struct FloatingNavigationMenu<Content: View>: View {
         HStack(spacing: spacing) {
             content
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, FloatingNavigationMenuMetrics.verticalPadding)
         .padding(.horizontal, horizontalPadding)
         .background(
             Capsule()
@@ -56,10 +56,16 @@ struct FloatingNavigationMenuButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
+            VStack(spacing: FloatingNavigationMenuMetrics.labelSpacing) {
                 Image(systemName: iconName)
-                    .font(.system(size: 20, weight: isSelected ? .semibold : .regular))
-                    .frame(width: 28, height: 24)
+                    .font(.system(
+                        size: FloatingNavigationMenuMetrics.iconSize,
+                        weight: isSelected ? .semibold : .regular
+                    ))
+                    .frame(
+                        width: FloatingNavigationMenuMetrics.iconFrameWidth,
+                        height: FloatingNavigationMenuMetrics.iconFrameHeight
+                    )
                     .overlay(alignment: .topTrailing) {
                         if showBadge {
                             Circle()
@@ -84,11 +90,20 @@ struct FloatingNavigationMenuButton: View {
                     }
 
                 Text(title)
-                    .font(.system(size: 10))
+                    .font(.system(size: FloatingNavigationMenuMetrics.labelFontSize))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
-            .frame(minWidth: 44)
+            .frame(
+                minWidth: FloatingNavigationMenuMetrics.itemMinWidth,
+                minHeight: FloatingNavigationMenuMetrics.itemMinHeight
+            )
+            .background {
+                if isSelected {
+                    Capsule()
+                        .fill(Color(uiColor: .tertiarySystemFill))
+                }
+            }
             .foregroundColor(isSelected ? .accentColor : .primary)
             .contentShape(Rectangle())
         }
@@ -96,4 +111,17 @@ struct FloatingNavigationMenuButton: View {
         .opacity(isDisabled ? 0.4 : 1.0)
         .accessibilityIdentifier(accessibilityIdentifier)
     }
+}
+
+private enum FloatingNavigationMenuMetrics {
+    static let horizontalPadding: CGFloat = 24
+    static let verticalPadding: CGFloat = 6
+    static let itemSpacing: CGFloat = 12
+    static let itemMinWidth: CGFloat = 78
+    static let itemMinHeight: CGFloat = 52
+    static let iconSize: CGFloat = 24
+    static let iconFrameWidth: CGFloat = 34
+    static let iconFrameHeight: CGFloat = 28
+    static let labelFontSize: CGFloat = 11
+    static let labelSpacing: CGFloat = 2
 }

@@ -79,6 +79,11 @@ TestFlight, App Store, support, and QA.
 
 ### Changed
 
+- Matched the main camera tab bar icon size, label size, and item spacing to
+  the Explore bottom navigation.
+- Added organism filters to Identify requests so explorers can browse Plants,
+  Birds, Insects, Fungi, Mammals, and Herps while keeping Yours near the start
+  of the filter row.
 - Low-confidence Insight shares now default to asking Identify for help, while
   direct Explore publishing remains available behind a confirmation.
 - Explore Tree now opens in a top-down taxonomy layout instead of the earlier
@@ -97,6 +102,8 @@ TestFlight, App Store, support, and QA.
   cleaner disagreement reason field.
 - Kept internal Community identification consensus labels out of the public
   identification timeline.
+- Updated open Identify request cards and loading skeletons to hide AI-derived
+  names and show only the scan image with a compact submitted-ID count overlay.
 
 - Rebuilt Community identification around versioned Merian taxonomy, queued
   consensus processing, and projection-driven Explore graduation so unresolved

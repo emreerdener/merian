@@ -36,13 +36,73 @@ enum CommunityIdentificationMode: Hashable, CaseIterable {
     }
 }
 
+private enum CommunityIdentificationRequestFilter: Hashable, CaseIterable {
+    case all
+    case mine
+    case plants
+    case birds
+    case insects
+    case fungi
+    case mammals
+    case reptilesAmphibians
+
+    var title: String {
+        switch self {
+        case .all:
+            "All"
+        case .mine:
+            "Yours"
+        case .plants:
+            CommunityIdentificationRequestGroup.plants.title
+        case .birds:
+            CommunityIdentificationRequestGroup.birds.title
+        case .insects:
+            CommunityIdentificationRequestGroup.insects.title
+        case .fungi:
+            CommunityIdentificationRequestGroup.fungi.title
+        case .mammals:
+            CommunityIdentificationRequestGroup.mammals.title
+        case .reptilesAmphibians:
+            CommunityIdentificationRequestGroup.reptilesAmphibians.title
+        }
+    }
+
+    var scope: CommunityIdentificationFeedScope {
+        switch self {
+        case .mine:
+            .mine
+        default:
+            .all
+        }
+    }
+
+    var group: CommunityIdentificationRequestGroup {
+        switch self {
+        case .all, .mine:
+            .all
+        case .plants:
+            .plants
+        case .birds:
+            .birds
+        case .insects:
+            .insects
+        case .fungi:
+            .fungi
+        case .mammals:
+            .mammals
+        case .reptilesAmphibians:
+            .reptilesAmphibians
+        }
+    }
+}
+
 struct ExploreCommunityIdentificationView: View {
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
 
     @Binding var activeMode: CommunityIdentificationMode
     let onOpenRequest: (ExploreCommunityRequestRoute) -> Void
 
-    @State private var requestScope: CommunityIdentificationFeedScope = .all
+    @State private var requestFilter: CommunityIdentificationRequestFilter = .all
     @State private var items: [CommunityIdentificationFeedItem] = []
     @State private var cursor = CommunityIdentificationCursor.empty
     @State private var isLoadingInitialPage = true
@@ -78,7 +138,7 @@ struct ExploreCommunityIdentificationView: View {
             guard activeMode == .requests else { return }
             await loadInitialPage()
         }
-        .onChange(of: requestScope) { _, _ in
+        .onChange(of: requestFilter) { _, _ in
             Task { await reloadForScopeChange() }
         }
         .onChange(of: activeMode) { _, newValue in
@@ -90,7 +150,7 @@ struct ExploreCommunityIdentificationView: View {
     private var requestsContent: some View {
         ScrollView {
             VStack(spacing: 0) {
-                requestScopeFilter
+                requestFilterBar
 
                 communityBanner
 
@@ -144,14 +204,14 @@ struct ExploreCommunityIdentificationView: View {
         }
     }
 
-    private var requestScopeFilter: some View {
+    private var requestFilterBar: some View {
         CategoryFilterBar(
-            items: CommunityIdentificationFeedScope.allCases,
-            activeItem: requestScope,
+            items: CommunityIdentificationRequestFilter.allCases,
+            activeItem: requestFilter,
             title: { $0.title },
-            onSelection: { scope in
-                guard scope != requestScope else { return }
-                requestScope = scope
+            onSelection: { filter in
+                guard filter != requestFilter else { return }
+                requestFilter = filter
             }
         )
     }
@@ -216,12 +276,34 @@ struct ExploreCommunityIdentificationView: View {
 
     private var emptyState: some View {
         ContentUnavailableView(
-            requestScope == .mine ? "No Requests From You Yet" : "No Requests Yet",
+            emptyStateTitle,
             systemImage: "person.2",
-            description: Text(requestScope == .mine ? "Ask the Community from an insight when you want help identifying one of your observations." : "Identification requests will appear here when explorers ask for help.")
+            description: Text(emptyStateDescription)
         )
         .padding(.horizontal, 16)
         .padding(.top, 42)
+    }
+
+    private var emptyStateTitle: String {
+        switch requestFilter {
+        case .mine:
+            "No Requests From You Yet"
+        case .all:
+            "No Requests Yet"
+        default:
+            "No \(requestFilter.title) Requests Yet"
+        }
+    }
+
+    private var emptyStateDescription: String {
+        switch requestFilter {
+        case .mine:
+            "Ask the Community from an insight when you want help identifying one of your observations."
+        case .all:
+            "Identification requests will appear here when explorers ask for help."
+        default:
+            "Matching identification requests will appear here when explorers ask for help."
+        }
     }
 
     private func errorState(message: String) -> some View {
@@ -247,19 +329,20 @@ struct ExploreCommunityIdentificationView: View {
     }
 
     private func fetchFirstPage() async {
-        let scope = requestScope
+        let filter = requestFilter
         isLoadingInitialPage = true
         defer { isLoadingInitialPage = false }
 
         do {
             let page = try await MerianNetworkClient.shared.getCommunityIdentificationFeed(
                 limit: pageSize,
-                scope: scope,
+                scope: filter.scope,
+                group: filter.group,
                 latitude: communitySortLatitude,
                 longitude: communitySortLongitude,
                 cursor: .empty
             )
-            guard scope == requestScope else { return }
+            guard filter == requestFilter else { return }
             items = page
             updateCursor(using: page)
             hasReachedEnd = page.count < pageSize
@@ -280,15 +363,16 @@ struct ExploreCommunityIdentificationView: View {
         defer { isLoadingMore = false }
 
         do {
-            let scope = requestScope
+            let filter = requestFilter
             let page = try await MerianNetworkClient.shared.getCommunityIdentificationFeed(
                 limit: pageSize,
-                scope: scope,
+                scope: filter.scope,
+                group: filter.group,
                 latitude: communitySortLatitude,
                 longitude: communitySortLongitude,
                 cursor: cursor
             )
-            guard scope == requestScope else { return }
+            guard filter == requestFilter else { return }
             let existing = Set(items.map(\.id))
             items.append(contentsOf: page.filter { !existing.contains($0.id) })
             updateCursor(using: page)
@@ -328,45 +412,52 @@ private struct CommunityIdentificationBanner: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image("identify")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 88, height: 88)
-                .accessibilityHidden(true)
+        ZStack(alignment: .topTrailing) {
+            HStack(spacing: 8) {
+                Image("identify")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 88, height: 88)
+                    .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(title)
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
 
-                Text(description)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text(description)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 0)
+            .padding(.trailing, 56)
+            .padding(.vertical, 8)
 
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 40, height: 40)
-                    .background(Color(uiColor: .tertiarySystemGroupedBackground), in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss \(title) banner")
+            dismissButton
+                .padding(.top, 16)
+                .padding(.trailing, 16)
         }
-        .padding(.leading, 0)
-        .padding(.trailing, 16)
-        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var dismissButton: some View {
+        Button(action: onDismiss) {
+            Image(systemName: "xmark")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.secondary)
+                .circularMaterialControl(size: 32)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Dismiss \(title) banner")
     }
 }
 
@@ -374,32 +465,18 @@ private struct CommunityIdentificationGridCard: View {
     let item: CommunityIdentificationFeedItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            image
-                .aspectRatio(1, contentMode: .fit)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.displayName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-
-                HStack(spacing: 6) {
-                    Label("\(item.identificationCount)", systemImage: "checkmark.bubble")
-                    if let location = item.publicDisplayLocationLabel {
-                        Text(location)
-                            .lineLimit(1)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        image
+            .aspectRatio(1, contentMode: .fit)
+            .overlay(alignment: .bottomTrailing) {
+                identificationCountBadge
+                    .padding(8)
             }
-            .padding(.horizontal, 4)
-            .padding(.bottom, 6)
-        }
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Community identification request")
+        .accessibilityValue(identificationCountAccessibilityText)
+        .accessibilityHint("Opens request details")
     }
 
     @ViewBuilder
@@ -433,27 +510,62 @@ private struct CommunityIdentificationGridCard: View {
                 .foregroundStyle(.secondary)
         }
     }
+
+    private var identificationCountBadge: some View {
+        Label {
+            Text(item.identificationCount.formatted(.number.notation(.compactName)))
+                .font(.caption)
+                .fontWeight(.semibold)
+                .monospacedDigit()
+        } icon: {
+            Image(systemName: "checkmark.bubble.fill")
+                .font(.caption)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
+        .background(.black.opacity(0.24), in: Capsule())
+        .shadow(color: .black.opacity(0.24), radius: 8, x: 0, y: 3)
+        .accessibilityHidden(true)
+    }
+
+    private var identificationCountAccessibilityText: String {
+        if item.identificationCount == 1 {
+            return "1 submitted identification"
+        }
+        return "\(item.identificationCount) submitted identifications"
+    }
 }
 
 private struct CommunityIdentificationGridCardSkeleton: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            GlowPulsingSkeletonView(cornerRadius: 0, style: .raisedGrid)
-                .aspectRatio(1, contentMode: .fit)
-
-            VStack(alignment: .leading, spacing: 7) {
-                GlowPulsingSkeletonView(cornerRadius: 5)
-                    .frame(width: 112, height: 16)
-
-                GlowPulsingSkeletonView(cornerRadius: 4)
-                    .frame(width: 54, height: 12)
+        GlowPulsingSkeletonView(cornerRadius: 0, style: .raisedGrid)
+            .aspectRatio(1, contentMode: .fit)
+            .overlay(alignment: .bottomTrailing) {
+                submittedIdentificationBadgeSkeleton
+                    .padding(8)
             }
-            .padding(.horizontal, 4)
-            .padding(.bottom, 7)
-        }
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityHidden(true)
+    }
+
+    private var submittedIdentificationBadgeSkeleton: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(Color(uiColor: .secondarySystemFill))
+                .frame(width: 12, height: 12)
+
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemFill))
+                .frame(width: 14, height: 10)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial, in: Capsule())
+        .background(.black.opacity(0.18), in: Capsule())
+        .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 3)
     }
 }
 
@@ -499,13 +611,13 @@ struct ExploreCommunityIdentificationDetailView: View {
                             Button {
                                 isEditPresented = true
                             } label: {
-                                Label("Edit request", systemImage: "square.and.pencil")
+                                Label("Edit post", systemImage: "square.and.pencil")
                             }
                         } else {
                             Button(role: .destructive) {
                                 Task { await report(detail) }
                             } label: {
-                                Label("Report request", systemImage: "flag")
+                                Label("Report post", systemImage: "flag")
                             }
                             .disabled(isReporting)
                         }
@@ -517,7 +629,7 @@ struct ExploreCommunityIdentificationDetailView: View {
                                 foregroundColor: .primary
                             )
                     }
-                    .accessibilityLabel("Request options")
+                    .accessibilityLabel("Post options")
                     .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
                 }
             }

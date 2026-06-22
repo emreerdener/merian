@@ -24,6 +24,7 @@ export interface CommunityIdentificationFeedRow {
   initial_scientific_name?: string | null;
   initial_rank?: string | null;
   initial_path?: string | null;
+  request_group?: CommunityIdentificationRequestGroup;
   consensus_score?: number | null;
   identification_count: number;
   viewer_has_identified: boolean;
@@ -42,10 +43,19 @@ export interface CommunityIdentificationLocation {
 }
 
 export type CommunityIdentificationFeedScope = "all" | "mine";
+export type CommunityIdentificationRequestGroup =
+  | "all"
+  | "plants"
+  | "birds"
+  | "insects"
+  | "fungi"
+  | "mammals"
+  | "reptiles_amphibians";
 
 export async function fetchCommunityIdentificationFeed(
   userId: string,
   scope: CommunityIdentificationFeedScope,
+  group: CommunityIdentificationRequestGroup,
   limit: number,
   cursor: CommunityIdentificationCursor,
   location: CommunityIdentificationLocation,
@@ -59,6 +69,7 @@ export async function fetchCommunityIdentificationFeed(
     viewer_latitude: location.latitude,
     viewer_longitude: location.longitude,
     request_scope: scope,
+    request_group_filter: group,
   };
 
   const { data, error } = await supabaseAdmin.rpc(

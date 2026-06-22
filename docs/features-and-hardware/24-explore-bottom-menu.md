@@ -10,9 +10,11 @@ Dictionary.
   root-only header toggle keeps Feed first and Map second.
 - **Identify** shows the Ask the Community queue for unresolved identification
   requests. It uses `ExploreCommunityIdentificationView`, a two-column image
-  grid sorted by nearby public coordinates when available and then recency.
-  Cards show the request image, current anchor or consensus label, ID count, and
-  privacy-safe location label.
+  grid sorted by nearby public coordinates when available and then recency. The
+  request filter row keeps `All` and `Yours` first, followed by server-backed
+  organism filters for Plants, Birds, Insects, Fungi, Mammals, and Herps. Cards
+  show the request image and submitted-ID count without exposing the AI-derived
+  name in the grid.
 - **Map** lives inside Observations and shows open-location public discoveries.
   It includes a horizontal species-type filter row below the Explore heading;
   the filter button opens a sheet with the region's available categories, and

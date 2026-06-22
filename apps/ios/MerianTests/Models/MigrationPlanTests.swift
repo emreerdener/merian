@@ -371,6 +371,58 @@ struct MigrationPlanTests {
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
     }
 
+    /// Simulates the TestFlight V43 -> V44 path that adds pet identification.
+    /// V43 must be a frozen schema snapshot; if it accidentally points at the
+    /// active global LocalScanRecord, SwiftData sees V43 and V44 as duplicate
+    /// model checksums and aborts during NSLightweightMigrationStage setup.
+    @Test func migrationFromV43ToV44DoesNotCrash() throws {
+        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v43migration_test.sqlite")
+        defer { removeSQLiteStore(at: url) }
+
+        let scanId = "v43-pet-migration-scan"
+
+        do {
+            let schema43 = Schema(versionedSchema: MerianSchemaV43.self)
+            let config43 = ModelConfiguration(schema: schema43, url: url)
+            let container43 = try ModelContainer(for: schema43, configurations: [config43])
+            let context43 = ModelContext(container43)
+            let record = MerianSchemaV43.LocalScanRecord(
+                id: scanId,
+                speciesId: "v43-species",
+                scientificName: "Canis lupus familiaris",
+                commonName: "Domestic Dog",
+                isBiological: true,
+                isLiveCapture: true,
+                isInvasive: false,
+                ecologyType: "domesticated",
+                sex: "cannot_determine",
+                sexConfidence: 0.0,
+                sexEvidence: "no direct sex evidence"
+            )
+            context43.insert(record)
+            try context43.save()
+        }
+
+        do {
+            let schema44 = Schema(versionedSchema: CurrentSchema.self)
+            let config44 = ModelConfiguration(schema: schema44, url: url)
+            let container44 = try ModelContainer(
+                for: schema44,
+                migrationPlan: MerianMigrationPlan.self,
+                configurations: [config44]
+            )
+            let context44 = ModelContext(container44)
+            var descriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            descriptor.fetchLimit = 1
+            let migratedRecord = try #require(context44.fetch(descriptor).first)
+            #expect(migratedRecord.scientificName == "Canis lupus familiaris")
+            #expect(migratedRecord.sex == "cannot_determine")
+            #expect(migratedRecord.petIdentificationData == nil)
+        }
+    }
+
     /// Simulates upgrading from V38 to V39 — verifies that the custom migration stage
     /// correctly backfills the singular `audioFilePath`/`observationContextJSON` String?
     /// columns into the new plural `audioFilePaths`/`observationContextsJSON` [String]? arrays.

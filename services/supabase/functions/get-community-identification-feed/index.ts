@@ -12,7 +12,10 @@ import {
 } from "../_shared/explore.ts";
 import { makeHttpError } from "../_shared/communityIdentification.ts";
 import { fetchCommunityIdentificationFeed } from "./db.ts";
-import type { CommunityIdentificationFeedScope } from "./db.ts";
+import type {
+  CommunityIdentificationFeedScope,
+  CommunityIdentificationRequestGroup,
+} from "./db.ts";
 
 function normalizeCommunityFeedScope(
   value: unknown,
@@ -20,6 +23,27 @@ function normalizeCommunityFeedScope(
   if (value == null) return "all";
   if (value === "all" || value === "mine") return value;
   throw makeHttpError(400, "scope must be one of: all, mine.");
+}
+
+function normalizeCommunityRequestGroup(
+  value: unknown,
+): CommunityIdentificationRequestGroup {
+  if (value == null) return "all";
+  if (
+    value === "all" ||
+    value === "plants" ||
+    value === "birds" ||
+    value === "insects" ||
+    value === "fungi" ||
+    value === "mammals" ||
+    value === "reptiles_amphibians"
+  ) {
+    return value;
+  }
+  throw makeHttpError(
+    400,
+    "group must be one of: all, plants, birds, insects, fungi, mammals, reptiles_amphibians.",
+  );
 }
 
 serve((req: Request) =>
@@ -42,6 +66,7 @@ serve((req: Request) =>
     const latitude = normalizeLatitude(body.latitude, "latitude");
     const longitude = normalizeLongitude(body.longitude, "longitude");
     const scope = normalizeCommunityFeedScope(body.scope);
+    const group = normalizeCommunityRequestGroup(body.group);
 
     if ((beforeRequestedAt == null) != (beforeRequestId == null)) {
       throw makeHttpError(
@@ -62,6 +87,7 @@ serve((req: Request) =>
         await fetchCommunityIdentificationFeed(
           user.id,
           scope,
+          group,
           limit,
           { beforeRequestedAt, beforeRequestId },
           { latitude, longitude },

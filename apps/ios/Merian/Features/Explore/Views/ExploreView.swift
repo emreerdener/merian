@@ -306,46 +306,14 @@ struct ExploreView: View {
             }
         }
 
-        if shouldShowDiscoveryModePicker {
+        if shouldShowRootModePicker {
             ToolbarItem(placement: .principal) {
-                Picker("Observations view", selection: $activeDiscoveryMode) {
-                    Text("Feed").tag(ExploreDiscoveryMode.feed)
-                    Text("Map").tag(ExploreDiscoveryMode.map)
-                }
-                .pickerStyle(.segmented)
-                .padding(.bottom, 1)
-                .background(Capsule().fill(.regularMaterial))
-                .clipShape(Capsule())
-                .frame(width: 220)
-            }
-        }
-
-        if shouldShowDictionaryModePicker {
-            ToolbarItem(placement: .principal) {
-                Picker("Dictionary view", selection: $activeDictionaryMode) {
-                    Text("Catalog").tag(ExploreDictionaryMode.dictionary)
-                    Text("Tree").tag(ExploreDictionaryMode.tree)
-                }
-                .pickerStyle(.segmented)
-                .padding(.bottom, 1)
-                .background(Capsule().fill(.regularMaterial))
-                .clipShape(Capsule())
-                .frame(width: 220)
-            }
-        }
-
-        if shouldShowCommunityModePicker {
-            ToolbarItem(placement: .principal) {
-                Picker("Identify view", selection: $activeCommunityMode) {
-                    ForEach(CommunityIdentificationMode.allCases, id: \.self) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.bottom, 1)
-                .background(Capsule().fill(.regularMaterial))
-                .clipShape(Capsule())
-                .frame(width: 240)
+                ExploreRootModePicker(
+                    activeTab: activeTab,
+                    activeDiscoveryMode: $activeDiscoveryMode,
+                    activeDictionaryMode: $activeDictionaryMode,
+                    activeCommunityMode: $activeCommunityMode
+                )
             }
         }
 
@@ -409,16 +377,8 @@ struct ExploreView: View {
         }
     }
 
-    private var shouldShowDiscoveryModePicker: Bool {
-        activeTab == .feed && navigationPath.isEmpty
-    }
-
-    private var shouldShowDictionaryModePicker: Bool {
-        activeTab == .dictionary && navigationPath.isEmpty
-    }
-
-    private var shouldShowCommunityModePicker: Bool {
-        activeTab == .community && navigationPath.isEmpty
+    private var shouldShowRootModePicker: Bool {
+        navigationPath.isEmpty
     }
 
     private func openPostDetail(
@@ -972,6 +932,53 @@ private struct ExploreFeedTabContent: View {
                     .scaleEffect(0.85)
                     .padding(.trailing, 16)
             }
+        }
+    }
+}
+
+private struct ExploreRootModePicker: View {
+    let activeTab: ExploreTab
+    @Binding var activeDiscoveryMode: ExploreDiscoveryMode
+    @Binding var activeDictionaryMode: ExploreDictionaryMode
+    @Binding var activeCommunityMode: CommunityIdentificationMode
+
+    var body: some View {
+        picker
+            .pickerStyle(.segmented)
+            .padding(.bottom, 1)
+            .background(Capsule().fill(.regularMaterial))
+            .clipShape(Capsule())
+            .frame(width: pickerWidth)
+    }
+
+    @ViewBuilder
+    private var picker: some View {
+        switch activeTab {
+        case .feed:
+            Picker("Observations view", selection: $activeDiscoveryMode) {
+                Text("Feed").tag(ExploreDiscoveryMode.feed)
+                Text("Map").tag(ExploreDiscoveryMode.map)
+            }
+        case .community:
+            Picker("Identify view", selection: $activeCommunityMode) {
+                ForEach(CommunityIdentificationMode.allCases, id: \.self) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+        case .dictionary:
+            Picker("Dictionary view", selection: $activeDictionaryMode) {
+                Text("Catalog").tag(ExploreDictionaryMode.dictionary)
+                Text("Tree").tag(ExploreDictionaryMode.tree)
+            }
+        }
+    }
+
+    private var pickerWidth: CGFloat {
+        switch activeTab {
+        case .community:
+            240
+        case .feed, .dictionary:
+            220
         }
     }
 }

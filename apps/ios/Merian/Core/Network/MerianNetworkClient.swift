@@ -1006,6 +1006,7 @@ final class MerianNetworkClient {
     func getCommunityIdentificationFeed(
         limit: Int = 30,
         scope: CommunityIdentificationFeedScope = .all,
+        group: CommunityIdentificationRequestGroup = .all,
         latitude: Double? = nil,
         longitude: Double? = nil,
         cursor: CommunityIdentificationCursor? = nil
@@ -1013,7 +1014,8 @@ final class MerianNetworkClient {
         let functionUrl = try endpointURL("get-community-identification-feed")
         var payload: [String: Any] = [
             "limit": limit,
-            "scope": scope.rawValue
+            "scope": scope.rawValue,
+            "group": group.rawValue
         ]
 
         if let latitude {
