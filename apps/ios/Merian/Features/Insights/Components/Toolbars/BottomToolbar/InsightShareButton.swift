@@ -7,6 +7,7 @@ struct InsightShareButton: View {
         case composeExplorePost
         case publishExploreAnyway
         case editExplorePost
+        case editCommunityRequest
         case viewCommunityRequest
         case viewInExplore
     }
@@ -15,6 +16,7 @@ struct InsightShareButton: View {
     let onShareToExplore: ((ExplorePostComposerDraft) -> Void)?
     let onEditExplorePost: ((ExplorePostComposerDraft) -> Void)?
     let onAskCommunity: (() -> Void)?
+    let onEditCommunityRequest: (() -> Void)?
     let isSharingToExplore: Bool
     let isUpdatingExplorePostContent: Bool
     let isUpdatingExploreFieldNotes: Bool
@@ -46,6 +48,7 @@ struct InsightShareButton: View {
         onShareToExplore != nil
             || onEditExplorePost != nil
             || onAskCommunity != nil
+            || onEditCommunityRequest != nil
             || onViewCommunityRequest != nil
             || onViewInExplore != nil
     }
@@ -94,7 +97,7 @@ struct InsightShareButton: View {
         case .askCommunity:
             return "Ask for ID"
         case .communityPending:
-            return "View request"
+            return "Edit request"
         case .communityResolvedNeedsPublish, .publishToExplore:
             return "Share discovery"
         }
@@ -105,7 +108,7 @@ struct InsightShareButton: View {
         case .askCommunity:
             return "person.crop.badge.magnifyingglass"
         case .communityPending:
-            return "person.crop.circle.badge.questionmark"
+            return "square.and.pencil"
         case .communityResolvedNeedsPublish, .publishToExplore:
             return "safari"
         }

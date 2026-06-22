@@ -3,12 +3,18 @@ import SwiftUI
 struct CommunityIdentificationRequestSheet: View {
     let speciesName: String
     let scientificName: String
+    let existingRequestId: String?
+    let initialLocationSharing: ExplorePostLocationSharing?
     let isSubmitting: Bool
+    let onLoadFailed: (String) -> Void
     let onSubmit: (String?, ExplorePostLocationSharing) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var note = ""
     @State private var locationSharing: ExplorePostLocationSharing = .obscured
+    @State private var hasLoadedExistingRequest = false
+    @State private var isLoadingExistingRequest = false
+    @State private var loadErrorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -46,25 +52,24 @@ struct CommunityIdentificationRequestSheet: View {
                     }
                 }
 
-                Section {
-                    Button {
-                        onSubmit(trimmedNote, locationSharing)
-                    } label: {
-                        Text(isSubmitting ? "Sending..." : "Send")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(isSubmitting ? Color.blue.opacity(0.35) : Color.blue)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                if isLoadingExistingRequest {
+                    Section {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                            Spacer()
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .disabled(isSubmitting)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(Color.clear)
+                } else if let loadErrorMessage {
+                    Section {
+                        Text(loadErrorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
-            .navigationTitle("Ask the community")
+            .disabled(isLoadingExistingRequest || isSubmitting)
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -82,12 +87,79 @@ struct CommunityIdentificationRequestSheet: View {
                     .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                submitButton
+            }
+            .task(id: existingRequestId) {
+                await loadExistingRequestIfNeeded()
+            }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private var isEditingExistingRequest: Bool {
+        existingRequestId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    private var navigationTitle: String {
+        isEditingExistingRequest ? "Edit request" : "Ask the community"
+    }
+
+    private var actionTitle: String {
+        if isSubmitting {
+            return isEditingExistingRequest ? "Saving..." : "Sending..."
+        }
+        return isEditingExistingRequest ? "Save" : "Send"
+    }
+
+    private var submitButton: some View {
+        Button {
+            onSubmit(trimmedNote, locationSharing)
+        } label: {
+            Text(actionTitle)
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .disabled(isSubmitting || isLoadingExistingRequest)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.regularMaterial)
     }
 
     private var trimmedNote: String? {
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func loadExistingRequestIfNeeded() async {
+        guard let existingRequestId,
+              existingRequestId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            locationSharing = initialLocationSharing ?? .obscured
+            hasLoadedExistingRequest = false
+            loadErrorMessage = nil
+            return
+        }
+        guard !hasLoadedExistingRequest else { return }
+
+        if let initialLocationSharing {
+            locationSharing = initialLocationSharing
+        }
+        isLoadingExistingRequest = true
+        defer { isLoadingExistingRequest = false }
+
+        do {
+            let detail = try await MerianNetworkClient.shared.getCommunityIdentificationDetail(requestId: existingRequestId)
+            guard !Task.isCancelled else { return }
+            note = detail.note ?? ""
+            locationSharing = detail.locationSharing ?? initialLocationSharing ?? .obscured
+            hasLoadedExistingRequest = true
+            loadErrorMessage = nil
+        } catch {
+            let message = ExploreErrorFormatter.message(for: error)
+            loadErrorMessage = message
+            onLoadFailed(message)
+        }
     }
 }

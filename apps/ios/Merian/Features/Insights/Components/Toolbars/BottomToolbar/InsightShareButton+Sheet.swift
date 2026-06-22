@@ -234,7 +234,16 @@ extension InsightShareButton {
                 }
             }
         case .communityPending:
-            EmptyView()
+            if onViewCommunityRequest != nil {
+                exploreSecondaryActionButton(
+                    title: "View request",
+                    systemImage: "person.crop.circle.badge.questionmark",
+                    isDisabled: false
+                ) {
+                    pendingAction = .viewCommunityRequest
+                    showingOptions = false
+                }
+            }
         case .communityResolvedNeedsPublish:
             if onViewCommunityRequest != nil {
                 exploreSecondaryActionButton(
@@ -256,7 +265,7 @@ extension InsightShareButton {
         case .askCommunity:
             onAskCommunity == nil ? .composeExplorePost : .askCommunity
         case .communityPending:
-            onViewCommunityRequest == nil ? .publishExploreAnyway : .viewCommunityRequest
+            onEditCommunityRequest == nil ? .viewCommunityRequest : .editCommunityRequest
         case .communityResolvedNeedsPublish, .publishToExplore:
             .composeExplorePost
         }
@@ -277,6 +286,8 @@ extension InsightShareButton {
             showingExplorePublishConfirmation = true
         case .editExplorePost:
             showingExploreComposer = true
+        case .editCommunityRequest:
+            onEditCommunityRequest?()
         case .viewCommunityRequest:
             onViewCommunityRequest?()
         case .viewInExplore:

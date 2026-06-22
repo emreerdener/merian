@@ -17,6 +17,10 @@ TestFlight, App Store, support, and QA.
   primary blue button at the bottom of the form so the title stays centered.
 - Fixed the proactive beta feedback survey so the third-scan prompt waits until
   the Insight sheet closes instead of competing with the result sheet.
+- Fixed Identify request cards so their submitted-ID badge refreshes after
+  someone suggests, withdraws, or restores an ID from the detail screen.
+- Fixed the Ask the community sheet footer button styling and let existing
+  community requests be edited from the Insight share flow.
 
 ### Added
 

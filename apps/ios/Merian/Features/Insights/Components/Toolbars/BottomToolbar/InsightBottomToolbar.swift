@@ -13,6 +13,7 @@ struct InsightBottomToolbar: ToolbarContent {
     let onShareToExplore: ((ExplorePostComposerDraft) -> Void)?
     let onEditExplorePost: ((ExplorePostComposerDraft) -> Void)?
     let onAskCommunity: (() -> Void)?
+    let onEditCommunityRequest: (() -> Void)?
     let isSharingToExplore: Bool
     let isUpdatingExplorePostContent: Bool
     let isUpdatingExploreFieldNotes: Bool
@@ -38,6 +39,7 @@ struct InsightBottomToolbar: ToolbarContent {
                     onShareToExplore: onShareToExplore,
                     onEditExplorePost: onEditExplorePost,
                     onAskCommunity: onAskCommunity,
+                    onEditCommunityRequest: onEditCommunityRequest,
                     isSharingToExplore: isSharingToExplore,
                     isUpdatingExplorePostContent: isUpdatingExplorePostContent,
                     isUpdatingExploreFieldNotes: isUpdatingExploreFieldNotes,

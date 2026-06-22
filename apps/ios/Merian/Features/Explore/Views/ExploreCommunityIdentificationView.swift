@@ -145,6 +145,15 @@ struct ExploreCommunityIdentificationView: View {
             guard newValue == .requests, items.isEmpty else { return }
             Task { await loadInitialPage() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .communityIdentificationRequestDidChange)) { notification in
+            guard activeMode == .requests else { return }
+            guard let requestId = notification.object as? String else {
+                Task { await refresh() }
+                return
+            }
+            guard items.contains(where: { $0.requestId == requestId }) else { return }
+            Task { await refresh() }
+        }
     }
 
     private var requestsContent: some View {
@@ -699,7 +708,7 @@ struct ExploreCommunityIdentificationDetailView: View {
                 }
 
                 CommunityIdentificationTimeline(
-                    identificationCount: detail.identificationCount,
+                    identificationCount: detail.activeIdentificationCount,
                     isConsensusUpdating: detail.isConsensusUpdating,
                     identifications: detail.identifications,
                     onWithdraw: { id in
@@ -841,6 +850,7 @@ struct ExploreCommunityIdentificationDetailView: View {
             pendingResolver = nil
             HapticManager.shared.triggerSuccessPulse()
             await loadDetail()
+            notifyCommunityIdentificationRequestChanged()
         } catch {
             HapticManager.shared.triggerErrorThump()
             errorMessage = ExploreErrorFormatter.message(for: error)
@@ -852,6 +862,7 @@ struct ExploreCommunityIdentificationDetailView: View {
             _ = try await MerianNetworkClient.shared.withdrawCommunityIdentification(identificationId: identificationId)
             HapticManager.shared.triggerSelectionPulse()
             await loadDetail()
+            notifyCommunityIdentificationRequestChanged()
         } catch {
             HapticManager.shared.triggerErrorThump()
             errorMessage = ExploreErrorFormatter.message(for: error)
@@ -863,11 +874,23 @@ struct ExploreCommunityIdentificationDetailView: View {
             _ = try await MerianNetworkClient.shared.restoreCommunityIdentification(identificationId: identificationId)
             HapticManager.shared.triggerSelectionPulse()
             await loadDetail()
+            notifyCommunityIdentificationRequestChanged()
         } catch {
             HapticManager.shared.triggerErrorThump()
             errorMessage = ExploreErrorFormatter.message(for: error)
         }
     }
+
+    private func notifyCommunityIdentificationRequestChanged() {
+        NotificationCenter.default.post(
+            name: .communityIdentificationRequestDidChange,
+            object: requestId
+        )
+    }
+}
+
+private extension Notification.Name {
+    static let communityIdentificationRequestDidChange = Notification.Name("MerianCommunityIdentificationRequestDidChange")
 }
 
 private struct CommunityDetailHero: View {

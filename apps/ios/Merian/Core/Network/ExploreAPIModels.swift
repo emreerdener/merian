@@ -527,6 +527,10 @@ struct CommunityIdentificationDetail: Decodable, Identifiable, Equatable {
     var isConsensusUpdating: Bool {
         consensusProcessingState == "queued" || consensusProcessingState == "processing"
     }
+
+    var activeIdentificationCount: Int {
+        identifications.filter { $0.withdrawnAt == nil }.count
+    }
 }
 
 struct CommunityIdentification: Decodable, Identifiable, Equatable {

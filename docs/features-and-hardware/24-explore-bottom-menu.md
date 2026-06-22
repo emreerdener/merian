@@ -60,6 +60,14 @@ taxonomy version. Exact or descendant species IDs submit immediately, genus IDs
 can ask whether genus is as specific as it can get, ancestor IDs ask whether the
 user is only less specific or explicitly disagreeing, and sibling/unrelated IDs
 ask for confirmation plus optional reasoning.
+Submitting, withdrawing, or restoring an ID from the detail screen notifies the
+Identify request grid to refresh the visible page so each compact card badge
+stays aligned with the current active ID count shown in detail.
+When an Insight already has an active community request, the Insight share flow
+opens the same request sheet in edit mode, prefills the current note and
+location sharing from request detail, and saves through
+`/update-community-identification-request`; new scans continue to use the sheet
+in create mode and call `/request-community-identification`.
 
 The detail sheet intentionally leaves the image toolbar title empty. The image
 is the visual context, while the first body card names Merian's AI

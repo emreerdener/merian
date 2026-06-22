@@ -99,14 +99,26 @@ struct InsightContentView: View {
                 CommunityIdentificationRequestSheet(
                     speciesName: viewModel.resolvedHeaderTitle,
                     scientificName: speciesData.scientificName,
+                    existingRequestId: viewModel.state.sharedCommunityIdentificationRequestId,
+                    initialLocationSharing: viewModel.state.sharedExploreLocationSharing,
                     isSubmitting: viewModel.state.isRequestingCommunityIdentification,
+                    onLoadFailed: { message in
+                        viewModel.state.toastMessage = message
+                    },
                     onSubmit: { note, locationSharing in
                         Task {
-                            await viewModel.requestCommunityIdentification(
-                                note: note,
-                                locationSharing: locationSharing,
-                                modelContext: modelContext
-                            )
+                            if viewModel.state.sharedCommunityIdentificationRequestId != nil {
+                                await viewModel.updateCommunityIdentificationRequest(
+                                    note: note,
+                                    locationSharing: locationSharing
+                                )
+                            } else {
+                                await viewModel.requestCommunityIdentification(
+                                    note: note,
+                                    locationSharing: locationSharing,
+                                    modelContext: modelContext
+                                )
+                            }
                         }
                     }
                 )

@@ -86,6 +86,9 @@ extension InsightSheetView {
             onAskCommunity: viewModel.canRequestCommunityIdentification ? {
                 viewModel.state.isCommunityRequestSheetPresented = true
             } : nil,
+            onEditCommunityRequest: viewModel.state.sharedCommunityIdentificationRequestId != nil ? {
+                viewModel.state.isCommunityRequestSheetPresented = true
+            } : nil,
             isSharingToExplore: viewModel.state.isSharingToExplore,
             isUpdatingExplorePostContent: viewModel.state.isUpdatingExplorePostContent,
             isUpdatingExploreFieldNotes: viewModel.state.isUpdatingExploreFieldNotes,
