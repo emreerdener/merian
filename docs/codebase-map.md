@@ -197,7 +197,9 @@ Explore and social:
 Data lifecycle, identity, and exports:
 
 - `sync-collections`
-- `merge-ghost-profile`
+- `merge-ghost-profile` — re-parents ghost scans, collections, Explore posts,
+  Ask the Community request ownership, and follows before purging the anonymous
+  shell.
 - `safe-delete`
 - `delete-scan`
 - `flag-issue`

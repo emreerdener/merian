@@ -125,9 +125,11 @@ Public avatar extension:
 Ghost-account merge repair:
 
 - `merge-ghost-profile` now re-parents `explore_posts.user_id` along with scans and collections.
+- `merge-ghost-profile` also re-parents `explore_community_requests.requested_by` before purging the ghost public user so Ask the Community requests remain visible under Yours and are not removed by `public.users` cascade cleanup.
 - `merge-ghost-profile` also calls `reparent_user_follows` before purging the ghost user so anonymous follows survive authentication and duplicate follow rows collapse cleanly.
 - `20260511143000_reparent_explore_posts_after_scan_owner_transfer.sql` repairs existing posts whose scan owner changed during an earlier ghost merge.
-- This keeps own-profile Explore previews, author sheets, and `is_owned_by_viewer` checks aligned with the current Supabase account.
+- `20260622010000_reparent_community_requests_after_identity_merge.sql` repairs existing Community requests whose requester no longer matches the backing scan owner.
+- This keeps own-profile Explore previews, author sheets, `is_owned_by_viewer` checks, and Identify's Yours filter aligned with the current Supabase account.
 
 ## iOS Implementation
 

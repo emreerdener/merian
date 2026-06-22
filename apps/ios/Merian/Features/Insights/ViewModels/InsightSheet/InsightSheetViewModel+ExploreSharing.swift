@@ -21,6 +21,7 @@ extension InsightSheetViewModel {
             let notesForPost = fieldNotes ?? (includeFieldNotes ? shareableFieldNotes : nil)
             let response = try await MerianNetworkClient.shared.shareScanToExplore(
                 scan: record,
+                fallbackImageData: activeMedia.liveImageData,
                 speciesCommonName: resolvedHeaderTitle,
                 fieldNotes: notesForPost,
                 hashtags: hashtags,
@@ -63,6 +64,7 @@ extension InsightSheetViewModel {
             persistComposerPreferredCommonName(draft.selectedCommonName, modelContext: modelContext)
             let response = try await MerianNetworkClient.shared.shareScanToExplore(
                 scan: record,
+                fallbackImageData: activeMedia.liveImageData,
                 speciesCommonName: draft.selectedCommonName,
                 fieldNotes: draft.publicFieldNotes,
                 hashtags: draft.hashtags,
@@ -177,6 +179,7 @@ extension InsightSheetViewModel {
         do {
             let request = try await MerianNetworkClient.shared.requestCommunityIdentification(
                 scan: record,
+                fallbackImageData: activeMedia.liveImageData,
                 speciesCommonName: resolvedHeaderTitle,
                 note: note,
                 locationSharing: locationSharing

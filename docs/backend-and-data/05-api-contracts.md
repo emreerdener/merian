@@ -131,6 +131,20 @@ media. It accepts `scan_id`, optional `note`, optional `location_sharing`
 (`open`, `obscured`, `private`), optional `species_common_name`, and optional
 `restored_object_keys` for media repair.
 
+The endpoint intentionally returns `404 { "error": "Scan not found." }` when
+`public.scans` has no row for the authenticated user. The iOS Insight client
+handles that specific error by inserting a minimal owned `scans` row from the
+local `LocalScanRecord`, resolving the server `species_dictionary.id` by
+scientific name, uploading local images to staging, and retrying with
+`restored_object_keys`. This is the recovery path for scans where inference
+returned to the device but background scan ingestion failed.
+
+Before inspecting or returning an existing active request, the endpoint repairs
+any Community request on that `scan_id` whose `requested_by` no longer matches
+the authenticated scan owner. This covers legacy ghost-account ownership drift
+and keeps the Identify Yours filter, owner-only actions, and duplicate-request
+guard tied to the current account.
+
 The response envelope is:
 
 ```json
@@ -3219,8 +3233,14 @@ authenticated Google/Apple ID.
 2. Calls `supabaseAdmin.auth.admin.getUserById(ghost_id)` and validates
    `is_anonymous === true`. If a malicious actor passes a fully authenticated
    user's ID to hijack their scans, the endpoint returns `403 Forbidden`.
-3. Transfers `scans` ownership and deletes the `ghost_id` via
-   `.deleteUser(ghost_id)`.
+3. Transfers owned data before purge in this order: `scans`, `collections`,
+   `explore_posts`, `explore_community_requests`, and follow rows. Community
+   request transfer is required because `explore_community_requests.requested_by`
+   references `public.users(id) ON DELETE CASCADE`; deleting the ghost public
+   user before reparenting would remove active Ask the Community requests.
+4. Refreshes the target public Explore identity.
+5. Deletes the `ghost_id` via `.deleteUser(ghost_id)` and removes the ghost
+   `public.users` row.
 
 ---
 

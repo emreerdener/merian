@@ -158,6 +158,21 @@ feed/map/author/hashtag projections. Resolved community requests remain public
 inside Identify, but they do not enter normal Explore surfaces until the owner
 explicitly publishes them afterward.
 
+If the Edge function returns `Scan not found`, `MerianNetworkClient` treats that
+as a local/cloud drift case for Insight-originated actions. It recreates a
+minimal owned cloud scan row from the local record, resolves the server species
+id by scientific name instead of trusting local-only UUIDs, restores saved local
+image paths or the active live image buffer to staging, then retries the
+Community request with `restored_object_keys`. The same recovery path is shared
+with direct Explore sharing. The Ask affordance is gated on actual user image
+media, not a padded display count, so image-less historical/text scans cannot
+enter a request that the server cannot publish.
+
+The request sheet title is `Ask the community` in sentence case and stays
+centered because submission is not a trailing navigation item. The Send action
+lives at the bottom of the form as a full-width primary blue button and changes
+to `Sending...` while submission is in flight.
+
 ---
 
 ## Queued Scan Value-Type Pattern

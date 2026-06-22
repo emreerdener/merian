@@ -1209,7 +1209,19 @@ history is merged into the new authenticated identity:
    `purgeGhostUser`**: the `collections` table references
    `auth.users(id) ON DELETE CASCADE`, so deleting the ghost from `auth.users`
    would silently drop all collections if this step is skipped.
-4. `purgeGhostUser` — deletes the ghost from `auth.users` (cascades to
+4. `transferExplorePosts` — re-parents denormalized `explore_posts.user_id`
+   rows so Explore feeds, profile previews, author sheets, and owned-viewer
+   checks follow the new account.
+5. `transferCommunityRequests` — re-parents
+   `explore_community_requests.requested_by`. This must run before
+   `public.users(ghost_id)` is deleted because Community request ownership
+   cascades through `public.users`; skipping it can make Ask the Community
+   requests disappear from the user's Yours filter or be deleted during purge.
+6. `transferUserFollows` — copies and dedupes follow relationships onto the
+   authenticated account before the ghost public user row is removed.
+7. `syncPublicAuthorIdentity` — refreshes the target user's public Explore
+   identity projection.
+8. `purgeGhostUser` — deletes the ghost from `auth.users` (cascades to
    `collections` and `export_jobs` — both already transferred or empty) and then
    explicitly deletes `public.users(ghost_id)`. The `public.users` row has no FK
    to `auth.users` and must be deleted manually; this cascade also cleans up any

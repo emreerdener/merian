@@ -36,12 +36,122 @@ private struct ExploreShareMediaSnapshot {
     let scanId: String
     let imagePaths: [String]
     let coverImagePath: String?
+    let fallbackImageData: Data?
+    let scientificName: String
+    let commonName: String
+    let timestamp: Date
+    let captureDate: Date?
+    let gpsLatitude: Double?
+    let gpsLongitude: Double?
+    let gpsElevation: Double?
+    let locationName: String?
+    let weatherCondition: String?
+    let weatherTemperatureF: Double?
+    let confidenceScore: Double?
+    let isBiological: Bool
+    let isLiveCapture: Bool
+    let isInvasive: Bool
+    let ecologyType: String
+    let aiReasoning: String?
+    let inferenceTier: String?
+    let imageQualityScore: Int?
+    let confirmedSpeciesId: String?
+    let userIdentificationOverride: String?
+    let userConfirmedIdentification: Bool
+    let userReviewStateRaw: String?
 
-    init(scan: LocalScanRecord) {
+    init(scan: LocalScanRecord, fallbackImageData: Data? = nil) {
         self.scanId = scan.id
         self.imagePaths = scan.capturedMediaSnapshot.imagePaths
         self.coverImagePath = scan.coverImagePath
+        self.fallbackImageData = fallbackImageData
+        self.scientificName = scan.scientificName
+        self.commonName = scan.commonName
+        self.timestamp = scan.timestamp
+        self.captureDate = scan.captureDate
+        self.gpsLatitude = scan.gpsLatitude
+        self.gpsLongitude = scan.gpsLongitude
+        self.gpsElevation = scan.gpsElevation
+        self.locationName = scan.locationName
+        self.weatherCondition = scan.weatherCondition
+        self.weatherTemperatureF = scan.weatherTemperatureF
+        self.confidenceScore = scan.confidenceScore
+        self.isBiological = scan.isBiological
+        self.isLiveCapture = scan.isLiveCapture
+        self.isInvasive = scan.isInvasive
+        self.ecologyType = scan.ecologyType
+        self.aiReasoning = scan.aiReasoning
+        self.inferenceTier = scan.inferenceTier
+        self.imageQualityScore = scan.imageQualityScore
+        self.confirmedSpeciesId = scan.confirmedSpeciesId
+        self.userIdentificationOverride = scan.userIdentificationOverride
+        self.userConfirmedIdentification = scan.userConfirmedIdentification
+        self.userReviewStateRaw = scan.userReviewStateRaw
     }
+}
+
+private struct ExploreCloudScanInsertPayload: Encodable {
+    let id: String
+    let userId: String
+    let speciesId: String?
+    let confirmedSpeciesId: String?
+    let imageStorageUrls: [String]
+    let timestamp: String
+    let gpsLatExact: Double?
+    let gpsLongExact: Double?
+    let gpsLatPublic: Double?
+    let gpsLongPublic: Double?
+    let gpsElevation: Double?
+    let geoprivacy: String
+    let weatherCondition: String?
+    let weatherTemperatureF: Double?
+    let aiConfidenceScore: Double
+    let ecologyType: String
+    let isInvasive: Bool
+    let isLiveCapture: Bool
+    let isBiologicalSubject: Bool
+    let aiReasoning: String?
+    let semanticLocation: String?
+    let publicLocationLabel: String?
+    let inferenceTier: String
+    let imageQualityScore: Int?
+    let userIdentificationOverride: String?
+    let userConfirmedIdentification: Bool
+    let userReviewState: String
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case speciesId = "species_id"
+        case confirmedSpeciesId = "confirmed_species_id"
+        case imageStorageUrls = "image_storage_urls"
+        case timestamp
+        case gpsLatExact = "gps_lat_exact"
+        case gpsLongExact = "gps_long_exact"
+        case gpsLatPublic = "gps_lat_public"
+        case gpsLongPublic = "gps_long_public"
+        case gpsElevation = "gps_elevation"
+        case geoprivacy
+        case weatherCondition = "weather_condition"
+        case weatherTemperatureF = "weather_temperature_f"
+        case aiConfidenceScore = "ai_confidence_score"
+        case ecologyType = "ecology_type"
+        case isInvasive = "is_invasive"
+        case isLiveCapture = "is_live_capture"
+        case isBiologicalSubject = "is_biological_subject"
+        case aiReasoning = "ai_reasoning"
+        case semanticLocation = "semantic_location"
+        case publicLocationLabel = "public_location_label"
+        case inferenceTier = "inference_tier"
+        case imageQualityScore = "image_quality_score"
+        case userIdentificationOverride = "user_identification_override"
+        case userConfirmedIdentification = "user_confirmed_identification"
+        case userReviewState = "user_review_state"
+    }
+}
+
+private struct ExploreCloudSpeciesIdRow: Decodable {
+    let id: String
 }
 
 private struct EdgeErrorPayload: Decodable {
@@ -1746,12 +1856,13 @@ final class MerianNetworkClient {
 
     func shareScanToExplore(
         scan: LocalScanRecord,
+        fallbackImageData: Data? = nil,
         speciesCommonName: String? = nil,
         fieldNotes: String? = nil,
         hashtags: [String] = [],
         locationSharing: ExplorePostLocationSharing? = nil
     ) async throws -> ExploreShareResponse {
-        let mediaSnapshot = ExploreShareMediaSnapshot(scan: scan)
+        let mediaSnapshot = ExploreShareMediaSnapshot(scan: scan, fallbackImageData: fallbackImageData)
         do {
             return try await shareScanToExplore(
                 scanId: mediaSnapshot.scanId,
@@ -1761,6 +1872,26 @@ final class MerianNetworkClient {
                 locationSharing: locationSharing
             )
         } catch {
+            if shouldAttemptExploreCloudScanRestore(after: error) {
+                MerianLog.network.debug("Explore share missing cloud scan; attempting local scan recovery for \(mediaSnapshot.scanId, privacy: .private).")
+                try await ensureExploreCloudScanExists(for: mediaSnapshot, locationSharing: locationSharing)
+                let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: mediaSnapshot)
+                guard !restoredObjectKeys.isEmpty else {
+                    MerianLog.network.debug("Explore share cloud scan recovery could not find restorable local media for \(mediaSnapshot.scanId, privacy: .private).")
+                    throw error
+                }
+
+                MerianLog.network.debug("Explore share cloud scan recovery uploaded \(restoredObjectKeys.count, privacy: .public) media item(s); retrying.")
+                return try await shareScanToExplore(
+                    scanId: mediaSnapshot.scanId,
+                    restoredObjectKeys: restoredObjectKeys,
+                    speciesCommonName: speciesCommonName,
+                    fieldNotes: fieldNotes,
+                    hashtags: hashtags,
+                    locationSharing: locationSharing
+                )
+            }
+
             guard shouldAttemptExploreMediaRestore(after: error) else {
                 throw error
             }
@@ -1810,11 +1941,12 @@ final class MerianNetworkClient {
 
     func requestCommunityIdentification(
         scan: LocalScanRecord,
+        fallbackImageData: Data? = nil,
         speciesCommonName: String? = nil,
         note: String? = nil,
         locationSharing: ExplorePostLocationSharing? = nil
     ) async throws -> CommunityIdentificationRequest {
-        let mediaSnapshot = ExploreShareMediaSnapshot(scan: scan)
+        let mediaSnapshot = ExploreShareMediaSnapshot(scan: scan, fallbackImageData: fallbackImageData)
         do {
             return try await requestCommunityIdentification(
                 scanId: mediaSnapshot.scanId,
@@ -1823,6 +1955,25 @@ final class MerianNetworkClient {
                 locationSharing: locationSharing
             )
         } catch {
+            if shouldAttemptExploreCloudScanRestore(after: error) {
+                MerianLog.network.debug("Community request missing cloud scan; attempting local scan recovery for \(mediaSnapshot.scanId, privacy: .private).")
+                try await ensureExploreCloudScanExists(for: mediaSnapshot, locationSharing: locationSharing)
+                let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: mediaSnapshot)
+                guard !restoredObjectKeys.isEmpty else {
+                    MerianLog.network.debug("Community request cloud scan recovery could not find restorable local media for \(mediaSnapshot.scanId, privacy: .private).")
+                    throw error
+                }
+
+                MerianLog.network.debug("Community request cloud scan recovery uploaded \(restoredObjectKeys.count, privacy: .public) media item(s); retrying.")
+                return try await requestCommunityIdentification(
+                    scanId: mediaSnapshot.scanId,
+                    restoredObjectKeys: restoredObjectKeys,
+                    speciesCommonName: speciesCommonName,
+                    note: note,
+                    locationSharing: locationSharing
+                )
+            }
+
             guard shouldAttemptExploreMediaRestore(after: error) else {
                 throw error
             }
@@ -1987,9 +2138,164 @@ final class MerianNetworkClient {
         return message.contains("This scan no longer has shareable image media.")
     }
 
+    private func shouldAttemptExploreCloudScanRestore(after error: Error) -> Bool {
+        guard case let MerianError.httpError(statusCode, message) = error,
+              statusCode == 404 else {
+            return false
+        }
+
+        return message.contains("Scan not found")
+    }
+
+    private func ensureExploreCloudScanExists(
+        for scan: ExploreShareMediaSnapshot,
+        locationSharing: ExplorePostLocationSharing?
+    ) async throws {
+        let authUserId = try await SupabaseManager.shared.client.auth.session.user.id.uuidString.lowercased()
+        let defaultGeoprivacy = await MainActor.run {
+            AppDIContainer.shared.profileViewModel.defaultGeoprivacy
+        }
+        let geoprivacy = normalizedExploreScanGeoprivacy(locationSharing?.rawValue ?? defaultGeoprivacy)
+        let serverSpeciesId = try await resolveExploreCloudSpeciesId(scientificName: scan.scientificName)
+        let publicLocationLabel = geoprivacy == "private"
+            ? nil
+            : ExploreLocationPrivacy.displayLabel(from: scan.locationName)
+        let exposesExactPublicCoordinates = geoprivacy == "open"
+
+        let payload = ExploreCloudScanInsertPayload(
+            id: scan.scanId,
+            userId: authUserId,
+            speciesId: serverSpeciesId,
+            confirmedSpeciesId: scan.userConfirmedIdentification ? serverSpeciesId : nil,
+            imageStorageUrls: [],
+            timestamp: DateUtilities.iso8601Formatter.string(from: scan.captureDate ?? scan.timestamp),
+            gpsLatExact: scan.gpsLatitude,
+            gpsLongExact: scan.gpsLongitude,
+            gpsLatPublic: exposesExactPublicCoordinates ? scan.gpsLatitude : nil,
+            gpsLongPublic: exposesExactPublicCoordinates ? scan.gpsLongitude : nil,
+            gpsElevation: scan.gpsElevation,
+            geoprivacy: geoprivacy,
+            weatherCondition: scan.weatherCondition?.nilIfEmpty,
+            weatherTemperatureF: scan.weatherTemperatureF,
+            aiConfidenceScore: normalizedExploreConfidence(scan.confidenceScore),
+            ecologyType: normalizedExploreEcologyType(scan.ecologyType),
+            isInvasive: scan.isInvasive,
+            isLiveCapture: scan.isLiveCapture,
+            isBiologicalSubject: scan.isBiological,
+            aiReasoning: scan.aiReasoning?.nilIfEmpty,
+            semanticLocation: scan.locationName?.nilIfEmpty,
+            publicLocationLabel: publicLocationLabel,
+            inferenceTier: normalizedExploreInferenceTier(scan.inferenceTier),
+            imageQualityScore: scan.imageQualityScore,
+            userIdentificationOverride: scan.userIdentificationOverride?.nilIfEmpty,
+            userConfirmedIdentification: scan.userConfirmedIdentification,
+            userReviewState: normalizedExploreUserReviewState(
+                rawValue: scan.userReviewStateRaw,
+                userConfirmedIdentification: scan.userConfirmedIdentification,
+                userIdentificationOverride: scan.userIdentificationOverride
+            )
+        )
+
+        do {
+            try await SupabaseManager.shared.client
+                .from("scans")
+                .insert(payload)
+                .execute()
+        } catch {
+            if (try? await checkScanStatus(scanId: scan.scanId)) == "found" {
+                return
+            }
+            throw error
+        }
+    }
+
+    private func resolveExploreCloudSpeciesId(scientificName: String) async throws -> String? {
+        let trimmedScientificName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedScientificName.isEmpty else { return nil }
+
+        let rows: [ExploreCloudSpeciesIdRow] = try await SupabaseManager.shared.client
+            .from("species_dictionary")
+            .select("id")
+            .eq("scientific_name", value: trimmedScientificName)
+            .limit(1)
+            .execute()
+            .value
+
+        return rows.first?.id
+    }
+
+    private func normalizedExploreScanGeoprivacy(_ value: String) -> String {
+        switch value {
+        case "open", "obscured", "private":
+            return value
+        default:
+            return "private"
+        }
+    }
+
+    private func normalizedExploreEcologyType(_ value: String) -> String {
+        switch value {
+        case "wild", "urban", "domesticated", "unknown":
+            return value
+        default:
+            return "unknown"
+        }
+    }
+
+    private func normalizedExploreInferenceTier(_ value: String?) -> String {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return "flash"
+        }
+        return trimmed
+    }
+
+    private func normalizedExploreConfidence(_ value: Double?) -> Double {
+        min(1.0, max(0.0, value ?? 0.0))
+    }
+
+    private func normalizedExploreUserReviewState(
+        rawValue: String?,
+        userConfirmedIdentification: Bool,
+        userIdentificationOverride: String?
+    ) -> String {
+        if let rawValue,
+           ["unreviewed", "ai_confirmed", "user_overridden"].contains(rawValue) {
+            return rawValue
+        }
+        if userConfirmedIdentification {
+            return "ai_confirmed"
+        }
+        if userIdentificationOverride?.nilIfEmpty != nil {
+            return "user_overridden"
+        }
+        return "unreviewed"
+    }
+
     private func restoreExploreMediaObjectKeys(for scan: ExploreShareMediaSnapshot) async throws -> [String] {
         let localImagePaths = resolveRestorableImagePaths(for: scan)
-        guard !localImagePaths.isEmpty else { return [] }
+        if localImagePaths.isEmpty {
+            guard let fallbackImageData = scan.fallbackImageData,
+                  !fallbackImageData.isEmpty else {
+                return []
+            }
+
+            let fileName = MediaStagingContract.sanitizedFileName("\(scan.scanId)_explore_restore_live.webp")
+            let uploadFiles = [
+                StagingUploadFile(
+                    fileName: fileName,
+                    mediaKind: .image,
+                    contentType: "image/webp",
+                    sizeBytes: fallbackImageData.count
+                )
+            ]
+            let uploadUrls = try await generateUploadURLs(uploadFiles: uploadFiles)
+            guard let uploadUrl = uploadUrls.first else {
+                throw MerianError.invalidResponse
+            }
+            try await uploadToR2(url: uploadUrl.signedUrl, data: fallbackImageData, mimeType: "image/webp")
+            return [uploadUrl.objectKey]
+        }
 
         let fileNames = localImagePaths.enumerated().map { index, path in
             let ext = URL(fileURLWithPath: path).pathExtension
@@ -1998,7 +2304,7 @@ final class MerianNetworkClient {
         }
 
         let uploadFiles = try zip(localImagePaths, fileNames).map { path, fileName in
-            let fileURL = URL.documentsDirectory.appendingPathComponent(path)
+            let fileURL = localExploreRestoreFileURL(for: path)
             return StagingUploadFile(
                 fileName: fileName,
                 mediaKind: .image,
@@ -2023,7 +2329,7 @@ final class MerianNetworkClient {
                 while inFlight < maxConcurrentUploads, let (path, uploadUrl) = iterator.next() {
                     inFlight += 1
                     group.addTask { [self] in
-                        let fileURL = URL.documentsDirectory.appendingPathComponent(path)
+                        let fileURL = localExploreRestoreFileURL(for: path)
                         try await uploadToR2(
                             url: uploadUrl.signedUrl,
                             fileURL: fileURL,
@@ -2052,13 +2358,23 @@ final class MerianNetworkClient {
 
         var resolved: [String] = []
         for path in candidatePaths where !path.starts(with: "http") {
-            let fileURL = URL.documentsDirectory.appendingPathComponent(path)
+            let fileURL = localExploreRestoreFileURL(for: path)
             if FileManager.default.fileExists(atPath: fileURL.path), !resolved.contains(path) {
                 resolved.append(path)
             }
         }
 
         return resolved
+    }
+
+    private func localExploreRestoreFileURL(for path: String) -> URL {
+        if path.hasPrefix("/") {
+            return URL(fileURLWithPath: path)
+        }
+        if let url = URL(string: path), url.isFileURL {
+            return url
+        }
+        return URL.documentsDirectory.appendingPathComponent(path)
     }
 
     private func exploreRestoreMimeType(for fileURL: URL) -> String {

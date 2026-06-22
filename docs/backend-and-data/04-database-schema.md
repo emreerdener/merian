@@ -246,7 +246,9 @@ One active Ask the Community request per Explore post. Status is
 `needs_id`, `resolved`, or `withdrawn`.
 
 - `post_id` / `scan_id` / `requested_by`: Connect the request to the existing
-  Explore post, source scan, and requester.
+  Explore post, source scan, and requester. `requested_by` is the source of
+  truth for the Identify Yours filter and owner-only request actions. It must
+  stay aligned with the current scan owner across ghost-account merges.
 - `taxonomy_version_id`: Pins the request, its search results, and its
   identifications to one taxonomy version.
 - `initial_taxon_node_id`: The AI-derived starting label. Detail responses
@@ -814,6 +816,10 @@ Dead-letter table for background scan ingestion failures. Added in migration
 client has already received a `200` with the AI result. Without this table the
 failure is only visible in edge function logs — the scan is permanently missing
 from the server DB, breaking multi-device sync and DwC-A exports for that user.
+Insight-originated Explore sharing and Ask the Community now repair the
+user-facing path by recreating a minimal owned `public.scans` row from the local
+record before retrying media restore, but ops replay is still the authoritative
+way to backfill every ingestion-derived column.
 
 **Ops workflow**: Query by `user_id` and `failed_at` to identify affected users;
 replay by re-invoking the `identify` function with the same `client_scan_id`.
@@ -1283,6 +1289,11 @@ coordinates to the client contract.
   Ghost-merge helper that inserts target-user copies of ghost follower/followee
   rows, ignores conflicts, and deletes rows still referencing the ghost or any
   self-follow produced by the merge.
+- `public.repair_community_request_ownership_for_user(target_user_id UUID)`:
+  Repairs existing Ask the Community rows whose `requested_by` no longer
+  matches the owner of their backing `scans` row. This keeps the Identify Yours
+  filter, owner-only actions, and account-merge cleanup aligned after legacy
+  ghost ownership drift.
 
 These RPCs intentionally avoid raw auth metadata and private scan-only fields.
 Feed/detail/notification reads avoid coordinates entirely, while

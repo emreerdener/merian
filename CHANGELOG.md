@@ -11,8 +11,10 @@ TestFlight, App Store, support, and QA.
 - Fixed Ask the Community request ownership after account identity changes so
   requests stay associated with the signed-in user and remain visible under
   Yours.
-- Fixed the Ask the community request sheet title casing and kept the centered
-  title stable while the Send button changes to Sending.
+- Fixed Insight sharing and Ask the community requests for local scans whose
+  cloud scan row was missing after background ingestion failed.
+- Fixed the Ask the community request sheet title casing and moved Send into a
+  primary blue button at the bottom of the form so the title stays centered.
 
 ### Added
 

@@ -45,6 +45,24 @@ struct CommunityIdentificationRequestSheet: View {
                         }
                     }
                 }
+
+                Section {
+                    Button {
+                        onSubmit(trimmedNote, locationSharing)
+                    } label: {
+                        Text(isSubmitting ? "Sending..." : "Send")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(isSubmitting ? Color.blue.opacity(0.35) : Color.blue)
+                            .foregroundStyle(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSubmitting)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
+                }
             }
             .navigationTitle("Ask the community")
             .navigationBarTitleDisplayMode(.inline)
@@ -62,15 +80,6 @@ struct CommunityIdentificationRequestSheet: View {
                     }
                     .accessibilityLabel("Close")
                     .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isSubmitting ? "Sending..." : "Send") {
-                        onSubmit(trimmedNote, locationSharing)
-                    }
-                    .tint(.blue)
-                    .disabled(isSubmitting)
-                    .frame(minWidth: 96, alignment: .trailing)
                 }
             }
         }

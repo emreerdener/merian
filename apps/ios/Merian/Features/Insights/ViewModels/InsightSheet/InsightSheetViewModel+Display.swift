@@ -21,7 +21,8 @@ extension InsightSheetViewModel {
     }
 
     var activeImageCount: Int {
-        max(1, toolbarRecordSnapshot?.imageCount ?? 0)
+        toolbarRecordSnapshot?.imageCount
+            ?? activeMedia.imagePathsForUpload.count + (activeMedia.liveImageData == nil ? 0 : 1)
     }
 
     // MARK: - Processing State
@@ -165,7 +166,7 @@ extension InsightSheetViewModel {
     }
 
     var canRequestCommunityIdentification: Bool {
-        canShareToExplore && activeImageCount > 0
+        canShareToExplore && hasUserPhotos
     }
 
     var shareRecommendation: InsightShareRecommendation {

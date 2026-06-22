@@ -68,9 +68,10 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     `signInWithIdToken`. To prevent data stranding on this fallback boundary,
     Merian caches the ephemeral Ghost UUID before executing the sign-in, then
     invokes a decoupled Edge RPC hook (`/merge-ghost-profile`) which transfers
-    PostgreSQL `scans` ownership from the Ghost UUID to the newly verified
-    `session.user.id`, removing the obsolete Ghost shell. To prevent account
-    hijacking (IDOR), the backend verifies
+    PostgreSQL `scans`, `collections`, Explore posts, Ask the Community request
+    ownership, and follow relationships from the Ghost UUID to the newly
+    verified `session.user.id`, removing the obsolete Ghost shell. To prevent
+    account hijacking (IDOR), the backend verifies
     `ghostUser.user.is_anonymous === true` before merging, preventing
     authenticated accounts from being maliciously merged or wiped by other
     users.
