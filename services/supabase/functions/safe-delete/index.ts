@@ -1,8 +1,7 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler, logStructuredError } from "../_shared/edgeHandler.ts";
 import { queueStorageDeletion, applyUserTombstone, deleteAuthProfile } from "./db.ts";
 
-serve((req: Request) =>
+Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
 
     // 1. Delete auth profile first — immediately revokes the JWT so the user cannot

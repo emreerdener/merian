@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler, runBackground } from "../_shared/edgeHandler.ts";
 import { fetchSimilarSpecies, fetchStaticEncyclopedicData, EncyclopedicData } from "../_shared/biology.ts";
 import { fetchGBIFVernacularNames } from "../_shared/external.ts";
@@ -74,7 +73,7 @@ function formatLookalikesOnlyPayload(
 const _enrichmentInFlight = new Map<string, Promise<void>>();
 const _lookalikesInFlight = new Map<string, Promise<void>>();
 
-serve((req: Request) =>
+Deno.serve((req: Request) =>
   withEdgeHandler(req, async (_user, supabaseAdmin) => {
     let body;
     try {

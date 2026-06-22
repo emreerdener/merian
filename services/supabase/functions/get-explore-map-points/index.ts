@@ -1,5 +1,3 @@
-// deno-lint-ignore no-import-prefix
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import {
   normalizeLimit,
@@ -61,14 +59,19 @@ function normalizeZoomLevel(value: unknown): number {
   return Math.max(0, Math.min(value, 20));
 }
 
-function normalizeSpeciesCategories(value: unknown): ExploreMapSpeciesCategory[] {
+function normalizeSpeciesCategories(
+  value: unknown,
+): ExploreMapSpeciesCategory[] {
   if (!Array.isArray(value)) return [];
 
   const categories: ExploreMapSpeciesCategory[] = [];
   for (const rawCategory of value) {
     if (typeof rawCategory !== "string") continue;
-    const category = rawCategory.trim().toLowerCase() as ExploreMapSpeciesCategory;
-    if (ALLOWED_SPECIES_CATEGORIES.has(category) && !categories.includes(category)) {
+    const category = rawCategory.trim()
+      .toLowerCase() as ExploreMapSpeciesCategory;
+    if (
+      ALLOWED_SPECIES_CATEGORIES.has(category) && !categories.includes(category)
+    ) {
       categories.push(category);
     }
   }
@@ -76,7 +79,7 @@ function normalizeSpeciesCategories(value: unknown): ExploreMapSpeciesCategory[]
   return categories;
 }
 
-serve((req: Request) =>
+Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     let body: Record<string, unknown>;
     try {
@@ -111,7 +114,9 @@ serve((req: Request) =>
     );
     const zoomLevel = normalizeZoomLevel(body.zoom_level);
     const limit = normalizeLimit(body.limit, 500, 500);
-    const speciesCategories = normalizeSpeciesCategories(body.species_categories);
+    const speciesCategories = normalizeSpeciesCategories(
+      body.species_categories,
+    );
 
     await refreshExploreAuthorStateBestEffort(
       user.id,
@@ -135,6 +140,9 @@ serve((req: Request) =>
       supabaseAdmin,
     );
 
-    return jsonResponse(buildExploreMapPayload(rows, zoomLevel, speciesCategories), 200);
+    return jsonResponse(
+      buildExploreMapPayload(rows, zoomLevel, speciesCategories),
+      200,
+    );
   })
 );

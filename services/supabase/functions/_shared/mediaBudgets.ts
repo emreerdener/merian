@@ -1,4 +1,4 @@
-import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+import { decodeBase64 } from "./encoding.ts";
 
 export const MEDIA_BUDGETS = {
   maxImageCount: 5,

@@ -1,5 +1,3 @@
-// deno-lint-ignore no-import-prefix
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import {
@@ -7,10 +5,7 @@ import {
   normalizeCommunityLocationSharing,
   normalizeCommunityNote,
 } from "../_shared/communityIdentification.ts";
-import {
-  requireUuid,
-  syncPublicAuthorIdentity,
-} from "../_shared/explore.ts";
+import { requireUuid, syncPublicAuthorIdentity } from "../_shared/explore.ts";
 import { requestCommunityIdentification } from "./db.ts";
 
 function normalizeRestoredObjectKeys(value: unknown, userId: string): string[] {
@@ -65,7 +60,7 @@ function normalizeSpeciesCommonName(value: unknown): string | null {
   return trimmed;
 }
 
-serve((req: Request) =>
+Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
     if (parsedBody instanceof Response) return parsedBody;

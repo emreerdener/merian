@@ -1,5 +1,3 @@
-import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
-
 import {
   encodeWav16,
   extractSamplesAsFloat32,
@@ -8,6 +6,7 @@ import {
   resampleLinear,
   trimSilence,
 } from "../audio-spec/wav.ts";
+import { encodeBase64 } from "./encoding.ts";
 
 export const TARGET_AUDIO_SAMPLE_RATE = 16_000;
 
@@ -29,10 +28,16 @@ export function processWavBuffer(
   const interleaved = extractSamplesAsFloat32(rawWavBuffer, header);
   const mono = mixToMono(interleaved, header.numChannels);
   const trimmed = trimSilence(mono, header.sampleRate);
-  const resampled = resampleLinear(trimmed, header.sampleRate, targetSampleRate);
+  const resampled = resampleLinear(
+    trimmed,
+    header.sampleRate,
+    targetSampleRate,
+  );
 
   if (resampled.length < 8_000) {
-    throw new Error("Audio too short to identify. Please record a longer clip.");
+    throw new Error(
+      "Audio too short to identify. Please record a longer clip.",
+    );
   }
 
   const processedWav = encodeWav16(resampled, targetSampleRate);

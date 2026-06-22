@@ -9,9 +9,9 @@
     "@std/encoding-base64": "jsr:@std/encoding@1/base64",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.49.1",
     "https://esm.sh/@supabase/supabase-js@2.49.1": "npm:@supabase/supabase-js@2.49.1",
-    "aws4fetch": "https://esm.sh/aws4fetch@1.0.20",
+    "aws4fetch": "npm:aws4fetch@1.0.20",
     "@google/genai": "npm:@google/genai@1.0.0",
-    "jszip": "https://esm.sh/jszip@3.10.1"
+    "jszip": "npm:jszip@3.10.1"
   },
   "lint": {
     "rules": {

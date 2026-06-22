@@ -28,12 +28,16 @@ Deploying all configured functions is intentional. Shared modules such as
 Function at deploy time; deploying a hand-maintained partial list risks leaving
 production on mixed helper versions.
 
-The deploy command explicitly passes `services/supabase/functions/deno.json`
-because many existing functions still import the historical
-`https://esm.sh/@supabase/supabase-js@2.49.1` specifier. The import map remaps
-that exact URL to Supabase's recommended npm package specifier for Edge
-Functions, avoiding deploy-time failures when esm.sh returns transient 5xx
-responses while the Supabase bundler creates each function graph.
+The deploy command explicitly passes `supabase/functions/deno.json` from the
+workflow's `services/` working directory. That import map keeps dependency
+resolution stable while Supabase builds each function graph: historical
+`https://esm.sh/@supabase/supabase-js@2.49.1` imports are remapped to the npm
+package, and runtime dependencies such as `aws4fetch` and `jszip` also resolve
+through npm instead of esm.sh. Edge entrypoints should use `Deno.serve(...)`
+directly rather than importing `serve` from Deno std. Shared runtime helpers
+should prefer local utilities such as `_shared/encoding.ts` for base64/hex
+helpers so production deploys do not fail when deno.land or esm.sh returns a
+transient 5xx during bundling.
 
 ## Required GitHub Secrets
 
@@ -71,22 +75,23 @@ Only use the local path when GitHub Actions is unavailable.
 ```bash
 cd /Users/emreerdener/Developer/merian
 
-deno check \
+deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/aws.ts \
   services/supabase/functions/_shared/aws_test.ts \
+  services/supabase/functions/_shared/encoding.ts \
   services/supabase/functions/_shared/concurrency.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
   services/supabase/functions/update-public-avatar/index.ts \
   services/supabase/functions/auto-purge-nonbio/index.ts \
   services/supabase/functions/delete-scan/index.ts
 
-deno test \
+deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/aws_test.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
   services/supabase/functions/update-public-avatar/avatar_test.ts
 
 make db-push
-supabase --workdir services functions deploy --import-map services/supabase/functions/deno.json
+make functions-deploy
 ```
 
 If `make db-push` reports a missing access token, authenticate the local CLI:

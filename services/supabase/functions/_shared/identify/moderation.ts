@@ -1,9 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { decodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { SafetyRating } from "npm:@google/genai@1.0.0";
 
 import { copyR2Object, deleteR2Object, getR2Config } from "../aws.ts";
 import { logStructuredError } from "../edgeHandler.ts";
+import { decodeBase64 } from "../encoding.ts";
 
 type PromotionR2Config = ReturnType<typeof getR2Config>;
 
@@ -38,7 +38,8 @@ export async function promoteSafeMedia(
     copyObject = copyR2Object,
     deleteObject = deleteR2Object,
     fetchImpl = fetch,
-    signRequest = async (request: Request) => await r2Config.s3Client.sign(request),
+    signRequest = async (request: Request) =>
+      await r2Config.s3Client.sign(request),
   }: PromotionDependencies = {},
 ): Promise<string[]> {
   const tier = userTier === "pro" ? "pro" : "free";
@@ -102,7 +103,9 @@ export async function promoteSafeMedia(
           userId,
           failed_count: failedRollbacks.length,
           total_count: promotedKeys.length,
-          original_error: error instanceof Error ? error.message : String(error),
+          original_error: error instanceof Error
+            ? error.message
+            : String(error),
         });
       }
     }

@@ -1,4 +1,4 @@
-import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
+import { AwsClient } from "aws4fetch";
 import { mapWithConcurrencyLimit } from "./concurrency.ts";
 
 export interface R2Config {
@@ -87,7 +87,7 @@ export const deleteR2Objects = async (urls: string[], r2Config: R2Config) => {
       try {
         console.log(`Deleting R2 object: ${url}`);
         const s3Url = getInternalS3Url(url, r2Config);
-        await s3Client.fetch(s3Url, { method: "DELETE" });
+        await s3Client.fetch(new Request(s3Url, { method: "DELETE" }));
       } catch (e) {
         console.error(`Failed to wipe media at ${url} from Cloudflare R2:`, e);
       }
@@ -127,12 +127,14 @@ export async function copyR2Object(
   const { s3Client, bucketName, endpoint } = config;
   const copyUrl = `${endpoint}/${bucketName}/${targetKey}`;
 
-  return await s3Client.fetch(copyUrl, {
-    method: "PUT",
-    headers: {
-      "x-amz-copy-source": encodeURI(`/${bucketName}/${sourceKey}`),
-    },
-  });
+  return await s3Client.fetch(
+    new Request(copyUrl, {
+      method: "PUT",
+      headers: {
+        "x-amz-copy-source": encodeURI(`/${bucketName}/${sourceKey}`),
+      },
+    }),
+  );
 }
 
 export async function deleteR2Object(
@@ -141,7 +143,7 @@ export async function deleteR2Object(
 ): Promise<Response> {
   const { s3Client, bucketName, endpoint } = config;
   const deleteUrl = `${endpoint}/${bucketName}/${key}`;
-  return await s3Client.fetch(deleteUrl, { method: "DELETE" });
+  return await s3Client.fetch(new Request(deleteUrl, { method: "DELETE" }));
 }
 
 /**
@@ -161,9 +163,11 @@ export async function generatePresignedPutUrl(
   const { s3Client, bucketName, endpoint } = config;
   const url = new URL(`${endpoint}/${bucketName}/${key}`);
   url.searchParams.set("X-Amz-Expires", String(expirySeconds));
-  const signed = await s3Client.sign(url.toString(), {
+  const request = new Request(url.toString(), {
     method: "PUT",
     headers: { "Content-Type": contentType },
+  });
+  const signed = await s3Client.sign(request, {
     aws: { signQuery: true },
   });
   return signed.url;

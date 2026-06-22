@@ -63,7 +63,7 @@ jobs:
 
       - name: Validate shared Edge runtime checks
         run: |
-          deno check \
+          deno check --config supabase/functions/deno.json \
             supabase/functions/_shared/aws.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency.ts \
@@ -73,7 +73,7 @@ jobs:
 
       - name: Test shared Edge helpers
         run: |
-          deno test \
+          deno test --config supabase/functions/deno.json \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency_test.ts
 
@@ -86,7 +86,7 @@ jobs:
       - name: Deploy Edge Functions
         run: |
           for attempt in 1 2 3; do
-            if supabase functions deploy --project-ref "$PROJECT_ID"; then
+            if supabase functions deploy --project-ref "$PROJECT_ID" --import-map supabase/functions/deno.json; then
               exit 0
             fi
 

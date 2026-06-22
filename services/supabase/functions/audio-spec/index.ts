@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { Schema, Type } from "npm:@google/genai@1.0.0";
 
 import {
@@ -115,7 +114,7 @@ const audioSchema: Record<string, unknown> = {
   required: ["is_biological_subject", "confidence_score", "ai_reasoning"],
 };
 
-serve((req: Request) =>
+Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
     const bodyReadResult = await readRequestJsonWithinBudget<

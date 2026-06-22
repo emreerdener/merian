@@ -1,5 +1,3 @@
-// deno-lint-ignore no-import-prefix
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   corsHeaders,
@@ -22,7 +20,7 @@ function normalizeSourceRevision(value: unknown): string | null {
   return trimmed;
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

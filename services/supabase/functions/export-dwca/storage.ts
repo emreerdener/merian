@@ -1,4 +1,4 @@
-import JSZip from "https://esm.sh/jszip@3.10.1";
+import JSZip from "jszip";
 import { getR2Config } from "../_shared/aws.ts";
 
 export async function zipAndUploadToR2(

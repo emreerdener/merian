@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import {
   jsonResponse,
   logStructuredError,
@@ -12,7 +11,7 @@ import {
   validateShareImportRequest,
 } from "./shareImport.ts";
 
-serve((req: Request) =>
+Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     let body: unknown;
     try {

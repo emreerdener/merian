@@ -1,4 +1,4 @@
-import { encodeHex } from "https://deno.land/std@0.224.0/encoding/hex.ts";
+import { encodeHex } from "../_shared/encoding.ts";
 import { DBScanRow } from "./types.ts";
 
 export const DWCA_META_XML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -35,14 +35,29 @@ export const DWCA_META_XML = `<?xml version="1.0" encoding="UTF-8"?>
 </archive>`;
 
 export const OCCURRENCE_HEADERS = [
-  "coreid","basisOfRecord","recordedBy","eventDate","scientificName",
-  "kingdom","phylum","class","order","family","genus",
-  "decimalLatitude","decimalLongitude","coordinateUncertaintyInMeters",
-  "lifeStage","reproductiveCondition","individualCount",
-  "sex","associatedTaxa","identificationVerificationStatus",
+  "coreid",
+  "basisOfRecord",
+  "recordedBy",
+  "eventDate",
+  "scientificName",
+  "kingdom",
+  "phylum",
+  "class",
+  "order",
+  "family",
+  "genus",
+  "decimalLatitude",
+  "decimalLongitude",
+  "coordinateUncertaintyInMeters",
+  "lifeStage",
+  "reproductiveCondition",
+  "individualCount",
+  "sex",
+  "associatedTaxa",
+  "identificationVerificationStatus",
 ].map((h) => `"${h}"`).join(",");
 
-export const MULTIMEDIA_HEADERS = ["coreid","identifier","format"]
+export const MULTIMEDIA_HEADERS = ["coreid", "identifier", "format"]
   .map((h) => `"${h}"`).join(",");
 
 // RFC 4180-compliant CSV field encoder.
@@ -52,8 +67,8 @@ export const MULTIMEDIA_HEADERS = ["coreid","identifier","format"]
 function csvField(value: string | number | null | undefined): string {
   if (value == null) return '""';
   const str = String(value)
-    .replace(/\r?\n/g, " ")   // flatten newlines
-    .replace(/"/g, '""');     // RFC 4180: escape " by doubling
+    .replace(/\r?\n/g, " ") // flatten newlines
+    .replace(/"/g, '""'); // RFC 4180: escape " by doubling
   return `"${str}"`;
 }
 
@@ -73,7 +88,9 @@ export async function generateDwcARow(
     if (export_scope === "global") {
       const hashData = new TextEncoder().encode(scan.user_id + secretHashSalt);
       const hashBuffer = await crypto.subtle.digest("SHA-256", hashData);
-      recordedBy = `merian_user_${encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)}`;
+      recordedBy = `merian_user_${
+        encodeHex(new Uint8Array(hashBuffer)).substring(0, 16)
+      }`;
     } else {
       recordedBy = scan.user_id;
     }
@@ -85,12 +102,15 @@ export async function generateDwcARow(
     "critically_endangered",
     "near_threatened",
   ].includes(species?.iucn_red_list_status || "");
-  const canAccessPrecise = include_precise_coordinates && (scan.user_id === requestingUserId);
+  const canAccessPrecise = include_precise_coordinates &&
+    (scan.user_id === requestingUserId);
 
-  let lat: number | string | undefined | null =
-    canAccessPrecise && !isProtected ? scan.gps_lat_exact : scan.gps_lat_public;
-  let lon: number | string | undefined | null =
-    canAccessPrecise && !isProtected ? scan.gps_long_exact : scan.gps_long_public;
+  let lat: number | string | undefined | null = canAccessPrecise && !isProtected
+    ? scan.gps_lat_exact
+    : scan.gps_lat_public;
+  let lon: number | string | undefined | null = canAccessPrecise && !isProtected
+    ? scan.gps_long_exact
+    : scan.gps_long_public;
   const uncertainty = canAccessPrecise && !isProtected
     ? scan.coordinate_uncertainty_in_meters || ""
     : "50000";
@@ -105,13 +125,16 @@ export async function generateDwcARow(
 
   const lifeStage = scan.life_stage || "unknown";
   const reproductiveCondition = scan.reproductive_condition || "not_applicable";
-  const individualCount = scan.individual_count != null ? scan.individual_count : "";
+  const individualCount = scan.individual_count != null
+    ? scan.individual_count
+    : "";
   const sex = scan.sex || "";
 
   // Join ecological interactions with " | " separator; commas within each entry become
   // semicolons so the joined string doesn't need further escaping beyond csvField's quoting.
   const associatedTaxa = scan.ecological_interactions?.length
-    ? scan.ecological_interactions.map((s: string) => s.replace(/,/g, ";")).join(" | ")
+    ? scan.ecological_interactions.map((s: string) => s.replace(/,/g, ";"))
+      .join(" | ")
     : "";
 
   const verificationStatus = scan.ai_confidence_score != null

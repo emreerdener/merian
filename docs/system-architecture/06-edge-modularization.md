@@ -15,6 +15,9 @@ The `index.ts` file operates structurally as the "Router". Its singular purpose 
 - **Aggressive Input Validation:** All payloads must be manually verified using `requireParams` pulled natively from `_shared/http.ts`.
 - **IDOR Protections:** Direct `user.id` bounding must be evaluated inside `index.ts` before allowing `db.ts` to proceed.
 - **Async Detachment:** Heavy I/O processing operations matching `EdgeRuntime.waitUntil(...)` from `_shared/edgeHandler.ts` are initialized here strictly after returning the native HTTP `200 OK` response.
+- **Native Deno Serving:** Use `Deno.serve(...)` directly in Edge entrypoints.
+  Do not import `serve` from `https://deno.land/std/.../http/server.ts`; every
+  remote runtime import becomes a deploy-time graph fetch for every function.
 
 ## 2. The PostgreSQL Layer (`db.ts`)
 
@@ -59,6 +62,8 @@ For exceptionally heavy or bespoke routing streams that violate the 10-second De
 
 - **`storage.ts`**: Handles heavy `AWS` bindings via native `aws4fetch`. When streaming multimegabyte binaries directly into Cloudflare R2, implementations like `JSZip` must pipe their outputs efficiently into a `ReadableStream` natively chunked into S3 without overloading memory buffers.
 - **`_shared/aws.ts`**: Shared Cloudflare R2 helpers. Pre-signed PUT generation accepts an explicit `Content-Type`; callers must sign image and audio uploads with the same header the client will send.
+- **`_shared/encoding.ts`**: Local base64 and hex helpers for runtime code. Use
+  this instead of importing Deno std encoding modules in deployed functions.
 - **`_shared/mediaBudgets.ts`**: Shared media budget and safety checks. Edge functions must use this module for endpoint JSON body ceilings, audio clip count, inline base64 length, raw byte limits, staged R2 ownership/path traversal, allowed staging content types, and `Content-Length` prechecks before parsing media bodies or allocating ArrayBuffers. `Content-Length` is only a fast reject: request JSON and R2/HTTP response bodies must still flow through `readRequestJsonWithinBudget`, `readResponseArrayBufferWithinBudget`, or `readStreamArrayBufferWithinBudget` so missing-length and chunked bodies are counted while streaming. Do not reintroduce raw `req.json()` or `response.arrayBuffer()` in media-bearing Edge handlers.
 - **`_shared/concurrency.ts`**: Shared bounded fanout helper. Use `mapWithConcurrencyLimit(items, width, fn)` when a handler needs many outbound calls but must preserve result order and cap in-flight work. The default APNs send path uses width `8`; other call sites should document any wider limit.
 
@@ -74,9 +79,21 @@ For exceptionally heavy or bespoke routing streams that violate the 10-second De
 By explicitly decoupling Data mapping from HTTP orchestration natively, the Deno backend becomes immediately immune to traditional Node.JS monolith "spaghetti-code" scaling failures. Engineers can formally upgrade complex PostgREST schemas in `db.ts` without jeopardizing the critical `timingSafeCompare` JWT block natively inside `index.ts`.
 
 All shared primitives natively driving API functions (`aws.ts`, `biology.ts`,
-`concurrency.ts`, `http.ts`, `mediaBudgets.ts`, `posthog.ts`, `tierCache.ts`)
+`concurrency.ts`, `encoding.ts`, `http.ts`, `mediaBudgets.ts`, `posthog.ts`,
+`tierCache.ts`)
 are stored in `services/supabase/functions/_shared/`. For guidelines regarding
 the global dependencies, refer directly to `_shared/README.md`.
+
+**Deploy Dependency Rule — Use the Function Import Map for Runtime Packages:**
+Runtime Edge code must resolve third-party packages through
+`services/supabase/functions/deno.json` and the GitHub deploy workflow must pass
+that map with `supabase functions deploy --import-map supabase/functions/deno.json`.
+Prefer npm specifiers in the import map for packages such as `aws4fetch`,
+`jszip`, `@google/genai`, and `@supabase/supabase-js`; avoid direct runtime
+imports from esm.sh or deno.land in deployed functions. A transient CDN 5xx while
+Supabase creates a function graph can otherwise fail the entire deploy even when
+the function source did not change. Test-only Deno std assert imports are
+acceptable because they are not bundled into production functions.
 
 **PostHog Rule — Fire-and-Forget:** All `trackPostHogEvent(...)` calls in **all** Edge Functions and `_shared/biology.ts` **must not be `await`-ed**. Analytics are best-effort and must never add latency to the critical path or the background ingestion flow. The correct pattern is:
 ```typescript

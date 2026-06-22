@@ -71,7 +71,6 @@ import {
 } from "../_shared/identify/db.ts";
 import { hydratePayloadFromCachedSpecies } from "../_shared/identify/clientPayload.ts";
 
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 // Safety settings shared by all vision model tiers.
 // Biological photography legitimately triggers Gemini's medium-sensitivity defaults:
@@ -140,7 +139,7 @@ const modelConfigs = {
   },
 };
 
-serve((req: Request) =>
+Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
     const bodyReadResult = await readRequestJsonWithinBudget<

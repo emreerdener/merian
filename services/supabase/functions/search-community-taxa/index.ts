@@ -1,11 +1,9 @@
-// deno-lint-ignore no-import-prefix
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { normalizeLimit, requireUuid } from "../_shared/explore.ts";
 import { normalizeCommunitySearchQuery } from "../_shared/communityIdentification.ts";
 
-serve((req: Request) =>
+Deno.serve((req: Request) =>
   withEdgeHandler(req, async (_user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
     if (parsedBody instanceof Response) return parsedBody;

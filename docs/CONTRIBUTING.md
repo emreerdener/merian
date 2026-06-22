@@ -37,6 +37,16 @@ Before contributing, please review our core architectural tenets. Refactoring co
   cd services/supabase/functions
   deno task test
   ```
+  Runtime Edge dependencies are resolved through `services/supabase/functions/deno.json`.
+  Production deploys pass that import map to Supabase, so local type checks for
+  runtime files should do the same:
+  ```bash
+  cd /Users/emreerdener/Developer/merian
+  deno check --config services/supabase/functions/deno.json <changed edge files>
+  ```
+  New deployed functions should call `Deno.serve(...)` directly and avoid
+  runtime imports from deno.land or esm.sh; route packages through the import map
+  and use local shared helpers such as `_shared/encoding.ts` where available.
 
 ## Submitting a Pull Request 🚀
 

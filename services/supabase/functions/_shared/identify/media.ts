@@ -1,6 +1,6 @@
-import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { getR2Config } from "../aws.ts";
 import { jsonResponse, logStructuredError } from "../edgeHandler.ts";
+import { encodeBase64 } from "../encoding.ts";
 import {
   decodeInlineAudioBase64,
   MEDIA_BUDGET_ERRORS,

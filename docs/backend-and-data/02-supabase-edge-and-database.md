@@ -1081,16 +1081,18 @@ Individual scan deletion severs the record from both Supabase and Cloudflare R2:
 
 #### V8 Execution Abstractions
 
-- **Explicit Deno ES Modules**: To avoid Supabase CLI bundling failures caused
-  by unresolved local import maps, all edge dependencies use direct HTTP module
-  URLs (e.g., `https://esm.sh/@supabase/supabase-js@2.49.1`). The
-  `services/supabase/functions/deno.json` config includes
-  `"exclude": ["no-import-prefix"]` to suppress the corresponding `deno-lint`
-  warning locally.
+- **Deploy-Stable Runtime Imports**: Production deploys pass
+  `supabase/functions/deno.json` to `supabase functions deploy`. Runtime Edge
+  dependencies must resolve through that import map, preferably to npm
+  specifiers, so Supabase's bundler is not forced to fetch deno.land or esm.sh
+  modules while creating every function graph. Historical Supabase JS URL
+  imports are still remapped by the import map for compatibility. New
+  entrypoints should call `Deno.serve(...)` directly, and runtime base64/hex work
+  should use `_shared/encoding.ts`.
 - **`_shared` Utilities**: The `http.ts`, `edgeHandler.ts`, `biology.ts`,
-  `external.ts`, `tierCache.ts`, `posthog.ts`, `gemini.ts`, `aws.ts`, and
-  `auth.ts` domains cleanly separate the core proxy engine natively without
-  polluting the specific Webhook routers.
+  `external.ts`, `tierCache.ts`, `posthog.ts`, `gemini.ts`, `aws.ts`,
+  `encoding.ts`, and `auth.ts` domains cleanly separate the core proxy engine
+  natively without polluting the specific Webhook routers.
 
 ## The Enrichment Node (`enrich-scan`)
 

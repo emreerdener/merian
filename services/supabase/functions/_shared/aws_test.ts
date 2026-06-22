@@ -20,10 +20,15 @@ Deno.test("deleteR2Objects caps in-flight deletes and rewrites public media URLs
     bucketName: "media-bucket",
     endpoint: "https://account.r2.cloudflarestorage.com",
     s3Client: {
-      async fetch(url: string) {
+      async fetch(request: Request | string) {
         inFlight += 1;
         maxInFlight = Math.max(maxInFlight, inFlight);
+        const url = request instanceof Request ? request.url : request;
         deletedUrls.push(url);
+        assertEquals(
+          request instanceof Request ? request.method : "DELETE",
+          "DELETE",
+        );
         await new Promise((resolve) => setTimeout(resolve, 5));
         inFlight -= 1;
         return new Response(null, { status: 204 });
@@ -59,8 +64,13 @@ Deno.test("deleteScanMediaR2Objects skips durable avatar objects", async () => {
     bucketName: "media-bucket",
     endpoint: "https://account.r2.cloudflarestorage.com",
     s3Client: {
-      fetch(url: string) {
+      fetch(request: Request | string) {
+        const url = request instanceof Request ? request.url : request;
         deletedUrls.push(url);
+        assertEquals(
+          request instanceof Request ? request.method : "DELETE",
+          "DELETE",
+        );
         return Promise.resolve(new Response(null, { status: 204 }));
       },
     },

@@ -21,6 +21,9 @@ TestFlight, App Store, support, and QA.
   someone suggests, withdraws, or restores an ID from the detail screen.
 - Fixed the Ask the community sheet footer button styling and let existing
   community requests be edited from the Insight share flow.
+- Fixed Supabase Edge Function deploy reliability by routing runtime
+  dependencies through the function import map and removing deploy-time
+  deno.land/esm.sh runtime fetches from function graphs.
 
 ### Added
 
