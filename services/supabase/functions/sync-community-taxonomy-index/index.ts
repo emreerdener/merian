@@ -1,10 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import {
-  corsHeaders,
-  jsonResponse,
-  timingSafeCompare,
-} from "../_shared/http.ts";
+import { corsHeaders, jsonResponse } from "../_shared/http.ts";
 import { logStructuredError } from "../_shared/edgeHandler.ts";
+import { authorizeServiceRoleRequest } from "../_shared/serviceRoleAuth.ts";
 import {
   parseCommunityTaxonomyIndexSyncRequest,
   runCommunityTaxonomyIndexSync,
@@ -19,10 +16,12 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Method Not Allowed" }, 405);
   }
 
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const expectedAuth = `Bearer ${serviceRoleKey}`;
-  const providedAuth = req.headers.get("Authorization") ?? "";
-  if (!serviceRoleKey || !timingSafeCompare(providedAuth, expectedAuth)) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const auth = await authorizeServiceRoleRequest(req, {
+    supabaseUrl,
+    envServiceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+  });
+  if (!auth.ok || !auth.token) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
@@ -42,8 +41,16 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      serviceRoleKey,
+      supabaseUrl,
+      auth.token,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${auth.token}`,
+            apikey: auth.token,
+          },
+        },
+      },
     );
     const result = await runCommunityTaxonomyIndexSync(
       parsedRequest.request,

@@ -1,5 +1,8 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
-import { parseCommunityTaxonomyStatusRequest } from "./db.ts";
+import {
+  normalizeEnrichmentJobRow,
+  parseCommunityTaxonomyStatusRequest,
+} from "./db.ts";
 
 Deno.test("community taxonomy status - parses defaults and aliases", () => {
   const defaultResult = parseCommunityTaxonomyStatusRequest({});
@@ -34,4 +37,19 @@ Deno.test("community taxonomy status - rejects invalid limits", () => {
     error: "job_limit must be an integer from 1 to 50.",
     status: 400,
   });
+});
+
+Deno.test("community taxonomy status - normalizes species common_names", () => {
+  const row = normalizeEnrichmentJobRow({
+    id: "job-1",
+    species_id: "species-1",
+    species: {
+      scientific_name: "Setophaga petechia",
+      common_names: { en: " Yellow Warbler " },
+    },
+  });
+
+  assertEquals(row.scientific_name, "Setophaga petechia");
+  assertEquals(row.common_name, "Yellow Warbler");
+  assertEquals(row.species, undefined);
 });

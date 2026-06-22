@@ -3,6 +3,9 @@
 Service-role-only worker for bounded GBIF imports into Merian's Community
 Taxonomy Index.
 
+For the running import ledger, next offsets, and follow-up checklist, see
+`docs/backend-and-data/07-community-taxonomy-import-checklist.md`.
+
 ## Purpose
 
 Community ID suggestions should be broader than Merian's enriched
@@ -23,7 +26,11 @@ v1 supports only the `birds` target:
 
 Headers:
 
-- `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>`
+- `Authorization: Bearer <service-role credential>`
+
+The worker accepts an exact `SUPABASE_SERVICE_ROLE_KEY` environment match or a
+project service-role token that can prove access to service-role-only taxonomy
+import state.
 
 Body fields are optional:
 
@@ -88,3 +95,52 @@ taxonomy rows.
 ```
 
 Call the endpoint again with `offset = next_offset` to continue the import.
+
+## Manual Runbook
+
+Run this worker manually after the current migrations and Edge Functions are
+deployed.
+
+1. Dry-run the first page:
+
+```bash
+curl -sS \
+  -X POST "$SUPABASE_URL/functions/v1/sync-community-taxonomy-index" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{"target":"birds","offset":0,"limit":50,"page_count":1,"dry_run":true}'
+```
+
+2. Import the first page:
+
+```bash
+curl -sS \
+  -X POST "$SUPABASE_URL/functions/v1/sync-community-taxonomy-index" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{"target":"birds","offset":0,"limit":50,"page_count":1}'
+```
+
+3. Check status:
+
+```bash
+curl -sS \
+  -X POST "$SUPABASE_URL/functions/v1/community-taxonomy-status" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{"import_run_limit":10,"job_limit":10}'
+```
+
+4. Continue with the next batch using the previous response's `next_offset`:
+
+```bash
+curl -sS \
+  -X POST "$SUPABASE_URL/functions/v1/sync-community-taxonomy-index" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{"target":"birds","offset":50,"limit":50,"page_count":1}'
+```
+
+Keep early rollout batches to one page at a time. Increase `page_count` only
+after status checks show expected `gbif_bounded_birds` import runs and coverage
+counts.

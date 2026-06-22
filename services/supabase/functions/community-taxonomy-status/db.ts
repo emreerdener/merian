@@ -287,7 +287,7 @@ async function fetchNextEnrichmentJobs(
   const { data, error } = await supabaseAdmin
     .from("species_enrichment_jobs")
     .select(
-      "id,species_id,content_group,status,priority,attempts,max_attempts,source_trigger,next_run_at,last_error,created_at,updated_at,species:species_dictionary(scientific_name,common_name)",
+      "id,species_id,content_group,status,priority,attempts,max_attempts,source_trigger,next_run_at,last_error,created_at,updated_at,species:species_dictionary(scientific_name,common_names)",
     )
     .in("status", ["queued", "failed"])
     .order("priority", { ascending: true })
@@ -309,7 +309,7 @@ async function fetchRecentEnrichmentFailures(
   const { data, error } = await supabaseAdmin
     .from("species_enrichment_jobs")
     .select(
-      "id,species_id,content_group,status,priority,attempts,max_attempts,source_trigger,next_run_at,last_error,created_at,updated_at,species:species_dictionary(scientific_name,common_name)",
+      "id,species_id,content_group,status,priority,attempts,max_attempts,source_trigger,next_run_at,last_error,created_at,updated_at,species:species_dictionary(scientific_name,common_names)",
     )
     .eq("status", "failed")
     .order("updated_at", { ascending: false })
@@ -323,18 +323,30 @@ async function fetchRecentEnrichmentFailures(
   return (data ?? []).map(normalizeEnrichmentJobRow);
 }
 
-function normalizeEnrichmentJobRow(
+export function normalizeEnrichmentJobRow(
   row: Record<string, unknown>,
 ): Record<string, unknown> {
   const species = row.species as
-    | { scientific_name?: string; common_name?: string | null }
+    | {
+      scientific_name?: string;
+      common_names?: Record<string, unknown> | null;
+    }
     | undefined;
   const { species: _species, ...rest } = row;
   return {
     ...rest,
     scientific_name: species?.scientific_name ?? null,
-    common_name: species?.common_name ?? null,
+    common_name: normalizePrimaryCommonName(species?.common_names),
   };
+}
+
+function normalizePrimaryCommonName(
+  commonNames: Record<string, unknown> | null | undefined,
+): string | null {
+  const english = commonNames?.en;
+  return typeof english === "string" && english.trim().length > 0
+    ? english.trim()
+    : null;
 }
 
 async function fetchCoverageTargets(

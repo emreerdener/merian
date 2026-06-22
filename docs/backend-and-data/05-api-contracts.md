@@ -3575,9 +3575,10 @@ imports or Community ID publish flows.
 ### Authentication Enforcement
 
 - `verify_jwt = false` is configured for service-role calls.
-- The function still requires
-  `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and validates it with
-  `timingSafeCompare`.
+- The function still requires a service-role credential. It first accepts an
+  exact `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` match, then falls
+  back to proving that the provided bearer token can read service-role-only
+  taxonomy import state.
 - Non-POST requests return `405`.
 
 ### Request Payload
@@ -3651,9 +3652,10 @@ in v1.
 ### Authentication Enforcement
 
 - `verify_jwt = false` is configured for service-role calls.
-- The function still requires
-  `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and validates it with
-  `timingSafeCompare`.
+- The function still requires a service-role credential. It first accepts an
+  exact `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` match, then falls
+  back to proving that the provided bearer token can read service-role-only
+  taxonomy import state.
 - Non-POST requests return `405`.
 
 ### Request Payload
@@ -3722,6 +3724,21 @@ Constraints:
 The worker does not create `species_dictionary` rows, enqueue species
 enrichment, or attach scan media. Those still happen only through
 materialization triggers such as owner-published Community ID consensus.
+
+### Manual Rollout Sequence
+
+After migrations and Edge Functions are deployed:
+
+1. Call `/sync-community-taxonomy-index` with `dry_run = true`, `offset = 0`,
+   `limit = 50`, and `page_count = 1`.
+2. If GBIF returns normalized rows, repeat the call without `dry_run`.
+3. Call `/community-taxonomy-status` and confirm the latest import run has
+   `scope = "gbif_bounded_birds"` and the Birds coverage target has a non-zero
+   `indexed_species_count`.
+4. Continue with the previous import response's `next_offset`.
+
+Keep the first rollout to one page per call. Increase `page_count` only after
+status checks show expected import rows and coverage counts.
 
 ---
 

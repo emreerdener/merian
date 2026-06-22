@@ -34,6 +34,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)** — Physical table maps for PostgreSQL and the SwiftData persistent schemas, including the V41 `CapturedMediaEntry` mixed-media model, V42 field-notes columns, V43 sex observation metadata, V44 pet-identification display metadata, and Explore Community Identification versioned taxonomy, consensus jobs, projections, and request tables.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, `/update-public-avatar`, Community Identification endpoints, parked `/share-import-scan`, `/species-dictionary`, `/species-observation-stats`, Explore detail similar species, and internal cron workers such as Merian reference-image refresh.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)** — CI-first Supabase deployment path, required GitHub secrets, local emergency fallback, and post-deploy smoke checks.
+- **[`/backend-and-data/07-community-taxonomy-import-checklist.md`](./backend-and-data/07-community-taxonomy-import-checklist.md)** — Running checklist for bounded GBIF Community Taxonomy imports, completed Birds batches, next offsets, and operational follow-ups.
 
 ### Features & Hardware
 
