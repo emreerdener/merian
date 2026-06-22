@@ -33,7 +33,6 @@ struct ExploreView: View {
     @State private var activeDiscoveryMode: ExploreDiscoveryMode = .feed
     @State private var activeDictionaryMode: ExploreDictionaryMode = .dictionary
     @State private var activeCommunityMode: CommunityIdentificationMode = .requests
-    @State private var dictionarySearchText = ""
     @State private var dictionaryUserRegionIdentifier = Self.defaultDictionaryUserRegionIdentifier()
 
     private let allowsInsightPresentation: Bool
@@ -46,10 +45,6 @@ struct ExploreView: View {
                 selectExploreTab(newValue)
             }
         )
-    }
-
-    private var isDictionarySearchActive: Bool {
-        !dictionarySearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     init(
@@ -353,23 +348,7 @@ struct ExploreView: View {
     private var dictionaryTabContent: some View {
         switch activeDictionaryMode {
         case .dictionary:
-            VStack(spacing: 10) {
-                if navigationPath.isEmpty {
-                    ExploreDictionarySearchBar(text: $dictionarySearchText)
-                        .padding(.top, 12)
-                        .zIndex(1)
-                }
-
-                if isDictionarySearchActive {
-                    SpeciesDictionaryCatalogView(
-                        isSearchEnabled: false,
-                        showsNavigationTitle: false,
-                        searchText: $dictionarySearchText
-                    )
-                } else {
-                    SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
-                }
-            }
+            SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
         case .tree:
             TaxonomyTreeCanvasView(showsNavigationTitle: false) { speciesRoute in
                 navigationPath.append(speciesRoute)

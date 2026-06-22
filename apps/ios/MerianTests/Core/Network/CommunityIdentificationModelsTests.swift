@@ -150,6 +150,7 @@ struct CommunityIdentificationModelsTests {
           "viewer_identification_id": null,
           "public_location_label": "Austin, TX",
           "location_sharing": "open",
+          "inference_tier": "pro",
           "suggested_taxa": [
             {
               "taxon_id": "taxon-1",
@@ -173,6 +174,7 @@ struct CommunityIdentificationModelsTests {
         let detail = try decoder.decode(CommunityIdentificationDetail.self, from: json)
 
         #expect(detail.suggestedTaxa?.count == 1)
+        #expect(detail.inferenceTier == "pro")
         #expect(detail.suggestedTaxa?.first?.suggestionSource == .aiInitial)
         #expect(detail.suggestedTaxa?.first?.displayName == "Red-tailed Hawk")
         #expect(detail.suggestedTaxa?.first?.confidenceScore == 0.97)

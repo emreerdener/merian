@@ -506,6 +506,7 @@ struct CommunityIdentificationDetail: Decodable, Identifiable, Equatable {
     let viewerIdentificationId: String?
     let publicLocationLabel: String?
     let locationSharing: ExplorePostLocationSharing?
+    let inferenceTier: String?
     let suggestedTaxa: [CommunityTaxonSearchResult]?
     let identifications: [CommunityIdentification]
 

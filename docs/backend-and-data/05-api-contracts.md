@@ -166,11 +166,15 @@ filtered out server-side. Identification timeline rows include a computed
 `role_label` such as `supporting`, `leading`, `maverick`, or `withdrawn` for
 internal consensus/audit behavior; clients should not expose these labels as
 user-facing copy. The response also includes additive `suggested_taxa` for the
-Suggest ID sheet and the detail header card. The first suggestion is the
-request's `ai_initial` taxon, hydrated from the backing scan's
+Suggest ID sheet and the detail header card. The top-level `inference_tier`
+mirrors `scans.inference_tier` so clients can label the card as Merian Pro or
+Merian Flash; missing or unknown tiers should display as Flash. The first
+suggestion is the request's `ai_initial` taxon, hydrated from the backing scan's
 `ai_confidence_score` and `ai_reasoning` so clients can frame it as Merian's
 starting identification without borrowing human consensus or alternative
-candidate copy. Additional `ai_candidate` suggestions come from resolvable
+candidate copy. Confidence is optional and should render as compact card
+metadata only when present; reasoning remains collapsed behind the AI reasoning
+row. Additional `ai_candidate` suggestions come from resolvable
 `scans.candidates` entries in the request's pinned taxonomy version. Suggested
 taxa use the same taxon fields as search results and may include
 `suggestion_source`, `confidence_score`, and `distinguishing_feature`; for

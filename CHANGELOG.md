@@ -79,21 +79,35 @@ TestFlight, App Store, support, and QA.
 
 ### Changed
 
+- Reordered Profile so identity and stats lead the page, followed by persona
+  progress, the non-Pro plan card, published scans, the scan heatmap, and
+  achievements.
 - Matched the main camera tab bar icon size, label size, and item spacing to
   the Explore bottom navigation.
 - Added organism filters to Identify requests so explorers can browse Plants,
   Birds, Insects, Fungi, Mammals, and Herps while keeping Yours near the start
   of the filter row.
 - Framed Community request detail names as Merian's AI identification in a
-  rounded reasoning card backed by the scan's AI confidence and reasoning, with
-  the sheet header title removed and the backend detail payload carrying the
-  source AI evidence directly.
+  compact card that shows the stored scan model tier, an optional confidence
+  pill, and collapsed AI reasoning, with the sheet header title removed and the
+  ID count moved to the Identifications section.
 - Low-confidence Insight shares now default to asking Identify for help, while
   direct Explore publishing remains available behind a confirmation.
 - Explore Tree now opens in a top-down taxonomy layout instead of the earlier
   sideways orientation.
 - Explore Dictionary and Tree controls now provide haptic feedback on button
   actions.
+- Updated Explore Dictionary cards, rows, thumbnails, loading skeletons, and
+  the featured Recently Added card with the softer rounded corners and roomier
+  image-first layout used by Identify request surfaces.
+- Removed the top-level Explore Dictionary search bar so Catalog opens directly
+  into the browse overview, while subcategory catalog pages keep their own
+  search.
+- The Explore Dictionary Recently Added feature card now opens that species'
+  dictionary page, while a separate Recently Added row opens the full newest
+  species list.
+- Explore Dictionary previews now prefer promoted Merian community photos over
+  external reference images when available.
 - Notifications settings now include a single action to turn off every Merian
   notification category at once.
 - Resolved Identify requests now stay out of normal Explore until the owner

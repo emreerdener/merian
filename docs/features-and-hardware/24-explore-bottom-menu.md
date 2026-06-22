@@ -20,7 +20,11 @@ Dictionary.
   the filter button opens a sheet with the region's available categories, and
   active categories filter the map payload before clusters or individual
   waypoints render.
-- **Dictionary** shows `SpeciesDictionaryCatalogView`, a searchable and
+- **Dictionary** opens `SpeciesDictionaryOverviewView`, a browse overview with
+  Recently Added, local region, organism-group, and region entry points.
+  The featured Recently Added card opens that species' detail page, while a
+  separate Recently Added row opens the full newest-species list. Pushed
+  category and group pages use `SpeciesDictionaryCatalogView`, a searchable and
   paginated catalog powered by the public `species_dictionary` table through
   the existing `/species-dictionary` Edge Function.
 - **Tree** is still in development and is only included in simulator builds.
@@ -47,9 +51,10 @@ Dictionary rows and Tree species preview actions still push
 
 Community request details use `ExploreCommunityIdentificationDetailView`, which
 loads `/get-community-identification-detail`, frames the starting name as
-Merian's AI identification in a rounded reasoning card backed by scan AI
-confidence and reasoning, renders the community identification timeline, and
-pins a **Suggest ID** action at the bottom. The
+Merian's AI identification in a compact card backed by the scan's stored model
+tier, optional confidence, and collapsed AI reasoning row, renders the
+community identification timeline with its ID count, and pins a **Suggest ID**
+action at the bottom. The
 taxonomy search sheet calls `/search-community-taxa` with the request's pinned
 taxonomy version. Exact or descendant species IDs submit immediately, genus IDs
 can ask whether genus is as specific as it can get, ancestor IDs ask whether the
@@ -58,9 +63,9 @@ ask for confirmation plus optional reasoning.
 
 The detail sheet intentionally leaves the image toolbar title empty. The image
 is the visual context, while the first body card names Merian's AI
-identification and shows the scan-derived reasoning when available. Community
-IDs then live below in the timeline so the AI starting point and human
-identification evidence stay visually distinct.
+identification and lets explorers expand the scan-derived reasoning when
+needed. Community IDs then live below in the timeline so the AI starting point
+and human identification evidence stay visually distinct.
 
 ## Data Boundaries
 
@@ -80,10 +85,12 @@ selected species categories before clustering. The UI can therefore keep the
 pill row dynamic without exposing private scan coordinates or separate raw
 taxonomy queries.
 
-Dictionary and Tree use species-level public data only. The catalog mode returns
+Dictionary and Tree use species-level public data only. The Dictionary overview
+returns featured, group, and region summaries, while pushed catalog pages return
 compact species rows with taxonomy, content quality, tags, status fields, and a
-single reference image URL. The tree mode requires auth only to choose the
-species represented by the current user's non-deleted biological scans; it then
+single reference image URL. Promoted Merian community photos rank before
+external reference images when available. The tree mode requires auth only to
+choose the species represented by the current user's non-deleted biological scans; it then
 returns public taxonomy nodes, edges, species counts, representative species,
 reference thumbnails, and status fields for those species. It does not include
 scan IDs, field notes, media, comments, locations, users, or Explore post

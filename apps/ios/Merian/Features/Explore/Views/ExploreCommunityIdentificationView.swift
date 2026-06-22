@@ -699,6 +699,8 @@ struct ExploreCommunityIdentificationDetailView: View {
                 }
 
                 CommunityIdentificationTimeline(
+                    identificationCount: detail.identificationCount,
+                    isConsensusUpdating: detail.isConsensusUpdating,
                     identifications: detail.identifications,
                     onWithdraw: { id in
                         Task { await withdraw(identificationId: id) }
@@ -927,6 +929,9 @@ private struct CommunityDetailHero: View {
 private struct CommunityAIIdentificationCard: View {
     let detail: CommunityIdentificationDetail
 
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isReasoningExpanded = false
+
     private var aiSuggestion: CommunityTaxonSearchResult? {
         detail.suggestedTaxa?.first { $0.suggestionSource == .aiInitial }
     }
@@ -939,17 +944,36 @@ private struct CommunityAIIdentificationCard: View {
             )
     }
 
-    private var aiDisplayRank: String {
-        aiSuggestion?.displayRank
-            ?? CommunityTaxonDisplay.rankTitle(detail.initialRank)
+    private var aiScientificName: String? {
+        let value = aiSuggestion?.scientificName ?? detail.initialScientificName
+        guard let scientificName = trimmed(value) else { return nil }
+        guard scientificName.localizedCaseInsensitiveCompare(aiDisplayName) != .orderedSame else {
+            return nil
+        }
+        return scientificName
     }
 
     private var aiConfidenceScore: Double? {
         aiSuggestion?.confidenceScore
     }
 
+    private var confidenceLabel: String? {
+        guard let aiConfidenceScore else { return nil }
+        let clampedScore = min(max(aiConfidenceScore, 0), 1)
+        return "\(Int((clampedScore * 100).rounded()))% confident"
+    }
+
     private var aiReasoning: String? {
         trimmed(aiSuggestion?.distinguishingFeature)
+    }
+
+    private var modelLabel: String {
+        switch detail.inferenceTier?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "pro":
+            "Merian Pro"
+        default:
+            "Merian Flash"
+        }
     }
 
     private func trimmed(_ value: String?) -> String? {
@@ -962,101 +986,133 @@ private struct CommunityAIIdentificationCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("AI identification", systemImage: "sparkles")
+            HStack(alignment: .center, spacing: 12) {
+                Label(modelLabel, systemImage: "sparkle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .labelStyle(.titleAndIcon)
+
+                Spacer(minLength: 12)
+
+                if let confidenceLabel {
+                    Text(confidenceLabel)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .labelStyle(.titleAndIcon)
-
-                    Text(aiDisplayName)
-                        .font(.title3)
-                        .fontWeight(.bold)
-
-                    Text(aiDisplayRank)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("\(detail.identificationCount)")
-                        .font(.title3)
-                        .fontWeight(.bold)
-                    Text("IDs")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color(uiColor: .tertiarySystemFill))
+                        )
                 }
             }
 
-            if let score = aiConfidenceScore {
-                ProgressView(value: min(max(score, 0), 1))
-                    .progressViewStyle(.linear)
-                HStack {
-                    Text("AI confidence")
-                    Spacer()
-                    Text("\(Int((score * 100).rounded()))%")
+            VStack(alignment: .leading, spacing: 3) {
+                Text(aiDisplayName)
+                    .font(.title3)
+                    .fontWeight(.bold)
+
+                if let aiScientificName {
+                    Text(aiScientificName)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
 
             if let aiReasoning {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Reasoning")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    Text(aiReasoning)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
+                Button {
+                    withAnimation(.snappy(duration: 0.22)) {
+                        isReasoningExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("AI reasoning")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .rotationEffect(.degrees(isReasoningExpanded ? 90 : 0))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color(uiColor: .tertiarySystemFill))
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-            }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isReasoningExpanded ? "Hide AI reasoning" : "Show AI reasoning")
 
-            if detail.isConsensusUpdating {
-                Label("Consensus updating", systemImage: "arrow.triangle.2.circlepath")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let location = detail.publicDisplayLocationLabel {
-                Label(location, systemImage: "location")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if isReasoningExpanded {
+                    Text(aiReasoning)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
         }
         .padding(16)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay {
+            if colorScheme == .light {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .strokeBorder(Color(uiColor: .separator).opacity(0.16), lineWidth: 1)
+            }
+        }
     }
 }
 
 private struct CommunityIdentificationTimeline: View {
+    let identificationCount: Int
+    let isConsensusUpdating: Bool
     let identifications: [CommunityIdentification]
     let onWithdraw: (String) -> Void
     let onRestore: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Identifications")
-                .font(.headline)
+            HStack(alignment: .firstTextBaseline) {
+                Text("Identifications")
+                    .font(.headline)
+                Spacer()
+                Text(identificationCountLabel)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+            }
+
+            if isConsensusUpdating {
+                Label("Consensus updating", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             if identifications.isEmpty {
                 Text("No one has suggested an ID yet.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 24)
             } else {
-                ForEach(identifications) { identification in
-                    CommunityIdentificationRow(
-                        identification: identification,
-                        onWithdraw: onWithdraw,
-                        onRestore: onRestore
-                    )
+                VStack(spacing: 12) {
+                    ForEach(identifications) { identification in
+                        CommunityIdentificationRow(
+                            identification: identification,
+                            onWithdraw: onWithdraw,
+                            onRestore: onRestore
+                        )
+                    }
                 }
             }
         }
+    }
+
+    private var identificationCountLabel: String {
+        identificationCount == 1 ? "1 ID" : "\(identificationCount) IDs"
     }
 }
 

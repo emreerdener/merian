@@ -6,6 +6,7 @@ import {
   buildSpeciesDictionaryPayload,
   buildSpeciesDictionaryTree,
   firstReferenceImageUrl,
+  firstReferenceImageUrlsBySpeciesId,
   parseSpeciesDictionaryRequest,
   publicSpeciesProjectionForbiddenKeys,
   referenceImagesFrom,
@@ -106,6 +107,32 @@ Deno.test("species-dictionary helpers - first reference image reads legacy cache
     "https://upload.wikimedia.org/monarch.jpg",
   );
   assertEquals(firstReferenceImageUrl(null), null);
+});
+
+Deno.test("species-dictionary helpers - first reference image prefers explicit Merian source", () => {
+  const firstImages = firstReferenceImageUrlsBySpeciesId([
+    {
+      id: "wikipedia-row",
+      species_id: "species-id",
+      url: "https://upload.wikimedia.org/reference.jpg",
+      source: "wikipedia",
+      sort_order: 0,
+      created_at: "2026-06-01T12:00:00Z",
+    },
+    {
+      id: "merian-row",
+      species_id: "species-id",
+      url: "https://cdn.example.com/merian-upload.webp",
+      source: "merian",
+      sort_order: 9,
+      created_at: "2026-06-02T12:00:00Z",
+    },
+  ]);
+
+  assertEquals(
+    firstImages.get("species-id"),
+    "https://cdn.example.com/merian-upload.webp",
+  );
 });
 
 Deno.test("species-dictionary helpers - batches reference image lookups", () => {
@@ -604,6 +631,45 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
     "Northern Hemisphere",
   ]);
   assertEquals(overview.regions[0].count, 3);
+});
+
+Deno.test("species-dictionary helpers - featured species can be newest image-only row", () => {
+  const newestImageOnlyId = "9cf79982-e5ee-4e3d-8d65-274527e6ae09";
+  const overview = buildSpeciesDictionaryOverview(
+    [
+      speciesRow({
+        id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+        scientific_name: "Danaus plexippus",
+        common_names: { en: "Monarch Butterfly" },
+        created_at: "2026-06-01T12:00:00Z",
+        wikipedia_overview:
+          "The monarch butterfly is a milkweed butterfly known for long-distance migration.",
+      }),
+      speciesRow({
+        id: newestImageOnlyId,
+        scientific_name: "Imago recentissima",
+        common_names: { en: "Newest Image Species" },
+        created_at: "2026-06-05T12:00:00Z",
+        wikipedia_overview: null,
+      }),
+    ],
+    new Map([
+      [
+        newestImageOnlyId,
+        "https://media.merian.app/public_uploads/pro/newest-image.webp",
+      ],
+    ]),
+  );
+
+  assertEquals(
+    overview.featured_species?.scientific_name,
+    "Imago recentissima",
+  );
+  assertEquals(overview.featured_species?.overview, null);
+  assertEquals(
+    overview.featured_species?.reference_image_url,
+    "https://media.merian.app/public_uploads/pro/newest-image.webp",
+  );
 });
 
 Deno.test("species-dictionary helpers - builds taxonomy tree payload", () => {

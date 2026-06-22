@@ -10,6 +10,14 @@ enum SpeciesDictionaryCategoryRoute: Hashable {
     case regions
 }
 
+private enum SpeciesDictionaryCornerRadius {
+    static let card: CGFloat = 16
+    static let thumbnail: CGFloat = 12
+    static let skeletonText: CGFloat = 6
+    static let skeletonPill: CGFloat = 10
+    static let chevronSkeleton: CGFloat = 4
+}
+
 struct SpeciesDictionaryCatalogView: View {
     let isSearchEnabled: Bool
     let isBottomSearchEnabled: Bool
@@ -236,7 +244,7 @@ struct SpeciesDictionaryOverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if let featuredSpecies = overview.featuredSpecies {
-                        NavigationLink(value: recentlyAddedRoute) {
+                        NavigationLink(value: featuredSpecies.dictionaryRoute) {
                             SpeciesDictionaryFeaturedSpeciesCard(
                                 species: featuredSpecies,
                                 width: availableWidth
@@ -367,7 +375,11 @@ struct SpeciesDictionaryOverviewView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        SpeciesDictionarySkeletonBlock(width: 92, height: 20, cornerRadius: 5)
+                        SpeciesDictionarySkeletonBlock(
+                            width: 92,
+                            height: 20,
+                            cornerRadius: SpeciesDictionaryCornerRadius.skeletonText
+                        )
                             .padding(.horizontal, 2)
 
                         ForEach(0..<3, id: \.self) { _ in
@@ -414,7 +426,7 @@ struct SpeciesDictionaryOverviewView: View {
     }
 
     private var recentlyAddedRoute: SpeciesDictionaryCategoryRoute {
-        .catalog(title: "Recently Added", category: .recentlyAdded, region: nil)
+        .catalog(title: "Recently added", category: .recentlyAdded, region: nil)
     }
 
     private func category(
@@ -427,7 +439,7 @@ struct SpeciesDictionaryOverviewView: View {
     private func bottomOverviewCategories(
         for overview: SpeciesDictionaryOverview
     ) -> [SpeciesDictionaryCategorySummary] {
-        [.all].compactMap { category($0, in: overview) }
+        [.recentlyAdded, .all].compactMap { category($0, in: overview) }
     }
 
     private func shouldShowRegionMapCard(
@@ -453,11 +465,11 @@ struct SpeciesDictionaryOverviewView: View {
             guard let region, !region.isEmpty else {
                 return .regions
             }
-            return .catalog(title: "Your Region", category: .region, region: region)
+            return .catalog(title: "Your region", category: .region, region: region)
         case .taxonomy:
             return .taxonomy
         case .recentlyAdded:
-            return .catalog(title: "Recently Added", category: .recentlyAdded, region: nil)
+            return .catalog(title: "Recently added", category: .recentlyAdded, region: nil)
         }
     }
 
@@ -471,54 +483,67 @@ private struct SpeciesDictionaryFeaturedSpeciesCard: View {
     let width: CGFloat
 
     private var imageHeight: CGFloat {
-        max(160, min(220, width * 0.52))
+        max(300, min(430, width * 0.96))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        ZStack(alignment: .topLeading) {
             cardImage
                 .frame(width: width, height: imageHeight)
                 .clipped()
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Recently Added")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(uiColor: .tertiarySystemGroupedBackground))
-                    .clipShape(Capsule())
+            bottomTextFade
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(species.commonName)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
+            badge
 
-                    Text(species.scientificName)
-                        .font(.subheadline.italic())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                if let overview = species.overview?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !overview.isEmpty {
-                    Text(overview)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
-                }
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            titleOverlay
         }
         .frame(width: width)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
         .accessibilityElement(children: .combine)
+    }
+
+    private var badge: some View {
+        Text("Recently added")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.black.opacity(0.42), in: Capsule(style: .continuous))
+            .padding(14)
+    }
+
+    private var bottomTextFade: some View {
+        LinearGradient(
+            colors: [
+                .clear,
+                .black.opacity(0.24),
+                .black.opacity(0.72)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .allowsHitTesting(false)
+    }
+
+    private var titleOverlay: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(species.commonName)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(3)
+                .shadow(color: .black.opacity(0.28), radius: 8, x: 0, y: 2)
+
+            Text(species.scientificName)
+                .font(.subheadline.italic())
+                .foregroundStyle(.white.opacity(0.82))
+                .lineLimit(1)
+                .shadow(color: .black.opacity(0.24), radius: 6, x: 0, y: 2)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
     }
 
     @ViewBuilder
@@ -644,8 +669,8 @@ private struct SpeciesDictionaryRegionMapCard: View {
         }
         .frame(width: width)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
         .accessibilityElement(children: .combine)
         .task(id: snapshotTaskID) {
             await loadSnapshot()
@@ -750,7 +775,7 @@ private struct SpeciesDictionaryOverviewRow: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.thumbnail, style: .continuous)
                     .fill(Color(uiColor: .tertiarySystemGroupedBackground))
 
                 Image(systemName: iconName)
@@ -780,8 +805,8 @@ private struct SpeciesDictionaryOverviewRow: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -832,8 +857,8 @@ private struct SpeciesDictionaryGroupCard: View {
         .padding(.bottom, bottomInset)
         .frame(width: width, height: height)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -853,7 +878,7 @@ private struct SpeciesDictionaryGroupCard: View {
     }
 
     private var placeholderImage: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
+        RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.thumbnail, style: .continuous)
             .fill(Color(uiColor: .tertiarySystemGroupedBackground))
             .overlay {
                 Image(systemName: iconName)
@@ -935,7 +960,7 @@ private struct SpeciesDictionaryRegionRow: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
     }
@@ -954,7 +979,7 @@ private struct SpeciesDictionaryRegionRow: View {
                 }
             }
             .frame(width: 48, height: 48)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.thumbnail, style: .continuous))
         } else {
             placeholderThumbnail
                 .frame(width: 48, height: 48)
@@ -962,7 +987,7 @@ private struct SpeciesDictionaryRegionRow: View {
     }
 
     private var placeholderThumbnail: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
+        RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.thumbnail, style: .continuous)
             .fill(Color(uiColor: .tertiarySystemGroupedBackground))
             .overlay {
                 Image(systemName: systemImage)
@@ -975,27 +1000,29 @@ private struct SpeciesDictionaryFeaturedSkeletonCard: View {
     let width: CGFloat
 
     private var imageHeight: CGFloat {
-        max(160, min(220, width * 0.52))
+        max(300, min(430, width * 0.96))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        ZStack(alignment: .topLeading) {
             SpeciesDictionarySkeletonBlock(width: width, height: imageHeight, cornerRadius: 0)
 
+            SpeciesDictionarySkeletonBlock(
+                width: 104,
+                height: 24,
+                cornerRadius: SpeciesDictionaryCornerRadius.skeletonPill
+            )
+            .padding(14)
+
             VStack(alignment: .leading, spacing: 8) {
-                SpeciesDictionarySkeletonBlock(width: 112, height: 20, cornerRadius: 10)
-                SpeciesDictionarySkeletonBlock(width: width * 0.62, height: 20)
-                SpeciesDictionarySkeletonBlock(width: width * 0.42, height: 14)
-                SpeciesDictionarySkeletonBlock(width: width * 0.82, height: 12)
-                SpeciesDictionarySkeletonBlock(width: width * 0.68, height: 12)
+                SpeciesDictionarySkeletonBlock(width: width * 0.72, height: 24)
+                SpeciesDictionarySkeletonBlock(width: width * 0.46, height: 16)
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
         .frame(width: width)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
     }
 }
 
@@ -1011,7 +1038,11 @@ private struct SpeciesDictionaryMapSkeletonCard: View {
             SpeciesDictionarySkeletonBlock(width: width, height: imageHeight, cornerRadius: 0)
 
             VStack(alignment: .leading, spacing: 8) {
-                SpeciesDictionarySkeletonBlock(width: 92, height: 20, cornerRadius: 10)
+                SpeciesDictionarySkeletonBlock(
+                    width: 92,
+                    height: 20,
+                    cornerRadius: SpeciesDictionaryCornerRadius.skeletonPill
+                )
                 SpeciesDictionarySkeletonBlock(width: width * 0.46, height: 20)
                 SpeciesDictionarySkeletonBlock(width: width * 0.28, height: 14)
                 SpeciesDictionarySkeletonBlock(width: width * 0.72, height: 12)
@@ -1022,7 +1053,7 @@ private struct SpeciesDictionaryMapSkeletonCard: View {
         }
         .frame(width: width)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
     }
 }
 
@@ -1036,7 +1067,11 @@ private struct SpeciesDictionaryGroupSkeletonCard: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            SpeciesDictionarySkeletonBlock(width: graphicSize, height: graphicSize)
+            SpeciesDictionarySkeletonBlock(
+                width: graphicSize,
+                height: graphicSize,
+                cornerRadius: SpeciesDictionaryCornerRadius.thumbnail
+            )
                 .padding(.top, 10)
 
             VStack(spacing: 6) {
@@ -1051,14 +1086,18 @@ private struct SpeciesDictionaryGroupSkeletonCard: View {
         .padding(.bottom, 12)
         .frame(width: width, height: height)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
     }
 }
 
 private struct SpeciesDictionaryOverviewRowSkeleton: View {
     var body: some View {
         HStack(spacing: 12) {
-            SpeciesDictionarySkeletonBlock(width: 52, height: 52)
+            SpeciesDictionarySkeletonBlock(
+                width: 52,
+                height: 52,
+                cornerRadius: SpeciesDictionaryCornerRadius.thumbnail
+            )
 
             VStack(alignment: .leading, spacing: 7) {
                 SpeciesDictionarySkeletonBlock(width: 144, height: 16)
@@ -1067,12 +1106,16 @@ private struct SpeciesDictionaryOverviewRowSkeleton: View {
 
             Spacer(minLength: 8)
 
-            SpeciesDictionarySkeletonBlock(width: 8, height: 18, cornerRadius: 4)
+            SpeciesDictionarySkeletonBlock(
+                width: 8,
+                height: 18,
+                cornerRadius: SpeciesDictionaryCornerRadius.chevronSkeleton
+            )
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
     }
 }
 
@@ -1081,7 +1124,11 @@ private struct SpeciesDictionaryCatalogRowSkeleton: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            SpeciesDictionarySkeletonBlock(width: thumbnailSize, height: thumbnailSize)
+            SpeciesDictionarySkeletonBlock(
+                width: thumbnailSize,
+                height: thumbnailSize,
+                cornerRadius: SpeciesDictionaryCornerRadius.thumbnail
+            )
 
             VStack(alignment: .leading, spacing: 8) {
                 SpeciesDictionarySkeletonBlock(width: 150, height: 16)
@@ -1091,11 +1138,15 @@ private struct SpeciesDictionaryCatalogRowSkeleton: View {
 
             Spacer(minLength: 8)
 
-            SpeciesDictionarySkeletonBlock(width: 8, height: 18, cornerRadius: 4)
+            SpeciesDictionarySkeletonBlock(
+                width: 8,
+                height: 18,
+                cornerRadius: SpeciesDictionaryCornerRadius.chevronSkeleton
+            )
         }
         .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
     }
@@ -1104,13 +1155,11 @@ private struct SpeciesDictionaryCatalogRowSkeleton: View {
 private struct SpeciesDictionarySkeletonBlock: View {
     let width: CGFloat
     let height: CGFloat
-    var cornerRadius: CGFloat = 8
+    var cornerRadius: CGFloat = SpeciesDictionaryCornerRadius.skeletonText
 
     var body: some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+        GlowPulsingSkeletonView(cornerRadius: cornerRadius)
             .frame(width: width, height: height)
-            .redacted(reason: .placeholder)
     }
 }
 
@@ -1261,7 +1310,7 @@ private struct SpeciesDictionaryCatalogRow: View {
         }
         .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
     }
@@ -1281,7 +1330,7 @@ private struct SpeciesDictionaryCatalogRow: View {
                 }
             }
             .frame(width: thumbnailSize, height: thumbnailSize)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.thumbnail, style: .continuous))
         } else {
             placeholderThumbnail
                 .frame(width: thumbnailSize, height: thumbnailSize)
@@ -1289,7 +1338,7 @@ private struct SpeciesDictionaryCatalogRow: View {
     }
 
     private var placeholderThumbnail: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
+        RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.thumbnail, style: .continuous)
             .fill(Color(uiColor: .tertiarySystemGroupedBackground))
             .overlay {
                 Image(systemName: "leaf")

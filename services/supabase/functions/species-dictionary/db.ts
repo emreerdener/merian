@@ -28,6 +28,7 @@ import {
 
 export {
   firstReferenceImageUrl,
+  firstReferenceImageUrlsBySpeciesId,
   publicSpeciesProjectionForbiddenKeys,
   referenceImagesFrom,
   referenceImagesFromRows,
@@ -873,30 +874,18 @@ function buildFeaturedSpeciesSummary(
   const recentlyAddedRows = rows.slice().sort(
     speciesDictionaryCreatedAtDescending,
   );
-  const candidatesWithOverviewAndImage = rows.filter((row) =>
-    referenceImageUrlForRow(row, firstImageBySpeciesId) &&
+  const candidates = rows.filter((row) =>
+    referenceImageUrlForRow(row, firstImageBySpeciesId) ||
     normalizedOverview(row.wikipedia_overview)
   );
-  const candidatesWithImage = rows.filter((row) =>
-    referenceImageUrlForRow(row, firstImageBySpeciesId)
-  );
-  const candidatesWithOverview = rows.filter((row) =>
-    normalizedOverview(row.wikipedia_overview)
-  );
-  const candidates = candidatesWithOverviewAndImage.length > 0
-    ? candidatesWithOverviewAndImage
-    : candidatesWithImage.length > 0
-    ? candidatesWithImage
-    : candidatesWithOverview.length > 0
-    ? candidatesWithOverview
-    : rows;
+  const eligibleRows = candidates.length > 0 ? candidates : rows;
 
-  if (candidates.length === 0) return null;
+  if (eligibleRows.length === 0) return null;
 
   const row =
     recentlyAddedRows.find((recentRow) =>
-      candidates.some((candidate) => candidate.id === recentRow.id)
-    ) ?? candidates[0];
+      eligibleRows.some((candidate) => candidate.id === recentRow.id)
+    ) ?? eligibleRows[0];
   const referenceImageUrl = referenceImageUrlForRow(row, firstImageBySpeciesId);
   const catalogItem = buildSpeciesDictionaryCatalogItem(row, referenceImageUrl);
 
@@ -1169,7 +1158,7 @@ async function fetchFirstReferenceImagesForSpecies(
   ) {
     const { data, error } = await supabaseAdmin
       .from("species_reference_images")
-      .select("id, species_id, url, sort_order, created_at")
+      .select("id, species_id, url, source, sort_order, created_at")
       .in("species_id", batch)
       .order("species_id", { ascending: true })
       .order("sort_order", { ascending: true })

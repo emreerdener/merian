@@ -116,6 +116,7 @@ type InsertScanOptions = {
   imageUrls?: string[];
   aiConfidenceScore?: number;
   aiReasoning?: string | null;
+  inferenceTier?: string;
   imageQualityScore?: number | null;
   confirmedSpeciesId?: string | null;
   isTombstoned?: boolean;
@@ -139,6 +140,7 @@ export async function insertScan(
         image_storage_urls,
         ai_confidence_score,
         ai_reasoning,
+        inference_tier,
         image_quality_score,
         gps_lat_exact,
         gps_long_exact,
@@ -168,8 +170,9 @@ export async function insertScan(
         $14,
         $15,
         $16,
-        $17::jsonb,
-        $18::jsonb
+        $17,
+        $18::jsonb,
+        $19::jsonb
       )
     `,
     [
@@ -181,6 +184,7 @@ export async function insertScan(
         [options.imageUrl ?? "https://media.merian.app/test-image.webp"],
       options.aiConfidenceScore ?? 0.9,
       options.aiReasoning ?? null,
+      options.inferenceTier ?? "flash",
       options.imageQualityScore ?? null,
       options.latitude,
       options.longitude,

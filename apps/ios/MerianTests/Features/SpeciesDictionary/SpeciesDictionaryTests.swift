@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
-import Testing
 @testable import Merian
+import Testing
 
 @MainActor
 struct SpeciesDictionaryTests {
@@ -15,7 +15,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testSpeciesDictionaryResponseDecodesReferenceImagesAndLookalikes() throws {
-        let data = """
+        let data = Data("""
         {
             "schema_version": 1,
             "data": {
@@ -74,7 +74,7 @@ struct SpeciesDictionaryTests {
                 ]
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -130,7 +130,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testSpeciesDictionaryResponseDecodesLegacyPayloadWithoutSchemaVersion() throws {
-        let data = """
+        let data = Data("""
         {
             "data": {
                 "id": "species-legacy",
@@ -149,7 +149,7 @@ struct SpeciesDictionaryTests {
                 "similar_species": []
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -163,7 +163,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testSpeciesDictionaryReferenceImageSourceFallbackIsResilient() throws {
-        let data = """
+        let data = Data("""
         {
             "data": {
                 "id": "species-source",
@@ -184,7 +184,7 @@ struct SpeciesDictionaryTests {
                 "similar_species": []
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -195,7 +195,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testGetSpeciesDictionaryConstructsPayloadAndParsesResponse() async throws {
-        let testData = """
+        let testData = Data("""
         {
             "data": {
                 "id": "species-123",
@@ -214,7 +214,7 @@ struct SpeciesDictionaryTests {
                 "similar_species": []
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
         let mockResponse = HTTPURLResponse(
             url: URL(string: "https://example.com")!,
             statusCode: 200,
@@ -252,7 +252,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testGetSpeciesDictionaryCanPreferSpeciesIdPayload() async throws {
-        let testData = """
+        let testData = Data("""
         {
             "data": {
                 "id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
@@ -271,7 +271,7 @@ struct SpeciesDictionaryTests {
                 "similar_species": []
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
         let mockResponse = HTTPURLResponse(
             url: URL(string: "https://example.com")!,
             statusCode: 200,
@@ -296,7 +296,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testGetSpeciesDictionaryMemoizesRecentResponseByScientificName() async throws {
-        let testData = """
+        let testData = Data("""
         {
             "schema_version": 1,
             "data": {
@@ -316,7 +316,7 @@ struct SpeciesDictionaryTests {
                 "similar_species": []
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
         let mockResponse = HTTPURLResponse(
             url: URL(string: "https://example.com")!,
             statusCode: 200,
@@ -342,7 +342,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testSpeciesObservationStatsResponseDecodesPublicCharts() throws {
-        let data = """
+        let data = Data("""
         {
             "schema_version": 1,
             "data": {
@@ -382,7 +382,7 @@ struct SpeciesDictionaryTests {
                 ]
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -397,7 +397,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testGetSpeciesObservationStatsConstructsPayloadAndMemoizes() async throws {
-        let testData = """
+        let testData = Data("""
         {
             "schema_version": 1,
             "data": {
@@ -420,7 +420,7 @@ struct SpeciesDictionaryTests {
                 "sex": []
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
         let mockResponse = HTTPURLResponse(
             url: URL(string: "https://example.com")!,
             statusCode: 200,
@@ -462,7 +462,7 @@ struct SpeciesDictionaryTests {
 
     @Test func testSpeciesDictionaryViewModelLoadsSpecies() async throws {
         MockURLProtocol.mockEndpoints["/species-dictionary"] = { _ in
-            let data = """
+            let data = Data("""
             {
                 "data": {
                     "id": "species-123",
@@ -481,7 +481,7 @@ struct SpeciesDictionaryTests {
                     "similar_species": []
                 }
             }
-            """.data(using: .utf8)!
+            """.utf8)
             let response = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, data)
         }
@@ -509,7 +509,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testSpeciesDictionaryCatalogResponseDecodesItemsAndCursor() throws {
-        let data = """
+        let data = Data("""
         {
             "schema_version": 1,
             "data": [
@@ -538,7 +538,7 @@ struct SpeciesDictionaryTests {
                 "created_at": "2026-06-01T12:00:00Z"
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -554,7 +554,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testSpeciesDictionaryOverviewResponseDecodesCategoriesAndRegions() throws {
-        let data = """
+        let data = Data("""
         {
             "schema_version": 1,
             "data": {
@@ -581,6 +581,14 @@ struct SpeciesDictionaryTests {
                         "count": 8,
                         "reference_image_url": "https://example.com/local.jpg",
                         "region": "United States"
+                    },
+                    {
+                        "id": "recently_added",
+                        "title": "Recently Added",
+                        "subtitle": "Newest entries added to the database",
+                        "count": 42,
+                        "reference_image_url": "https://example.com/recent.jpg",
+                        "region": null
                     }
                 ],
                 "groups": [
@@ -601,7 +609,7 @@ struct SpeciesDictionaryTests {
                 ]
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -610,15 +618,17 @@ struct SpeciesDictionaryTests {
         #expect(response.effectiveSchemaVersion == 1)
         #expect(response.data.featuredSpecies?.commonName == "Monarch Butterfly")
         #expect(response.data.featuredSpecies?.dictionaryRoute.speciesId == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
+        #expect(response.data.featuredSpecies?.dictionaryRoute.entryPoint == .exploreDictionaryCatalog)
         #expect(response.data.categories.first?.id == .all)
-        #expect(response.data.categories.last?.id == .yourRegion)
-        #expect(response.data.categories.last?.region == "United States")
+        #expect(response.data.categories[1].id == .yourRegion)
+        #expect(response.data.categories[1].region == "United States")
+        #expect(response.data.categories.last?.id == .recentlyAdded)
         #expect(response.data.groups.first?.title == "Birds")
         #expect(response.data.regions.first?.title == "United States")
     }
 
     @Test func testGetSpeciesDictionaryCatalogConstructsPayloadAndParsesResponse() async throws {
-        let testData = """
+        let testData = Data("""
         {
             "schema_version": 1,
             "data": [],
@@ -627,7 +637,7 @@ struct SpeciesDictionaryTests {
                 "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01"
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
         let mockResponse = HTTPURLResponse(
             url: URL(string: "https://example.com")!,
             statusCode: 200,
@@ -668,7 +678,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testGetSpeciesDictionaryOverviewConstructsPayloadAndParsesResponse() async throws {
-        let testData = """
+        let testData = Data("""
         {
             "schema_version": 1,
             "data": {
@@ -676,7 +686,7 @@ struct SpeciesDictionaryTests {
                 "regions": []
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
         let mockResponse = HTTPURLResponse(
             url: URL(string: "https://example.com")!,
             statusCode: 200,
@@ -704,7 +714,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testSpeciesDictionaryTreeResponseDecodesGraphPayload() throws {
-        let data = """
+        let data = Data("""
         {
             "schema_version": 1,
             "data": {
@@ -754,7 +764,7 @@ struct SpeciesDictionaryTests {
                 ]
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -768,7 +778,7 @@ struct SpeciesDictionaryTests {
     }
 
     @Test func testGetSpeciesDictionaryTreeConstructsPayloadAndParsesResponse() async throws {
-        let testData = """
+        let testData = Data("""
         {
             "schema_version": 1,
             "data": {
@@ -776,7 +786,7 @@ struct SpeciesDictionaryTests {
                 "edges": []
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
         let mockResponse = HTTPURLResponse(
             url: URL(string: "https://example.com")!,
             statusCode: 200,

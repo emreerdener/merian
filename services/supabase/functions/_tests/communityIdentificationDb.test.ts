@@ -32,6 +32,11 @@ type SuggestedTaxon = {
   distinguishing_feature: string | null;
 };
 
+type DetailRow = {
+  inference_tier: string;
+  suggested_taxa: SuggestedTaxon[];
+};
+
 Deno.test("Community ID DB - versioned search, queued consensus, and projection graduation", async () => {
   await withExploreDbTest(
     "communityIdentificationDb.test",
@@ -67,6 +72,7 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
         aiConfidenceScore: 0.97,
         aiReasoning:
           "Visible clustered petals and leaves match the initial taxon.",
+        inferenceTier: "pro",
         candidates: [
           {
             scientific_name: "Rosa communitatis",
@@ -236,15 +242,14 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
       );
       assertEquals(otherMineScopeRows.rows[0].author_user_id, identifierA);
 
-      const detailRows = await client.queryObject<{
-        suggested_taxa: SuggestedTaxon[];
-      }>(
+      const detailRows = await client.queryObject<DetailRow>(
         `
-        SELECT suggested_taxa
+        SELECT inference_tier, suggested_taxa
         FROM public.get_community_identification_detail($1, $2)
       `,
         [ownerId, requestId],
       );
+      assertEquals(detailRows.rows[0].inference_tier, "pro");
       const suggestions = detailRows.rows[0].suggested_taxa;
 
       assertEquals(

@@ -23,6 +23,15 @@ struct ProfileTabView: View {
         ScrollView(showsIndicators: false) {
             // MARK: - Core Profile Content
             VStack(spacing: 24) {
+                // MARK: - User Profile
+                UserProfile(
+                    totalScans: totalCaptures,
+                    completedAchievements: awards.completedCount
+                )
+
+                // MARK: - Stats
+                UserStats(speciesCount: uniqueSpeciesCount, streak: currentStreak)
+
                 // MARK: - Terrarium & Persona
                 VStack(spacing: 16) {
                     Terrarium(uniqueSpeciesCount: uniqueSpeciesCount)
@@ -41,29 +50,20 @@ struct ProfileTabView: View {
                 }
                 .padding(.bottom, 16)
 
-                // MARK: - User Profile
-                UserProfile(
-                    totalScans: totalCaptures,
-                    completedAchievements: awards.completedCount
-                )
-                
-                // MARK: - Stats
-                UserStats(speciesCount: uniqueSpeciesCount, streak: currentStreak)
-                
                 // MARK: - Paywall & Subscriptions
                 if !revenueCatManager.isProActive {
                     PlanCard(showPaywall: $showPaywall)
                 }
-                
-                // MARK: - Heatmap
-                ScansHeatmap(heatmapData: heatmapData)
 
                 // MARK: - Public Explore Scans
                 ProfilePublicScansPreview(
                     viewModel: exploreViewModel,
                     onOpenPost: openPublicScanPreview
                 )
-                
+
+                // MARK: - Heatmap
+                ScansHeatmap(heatmapData: heatmapData)
+
                 // MARK: - Gamification Awards
                 if !awards.isEmpty {
                     Achievements(awards: awards)

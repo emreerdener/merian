@@ -251,8 +251,9 @@ One active Ask the Community request per Explore post. Status is
   identifications to one taxonomy version.
 - `initial_taxon_node_id`: The AI-derived starting label. Detail responses
   hydrate this `ai_initial` suggestion with the backing scan's
-  `ai_confidence_score` and `ai_reasoning` so the UI can present the starting
-  ID and its reasoning separately from community consensus.
+  `ai_confidence_score`, `ai_reasoning`, and top-level `inference_tier` so the
+  UI can present the starting ID, model tier, optional confidence, and
+  collapsed reasoning separately from community consensus.
 - `current_community_taxon_node_id`: Finest active community consensus, if any.
 - `resolved_taxon_node_id` and `resolved_observation_taxon_node_id`: Public
   resolved projection once the request graduates.
@@ -274,7 +275,8 @@ Community detail responses derive initial Suggest ID options from this pinned
 taxonomy version: the initial AI taxon plus any resolvable `scans.candidates`
 entries, capped and deduplicated server-side. The initial suggestion is always
 kept as `suggestion_source = ai_initial`; its confidence comes from
-`scans.ai_confidence_score` and its reasoning comes from `scans.ai_reasoning`.
+`scans.ai_confidence_score`, its reasoning comes from `scans.ai_reasoning`, and
+the detail response's top-level `inference_tier` comes from `scans.inference_tier`.
 Alternative suggestions remain `suggestion_source = ai_candidate` and keep
 their candidate-level confidence and distinguishing feature.
 The Community request queue can be scoped to all visible unresolved requests or
