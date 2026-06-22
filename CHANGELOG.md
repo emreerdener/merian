@@ -79,6 +79,8 @@ TestFlight, App Store, support, and QA.
 
 ### Changed
 
+- Smart Collection cards for Explore posts and places now use varied matching
+  scan covers instead of always reusing the newest scan thumbnail.
 - Reordered Profile so identity and stats lead the page, followed by published
   scans, the non-Pro plan card, persona progress, the scan heatmap, and
   achievements.

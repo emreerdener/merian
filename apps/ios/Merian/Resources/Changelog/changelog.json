@@ -9,6 +9,7 @@
         {
           "title": "Changed",
           "items": [
+            "Smart Collection cards for Explore posts and places now use varied matching scan covers instead of always reusing the newest scan thumbnail.",
             "Dog and cat scans can now show a likely breed, mix, coat pattern, or body type while Merian keeps the underlying species taxonomy unchanged.",
             "The main camera tab bar now matches the Explore bottom navigation icon size, label size, and item spacing.",
             "Identify requests now have organism filters for Plants, Birds, Insects, Fungi, Mammals, and Herps while keeping Yours near the start of the filter row.",

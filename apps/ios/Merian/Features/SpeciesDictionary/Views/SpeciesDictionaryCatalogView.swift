@@ -500,6 +500,10 @@ private struct SpeciesDictionaryFeaturedSpeciesCard: View {
         }
         .frame(width: width)
         .clipShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous)
+                .strokeBorder(.black.opacity(0.8), lineWidth: 1)
+        }
         .contentShape(RoundedRectangle(cornerRadius: SpeciesDictionaryCornerRadius.card, style: .continuous))
         .accessibilityElement(children: .combine)
     }

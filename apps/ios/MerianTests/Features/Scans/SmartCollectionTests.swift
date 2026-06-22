@@ -261,6 +261,42 @@ struct SmartCollectionTests {
         #expect(!suppressedSuggestions.map(\.title).contains("Explore posts"))
     }
 
+    @Test("Explore posts and location covers use stable randomized matching scans")
+    func testExploreAndLocationCoversUseStableRandomizedScans() throws {
+        let sharedScans = [
+            try makeScan(id: "newest-shared", name: "Newest Shared Oak", timestamp: referenceDate),
+            try makeScan(id: "older-shared", name: "Older Shared Oak", timestamp: referenceDate.addingTimeInterval(-10)),
+            try makeScan(id: "oldest-shared", name: "Oldest Shared Oak", timestamp: referenceDate.addingTimeInterval(-20))
+        ]
+        let sharedIDs = Set(sharedScans.map(\.id))
+        let sharedSuggestions = SmartCollectionSuggester.suggestions(
+            from: sharedScans,
+            existingCollections: [],
+            sharedPostIDProvider: { sharedIDs.contains($0) ? "post-\($0)" : nil },
+            referenceDate: referenceDate
+        )
+        let sharedSnapshot = try #require(sharedSuggestions.first { $0.title == "Explore posts" })
+
+        #expect(sharedSnapshot.scans.first?.id == "newest-shared")
+        #expect(sharedSnapshot.coverScan?.id == "oldest-shared")
+
+        let locationScans = [
+            try makeScan(id: "scan-a", name: "Park Oak A", locationName: "Central Park", timestamp: referenceDate),
+            try makeScan(id: "scan-b", name: "Park Oak B", locationName: "Central Park", timestamp: referenceDate.addingTimeInterval(-10)),
+            try makeScan(id: "scan-c", name: "Park Oak C", locationName: "Central Park", timestamp: referenceDate.addingTimeInterval(-20))
+        ]
+        let locationSuggestions = SmartCollectionSuggester.suggestions(
+            from: locationScans,
+            existingCollections: [],
+            sharedPostIDProvider: { _ in nil },
+            referenceDate: referenceDate
+        )
+        let locationSnapshot = try #require(locationSuggestions.first { $0.title == "Central Park" })
+
+        #expect(locationSnapshot.scans.first?.id == "scan-a")
+        #expect(locationSnapshot.coverScan?.id == "scan-b")
+    }
+
     @Test("Hidden smart collection ids suppress suggestions until reset")
     func testHiddenSmartCollectionIDsSuppressAndReset() throws {
         let scans = try (0..<3).map {
@@ -308,6 +344,7 @@ struct SmartCollectionTests {
     }
 
     private func makeScan(
+        id: String = UUID().uuidString,
         name: String,
         taxonomyKingdom: String? = nil,
         taxonomyClass: String? = nil,
@@ -324,7 +361,7 @@ struct SmartCollectionTests {
         timestamp: Date
     ) throws -> LocalScanRecord {
         let record = LocalScanRecord(
-            id: UUID().uuidString,
+            id: id,
             speciesId: UUID().uuidString,
             scientificName: "\(name.replacingOccurrences(of: " ", with: "")) testii",
             commonName: name,

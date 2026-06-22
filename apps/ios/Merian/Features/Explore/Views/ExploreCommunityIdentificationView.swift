@@ -1055,13 +1055,15 @@ private struct CommunityAIIdentificationCard: View {
             }
         }
         .padding(16)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(
+            colorScheme == .light
+                ? Color(red: 0.95, green: 0.96, blue: 0.98)
+                : Color(uiColor: .secondarySystemGroupedBackground)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay {
-            if colorScheme == .light {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .strokeBorder(Color(uiColor: .separator).opacity(0.16), lineWidth: 1)
-            }
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         }
     }
 }

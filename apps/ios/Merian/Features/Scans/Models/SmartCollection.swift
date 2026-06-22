@@ -101,7 +101,11 @@ enum SmartCollectionSuggester {
         return SmartCollectionSnapshot(
             definition: snapshot.definition,
             scans: matchingScans,
-            coverScan: matchingScans.first
+            coverScan: coverScan(
+                for: snapshot.definition.rule,
+                title: snapshot.definition.title,
+                from: matchingScans
+            )
         )
     }
 
@@ -283,8 +287,35 @@ enum SmartCollectionSuggester {
         snapshots.append(SmartCollectionSnapshot(
             definition: definition,
             scans: sortedScans,
-            coverScan: sortedScans.first
+            coverScan: coverScan(
+                for: rule,
+                title: title,
+                from: sortedScans
+            )
         ))
+    }
+
+    private static func coverScan(
+        for rule: SmartCollectionDefinition.Rule,
+        title: String,
+        from sortedScans: [LocalScanRecord]
+    ) -> LocalScanRecord? {
+        switch rule {
+        case .shared, .location:
+            return stableRandomScan(from: sortedScans, seed: normalize(title))
+        default:
+            return sortedScans.first
+        }
+    }
+
+    private static func stableRandomScan(from scans: [LocalScanRecord], seed: String) -> LocalScanRecord? {
+        guard !scans.isEmpty else { return nil }
+
+        let stableSeed = ([seed] + scans.map(\.id)).joined(separator: "|")
+        let hash = stableSeed.unicodeScalars.reduce(UInt64(14_695_981_039_346_656_037)) { result, scalar in
+            (result ^ UInt64(scalar.value)) &* 1_099_511_628_211
+        }
+        return scans[Int(hash % UInt64(scans.count))]
     }
 
     private static func isReviewCandidate(_ scan: LocalScanRecord) -> Bool {
