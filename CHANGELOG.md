@@ -79,8 +79,8 @@ TestFlight, App Store, support, and QA.
 
 ### Changed
 
-- Reordered Profile so identity and stats lead the page, followed by persona
-  progress, the non-Pro plan card, published scans, the scan heatmap, and
+- Reordered Profile so identity and stats lead the page, followed by published
+  scans, the non-Pro plan card, persona progress, the scan heatmap, and
   achievements.
 - Matched the main camera tab bar icon size, label size, and item spacing to
   the Explore bottom navigation.

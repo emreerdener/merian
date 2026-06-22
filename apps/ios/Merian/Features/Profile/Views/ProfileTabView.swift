@@ -32,6 +32,17 @@ struct ProfileTabView: View {
                 // MARK: - Stats
                 UserStats(speciesCount: uniqueSpeciesCount, streak: currentStreak)
 
+                // MARK: - Public Explore Scans
+                ProfilePublicScansPreview(
+                    viewModel: exploreViewModel,
+                    onOpenPost: openPublicScanPreview
+                )
+
+                // MARK: - Paywall & Subscriptions
+                if !revenueCatManager.isProActive {
+                    PlanCard(showPaywall: $showPaywall)
+                }
+
                 // MARK: - Terrarium & Persona
                 VStack(spacing: 16) {
                     Terrarium(uniqueSpeciesCount: uniqueSpeciesCount)
@@ -48,18 +59,7 @@ struct ProfileTabView: View {
 #endif
                     Persona(uniqueSpeciesCount: uniqueSpeciesCount)
                 }
-                .padding(.bottom, 16)
-
-                // MARK: - Paywall & Subscriptions
-                if !revenueCatManager.isProActive {
-                    PlanCard(showPaywall: $showPaywall)
-                }
-
-                // MARK: - Public Explore Scans
-                ProfilePublicScansPreview(
-                    viewModel: exploreViewModel,
-                    onOpenPost: openPublicScanPreview
-                )
+                .padding(.vertical, 16)
 
                 // MARK: - Heatmap
                 ScansHeatmap(heatmapData: heatmapData)
