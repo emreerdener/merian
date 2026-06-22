@@ -251,10 +251,12 @@ a consensus vote.
 the active taxonomy index in place and preserves existing GBIF-only nodes.
 `upsert_gbif_community_taxa(...)` caches GBIF search results and lineage into
 the active index so Community ID suggestions are no longer limited to enriched
-Dictionary species. The service-role `community-taxonomy-status` endpoint
-reports the active taxonomy row, node counts by source/rank, GBIF-only taxon
-counts, recent import runs, enrichment queue health, and coverage targets
-without mutating taxonomy data.
+Dictionary species. The service-role `sync-community-taxonomy-index` endpoint
+uses the same bridge for bounded GBIF imports, starting with
+`gbif_bounded_birds` pages under GBIF taxon key `212` (`Aves`). The service-role
+`community-taxonomy-status` endpoint reports the active taxonomy row, node
+counts by source/rank, GBIF-only taxon counts, recent import runs, enrichment
+queue health, and coverage targets without mutating taxonomy data.
 
 ### `explore_community_requests`
 
@@ -600,6 +602,11 @@ Bounded taxonomy-completeness targets for future gamification. Added in
   GBIF species in the target scope.
 - `last_computed_at`: Freshness marker for
   `refresh_taxonomy_coverage_targets()`.
+
+The Birds target is populated by bounded `sync-community-taxonomy-index` imports
+and recomputed by `refresh_taxonomy_coverage_targets()` after successful GBIF
+upsert pages. Do not show gamified completion claims until the target's
+`indexed_species_count` has been seeded from the bounded import.
 
 ### `scans`
 

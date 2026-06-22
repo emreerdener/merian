@@ -12,6 +12,7 @@
             "Ask the Community search can now find GBIF-backed taxa that are not yet enriched in Merian's Dictionary.",
             "Newly materialized Dictionary species can now hydrate habitat, lookalikes, and group tags in the background.",
             "Merian's Community ID taxonomy and enrichment systems now have stronger backend monitoring for rollout health.",
+            "Merian can now safely seed bird taxonomy coverage in the background for future Dictionary completeness progress.",
             "Smart Collection cards for Explore posts and places now use varied matching scan covers instead of always reusing the newest scan thumbnail.",
             "Dog and cat scans can now show a likely breed, mix, coat pattern, or body type while Merian keeps the underlying species taxonomy unchanged.",
             "The main camera tab bar now matches the Explore bottom navigation icon size, label size, and item spacing.",

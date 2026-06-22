@@ -278,6 +278,32 @@ retires the previous Merian dictionary version. Optional body:
 { "source_revision": "species-dictionary-2026-06-20" }
 ```
 
+### `/sync-community-taxonomy-index`
+
+Internal service-role endpoint. Imports bounded GBIF taxonomy pages into the
+active Community Taxonomy Index without materializing `species_dictionary` rows.
+v1 supports only the `birds` target, which maps to GBIF taxon key `212` (`Aves`)
+and imports accepted species through GBIF species search.
+
+Optional body:
+
+```json
+{
+  "target": "birds",
+  "offset": 0,
+  "limit": 50,
+  "page_count": 1,
+  "dry_run": false
+}
+```
+
+`limit` is capped at `200`, `page_count` is capped at `5`, and callers continue
+by passing the previous response's `next_offset`. Each successful page calls
+`upsert_gbif_community_taxa(...)`, annotates the created `taxonomy_import_runs`
+row as `scope = "gbif_bounded_birds"`, and refreshes coverage through the
+existing RPC side effect. `dry_run = true` fetches and normalizes the GBIF page
+without writing taxonomy rows.
+
 ### `/process-community-consensus-jobs`
 
 Internal service-role endpoint. Processes pending or retryable failed
@@ -3613,6 +3639,89 @@ backward-compatible alias for `job_limit`.
 The endpoint does not refresh coverage, claim jobs, cache GBIF taxa, materialize
 Dictionary rows, or attach scan media. It only reports the current database
 state available to the service role.
+
+---
+
+## Deno `/sync-community-taxonomy-index` Edge Node (Internal Import Worker)
+
+Internal service-role worker for bounded GBIF imports into the Community
+Taxonomy Index. It is manual-first and resumable; no cron schedule is installed
+in v1.
+
+### Authentication Enforcement
+
+- `verify_jwt = false` is configured for service-role calls.
+- The function still requires
+  `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and validates it with
+  `timingSafeCompare`.
+- Non-POST requests return `405`.
+
+### Request Payload
+
+All fields are optional:
+
+```json
+{
+  "target": "birds",
+  "offset": 0,
+  "limit": 50,
+  "page_count": 1,
+  "dry_run": false
+}
+```
+
+Constraints:
+
+- `target`: only `birds` in v1.
+- `offset`: non-negative integer.
+- `limit`: integer from `1` to `200`.
+- `page_count`: integer from `1` to `5`.
+
+### Response Payload
+
+```json
+{
+  "success": true,
+  "target": "birds",
+  "root_gbif_taxon_key": 212,
+  "dry_run": false,
+  "imported_count": 50,
+  "fetched_count": 50,
+  "normalized_count": 50,
+  "end_of_records": false,
+  "next_offset": 50,
+  "pages": [
+    {
+      "offset": 0,
+      "limit": 50,
+      "requested_query": "bounded:birds:root=212:rank=species:status=accepted:offset=0:limit=50",
+      "fetched_count": 50,
+      "normalized_count": 50,
+      "imported_count": 50,
+      "dry_run": false,
+      "end_of_records": false,
+      "next_offset": 50
+    }
+  ]
+}
+```
+
+### Import Behavior
+
+1. Fetches GBIF species search pages with `highertaxon_key=212`, `rank=SPECIES`,
+   and `status=ACCEPTED`.
+2. Normalizes rows into Merian's GBIF community taxon payload.
+3. Calls `upsert_gbif_community_taxa(...)`, which inserts lineage and species
+   nodes into `taxon_nodes` / `taxon_names` without deleting Dictionary-backed
+   rows.
+4. Annotates the created `taxonomy_import_runs` row as
+   `scope = "gbif_bounded_birds"` with page metadata.
+5. Relies on the existing RPC side effect to recompute
+   `taxonomy_coverage_targets`.
+
+The worker does not create `species_dictionary` rows, enqueue species
+enrichment, or attach scan media. Those still happen only through
+materialization triggers such as owner-published Community ID consensus.
 
 ---
 

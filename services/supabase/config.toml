@@ -523,6 +523,9 @@ verify_jwt = false
 [functions.community-taxonomy-status]
 verify_jwt = false
 
+[functions.sync-community-taxonomy-index]
+verify_jwt = false
+
 [functions.refresh-merian-reference-images]
 verify_jwt = false
 
