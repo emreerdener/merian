@@ -174,7 +174,11 @@ request edits, with the primary action in the toolbar: `Send`/`Sending...` for
 new requests and `Save`/`Saving...` for edits. When the scan already has an
 active community request, the Insight share sheet shows horizontal **Edit** and
 **View** actions, then a separate **Publish to Explore** action with a visible
-reminder that the community is still reviewing the ID.
+reminder that the community is still reviewing the ID. After the community
+request resolves, owner publish materializes any new GBIF-backed species into
+the Dictionary, writes that species to `scans.confirmed_species_id`, preserves
+the original AI `scans.species_id`, and makes the post eligible for normal
+Explore surfaces.
 
 ---
 

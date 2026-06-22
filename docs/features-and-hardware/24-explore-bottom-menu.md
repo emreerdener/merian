@@ -90,8 +90,9 @@ at genus when users mark that as the best practical ID, the projection becomes
 `community_resolved`, but normal Explore surfaces continue to exclude it until
 the owner explicitly publishes the resolved request to Explore. After that
 publish action, the resolved community taxon drives the public
-common/scientific-name display. V1 does not mutate `scans.species_id` or
-`confirmed_species_id`.
+common/scientific-name display, and species-level resolutions set
+`scans.confirmed_species_id` after materializing any new GBIF-backed species
+into Merian's Dictionary. The original AI `scans.species_id` is preserved.
 
 Map species-type filters are backed by `/get-explore-map-points`, which derives
 category counts from the privacy-safe posts in the current region and applies

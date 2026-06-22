@@ -2,10 +2,12 @@
 
 Scheduled service-role worker for stale public species dictionary content.
 
-The worker consumes `public.get_species_content_refresh_queue(...)`, groups rows
-by species, refreshes supported public fields from GBIF/Wikipedia, updates
-`species_dictionary`, synchronizes normalized `species_reference_images`, and
-records fresh `species_content_provenance` rows.
+The worker claims first-class `species_enrichment_jobs` for the
+`gbif_wikipedia_reference` content group, groups work by species, refreshes
+supported public fields from GBIF/Wikipedia, updates `species_dictionary`,
+synchronizes normalized `species_reference_images`, and records fresh
+`species_content_provenance` rows. If no jobs are queued, it falls back to the
+legacy `public.get_species_content_refresh_queue(...)` provenance queue.
 
 ## Security
 
@@ -80,6 +82,14 @@ Migration `20260513070000_add_species_content_refresh_worker_schedule.sql` adds:
 - `refresh_species_content_hourly`, a `pg_cron` schedule that invokes
   `/functions/v1/refresh-species-content` through `pg_net`.
 
+Migration `20260622030000_long_term_community_taxonomy_index.sql` adds:
+
+- `species_enrichment_jobs`, the operational queue for newly materialized
+  species.
+- `public.claim_species_enrichment_jobs(...)` and
+  `public.complete_species_enrichment_job(...)`, executable only by
+  `service_role`.
+
 ## Boundaries
 
 The worker does not refresh model-heavy or review-heavy fields in V1:
@@ -90,8 +100,8 @@ refresh tooling can update them safely.
 ## Local Verification
 
 ```sh
-deno check services/supabase/functions/_shared/external.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-content/db.test.ts
-deno test services/supabase/functions/refresh-species-content/db.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/refresh-species-content/index.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/refresh-species-content/db.test.ts
 ```
 
 `supabase db lint --local --fail-on error` should also be run when a local

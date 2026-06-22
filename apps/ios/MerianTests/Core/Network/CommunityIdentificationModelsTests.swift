@@ -85,7 +85,12 @@ struct CommunityIdentificationModelsTests {
           "scientific_name": "Buteo jamaicensis",
           "rank": "species",
           "path": "animalia.chordata.aves.accipitridae.buteo.buteo_jamaicensis",
-          "species_id": "species-red-tailed-hawk"
+          "species_id": "species-red-tailed-hawk",
+          "gbif_taxon_key": 2480242,
+          "source": "mixed",
+          "is_in_dictionary": true,
+          "accepted_gbif_taxon_key": 2480242,
+          "taxonomic_status": "accepted"
         }
         """.data(using: .utf8)!
         let suggestionJson = """
@@ -110,6 +115,11 @@ struct CommunityIdentificationModelsTests {
 
         #expect(searchResult.suggestionSource == nil)
         #expect(searchResult.confidenceScore == nil)
+        #expect(searchResult.gbifTaxonKey == 2480242)
+        #expect(searchResult.source == "mixed")
+        #expect(searchResult.isInDictionary == true)
+        #expect(searchResult.acceptedGbifTaxonKey == 2480242)
+        #expect(searchResult.taxonomicStatus == "accepted")
         #expect(suggestion.suggestionSource == .aiCandidate)
         #expect(suggestion.suggestionSource?.displayLabel == "Alternative from scan analysis")
         #expect(suggestion.confidenceScore == 0.82)

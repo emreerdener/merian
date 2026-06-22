@@ -408,3 +408,325 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
     },
   );
 });
+
+Deno.test("Community ID DB - owner publish materializes GBIF-only consensus species", async () => {
+  await withExploreDbTest(
+    "communityIdentificationSpeciesLinking.test",
+    async (client: Client) => {
+      const ownerId = crypto.randomUUID();
+      const identifierA = crypto.randomUUID();
+      const identifierB = crypto.randomUUID();
+      const initialSpeciesId = crypto.randomUUID();
+      const scanId = crypto.randomUUID();
+      const postId = crypto.randomUUID();
+      const requestId = crypto.randomUUID();
+
+      await insertUser(client, ownerId, "Consensus Owner");
+      await insertUser(client, identifierA, "Consensus Identifier A");
+      await insertUser(client, identifierB, "Consensus Identifier B");
+      await insertSpecies(client, initialSpeciesId, "Rosa provisionalis");
+      await insertScan(client, {
+        id: scanId,
+        userId: ownerId,
+        speciesId: initialSpeciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "open",
+        imageQualityScore: 96,
+        aiConfidenceScore: 0.72,
+      });
+      await insertExplorePost(client, { id: postId, userId: ownerId, scanId });
+
+      const taxonomy = await client.queryObject<{ id: string }>(
+        `
+        SELECT id
+        FROM public.refresh_taxonomy_nodes_from_species_dictionary($1, TRUE)
+      `,
+        ["community-species-linking-test"],
+      );
+      const taxonomyVersionId = taxonomy.rows[0].id;
+
+      const initialTaxonRows = await client.queryObject<SearchRow>(
+        `
+        SELECT taxon_id, taxonomy_version_id, scientific_name
+        FROM public.search_community_taxa($1, 5, $2)
+        WHERE scientific_name = 'Rosa provisionalis'
+      `,
+        ["provisionalis", taxonomyVersionId],
+      );
+      const initialTaxonId = initialTaxonRows.rows[0].taxon_id;
+
+      const externalTaxonId = crypto.randomUUID();
+      const gbifTaxonKey = 424242;
+      await client.queryArray(
+        `
+        WITH genus_node AS (
+          SELECT id
+          FROM public.taxon_nodes
+          WHERE taxonomy_version_id = $2
+            AND rank = 'genus'
+            AND scientific_name = 'Rosa'
+          LIMIT 1
+        )
+        INSERT INTO public.taxon_nodes (
+          id,
+          taxonomy_version_id,
+          path,
+          parent_id,
+          rank,
+          scientific_name,
+          common_name,
+          species_id,
+          gbif_taxon_key
+        )
+        SELECT
+          $1,
+          $2,
+          public.community_taxon_path(
+            'Plantae',
+            'Tracheophyta',
+            'Magnoliopsida',
+            'Rosales',
+            'Rosaceae',
+            'Rosa',
+            'Rosa externa'
+          ),
+          genus_node.id,
+          'species',
+          'Rosa externa',
+          'External Rose',
+          NULL,
+          $3
+        FROM genus_node
+      `,
+        [externalTaxonId, taxonomyVersionId, gbifTaxonKey],
+      );
+
+      await client.queryArray(
+        `
+        INSERT INTO public.explore_community_requests (
+          id,
+          post_id,
+          scan_id,
+          requested_by,
+          taxonomy_version_id,
+          initial_taxon_node_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `,
+        [requestId, postId, scanId, ownerId, taxonomyVersionId, initialTaxonId],
+      );
+
+      await client.queryObject(
+        `
+        SELECT public.submit_explore_community_identification($1, $2, $3)
+      `,
+        [identifierA, requestId, externalTaxonId],
+      );
+      await client.queryObject(
+        `
+        SELECT public.submit_explore_community_identification($1, $2, $3)
+      `,
+        [identifierB, requestId, externalTaxonId],
+      );
+
+      const beforePublish = await client.queryObject<{
+        status: string;
+        resolved_taxon_node_id: string | null;
+        confirmed_species_id: string | null;
+        species_count: bigint;
+      }>(
+        `
+        SELECT
+          ecr.status::text,
+          ecr.resolved_taxon_node_id,
+          s.confirmed_species_id,
+          (
+            SELECT COUNT(*)::bigint
+            FROM public.species_dictionary
+            WHERE scientific_name = 'Rosa externa'
+          ) AS species_count
+        FROM public.explore_community_requests ecr
+        JOIN public.scans s ON s.id = ecr.scan_id
+        WHERE ecr.id = $1
+      `,
+        [requestId],
+      );
+
+      assertEquals(beforePublish.rows[0].status, "resolved");
+      assertEquals(
+        beforePublish.rows[0].resolved_taxon_node_id,
+        externalTaxonId,
+      );
+      assertEquals(beforePublish.rows[0].confirmed_species_id, null);
+      assertEquals(beforePublish.rows[0].species_count, 0n);
+
+      const publishRows = await client.queryObject<{ species_id: string }>(
+        `
+        SELECT public.publish_resolved_community_request_to_explore($1, $2) AS species_id
+      `,
+        [postId, ownerId],
+      );
+      const materializedSpeciesId = publishRows.rows[0].species_id;
+
+      const afterPublish = await client.queryObject<{
+        confirmed_species_id: string | null;
+        explore_published_at: Date | null;
+        taxon_species_id: string | null;
+        scientific_name: string;
+        common_names: Record<string, string>;
+        gbif_taxon_key: number | null;
+        queued_count: bigint;
+        job_count: bigint;
+      }>(
+        `
+        SELECT
+          s.confirmed_species_id,
+          ecr.explore_published_at,
+          tn.species_id AS taxon_species_id,
+          sd.scientific_name,
+          sd.common_names,
+          sd.gbif_taxon_key,
+          (
+            SELECT COUNT(*)::bigint
+            FROM public.species_content_provenance p
+            WHERE p.species_id = sd.id
+              AND p.refresh_after IS NOT NULL
+              AND p.content_key IN (
+                'alternative_common_names',
+                'wikipedia_url',
+                'wikipedia_overview',
+                'habitat_description',
+                'reference_images',
+                'lookalikes',
+                'group_tags'
+              )
+          ) AS queued_count,
+          (
+            SELECT COUNT(*)::bigint
+            FROM public.species_enrichment_jobs sej
+            WHERE sej.species_id = sd.id
+              AND sej.content_group IN (
+                'gbif_wikipedia_reference',
+                'habitat',
+                'lookalikes',
+                'group_tags'
+              )
+          ) AS job_count
+        FROM public.explore_community_requests ecr
+        JOIN public.scans s ON s.id = ecr.scan_id
+        JOIN public.taxon_nodes tn ON tn.id = ecr.resolved_taxon_node_id
+        JOIN public.species_dictionary sd ON sd.id = s.confirmed_species_id
+        WHERE ecr.id = $1
+      `,
+        [requestId],
+      );
+
+      assertEquals(
+        afterPublish.rows[0].confirmed_species_id,
+        materializedSpeciesId,
+      );
+      assertEquals(
+        afterPublish.rows[0].explore_published_at instanceof Date,
+        true,
+      );
+      assertEquals(
+        afterPublish.rows[0].taxon_species_id,
+        materializedSpeciesId,
+      );
+      assertEquals(afterPublish.rows[0].scientific_name, "Rosa externa");
+      assertEquals(afterPublish.rows[0].common_names.en, "External Rose");
+      assertEquals(afterPublish.rows[0].gbif_taxon_key, gbifTaxonKey);
+      assertEquals(afterPublish.rows[0].queued_count, 7n);
+      assertEquals(afterPublish.rows[0].job_count, 4n);
+    },
+  );
+});
+
+Deno.test("Community ID DB - GBIF taxonomy cache survives Dictionary sync", async () => {
+  await withExploreDbTest(
+    "communityIdentificationTaxonomyIndex.test",
+    async (client: Client) => {
+      const speciesId = crypto.randomUUID();
+      await insertSpecies(client, speciesId, "Rosa indexed");
+
+      const taxonomy = await client.queryObject<{ id: string }>(
+        `
+        SELECT id
+        FROM public.refresh_taxonomy_nodes_from_species_dictionary($1, TRUE)
+      `,
+        ["community-taxonomy-index-test"],
+      );
+      const taxonomyVersionId = taxonomy.rows[0].id;
+
+      await client.queryObject(
+        `
+        SELECT public.upsert_gbif_community_taxa($1::jsonb, $2, 10)
+      `,
+        [
+          JSON.stringify([
+            {
+              gbif_taxon_key: 3000001,
+              accepted_gbif_taxon_key: 3000001,
+              taxonomic_status: "accepted",
+              rank: "species",
+              scientific_name: "Rosa externa",
+              common_name: "External Rose",
+              kingdom: "Plantae",
+              phylum: "Tracheophyta",
+              class: "Magnoliopsida",
+              order: "Rosales",
+              family: "Rosaceae",
+              genus: "Rosa",
+              species: "Rosa externa",
+              kingdom_gbif_taxon_key: 6,
+              genus_gbif_taxon_key: 3000000,
+            },
+          ]),
+          "Rosa externa",
+        ],
+      );
+
+      const gbifOnlyRows = await client.queryObject<{
+        scientific_name: string;
+        species_id: string | null;
+        gbif_taxon_key: number | null;
+        source: string | null;
+        is_in_dictionary: boolean;
+      }>(
+        `
+        SELECT scientific_name, species_id, gbif_taxon_key, source, is_in_dictionary
+        FROM public.search_community_taxa($1, 5, $2)
+        WHERE scientific_name = 'Rosa externa'
+      `,
+        ["externa", taxonomyVersionId],
+      );
+
+      assertEquals(gbifOnlyRows.rows.length, 1);
+      assertEquals(gbifOnlyRows.rows[0].species_id, null);
+      assertEquals(gbifOnlyRows.rows[0].gbif_taxon_key, 3000001);
+      assertEquals(gbifOnlyRows.rows[0].source, "gbif");
+      assertEquals(gbifOnlyRows.rows[0].is_in_dictionary, false);
+
+      await client.queryObject(
+        `
+        SELECT public.sync_taxon_nodes_from_species_dictionary()
+      `,
+      );
+
+      const afterSyncRows = await client.queryObject<{
+        species_id: string | null;
+      }>(
+        `
+        SELECT species_id
+        FROM public.search_community_taxa($1, 5, $2)
+        WHERE scientific_name = 'Rosa externa'
+      `,
+        ["externa", taxonomyVersionId],
+      );
+
+      assertEquals(afterSyncRows.rows.length, 1);
+      assertEquals(afterSyncRows.rows[0].species_id, null);
+    },
+  );
+});

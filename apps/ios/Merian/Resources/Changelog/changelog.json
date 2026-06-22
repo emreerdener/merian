@@ -9,6 +9,7 @@
         {
           "title": "Changed",
           "items": [
+            "Ask the Community search can now find GBIF-backed taxa that are not yet enriched in Merian's Dictionary.",
             "Smart Collection cards for Explore posts and places now use varied matching scan covers instead of always reusing the newest scan thumbnail.",
             "Dog and cat scans can now show a likely breed, mix, coat pattern, or body type while Merian keeps the underlying species taxonomy unchanged.",
             "The main camera tab bar now matches the Explore bottom navigation icon size, label size, and item spacing.",
@@ -28,6 +29,7 @@
         {
           "title": "Fixed",
           "items": [
+            "Publishing a resolved Ask the Community request now applies the owner-approved species consensus to the scan and prepares new GBIF-backed species for Dictionary enrichment.",
             "Ask the Community requests now stay associated with your signed-in account after identity changes, so they remain visible under Yours.",
             "Explore Dictionary Recently Added now shows the newest-entry count instead of matching the full All species total.",
             "Insight sharing and Ask the community requests now recover when a local scan is missing its cloud scan row.",

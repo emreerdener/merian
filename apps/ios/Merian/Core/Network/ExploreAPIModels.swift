@@ -568,6 +568,11 @@ struct CommunityTaxonSearchResult: Decodable, Identifiable, Equatable {
     let rank: String
     let path: String
     let speciesId: String?
+    let gbifTaxonKey: Int?
+    let source: String?
+    let isInDictionary: Bool?
+    let acceptedGbifTaxonKey: Int?
+    let taxonomicStatus: String?
     let suggestionSource: CommunityTaxonSuggestionSource?
     let confidenceScore: Double?
     let distinguishingFeature: String?
@@ -580,6 +585,11 @@ struct CommunityTaxonSearchResult: Decodable, Identifiable, Equatable {
         rank: String,
         path: String,
         speciesId: String?,
+        gbifTaxonKey: Int? = nil,
+        source: String? = nil,
+        isInDictionary: Bool? = nil,
+        acceptedGbifTaxonKey: Int? = nil,
+        taxonomicStatus: String? = nil,
         suggestionSource: CommunityTaxonSuggestionSource? = nil,
         confidenceScore: Double? = nil,
         distinguishingFeature: String? = nil
@@ -591,6 +601,11 @@ struct CommunityTaxonSearchResult: Decodable, Identifiable, Equatable {
         self.rank = rank
         self.path = path
         self.speciesId = speciesId
+        self.gbifTaxonKey = gbifTaxonKey
+        self.source = source
+        self.isInDictionary = isInDictionary
+        self.acceptedGbifTaxonKey = acceptedGbifTaxonKey
+        self.taxonomicStatus = taxonomicStatus
         self.suggestionSource = suggestionSource
         self.confidenceScore = confidenceScore
         self.distinguishingFeature = distinguishingFeature

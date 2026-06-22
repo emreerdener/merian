@@ -2,6 +2,7 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { normalizeLimit, requireUuid } from "../_shared/explore.ts";
 import { normalizeCommunitySearchQuery } from "../_shared/communityIdentification.ts";
+import { searchCommunityTaxa } from "./db.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (_user, supabaseAdmin) => {
@@ -18,19 +19,13 @@ Deno.serve((req: Request) =>
       ? null
       : requireUuid(body.taxonomy_version_id, "taxonomy_version_id");
 
-    const { data, error } = await supabaseAdmin.rpc(
-      "search_community_taxa",
-      {
-        query_text: query,
-        max_limit: limit,
-        target_taxonomy_version_id: taxonomyVersionId,
-      },
+    const data = await searchCommunityTaxa(
+      query,
+      limit,
+      taxonomyVersionId,
+      supabaseAdmin,
     );
 
-    if (error) {
-      throw new Error(`Failed to search community taxa: ${error.message}`);
-    }
-
-    return jsonResponse({ data: data ?? [] }, 200);
+    return jsonResponse({ data }, 200);
   })
 );

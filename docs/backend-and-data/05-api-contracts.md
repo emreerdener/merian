@@ -235,13 +235,20 @@ by the current user and also updates the backing Explore post’s
 
 ### `/search-community-taxa`
 
-Searches active-version `taxon_nodes` through `taxon_names` by scientific name,
-common name, or synonym. Accepts optional `taxonomy_version_id`; request detail
-searches should pass the request's pinned version. Returns `taxon_id`,
-`taxonomy_version_id`, `common_name`, `scientific_name`, `rank`, `path`, and
-`species_id`. The Swift client uses `path` to decide whether a selected ID is
-exact, descendant, ancestor, or conflicting before presenting any disagreement
-sheet.
+Searches `taxon_nodes` through `taxon_names` by scientific name, common name, or
+synonym. Local index search runs first. If results are thin and the query is at
+least three characters, the Edge function asks GBIF for additional suggestions,
+caches them into the active Community Taxonomy Index, and searches again. GBIF
+failures do not block local results. Accepts optional `taxonomy_version_id`;
+request detail searches should pass the request's pinned version.
+
+Rows return `taxon_id`, `taxonomy_version_id`, `common_name`,
+`scientific_name`, `rank`, `path`, `species_id`, `gbif_taxon_key`, `source`,
+`is_in_dictionary`, `accepted_gbif_taxon_key`, and `taxonomic_status`.
+`species_id = null` is valid for GBIF-only taxa that have not been materialized
+into Merian's enriched Dictionary yet. The Swift client uses `path` to decide
+whether a selected ID is exact, descendant, ancestor, or conflicting before
+presenting any disagreement sheet.
 
 ### `/submit-community-identification`
 
@@ -1952,8 +1959,10 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   `image_storage_urls` before sharing.
 - When the scan has an active Identify request, sharing to Explore is blocked
   until that request resolves. Publishing a resolved Identify request marks the
-  request with `explore_published_at` and promotes the existing post into normal
-  Explore surfaces without creating a duplicate post.
+  request with `explore_published_at`, materializes any new GBIF-backed resolved
+  species into `species_dictionary`, sets the scan's `confirmed_species_id`, and
+  queues species-content hydration/provenance rows before promoting the existing
+  post into normal Explore surfaces without creating a duplicate post.
 - `unshare-explore-post` soft-removes the post from the public feed via
   `unshared_at` without deleting the underlying scan.
 - `field_notes` is optional and capped at 1000 characters. It is a public copy
@@ -3487,9 +3496,11 @@ Manual service-role calls may also include:
 
 ### Refresh Behavior
 
-1. Calls `public.get_species_content_refresh_queue(limit, as_of)` with the
-   service role.
-2. Groups queued rows by `species_id`.
+1. Claims `gbif_wikipedia_reference` rows from `species_enrichment_jobs` with
+   the service role. If no jobs are available, falls back to
+   `public.get_species_content_refresh_queue(limit, as_of)` for legacy
+   provenance-driven refreshes.
+2. Groups queued work by `species_id`.
 3. Refreshes supported external fields from GBIF/Wikipedia:
    `alternative_common_names`, `taxonomy`, `wikipedia_url`,
    `wikipedia_overview`, `gbif_taxon_key`, and `reference_images`.
@@ -3498,11 +3509,12 @@ Manual service-role calls may also include:
 5. Synchronizes normalized images through
    `public.replace_species_reference_images(...)`, which preserves
    `source = "merian"` rows managed by the Merian reference-image worker.
-6. Records new `species_content_provenance` rows for refreshed keys.
+6. Records new `species_content_provenance` rows for refreshed keys and marks
+   claimed enrichment jobs succeeded or failed.
 
 Per-species refreshes run with a concurrency cap of 4.
 
-Unsupported queued keys (`common_names`, `habitat_description`, `lookalikes`,
+Unsupported provenance keys (`common_names`, `habitat_description`, `lookalikes`,
 `group_tags`, `iucn_red_list_status`, and `hazard_type`) are skipped until
 curation/model refresh tooling exists.
 

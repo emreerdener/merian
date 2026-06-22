@@ -74,11 +74,24 @@ export interface SpeciesContentRefreshQueueRow {
   reason: string | null;
 }
 
+export interface SpeciesEnrichmentJobQueueRow {
+  job_id: string;
+  species_id: string;
+  scientific_name: string;
+  content_group: string;
+  priority: number;
+  attempts: number;
+  max_attempts: number;
+  source_trigger: string;
+  metadata: Record<string, unknown>;
+}
+
 export interface SpeciesContentRefreshPlan {
   speciesId: string;
   scientificName: string;
   contentKeys: SpeciesContentKey[];
   queueRows: SpeciesContentRefreshQueueRow[];
+  jobIds: string[];
 }
 
 export type SpeciesContentRefreshSkipReason =
@@ -189,6 +202,27 @@ export async function fetchSpeciesContentRefreshQueue(
   return (data ?? []) as SpeciesContentRefreshQueueRow[];
 }
 
+export async function fetchSpeciesEnrichmentJobQueue(
+  supabaseAdmin: SupabaseClient,
+  request: Pick<SpeciesContentRefreshRequest, "limit" | "asOf">,
+): Promise<SpeciesEnrichmentJobQueueRow[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "claim_species_enrichment_jobs",
+    {
+      max_rows: request.limit,
+      as_of: request.asOf,
+      target_content_group: "gbif_wikipedia_reference",
+    },
+  );
+  if (error) {
+    throw new Error(
+      `claim_species_enrichment_jobs failed: ${error.message}`,
+    );
+  }
+
+  return (data ?? []) as SpeciesEnrichmentJobQueueRow[];
+}
+
 export function buildSpeciesRefreshPlans(
   rows: SpeciesContentRefreshQueueRow[],
   requestedContentKeys?: SpeciesContentKey[],
@@ -228,6 +262,7 @@ export function buildSpeciesRefreshPlans(
       scientificName,
       contentKeys: [],
       queueRows: [],
+      jobIds: [],
     };
 
     if (!plan.contentKeys.includes(contentKey)) {
@@ -235,6 +270,79 @@ export function buildSpeciesRefreshPlans(
     }
     plan.queueRows.push(row);
     planBySpeciesId.set(speciesId, plan);
+  }
+
+  const sortOrder = new Map(
+    SUPPORTED_REFRESH_CONTENT_KEYS.map((key, index) => [key, index]),
+  );
+  const plans = Array.from(planBySpeciesId.values()).map((plan) => ({
+    ...plan,
+    contentKeys: plan.contentKeys.sort((lhs, rhs) =>
+      (sortOrder.get(lhs) ?? 0) - (sortOrder.get(rhs) ?? 0)
+    ),
+  }));
+
+  return { plans, skipped };
+}
+
+export function buildSpeciesRefreshPlansFromJobs(
+  rows: SpeciesEnrichmentJobQueueRow[],
+  requestedContentKeys?: SpeciesContentKey[],
+): SpeciesContentRefreshPlanningResult {
+  const requestedSet = requestedContentKeys
+    ? new Set<SpeciesContentKey>(requestedContentKeys)
+    : null;
+  const defaultJobKeys: SpeciesContentKey[] = [
+    "alternative_common_names",
+    "taxonomy",
+    "wikipedia_url",
+    "wikipedia_overview",
+    "gbif_taxon_key",
+    "reference_images",
+  ];
+  const planBySpeciesId = new Map<string, SpeciesContentRefreshPlan>();
+  const skipped: SpeciesContentRefreshSkippedItem[] = [];
+
+  for (const row of rows) {
+    const scientificName = stringValue(row.scientific_name);
+    if (!scientificName) {
+      skipped.push({
+        species_id: row.species_id,
+        scientific_name: row.scientific_name,
+        content_key: row.content_group,
+        reason: "missing_species_name",
+      });
+      continue;
+    }
+
+    const contentKeys = defaultJobKeys.filter((key) =>
+      requestedSet == null || requestedSet.has(key)
+    );
+    if (contentKeys.length === 0) {
+      skipped.push({
+        species_id: row.species_id,
+        scientific_name: row.scientific_name,
+        content_key: row.content_group,
+        reason: "filtered_out",
+      });
+      continue;
+    }
+
+    const plan = planBySpeciesId.get(row.species_id) ?? {
+      speciesId: row.species_id,
+      scientificName,
+      contentKeys: [],
+      queueRows: [],
+      jobIds: [],
+    };
+
+    for (const contentKey of contentKeys) {
+      if (!plan.contentKeys.includes(contentKey)) {
+        plan.contentKeys.push(contentKey);
+      }
+    }
+    plan.jobIds.push(row.job_id);
+    planBySpeciesId.set(row.species_id, plan);
   }
 
   const sortOrder = new Map(
@@ -431,13 +539,12 @@ export async function runSpeciesContentRefresh(
   supabaseAdmin: SupabaseClient,
   fetcher: ExternalEnrichmentFetcher = fetchExternalEnrichment,
 ): Promise<SpeciesContentRefreshRunResult> {
-  const queueRows = await fetchSpeciesContentRefreshQueue(
-    supabaseAdmin,
-    request,
-  );
-  const planning = buildSpeciesRefreshPlans(queueRows, request.contentKeys);
-
   if (request.dryRun) {
+    const queueRows = await fetchSpeciesContentRefreshQueue(
+      supabaseAdmin,
+      request,
+    );
+    const planning = buildSpeciesRefreshPlans(queueRows, request.contentKeys);
     return {
       queued_count: queueRows.length,
       planned_count: planning.plans.length,
@@ -457,6 +564,20 @@ export async function runSpeciesContentRefresh(
     };
   }
 
+  const jobRows = await fetchSpeciesEnrichmentJobQueue(
+    supabaseAdmin,
+    request,
+  );
+  const legacyQueueRows = jobRows.length === 0
+    ? await fetchSpeciesContentRefreshQueue(supabaseAdmin, request)
+    : [];
+  const planning = jobRows.length > 0
+    ? buildSpeciesRefreshPlansFromJobs(jobRows, request.contentKeys)
+    : buildSpeciesRefreshPlans(legacyQueueRows, request.contentKeys);
+  const queuedCount = jobRows.length > 0
+    ? jobRows.length
+    : legacyQueueRows.length;
+
   const results = await refreshPlansWithConcurrency(
     planning.plans,
     supabaseAdmin,
@@ -464,7 +585,7 @@ export async function runSpeciesContentRefresh(
   );
 
   return {
-    queued_count: queueRows.length,
+    queued_count: queuedCount,
     planned_count: planning.plans.length,
     refreshed_count: results.filter((result) => result.status === "refreshed")
       .length,
@@ -498,6 +619,7 @@ async function refreshPlansWithConcurrency(
           supabaseAdmin,
           fetcher,
         );
+        await completePlanJobs(plan, results[index], supabaseAdmin);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(JSON.stringify({
@@ -515,6 +637,7 @@ async function refreshPlansWithConcurrency(
           status: "failed",
           error: message,
         };
+        await completePlanJobs(plan, results[index], supabaseAdmin);
       }
     }
   }
@@ -526,6 +649,47 @@ async function refreshPlansWithConcurrency(
     ),
   );
   return results;
+}
+
+async function completePlanJobs(
+  plan: SpeciesContentRefreshPlan,
+  result: SpeciesContentRefreshResult,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  if (plan.jobIds.length === 0) return;
+  await Promise.all(
+    plan.jobIds.map((jobId) =>
+      completeSpeciesEnrichmentJob(
+        jobId,
+        result.status === "refreshed" || result.status === "no_data",
+        result.error ?? null,
+        supabaseAdmin,
+      )
+    ),
+  );
+}
+
+async function completeSpeciesEnrichmentJob(
+  jobId: string,
+  succeeded: boolean,
+  errorMessage: string | null,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { error } = await supabaseAdmin.rpc(
+    "complete_species_enrichment_job",
+    {
+      target_job_id: jobId,
+      succeeded,
+      error_message: errorMessage,
+    },
+  );
+  if (error) {
+    console.error(JSON.stringify({
+      event: "species_enrichment_job_completion_failed",
+      job_id: jobId,
+      error: error.message,
+    }));
+  }
 }
 
 async function replaceSpeciesReferenceImages(

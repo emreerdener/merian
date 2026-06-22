@@ -7,10 +7,12 @@ import type { ExternalEnrichmentData } from "../_shared/external.ts";
 import {
   buildSpeciesDictionaryRefreshUpdate,
   buildSpeciesRefreshPlans,
+  buildSpeciesRefreshPlansFromJobs,
   parseSpeciesContentRefreshRequest,
   referenceImageRowsFromRefreshCache,
   refreshSpeciesContent,
   type SpeciesContentRefreshQueueRow,
+  type SpeciesEnrichmentJobQueueRow,
 } from "./db.ts";
 
 const QUEUE_ROW_BASE: SpeciesContentRefreshQueueRow = {
@@ -107,6 +109,33 @@ Deno.test("refresh species content - groups supported queue rows and skips unsaf
       ["mystery_field", "invalid_content_key"],
     ],
   );
+});
+
+Deno.test("refresh species content - builds GBIF/Wikipedia/reference plans from enrichment jobs", () => {
+  const jobRows: SpeciesEnrichmentJobQueueRow[] = [{
+    job_id: "job-1",
+    species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+    scientific_name: "Danaus plexippus",
+    content_group: "gbif_wikipedia_reference",
+    priority: 50,
+    attempts: 1,
+    max_attempts: 5,
+    source_trigger: "community_consensus_materialization",
+    metadata: {},
+  }];
+
+  const planning = buildSpeciesRefreshPlansFromJobs(jobRows);
+  assertEquals(planning.skipped, []);
+  assertEquals(planning.plans.length, 1);
+  assertEquals(planning.plans[0].jobIds, ["job-1"]);
+  assertEquals(planning.plans[0].contentKeys, [
+    "alternative_common_names",
+    "taxonomy",
+    "wikipedia_url",
+    "wikipedia_overview",
+    "gbif_taxon_key",
+    "reference_images",
+  ]);
 });
 
 Deno.test("refresh species content - builds selective dictionary update from external data", () => {
@@ -224,6 +253,7 @@ Deno.test("refresh species content - persists refreshed fields and provenance", 
       scientificName: QUEUE_ROW_BASE.scientific_name,
       contentKeys: ["wikipedia_url", "wikipedia_overview"],
       queueRows: [QUEUE_ROW_BASE],
+      jobIds: [],
     },
     supabase,
     () => Promise.resolve(EXTERNAL_DATA),

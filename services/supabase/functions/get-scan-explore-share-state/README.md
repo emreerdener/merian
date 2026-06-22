@@ -88,6 +88,10 @@ No live shared post:
 - For Identify requests, `post_id` remains available for restoration, while
   `is_explore_feed_visible` says whether the post belongs in normal Explore
   feed/map/author/hashtag surfaces.
+- Resolved Identify requests remain hidden from normal Explore until the owner
+  publishes them. That publish action now applies the owner-approved species
+  consensus by setting `scans.confirmed_species_id` after materializing any new
+  GBIF-backed species, while preserving the original AI `scans.species_id`.
 - Pending Identify requests and resolved-but-unpublished Identify requests are
   not feed-visible. A resolved request becomes feed-visible only after the owner
   explicitly publishes it to Explore.

@@ -220,18 +220,27 @@ Merian images first, then Wikipedia, then GBIF, with `sort_order`,
 ### `taxonomy_versions`, `taxon_nodes`, `taxon_names`
 
 Community Identification uses a pinned Merian taxonomy graph. Added in
-`20260620120000_add_community_identifications.sql` and hardened in
-`20260620143000_rebuild_community_identification_core.sql`.
+`20260620120000_add_community_identifications.sql`, hardened in
+`20260620143000_rebuild_community_identification_core.sql`, and expanded into a
+GBIF-backed Community Taxonomy Index in
+`20260622030000_long_term_community_taxonomy_index.sql`.
 
 - `taxonomy_versions`: Version records for Merian dictionary taxonomy with
   `draft`, `active`, and `retired` status. Only one Merian dictionary version is
   active at a time.
 - `taxon_nodes`: Durable taxonomy nodes scoped by `taxonomy_version_id`.
   `(taxonomy_version_id, path)` is unique, so future taxonomy refreshes do not
-  rewrite historical IDs.
+  rewrite historical IDs. Nodes now carry index provenance fields:
+  `gbif_taxon_key`, `accepted_gbif_taxon_key`, `taxonomic_status`, `source`,
+  `last_synced_at`, and `import_run_id`. `species_id = NULL` is valid for
+  GBIF-only taxa that are searchable but not yet materialized into
+  `species_dictionary`.
 - `taxon_names`: Search names for scientific names, common names, and synonyms.
-  The active version is seeded from `species_dictionary.common_names` and
-  `alternative_common_names`.
+  The active version is seeded from `species_dictionary.common_names`,
+  `alternative_common_names`, and cached GBIF suggestions.
+- `taxonomy_import_runs`: Service-role audit rows for bounded GBIF imports and
+  on-demand search cache misses. Tracks source, scope, status, requested query,
+  target taxonomy version, row counts, errors, and metadata.
 - `taxon_node_replacements`: Optional future mapping from retired nodes to newer
   nodes without mutating old identifications.
 
@@ -239,6 +248,12 @@ Community Identification uses a pinned Merian taxonomy graph. Added in
 the current Merian dictionary and activates it atomically. Community requests pin
 their `taxonomy_version_id`; the AI scan result is only an anchor label, not a
 consensus vote.
+
+`sync_taxon_nodes_from_species_dictionary()` upserts Dictionary-backed taxa into
+the active taxonomy index in place and preserves existing GBIF-only nodes.
+`upsert_gbif_community_taxa(...)` caches GBIF search results and lineage into
+the active index so Community ID suggestions are no longer limited to enriched
+Dictionary species.
 
 ### `explore_community_requests`
 
@@ -262,7 +277,9 @@ One active Ask the Community request per Explore post. Status is
 - `explore_published_at`: Owner-controlled publish marker for resolved
   community requests. Until this is set, a resolved request remains visible in
   Identify but is excluded from normal Explore feed, map, author, and hashtag
-  reads.
+  reads. Publishing a resolved species-level request materializes the resolved
+  taxon into `species_dictionary` when needed, links `taxon_nodes.species_id`,
+  and sets the source scan's `confirmed_species_id`.
 - `consensus_score`, `consensus_identification_count`, `consensus_rank`: Cached
   consensus state maintained by queued consensus jobs.
 - `consensus_processing_state`: `idle`, `queued`, `processing`, or `failed`.
@@ -326,8 +343,9 @@ Community request creation sets the post to `community_needs_id`. Consensus
 resolution sets it to `community_resolved` and points `public_taxon_node_id` at
 the resolved community taxon. Normal Explore surfaces still hide
 `community_resolved` projections until the owner explicitly publishes the
-resolved request to Explore. V1 does not mutate `scans.species_id` or
-`confirmed_species_id`.
+resolved request to Explore. Owner publish does not mutate `scans.species_id`;
+it sets `scans.confirmed_species_id` to the resolved species after materializing
+new GBIF-backed taxa into `species_dictionary`.
 
 **Backfill and compatibility**: the migration splits, trims, and dedupes
 `species_dictionary.reference_image_url` into this table, preserving order.
@@ -544,6 +562,39 @@ by `service_role` only. The scheduled `refresh-species-content` Edge worker
 consumes this queue, refreshes GBIF/Wikipedia-backed fields, and records new
 provenance rows.
 
+### `species_enrichment_jobs`
+
+Operational queue for species-level hydration work. Added in
+`20260622030000_long_term_community_taxonomy_index.sql`.
+
+- `species_id` (UUID FK -> `species_dictionary.id`, CASCADE DELETE): Species to
+  hydrate.
+- `content_group` (TEXT): One of `gbif_wikipedia_reference`, `habitat`,
+  `lookalikes`, or `group_tags`.
+- `status` (TEXT): `queued`, `running`, `succeeded`, `failed`, or `cancelled`.
+- `priority`, `attempts`, `max_attempts`, `next_run_at`, `locked_at`,
+  `completed_at`: Retry and scheduling controls.
+- `source_trigger`, `last_error`, `metadata`: Debuggable cause and failure
+  context.
+
+`refresh-species-content` claims `gbif_wikipedia_reference` jobs first and uses
+the older provenance queue only as a fallback. New GBIF-backed species
+materialized from Community ID publish enqueue all four content groups so
+external refresh and model-heavy enrichment can proceed independently.
+
+### `taxonomy_coverage_targets`
+
+Bounded taxonomy-completeness targets for future gamification. Added in
+`20260622030000_long_term_community_taxonomy_index.sql`.
+
+- `slug` / `display_name`: Stable target identity, starting with `birds`.
+- `root_rank` / `root_scientific_name` / `root_taxon_node_id`: Defines the
+  indexed taxonomy scope.
+- `indexed_species_count`, `dictionary_species_count`, `coverage_ratio`:
+  Coverage metric where enriched Dictionary species are compared with indexed
+  GBIF species in the target scope.
+- `last_computed_at`: Freshness marker for `refresh_taxonomy_coverage_targets()`.
+
 ### `scans`
 
 The transaction log for every successful identification.
@@ -679,8 +730,13 @@ The transaction log for every successful identification.
 - `confirmed_species_id` (UUID, nullable): The database dictionary ID
   corresponding to the final user-verified species identity. Populated upon both
   Confirmation (resolves the `scans.species_id` fallback) and Override (resolves
-  via `fetchAndPatchOverrideData`). Serves as the authoritative source of truth
-  for reference dataset extraction. Added in migration
+  via `fetchAndPatchOverrideData`). Owner-published Community Identification
+  consensus also sets this column after materializing the resolved taxon into
+  `species_dictionary`; that path does not imply
+  `user_confirmed_identification = TRUE`, because it is a final owner-approved
+  ID rather than positive feedback that the AI primary ID was correct. Serves as
+  the authoritative source of truth for reference dataset extraction. Added in
+  migration
   `20260330230000_add_confirmed_species_id_to_scans.sql`. Synced to the cloud in
   the same `ReviewSyncPayload` PATCH as `user_identification_override` and
   `user_confirmed_identification`.
@@ -1215,6 +1271,20 @@ coordinates to the client contract.
   unlicensed rows, preserves existing license/attribution/size metadata for
   matching URLs, demotes curated licensed extras behind freshly verified rows,
   and never deletes, recategorizes, or demotes `source = 'merian'` rows.
+- `public.community_materialize_resolved_species(target_taxon_node_id UUID)`:
+  Internal service-role helper used by Community Identification publish. It
+  turns a resolved species-level `taxon_nodes` row into a minimal
+  `species_dictionary` row when the species is new to Merian, records GBIF
+  provenance, links the taxon node back to the dictionary row, and queues
+  species-content hydration/provenance keys for alternate names, Wikipedia,
+  habitat, reference images, lookalikes, and group tags. The scheduled
+  `refresh-species-content` worker fills its supported GBIF/Wikipedia-backed
+  subset, while model-heavy fields continue through the existing `enrich-scan`
+  cache paths.
+- `public.publish_resolved_community_request_to_explore(target_post_id UUID, self_id UUID)`:
+  Internal service-role helper used by `/share-scan-to-explore` when the owner
+  accepts a resolved Identify request. It materializes the resolved species,
+  sets `scans.confirmed_species_id`, and stamps `explore_published_at`.
 - `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 80, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE, p_species_confidence_threshold DOUBLE PRECISION DEFAULT 0.95)`:
   Internal service-role helper used by `/refresh-merian-reference-images`.
   It selects currently visible Explore posts, unnests all non-empty

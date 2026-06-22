@@ -125,20 +125,22 @@ export async function markResolvedCommunityRequestPublishedToExplore(
   postId: string,
   userId: string,
   supabaseAdmin: SupabaseClient,
-): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("explore_community_requests")
-    .update({ explore_published_at: new Date().toISOString() })
-    .eq("post_id", postId)
-    .eq("requested_by", userId)
-    .eq("status", "resolved")
-    .is("explore_published_at", null);
+): Promise<string | null> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "publish_resolved_community_request_to_explore",
+    {
+      target_post_id: postId,
+      self_id: userId,
+    },
+  );
 
   if (error) {
     throw new Error(
-      `Failed to mark community request as Explore-published: ${error.message}`,
+      `Failed to publish resolved community request: ${error.message}`,
     );
   }
+
+  return typeof data === "string" ? data : null;
 }
 
 export async function upsertExplorePost(

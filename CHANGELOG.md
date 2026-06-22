@@ -8,6 +8,10 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed resolved Ask the Community publishing so owner-approved species
+  consensus now confirms the scan species, creates a minimal Dictionary record
+  for new GBIF-backed taxa, and makes eligible media available for species
+  reference images.
 - Fixed the Explore Dictionary Recently Added row so its species count reflects
   the newest entries instead of duplicating the full All total.
 - Fixed Ask the Community request ownership after account identity changes so
@@ -30,6 +34,10 @@ TestFlight, App Store, support, and QA.
 
 ### Added
 
+- Added a GBIF-backed Community Taxonomy Index so Ask the Community search can
+  suggest taxa that are not yet enriched in Merian's Dictionary, plus
+  first-class species enrichment jobs and the first Birds coverage target for
+  future Dictionary-completeness progress.
 - Added smarter dog and cat scan labels so pet results can show a likely breed,
   mix, coat pattern, or body type while keeping Merian's species taxonomy
   unchanged.

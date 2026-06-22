@@ -48,9 +48,16 @@ Legacy `hidden` input is accepted as `private`.
 - `scan_id` must belong to the current user.
 - Tombstoned scans, media-less scans, and scans without a resolved species are
   not share-eligible.
+- If the scan has a resolved Ask the Community request, publishing materializes
+  any new GBIF-backed resolved species into `species_dictionary`, sets
+  `scans.confirmed_species_id`, and stamps the request's `explore_published_at`
+  before the post becomes visible in normal Explore surfaces. Materialization
+  also queues species-content provenance rows so normal Dictionary enrichment can
+  hydrate the new species over time.
 - Private backing scans can be shared; `private` means no public location on the
   post, not blocked sharing.
-- The endpoint does not mutate `scans.geoprivacy` or `users.default_geoprivacy`.
+- The endpoint does not mutate `scans.species_id`, `scans.geoprivacy`, or
+  `users.default_geoprivacy`.
 - Hashtags are normalized to lowercase text without `#`, capped at five tags,
   and replace the post's existing hashtag edges for this share request.
 - `species_common_name` stores the public post common-name snapshot when
@@ -67,8 +74,8 @@ coordinates with `coordinate_visibility = "obscured"`.
 ## Local Verification
 
 ```sh
-deno check services/supabase/functions/share-scan-to-explore/index.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/exploreMapDb.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/share-scan-to-explore/index.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/communityIdentificationDb.test.ts
 ```
 
 DB integration tests require a running local Supabase Postgres instance at the
