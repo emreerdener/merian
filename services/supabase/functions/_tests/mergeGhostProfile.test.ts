@@ -7,7 +7,7 @@
 //   - ghost_id UUID format validation
 //   - Self-merge guard (ghost_id === user.id → refresh identity, no transfer work)
 //   - verifyGhostUser IDOR guard (authenticated accounts rejected)
-//   - Transfer order correctness (scans → collections → Explore posts → follows → identity sync → purge)
+//   - Transfer order correctness (scans → collections → Explore posts → Community requests → follows → identity sync → purge)
 
 import {
   assert,
@@ -142,6 +142,9 @@ Deno.test("transfer order — scans, collections, identity sync, purge execute i
   async function stubTransferExplorePosts() {
     callOrder.push("transferExplorePosts");
   }
+  async function stubTransferCommunityRequests() {
+    callOrder.push("transferCommunityRequests");
+  }
   async function stubTransferUserFollows() {
     callOrder.push("transferUserFollows");
   }
@@ -155,6 +158,7 @@ Deno.test("transfer order — scans, collections, identity sync, purge execute i
   await stubTransferScans();
   await stubTransferCollections();
   await stubTransferExplorePosts();
+  await stubTransferCommunityRequests();
   await stubTransferUserFollows();
   await stubSyncPublicAuthorIdentity();
   await stubPurgeGhostUser();
@@ -163,6 +167,7 @@ Deno.test("transfer order — scans, collections, identity sync, purge execute i
     "transferScans",
     "transferCollections",
     "transferExplorePosts",
+    "transferCommunityRequests",
     "transferUserFollows",
     "syncPublicAuthorIdentity",
     "purgeGhostUser",
@@ -181,6 +186,9 @@ Deno.test("transfer order — purge must not run before follow transfer", async 
   async function stubTransferExplorePosts() {
     callOrder.push("transferExplorePosts");
   }
+  async function stubTransferCommunityRequests() {
+    callOrder.push("transferCommunityRequests");
+  }
   async function stubTransferUserFollows() {
     callOrder.push("transferUserFollows");
   }
@@ -194,13 +202,19 @@ Deno.test("transfer order — purge must not run before follow transfer", async 
   await stubTransferScans();
   await stubTransferCollections();
   await stubTransferExplorePosts();
+  await stubTransferCommunityRequests();
   await stubTransferUserFollows();
   await stubSyncPublicAuthorIdentity();
   await stubPurgeGhostUser();
 
   const purgeIndex = callOrder.indexOf("purgeGhostUser");
+  const communityRequestsIndex = callOrder.indexOf("transferCommunityRequests");
   const followsIndex = callOrder.indexOf("transferUserFollows");
   const syncIndex = callOrder.indexOf("syncPublicAuthorIdentity");
+  assert(
+    communityRequestsIndex < purgeIndex,
+    "transferCommunityRequests must run before purgeGhostUser",
+  );
   assert(
     followsIndex < purgeIndex,
     "transferUserFollows must run before purgeGhostUser",

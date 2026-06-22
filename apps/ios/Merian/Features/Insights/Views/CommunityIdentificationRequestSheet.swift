@@ -46,7 +46,7 @@ struct CommunityIdentificationRequestSheet: View {
                     }
                 }
             }
-            .navigationTitle("Ask the Community")
+            .navigationTitle("Ask the community")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -70,6 +70,7 @@ struct CommunityIdentificationRequestSheet: View {
                     }
                     .tint(.blue)
                     .disabled(isSubmitting)
+                    .frame(minWidth: 96, alignment: .trailing)
                 }
             }
         }

@@ -24,6 +24,10 @@ type FeedScopeRow = {
   author_user_id: string;
 };
 
+type RepairRow = {
+  repaired_count: number;
+};
+
 type SuggestedTaxon = {
   taxon_id: string;
   scientific_name: string;
@@ -189,6 +193,31 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
           speciesTaxonId,
         ],
       );
+
+      await client.queryArray(
+        `
+        UPDATE public.explore_community_requests
+        SET requested_by = $2
+        WHERE id = $1
+      `,
+        [requestId, identifierB],
+      );
+      const driftedMineRows = await client.queryObject<FeedScopeRow>(
+        `
+        SELECT request_id, author_user_id
+        FROM public.get_community_identification_feed($1, 30, NULL, NULL, NULL, NULL, 'mine')
+      `,
+        [ownerId],
+      );
+      assertEquals(driftedMineRows.rows.map((row) => row.request_id), []);
+
+      const repairRows = await client.queryObject<RepairRow>(
+        `
+        SELECT public.repair_community_request_ownership_for_user($1::uuid) AS repaired_count
+      `,
+        [ownerId],
+      );
+      assertEquals(repairRows.rows[0].repaired_count, 1);
 
       const initialProjection = await client.queryObject<ProjectionRow>(
         `

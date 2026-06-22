@@ -138,6 +138,21 @@ export async function requestCommunityIdentification(
     supabaseAdmin,
   );
 
+  const { error: repairError } = await supabaseAdmin
+    .from("explore_community_requests")
+    .update({
+      requested_by: userId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("scan_id", scanId)
+    .neq("requested_by", userId);
+
+  if (repairError) {
+    throw new Error(
+      `Failed to repair community request ownership: ${repairError.message}`,
+    );
+  }
+
   const post = await upsertCommunityExplorePost(
     scanId,
     userId,

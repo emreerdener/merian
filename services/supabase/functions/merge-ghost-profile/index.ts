@@ -4,6 +4,7 @@ import { syncPublicAuthorIdentity } from "../_shared/explore.ts";
 import { requireParams } from "../_shared/http.ts";
 import {
   purgeGhostUser,
+  transferCommunityRequests,
   transferCollections,
   transferExplorePosts,
   transferScans,
@@ -59,6 +60,7 @@ serve((req: Request) =>
     await transferScans(ghostId, targetUserId, supabaseAdmin);
     await transferCollections(ghostId, targetUserId, supabaseAdmin);
     await transferExplorePosts(ghostId, targetUserId, supabaseAdmin);
+    await transferCommunityRequests(ghostId, targetUserId, supabaseAdmin);
     await transferUserFollows(ghostId, targetUserId, supabaseAdmin);
     await syncPublicAuthorIdentity(targetUserId, supabaseAdmin);
 

@@ -82,6 +82,25 @@ export async function transferExplorePosts(
   }
 }
 
+/// Re-parents Ask the Community requests before the ghost public user is
+/// deleted. `explore_community_requests.requested_by` cascades on
+/// public.users deletion, so leaving it pointed at the ghost account would
+/// silently delete active community requests during account merge.
+export async function transferCommunityRequests(
+  ghostId: string,
+  targetUserId: string,
+  supabaseAdmin: SupabaseClient,
+) {
+  const { error } = await supabaseAdmin
+    .from("explore_community_requests")
+    .update({ requested_by: targetUserId })
+    .eq("requested_by", ghostId);
+
+  if (error) {
+    throw new Error(`Community requests migration failed: ${error.message}`);
+  }
+}
+
 /// Re-parents follow relationships created while the user was anonymous.
 /// The SQL RPC dedupes conflicts before the ghost public user is deleted.
 export async function transferUserFollows(

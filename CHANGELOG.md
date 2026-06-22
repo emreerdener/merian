@@ -6,6 +6,14 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Fixed
+
+- Fixed Ask the Community request ownership after account identity changes so
+  requests stay associated with the signed-in user and remain visible under
+  Yours.
+- Fixed the Ask the community request sheet title casing and kept the centered
+  title stable while the Send button changes to Sending.
+
 ### Added
 
 - Added smarter dog and cat scan labels so pet results can show a likely breed,
