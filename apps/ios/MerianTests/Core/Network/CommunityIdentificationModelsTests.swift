@@ -160,8 +160,8 @@ struct CommunityIdentificationModelsTests {
               "path": "animalia.chordata.aves.accipitridae.buteo.buteo_jamaicensis",
               "species_id": "species-red-tailed-hawk",
               "suggestion_source": "ai_initial",
-              "confidence_score": null,
-              "distinguishing_feature": null
+              "confidence_score": 0.97,
+              "distinguishing_feature": "Visible belly band and broad wings match the initial ID."
             }
           ],
           "identifications": []
@@ -175,5 +175,7 @@ struct CommunityIdentificationModelsTests {
         #expect(detail.suggestedTaxa?.count == 1)
         #expect(detail.suggestedTaxa?.first?.suggestionSource == .aiInitial)
         #expect(detail.suggestedTaxa?.first?.displayName == "Red-tailed Hawk")
+        #expect(detail.suggestedTaxa?.first?.confidenceScore == 0.97)
+        #expect(detail.suggestedTaxa?.first?.distinguishingFeature == "Visible belly band and broad wings match the initial ID.")
     }
 }

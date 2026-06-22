@@ -28,6 +28,7 @@ type SuggestedTaxon = {
   taxon_id: string;
   scientific_name: string;
   suggestion_source: "ai_initial" | "ai_candidate";
+  confidence_score: number | null;
   distinguishing_feature: string | null;
 };
 
@@ -63,6 +64,9 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
         geoprivacy: "open",
         gpsLatPublic: 30.2672,
         gpsLongPublic: -97.7431,
+        aiConfidenceScore: 0.97,
+        aiReasoning:
+          "Visible clustered petals and leaves match the initial taxon.",
         candidates: [
           {
             scientific_name: "Rosa communitatis",
@@ -252,6 +256,11 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
         ["ai_initial", "ai_candidate", "ai_candidate"],
       );
       assertEquals(suggestions[0].taxon_id, speciesTaxonId);
+      assertEquals(suggestions[0].confidence_score, 0.97);
+      assertEquals(
+        suggestions[0].distinguishing_feature,
+        "Visible clustered petals and leaves match the initial taxon.",
+      );
       assertEquals(
         suggestions[1].taxon_id,
         candidateTaxonIdsByName.get("Rosa alternata"),
@@ -287,9 +296,15 @@ Deno.test("Community ID DB - versioned search, queued consensus, and projection 
         [ownerId, requestId],
       );
 
-      assertEquals(firstOwnerNotification.rows[0].type, "community_identification_added");
+      assertEquals(
+        firstOwnerNotification.rows[0].type,
+        "community_identification_added",
+      );
       assertEquals(firstOwnerNotification.rows[0].action_count, 1);
-      assertEquals(firstOwnerNotification.rows[0].community_request_id, requestId);
+      assertEquals(
+        firstOwnerNotification.rows[0].community_request_id,
+        requestId,
+      );
 
       await client.queryObject(
         `

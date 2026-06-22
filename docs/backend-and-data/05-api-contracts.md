@@ -166,10 +166,46 @@ filtered out server-side. Identification timeline rows include a computed
 `role_label` such as `supporting`, `leading`, `maverick`, or `withdrawn` for
 internal consensus/audit behavior; clients should not expose these labels as
 user-facing copy. The response also includes additive `suggested_taxa` for the
-Suggest ID sheet, derived from the initial AI taxon plus resolvable
+Suggest ID sheet and the detail header card. The first suggestion is the
+request's `ai_initial` taxon, hydrated from the backing scan's
+`ai_confidence_score` and `ai_reasoning` so clients can frame it as Merian's
+starting identification without borrowing human consensus or alternative
+candidate copy. Additional `ai_candidate` suggestions come from resolvable
 `scans.candidates` entries in the request's pinned taxonomy version. Suggested
 taxa use the same taxon fields as search results and may include
-`suggestion_source`, `confidence_score`, and `distinguishing_feature`.
+`suggestion_source`, `confidence_score`, and `distinguishing_feature`; for
+`ai_initial`, `distinguishing_feature` carries the scan's primary AI reasoning.
+
+Example `suggested_taxa` shape:
+
+```json
+[
+  {
+    "taxon_id": "taxon uuid",
+    "taxonomy_version_id": "taxonomy version uuid",
+    "common_name": "Sweet Orange",
+    "scientific_name": "Citrus sinensis",
+    "rank": "species",
+    "path": "plantae.tracheophyta.angiosperms.sapindales.rutaceae.citrus.citrus_sinensis",
+    "species_id": "species uuid",
+    "suggestion_source": "ai_initial",
+    "confidence_score": 0.82,
+    "distinguishing_feature": "The glossy evergreen leaves and citrus fruit shape support Sweet Orange."
+  },
+  {
+    "taxon_id": "alternative taxon uuid",
+    "taxonomy_version_id": "taxonomy version uuid",
+    "common_name": "Mandarin Orange",
+    "scientific_name": "Citrus reticulata",
+    "rank": "species",
+    "path": "plantae.tracheophyta.angiosperms.sapindales.rutaceae.citrus.citrus_reticulata",
+    "species_id": "alternative species uuid",
+    "suggestion_source": "ai_candidate",
+    "confidence_score": 0.61,
+    "distinguishing_feature": "Similar foliage, but the visible fruit proportions are less clearly mandarin-like."
+  }
+]
+```
 
 ### `/update-community-identification-request`
 

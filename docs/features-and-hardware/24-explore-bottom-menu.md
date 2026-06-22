@@ -46,13 +46,21 @@ Dictionary rows and Tree species preview actions still push
 `SpeciesDictionaryRoute` into the sheet's existing `NavigationPath`.
 
 Community request details use `ExploreCommunityIdentificationDetailView`, which
-loads `/get-community-identification-detail`, renders a consensus panel and
-identification timeline, and pins a **Suggest ID** action at the bottom. The
+loads `/get-community-identification-detail`, frames the starting name as
+Merian's AI identification in a rounded reasoning card backed by scan AI
+confidence and reasoning, renders the community identification timeline, and
+pins a **Suggest ID** action at the bottom. The
 taxonomy search sheet calls `/search-community-taxa` with the request's pinned
 taxonomy version. Exact or descendant species IDs submit immediately, genus IDs
 can ask whether genus is as specific as it can get, ancestor IDs ask whether the
 user is only less specific or explicitly disagreeing, and sibling/unrelated IDs
 ask for confirmation plus optional reasoning.
+
+The detail sheet intentionally leaves the image toolbar title empty. The image
+is the visual context, while the first body card names Merian's AI
+identification and shows the scan-derived reasoning when available. Community
+IDs then live below in the timeline so the AI starting point and human
+identification evidence stay visually distinct.
 
 ## Data Boundaries
 

@@ -84,6 +84,10 @@ TestFlight, App Store, support, and QA.
 - Added organism filters to Identify requests so explorers can browse Plants,
   Birds, Insects, Fungi, Mammals, and Herps while keeping Yours near the start
   of the filter row.
+- Framed Community request detail names as Merian's AI identification in a
+  rounded reasoning card backed by the scan's AI confidence and reasoning, with
+  the sheet header title removed and the backend detail payload carrying the
+  source AI evidence directly.
 - Low-confidence Insight shares now default to asking Identify for help, while
   direct Explore publishing remains available behind a confirmation.
 - Explore Tree now opens in a top-down taxonomy layout instead of the earlier

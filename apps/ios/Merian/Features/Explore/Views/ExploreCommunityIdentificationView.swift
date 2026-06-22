@@ -600,7 +600,7 @@ struct ExploreCommunityIdentificationDetailView: View {
                 detailContent(detail)
             }
         }
-        .navigationTitle(detail?.displayName ?? "Community ID")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
@@ -684,7 +684,7 @@ struct ExploreCommunityIdentificationDetailView: View {
             VStack(alignment: .leading, spacing: 18) {
                 CommunityDetailHero(detail: detail)
 
-                CommunityConsensusPanel(detail: detail)
+                CommunityAIIdentificationCard(detail: detail)
                     .padding(.horizontal, 16)
 
                 if let note = detail.note, !note.isEmpty {
@@ -924,17 +924,56 @@ private struct CommunityDetailHero: View {
     }
 }
 
-private struct CommunityConsensusPanel: View {
+private struct CommunityAIIdentificationCard: View {
     let detail: CommunityIdentificationDetail
 
+    private var aiSuggestion: CommunityTaxonSearchResult? {
+        detail.suggestedTaxa?.first { $0.suggestionSource == .aiInitial }
+    }
+
+    private var aiDisplayName: String {
+        aiSuggestion?.displayName
+            ?? CommunityTaxonDisplay.name(
+                commonName: detail.initialCommonName,
+                scientificName: detail.initialScientificName
+            )
+    }
+
+    private var aiDisplayRank: String {
+        aiSuggestion?.displayRank
+            ?? CommunityTaxonDisplay.rankTitle(detail.initialRank)
+    }
+
+    private var aiConfidenceScore: Double? {
+        aiSuggestion?.confidenceScore
+    }
+
+    private var aiReasoning: String? {
+        trimmed(aiSuggestion?.distinguishingFeature)
+    }
+
+    private func trimmed(_ value: String?) -> String? {
+        guard let result = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !result.isEmpty else {
+            return nil
+        }
+        return result
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(detail.displayName)
+                    Label("AI identification", systemImage: "sparkles")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .labelStyle(.titleAndIcon)
+
+                    Text(aiDisplayName)
                         .font(.title3)
                         .fontWeight(.bold)
-                    Text(detail.displayRank)
+
+                    Text(aiDisplayRank)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -951,12 +990,27 @@ private struct CommunityConsensusPanel: View {
                 }
             }
 
-            if let score = detail.consensusScore {
+            if let score = aiConfidenceScore {
                 ProgressView(value: min(max(score, 0), 1))
                     .progressViewStyle(.linear)
-                Text("\(Int((score * 100).rounded()))% consensus")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text("AI confidence")
+                    Spacer()
+                    Text("\(Int((score * 100).rounded()))%")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            if let aiReasoning {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Reasoning")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text(aiReasoning)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if detail.isConsensusUpdating {
@@ -971,9 +1025,9 @@ private struct CommunityConsensusPanel: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(14)
+        .padding(16)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 
