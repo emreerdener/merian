@@ -53,13 +53,14 @@ Set these in the repository's GitHub Actions secrets:
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
 - `SUPABASE_DB_PASSWORD` — database password used by `supabase link` and
   `supabase db push`.
-- `SUPABASE_SERVICE_ROLE_KEY` — production service-role key used only for
-  post-deploy smoke checks against internal Edge Functions.
 
 The production Supabase project ref is intentionally stored in the workflow as
 `qlarqavoqhkuwzmevrmf`. Project refs are routing identifiers, not credentials;
 the deployment authority still comes from `SUPABASE_ACCESS_TOKEN` and
-`SUPABASE_DB_PASSWORD`.
+`SUPABASE_DB_PASSWORD`. Post-deploy smoke checks and manual taxonomy imports
+resolve the service-role key at runtime through
+`supabase projects api-keys --project-ref qlarqavoqhkuwzmevrmf`, then mask it in
+GitHub Actions logs.
 
 The workflow also inherits normal Supabase project Edge secrets at runtime.
 Those live in Supabase, not GitHub Actions, and are documented in
@@ -92,9 +93,9 @@ Recommended first production run after a deploy:
 - `retry`: `false`
 
 If that passes, run the same workflow again with `dry_run = false`. The workflow
-uses the production `SUPABASE_SERVICE_ROLE_KEY` secret and constructs
-`https://qlarqavoqhkuwzmevrmf.supabase.co` from the project ref, so operators do
-not need to paste service-role credentials locally.
+uses `SUPABASE_ACCESS_TOKEN` to resolve the project service-role key at runtime
+and constructs `https://qlarqavoqhkuwzmevrmf.supabase.co` from the project ref,
+so operators do not need to paste service-role credentials locally.
 
 ## Local Emergency Fallback
 

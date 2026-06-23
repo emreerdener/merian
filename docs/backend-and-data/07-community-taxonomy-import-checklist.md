@@ -15,9 +15,9 @@ Last updated: 2026-06-23
   owner-published Community ID consensus, scan confirmation, Dictionary
   navigation, or curation.
 - Prefer the **Import Community Taxonomy** GitHub Actions workflow for
-  production imports. It uses the existing production service-role secret and
-  constructs the Supabase URL from the project ref, so no local key or URL
-  export is required.
+  production imports. It resolves the service-role key at runtime from Supabase
+  using the existing `SUPABASE_ACCESS_TOKEN` secret and constructs the Supabase
+  URL from the project ref, so no local key or URL export is required.
 - Use the local operator script only when GitHub Actions is unavailable or when
   intentionally updating this checklist from a trusted local environment.
 - Keep batches bounded. `limit = 100`, `page_count = 1...3` is the normal

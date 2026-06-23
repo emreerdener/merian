@@ -49,8 +49,8 @@ jobs:
     environment: Production
 
     env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_ID: qlarqavoqhkuwzmevrmf
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:
       - name: Checkout repository
@@ -61,9 +61,34 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.101.0
+
       - name: Validate import secrets
         run: |
-          : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY GitHub secret}"
+          : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN GitHub secret}"
+
+      - name: Load Supabase service-role key
+        run: |
+          api_keys_json="$(supabase projects api-keys --project-ref "$PROJECT_ID" --output json)"
+          service_role_key="$(
+            echo "$api_keys_json" | jq -r '
+              (if type == "array" then . else (.api_keys // .keys // []) end)[]
+              | select((((.name // .key_name // .type // .id // "") | ascii_downcase) == "service_role")
+                or (((.name // .key_name // .type // .id // "") | ascii_downcase) | contains("service")))
+              | (.api_key // .apiKey // .apikey // .key // .value // empty)
+            ' | head -n 1
+          )"
+
+          if [ -z "$service_role_key" ] || [ "$service_role_key" = "null" ]; then
+            echo "Unable to resolve Supabase service-role key from project API keys."
+            exit 1
+          fi
+
+          echo "::add-mask::$service_role_key"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$service_role_key" >> "$GITHUB_ENV"
 
       - name: Run Community Taxonomy import
         env:
