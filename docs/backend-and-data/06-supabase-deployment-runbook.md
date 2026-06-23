@@ -91,11 +91,19 @@ Recommended first production run after a deploy:
 - `page_count`: `1`
 - `dry_run`: `true`
 - `retry`: `false`
+- `update_checklist`: `true`
 
 If that passes, run the same workflow again with `dry_run = false`. The workflow
 uses `SUPABASE_ACCESS_TOKEN` to resolve the project service-role key at runtime
 and constructs `https://qlarqavoqhkuwzmevrmf.supabase.co` from the project ref,
 so operators do not need to paste service-role credentials locally.
+
+For routine runs after the first clean production import, `dry_run = false` is
+acceptable. The workflow uploads a JSON/Markdown summary artifact for every run
+and, when `update_checklist = true`, commits
+`docs/backend-and-data/07-community-taxonomy-import-checklist.md` after real
+imports. Use `page_count = 3...5` only after several successful `page_count = 1`
+runs.
 
 ## Local Emergency Fallback
 

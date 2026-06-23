@@ -19,6 +19,8 @@ interface ImportArgs {
   dryRun: boolean;
   retry: boolean;
   updateChecklist: boolean;
+  summaryJsonPath: string | null;
+  summaryMarkdownPath: string | null;
 }
 
 interface ImportPage {
@@ -94,6 +96,7 @@ const statusResponse = await postJson<StatusResponse>(
 );
 
 printSummary(importResponse, statusResponse);
+await writeSummaryFiles(importResponse, statusResponse, args);
 
 if (args.updateChecklist && !args.dryRun) {
   await updateChecklist(importResponse, statusResponse);
@@ -165,6 +168,137 @@ function printSummary(
   }
 }
 
+async function writeSummaryFiles(
+  importResponse: ImportResponse,
+  statusResponse: StatusResponse,
+  args: ImportArgs,
+): Promise<void> {
+  if (!args.summaryJsonPath && !args.summaryMarkdownPath) return;
+
+  const coverage = statusResponse.coverage_targets.find((target) =>
+    target.slug === importResponse.target
+  );
+  const failedRuns = statusResponse.latest_import_runs.filter((run) =>
+    run.status !== "completed" || run.error_count > 0
+  );
+  const generatedAt = new Date().toISOString();
+  const summary = {
+    generated_at: generatedAt,
+    requested: {
+      target: args.target,
+      offset: args.offset,
+      limit: args.limit,
+      page_count: args.pageCount,
+      dry_run: args.dryRun,
+      retry: args.retry,
+    },
+    import: importResponse,
+    coverage: coverage ?? null,
+    recent_failed_runs: failedRuns,
+  };
+
+  if (args.summaryJsonPath) {
+    await Deno.writeTextFile(
+      args.summaryJsonPath,
+      `${JSON.stringify(summary, null, 2)}\n`,
+    );
+    console.log(`summary_json: ${args.summaryJsonPath}`);
+  }
+
+  if (args.summaryMarkdownPath) {
+    await Deno.writeTextFile(
+      args.summaryMarkdownPath,
+      renderMarkdownSummary(summary),
+    );
+    console.log(`summary_markdown: ${args.summaryMarkdownPath}`);
+  }
+}
+
+function renderMarkdownSummary(summary: {
+  generated_at: string;
+  requested: {
+    target: string;
+    offset: number | null;
+    limit: number;
+    page_count: number;
+    dry_run: boolean;
+    retry: boolean;
+  };
+  import: ImportResponse;
+  coverage: CoverageTarget | null;
+  recent_failed_runs: StatusResponse["latest_import_runs"];
+}): string {
+  const lines = [
+    "# Community Taxonomy Import Summary",
+    "",
+    `Generated: ${summary.generated_at}`,
+    "",
+    "## Request",
+    "",
+    `- Target: \`${summary.requested.target}\``,
+    `- Offset: ${
+      summary.requested.offset == null
+        ? "database cursor"
+        : `\`${summary.requested.offset}\``
+    }`,
+    `- Limit: \`${summary.requested.limit}\``,
+    `- Page count: \`${summary.requested.page_count}\``,
+    `- Dry run: \`${summary.requested.dry_run}\``,
+    `- Retry: \`${summary.requested.retry}\``,
+    "",
+    "## Import",
+    "",
+    `- Start offset: \`${summary.import.start_offset}\``,
+    `- Next offset: \`${summary.import.next_offset}\``,
+    `- Fetched: \`${summary.import.fetched_count}\``,
+    `- Normalized: \`${summary.import.normalized_count}\``,
+    `- Imported: \`${summary.import.imported_count}\``,
+    `- Pages: \`${summary.import.pages.length}\``,
+    `- End of records: \`${summary.import.end_of_records}\``,
+  ];
+
+  if (summary.coverage) {
+    lines.push(
+      "",
+      "## Coverage",
+      "",
+      `- Indexed species: \`${summary.coverage.indexed_species_count}\``,
+      `- Dictionary species: \`${summary.coverage.dictionary_species_count}\``,
+      `- Coverage ratio: \`${summary.coverage.coverage_ratio}\``,
+      `- Last imported offset: \`${summary.coverage.last_imported_offset}\``,
+      `- Next import offset: \`${summary.coverage.next_import_offset}\``,
+      `- GBIF total count: \`${
+        summary.coverage.gbif_total_count ?? "unknown"
+      }\``,
+    );
+  }
+
+  if (summary.import.pages.length > 0) {
+    lines.push(
+      "",
+      "## Pages",
+      "",
+      "| Offset | Limit | Normalized | Imported | Next offset | End |",
+      "| -----: | ----: | ---------: | -------: | ----------: | --- |",
+      ...summary.import.pages.map((page) =>
+        `| \`${page.offset}\` | \`${page.limit}\` | \`${page.normalized_count}\` | \`${page.imported_count}\` | \`${page.next_offset}\` | \`${page.end_of_records}\` |`
+      ),
+    );
+  }
+
+  if (summary.recent_failed_runs.length > 0) {
+    lines.push("", "## Recent Failures", "");
+    for (const run of summary.recent_failed_runs) {
+      lines.push(
+        `- \`${run.requested_query}\`: status=\`${run.status}\`, error_count=\`${run.error_count}\``,
+      );
+    }
+  }
+
+  lines.push("");
+  return `${lines.join("\n")}\n`;
+}
+
 async function updateChecklist(
   importResponse: ImportResponse,
   statusResponse: StatusResponse,
@@ -201,7 +335,7 @@ async function updateChecklist(
     `Last updated: ${new Date().toISOString().slice(0, 10)}`,
   );
   text = text.replace(
-    /Last verified remote status: .+\./,
+    /Last verified remote (?:status|import run): .+\./,
     `Last verified remote status: ${
       new Date().toISOString().slice(0, 10)
     } after ${
@@ -291,7 +425,26 @@ function parseArgs(rawArgs: string[]): ImportArgs {
     retry: values.has("retry"),
     updateChecklist: values.has("update-checklist") ||
       values.has("update_checklist"),
+    summaryJsonPath: parseOptionalString(
+      values.get("summary-json") ?? values.get("summary_json"),
+      "--summary-json",
+    ),
+    summaryMarkdownPath: parseOptionalString(
+      values.get("summary-md") ?? values.get("summary_md"),
+      "--summary-md",
+    ),
   };
+}
+
+function parseOptionalString(
+  value: string | boolean | undefined,
+  label: string,
+): string | null {
+  if (value === undefined || value === false) return null;
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`${label} must be a non-empty path.`);
+  }
+  return value;
 }
 
 function parseOptionalInteger(

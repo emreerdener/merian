@@ -20,7 +20,7 @@ Last updated: 2026-06-23
   URL from the project ref, so no local key or URL export is required.
 - Use the local operator script only when GitHub Actions is unavailable or when
   intentionally updating this checklist from a trusted local environment.
-- Keep batches bounded. `limit = 100`, `page_count = 1...3` is the normal
+- Keep batches bounded. `limit = 100`, `page_count = 1...5` is the normal
   post-smoke path; use smaller batches when recovering from failures.
 - Do not show gamified coverage claims until a target has a meaningful imported
   denominator and the product wording explains that it is based on the indexed
@@ -111,6 +111,8 @@ After importing:
 - [x] Add remote smoke checks to the deployment runbook for status and dry-run
       import. CI now checks coverage status plus a tiny dry-run import after
       Edge Function deployment.
+- [x] Add import workflow summaries and optional checklist auto-commit so real
+      imports can record completed batches without local credential handling.
 - [ ] Add more coverage targets only after Birds import behavior is stable.
 
 ## Commands
@@ -120,8 +122,11 @@ Preferred GitHub Actions path:
 1. Open GitHub Actions.
 2. Select **Import Community Taxonomy**.
 3. Click **Run workflow**.
-4. Leave `dry_run = true` for the first check.
-5. If the dry run passes, run again with `dry_run = false`.
+4. Leave `dry_run = true` after deploys, auth changes, migration changes, or
+   failures.
+5. For routine imports after a clean prior run, set `dry_run = false`.
+6. Leave `update_checklist = true` so the workflow commits the completed-batch
+   ledger.
 
 Preferred operator command:
 
