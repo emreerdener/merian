@@ -20,10 +20,10 @@ Last updated: 2026-06-23
   URL from the project ref, so no local key or URL export is required.
 - Use the local operator script only when GitHub Actions is unavailable or when
   intentionally updating this checklist from a trusted local environment.
-- Keep batches bounded. `limit = 100`, `page_count = 1...5` is the normal
-  post-smoke path; use smaller batches when recovering from failures.
+- Keep batches bounded. `limit = 100`, `page_count = 1...20` is the supported
+  range; use smaller batches when recovering from failures.
 - The **Import Community Taxonomy** workflow runs weekly on Mondays at
-  `09:20 UTC` with `page_count = 5`, `dry_run = false`, and
+  `09:20 UTC` with `page_count = 20`, `dry_run = false`, and
   `update_checklist = true`.
 - Do not show gamified coverage claims until a target has a meaningful imported
   denominator and the product wording explains that it is based on the indexed
@@ -122,6 +122,8 @@ After importing:
       imports can record completed batches without local credential handling.
 - [x] Schedule weekly bounded Birds imports now that manual `page_count = 3`
       runs have succeeded.
+- [x] Speed up Birds import throughput to weekly `page_count = 20` while
+      keeping the bounded target, summaries, and checklist commits.
 - [ ] Add more coverage targets only after Birds import behavior is stable.
 
 ## Commands

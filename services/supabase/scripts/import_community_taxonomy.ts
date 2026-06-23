@@ -8,7 +8,7 @@
  * Example:
  *   deno run --allow-net --allow-env --allow-read --allow-write \
  *     services/supabase/scripts/import_community_taxonomy.ts \
- *     --target birds --limit 100 --page-count 3 --update-checklist
+ *     --target birds --limit 100 --page-count 20 --update-checklist
  */
 
 interface ImportArgs {
@@ -419,7 +419,7 @@ function parseArgs(rawArgs: string[]): ImportArgs {
       values.get("page-count") ?? values.get("page_count") ?? "3",
       "--page-count",
       1,
-      5,
+      20,
     ),
     dryRun: values.has("dry-run") || values.has("dry_run"),
     retry: values.has("retry"),

@@ -10,7 +10,7 @@ import {
 export const DEFAULT_IMPORT_LIMIT = 50;
 export const MAX_IMPORT_LIMIT = 200;
 export const DEFAULT_PAGE_COUNT = 1;
-export const MAX_PAGE_COUNT = 5;
+export const MAX_PAGE_COUNT = 20;
 
 export interface CommunityTaxonomyIndexSyncRequest {
   target: GbifTaxonomyImportTarget;

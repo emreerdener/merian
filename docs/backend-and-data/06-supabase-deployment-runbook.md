@@ -86,7 +86,7 @@ runs use:
 
 - `target`: `birds`
 - `limit`: `100`
-- `page_count`: `5`
+- `page_count`: `20`
 - `dry_run`: `false`
 - `retry`: `false`
 - `update_checklist`: `true`
@@ -118,8 +118,7 @@ For routine runs after the first clean production import, `dry_run = false` is
 acceptable. The workflow uploads a JSON/Markdown summary artifact for every run
 and, when `update_checklist = true`, commits
 `docs/backend-and-data/07-community-taxonomy-import-checklist.md` after real
-imports. Use `page_count = 3...5` only after several successful `page_count = 1`
-runs.
+imports. Use `page_count = 10...20` only after several successful smaller runs.
 
 ## Local Emergency Fallback
 

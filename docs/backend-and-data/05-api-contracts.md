@@ -299,7 +299,7 @@ Optional body:
 }
 ```
 
-`limit` is capped at `200` and `page_count` is capped at `5`. If `offset` is
+`limit` is capped at `200` and `page_count` is capped at `20`. If `offset` is
 omitted, the worker continues from
 `taxonomy_coverage_targets.next_import_offset`; explicit offsets remain
 available for manual recovery. `retry = true` with no explicit offset replays

@@ -42,8 +42,8 @@ Deno.test("community taxonomy index sync - rejects unsafe inputs", () => {
     error: "limit must be an integer from 1 to 200.",
     status: 400,
   });
-  assertEquals(parseCommunityTaxonomyIndexSyncRequest({ page_count: 6 }), {
-    error: "page_count must be an integer from 1 to 5.",
+  assertEquals(parseCommunityTaxonomyIndexSyncRequest({ page_count: 21 }), {
+    error: "page_count must be an integer from 1 to 20.",
     status: 400,
   });
   assertEquals(parseCommunityTaxonomyIndexSyncRequest({ dry_run: "yes" }), {

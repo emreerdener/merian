@@ -32,6 +32,8 @@ on:
           - "2"
           - "3"
           - "5"
+          - "10"
+          - "20"
       dry_run:
         description: Fetch and validate without writing taxonomy rows.
         required: true
@@ -114,7 +116,7 @@ jobs:
         run: |
           target="${INPUT_TARGET:-birds}"
           limit="${INPUT_LIMIT:-100}"
-          page_count="${INPUT_PAGE_COUNT:-5}"
+          page_count="${INPUT_PAGE_COUNT:-20}"
           dry_run="${INPUT_DRY_RUN:-false}"
           retry="${INPUT_RETRY:-false}"
           update_checklist="${INPUT_UPDATE_CHECKLIST:-true}"

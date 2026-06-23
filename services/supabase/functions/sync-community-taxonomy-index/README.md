@@ -52,7 +52,7 @@ Limits:
 - `offset`: optional non-negative integer; omitted means continue from the
   target's stored `next_import_offset`
 - `limit`: `1...200`
-- `page_count`: `1...5`
+- `page_count`: `1...20`
 - `refresh_coverage`: defaults to `true`; recomputes coverage once after the
   run, not after every page
 - `retry`: defaults to `false`; when `true` and `offset` is omitted, replays the
@@ -170,5 +170,6 @@ curl -sS \
 ```
 
 Keep rollout batches at `page_count = 1...3` until status checks remain stable.
-Increase `page_count` only after `gbif_bounded_birds` import runs, coverage
-counts, and `next_import_offset` advance as expected.
+After several clean runs, scheduled imports may use `page_count = 20` for the
+Birds target. Increase beyond manual defaults only when `gbif_bounded_birds`
+import runs, coverage counts, and `next_import_offset` advance as expected.
