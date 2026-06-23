@@ -28,11 +28,13 @@ Last updated: 2026-06-23
 
 ## Production Status
 
-Last verified remote status: 2026-06-23 after Birds batch 3.
+Last verified remote import run: 2026-06-23 after Birds offset `150`.
+Coverage values below still reflect the last captured status snapshot; refresh
+`community-taxonomy-status` coverage view before exposing any progress claim.
 
 | Target         | GBIF Root | Imported Offsets | Imported Rows | Next Offset | Indexed Species | Dictionary Species |   Coverage |
 | -------------- | --------- | ---------------- | ------------: | ----------: | --------------: | -----------------: | ---------: |
-| Birds (`Aves`) | `212`     | `0`, `50`, `100` |         `150` |       `150` |           `218` |               `69` | `0.316514` |
+| Birds (`Aves`) | `212`     | `0`, `50`, `100`, `150` |         `250` |       `250` |           `218` |               `69` | `0.316514` |
 
 GBIF reported `14,641` accepted bird species under Aves during the first import
 run. This is the expected rough denominator for completing the Birds target over
@@ -49,12 +51,13 @@ cursor used when the import worker is called without an explicit `offset`.
 | 2026-06-22 | Birds  |    `0` |  `50` |       `50` |     `50` | `gbif_bounded_birds` | Complete, `error_count = 0` |
 | 2026-06-22 | Birds  |   `50` |  `50` |       `50` |     `50` | `gbif_bounded_birds` | Complete, `error_count = 0` |
 | 2026-06-23 | Birds  |  `100` |  `50` |       `50` |     `50` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-23 | Birds  |  `150` | `100` |      `100` |    `100` | `gbif_bounded_birds` | Complete via GitHub Actions import run #2 |
 
 ## Next Import Batches
 
-- [ ] Birds offset `150`, limit `100`.
 - [ ] Birds offset `250`, limit `100`.
 - [ ] Birds offset `350`, limit `100`.
+- [ ] Birds offset `450`, limit `100`.
 - [ ] Recheck `community-taxonomy-status` coverage view after every 1-3 batches.
 - [ ] Stop and investigate if any import row has `status != completed` or
       `error_count > 0`.
