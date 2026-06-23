@@ -7,6 +7,8 @@ export const MAX_STATUS_LIMIT = 50;
 export interface CommunityTaxonomyStatusRequest {
   importRunLimit: number;
   jobLimit: number;
+  view: "full" | "coverage";
+  target: "birds" | null;
 }
 
 export interface CommunityTaxonomyStatusRequestResult {
@@ -22,6 +24,7 @@ export interface CountRow {
 
 export interface CommunityTaxonomyStatusResponse {
   generated_at: string;
+  view: "full" | "coverage";
   active_taxonomy: Record<string, unknown> | null;
   node_counts_by_source: CountRow[];
   node_counts_by_rank: CountRow[];
@@ -78,10 +81,18 @@ export function parseCommunityTaxonomyStatusRequest(
   );
   if (jobLimit.error) return jobLimit;
 
+  const viewResult = parseView(body.view);
+  if (viewResult.error) return viewResult;
+
+  const targetResult = parseTarget(body.target ?? body.scope);
+  if (targetResult.error) return targetResult;
+
   return {
     request: {
       importRunLimit: importLimit.limit ?? DEFAULT_IMPORT_RUN_LIMIT,
       jobLimit: jobLimit.limit ?? DEFAULT_JOB_LIMIT,
+      view: viewResult.view ?? "full",
+      target: targetResult.target ?? null,
     },
   };
 }
@@ -90,6 +101,10 @@ export async function fetchCommunityTaxonomyStatus(
   request: CommunityTaxonomyStatusRequest,
   supabaseAdmin: SupabaseClient,
 ): Promise<CommunityTaxonomyStatusResponse> {
+  if (request.view === "coverage") {
+    return await fetchCommunityTaxonomyCoverageStatus(request, supabaseAdmin);
+  }
+
   const activeTaxonomy = await fetchActiveTaxonomy(supabaseAdmin);
   const taxonomyVersionId = activeTaxonomy?.id as string | undefined;
 
@@ -125,6 +140,7 @@ export async function fetchCommunityTaxonomyStatus(
 
   return {
     generated_at: new Date().toISOString(),
+    view: "full",
     active_taxonomy: activeTaxonomy
       ? {
         ...activeTaxonomy,
@@ -141,6 +157,35 @@ export async function fetchCommunityTaxonomyStatus(
       counts: enrichmentJobCounts,
       next_jobs: nextJobs,
       recent_failures: recentFailures,
+    },
+    coverage_targets: coverageTargets,
+  };
+}
+
+async function fetchCommunityTaxonomyCoverageStatus(
+  request: CommunityTaxonomyStatusRequest,
+  supabaseAdmin: SupabaseClient,
+): Promise<CommunityTaxonomyStatusResponse> {
+  const [latestImportRuns, coverageTargets] = await Promise.all([
+    fetchLatestImportRuns(
+      supabaseAdmin,
+      request.importRunLimit,
+      targetImportScope(request.target),
+    ),
+    fetchCoverageTargets(supabaseAdmin, request.target),
+  ]);
+
+  return {
+    generated_at: new Date().toISOString(),
+    view: "coverage",
+    active_taxonomy: null,
+    node_counts_by_source: [],
+    node_counts_by_rank: [],
+    latest_import_runs: latestImportRuns,
+    enrichment_jobs: {
+      counts: [],
+      next_jobs: [],
+      recent_failures: [],
     },
     coverage_targets: coverageTargets,
   };
@@ -225,14 +270,18 @@ async function countTaxonNodesByRank(
 async function fetchLatestImportRuns(
   supabaseAdmin: SupabaseClient,
   limit: number,
+  scope?: string | null,
 ): Promise<Record<string, unknown>[]> {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("taxonomy_import_runs")
     .select(
-      "id,source,scope,status,requested_query,target_taxonomy_version_id,imported_count,updated_count,error_count,error_message,started_at,finished_at,created_at,updated_at",
+      "id,source,scope,status,requested_query,target_taxonomy_version_id,imported_count,updated_count,error_count,error_message,metadata,started_at,finished_at,created_at,updated_at",
     )
-    .order("started_at", { ascending: false })
-    .limit(limit);
+    .order("started_at", { ascending: false });
+
+  if (scope) query = query.eq("scope", scope);
+
+  const { data, error } = await query.limit(limit);
 
   if (error) {
     throw new Error(
@@ -351,13 +400,18 @@ function normalizePrimaryCommonName(
 
 async function fetchCoverageTargets(
   supabaseAdmin: SupabaseClient,
+  target?: "birds" | null,
 ): Promise<Record<string, unknown>[]> {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("taxonomy_coverage_targets")
     .select(
-      "id,slug,display_name,root_rank,root_scientific_name,indexed_species_count,dictionary_species_count,coverage_ratio,last_computed_at,updated_at",
+      "id,slug,display_name,root_rank,root_scientific_name,indexed_species_count,dictionary_species_count,coverage_ratio,last_imported_offset,next_import_offset,last_successful_import_at,last_import_error,gbif_total_count,import_cursor_metadata,last_computed_at,updated_at",
     )
     .order("display_name", { ascending: true });
+
+  if (target) query = query.eq("slug", target);
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(
@@ -365,6 +419,10 @@ async function fetchCoverageTargets(
     );
   }
   return (data ?? []) as Record<string, unknown>[];
+}
+
+function targetImportScope(target: "birds" | null): string | null {
+  return target ? `gbif_bounded_${target}` : null;
 }
 
 function parseLimit(
@@ -383,4 +441,32 @@ function parseLimit(
     };
   }
   return { limit: value };
+}
+
+function parseView(
+  value: unknown,
+): CommunityTaxonomyStatusRequestResult & { view?: "full" | "coverage" } {
+  if (value === undefined || value === null) return { view: "full" };
+  if (typeof value !== "string") {
+    return { error: "view must be a string.", status: 400 };
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized !== "full" && normalized !== "coverage") {
+    return { error: "view must be full or coverage.", status: 400 };
+  }
+  return { view: normalized };
+}
+
+function parseTarget(
+  value: unknown,
+): CommunityTaxonomyStatusRequestResult & { target?: "birds" | null } {
+  if (value === undefined || value === null) return { target: null };
+  if (typeof value !== "string") {
+    return { error: "target must be a string.", status: 400 };
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized !== "birds") {
+    return { error: "Unsupported taxonomy status target.", status: 400 };
+  }
+  return { target: "birds" };
 }

@@ -584,7 +584,7 @@ struct SpeciesDictionaryTests {
                     },
                     {
                         "id": "recently_added",
-                        "title": "Recently Added",
+                        "title": "Recently added",
                         "subtitle": "Newest entries added to the database",
                         "count": 42,
                         "reference_image_url": "https://example.com/recent.jpg",

@@ -61,10 +61,13 @@ Deno.serve(async (req: Request) => {
       event: "community_taxonomy_index_sync_complete",
       target: result.target,
       root_gbif_taxon_key: result.root_gbif_taxon_key,
+      start_offset: result.start_offset,
       imported_count: result.imported_count,
       normalized_count: result.normalized_count,
       next_offset: result.next_offset,
       dry_run: result.dry_run,
+      retry: result.retry,
+      refresh_coverage: result.refresh_coverage,
     }));
 
     return jsonResponse({ success: true, ...result });

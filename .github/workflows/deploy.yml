@@ -22,6 +22,7 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_ID: qlarqavoqhkuwzmevrmf
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:
       - name: Checkout repository
@@ -41,6 +42,7 @@ jobs:
         run: |
           : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN GitHub secret}"
           : "${SUPABASE_DB_PASSWORD:?Missing SUPABASE_DB_PASSWORD GitHub secret}"
+          : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY GitHub secret}"
 
       - name: Validate Edge Function formatting
         run: |
@@ -99,3 +101,27 @@ jobs:
             echo "Supabase Edge Function deploy failed; retrying in ${sleep_seconds}s..."
             sleep "$sleep_seconds"
           done
+
+      - name: Smoke test Community Taxonomy endpoints
+        run: |
+          supabase_url="https://${PROJECT_ID}.supabase.co"
+
+          status_response="$(
+            curl -fsS \
+              -X POST "${supabase_url}/functions/v1/community-taxonomy-status" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Content-Type: application/json" \
+              --data '{"view":"coverage","target":"birds","import_run_limit":3,"job_limit":1}'
+          )"
+          echo "$status_response" | jq -e '.success == true and .view == "coverage" and (.coverage_targets | length) >= 1'
+
+          dry_run_response="$(
+            curl -fsS \
+              -X POST "${supabase_url}/functions/v1/sync-community-taxonomy-index" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Content-Type: application/json" \
+              --data '{"target":"birds","limit":5,"page_count":1,"dry_run":true}'
+          )"
+          echo "$dry_run_response" | jq -e '.success == true and .dry_run == true and .normalized_count > 0'

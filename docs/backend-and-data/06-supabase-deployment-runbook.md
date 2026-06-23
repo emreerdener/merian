@@ -21,6 +21,8 @@ The workflow performs the following steps:
 6. Pushes database migrations.
 7. Deploys all configured Edge Functions with `supabase functions deploy
    --import-map supabase/functions/deno.json`.
+8. Smoke-tests the Community Taxonomy status endpoint and a dry-run bounded GBIF
+   import with the production service-role credential.
 
 Deploying all configured functions is intentional. Shared modules such as
 `functions/_shared/aws.ts`, `functions/_shared/mediaBudgets.ts`, and
@@ -46,6 +48,8 @@ Set these in the repository's GitHub Actions secrets:
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
 - `SUPABASE_DB_PASSWORD` — database password used by `supabase link` and
   `supabase db push`.
+- `SUPABASE_SERVICE_ROLE_KEY` — production service-role key used only for
+  post-deploy smoke checks against internal Edge Functions.
 
 The production Supabase project ref is intentionally stored in the workflow as
 `qlarqavoqhkuwzmevrmf`. Project refs are routing identifiers, not credentials;
@@ -120,3 +124,7 @@ After deployment:
   `https://media.merian.app/avatars/{userId}/...` URL remains available.
 - Confirm cron-triggered purge endpoints still receive service-role
   authorization from Supabase Vault/pg_net.
+- Confirm `community-taxonomy-status` accepts a service-role request with
+  `view = coverage` and returns the Birds coverage target quickly.
+- Confirm `sync-community-taxonomy-index` accepts a tiny `dry_run = true` Birds
+  request without advancing `taxonomy_coverage_targets.next_import_offset`.

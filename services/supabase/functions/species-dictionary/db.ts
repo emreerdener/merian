@@ -377,7 +377,8 @@ export function parseSpeciesDictionaryCatalogRequest(
   }
 
   if (
-    category?.category === "recently_added" && cursor?.cursor &&
+    category?.category === "recently_added" &&
+    cursor?.cursor &&
     !cursor.cursor.createdAt
   ) {
     return {
@@ -425,8 +426,8 @@ export async function fetchSpeciesDictionaryCatalog(
   }
 
   if (category === "region" && request.region) {
-    const regionFilter = normalizedRegionTitle(request.region) ??
-      request.region;
+    const regionFilter =
+      normalizedRegionTitle(request.region) ?? request.region;
     catalogQuery = catalogQuery.ilike(
       "native_region",
       `%${regionFilter.trim().replace(/\s+/g, " ")}%`,
@@ -451,7 +452,9 @@ export async function fetchSpeciesDictionaryCatalog(
   }
 
   if (
-    request.cursor && category === "recently_added" && request.cursor.createdAt
+    request.cursor &&
+    category === "recently_added" &&
+    request.cursor.createdAt
   ) {
     catalogQuery = catalogQuery.or(
       `created_at.lt.${request.cursor.createdAt},and(created_at.eq.${request.cursor.createdAt},id.lt.${request.cursor.speciesId})`,
@@ -482,16 +485,17 @@ export async function fetchSpeciesDictionaryCatalog(
       row,
       firstImageBySpeciesId.get(row.id) ??
         firstReferenceImageUrl(row.reference_image_url),
-    )
+    ),
   );
   const lastVisibleRow = visibleRows[visibleRows.length - 1];
-  const nextCursor = rows.length > requestedLimit && lastVisibleRow
-    ? {
-      scientificName: lastVisibleRow.scientific_name,
-      speciesId: lastVisibleRow.id,
-      createdAt: stringValue(lastVisibleRow.created_at) ?? undefined,
-    }
-    : null;
+  const nextCursor =
+    rows.length > requestedLimit && lastVisibleRow
+      ? {
+          scientificName: lastVisibleRow.scientific_name,
+          speciesId: lastVisibleRow.id,
+          createdAt: stringValue(lastVisibleRow.created_at) ?? undefined,
+        }
+      : null;
 
   return { data: items, nextCursor };
 }
@@ -513,8 +517,9 @@ export async function fetchSpeciesDictionaryOverview(
     );
   }
 
-  const rows = ((data ?? []) as SpeciesDictionaryRow[])
-    .filter(isPublicBiologicalSpeciesRow);
+  const rows = ((data ?? []) as SpeciesDictionaryRow[]).filter(
+    isPublicBiologicalSpeciesRow,
+  );
   const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
     rows.map((row) => row.id),
     supabaseAdmin,
@@ -562,9 +567,7 @@ async function fetchUserScannedSpeciesDictionaryRows(
       .range(from, to);
 
     if (error) {
-      throw new Error(
-        `Failed to fetch user scanned species: ${error.message}`,
-      );
+      throw new Error(`Failed to fetch user scanned species: ${error.message}`);
     }
 
     const page = (data ?? []) as UserScanSpeciesRow[];
@@ -584,8 +587,8 @@ export function speciesIdsFromUserScanRows(
   const speciesIds: string[] = [];
 
   for (const row of rows) {
-    const speciesId = stringValue(row.confirmed_species_id) ??
-      stringValue(row.species_id);
+    const speciesId =
+      stringValue(row.confirmed_species_id) ?? stringValue(row.species_id);
     if (!speciesId) continue;
 
     const key = speciesId.toLowerCase();
@@ -604,12 +607,10 @@ async function fetchSpeciesDictionaryRowsByIds(
   if (speciesIds.length === 0) return [];
 
   const rows: SpeciesDictionaryRow[] = [];
-  for (
-    const batch of speciesReferenceImageLookupBatches(
-      speciesIds,
-      SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE,
-    )
-  ) {
+  for (const batch of speciesReferenceImageLookupBatches(
+    speciesIds,
+    SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE,
+  )) {
     const { data, error } = await supabaseAdmin
       .from("species_dictionary")
       .select(SPECIES_DICTIONARY_CATALOG_SELECT)
@@ -639,23 +640,26 @@ export function buildSpeciesDictionaryTree(
 ): SpeciesDictionaryTreeResult {
   const nodesById = new Map<string, SpeciesDictionaryTreeNode>();
   const edgesById = new Map<string, SpeciesDictionaryTreeEdge>();
-  const sortedRows = rows.filter(isPublicBiologicalSpeciesRow).sort(
-    (lhs, rhs) => {
-      const lhsName = (stringValue(lhs.scientific_name) ?? "")
-        .toLocaleLowerCase();
-      const rhsName = (stringValue(rhs.scientific_name) ?? "")
-        .toLocaleLowerCase();
+  const sortedRows = rows
+    .filter(isPublicBiologicalSpeciesRow)
+    .sort((lhs, rhs) => {
+      const lhsName = (
+        stringValue(lhs.scientific_name) ?? ""
+      ).toLocaleLowerCase();
+      const rhsName = (
+        stringValue(rhs.scientific_name) ?? ""
+      ).toLocaleLowerCase();
       if (lhsName === rhsName) {
         return (stringValue(lhs.id) ?? "").localeCompare(
           stringValue(rhs.id) ?? "",
         );
       }
       return lhsName.localeCompare(rhsName);
-    },
-  );
+    });
 
   for (const row of sortedRows) {
-    const referenceImageUrl = firstImageBySpeciesId.get(row.id) ??
+    const referenceImageUrl =
+      firstImageBySpeciesId.get(row.id) ??
       firstReferenceImageUrl(row.reference_image_url);
     const catalogItem = buildSpeciesDictionaryCatalogItem(
       row,
@@ -750,7 +754,7 @@ export function buildSpeciesDictionaryTree(
     }))
     .sort(taxonomyTreeNodeSort);
   const edges = Array.from(edgesById.values()).sort((lhs, rhs) =>
-    `${lhs.from}->${lhs.to}`.localeCompare(`${rhs.from}->${rhs.to}`)
+    `${lhs.from}->${lhs.to}`.localeCompare(`${rhs.from}->${rhs.to}`),
   );
 
   return { nodes, edges };
@@ -787,9 +791,9 @@ export function buildSpeciesDictionaryOverview(
   userRegion?: string,
 ): SpeciesDictionaryOverviewResult {
   const biologicalRows = rows.filter(isPublicBiologicalSpeciesRow);
-  const sortedRows = biologicalRows.slice().sort(
-    speciesDictionaryCreatedAtDescending,
-  );
+  const sortedRows = biologicalRows
+    .slice()
+    .sort(speciesDictionaryCreatedAtDescending);
   const recentlyAddedRows = sortedRows.slice(
     0,
     SPECIES_DICTIONARY_RECENTLY_ADDED_OVERVIEW_LIMIT,
@@ -801,17 +805,21 @@ export function buildSpeciesDictionaryOverview(
   const normalizedUserRegion = normalizedRegionKey(userRegion);
   const userRegionRows = normalizedUserRegion
     ? biologicalRows.filter((row) =>
-      regionKeysMatch(
-        normalizedRegionKey(row.native_region),
-        normalizedUserRegion,
+        regionKeysMatch(
+          normalizedRegionKey(row.native_region),
+          normalizedUserRegion,
+        ),
       )
-    )
     : [];
-  const userRegionTitle = userRegionRows.length > 0
-    ? (regions.find((region) =>
-      regionKeysMatch(normalizedRegionKey(region.title), normalizedUserRegion)
-    )?.title ?? normalizedRegionTitle(userRegion))
-    : null;
+  const userRegionTitle =
+    userRegionRows.length > 0
+      ? (regions.find((region) =>
+          regionKeysMatch(
+            normalizedRegionKey(region.title),
+            normalizedUserRegion,
+          ),
+        )?.title ?? normalizedRegionTitle(userRegion))
+      : null;
   const categoryReferenceImageUrls = randomRepresentativeImageUrlPair(
     biologicalRows,
     firstImageBySpeciesId,
@@ -833,7 +841,7 @@ export function buildSpeciesDictionaryOverview(
       },
       {
         id: "your_region",
-        title: "Your Region",
+        title: "Your region",
         subtitle: userRegionTitle
           ? `Species associated with ${userRegionTitle}`
           : "Browse regions to find local species",
@@ -854,7 +862,7 @@ export function buildSpeciesDictionaryOverview(
       },
       {
         id: "recently_added",
-        title: "Recently Added",
+        title: "Recently added",
         subtitle: "Newest entries added to the database",
         count: recentlyAddedRows.length,
         reference_image_url: representativeImageUrl(
@@ -876,12 +884,13 @@ function buildFeaturedSpeciesSummary(
   rows: SpeciesDictionaryRow[],
   firstImageBySpeciesId: Map<string, string>,
 ): SpeciesDictionaryFeaturedSpecies | null {
-  const recentlyAddedRows = rows.slice().sort(
-    speciesDictionaryCreatedAtDescending,
-  );
-  const candidates = rows.filter((row) =>
-    referenceImageUrlForRow(row, firstImageBySpeciesId) ||
-    normalizedOverview(row.wikipedia_overview)
+  const recentlyAddedRows = rows
+    .slice()
+    .sort(speciesDictionaryCreatedAtDescending);
+  const candidates = rows.filter(
+    (row) =>
+      referenceImageUrlForRow(row, firstImageBySpeciesId) ||
+      normalizedOverview(row.wikipedia_overview),
   );
   const eligibleRows = candidates.length > 0 ? candidates : rows;
 
@@ -889,7 +898,7 @@ function buildFeaturedSpeciesSummary(
 
   const row =
     recentlyAddedRows.find((recentRow) =>
-      eligibleRows.some((candidate) => candidate.id === recentRow.id)
+      eligibleRows.some((candidate) => candidate.id === recentRow.id),
     ) ?? eligibleRows[0];
   const referenceImageUrl = referenceImageUrlForRow(row, firstImageBySpeciesId);
   const catalogItem = buildSpeciesDictionaryCatalogItem(row, referenceImageUrl);
@@ -907,9 +916,8 @@ export async function fetchSpeciesDictionary(
   lookup: string | { speciesId?: string; scientificName?: string },
   supabaseAdmin: SupabaseClient,
 ): Promise<SpeciesDictionaryPayload | null> {
-  const normalizedLookup = typeof lookup === "string"
-    ? { scientificName: lookup }
-    : lookup;
+  const normalizedLookup =
+    typeof lookup === "string" ? { scientificName: lookup } : lookup;
   const query = supabaseAdmin
     .from("species_dictionary")
     .select(SPECIES_DICTIONARY_CATALOG_SELECT)
@@ -949,9 +957,8 @@ export async function fetchExternalSpeciesDictionary(
   const normalizedScientificName = scientificName.trim().replace(/\s+/g, " ");
   const externalData = await fetchExternalEnrichment(normalizedScientificName);
   const taxonomy = externalData.gbifTaxonomy;
-  const { fetchSimilarSpecies: fetchModelSimilarSpecies } = await import(
-    "../_shared/biology.ts"
-  );
+  const { fetchSimilarSpecies: fetchModelSimilarSpecies } =
+    await import("../_shared/biology.ts");
   const similarResult = await fetchModelSimilarSpecies(
     "species-dictionary-public",
     normalizedScientificName,
@@ -1138,7 +1145,8 @@ async function fetchSimilarSpecies(
     species_id: row.species_id,
     scientific_name: row.scientific_name,
     common_name: row.common_name,
-    reference_image_url: firstImageBySpeciesId.get(row.species_id) ??
+    reference_image_url:
+      firstImageBySpeciesId.get(row.species_id) ??
       firstReferenceImageUrl(row.legacy_reference_image_url),
     iucn_red_list_status: row.iucn_red_list_status,
     ...publicSimilarSpeciesMetadata(row.relation),
@@ -1155,12 +1163,10 @@ async function fetchFirstReferenceImagesForSpecies(
   if (uniqueSpeciesIds.length === 0) return new Map();
 
   const rows: SpeciesReferenceImageRow[] = [];
-  for (
-    const batch of speciesReferenceImageLookupBatches(
-      uniqueSpeciesIds,
-      SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE,
-    )
-  ) {
+  for (const batch of speciesReferenceImageLookupBatches(
+    uniqueSpeciesIds,
+    SPECIES_REFERENCE_IMAGE_LOOKUP_BATCH_SIZE,
+  )) {
     const { data, error } = await supabaseAdmin
       .from("species_reference_images")
       .select("id, species_id, url, source, sort_order, created_at")
@@ -1188,11 +1194,7 @@ export function speciesReferenceImageLookupBatches(
 ): string[][] {
   const normalizedBatchSize = Math.max(1, Math.floor(batchSize));
   const uniqueSpeciesIds = Array.from(
-    new Set(
-      speciesIds
-        .map((id) => id.trim())
-        .filter((id) => id.length > 0),
-    ),
+    new Set(speciesIds.map((id) => id.trim()).filter((id) => id.length > 0)),
   );
   const batches: string[][] = [];
 
@@ -1201,9 +1203,7 @@ export function speciesReferenceImageLookupBatches(
     index < uniqueSpeciesIds.length;
     index += normalizedBatchSize
   ) {
-    batches.push(
-      uniqueSpeciesIds.slice(index, index + normalizedBatchSize),
-    );
+    batches.push(uniqueSpeciesIds.slice(index, index + normalizedBatchSize));
   }
 
   return batches;
@@ -1289,8 +1289,8 @@ function taxonomyTreeNodeSort(
   lhs: SpeciesDictionaryTreeNode,
   rhs: SpeciesDictionaryTreeNode,
 ): number {
-  const rankDelta = taxonomyRankSortValue(lhs.rank) -
-    taxonomyRankSortValue(rhs.rank);
+  const rankDelta =
+    taxonomyRankSortValue(lhs.rank) - taxonomyRankSortValue(rhs.rank);
   if (rankDelta !== 0) return rankDelta;
   const parentDelta = (stringValue(lhs.parent_id) ?? "").localeCompare(
     stringValue(rhs.parent_id) ?? "",
@@ -1364,22 +1364,20 @@ function buildSpeciesDictionaryGroupSummaries(
   rows: SpeciesDictionaryRow[],
   firstImageBySpeciesId: Map<string, string>,
 ): SpeciesDictionaryGroupSummary[] {
-  return HIGH_LEVEL_SPECIES_GROUPS
-    .map((group) => {
-      const groupRows = rows.filter((row) =>
-        rowMatchesHighLevelGroup(row, group.id)
-      );
-      return {
-        id: group.id,
-        title: group.title,
-        count: groupRows.length,
-        reference_image_url: representativeImageUrl(
-          groupRows,
-          firstImageBySpeciesId,
-        ),
-      };
-    })
-    .filter((group) => group.count > 0);
+  return HIGH_LEVEL_SPECIES_GROUPS.map((group) => {
+    const groupRows = rows.filter((row) =>
+      rowMatchesHighLevelGroup(row, group.id),
+    );
+    return {
+      id: group.id,
+      title: group.title,
+      count: groupRows.length,
+      reference_image_url: representativeImageUrl(
+        groupRows,
+        firstImageBySpeciesId,
+      ),
+    };
+  }).filter((group) => group.count > 0);
 }
 
 function rowMatchesHighLevelGroup(
@@ -1399,23 +1397,27 @@ function rowMatchesHighLevelGroup(
     case "birds":
       return className === "aves" || groupTags.has("bird");
     case "insects":
-      return className === "insecta" ||
+      return (
+        className === "insecta" ||
         className === "entognatha" ||
         className === "arachnida" ||
         groupTags.has("insect") ||
-        groupTags.has("arachnid");
+        groupTags.has("arachnid")
+      );
     case "fungi":
-      return kingdom === "fungi" ||
-        groupTags.has("fungus") ||
-        groupTags.has("fungi");
+      return (
+        kingdom === "fungi" || groupTags.has("fungus") || groupTags.has("fungi")
+      );
     case "mammals":
       return className === "mammalia" || groupTags.has("mammal");
     case "reptiles_amphibians":
-      return className === "reptilia" ||
+      return (
+        className === "reptilia" ||
         className === "amphibia" ||
         order === "squamata" ||
         groupTags.has("reptile") ||
-        groupTags.has("amphibian");
+        groupTags.has("amphibian")
+      );
     default:
       return false;
   }
@@ -1471,8 +1473,10 @@ function referenceImageUrlForRow(
   row: SpeciesDictionaryRow,
   firstImageBySpeciesId: Map<string, string>,
 ): string | null {
-  return firstImageBySpeciesId.get(row.id) ??
-    firstReferenceImageUrl(row.reference_image_url);
+  return (
+    firstImageBySpeciesId.get(row.id) ??
+    firstReferenceImageUrl(row.reference_image_url)
+  );
 }
 
 function normalizedOverview(value: unknown): string | null {
@@ -1531,8 +1535,10 @@ function normalizeOptionalCatalogCategory(
   const category = value.trim();
   if (!category) return undefined;
   if (
-    category === "all" || category === "region" ||
-    category === "group" || category === "recently_added"
+    category === "all" ||
+    category === "region" ||
+    category === "group" ||
+    category === "recently_added"
   ) {
     return { category };
   }
@@ -1597,34 +1603,40 @@ function isUnknownRegionTitle(region: string): boolean {
     .toLocaleLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
-  return normalized === "unknown" ||
+  return (
+    normalized === "unknown" ||
     normalized === "unspecified" ||
     normalized === "not available" ||
-    normalized === "n a";
+    normalized === "n a"
+  );
 }
 
 function regionDisplayName(regionCode: string): string | null {
   try {
-    return new Intl.DisplayNames(["en"], { type: "region" }).of(regionCode) ??
-      null;
+    return (
+      new Intl.DisplayNames(["en"], { type: "region" }).of(regionCode) ?? null
+    );
   } catch {
     return null;
   }
 }
 
 function normalizedRegionKey(value: string | null | undefined): string {
-  return normalizedRegionTitle(value)
-    ?.toLocaleLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ") ?? "";
+  return (
+    normalizedRegionTitle(value)
+      ?.toLocaleLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .replace(/\s+/g, " ") ?? ""
+  );
 }
 
 function regionKeysMatch(lhs: string, rhs: string): boolean {
-  return lhs.length > 0 && rhs.length > 0 &&
-    (lhs.includes(rhs) || rhs.includes(lhs));
+  return (
+    lhs.length > 0 && rhs.length > 0 && (lhs.includes(rhs) || rhs.includes(lhs))
+  );
 }
 
 function normalizeOptionalCatalogCursor(

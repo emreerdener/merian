@@ -1,0 +1,329 @@
+/**
+ * Runs a bounded Community Taxonomy import through the deployed Edge Function.
+ *
+ * Required env:
+ *   SUPABASE_URL
+ *   SUPABASE_SERVICE_ROLE_KEY
+ *
+ * Example:
+ *   deno run --allow-net --allow-env --allow-read --allow-write \
+ *     services/supabase/scripts/import_community_taxonomy.ts \
+ *     --target birds --limit 100 --page-count 3 --update-checklist
+ */
+
+interface ImportArgs {
+  target: "birds";
+  offset: number | null;
+  limit: number;
+  pageCount: number;
+  dryRun: boolean;
+  retry: boolean;
+  updateChecklist: boolean;
+}
+
+interface ImportPage {
+  offset: number;
+  limit: number;
+  normalized_count: number;
+  imported_count: number;
+  end_of_records: boolean;
+  next_offset: number;
+}
+
+interface ImportResponse {
+  success: boolean;
+  target: string;
+  dry_run: boolean;
+  retry: boolean;
+  refresh_coverage: boolean;
+  start_offset: number;
+  imported_count: number;
+  fetched_count: number;
+  normalized_count: number;
+  end_of_records: boolean;
+  next_offset: number;
+  pages: ImportPage[];
+}
+
+interface CoverageTarget {
+  slug: string;
+  indexed_species_count: number;
+  dictionary_species_count: number;
+  coverage_ratio: number;
+  last_imported_offset: number;
+  next_import_offset: number;
+  gbif_total_count: number | null;
+}
+
+interface StatusResponse {
+  success: boolean;
+  coverage_targets: CoverageTarget[];
+  latest_import_runs: Array<{
+    scope: string;
+    status: string;
+    requested_query: string;
+    imported_count: number;
+    error_count: number;
+  }>;
+}
+
+const args = parseArgs(Deno.args);
+const supabaseUrl = requiredEnv("SUPABASE_URL").replace(/\/$/, "");
+const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+const importResponse = await postJson<ImportResponse>(
+  `${supabaseUrl}/functions/v1/sync-community-taxonomy-index`,
+  {
+    target: args.target,
+    ...(args.offset == null ? {} : { offset: args.offset }),
+    limit: args.limit,
+    page_count: args.pageCount,
+    dry_run: args.dryRun,
+    retry: args.retry,
+  },
+);
+
+const statusResponse = await postJson<StatusResponse>(
+  `${supabaseUrl}/functions/v1/community-taxonomy-status`,
+  {
+    view: "coverage",
+    target: args.target,
+    import_run_limit: 5,
+    job_limit: 1,
+  },
+);
+
+printSummary(importResponse, statusResponse);
+
+if (args.updateChecklist && !args.dryRun) {
+  await updateChecklist(importResponse, statusResponse);
+}
+
+async function postJson<T>(
+  url: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${serviceRoleKey}`,
+      "apikey": serviceRoleKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const text = await response.text();
+  const json = text ? JSON.parse(text) : {};
+  if (!response.ok) {
+    throw new Error(
+      `${url} returned HTTP ${response.status}: ${JSON.stringify(json)}`,
+    );
+  }
+  return json as T;
+}
+
+function printSummary(
+  importResponse: ImportResponse,
+  statusResponse: StatusResponse,
+): void {
+  const coverage = statusResponse.coverage_targets.find((target) =>
+    target.slug === importResponse.target
+  );
+  const failedRuns = statusResponse.latest_import_runs.filter((run) =>
+    run.status !== "completed" || run.error_count > 0
+  );
+
+  console.log("Community taxonomy import complete");
+  console.log(`target: ${importResponse.target}`);
+  console.log(`dry_run: ${importResponse.dry_run}`);
+  console.log(`start_offset: ${importResponse.start_offset}`);
+  console.log(`next_offset: ${importResponse.next_offset}`);
+  console.log(`fetched_count: ${importResponse.fetched_count}`);
+  console.log(`normalized_count: ${importResponse.normalized_count}`);
+  console.log(`imported_count: ${importResponse.imported_count}`);
+  console.log(`pages: ${importResponse.pages.length}`);
+
+  if (coverage) {
+    console.log(`indexed_species_count: ${coverage.indexed_species_count}`);
+    console.log(
+      `dictionary_species_count: ${coverage.dictionary_species_count}`,
+    );
+    console.log(`coverage_ratio: ${coverage.coverage_ratio}`);
+    console.log(`last_imported_offset: ${coverage.last_imported_offset}`);
+    console.log(`next_import_offset: ${coverage.next_import_offset}`);
+    console.log(`gbif_total_count: ${coverage.gbif_total_count ?? "unknown"}`);
+  }
+
+  if (failedRuns.length > 0) {
+    console.warn("Recent import failures detected:");
+    for (const run of failedRuns) {
+      console.warn(
+        `- ${run.requested_query}: status=${run.status} error_count=${run.error_count}`,
+      );
+    }
+  }
+}
+
+async function updateChecklist(
+  importResponse: ImportResponse,
+  statusResponse: StatusResponse,
+): Promise<void> {
+  const checklistPath =
+    "docs/backend-and-data/07-community-taxonomy-import-checklist.md";
+  let text = await Deno.readTextFile(checklistPath);
+  const coverage = statusResponse.coverage_targets.find((target) =>
+    target.slug === importResponse.target
+  );
+  if (!coverage) {
+    throw new Error(`No coverage target found for ${importResponse.target}`);
+  }
+  if (importResponse.pages.length === 0) {
+    throw new Error("No import pages returned; checklist was not updated.");
+  }
+
+  const importedOffsets = importResponse.pages.map((page) =>
+    `\`${page.offset}\``
+  )
+    .join(", ");
+  const currentOffsets = [
+    ...new Set([
+      ...extractImportedOffsets(text),
+      ...importResponse.pages.map((page) => page.offset),
+    ]),
+  ].sort((a, b) => a - b);
+  const offsetsLabel = currentOffsets.map((offset) => `\`${offset}\``).join(
+    ", ",
+  );
+
+  text = text.replace(
+    /Last updated: \d{4}-\d{2}-\d{2}/,
+    `Last updated: ${new Date().toISOString().slice(0, 10)}`,
+  );
+  text = text.replace(
+    /Last verified remote status: .+\./,
+    `Last verified remote status: ${
+      new Date().toISOString().slice(0, 10)
+    } after ${
+      capitalize(importResponse.target)
+    } offset ${importResponse.start_offset}.`,
+  );
+  text = text.replace(
+    /\| Birds \(`Aves`\) \| `212`\s+\| .* \|/,
+    `| Birds (\`Aves\`) | \`212\`     | ${offsetsLabel} |         \`${coverage.last_imported_offset}\` |       \`${coverage.next_import_offset}\` |           \`${coverage.indexed_species_count}\` |               \`${coverage.dictionary_species_count}\` | \`${coverage.coverage_ratio}\` |`,
+  );
+
+  const completedRows = importResponse.pages.map((page) =>
+    `| ${
+      new Date().toISOString().slice(0, 10)
+    } | Birds  |  \`${page.offset}\` | \`${page.limit}\` |       \`${page.normalized_count}\` |     \`${page.imported_count}\` | \`gbif_bounded_birds\` | Complete, \`error_count = 0\` |`
+  ).join("\n");
+  text = text.replace(
+    /(## Next Import Batches)/,
+    `${completedRows}\n\n$1`,
+  );
+
+  const nextOffsets = [
+    coverage.next_import_offset,
+    coverage.next_import_offset + importResponse.pages[0].limit,
+    coverage.next_import_offset + importResponse.pages[0].limit * 2,
+  ];
+  text = text.replace(
+    /## Next Import Batches\n\n(?:- \[ \] Birds offset `\d+`, limit `\d+`\.\n){1,3}/,
+    `## Next Import Batches\n\n${
+      nextOffsets.map((offset) =>
+        `- [ ] Birds offset \`${offset}\`, limit \`${
+          importResponse.pages[0].limit
+        }\`.`
+      ).join("\n")
+    }\n`,
+  );
+  text = text.replace(
+    /--data '\{"target":"birds"(?:,"offset":\d+)?,"limit":\d+,"page_count":1\}'/,
+    `--data '{"target":"birds","limit":${
+      importResponse.pages[0].limit
+    },"page_count":1}'`,
+  );
+
+  await Deno.writeTextFile(checklistPath, text);
+  console.log(`updated_checklist: ${checklistPath}`);
+  console.log(`recorded_offsets: ${importedOffsets}`);
+}
+
+function extractImportedOffsets(text: string): number[] {
+  const match = text.match(/\| Birds \(`Aves`\) \| `212`\s+\| ([^|]+) \|/);
+  if (!match) return [];
+  return Array.from(match[1].matchAll(/`(\d+)`/g)).map((entry) =>
+    Number(entry[1])
+  );
+}
+
+function parseArgs(rawArgs: string[]): ImportArgs {
+  const values = new Map<string, string | boolean>();
+  for (let index = 0; index < rawArgs.length; index += 1) {
+    const arg = rawArgs[index];
+    if (!arg.startsWith("--")) continue;
+    const [key, inlineValue] = arg.slice(2).split("=", 2);
+    if (inlineValue !== undefined) {
+      values.set(key, inlineValue);
+    } else if (rawArgs[index + 1] && !rawArgs[index + 1].startsWith("--")) {
+      values.set(key, rawArgs[index + 1]);
+      index += 1;
+    } else {
+      values.set(key, true);
+    }
+  }
+
+  const target = String(values.get("target") ?? "birds").toLowerCase();
+  if (target !== "birds") throw new Error("Only --target birds is supported.");
+
+  return {
+    target: "birds",
+    offset: parseOptionalInteger(values.get("offset"), "--offset"),
+    limit: parseInteger(values.get("limit") ?? "100", "--limit", 1, 200),
+    pageCount: parseInteger(
+      values.get("page-count") ?? values.get("page_count") ?? "3",
+      "--page-count",
+      1,
+      5,
+    ),
+    dryRun: values.has("dry-run") || values.has("dry_run"),
+    retry: values.has("retry"),
+    updateChecklist: values.has("update-checklist") ||
+      values.has("update_checklist"),
+  };
+}
+
+function parseOptionalInteger(
+  value: string | boolean | undefined,
+  label: string,
+): number | null {
+  if (value === undefined || value === false) return null;
+  return parseInteger(value, label, 0, Number.MAX_SAFE_INTEGER);
+}
+
+function parseInteger(
+  value: string | boolean,
+  label: string,
+  min: number,
+  max: number,
+): number {
+  if (typeof value !== "string" || !/^\d+$/.test(value)) {
+    throw new Error(`${label} must be an integer.`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${label} must be from ${min} to ${max}.`);
+  }
+  return parsed;
+}
+
+function requiredEnv(name: string): string {
+  const value = Deno.env.get(name);
+  if (!value) throw new Error(`Missing required env ${name}.`);
+  return value;
+}
+
+function capitalize(value: string): string {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
+}

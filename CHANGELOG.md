@@ -47,6 +47,9 @@ TestFlight, App Store, support, and QA.
 - Added a bounded GBIF Birds import worker so Merian can seed Community ID
   suggestions and future Dictionary coverage metrics without mirroring all of
   GBIF.
+- Added safer Community Taxonomy import operations with database cursor
+  tracking, lightweight coverage status checks, an operator script, and
+  production deploy smoke checks.
 - Added smarter dog and cat scan labels so pet results can show a likely breed,
   mix, coat pattern, or body type while keeping Merian's species taxonomy
   unchanged.

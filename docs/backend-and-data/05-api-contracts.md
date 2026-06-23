@@ -293,16 +293,24 @@ Optional body:
   "offset": 0,
   "limit": 50,
   "page_count": 1,
-  "dry_run": false
+  "dry_run": false,
+  "refresh_coverage": true,
+  "retry": false
 }
 ```
 
-`limit` is capped at `200`, `page_count` is capped at `5`, and callers continue
-by passing the previous response's `next_offset`. Each successful page calls
-`upsert_gbif_community_taxa(...)`, annotates the created `taxonomy_import_runs`
-row as `scope = "gbif_bounded_birds"`, and refreshes coverage through the
-existing RPC side effect. `dry_run = true` fetches and normalizes the GBIF page
-without writing taxonomy rows.
+`limit` is capped at `200` and `page_count` is capped at `5`. If `offset` is
+omitted, the worker continues from
+`taxonomy_coverage_targets.next_import_offset`; explicit offsets remain
+available for manual recovery. `retry = true` with no explicit offset replays
+the last failed offset when present, otherwise the last successfully imported
+page offset. Each successful page calls `upsert_gbif_community_taxa(...)`,
+annotates the created `taxonomy_import_runs` row as
+`scope = "gbif_bounded_birds"`, and suppresses per-page coverage recomputation.
+After the run imports at least one row, the worker refreshes coverage once when
+`refresh_coverage = true`, then updates the target cursor fields.
+`dry_run = true` fetches and normalizes the GBIF page without writing taxonomy
+rows or advancing the cursor.
 
 ### `/process-community-consensus-jobs`
 
@@ -3588,12 +3596,18 @@ All fields are optional:
 ```json
 {
   "import_run_limit": 10,
-  "job_limit": 10
+  "job_limit": 10,
+  "view": "full",
+  "target": "birds"
 }
 ```
 
 Both limits must be integers from `1` to `50`. `failure_limit` is accepted as a
-backward-compatible alias for `job_limit`.
+backward-compatible alias for `job_limit`. `view = "full"` returns the full
+taxonomy/enrichment health snapshot. `view = "coverage"` skips expensive active
+taxonomy count queries and returns only bounded import runs plus coverage target
+cursor state. `target = "birds"` filters the coverage view to the Birds import
+scope.
 
 ### Response Payload
 
@@ -3601,6 +3615,7 @@ backward-compatible alias for `job_limit`.
 {
   "success": true,
   "generated_at": "2026-06-22T00:00:00.000Z",
+  "view": "full",
   "active_taxonomy": {
     "id": "taxonomy-version-id",
     "status": "active",
@@ -3631,7 +3646,12 @@ backward-compatible alias for `job_limit`.
       "display_name": "Birds",
       "indexed_species_count": 1000,
       "dictionary_species_count": 600,
-      "coverage_ratio": 0.6
+      "coverage_ratio": 0.6,
+      "last_imported_offset": 950,
+      "next_import_offset": 1000,
+      "last_successful_import_at": "2026-06-23T00:00:00.000Z",
+      "last_import_error": null,
+      "gbif_total_count": 14641
     }
   ]
 }
@@ -3639,7 +3659,9 @@ backward-compatible alias for `job_limit`.
 
 The endpoint does not refresh coverage, claim jobs, cache GBIF taxa, materialize
 Dictionary rows, or attach scan media. It only reports the current database
-state available to the service role.
+state available to the service role. Import operators and deploy smoke checks
+should use `view = "coverage"` unless they explicitly need source/rank counts
+or enrichment queue health.
 
 ---
 

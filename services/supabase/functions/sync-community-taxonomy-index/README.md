@@ -38,18 +38,25 @@ Body fields are optional:
 {
   "target": "birds",
   "offset": 0,
-  "limit": 50,
+  "limit": 100,
   "page_count": 1,
-  "dry_run": false
+  "dry_run": false,
+  "refresh_coverage": true,
+  "retry": false
 }
 ```
 
 Limits:
 
 - `target`: only `birds` in v1
-- `offset`: non-negative integer
+- `offset`: optional non-negative integer; omitted means continue from the
+  target's stored `next_import_offset`
 - `limit`: `1...200`
 - `page_count`: `1...5`
+- `refresh_coverage`: defaults to `true`; recomputes coverage once after the
+  run, not after every page
+- `retry`: defaults to `false`; when `true` and `offset` is omitted, replays the
+  last failed offset or most recent successful page offset
 
 ## Behavior
 
@@ -59,11 +66,13 @@ Each page calls:
 
 The worker normalizes GBIF rows into Merian's community taxon payload, calls
 `upsert_gbif_community_taxa(...)`, then annotates the created import run as
-`scope = "gbif_bounded_birds"` with page metadata. The existing RPC refreshes
-taxonomy coverage targets after each successful page.
+`scope = "gbif_bounded_birds"` with page metadata. Each page suppresses the
+expensive coverage refresh; after a successful run, the worker refreshes
+coverage once and updates `taxonomy_coverage_targets.last_imported_offset` plus
+`next_import_offset`.
 
 Use `dry_run: true` to verify the GBIF page and response shape without writing
-taxonomy rows.
+taxonomy rows or advancing the cursor.
 
 ## Response
 
@@ -73,6 +82,9 @@ taxonomy rows.
   "target": "birds",
   "root_gbif_taxon_key": 212,
   "dry_run": false,
+  "retry": false,
+  "refresh_coverage": true,
+  "start_offset": 0,
   "imported_count": 50,
   "fetched_count": 50,
   "normalized_count": 50,
@@ -94,31 +106,47 @@ taxonomy rows.
 }
 ```
 
-Call the endpoint again with `offset = next_offset` to continue the import.
+Call the endpoint again without `offset` to continue from the stored cursor, or
+with `offset = next_offset` for explicit manual control.
 
 ## Manual Runbook
 
 Run this worker manually after the current migrations and Edge Functions are
 deployed.
 
-1. Dry-run the first page:
+Preferred local operator path:
 
 ```bash
-curl -sS \
-  -X POST "$SUPABASE_URL/functions/v1/sync-community-taxonomy-index" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-  -H "Content-Type: application/json" \
-  --data '{"target":"birds","offset":0,"limit":50,"page_count":1,"dry_run":true}'
+SUPABASE_URL="https://qlarqavoqhkuwzmevrmf.supabase.co" \
+SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+deno run --allow-net --allow-env --allow-read --allow-write \
+  services/supabase/scripts/import_community_taxonomy.ts \
+  --target birds --limit 100 --page-count 3 --update-checklist
 ```
 
-2. Import the first page:
+Use `--dry-run` to verify the next cursor without writing, `--offset <n>` for
+manual recovery, and `--retry` to replay the last failed or completed page.
+
+Raw Edge Function fallback:
+
+1. Dry-run the next cursor:
 
 ```bash
 curl -sS \
   -X POST "$SUPABASE_URL/functions/v1/sync-community-taxonomy-index" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Content-Type: application/json" \
-  --data '{"target":"birds","offset":0,"limit":50,"page_count":1}'
+  --data '{"target":"birds","limit":100,"page_count":1,"dry_run":true}'
+```
+
+2. Import from the stored cursor:
+
+```bash
+curl -sS \
+  -X POST "$SUPABASE_URL/functions/v1/sync-community-taxonomy-index" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{"target":"birds","limit":100,"page_count":1}'
 ```
 
 3. Check status:
@@ -128,19 +156,19 @@ curl -sS \
   -X POST "$SUPABASE_URL/functions/v1/community-taxonomy-status" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Content-Type: application/json" \
-  --data '{"import_run_limit":10,"job_limit":10}'
+  --data '{"view":"coverage","target":"birds","import_run_limit":10,"job_limit":1}'
 ```
 
-4. Continue with the next batch using the previous response's `next_offset`:
+4. Continue with an explicit offset only when recovering manually:
 
 ```bash
 curl -sS \
   -X POST "$SUPABASE_URL/functions/v1/sync-community-taxonomy-index" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Content-Type: application/json" \
-  --data '{"target":"birds","offset":50,"limit":50,"page_count":1}'
+  --data '{"target":"birds","offset":150,"limit":100,"page_count":1}'
 ```
 
-Keep early rollout batches to one page at a time. Increase `page_count` only
-after status checks show expected `gbif_bounded_birds` import runs and coverage
-counts.
+Keep rollout batches at `page_count = 1...3` until status checks remain stable.
+Increase `page_count` only after `gbif_bounded_birds` import runs, coverage
+counts, and `next_import_offset` advance as expected.

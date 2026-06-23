@@ -61,6 +61,8 @@ Deno.serve(async (req: Request) => {
       event: "community_taxonomy_status_complete",
       import_run_limit: parsedRequest.request.importRunLimit,
       job_limit: parsedRequest.request.jobLimit,
+      view: parsedRequest.request.view,
+      target: parsedRequest.request.target,
       active_taxonomy_id: status.active_taxonomy?.id ?? null,
       queued_job_groups: status.enrichment_jobs.counts.length,
       coverage_targets: status.coverage_targets.length,

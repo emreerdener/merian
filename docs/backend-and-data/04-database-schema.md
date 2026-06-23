@@ -256,7 +256,10 @@ uses the same bridge for bounded GBIF imports, starting with
 `gbif_bounded_birds` pages under GBIF taxon key `212` (`Aves`). The service-role
 `community-taxonomy-status` endpoint reports the active taxonomy row, node
 counts by source/rank, GBIF-only taxon counts, recent import runs, enrichment
-queue health, and coverage targets without mutating taxonomy data.
+queue health, and coverage targets without mutating taxonomy data. For import
+operations, its lightweight `view = coverage` mode reads only recent bounded
+import runs and coverage target rows so operators do not need to run the full
+taxonomy count query after every page.
 
 ### `explore_community_requests`
 
@@ -600,12 +603,22 @@ Bounded taxonomy-completeness targets for future gamification. Added in
 - `indexed_species_count`, `dictionary_species_count`, `coverage_ratio`:
   Coverage metric where enriched Dictionary species are compared with indexed
   GBIF species in the target scope.
+- `last_imported_offset`: Most recent GBIF page offset that successfully wrote
+  rows for the target.
+- `next_import_offset`: Machine cursor used by `sync-community-taxonomy-index`
+  when `offset` is omitted. This is the preferred continuation pointer for
+  operator scripts and cron.
+- `last_successful_import_at`, `last_import_error`, `gbif_total_count`,
+  `import_cursor_metadata`: Bounded-import health and cursor diagnostics,
+  including the last GBIF count reported for the target and retry metadata.
 - `last_computed_at`: Freshness marker for
   `refresh_taxonomy_coverage_targets()`.
 
 The Birds target is populated by bounded `sync-community-taxonomy-index` imports
-and recomputed by `refresh_taxonomy_coverage_targets()` after successful GBIF
-upsert pages. Do not show gamified completion claims until the target's
+and recomputed by `refresh_taxonomy_coverage_targets()` after each successful
+worker run, not after every page. Individual GBIF upsert pages pass
+`refresh_coverage = false` so larger batches do not repeatedly recompute the
+same coverage counts. Do not show gamified completion claims until the target's
 `indexed_species_count` has been seeded from the bounded import.
 
 ### `scans`

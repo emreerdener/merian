@@ -4,10 +4,12 @@ import { parseCommunityTaxonomyIndexSyncRequest } from "./db.ts";
 Deno.test("community taxonomy index sync - parses defaults and aliases", () => {
   const defaultResult = parseCommunityTaxonomyIndexSyncRequest({});
   assertEquals(defaultResult.request?.target.slug, "birds");
-  assertEquals(defaultResult.request?.offset, 0);
+  assertEquals(defaultResult.request?.offset, null);
   assertEquals(defaultResult.request?.limit, 50);
   assertEquals(defaultResult.request?.pageCount, 1);
   assertEquals(defaultResult.request?.dryRun, false);
+  assertEquals(defaultResult.request?.refreshCoverage, true);
+  assertEquals(defaultResult.request?.retry, false);
 
   const customResult = parseCommunityTaxonomyIndexSyncRequest({
     scope: "birds",
@@ -15,12 +17,16 @@ Deno.test("community taxonomy index sync - parses defaults and aliases", () => {
     page_limit: 100,
     pages: 3,
     dry_run: true,
+    refresh_coverage: false,
+    retry: true,
   });
   assertEquals(customResult.request?.target.rootGbifTaxonKey, 212);
   assertEquals(customResult.request?.offset, 200);
   assertEquals(customResult.request?.limit, 100);
   assertEquals(customResult.request?.pageCount, 3);
   assertEquals(customResult.request?.dryRun, true);
+  assertEquals(customResult.request?.refreshCoverage, false);
+  assertEquals(customResult.request?.retry, true);
 });
 
 Deno.test("community taxonomy index sync - rejects unsafe inputs", () => {
@@ -42,6 +48,17 @@ Deno.test("community taxonomy index sync - rejects unsafe inputs", () => {
   });
   assertEquals(parseCommunityTaxonomyIndexSyncRequest({ dry_run: "yes" }), {
     error: "dry_run must be a boolean.",
+    status: 400,
+  });
+  assertEquals(
+    parseCommunityTaxonomyIndexSyncRequest({ refresh_coverage: "no" }),
+    {
+      error: "refresh_coverage must be a boolean.",
+      status: 400,
+    },
+  );
+  assertEquals(parseCommunityTaxonomyIndexSyncRequest({ retry: "yes" }), {
+    error: "retry must be a boolean.",
     status: 400,
   });
 });
