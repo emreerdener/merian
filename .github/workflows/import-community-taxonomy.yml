@@ -1,6 +1,9 @@
 name: Import Community Taxonomy
 
 on:
+  schedule:
+    # Weekly Monday import at 09:20 UTC / 04:20 America/Chicago during CDT.
+    - cron: "20 9 * * 1"
   workflow_dispatch:
     inputs:
       target:
@@ -46,7 +49,7 @@ on:
         type: boolean
 
 concurrency:
-  group: community-taxonomy-import-${{ inputs.target }}
+  group: community-taxonomy-import-${{ inputs.target || 'birds' }}
   cancel-in-progress: false
 
 permissions:
@@ -102,26 +105,39 @@ jobs:
       - name: Run Community Taxonomy import
         env:
           SUPABASE_URL: https://${{ env.PROJECT_ID }}.supabase.co
+          INPUT_TARGET: ${{ inputs.target }}
+          INPUT_LIMIT: ${{ inputs.limit }}
+          INPUT_PAGE_COUNT: ${{ inputs.page_count }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_RETRY: ${{ inputs.retry }}
+          INPUT_UPDATE_CHECKLIST: ${{ inputs.update_checklist }}
         run: |
+          target="${INPUT_TARGET:-birds}"
+          limit="${INPUT_LIMIT:-100}"
+          page_count="${INPUT_PAGE_COUNT:-5}"
+          dry_run="${INPUT_DRY_RUN:-false}"
+          retry="${INPUT_RETRY:-false}"
+          update_checklist="${INPUT_UPDATE_CHECKLIST:-true}"
+
           summary_json="${RUNNER_TEMP}/community-taxonomy-import-summary.json"
           summary_md="${RUNNER_TEMP}/community-taxonomy-import-summary.md"
           args=(
-            --target "${{ inputs.target }}"
-            --limit "${{ inputs.limit }}"
-            --page-count "${{ inputs.page_count }}"
+            --target "$target"
+            --limit "$limit"
+            --page-count "$page_count"
             --summary-json "$summary_json"
             --summary-md "$summary_md"
           )
 
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
+          if [ "$dry_run" = "true" ]; then
             args+=(--dry-run)
           fi
 
-          if [ "${{ inputs.retry }}" = "true" ]; then
+          if [ "$retry" = "true" ]; then
             args+=(--retry)
           fi
 
-          if [ "${{ inputs.dry_run }}" != "true" ] && [ "${{ inputs.update_checklist }}" = "true" ]; then
+          if [ "$dry_run" != "true" ] && [ "$update_checklist" = "true" ]; then
             args+=(--update-checklist)
           fi
 
@@ -142,7 +158,7 @@ jobs:
           retention-days: 30
 
       - name: Commit checklist update
-        if: ${{ inputs.dry_run != true && inputs.update_checklist == true }}
+        if: ${{ github.event_name == 'schedule' || (inputs.dry_run != true && inputs.update_checklist == true) }}
         run: |
           if git diff --quiet -- docs/backend-and-data/07-community-taxonomy-import-checklist.md; then
             echo "Checklist already up to date."

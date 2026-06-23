@@ -22,6 +22,9 @@ Last updated: 2026-06-23
   intentionally updating this checklist from a trusted local environment.
 - Keep batches bounded. `limit = 100`, `page_count = 1...5` is the normal
   post-smoke path; use smaller batches when recovering from failures.
+- The **Import Community Taxonomy** workflow runs weekly on Mondays at
+  `09:20 UTC` with `page_count = 5`, `dry_run = false`, and
+  `update_checklist = true`.
 - Do not show gamified coverage claims until a target has a meaningful imported
   denominator and the product wording explains that it is based on the indexed
   target scope.
@@ -117,6 +120,8 @@ After importing:
       Edge Function deployment.
 - [x] Add import workflow summaries and optional checklist auto-commit so real
       imports can record completed batches without local credential handling.
+- [x] Schedule weekly bounded Birds imports now that manual `page_count = 3`
+      runs have succeeded.
 - [ ] Add more coverage targets only after Birds import behavior is stable.
 
 ## Commands
@@ -131,6 +136,8 @@ Preferred GitHub Actions path:
 5. For routine imports after a clean prior run, set `dry_run = false`.
 6. Leave `update_checklist = true` so the workflow commits the completed-batch
    ledger.
+7. Prefer the scheduled Monday run for routine progress; use manual dispatch for
+   recovery, dry runs, or intentionally pulling a batch forward.
 
 Preferred operator command:
 

@@ -78,6 +78,22 @@ Use the manual GitHub Actions dispatch first:
 This keeps deploy logs, validation, migration push, and function deployment in
 one auditable place.
 
+## Taxonomy Import Automation
+
+The **Import Community Taxonomy** workflow runs automatically every Monday at
+`09:20 UTC` (`04:20 America/Chicago` during daylight saving time). Scheduled
+runs use:
+
+- `target`: `birds`
+- `limit`: `100`
+- `page_count`: `5`
+- `dry_run`: `false`
+- `retry`: `false`
+- `update_checklist`: `true`
+
+The scheduled job uploads JSON/Markdown summary artifacts, writes a GitHub job
+summary, and commits the running checklist when a real import changes it.
+
 ## Manual Taxonomy Import
 
 Use **Actions > Import Community Taxonomy > Run workflow** when the deployed
