@@ -24,6 +24,11 @@ The workflow performs the following steps:
 8. Smoke-tests the Community Taxonomy status endpoint and a dry-run bounded GBIF
    import with the production service-role credential.
 
+Actual GBIF taxonomy imports are intentionally separated into
+`.github/workflows/import-community-taxonomy.yml`. The deploy workflow only
+smoke-tests a dry run; it does not write taxonomy rows or advance import
+cursors.
+
 Deploying all configured functions is intentional. Shared modules such as
 `functions/_shared/aws.ts`, `functions/_shared/mediaBudgets.ts`, and
 `functions/_shared/concurrency.ts` are bundled into each dependent Edge
@@ -71,6 +76,25 @@ Use the manual GitHub Actions dispatch first:
 
 This keeps deploy logs, validation, migration push, and function deployment in
 one auditable place.
+
+## Manual Taxonomy Import
+
+Use **Actions > Import Community Taxonomy > Run workflow** when the deployed
+Community Taxonomy endpoints are healthy and the next bounded GBIF batch should
+be imported.
+
+Recommended first production run after a deploy:
+
+- `target`: `birds`
+- `limit`: `100`
+- `page_count`: `1`
+- `dry_run`: `true`
+- `retry`: `false`
+
+If that passes, run the same workflow again with `dry_run = false`. The workflow
+uses the production `SUPABASE_SERVICE_ROLE_KEY` secret and constructs
+`https://qlarqavoqhkuwzmevrmf.supabase.co` from the project ref, so operators do
+not need to paste service-role credentials locally.
 
 ## Local Emergency Fallback
 

@@ -1,0 +1,88 @@
+name: Import Community Taxonomy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Taxonomy target to import.
+        required: true
+        default: birds
+        type: choice
+        options:
+          - birds
+      limit:
+        description: Rows per GBIF page.
+        required: true
+        default: "100"
+        type: choice
+        options:
+          - "50"
+          - "100"
+          - "200"
+      page_count:
+        description: Number of pages to import in this run.
+        required: true
+        default: "1"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "3"
+      dry_run:
+        description: Fetch and validate without writing taxonomy rows.
+        required: true
+        default: true
+        type: boolean
+      retry:
+        description: Replay the last failed or most recent page when no offset is provided.
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: community-taxonomy-import-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    environment: Production
+
+    env:
+      PROJECT_ID: qlarqavoqhkuwzmevrmf
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v2.x
+
+      - name: Validate import secrets
+        run: |
+          : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY GitHub secret}"
+
+      - name: Run Community Taxonomy import
+        env:
+          SUPABASE_URL: https://${{ env.PROJECT_ID }}.supabase.co
+        run: |
+          args=(
+            --target "${{ inputs.target }}"
+            --limit "${{ inputs.limit }}"
+            --page-count "${{ inputs.page_count }}"
+          )
+
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args+=(--dry-run)
+          fi
+
+          if [ "${{ inputs.retry }}" = "true" ]; then
+            args+=(--retry)
+          fi
+
+          deno run --allow-net --allow-env \
+            services/supabase/scripts/import_community_taxonomy.ts \
+            "${args[@]}"

@@ -14,8 +14,12 @@ Last updated: 2026-06-23
 - Materialize Dictionary rows only through explicit triggers such as
   owner-published Community ID consensus, scan confirmation, Dictionary
   navigation, or curation.
-- Prefer the operator script for imports so the database cursor, lightweight
-  status check, and checklist update stay in sync.
+- Prefer the **Import Community Taxonomy** GitHub Actions workflow for
+  production imports. It uses the existing production service-role secret and
+  constructs the Supabase URL from the project ref, so no local key or URL
+  export is required.
+- Use the local operator script only when GitHub Actions is unavailable or when
+  intentionally updating this checklist from a trusted local environment.
 - Keep batches bounded. `limit = 100`, `page_count = 1...3` is the normal
   post-smoke path; use smaller batches when recovering from failures.
 - Do not show gamified coverage claims until a target has a meaningful imported
@@ -62,11 +66,14 @@ Before importing:
 - [ ] Confirm the latest migrations are deployed.
 - [ ] Confirm `sync-community-taxonomy-index` and `community-taxonomy-status`
       are deployed.
-- [ ] Run a dry run for the next cursor through the operator script.
+- [ ] Run the **Import Community Taxonomy** GitHub Actions workflow with
+      `dry_run = true`.
 - [ ] Confirm the latest completed import run and coverage target values.
 
 During each import:
 
+- [ ] Run the **Import Community Taxonomy** GitHub Actions workflow with
+      `dry_run = false`.
 - [ ] Import a bounded batch: `target = birds`, `limit = 100`,
       `page_count = 1...3`.
 - [ ] Record the response's `normalized_count`, `imported_count`,
@@ -104,6 +111,14 @@ After importing:
 - [ ] Add more coverage targets only after Birds import behavior is stable.
 
 ## Commands
+
+Preferred GitHub Actions path:
+
+1. Open GitHub Actions.
+2. Select **Import Community Taxonomy**.
+3. Click **Run workflow**.
+4. Leave `dry_run = true` for the first check.
+5. If the dry run passes, run again with `dry_run = false`.
 
 Preferred operator command:
 
