@@ -135,6 +135,7 @@ struct ExploreView: View {
                         region: region
                     )
                     .toolbar(.hidden, for: .tabBar)
+                    .toolbar {}
                 case .group(let title, let group):
                     SpeciesDictionaryCatalogView(
                         isSearchEnabled: false,
@@ -145,14 +146,17 @@ struct ExploreView: View {
                         group: group
                     )
                     .toolbar(.hidden, for: .tabBar)
+                    .toolbar {}
                 case .taxonomy:
                     TaxonomyTreeCanvasView(showsNavigationTitle: true) { speciesRoute in
                         navigationPath.append(speciesRoute)
                     }
                     .toolbar(.hidden, for: .tabBar)
+                    .toolbar {}
                 case .regions:
                     SpeciesDictionaryRegionsView(userRegion: dictionaryUserRegionIdentifier)
                         .toolbar(.hidden, for: .tabBar)
+                        .toolbar {}
                 }
             }
             .navigationDestination(for: ExploreHashtagRoute.self) { route in
@@ -162,6 +166,7 @@ struct ExploreView: View {
                     allowsInsightPresentation: allowsInsightPresentation
                 )
                 .toolbar(.hidden, for: .tabBar)
+                .toolbar {}
             }
             .navigationDestination(for: ExploreCommunityRequestRoute.self) { route in
                 ExploreCommunityIdentificationDetailView(requestId: route.requestId)
@@ -301,22 +306,18 @@ struct ExploreView: View {
             }
         }
 
-        if shouldShowRootModePicker {
-            ToolbarItem(placement: .principal) {
-                ExploreRootModePicker(
-                    activeTab: activeTab,
-                    activeDiscoveryMode: $activeDiscoveryMode,
-                    activeDictionaryMode: $activeDictionaryMode,
-                    activeCommunityMode: $activeCommunityMode
-                )
-            }
+        ToolbarItem(placement: .principal) {
+            ExploreRootModePicker(
+                activeTab: activeTab,
+                activeDiscoveryMode: $activeDiscoveryMode,
+                activeDictionaryMode: $activeDictionaryMode,
+                activeCommunityMode: $activeCommunityMode
+            )
         }
 
-        if navigationPath.isEmpty {
-            ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 0) {
-                    bellButton
-                }
+        ToolbarItem(placement: .topBarTrailing) {
+            HStack(spacing: 0) {
+                bellButton
             }
         }
     }

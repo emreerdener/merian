@@ -580,6 +580,7 @@ private struct CommunityIdentificationGridCardSkeleton: View {
 
 struct ExploreCommunityIdentificationDetailView: View {
     let requestId: String
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var detail: CommunityIdentificationDetail?
     @State private var isLoading = true
@@ -718,6 +719,18 @@ struct ExploreCommunityIdentificationDetailView: View {
                         Text(note)
                             .font(.body)
                             .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(
+                        colorScheme == .light
+                            ? Color(red: 0.95, green: 0.96, blue: 0.98)
+                            : Color(uiColor: .secondarySystemGroupedBackground)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
                     }
                     .padding(.horizontal, 16)
                 }
@@ -1049,7 +1062,7 @@ private struct CommunityAIIdentificationCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
                 Label(modelLabel, systemImage: "sparkle")
-                    .font(.caption.weight(.semibold))
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .labelStyle(.titleAndIcon)
 
@@ -1057,7 +1070,7 @@ private struct CommunityAIIdentificationCard: View {
 
                 if let confidenceLabel {
                     Text(confidenceLabel)
-                        .font(.caption.weight(.semibold))
+                        .font(.subheadline)
                         .foregroundStyle(.primary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
@@ -1315,6 +1328,7 @@ private struct CommunityTaxonomySearchSheet: View {
         } label: {
             CommunityTaxonSearchRow(result: result)
         }
+        .buttonStyle(.plain)
     }
 
     private func search() async {
@@ -1402,23 +1416,29 @@ private struct CommunityDisagreementResolverSheet: View {
                 Spacer()
 
                 VStack(spacing: 10) {
-                    Button(primaryTitle) {
+                    Button {
                         onSubmit(primaryMode, submittedReasoning, isGenusBestPossible)
                         dismiss()
+                    } label: {
+                        Text(primaryTitle)
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .frame(maxWidth: .infinity)
                     .disabled(isSubmitting)
 
                     if context.relationship == .ancestor {
-                        Button("I don't think it's \(context.currentName)") {
+                        Button {
                             onSubmit(.explicitDisagreement, submittedReasoning, isGenusBestPossible)
                             dismiss()
+                        } label: {
+                            Text("I don't think it's \(context.currentName)")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.large)
-                        .frame(maxWidth: .infinity)
                         .disabled(isSubmitting)
                     }
                 }
