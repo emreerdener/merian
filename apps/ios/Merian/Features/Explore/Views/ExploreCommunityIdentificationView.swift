@@ -111,6 +111,7 @@ struct ExploreCommunityIdentificationView: View {
     @State private var errorMessage: String?
     @AppStorage(UserDefaultsKeys.hasDismissedIdentifyRequestsBanner) private var hasDismissedRequestsBanner = false
     @AppStorage(UserDefaultsKeys.hasDismissedIdentifyActivityBanner) private var hasDismissedActivityBanner = false
+    @State private var isFeedbackPresented = false
 
     private let pageSize = 30
     private let columns = [
@@ -154,6 +155,9 @@ struct ExploreCommunityIdentificationView: View {
             guard items.contains(where: { $0.requestId == requestId }) else { return }
             Task { await refresh() }
         }
+        .sheet(isPresented: $isFeedbackPresented) {
+            CommunityFeedbackSheet()
+        }
     }
 
     private var requestsContent: some View {
@@ -175,6 +179,8 @@ struct ExploreCommunityIdentificationView: View {
                     }
                 }
                 .padding(.top, 18)
+
+                feedbackFooterSection
             }
             .padding(.bottom, 18)
         }
@@ -195,6 +201,8 @@ struct ExploreCommunityIdentificationView: View {
                 )
                 .padding(.horizontal, 16)
                 .padding(.top, 72)
+
+                feedbackFooterSection
             }
             .padding(.bottom, 18)
         }
@@ -211,6 +219,32 @@ struct ExploreCommunityIdentificationView: View {
             .padding(.horizontal, 16)
             .padding(.top, 8)
         }
+    }
+
+    private var feedbackFooterSection: some View {
+        Button {
+            HapticManager.shared.triggerSelectionPulse()
+            isFeedbackPresented = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "bubble.left.and.bubble.right")
+                Text("Give feedback")
+                    .fontWeight(.medium)
+            }
+            .font(.subheadline)
+            .foregroundStyle(Color.accentColor)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 99, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.24), lineWidth: 1.5)
+                    .background(Color.accentColor.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.top, 18)
+        .padding(.bottom, 12)
     }
 
     private var requestFilterBar: some View {

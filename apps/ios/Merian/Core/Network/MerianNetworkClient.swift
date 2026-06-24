@@ -2109,6 +2109,13 @@ final class MerianNetworkClient {
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
     }
 
+    func submitCommunityFeedback(feedback: String) async throws {
+        let submission = CommunityFeedbackSubmission(feedback: feedback)
+        let functionUrl = try endpointURL("submit-community-feedback")
+        let bodyData = try JSONEncoder().encode(submission)
+        _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+    }
+
     // MARK: - Moderation
 
     func submitFlagIssue(scanId: String, flagReason: String, userSuggestion: String, userId: String) async throws {
