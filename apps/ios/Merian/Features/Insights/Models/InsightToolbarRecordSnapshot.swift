@@ -17,6 +17,7 @@ struct InsightToolbarRecordSnapshot: Equatable {
     let confirmedSpeciesId: String?
     let imageCount: Int
     let isExploreShareEligible: Bool
+    let isHumanSubject: Bool
 
     init(record: LocalScanRecord) {
         self.scanId = record.id
@@ -35,5 +36,6 @@ struct InsightToolbarRecordSnapshot: Equatable {
         self.confirmedSpeciesId = record.confirmedSpeciesId
         self.imageCount = record.capturedMediaSnapshot.imagePaths.count
         self.isExploreShareEligible = record.isExploreShareEligible
+        self.isHumanSubject = record.isHumanSubject
     }
 }

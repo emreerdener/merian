@@ -4,6 +4,7 @@ import {
   assertEquals,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import {
+  canonicalizeDomesticPetScientificName,
   sanitizePetIdentification,
   sanitizeScientificName,
 } from "./sanitize.ts";
@@ -750,6 +751,33 @@ Deno.test("sanitize — leading and trailing whitespace collapsed", () => {
   assertEquals(sanitizeScientificName("  Quercus  robur  "), "Quercus robur");
 });
 
+Deno.test("sanitize — domestic pet scientific synonyms canonicalized", () => {
+  assertEquals(
+    canonicalizeDomesticPetScientificName(
+      sanitizeScientificName("Canis familiaris"),
+      { species_group: "dog" },
+      "Domestic Dog",
+    ),
+    "Canis lupus familiaris",
+  );
+  assertEquals(
+    canonicalizeDomesticPetScientificName(
+      sanitizeScientificName("Felis silvestris catus"),
+      { species_group: "cat" },
+      "Domestic Cat",
+    ),
+    "Felis catus",
+  );
+  assertEquals(
+    canonicalizeDomesticPetScientificName(
+      sanitizeScientificName("Canis lupus"),
+      { species_group: "dog" },
+      "Gray Wolf",
+    ),
+    "Canis lupus",
+  );
+});
+
 Deno.test("sanitize pet identification — keeps confident dog breed labels", () => {
   assertEquals(
     sanitizePetIdentification(
@@ -777,6 +805,47 @@ Deno.test("sanitize pet identification — keeps confident dog breed labels", ()
         "compact herding-dog build",
         "broad head",
       ],
+    },
+  );
+});
+
+Deno.test("sanitize pet identification — keeps labels for domestic scientific synonyms", () => {
+  assertEquals(
+    sanitizePetIdentification(
+      {
+        species_group: "dog",
+        label: "Border Collie Mix",
+        label_type: "breed_mix",
+        confidence_score: 0.82,
+        evidence: ["black and white coat"],
+      },
+      "Canis familiaris",
+    ),
+    {
+      species_group: "dog",
+      label: "Border Collie Mix",
+      label_type: "breed_mix",
+      confidence_score: 0.82,
+      evidence: ["black and white coat"],
+    },
+  );
+  assertEquals(
+    sanitizePetIdentification(
+      {
+        species_group: "cat",
+        label: "Tuxedo",
+        label_type: "coat_pattern",
+        confidence_score: 0.78,
+        evidence: ["black and white coat"],
+      },
+      "Felis silvestris catus",
+    ),
+    {
+      species_group: "cat",
+      label: "Tuxedo",
+      label_type: "coat_pattern",
+      confidence_score: 0.78,
+      evidence: ["black and white coat"],
     },
   );
 });

@@ -39,6 +39,7 @@ import {
   CachedSpeciesRow,
   ClientPayload,
   MerianIdentification,
+  Payload,
 } from "../_shared/identify/types.ts";
 import {
   getMerianResponseSchema,
@@ -58,6 +59,7 @@ import {
   readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
 import {
+  canonicalizeDomesticPetScientificName,
   sanitizePetIdentification,
   sanitizeScientificName,
 } from "./sanitize.ts";
@@ -70,7 +72,6 @@ import {
   upsertSpeciesDictionary,
 } from "../_shared/identify/db.ts";
 import { hydratePayloadFromCachedSpecies } from "../_shared/identify/clientPayload.ts";
-
 
 // Safety settings shared by all vision model tiers.
 // Biological photography legitimately triggers Gemini's medium-sensitivity defaults:
@@ -143,7 +144,11 @@ Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
     const bodyReadResult = await readRequestJsonWithinBudget<
-      Record<string, any>
+      Payload & {
+        description?: string;
+        mimeType?: string;
+        observation_context?: Record<string, unknown> | null;
+      }
     >(
       req,
       MEDIA_BUDGETS.maxIdentifyJsonBodyBytes,
@@ -157,7 +162,10 @@ Deno.serve((req: Request) =>
 
     const body = bodyReadResult.value;
 
-    const paramError = requireParams(body, ["user_id"]);
+    const paramError = requireParams(
+      body as unknown as Record<string, unknown>,
+      ["user_id"],
+    );
     if (paramError) return paramError;
 
     const {
@@ -437,6 +445,11 @@ Deno.serve((req: Request) =>
     if (parsedData.scientific_name) {
       parsedData.scientific_name = sanitizeScientificName(
         parsedData.scientific_name,
+      );
+      parsedData.scientific_name = canonicalizeDomesticPetScientificName(
+        parsedData.scientific_name,
+        parsedData.pet_identification,
+        parsedData.common_name,
       );
     }
     if (Array.isArray(parsedData.candidates)) {

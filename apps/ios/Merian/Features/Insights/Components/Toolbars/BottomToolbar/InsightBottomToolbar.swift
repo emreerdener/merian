@@ -33,53 +33,56 @@ struct InsightBottomToolbar: ToolbarContent {
         if showBottomBarTools, let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
             ToolbarItemGroup(placement: .bottomBar) {
                 let publicLocationLabel = visiblePublicLocationLabel(from: speciesData.locationName)
+                let isHuman = speciesData.isHumanSubject || (recordSnapshot?.isHumanSubject ?? false)
 
-                InsightShareButton(
-                    shareExternally: shareExternally,
-                    onShareToExplore: onShareToExplore,
-                    onEditExplorePost: onEditExplorePost,
-                    onAskCommunity: onAskCommunity,
-                    onEditCommunityRequest: onEditCommunityRequest,
-                    isSharingToExplore: isSharingToExplore,
-                    isUpdatingExplorePostContent: isUpdatingExplorePostContent,
-                    isUpdatingExploreFieldNotes: isUpdatingExploreFieldNotes,
-                    speciesName: displaySpeciesName,
-                    scientificName: speciesData.scientificName,
-                    commonNameOptions: commonNameOptions,
-                    initialSelectedCommonName: displaySpeciesName,
-                    heroImageUrl: recordSnapshot?.coverImagePath ?? inferenceEngine.activeMedia.imagePathsForUpload.first,
-                    publicLocationLabel: publicLocationLabel,
-                    fieldNotesPreview: fieldNotesPreview,
-                    hashtagSuggestionContext: ExploreHashtagSuggestionContext(
+                if !isHuman {
+                    InsightShareButton(
+                        shareExternally: shareExternally,
+                        onShareToExplore: onShareToExplore,
+                        onEditExplorePost: onEditExplorePost,
+                        onAskCommunity: onAskCommunity,
+                        onEditCommunityRequest: onEditCommunityRequest,
+                        isSharingToExplore: isSharingToExplore,
+                        isUpdatingExplorePostContent: isUpdatingExplorePostContent,
+                        isUpdatingExploreFieldNotes: isUpdatingExploreFieldNotes,
                         speciesName: displaySpeciesName,
                         scientificName: speciesData.scientificName,
+                        commonNameOptions: commonNameOptions,
+                        initialSelectedCommonName: displaySpeciesName,
+                        heroImageUrl: recordSnapshot?.coverImagePath ?? inferenceEngine.activeMedia.imagePathsForUpload.first,
                         publicLocationLabel: publicLocationLabel,
-                        fieldNotes: fieldNotesPreview,
-                        ecologyType: speciesData.ecologyType,
-                        taxonomyKingdom: speciesData.taxonomy?.kingdom ?? recordSnapshot?.taxonomyKingdom,
-                        taxonomyClass: speciesData.taxonomy?.className ?? recordSnapshot?.taxonomyClass,
-                        taxonomyOrder: speciesData.taxonomy?.order ?? recordSnapshot?.taxonomyOrder,
-                        taxonomyFamily: speciesData.taxonomy?.family ?? recordSnapshot?.taxonomyFamily,
-                        habitatDescription: speciesData.habitatDescription ?? recordSnapshot?.habitatDescription,
-                        weatherCondition: speciesData.weatherCondition ?? recordSnapshot?.weatherCondition,
-                        colors: speciesData.colors ?? [],
-                        groupTags: speciesData.groupTags ?? [],
-                        semanticTags: recordSnapshot?.semanticTags ?? [],
-                        isInvasive: speciesData.isInvasive,
-                        imageQualityScore: speciesData.imageQualityScore ?? recordSnapshot?.imageQualityScore,
-                        lifeStage: speciesData.lifeStage,
-                        reproductiveCondition: speciesData.reproductiveCondition,
-                        ecologicalInteractions: speciesData.ecologicalInteractions ?? []
-                    ),
-                    sharedExploreHashtags: sharedExploreHashtags,
-                    sharedExplorePostId: sharedExplorePostId,
-                    shareRecommendation: shareRecommendation,
-                    initialLocationSharing: sharedExploreLocationSharing ?? defaultLocationSharing,
-                    fieldNotesArePublicOnExplore: fieldNotesArePublicOnExplore,
-                    onViewInExplore: onViewInExplore,
-                    onViewCommunityRequest: onViewCommunityRequest,
-                    onUpdateFieldNotesVisibility: onUpdateFieldNotesVisibility
-                )
+                        fieldNotesPreview: fieldNotesPreview,
+                        hashtagSuggestionContext: ExploreHashtagSuggestionContext(
+                            speciesName: displaySpeciesName,
+                            scientificName: speciesData.scientificName,
+                            publicLocationLabel: publicLocationLabel,
+                            fieldNotes: fieldNotesPreview,
+                            ecologyType: speciesData.ecologyType,
+                            taxonomyKingdom: speciesData.taxonomy?.kingdom ?? recordSnapshot?.taxonomyKingdom,
+                            taxonomyClass: speciesData.taxonomy?.className ?? recordSnapshot?.taxonomyClass,
+                            taxonomyOrder: speciesData.taxonomy?.order ?? recordSnapshot?.taxonomyOrder,
+                            taxonomyFamily: speciesData.taxonomy?.family ?? recordSnapshot?.taxonomyFamily,
+                            habitatDescription: speciesData.habitatDescription ?? recordSnapshot?.habitatDescription,
+                            weatherCondition: speciesData.weatherCondition ?? recordSnapshot?.weatherCondition,
+                            colors: speciesData.colors ?? [],
+                            groupTags: speciesData.groupTags ?? [],
+                            semanticTags: recordSnapshot?.semanticTags ?? [],
+                            isInvasive: speciesData.isInvasive,
+                            imageQualityScore: speciesData.imageQualityScore ?? recordSnapshot?.imageQualityScore,
+                            lifeStage: speciesData.lifeStage,
+                            reproductiveCondition: speciesData.reproductiveCondition,
+                            ecologicalInteractions: speciesData.ecologicalInteractions ?? []
+                        ),
+                        sharedExploreHashtags: sharedExploreHashtags,
+                        sharedExplorePostId: sharedExplorePostId,
+                        shareRecommendation: shareRecommendation,
+                        initialLocationSharing: sharedExploreLocationSharing ?? defaultLocationSharing,
+                        fieldNotesArePublicOnExplore: fieldNotesArePublicOnExplore,
+                        onViewInExplore: onViewInExplore,
+                        onViewCommunityRequest: onViewCommunityRequest,
+                        onUpdateFieldNotesVisibility: onUpdateFieldNotesVisibility
+                    )
+                }
 
                 Spacer()
 

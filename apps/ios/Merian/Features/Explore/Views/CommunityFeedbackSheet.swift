@@ -54,60 +54,53 @@ struct CommunityFeedbackSheet: View {
     }
 
     private var formContent: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Help improve community identification")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Help improve community identification")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
 
-                        Text("What would make this section more helpful, clearer, or easier to use?")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("Share your thoughts, suggestions, or issues...", text: $feedbackText, axis: .vertical)
-                            .textFieldStyle(.plain)
-                            .font(.body)
-                            .lineLimit(6...12)
-                            .padding(16)
-                            .background(Color(uiColor: .secondarySystemGroupedBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-                            )
-
-                        HStack {
-                            Spacer()
-                            Text("\(feedbackText.count)/\(maxCharacterLimit)")
-                                .font(.caption2)
-                                .foregroundStyle(feedbackText.count > maxCharacterLimit ? .red : .secondary)
-                                .monospacedDigit()
-                        }
-                        .padding(.horizontal, 4)
-                    }
-                    .padding(.horizontal, 16)
+                    Text("What would make this section more helpful, clearer, or easier to use?")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
 
-            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("Share your thoughts, suggestions, or issues...", text: $feedbackText, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.body)
+                        .lineLimit(6...12)
+                        .padding(16)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                        )
+
+                    HStack {
+                        Spacer()
+                        Text("\(feedbackText.count)/\(maxCharacterLimit)")
+                            .font(.caption2)
+                            .foregroundStyle(feedbackText.count > maxCharacterLimit ? .red : .secondary)
+                            .monospacedDigit()
+                    }
+                    .padding(.horizontal, 4)
+                }
+                .padding(.horizontal, 16)
+
                 if let validationError {
                     Text(validationError)
                         .font(.footnote)
                         .foregroundStyle(.red)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
 
-                Divider()
                 Button(action: submitFeedback) {
                     HStack {
                         if isSubmitting {
@@ -124,8 +117,8 @@ struct CommunityFeedbackSheet: View {
                 .controlSize(.large)
                 .disabled(isSubmitting)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(.regularMaterial)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
         }
     }

@@ -326,7 +326,7 @@ enum SmartCollectionSuggester {
             candidates: decodedCandidates(from: scan.candidatesData),
             isBiological: scan.isBiological,
             isUnknownSubject: scan.scientificName == LocalScanRecord.unresolvedBiologicalScientificName,
-            isHumanSubject: scan.commonName.lowercased() == "human" || scan.scientificName.lowercased() == "homo sapiens",
+            isHumanSubject: scan.isHumanSubject,
             userIdentificationOverride: scan.userIdentificationOverride,
             userConfirmedIdentification: scan.userConfirmedIdentification,
             isFlagged: scan.isFlagged

@@ -161,6 +161,8 @@ extension InsightSheetViewModel {
 
     var canShareToExplore: Bool {
         guard queuedContext == nil else { return false }
+        if let speciesData = inferenceEngine?.speciesData, speciesData.isHumanSubject { return false }
+        if let snapshot = toolbarRecordSnapshot, snapshot.isHumanSubject { return false }
         return toolbarRecordSnapshot?.isExploreShareEligible == true &&
             inferenceEngine?.speciesData?.isBiological == true
     }

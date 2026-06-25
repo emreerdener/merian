@@ -57,6 +57,77 @@ export function sanitizeScientificName(name: string): string {
   return s.trim();
 }
 
+const domesticDogScientificNames = new Set([
+  "canis lupus familiaris",
+  "canis familiaris",
+  "canis familiaris domesticus",
+]);
+
+const domesticCatScientificNames = new Set([
+  "felis catus",
+  "felis silvestris catus",
+  "felis domesticus",
+  "felis catus domesticus",
+  "felis silvestris domesticus",
+]);
+
+const domesticDogCommonNames = new Set([
+  "dog",
+  "domestic dog",
+  "domesticated dog",
+]);
+
+const domesticCatCommonNames = new Set([
+  "cat",
+  "domestic cat",
+  "domesticated cat",
+  "house cat",
+]);
+
+function normalizedText(value: string | undefined): string {
+  return value?.trim().replace(/\s+/g, " ").toLowerCase() ?? "";
+}
+
+function petSpeciesGroup(value: unknown): "dog" | "cat" | null {
+  if (value == null || typeof value !== "object") return null;
+  const speciesGroup = (value as Record<string, unknown>).species_group;
+  if (speciesGroup === "dog" || speciesGroup === "cat") return speciesGroup;
+  return null;
+}
+
+export function canonicalizeDomesticPetScientificName(
+  scientificName: string,
+  petIdentification?: unknown,
+  commonName?: string,
+): string {
+  const normalized = normalizedText(scientificName);
+  if (domesticDogScientificNames.has(normalized)) {
+    return "Canis lupus familiaris";
+  }
+  if (domesticCatScientificNames.has(normalized)) {
+    return "Felis catus";
+  }
+
+  const group = petSpeciesGroup(petIdentification);
+  const normalizedCommon = normalizedText(commonName);
+  if (
+    normalized === "canis lupus" &&
+    group === "dog" &&
+    domesticDogCommonNames.has(normalizedCommon)
+  ) {
+    return "Canis lupus familiaris";
+  }
+  if (
+    normalized === "felis silvestris" &&
+    group === "cat" &&
+    domesticCatCommonNames.has(normalizedCommon)
+  ) {
+    return "Felis catus";
+  }
+
+  return scientificName;
+}
+
 // Removes trailing author citations from a name string that contains no cultivar.
 // Author strings start after the specific epithet with an uppercase letter or "(".
 // Rank markers (var., subsp., f.) and hybrid markers (×) are not author strings.
@@ -133,9 +204,9 @@ const allowedPetLabelTypes = new Set([
 function expectedPetGroup(
   scientificName: string | undefined,
 ): "dog" | "cat" | null {
-  const normalized = scientificName?.trim().toLowerCase();
-  if (normalized === "canis lupus familiaris") return "dog";
-  if (normalized === "felis catus") return "cat";
+  const normalized = normalizedText(scientificName);
+  if (domesticDogScientificNames.has(normalized)) return "dog";
+  if (domesticCatScientificNames.has(normalized)) return "cat";
   return null;
 }
 

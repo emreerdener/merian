@@ -62,7 +62,11 @@ import {
   getMerianResponseSchema,
   getSystemInstruction as getVisionSystemInstruction,
 } from "../_shared/identify/schema.ts";
-import { sanitizeScientificName } from "../identify/sanitize.ts";
+import {
+  canonicalizeDomesticPetScientificName,
+  sanitizePetIdentification,
+  sanitizeScientificName,
+} from "../identify/sanitize.ts";
 
 const BIOACOUSTIC_SYSTEM_INSTRUCTION = `# Role
 You are a world-class bioacoustic field biologist with expertise in identifying species from their acoustic signatures across all taxa: birds, insects, frogs, mammals, and other wildlife.
@@ -380,7 +384,16 @@ Deno.serve((req: Request) =>
       parsedData.scientific_name = sanitizeScientificName(
         parsedData.scientific_name,
       );
+      parsedData.scientific_name = canonicalizeDomesticPetScientificName(
+        parsedData.scientific_name,
+        parsedData.pet_identification,
+        parsedData.common_name,
+      );
     }
+    parsedData.pet_identification = sanitizePetIdentification(
+      parsedData.pet_identification,
+      parsedData.scientific_name,
+    );
     if (Array.isArray(parsedData.candidates)) {
       parsedData.candidates = parsedData.candidates
         .map((candidate) => ({
@@ -498,6 +511,7 @@ Deno.serve((req: Request) =>
       inference_tier: inferenceTier,
       candidates: parsedData.candidates,
       image_quality: parsedData.image_quality,
+      pet_identification: parsedData.pet_identification,
       ai_reasoning: parsedData.ai_reasoning,
       insight_data: {
         ai_reasoning: parsedData.ai_reasoning,
@@ -726,6 +740,7 @@ Deno.serve((req: Request) =>
             image_quality_score: parsedData.image_quality?.overall_score ??
               null,
             is_live_capture: parsedData.is_live_capture,
+            pet_identification: parsedData.pet_identification ?? null,
             user_observation_context: persistedObservationContext ?? null,
           },
           supabaseAdmin,

@@ -28,7 +28,11 @@ import {
   MerianIdentification,
   StaticSpeciesData,
 } from "../_shared/identify/types.ts";
-import { sanitizeScientificName } from "../identify/sanitize.ts";
+import {
+  canonicalizeDomesticPetScientificName,
+  sanitizePetIdentification,
+  sanitizeScientificName,
+} from "../identify/sanitize.ts";
 
 import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
 import {
@@ -257,7 +261,16 @@ Deno.serve((req: Request) =>
       parsedData.scientific_name = sanitizeScientificName(
         parsedData.scientific_name,
       );
+      parsedData.scientific_name = canonicalizeDomesticPetScientificName(
+        parsedData.scientific_name,
+        parsedData.pet_identification,
+        parsedData.common_name,
+      );
     }
+    parsedData.pet_identification = sanitizePetIdentification(
+      parsedData.pet_identification,
+      parsedData.scientific_name,
+    );
     if (Array.isArray(parsedData.candidates)) {
       parsedData.candidates = parsedData.candidates
         .map((c) => ({
@@ -527,6 +540,7 @@ Deno.serve((req: Request) =>
             ecological_interactions: [],
             inference_tier: userTier === "pro" ? "pro" : "flash",
             candidates: payloadReadyForClient.candidates ?? null,
+            pet_identification: parsedData.pet_identification ?? null,
             image_quality_score: null,
             is_live_capture: false,
             user_observation_context: (observation_context != null &&

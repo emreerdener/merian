@@ -274,6 +274,10 @@ extension LocalScanRecord {
         hasResolvedBiologicalIdentification
     }
 
+    var isHumanSubject: Bool {
+        commonName.lowercased() == "human" || scientificName.lowercased() == "homo sapiens"
+    }
+
     private static func isResolvedBiologicalName(_ value: String) -> Bool {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !normalized.isEmpty else { return false }

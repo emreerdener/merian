@@ -2,6 +2,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1
 import type {
   CachedSpeciesRow,
   IdentificationCandidate,
+  PetIdentification,
 } from "../_shared/identify/types.ts";
 
 // Re-export from identify/db.ts where the logic is identical.
@@ -68,6 +69,7 @@ export interface DescribeScanInsertRow {
   ecological_interactions: string[];
   inference_tier: string;
   candidates?: IdentificationCandidate[] | null;
+  pet_identification?: PetIdentification | null;
   /** Always null for describes — no image to score. */
   image_quality_score?: number | null;
   /** Always false for describes. */
