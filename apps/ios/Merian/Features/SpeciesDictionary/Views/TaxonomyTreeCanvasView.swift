@@ -103,7 +103,6 @@ struct TaxonomyTreeCanvasView: View {
                         viewModel.selectTreeScope(scope)
                     }
                 )
-                .padding(.top, 8)
 
                 if viewModel.isLoading {
                     ProgressView()
@@ -185,7 +184,6 @@ struct TaxonomyTreeCanvasView: View {
                     viewModel.selectTreeScope(scope)
                 }
             )
-            .padding(.top, 8)
         }
     }
 
