@@ -16,6 +16,7 @@ struct InsightContentView: View {
     private let overlapRadius: CGFloat = 32
     private let imageSize: CGFloat = UIScreen.main.bounds.width
     @State private var isObservationSheetPresented = false
+    @State private var fullscreenGalleryPresentation: InsightImageGalleryPresentation?
     private var presentationQueuedScan: QueuedScanContext? {
         viewModel.queuedContext ?? (viewModel.activeLocalRecord == nil ? queuedScan : nil)
     }
@@ -48,7 +49,10 @@ struct InsightContentView: View {
                             guard activeQueuedContext == nil else { return }
                             inferenceEngine.dropInvalidCarouselImage(path)
                         },
-                        onDescriptionTap: { isObservationSheetPresented = true }
+                        onDescriptionTap: { isObservationSheetPresented = true },
+                        onVisualImageTap: { presentation in
+                            fullscreenGalleryPresentation = presentation
+                        }
                     )
                         .frame(width: imageSize, height: scrollY > 0 ? imageSize + scrollY + bleedBuffer : imageSize + bleedBuffer)
                         .offset(y: scrollY > 0 ? -(scrollY + bleedBuffer) : -bleedBuffer)
@@ -162,6 +166,9 @@ struct InsightContentView: View {
             if let context = viewModel.observationContext {
                 InsightDescriptionSheet(text: context.freeText)
             }
+        }
+        .fullScreenCover(item: $fullscreenGalleryPresentation) { presentation in
+            InsightFullscreenImageCarousel(presentation: presentation)
         }
     }
 }

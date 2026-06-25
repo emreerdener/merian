@@ -2,6 +2,25 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-25-insight-image-viewer",
+      "date": "2026-06-25",
+      "title": "Insight image viewer",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Insight images now open into a full-screen, fit-centered carousel with swipe navigation, zoom, and reference attribution."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Explore Index Catalog scrolling now keeps the grouped gray background behind the full page instead of ending partway down the catalog."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-21-explore-tree-orientation",
       "date": "2026-06-21",
       "title": "Explore Tree orientation",
@@ -13,7 +32,7 @@
             "Newly materialized Dictionary species can now hydrate habitat, lookalikes, and group tags in the background.",
             "Merian's Community ID taxonomy and enrichment systems now have stronger backend monitoring for rollout health.",
             "Merian can now safely seed bird taxonomy coverage in the background for future Dictionary completeness progress.",
-            "Smart Collection cards for Explore posts and places now use varied matching scan covers instead of always reusing the newest scan thumbnail.",
+            "Smart Collection cards now use varied matching scan covers, except Recent finds, instead of always reusing the newest scan thumbnail.",
             "Dog and cat scans can now show a likely breed, mix, coat pattern, or body type while Merian keeps the underlying species taxonomy unchanged.",
             "The main camera tab bar now matches the Explore bottom navigation icon size, label size, and item spacing.",
             "Identify requests now have organism filters for Plants, Birds, Insects, Fungi, Mammals, and Herps while keeping Yours near the start of the filter row.",

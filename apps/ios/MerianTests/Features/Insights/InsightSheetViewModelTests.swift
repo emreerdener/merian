@@ -763,4 +763,105 @@ struct InsightSheetViewModelTests {
         #expect(withReferencePages.map(\.id) == ["audio-\(audioPath)", "reference-https://example.com/field-sparrow.jpg"])
         #expect(NativePageCarousel.Coordinator.requiresDataSourceReset(previousPages: audioOnlyPages, nextPages: withReferencePages))
     }
+
+    @Test func testInsightImageGalleryIncludesOnlyVisualLoadedPages() {
+        let liveImageData = Data([1, 2, 3])
+        let imagePath = "documents/original.webp"
+        let media = ActiveScanMedia(
+            items: [
+                .audio("documents/audio.wav"),
+                .liveImage(liveImageData),
+                .description(ObservationContext(freeText: "A perched bird")),
+                .image(imagePath)
+            ],
+            referenceState: .loaded([
+                "https://media.merian.app/reference.webp",
+                "https://upload.wikimedia.org/species.jpg",
+                "https://static.inaturalist.org/photos/1/original.jpg"
+            ])
+        )
+
+        let items = InsightImageGalleryBuilder.buildItems(
+            for: media,
+            referenceWikipediaUrl: "https://en.wikipedia.org/wiki/Test_species"
+        )
+
+        #expect(items.map(\.id) == [
+            "liveImage-\(liveImageData.hashValue)",
+            "image-\(imagePath)",
+            "reference-https://media.merian.app/reference.webp",
+            "reference-https://upload.wikimedia.org/species.jpg",
+            "reference-https://static.inaturalist.org/photos/1/original.jpg"
+        ])
+        #expect(items.map(\.referenceAttributionLabel) == [nil, nil, "Merian", "Wikipedia", "GBIF"])
+    }
+
+    @Test func testInsightImageGalleryExcludesReferenceLoadingPlaceholder() {
+        let media = ActiveScanMedia(
+            items: [.audio("documents/audio.wav")],
+            referenceState: .loading
+        )
+
+        let items = InsightImageGalleryBuilder.buildItems(
+            for: media,
+            referenceWikipediaUrl: nil
+        )
+
+        #expect(items.isEmpty)
+    }
+
+    @Test func testInsightImageGalleryPresentationMapsSelectedVisualPage() {
+        let media = ActiveScanMedia(
+            items: [
+                .audio("documents/audio.wav"),
+                .image("documents/first.webp"),
+                .description(ObservationContext(freeText: "Wing bars")),
+                .image("documents/second.webp")
+            ],
+            referenceState: .loaded(["https://example.com/reference.jpg"])
+        )
+
+        let presentation = InsightImageGalleryBuilder.presentation(
+            for: media,
+            referenceWikipediaUrl: nil,
+            selectedCarouselPageID: "image-documents/second.webp"
+        )
+
+        #expect(presentation?.items.map(\.id) == [
+            "image-documents/first.webp",
+            "image-documents/second.webp",
+            "reference-https://example.com/reference.jpg"
+        ])
+        #expect(presentation?.initialSelectedIndex == 1)
+    }
+
+    @Test func testInsightImageGalleryPresentationIgnoresNonVisualPages() {
+        let media = ActiveScanMedia(
+            items: [
+                .audio("documents/audio.wav"),
+                .description(ObservationContext(freeText: "Heard nearby"))
+            ],
+            referenceState: .loaded(["https://example.com/reference.jpg"])
+        )
+
+        let audioPresentation = InsightImageGalleryBuilder.presentation(
+            for: media,
+            referenceWikipediaUrl: nil,
+            selectedCarouselPageID: "audio-documents/audio.wav"
+        )
+        let descriptionPresentation = InsightImageGalleryBuilder.presentation(
+            for: media,
+            referenceWikipediaUrl: nil,
+            selectedCarouselPageID: "description-\(ObservationContext(freeText: "Heard nearby").serialized())"
+        )
+        let referencePresentation = InsightImageGalleryBuilder.presentation(
+            for: media,
+            referenceWikipediaUrl: nil,
+            selectedCarouselPageID: "reference-https://example.com/reference.jpg"
+        )
+
+        #expect(audioPresentation == nil)
+        #expect(descriptionPresentation == nil)
+        #expect(referencePresentation?.initialSelectedIndex == 0)
+    }
 }

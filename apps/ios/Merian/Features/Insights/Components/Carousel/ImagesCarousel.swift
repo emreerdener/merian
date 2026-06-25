@@ -72,6 +72,90 @@ struct CarouselPageBuilder {
     }
 }
 
+struct InsightImageGalleryItem: Identifiable, Equatable {
+    enum Source: Equatable {
+        case liveImage(Data)
+        case imagePath(String)
+        case referenceURL(String)
+    }
+
+    let id: String
+    let source: Source
+    let referenceAttributionLabel: String?
+}
+
+struct InsightImageGalleryPresentation: Identifiable, Equatable {
+    let id: String
+    let items: [InsightImageGalleryItem]
+    let initialSelectedIndex: Int
+
+    init(items: [InsightImageGalleryItem], initialSelectedIndex: Int) {
+        self.items = items
+        self.initialSelectedIndex = initialSelectedIndex
+        self.id = "\(items.map(\.id).joined(separator: "|"))#\(initialSelectedIndex)"
+    }
+}
+
+struct InsightImageGalleryBuilder {
+    static func buildItems(
+        for activeMedia: ActiveScanMedia,
+        referenceWikipediaUrl: String?
+    ) -> [InsightImageGalleryItem] {
+        var items: [InsightImageGalleryItem] = []
+
+        for item in activeMedia.items {
+            switch item {
+            case .liveImage(let data):
+                items.append(InsightImageGalleryItem(
+                    id: "liveImage-\(data.hashValue)",
+                    source: .liveImage(data),
+                    referenceAttributionLabel: nil
+                ))
+            case .image(let path):
+                items.append(InsightImageGalleryItem(
+                    id: "image-\(path)",
+                    source: .imagePath(path),
+                    referenceAttributionLabel: nil
+                ))
+            case .audio, .description:
+                break
+            }
+        }
+
+        if case .loaded(let urls) = activeMedia.referenceState {
+            for (index, urlString) in urls.enumerated() {
+                let source = CarouselReferenceImageSource.source(
+                    for: urlString,
+                    wikipediaUrl: referenceWikipediaUrl,
+                    index: index
+                )
+                items.append(InsightImageGalleryItem(
+                    id: "reference-\(urlString)",
+                    source: .referenceURL(urlString),
+                    referenceAttributionLabel: source.label
+                ))
+            }
+        }
+
+        return items
+    }
+
+    static func presentation(
+        for activeMedia: ActiveScanMedia,
+        referenceWikipediaUrl: String?,
+        selectedCarouselPageID: String?
+    ) -> InsightImageGalleryPresentation? {
+        guard let selectedCarouselPageID else { return nil }
+
+        let items = buildItems(for: activeMedia, referenceWikipediaUrl: referenceWikipediaUrl)
+        guard let selectedIndex = items.firstIndex(where: { $0.id == selectedCarouselPageID }) else {
+            return nil
+        }
+
+        return InsightImageGalleryPresentation(items: items, initialSelectedIndex: selectedIndex)
+    }
+}
+
 enum CarouselMediaKind {
     case visual
     case audio
@@ -155,6 +239,9 @@ struct ImagesCarousel: View {
     
     /// Triggers exclusively when tapping the interactive textual subcomponent.
     let onDescriptionTap: (() -> Void)?
+    /// Triggers when the currently selected carousel page is an image page that
+    /// can be represented in the full-screen visual gallery.
+    let onVisualImageTap: ((InsightImageGalleryPresentation) -> Void)?
 
     // MARK: - State
     @State private var selectedIndex: Int = 0
@@ -185,6 +272,12 @@ struct ImagesCarousel: View {
                                 .transition(.opacity)
                         }
                     }
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(
+                        TapGesture().onEnded {
+                            handleVisualImageTap()
+                        }
+                    )
             } else {
                 Color.black
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -213,6 +306,17 @@ struct ImagesCarousel: View {
     }
 
     // MARK: - Action Handlers
+    private func handleVisualImageTap() {
+        let selectedPageID = carouselPages[safe: selectedIndex]?.id
+        guard let presentation = InsightImageGalleryBuilder.presentation(
+            for: activeMedia,
+            referenceWikipediaUrl: referenceWikipediaUrl,
+            selectedCarouselPageID: selectedPageID
+        ) else { return }
+
+        onVisualImageTap?(presentation)
+    }
+
     private func handleImageFailure(identifier: String) {
         if activeMedia.totalItems > 1 {
             onImageFailure(identifier)

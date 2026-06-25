@@ -301,10 +301,10 @@ enum SmartCollectionSuggester {
         from sortedScans: [LocalScanRecord]
     ) -> LocalScanRecord? {
         switch rule {
-        case .shared, .location:
-            return stableRandomScan(from: sortedScans, seed: normalize(title))
-        default:
+        case .recentFinds:
             return sortedScans.first
+        default:
+            return stableRandomScan(from: sortedScans, seed: normalize(title))
         }
     }
 

@@ -8,6 +8,8 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Fixed Explore Index Catalog scrolling so the grouped gray background fills
+  the full page instead of ending partway down the catalog.
 - Fixed resolved Ask the Community publishing so owner-approved species
   consensus now confirms the scan species, creates a minimal Dictionary record
   for new GBIF-backed taxa, and makes eligible media available for species
@@ -34,6 +36,8 @@ TestFlight, App Store, support, and QA.
 
 ### Added
 
+- Added a full-screen Insight image viewer so tapping a scan image opens a
+  fit-centered, swipeable carousel with zoom and reference attribution.
 - Added an Explore Tree scope filter so the Tree defaults to All species and
   can be toggled to My scans for a personal scanned-species taxonomy.
 - Added guest profile customization: guests can now choose a public profile
@@ -126,8 +130,8 @@ TestFlight, App Store, support, and QA.
 
 ### Changed
 
-- Smart Collection cards for Explore posts and places now use varied matching
-  scan covers instead of always reusing the newest scan thumbnail.
+- Smart Collection cards now use varied matching scan covers, except Recent
+  finds, instead of always reusing the newest scan thumbnail.
 - Reordered Profile so identity and stats lead the page, followed by published
   scans, the non-Pro plan card, persona progress, the scan heatmap, and
   achievements.

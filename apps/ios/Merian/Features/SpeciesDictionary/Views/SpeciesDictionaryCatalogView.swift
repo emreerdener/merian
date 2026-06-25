@@ -57,17 +57,23 @@ struct SpeciesDictionaryCatalogView: View {
     }
 
     var body: some View {
-        Group {
-            if isLoadingInitial && items.isEmpty {
-                loadingState
-            } else if let errorMessage, items.isEmpty {
-                errorState(message: errorMessage)
-            } else if items.isEmpty {
-                emptyState
-            } else {
-                catalogList
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+
+            Group {
+                if isLoadingInitial && items.isEmpty {
+                    loadingState
+                } else if let errorMessage, items.isEmpty {
+                    errorState(message: errorMessage)
+                } else if items.isEmpty {
+                    emptyState
+                } else {
+                    catalogList
+                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
         .modifier(SpeciesDictionaryCatalogTitleModifier(title: navigationTitle, isEnabled: showsNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
@@ -216,17 +222,23 @@ struct SpeciesDictionaryOverviewView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        Group {
-            if isLoading && overview == nil {
-                loadingState
-            } else if let errorMessage, overview == nil {
-                errorState(message: errorMessage)
-            } else if let overview {
-                overviewContent(overview)
-            } else {
-                loadingState
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+
+            Group {
+                if isLoading && overview == nil {
+                    loadingState
+                } else if let errorMessage, overview == nil {
+                    errorState(message: errorMessage)
+                } else if let overview {
+                    overviewContent(overview)
+                } else {
+                    loadingState
+                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
         .task(id: userRegion ?? "") {
             await loadOverview()
@@ -1180,29 +1192,35 @@ struct SpeciesDictionaryRegionsView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        Group {
-            if isLoading && overview == nil {
-                regionLoadingState
-            } else if let errorMessage, overview == nil {
-                ContentUnavailableView {
-                    Label("Regions unavailable", systemImage: "exclamationmark.triangle")
-                } description: {
-                    Text(errorMessage)
-                } actions: {
-                    Button("Retry") {
-                        Task { await loadOverview() }
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+
+            Group {
+                if isLoading && overview == nil {
+                    regionLoadingState
+                } else if let errorMessage, overview == nil {
+                    ContentUnavailableView {
+                        Label("Regions unavailable", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text(errorMessage)
+                    } actions: {
+                        Button("Retry") {
+                            Task { await loadOverview() }
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
-                    .buttonStyle(.borderedProminent)
-                }
-            } else if let overview {
-                let visibleRegions = visibleRegions(in: overview)
-                if visibleRegions.isEmpty {
-                    emptyState
-                } else {
-                    regionList(visibleRegions)
+                } else if let overview {
+                    let visibleRegions = visibleRegions(in: overview)
+                    if visibleRegions.isEmpty {
+                        emptyState
+                    } else {
+                        regionList(visibleRegions)
+                    }
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Regions")
         .navigationBarTitleDisplayMode(.inline)

@@ -261,8 +261,8 @@ struct SmartCollectionTests {
         #expect(!suppressedSuggestions.map(\.title).contains("Explore posts"))
     }
 
-    @Test("Explore posts and location covers use stable randomized matching scans")
-    func testExploreAndLocationCoversUseStableRandomizedScans() throws {
+    @Test("Non-recent smart collection covers use stable randomized matching scans")
+    func testNonRecentCoversUseStableRandomizedScans() throws {
         let sharedScans = [
             try makeScan(id: "newest-shared", name: "Newest Shared Oak", timestamp: referenceDate),
             try makeScan(id: "older-shared", name: "Older Shared Oak", timestamp: referenceDate.addingTimeInterval(-10)),
@@ -295,6 +295,41 @@ struct SmartCollectionTests {
 
         #expect(locationSnapshot.scans.first?.id == "scan-a")
         #expect(locationSnapshot.coverScan?.id == "scan-b")
+
+        let plantScans = [
+            try makeScan(id: "newest-tax", name: "Newest Plant", taxonomyKingdom: "plantae", timestamp: referenceDate),
+            try makeScan(id: "older-tax", name: "Older Plant", taxonomyKingdom: "plantae", timestamp: referenceDate.addingTimeInterval(-10)),
+            try makeScan(id: "oldest-tax", name: "Oldest Plant", taxonomyKingdom: "plantae", timestamp: referenceDate.addingTimeInterval(-20))
+        ]
+        let taxonomySuggestions = SmartCollectionSuggester.suggestions(
+            from: plantScans,
+            existingCollections: [],
+            sharedPostIDProvider: { _ in nil },
+            referenceDate: referenceDate
+        )
+        let taxonomySnapshot = try #require(taxonomySuggestions.first { $0.title == "Plants" })
+
+        #expect(taxonomySnapshot.scans.first?.id == "newest-tax")
+        #expect(taxonomySnapshot.coverScan?.id == "older-tax")
+    }
+
+    @Test("Recent finds cover remains the newest matching scan")
+    func testRecentFindsCoverUsesNewestScan() throws {
+        let recentScans = [
+            try makeScan(id: "recent-newest", name: "Newest Recent", timestamp: referenceDate),
+            try makeScan(id: "recent-older", name: "Older Recent", timestamp: referenceDate.addingTimeInterval(-10)),
+            try makeScan(id: "recent-oldest", name: "Oldest Recent", timestamp: referenceDate.addingTimeInterval(-20))
+        ]
+        let suggestions = SmartCollectionSuggester.suggestions(
+            from: recentScans,
+            existingCollections: [],
+            sharedPostIDProvider: { _ in nil },
+            referenceDate: referenceDate
+        )
+        let recentSnapshot = try #require(suggestions.first { $0.title == "Recent finds" })
+
+        #expect(recentSnapshot.scans.first?.id == "recent-newest")
+        #expect(recentSnapshot.coverScan?.id == "recent-newest")
     }
 
     @Test("Hidden smart collection ids suppress suggestions until reset")
