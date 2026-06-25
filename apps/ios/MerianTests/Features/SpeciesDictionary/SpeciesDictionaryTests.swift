@@ -860,6 +860,33 @@ struct SpeciesDictionaryTests {
         #expect(viewModel.scale == 1.5)
     }
 
+    @Test func testTaxonomyTreeSupportsOverviewZoomOut() {
+        let viewModel = TaxonomyTreeCanvasViewModel()
+
+        viewModel.setScale(0.1)
+
+        #expect(viewModel.scale == 0.28)
+    }
+
+    @Test func testTaxonomyTreeCanCenterTopNodeAtInitialViewport() {
+        let viewModel = TaxonomyTreeCanvasViewModel()
+        viewModel.scale = 0.78
+        let rootID = "taxonomy:kingdom:animalia"
+        let rootPosition = CGPoint(x: 420, y: 100)
+        let viewportSize = CGSize(width: 390, height: 760)
+
+        viewModel.centerTop(
+            nodeID: rootID,
+            positions: [rootID: rootPosition],
+            viewportSize: viewportSize
+        )
+
+        let screenX = rootPosition.x * viewModel.scale + viewModel.offset.width
+        let screenY = rootPosition.y * viewModel.scale + viewModel.offset.height
+        #expect(abs(screenX - viewportSize.width / 2) < 0.001)
+        #expect(abs(screenY - 96) < 0.001)
+    }
+
     private static func taxonomyTreePayload() -> SpeciesDictionaryTreePayload {
         let taxonomy = SpeciesDictionaryTaxonomy(
             kingdom: "Animalia",

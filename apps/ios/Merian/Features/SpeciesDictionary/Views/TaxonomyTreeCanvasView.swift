@@ -89,13 +89,12 @@ struct TaxonomyTreeCanvasView: View {
 
                 if viewModel.breadcrumbText != nil {
                     TaxonomyTreeControlBar(
-                        breadcrumb: viewModel.breadcrumbText
+                        breadcrumb: viewModel.breadcrumbText,
+                        leadingInset: 30
                     )
-                    .frame(width: max(0, proxy.size.width - 28), alignment: .topLeading)
-                    .padding(.horizontal, 14)
+                    .frame(width: proxy.size.width, alignment: .topLeading)
                     .padding(.top, 12)
                     .padding(.bottom, 12)
-                    .frame(width: proxy.size.width, alignment: .topLeading)
                 }
 
                 if viewModel.isLoading {
@@ -122,7 +121,7 @@ struct TaxonomyTreeCanvasView: View {
                     },
                     onReset: {
                         withAnimation(.snappy(duration: 0.22)) {
-                            viewModel.resetView()
+                            viewModel.resetView(positions: layout.positions, viewportSize: proxy.size)
                         }
                     }
                 )
@@ -154,6 +153,15 @@ struct TaxonomyTreeCanvasView: View {
                 }
             }
             .simultaneousGesture(viewModel.magnificationGesture(in: proxy.size))
+            .onAppear {
+                viewModel.positionInitialViewportIfNeeded(positions: layout.positions, viewportSize: proxy.size)
+            }
+            .onChange(of: layout.positions) { _, positions in
+                viewModel.positionInitialViewportIfNeeded(positions: positions, viewportSize: proxy.size)
+            }
+            .onChange(of: proxy.size) { _, viewportSize in
+                viewModel.positionInitialViewportIfNeeded(positions: layout.positions, viewportSize: viewportSize)
+            }
         }
     }
 
@@ -201,10 +209,12 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     @Published var scale: CGFloat = 0.78
     @Published var baseScale: CGFloat = 0.78
 
-    private let minScale: CGFloat = 0.46
+    private let minScale: CGFloat = 0.28
     private let maxScale: CGFloat = 2.25
+    private let topRootViewportY: CGFloat = 96
     private var magnifyStartScale: CGFloat?
     private var magnifyStartOffset: CGSize = .zero
+    private var hasPositionedInitialViewport = false
 
     var selectedNode: TaxonomyTreeNode? {
         graph.node(id: selectedNodeID)
@@ -263,10 +273,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
                 }
 
                 let startScale = magnifyStartScale ?? scale
-                let anchor = CGPoint(
-                    x: value.startAnchor.x * viewportSize.width,
-                    y: value.startAnchor.y * viewportSize.height
-                )
+                let anchor = clampedAnchor(value.startLocation, in: viewportSize)
                 applyScale(
                     clampedScale(startScale * value.magnification),
                     anchoredAt: anchor,
@@ -289,6 +296,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         do {
             let response = try await MerianNetworkClient.shared.getSpeciesDictionaryTree()
             graph = TaxonomyTreeGraphBuilder.build(from: response.data)
+            hasPositionedInitialViewport = false
         } catch {
             errorMessage = ExploreErrorFormatter.message(for: error)
         }
@@ -311,13 +319,18 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         HapticManager.shared.triggerSelectionPulse()
     }
 
-    func resetView() {
+    func resetView(positions: [String: CGPoint]? = nil, viewportSize: CGSize? = nil) {
         selectedNodeID = nil
         focusedNodeID = nil
-        offset = .zero
         dragOffset = .zero
         scale = 0.78
         baseScale = scale
+        if let positions, let viewportSize, centerTopRoot(positions: positions, viewportSize: viewportSize) {
+            hasPositionedInitialViewport = true
+        } else {
+            offset = .zero
+            hasPositionedInitialViewport = false
+        }
     }
 
     func zoom(by multiplier: CGFloat, viewportSize: CGSize) {
@@ -355,6 +368,21 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
         dragOffset = .zero
     }
 
+    func centerTop(nodeID: String, positions: [String: CGPoint], viewportSize: CGSize) {
+        guard let position = positions[nodeID] else { return }
+        offset = CGSize(
+            width: viewportSize.width / 2 - position.x * scale,
+            height: topRootViewportY - position.y * scale
+        )
+        dragOffset = .zero
+    }
+
+    func positionInitialViewportIfNeeded(positions: [String: CGPoint], viewportSize: CGSize) {
+        guard !hasPositionedInitialViewport else { return }
+        guard centerTopRoot(positions: positions, viewportSize: viewportSize) else { return }
+        hasPositionedInitialViewport = true
+    }
+
     func visibleContentRect(in viewportSize: CGSize) -> CGRect {
         let offset = currentOffset
         return CGRect(
@@ -367,6 +395,22 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
 
     private func clampedScale(_ value: CGFloat) -> CGFloat {
         min(maxScale, max(minScale, value))
+    }
+
+    private func clampedAnchor(_ anchor: CGPoint, in viewportSize: CGSize) -> CGPoint {
+        CGPoint(
+            x: min(max(anchor.x, 0), max(viewportSize.width, 0)),
+            y: min(max(anchor.y, 0), max(viewportSize.height, 0))
+        )
+    }
+
+    @discardableResult
+    private func centerTopRoot(positions: [String: CGPoint], viewportSize: CGSize) -> Bool {
+        guard let rootNodeID = graph.rootNodeIDs.first, positions[rootNodeID] != nil else {
+            return false
+        }
+        centerTop(nodeID: rootNodeID, positions: positions, viewportSize: viewportSize)
+        return true
     }
 
     private func applyScale(
@@ -452,6 +496,7 @@ private struct TaxonomyTreeEdgesCanvas: View {
 
 private struct TaxonomyTreeControlBar: View {
     let breadcrumb: String?
+    let leadingInset: CGFloat
 
     var body: some View {
         if let breadcrumb {
@@ -461,11 +506,10 @@ private struct TaxonomyTreeControlBar: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
-                    .padding(.horizontal, 4)
+                    .padding(.leading, leadingInset)
+                    .padding(.trailing, 24)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .clipped()
-            .padding(.horizontal, 12)
             .padding(.vertical, 10)
         }
     }
@@ -485,77 +529,46 @@ private struct TaxonomyTreeFloatingControls: View {
         }
     }
 
+    @ViewBuilder
     private func controlButton(systemImage: String, action: @escaping () -> Void, label: String) -> some View {
-        Button {
-            HapticManager.shared.triggerLightImpact(intensity: 0.48)
-            action()
-        } label: {
-            Image(systemName: systemImage)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.primary)
-                .frame(width: 50, height: 50)
-                .background {
-                    TaxonomyTreeLiquidGlassButtonBackground()
-                }
+        if #available(iOS 26.0, *) {
+            Button {
+                HapticManager.shared.triggerLightImpact(intensity: 0.48)
+                action()
+            } label: {
+                controlIcon(systemImage)
+                    .frame(width: 50, height: 50)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .controlSize(.large)
+            .contentShape(Circle())
+            .accessibilityLabel(label)
+        } else {
+            Button {
+                HapticManager.shared.triggerLightImpact(intensity: 0.48)
+                action()
+            } label: {
+                controlIcon(systemImage)
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.3), radius: 1, y: 1)
+                    .circularMaterialControl(
+                        size: 50,
+                        material: .ultraThinMaterial,
+                        colorScheme: .dark,
+                        borderColor: .white.opacity(0.18),
+                        borderWidth: 0.75
+                    )
+            }
+            .buttonStyle(.plain)
+            .contentShape(Circle())
+            .accessibilityLabel(label)
         }
-        .buttonStyle(.plain)
-        .contentShape(Circle())
-        .accessibilityLabel(label)
     }
-}
 
-private struct TaxonomyTreeLiquidGlassButtonBackground: View {
-    var body: some View {
-        Circle()
-            .fill(.ultraThinMaterial)
-            .overlay {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.28),
-                                Color.white.opacity(0.08),
-                                Color.black.opacity(0.05)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .blendMode(.screen)
-            }
-            .overlay(alignment: .topLeading) {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                Color.white.opacity(0.55),
-                                Color.white.opacity(0.0)
-                            ],
-                            center: .topLeading,
-                            startRadius: 2,
-                            endRadius: 36
-                        )
-                    )
-                    .padding(4)
-                    .blendMode(.screen)
-            }
-            .overlay {
-                Circle()
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.72),
-                                Color.white.opacity(0.18),
-                                Color.white.opacity(0.38)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            }
-            .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
-            .shadow(color: .white.opacity(0.18), radius: 1, x: 0, y: -1)
+    private func controlIcon(_ systemImage: String) -> some View {
+        Image(systemName: systemImage)
+            .font(.title3.weight(.semibold))
     }
 }
 
