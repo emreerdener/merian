@@ -641,53 +641,37 @@ private struct TaxonomyTreeFloatingControls: View {
     let onReset: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             controlButton(systemImage: "plus.magnifyingglass", action: onZoomIn, label: "Zoom in")
             controlButton(systemImage: "minus.magnifyingglass", action: onZoomOut, label: "Zoom out")
             controlButton(systemImage: "scope", action: onReset, label: canClearFocus ? "Locate tree origin" : "Recenter tree")
         }
     }
 
-    @ViewBuilder
     private func controlButton(systemImage: String, action: @escaping () -> Void, label: String) -> some View {
-        if #available(iOS 26.0, *) {
-            Button {
-                HapticManager.shared.triggerLightImpact(intensity: 0.48)
-                action()
-            } label: {
-                controlIcon(systemImage)
-                    .frame(width: 50, height: 50)
-            }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .controlSize(.large)
-            .contentShape(Circle())
-            .accessibilityLabel(label)
-        } else {
-            Button {
-                HapticManager.shared.triggerLightImpact(intensity: 0.48)
-                action()
-            } label: {
-                controlIcon(systemImage)
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.3), radius: 1, y: 1)
-                    .circularMaterialControl(
-                        size: 50,
-                        material: .ultraThinMaterial,
-                        colorScheme: .dark,
-                        borderColor: .white.opacity(0.18),
-                        borderWidth: 0.75
-                    )
-            }
-            .buttonStyle(.plain)
-            .contentShape(Circle())
-            .accessibilityLabel(label)
+        Button {
+            HapticManager.shared.triggerLightImpact(intensity: 0.48)
+            action()
+        } label: {
+            controlIcon(systemImage)
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.3), radius: 1, y: 1)
+                .circularMaterialControl(
+                    size: 46,
+                    material: .ultraThinMaterial,
+                    colorScheme: .dark,
+                    borderColor: .white.opacity(0.18),
+                    borderWidth: 0.75
+                )
         }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .accessibilityLabel(label)
     }
 
     private func controlIcon(_ systemImage: String) -> some View {
         Image(systemName: systemImage)
-            .font(.title3.weight(.semibold))
+            .font(.system(size: 19, weight: .semibold))
     }
 }
 
