@@ -177,7 +177,7 @@ struct FeedbackSurveyView: View {
 
             Spacer()
 
-            VStack(spacing: 12) {
+            VStack(spacing: 24) {
                 Button {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         step = .question(0)

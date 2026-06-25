@@ -42,6 +42,7 @@ struct ImageCropperView: View {
         GeometryReader { geometry in
             // Calculate a perfect 1:1 square viewport dynamically inset from screen edges
             let displaySize = max(0, min(geometry.size.width, geometry.size.height) - 32)
+            let topToolbarPadding: CGFloat = geometry.safeAreaInsets.top > 44 ? 56 : 24
 
             ZStack {
                 // 1. Immutable Canvas
@@ -110,7 +111,7 @@ struct ImageCropperView: View {
                     }
                     .environment(\.colorScheme, .dark)
                     .padding(.horizontal, 24)
-                    .padding(.top, 16)
+                    .padding(.top, topToolbarPadding)
 
                     Spacer()
 
