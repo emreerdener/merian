@@ -53,6 +53,26 @@ enum ProfileAvatarImagePreparer {
         return encoded
     }
 
+    static func prepare(croppedData: Data) throws -> PreparedProfileAvatar {
+        guard let downsampled = ImageDownsampler.downsample(
+            data: croppedData,
+            maxSize: maxAvatarDimension
+        ) else {
+            throw ProfileAvatarImagePreparationError.unreadableImage
+        }
+
+        let squareImage = ImageCropProcessor.squareCrop(
+            downsampled,
+            verticalCenterFraction: 0.5
+        ) ?? downsampled
+
+        guard let encoded = encode(squareImage) else {
+            throw ProfileAvatarImagePreparationError.encodingFailed
+        }
+
+        return encoded
+    }
+
     private static func encode(_ image: CGImage) -> PreparedProfileAvatar? {
         let candidates = [
             ProfileAvatarEncodingCandidate(type: .webP, contentType: "image/webp", fileExtension: "webp"),

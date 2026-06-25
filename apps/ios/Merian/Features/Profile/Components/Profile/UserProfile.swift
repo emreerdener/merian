@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
 /// Abstracted Profile identity component natively interpreting both Ghost mode states
 /// and dynamically rendering high-fidelity Auth provider payloads seamlessly.
@@ -7,6 +8,7 @@ struct UserProfile: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
     @State private var isShowingUsernameEditor = false
     @State private var isShowingDisplayNameEditor = false
+    @State private var avatarImageToCrop: IdentifiableImage?
     @State private var selectedAvatarItem: PhotosPickerItem?
     @State private var isShowingAvatarError = false
     var totalScans: Int = 0
@@ -16,21 +18,12 @@ struct UserProfile: View {
         VStack {
             if profileViewModel.isGuestUser {
                 VStack(spacing: 16) {
-                    identityCard
+                    profileCard
                     signInButtons
                 }
                 .buttonStyle(PlainButtonStyle())
             } else {
-                VStack(spacing: 12) {
-                    identityHeader
-                    Divider()
-                    summaryCountsRow
-                }
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color(UIColor.secondarySystemGroupedBackground))
-                )
+                profileCard
             }
         }
         .task(id: profileViewModel.currentUserId) {
@@ -49,6 +42,18 @@ struct UserProfile: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Color(UIColor.systemGroupedBackground))
         }
+        .fullScreenCover(item: $avatarImageToCrop) { item in
+            ImageCropperView(
+                image: item.image,
+                onCrop: { croppedData, _, _, _ in
+                    avatarImageToCrop = nil
+                    uploadConfirmedAvatarCrop(croppedData)
+                },
+                onCancel: {
+                    avatarImageToCrop = nil
+                }
+            )
+        }
         .onChange(of: selectedAvatarItem) { _, newItem in
             handleAvatarSelection(newItem)
         }
@@ -59,13 +64,17 @@ struct UserProfile: View {
         }
     }
 
-    private var identityCard: some View {
-        identityHeader
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color(UIColor.secondarySystemGroupedBackground))
-            )
+    private var profileCard: some View {
+        VStack(spacing: 12) {
+            identityHeader
+            Divider()
+            summaryCountsRow
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(UIColor.secondarySystemGroupedBackground))
+        )
     }
 
     private var identityHeader: some View {
@@ -254,8 +263,31 @@ struct UserProfile: View {
                 let fileURL = wrapper.url
                 defer { try? FileManager.default.removeItem(at: fileURL) }
 
+                guard let image = UIImage(contentsOfFile: fileURL.path) else {
+                    profileViewModel.avatarUpdateErrorMessage = "Merian could not read that image."
+                    isShowingAvatarError = true
+                    return
+                }
+
+                avatarImageToCrop = IdentifiableImage(image: image)
+            } catch {
+                profileViewModel.avatarUpdateErrorMessage = error.localizedDescription
+                isShowingAvatarError = true
+            }
+        }
+    }
+
+    private func uploadConfirmedAvatarCrop(_ croppedData: Data) {
+        guard !croppedData.isEmpty else {
+            profileViewModel.avatarUpdateErrorMessage = "Merian could not crop that image."
+            isShowingAvatarError = true
+            return
+        }
+
+        Task {
+            do {
                 let avatar = try await Task.detached(priority: .userInitiated) {
-                    try ProfileAvatarImagePreparer.prepare(fileURL: fileURL)
+                    try ProfileAvatarImagePreparer.prepare(croppedData: croppedData)
                 }.value
 
                 let didUpdate = await profileViewModel.updatePublicAvatar(avatar)
