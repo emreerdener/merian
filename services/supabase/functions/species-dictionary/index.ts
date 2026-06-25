@@ -4,11 +4,13 @@ import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
 import { logStructuredError } from "../_shared/edgeHandler.ts";
 import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjection.ts";
 import {
+  fetchAllSpeciesDictionaryTree,
   fetchSpeciesDictionary,
   fetchSpeciesDictionaryCatalog,
   fetchSpeciesDictionaryOverview,
   fetchUserScannedSpeciesDictionaryTree,
   parseSpeciesDictionaryRequest,
+  speciesDictionaryTreeRequiresAuth,
 } from "./db.ts";
 
 const publicDictionaryCacheHeaders = {
@@ -93,6 +95,20 @@ Deno.serve(async (req: Request) => {
     }
 
     if (parsedRequest.mode === "tree") {
+      const treeScope = parsedRequest.treeScope ?? "my_scans";
+      if (!speciesDictionaryTreeRequiresAuth(treeScope)) {
+        const tree = await fetchAllSpeciesDictionaryTree(supabaseAdmin);
+
+        return jsonResponse(
+          {
+            schema_version: PUBLIC_SPECIES_SCHEMA_VERSION,
+            data: tree,
+          },
+          200,
+          publicDictionaryCacheHeaders,
+        );
+      }
+
       const { user, response } = await requireAuth(req, supabaseAdmin);
       if (response) return response;
       if (!user) return jsonResponse({ error: "Unauthorized" }, 401);

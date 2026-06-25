@@ -17,11 +17,11 @@ struct TaxonomyTreeCanvasView: View {
     var body: some View {
         Group {
             if viewModel.isLoading && viewModel.graph.nodes.isEmpty {
-                loadingState
+                stateWithScopeFilter { loadingState }
             } else if let errorMessage = viewModel.errorMessage, viewModel.graph.nodes.isEmpty {
-                errorState(message: errorMessage)
+                stateWithScopeFilter { errorState(message: errorMessage) }
             } else if viewModel.graph.nodes.isEmpty {
-                emptyState
+                stateWithScopeFilter { emptyState }
             } else {
                 canvas
             }
@@ -29,7 +29,7 @@ struct TaxonomyTreeCanvasView: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .modifier(TaxonomyTreeCanvasTitleModifier(isEnabled: showsNavigationTitle))
         .navigationBarTitleDisplayMode(.inline)
-        .task {
+        .task(id: viewModel.selectedTreeScope) {
             await viewModel.loadTree()
         }
     }
@@ -93,9 +93,17 @@ struct TaxonomyTreeCanvasView: View {
                         leadingInset: 30
                     )
                     .frame(width: proxy.size.width, alignment: .topLeading)
-                    .padding(.top, 12)
+                    .padding(.top, 58)
                     .padding(.bottom, 12)
                 }
+
+                TaxonomyTreeScopeFilterBar(
+                    activeScope: viewModel.selectedTreeScope,
+                    onSelection: { scope in
+                        viewModel.selectTreeScope(scope)
+                    }
+                )
+                .padding(.top, 8)
 
                 if viewModel.isLoading {
                     ProgressView()
@@ -165,6 +173,22 @@ struct TaxonomyTreeCanvasView: View {
         }
     }
 
+    private func stateWithScopeFilter<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ZStack(alignment: .topLeading) {
+            content()
+
+            TaxonomyTreeScopeFilterBar(
+                activeScope: viewModel.selectedTreeScope,
+                onSelection: { scope in
+                    viewModel.selectTreeScope(scope)
+                }
+            )
+            .padding(.top, 8)
+        }
+    }
+
     private var loadingState: some View {
         VStack(spacing: 12) {
             ProgressView()
@@ -176,16 +200,25 @@ struct TaxonomyTreeCanvasView: View {
     }
 
     private var emptyState: some View {
-        ContentUnavailableView(
-            "No scanned taxonomy yet",
-            systemImage: "point.3.connected.trianglepath.dotted",
-            description: Text("The tree appears after your biological scans are matched to dictionary species.")
-        )
+        switch viewModel.selectedTreeScope {
+        case .allSpecies:
+            ContentUnavailableView(
+                "No dictionary taxonomy yet",
+                systemImage: "point.3.connected.trianglepath.dotted",
+                description: Text("The public species dictionary tree will appear here as species are added.")
+            )
+        case .myScans:
+            ContentUnavailableView(
+                "No scanned taxonomy yet",
+                systemImage: "point.3.connected.trianglepath.dotted",
+                description: Text("The tree appears after your biological scans are matched to dictionary species.")
+            )
+        }
     }
 
     private func errorState(message: String) -> some View {
         ContentUnavailableView {
-            Label("Tree unavailable", systemImage: "exclamationmark.triangle")
+            Label(errorTitle, systemImage: "exclamationmark.triangle")
         } description: {
             Text(message)
         } actions: {
@@ -195,6 +228,13 @@ struct TaxonomyTreeCanvasView: View {
             .buttonStyle(.borderedProminent)
         }
     }
+
+    private var errorTitle: String {
+        switch viewModel.selectedTreeScope {
+        case .allSpecies: "Public tree unavailable"
+        case .myScans: "Scanned tree unavailable"
+        }
+    }
 }
 
 @MainActor
@@ -202,6 +242,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     @Published private(set) var graph: TaxonomyTreeGraph = .empty
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
+    @Published var selectedTreeScope: SpeciesDictionaryTreeScope = .allSpecies
     @Published var selectedNodeID: String?
     @Published var focusedNodeID: String?
     @Published var offset: CGSize = .zero
@@ -215,6 +256,7 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     private var magnifyStartScale: CGFloat?
     private var magnifyStartOffset: CGSize = .zero
     private var hasPositionedInitialViewport = false
+    private var cachedGraphsByScope: [SpeciesDictionaryTreeScope: TaxonomyTreeGraph] = [:]
 
     var selectedNode: TaxonomyTreeNode? {
         graph.node(id: selectedNodeID)
@@ -290,17 +332,51 @@ final class TaxonomyTreeCanvasViewModel: ObservableObject {
     }
 
     func loadTree(force: Bool = false) async {
-        guard force || graph.nodes.isEmpty else { return }
+        let scope = selectedTreeScope
+        if !force, let cachedGraph = cachedGraphsByScope[scope] {
+            graph = cachedGraph
+            errorMessage = nil
+            isLoading = false
+            return
+        }
+
         isLoading = true
         errorMessage = nil
         do {
-            let response = try await MerianNetworkClient.shared.getSpeciesDictionaryTree()
-            graph = TaxonomyTreeGraphBuilder.build(from: response.data)
-            hasPositionedInitialViewport = false
+            let response = try await MerianNetworkClient.shared.getSpeciesDictionaryTree(scope: scope)
+            let loadedGraph = TaxonomyTreeGraphBuilder.build(from: response.data)
+            cachedGraphsByScope[scope] = loadedGraph
+            if selectedTreeScope == scope {
+                graph = loadedGraph
+                hasPositionedInitialViewport = false
+            }
         } catch {
-            errorMessage = ExploreErrorFormatter.message(for: error)
+            if selectedTreeScope == scope {
+                errorMessage = ExploreErrorFormatter.message(for: error)
+            }
         }
-        isLoading = false
+        if selectedTreeScope == scope {
+            isLoading = false
+        }
+    }
+
+    func selectTreeScope(_ scope: SpeciesDictionaryTreeScope) {
+        guard scope != selectedTreeScope else { return }
+        selectedTreeScope = scope
+        selectedNodeID = nil
+        focusedNodeID = nil
+        offset = .zero
+        dragOffset = .zero
+        errorMessage = nil
+        hasPositionedInitialViewport = false
+
+        if let cachedGraph = cachedGraphsByScope[scope] {
+            graph = cachedGraph
+            isLoading = false
+        } else {
+            graph = .empty
+            isLoading = true
+        }
     }
 
     func select(_ node: TaxonomyTreeNode) {
@@ -491,6 +567,49 @@ private struct TaxonomyTreeEdgesCanvas: View {
             CGPoint(x: start.x, y: startY),
             CGPoint(x: end.x, y: endY)
         )
+    }
+}
+
+private struct TaxonomyTreeScopeFilterBar: View {
+    let activeScope: SpeciesDictionaryTreeScope
+    let onSelection: (SpeciesDictionaryTreeScope) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(SpeciesDictionaryTreeScope.allCases, id: \.self) { scope in
+                    scopePill(scope)
+                }
+            }
+            .padding(.horizontal)
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+    }
+
+    private func scopePill(_ scope: SpeciesDictionaryTreeScope) -> some View {
+        Button {
+            HapticManager.shared.triggerSelectionPulse()
+            onSelection(scope)
+        } label: {
+            Text(scope.title)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .lineLimit(1)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .foregroundStyle(activeScope == scope ? Color(uiColor: .systemBackground) : Color.primary)
+                .background {
+                    if activeScope == scope {
+                        Capsule().fill(Color.primary)
+                    } else {
+                        Capsule().fill(.regularMaterial)
+                    }
+                }
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(activeScope == scope ? .isSelected : [])
     }
 }
 

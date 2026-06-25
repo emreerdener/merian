@@ -14,6 +14,7 @@ import {
   resolveCommonName,
   sanitizeAlternativeCommonNames,
   SPECIES_DICTIONARY_RECENTLY_ADDED_OVERVIEW_LIMIT,
+  speciesDictionaryTreeRequiresAuth,
   speciesIdsFromUserScanRows,
   speciesReferenceImageLookupBatches,
 } from "./db.ts";
@@ -411,6 +412,25 @@ Deno.test("species-dictionary helpers - validates catalog request body", () => {
   );
   assertEquals(parseSpeciesDictionaryRequest({ mode: "tree" }), {
     mode: "tree",
+    treeScope: "my_scans",
+  });
+  assertEquals(
+    parseSpeciesDictionaryRequest({ mode: "tree", scope: "all_species" }),
+    {
+      mode: "tree",
+      treeScope: "all_species",
+    },
+  );
+  assertEquals(
+    parseSpeciesDictionaryRequest({ mode: "tree", scope: "my_scans" }),
+    {
+      mode: "tree",
+      treeScope: "my_scans",
+    },
+  );
+  assertEquals(parseSpeciesDictionaryRequest({ mode: "tree", scope: "all" }), {
+    error: "scope must be all_species or my_scans when mode is tree.",
+    status: 400,
   });
   assertEquals(parseSpeciesDictionaryRequest({ mode: "detail" }), {
     error: "mode must be catalog, overview, or tree when provided.",
@@ -475,6 +495,11 @@ Deno.test("species-dictionary helpers - validates catalog request body", () => {
       status: 400,
     },
   );
+});
+
+Deno.test("species-dictionary helpers - tree scope auth policy", () => {
+  assertEquals(speciesDictionaryTreeRequiresAuth("all_species"), false);
+  assertEquals(speciesDictionaryTreeRequiresAuth("my_scans"), true);
 });
 
 Deno.test("species-dictionary helpers - builds overview categories and regions", () => {

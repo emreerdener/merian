@@ -23,6 +23,18 @@ Validation:
 
 Invalid bodies return `400`.
 
+Tree requests use one of two explicit scopes:
+
+```json
+{ "mode": "tree", "scope": "all_species" }
+```
+
+```json
+{ "mode": "tree", "scope": "my_scans" }
+```
+
+Omitting `scope` keeps the legacy authenticated scanned-species tree behavior.
+
 ## Response
 
 ```json
@@ -95,10 +107,12 @@ Vary: Accept-Encoding
 Overview mode returns the featured species card plus category, high-level group,
 and region summaries. It uses `Cache-Control: no-store` so randomized category
 thumbnails and featured species choices can refresh on each request.
-Overview, catalog, and tree modes only publish rows that look like biological
-taxa: a row must have a scientific name plus either a positive GBIF taxon key or
-usable taxonomy with a kingdom and at least one downstream rank. This prevents
-generic encyclopedia concepts from appearing as Species Dictionary records.
+Overview, catalog, and the `all_species` tree scope only publish rows that look
+like biological taxa: a row must have a scientific name plus either a positive
+GBIF taxon key or usable taxonomy with a kingdom and at least one downstream
+rank. This prevents generic encyclopedia concepts from appearing as Species
+Dictionary records. The `my_scans` tree scope applies the same public species
+projection after selecting the current user's scanned species.
 
 `400`, `404`, and `500` responses do not include those cache headers. Missing
 rows and transient failures must be able to recover as soon as the backing
@@ -218,9 +232,11 @@ The response is public species dictionary data only. Do not add:
 verify_jwt = false
 ```
 
-The function does not call `withEdgeHandler` or `requireAuth` because the
-endpoint is intentionally public. It uses the service role key internally only
-to read the safe projected fields listed above.
+The function does not call `withEdgeHandler` because most dictionary views are
+public. Catalog, overview, and the `all_species` tree scope are public. The
+`my_scans` tree scope calls `requireAuth` and uses the current user only to
+select that user's scanned species before applying the same safe public
+projection fields listed above.
 
 ## Local Verification
 

@@ -800,12 +800,45 @@ struct SpeciesDictionaryTests {
             let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
 
             #expect(payload["mode"] as? String == "tree")
+            #expect(payload["scope"] as? String == "all_species")
             #expect(payload["limit"] == nil)
             #expect(payload["query"] == nil)
             return (mockResponse, testData)
         }
 
         let response = try await MerianNetworkClient.shared.getSpeciesDictionaryTree()
+
+        #expect(response.data.nodes.isEmpty)
+        #expect(response.data.edges.isEmpty)
+    }
+
+    @Test func testGetSpeciesDictionaryTreeSendsMyScansScope() async throws {
+        let testData = Data("""
+        {
+            "schema_version": 1,
+            "data": {
+                "nodes": [],
+                "edges": []
+            }
+        }
+        """.utf8)
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/species-dictionary"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            #expect(payload["mode"] as? String == "tree")
+            #expect(payload["scope"] as? String == "my_scans")
+            return (mockResponse, testData)
+        }
+
+        let response = try await MerianNetworkClient.shared.getSpeciesDictionaryTree(scope: .myScans)
 
         #expect(response.data.nodes.isEmpty)
         #expect(response.data.edges.isEmpty)
@@ -866,6 +899,25 @@ struct SpeciesDictionaryTests {
         viewModel.setScale(0.1)
 
         #expect(viewModel.scale == 0.28)
+    }
+
+    @Test func testTaxonomyTreeDefaultsToAllSpeciesAndResetsOnScopeChange() {
+        let viewModel = TaxonomyTreeCanvasViewModel()
+        viewModel.selectedNodeID = "selected"
+        viewModel.focusedNodeID = "focused"
+        viewModel.offset = CGSize(width: 24, height: -12)
+        viewModel.dragOffset = CGSize(width: 4, height: 8)
+
+        #expect(viewModel.selectedTreeScope == .allSpecies)
+
+        viewModel.selectTreeScope(.myScans)
+
+        #expect(viewModel.selectedTreeScope == .myScans)
+        #expect(viewModel.selectedNodeID == nil)
+        #expect(viewModel.focusedNodeID == nil)
+        #expect(viewModel.offset == .zero)
+        #expect(viewModel.dragOffset == .zero)
+        #expect(viewModel.isLoading)
     }
 
     @Test func testTaxonomyTreeCanCenterTopNodeAtInitialViewport() {

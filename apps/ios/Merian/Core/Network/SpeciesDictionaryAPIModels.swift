@@ -43,6 +43,18 @@ enum SpeciesDictionaryOverviewCategoryID: String, Decodable, Equatable, Hashable
     case recentlyAdded = "recently_added"
 }
 
+enum SpeciesDictionaryTreeScope: String, CaseIterable, Codable, Equatable, Hashable {
+    case allSpecies = "all_species"
+    case myScans = "my_scans"
+
+    var title: String {
+        switch self {
+        case .allSpecies: "All species"
+        case .myScans: "My scans"
+        }
+    }
+}
+
 struct SpeciesDictionaryCatalogCursor: Codable, Equatable, Hashable {
     let scientificName: String
     let speciesId: String

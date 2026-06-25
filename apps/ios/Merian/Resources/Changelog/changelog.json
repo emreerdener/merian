@@ -20,6 +20,7 @@
             "Community request details now frame the starting name as Merian's AI identification with the stored scan model tier, an optional confidence pill, and collapsed reasoning, while the ID count lives with the Identifications section.",
             "Explore Tree now opens in a top-down taxonomy layout instead of the earlier sideways orientation.",
             "Explore Dictionary and Tree controls now provide haptic feedback on button actions.",
+            "Explore Tree now has All species and My scans filter pills so you can switch between Merian's public taxonomy and your scanned-species tree.",
             "Explore Dictionary cards, rows, thumbnails, loading skeletons, and the featured Recently Added card now use the softer rounded corners and roomier image-first layout from Identify request surfaces.",
             "Explore Dictionary Catalog now opens directly into the browse overview without a top-level search bar, while subcategory catalog pages keep their own search.",
             "The Explore Dictionary Recently Added feature card now opens that species' dictionary page, while a separate Recently Added row opens the full newest species list.",

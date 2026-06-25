@@ -34,6 +34,8 @@ TestFlight, App Store, support, and QA.
 
 ### Added
 
+- Added an Explore Tree scope filter so the Tree defaults to All species and
+  can be toggled to My scans for a personal scanned-species taxonomy.
 - Added guest profile customization: guests can now choose a public profile
   picture, display name, and username before signing in, and those choices carry
   into Apple or Google sign-in.

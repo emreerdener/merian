@@ -1410,9 +1410,14 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(SpeciesDictionaryOverviewResponse.self, from: data)
     }
 
-    func getSpeciesDictionaryTree() async throws -> SpeciesDictionaryTreeResponse {
+    func getSpeciesDictionaryTree(
+        scope: SpeciesDictionaryTreeScope = .allSpecies
+    ) async throws -> SpeciesDictionaryTreeResponse {
         let functionUrl = try endpointURL("species-dictionary")
-        let payload: [String: Any] = ["mode": "tree"]
+        let payload: [String: Any] = [
+            "mode": "tree",
+            "scope": scope.rawValue
+        ]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(SpeciesDictionaryTreeResponse.self, from: data)
