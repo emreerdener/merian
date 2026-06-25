@@ -26,6 +26,7 @@
             "Explore Dictionary previews now prefer promoted Merian community photos over external reference images when available.",
             "Notifications settings now include a single action to turn off every Merian notification category at once.",
             "Open Identify request cards and loading skeletons now hide AI-derived names and show only the scan image with a compact submitted-ID count overlay.",
+            "Guests can now choose a public profile picture, display name, and username before signing in, and those choices carry into Apple or Google sign-in.",
             "Profile now starts with identity and stats, followed by published scans, the non-Pro plan card, persona progress, the scan heatmap, and achievements."
           ]
         },

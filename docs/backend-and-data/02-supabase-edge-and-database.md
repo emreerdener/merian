@@ -198,6 +198,31 @@ OAuth/provider avatars remain the fallback. Database identity refresh helpers
 resolve public avatars as `custom_avatar_url` first, then provider metadata via
 `extract_public_avatar_url(...)`.
 
+## The Public Display Name Node (`update-public-display-name`)
+
+The `/update-public-display-name` Edge Function lets guest and signed-in users
+choose the public name shown on Profile and Explore identity surfaces. It is
+app-facing and compatible with anonymous Supabase sessions through
+`withEdgeHandler`.
+
+The request body is:
+
+```json
+{
+  "display_name": "River Wren"
+}
+```
+
+The function trims and collapses whitespace, rejects empty/control-character
+names, caps names at 40 characters, and updates `public.users.public_author_name`
+with `public_identity_source = 'display_name'`. On success it returns:
+
+```json
+{
+  "display_name": "River Wren"
+}
+```
+
 ## The Photos Share Import Queue Node (`share-import-scan`)
 
 The `/share-import-scan` Edge Function is the parked fast-return queue endpoint
@@ -1201,34 +1226,42 @@ PostgREST rather than through an Edge Function. RLS scopes every row to
 When an anonymous (guest) user signs up for a full account, their prior scan
 history is merged into the new authenticated identity:
 
-**Operation order** (all steps run before the ghost is purged):
+**Operation order**:
 
 1. `verifyGhostUser` — confirms the target is an anonymous account (not another
    authenticated user). Logs and returns `403` on IDOR attempts.
-2. `transferScans` — re-parents all `scans` rows from `ghost_id` to the
+2. `fetchGhostPublicIdentity` — snapshots the guest's public username, custom
+   display name, and custom avatar before the ghost row can be deleted.
+3. `transferScans` — re-parents all `scans` rows from `ghost_id` to the
    authenticated `user.id`.
-3. `transferCollections` — re-parents all `collections` rows. **Must run before
+4. `transferCollections` — re-parents all `collections` rows. **Must run before
    `purgeGhostUser`**: the `collections` table references
    `auth.users(id) ON DELETE CASCADE`, so deleting the ghost from `auth.users`
    would silently drop all collections if this step is skipped.
-4. `transferExplorePosts` — re-parents denormalized `explore_posts.user_id`
+5. `transferExplorePosts` — re-parents denormalized `explore_posts.user_id`
    rows so Explore feeds, profile previews, author sheets, and owned-viewer
    checks follow the new account.
-5. `transferCommunityRequests` — re-parents
+6. `transferCommunityRequests` — re-parents
    `explore_community_requests.requested_by`. This must run before
    `public.users(ghost_id)` is deleted because Community request ownership
    cascades through `public.users`; skipping it can make Ask the Community
    requests disappear from the user's Yours filter or be deleted during purge.
-6. `transferUserFollows` — copies and dedupes follow relationships onto the
+7. `transferUserFollows` — copies and dedupes follow relationships onto the
    authenticated account before the ghost public user row is removed.
-7. `syncPublicAuthorIdentity` — refreshes the target user's public Explore
-   identity projection.
-8. `purgeGhostUser` — deletes the ghost from `auth.users` (cascades to
+8. `syncPublicAuthorIdentity` — refreshes the target user's public Explore
+   identity projection from the Apple/Google provider so provider identity
+   remains the fallback.
+9. `purgeGhostUser` — deletes the ghost from `auth.users` (cascades to
    `collections` and `export_jobs` — both already transferred or empty) and then
    explicitly deletes `public.users(ghost_id)`. The `public.users` row has no FK
    to `auth.users` and must be deleted manually; this cascade also cleans up any
    `flagged_reviews` and `user_blocks` tied to the ghost identity, which have no
    value after the merge.
+10. `applyPreservedGhostIdentity` — restores guest custom identity choices on
+    the signed-in account after the ghost public row is gone. Guest custom
+    avatars win over provider avatars, guest display names win when
+    `public_identity_source = 'display_name'`, and guest usernames win only when
+    they differ from the generated default guest username.
 
 ## Required Edge Function Secrets
 

@@ -56,6 +56,9 @@ The `Persona` UI component cross-references this enum against the user's live pr
 - `updatePublicUsername(_:)` — calls `/update-public-username`, refreshes the
   local handle, and publishes `.publicAuthorIdentityChanged` so Explore/Profile
   surfaces can update
+- `updatePublicDisplayName(_:)` — calls `/update-public-display-name`,
+  refreshes the public display name, and marks the identity as a user-chosen
+  display name
 - `updatePublicAvatar(_:)` — stages a prepared square profile picture in R2,
   calls `/update-public-avatar`, refreshes `publicAvatarUrl`, and publishes
   `.publicAuthorIdentityChanged`
@@ -81,9 +84,23 @@ display contract.
 
 ---
 
+## Public Display Name UX
+
+Guest and signed-in users can edit their public display name from the Profile
+identity menu. The display-name editor trims/collapses whitespace, rejects empty
+or control-character values, and caps names at 40 characters before submitting
+through `/update-public-display-name`.
+
+Untouched guest aliases still show as `Explorer` on the local Profile card, with
+the stable `@public_username` underneath. Once a guest chooses a display name,
+that name becomes the public Explore author label and is preserved when the
+guest upgrades to Apple or Google sign-in.
+
+---
+
 ## Public Avatar UX
 
-The authenticated Profile card lets users choose a custom public profile
+The Profile card lets guest and signed-in users choose a custom public profile
 picture with `PhotosPicker`. `UserProfile` loads the selected item as an
 `ImageFileWrapper`, then `ProfileAvatarImagePreparer` downsamples, square-crops,
 and encodes it as WebP with JPEG fallback. `ProfileViewModel` uploads the
@@ -96,6 +113,9 @@ user has not uploaded a custom avatar, it falls back to OAuth metadata
 the local profile avatar immediately and post `.publicAuthorIdentityChanged` so
 Explore cards, comments, author sheets, and profile previews can refresh their
 public author rows.
+
+Guest custom avatars are preserved when the guest upgrades to Apple or Google
+sign-in.
 
 Custom avatars are public by design and live under
 `https://media.merian.app/avatars/{userId}/...`. They are durable profile media,

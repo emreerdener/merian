@@ -134,13 +134,15 @@ deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/concurrency.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
   services/supabase/functions/update-public-avatar/index.ts \
+  services/supabase/functions/update-public-display-name/index.ts \
   services/supabase/functions/auto-purge-nonbio/index.ts \
   services/supabase/functions/delete-scan/index.ts
 
 deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/aws_test.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
-  services/supabase/functions/update-public-avatar/avatar_test.ts
+  services/supabase/functions/update-public-avatar/avatar_test.ts \
+  services/supabase/functions/_tests/updatePublicDisplayName.test.ts
 
 make db-push
 make functions-deploy

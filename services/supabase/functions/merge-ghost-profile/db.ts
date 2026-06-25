@@ -1,5 +1,9 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { jsonResponse } from "../_shared/edgeHandler.ts";
+import {
+  buildPreservedGhostIdentityUpdate,
+  type GhostPublicIdentitySnapshot,
+} from "./identity.ts";
 
 export async function verifyGhostUser(
   ghostId: string,
@@ -115,6 +119,68 @@ export async function transferUserFollows(
 
   if (error) {
     throw new Error(`Follow relationship migration failed: ${error.message}`);
+  }
+}
+
+export async function fetchGhostPublicIdentity(
+  ghostId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<GhostPublicIdentitySnapshot | null> {
+  const { data: ghostIdentity, error: identityError } = await supabaseAdmin
+    .from("users")
+    .select(
+      "public_username,public_author_name,public_identity_source,custom_avatar_url,custom_avatar_updated_at",
+    )
+    .eq("id", ghostId)
+    .maybeSingle();
+
+  if (identityError) {
+    throw new Error(
+      `Failed to snapshot ghost public identity: ${identityError.message}`,
+    );
+  }
+  if (!ghostIdentity) return null;
+
+  const { data: defaultUsername, error: defaultUsernameError } =
+    await supabaseAdmin.rpc("build_default_public_username", {
+      target_user_id: ghostId,
+    });
+
+  if (defaultUsernameError) {
+    throw new Error(
+      `Failed to resolve ghost default username: ${defaultUsernameError.message}`,
+    );
+  }
+
+  return {
+    publicUsername: ghostIdentity.public_username as string | null,
+    publicAuthorName: ghostIdentity.public_author_name as string | null,
+    publicIdentitySource: ghostIdentity.public_identity_source as string | null,
+    customAvatarUrl: ghostIdentity.custom_avatar_url as string | null,
+    customAvatarUpdatedAt: ghostIdentity.custom_avatar_updated_at as
+      | string
+      | null,
+    defaultPublicUsername: typeof defaultUsername === "string"
+      ? defaultUsername
+      : null,
+  };
+}
+
+export async function applyPreservedGhostIdentity(
+  snapshot: GhostPublicIdentitySnapshot | null,
+  targetUserId: string,
+  supabaseAdmin: SupabaseClient,
+) {
+  const update = buildPreservedGhostIdentityUpdate(snapshot);
+  if (Object.keys(update).length === 0) return;
+
+  const { error } = await supabaseAdmin
+    .from("users")
+    .update(update)
+    .eq("id", targetUserId);
+
+  if (error) {
+    throw new Error(`Ghost identity preservation failed: ${error.message}`);
   }
 }
 

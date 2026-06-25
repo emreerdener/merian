@@ -13,6 +13,15 @@ struct ProfileViewModelTests {
         #expect(viewModel.defaultGeoprivacy == "open")
     }
 
+    @Test("Custom display name wins over generated alias")
+    func testCustomDisplayNameResolution() async throws {
+        let viewModel = ProfileViewModel()
+        viewModel.publicAuthorName = "River Wren"
+        viewModel.publicIdentitySource = "display_name"
+
+        #expect(viewModel.displayName == "River Wren")
+    }
+
     @Test("Auth Routing Boundary Unlocks")
     func testSignOutExecution() async throws {
         let viewModel = ProfileViewModel()

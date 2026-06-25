@@ -2,9 +2,11 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { syncPublicAuthorIdentity } from "../_shared/explore.ts";
 import { requireParams } from "../_shared/http.ts";
 import {
+  applyPreservedGhostIdentity,
+  fetchGhostPublicIdentity,
   purgeGhostUser,
-  transferCommunityRequests,
   transferCollections,
+  transferCommunityRequests,
   transferExplorePosts,
   transferScans,
   transferUserFollows,
@@ -56,6 +58,10 @@ Deno.serve((req: Request) =>
     if (verificationErrorResponse) return verificationErrorResponse;
 
     // 2. Safely Execute Transfer
+    const ghostIdentitySnapshot = await fetchGhostPublicIdentity(
+      ghostId,
+      supabaseAdmin,
+    );
     await transferScans(ghostId, targetUserId, supabaseAdmin);
     await transferCollections(ghostId, targetUserId, supabaseAdmin);
     await transferExplorePosts(ghostId, targetUserId, supabaseAdmin);
@@ -65,6 +71,11 @@ Deno.serve((req: Request) =>
 
     // 3. Purge Empty Ghost Profile
     await purgeGhostUser(ghostId, supabaseAdmin);
+    await applyPreservedGhostIdentity(
+      ghostIdentitySnapshot,
+      targetUserId,
+      supabaseAdmin,
+    );
 
     return jsonResponse(
       {

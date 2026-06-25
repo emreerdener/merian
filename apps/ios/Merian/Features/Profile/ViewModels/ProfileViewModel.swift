@@ -10,11 +10,13 @@ struct ProfileSocialStats: Equatable {
 struct PublicProfileIdentity: Decodable, Equatable {
     let publicUsername: String
     let publicAuthorName: String
+    let publicIdentitySource: String
     let publicAvatarUrl: String?
 
     private enum CodingKeys: String, CodingKey {
         case publicUsername = "public_username"
         case publicAuthorName = "public_author_name"
+        case publicIdentitySource = "public_identity_source"
         case publicAvatarUrl = "public_avatar_url"
     }
 }
@@ -36,9 +38,11 @@ final class ProfileViewModel {
     var isLoadingSocialStats = false
     var publicUsername: String?
     var publicAuthorName: String?
+    var publicIdentitySource: String?
     var publicAvatarUrl: String?
     var isLoadingPublicIdentity = false
     var usernameUpdateErrorMessage: String?
+    var displayNameUpdateErrorMessage: String?
     var avatarUpdateErrorMessage: String?
     var isUpdatingAvatar = false
     
@@ -76,6 +80,18 @@ final class ProfileViewModel {
     var publicUsernameDisplayName: String? {
         guard let publicUsername, !publicUsername.isEmpty else { return nil }
         return "@\(publicUsername)"
+    }
+
+    var displayName: String {
+        if publicIdentitySource == "display_name",
+           let publicAuthorName,
+           !publicAuthorName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return publicAuthorName
+        }
+        if isGuestUser {
+            return "Explorer"
+        }
+        return userName ?? publicAuthorName ?? "Explorer"
     }
     
     // MARK: - Auth Flow Actions
@@ -118,6 +134,7 @@ final class ProfileViewModel {
         guard let user = supabase.currentUser else {
             publicUsername = nil
             publicAuthorName = nil
+            publicIdentitySource = nil
             publicAvatarUrl = nil
             isLoadingPublicIdentity = false
             return
@@ -128,7 +145,7 @@ final class ProfileViewModel {
 
         do {
             let response: PublicProfileIdentity = try await supabase.client.from("users")
-                .select("public_username,public_author_name,public_avatar_url")
+                .select("public_username,public_author_name,public_identity_source,public_avatar_url")
                 .eq("id", value: user.id)
                 .single()
                 .execute()
@@ -136,6 +153,7 @@ final class ProfileViewModel {
             guard !Task.isCancelled, supabase.currentUser?.id == user.id else { return }
             publicUsername = response.publicUsername
             publicAuthorName = response.publicAuthorName
+            publicIdentitySource = response.publicIdentitySource
             publicAvatarUrl = response.publicAvatarUrl
         } catch {
             guard !Task.isCancelled else { return }
@@ -144,8 +162,8 @@ final class ProfileViewModel {
     }
 
     func updatePublicAvatar(_ avatar: PreparedProfileAvatar) async -> Bool {
-        guard !isGuestUser, let userId = currentUserId else {
-            avatarUpdateErrorMessage = "Sign in before changing your profile picture."
+        guard let userId = currentUserId else {
+            avatarUpdateErrorMessage = "Open a guest session before changing your profile picture."
             return false
         }
 
@@ -212,8 +230,9 @@ final class ProfileViewModel {
             let response = try await MerianNetworkClient.shared.updatePublicUsername(username)
             guard currentUserId == userId else { return false }
             publicUsername = response.username
-            if isGuestUser {
+            if isGuestUser && publicIdentitySource != "display_name" {
                 publicAuthorName = response.username
+                publicIdentitySource = "alias"
             }
             AppEventPublisher.shared.send(
                 .publicAuthorIdentityChanged(previousUserId: nil, currentUserId: userId)
@@ -227,11 +246,45 @@ final class ProfileViewModel {
         }
     }
 
+    func updatePublicDisplayName(_ displayName: String) async -> Bool {
+        guard let userId = currentUserId else {
+            displayNameUpdateErrorMessage = "Open a guest session before changing your name."
+            return false
+        }
+
+        displayNameUpdateErrorMessage = nil
+
+        do {
+            let response = try await MerianNetworkClient.shared.updatePublicDisplayName(displayName)
+            guard currentUserId == userId else { return false }
+            publicAuthorName = response.displayName
+            publicIdentitySource = "display_name"
+            AppEventPublisher.shared.send(
+                .publicAuthorIdentityChanged(previousUserId: nil, currentUserId: userId)
+            )
+            return true
+        } catch {
+            guard !Task.isCancelled else { return false }
+            displayNameUpdateErrorMessage = publicDisplayNameErrorMessage(for: error)
+            MerianLog.network.error("Failed to update public display name: \(error, privacy: .private)")
+            return false
+        }
+    }
+
     func checkPublicUsernameAvailability(_ username: String) async throws -> PublicUsernameAvailabilityResponse {
         try await MerianNetworkClient.shared.checkPublicUsernameAvailability(username)
     }
 
     private func publicUsernameErrorMessage(for error: Error) -> String {
+        if case let MerianError.httpError(_, message) = error,
+           let data = message.data(using: .utf8),
+           let response = try? JSONDecoder().decode(PublicUsernameErrorResponse.self, from: data) {
+            return response.error
+        }
+        return error.localizedDescription
+    }
+
+    private func publicDisplayNameErrorMessage(for error: Error) -> String {
         if case let MerianError.httpError(_, message) = error,
            let data = message.data(using: .utf8),
            let response = try? JSONDecoder().decode(PublicUsernameErrorResponse.self, from: data) {

@@ -1368,6 +1368,35 @@ struct MerianNetworkClientTests {
         #expect(response.avatarUrl == "https://media.merian.app/avatars/user/avatar.webp")
     }
 
+    @Test func testUpdatePublicDisplayNameConstructsPayloadAndParsesResponse() async throws {
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/update-public-display-name"] = { request in
+            #expect(request.url?.path.hasSuffix("/update-public-display-name") == true)
+            #expect(request.httpMethod == "POST")
+
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            #expect(payload["display_name"] as? String == "River Wren")
+
+            let data = """
+            {
+              "display_name": "River Wren"
+            }
+            """.data(using: .utf8)!
+            return (mockResponse, data)
+        }
+
+        let response = try await MerianNetworkClient.shared.updatePublicDisplayName("River Wren")
+
+        #expect(response.displayName == "River Wren")
+    }
+
     @Test func budgetValidationPassesAtExactLimit() throws {
         // 3_600_000 bytes total — boundary value (> 3_600_000 throws, == does not)
         let payload = String(repeating: "X", count: 3_600_000)

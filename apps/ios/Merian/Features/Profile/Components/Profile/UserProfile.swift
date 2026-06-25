@@ -6,6 +6,7 @@ import SwiftUI
 struct UserProfile: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
     @State private var isShowingUsernameEditor = false
+    @State private var isShowingDisplayNameEditor = false
     @State private var selectedAvatarItem: PhotosPickerItem?
     @State private var isShowingAvatarError = false
     var totalScans: Int = 0
@@ -14,101 +15,14 @@ struct UserProfile: View {
     var body: some View {
         VStack {
             if profileViewModel.isGuestUser {
-                // Ghost Mode: Sign In Flow
                 VStack(spacing: 16) {
-                    usernameSummaryRow
-
-                    Button(action: {
-                        Task {
-                            await profileViewModel.signInWithApple()
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: "applelogo")
-                            Text("Sign in with Apple")
-                                .fontWeight(.semibold)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.primary)
-                        .foregroundColor(Color(UIColor.systemBackground))
-                        .clipShape(Capsule())
-                    }
-                    
-                    Button(action: {
-                        Task {
-                            await profileViewModel.signInWithGoogle()
-                        }
-                    }) {
-                        HStack {
-                            Image("google")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 18, height: 18)
-                            Text("Sign in with Google")
-                                .fontWeight(.semibold)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(UIColor.secondarySystemGroupedBackground))
-                        .foregroundColor(.primary)
-                        .clipShape(Capsule())
-                    }
+                    identityCard
+                    signInButtons
                 }
                 .buttonStyle(PlainButtonStyle())
             } else {
                 VStack(spacing: 12) {
-                    // Authenticated User Profile Card
-                    HStack(spacing: 12) {
-                        avatarPicker
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(profileViewModel.userName ?? profileViewModel.publicAuthorName ?? "Explorer")
-                                .font(.title3)
-                                .fontWeight(.semibold)
-
-                            Text(profileViewModel.publicUsernameDisplayName ?? "Loading username")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-
-                        Spacer()
-
-                        // Uses Apple's native `Menu` popover rendering to dynamically bind
-                        // a systemic "liquid glass" context menu perfectly blurring behind the options.
-                        Menu {
-                            Button {
-                                isShowingUsernameEditor = true
-                            } label: {
-                                Label("Edit username", systemImage: "at")
-                            }
-
-                            Button(role: .destructive) {
-                                Task {
-                                    // Forces a clean physical JWT removal across the device securely
-                                    // instantly rehydrating back into a zero-bound Ghost mode state.
-                                    await profileViewModel.signOut()
-                                }
-                            } label: {
-                                Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(.primary)
-                                .frame(width: 36, height: 36)
-                                .background(Color.secondary.opacity(0.15))
-                                .background(.ultraThinMaterial, in: Circle())
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
-                                )
-                        }
-                        .buttonStyle(BorderlessButtonStyle())
-                    }
-
+                    identityHeader
                     Divider()
                     summaryCountsRow
                 }
@@ -129,6 +43,12 @@ struct UserProfile: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Color(UIColor.systemGroupedBackground))
         }
+        .sheet(isPresented: $isShowingDisplayNameEditor) {
+            PublicDisplayNameEditSheet(viewModel: profileViewModel)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Color(UIColor.systemGroupedBackground))
+        }
         .onChange(of: selectedAvatarItem) { _, newItem in
             handleAvatarSelection(newItem)
         }
@@ -136,6 +56,119 @@ struct UserProfile: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(profileViewModel.avatarUpdateErrorMessage ?? "Merian could not update your profile picture.")
+        }
+    }
+
+    private var identityCard: some View {
+        identityHeader
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color(UIColor.secondarySystemGroupedBackground))
+            )
+    }
+
+    private var identityHeader: some View {
+        HStack(spacing: 12) {
+            avatarPicker
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(profileViewModel.displayName)
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                Text(profileViewModel.publicUsernameDisplayName ?? "Loading username")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer()
+
+            profileMenu
+        }
+    }
+
+    private var profileMenu: some View {
+        Menu {
+            Button {
+                isShowingDisplayNameEditor = true
+            } label: {
+                Label("Edit name", systemImage: "person.text.rectangle")
+            }
+
+            Button {
+                isShowingUsernameEditor = true
+            } label: {
+                Label("Edit username", systemImage: "at")
+            }
+
+            if !profileViewModel.isGuestUser {
+                Button(role: .destructive) {
+                    Task {
+                        await profileViewModel.signOut()
+                    }
+                } label: {
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.primary)
+                .frame(width: 36, height: 36)
+                .background(Color.secondary.opacity(0.15))
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(BorderlessButtonStyle())
+        .accessibilityLabel("Profile options")
+    }
+
+    private var signInButtons: some View {
+        VStack(spacing: 12) {
+            Button(action: {
+                Task {
+                    await profileViewModel.signInWithApple()
+                }
+            }) {
+                HStack {
+                    Image(systemName: "applelogo")
+                    Text("Sign in with Apple")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.primary)
+                .foregroundColor(Color(UIColor.systemBackground))
+                .clipShape(Capsule())
+            }
+
+            Button(action: {
+                Task {
+                    await profileViewModel.signInWithGoogle()
+                }
+            }) {
+                HStack {
+                    Image("google")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
+                    Text("Sign in with Google")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color(UIColor.secondarySystemGroupedBackground))
+                .foregroundColor(.primary)
+                .clipShape(Capsule())
+            }
         }
     }
 
@@ -236,48 +269,6 @@ struct UserProfile: View {
         }
     }
 
-    private var usernameSummaryRow: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "person.crop.circle")
-                .font(.system(size: 34, weight: .regular))
-                .foregroundStyle(.primary)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Explorer")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                Text(profileViewModel.publicUsernameDisplayName ?? "Loading username")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Button {
-                isShowingUsernameEditor = true
-            } label: {
-                Image(systemName: "pencil")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.primary)
-                    .frame(width: 36, height: 36)
-                    .background(Color.secondary.opacity(0.15))
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(
-                        Circle()
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Edit username")
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(UIColor.secondarySystemGroupedBackground))
-        )
-    }
-
     private var summaryCountsRow: some View {
         HStack(spacing: 0) {
             summaryCountView(value: compactValue(totalScans), label: "Scans")
@@ -342,6 +333,137 @@ struct UserProfile: View {
 
     private func compactValue(_ count: Int) -> String {
         count.formatted(.number.notation(.compactName))
+    }
+}
+
+private struct PublicDisplayNameEditSheet: View {
+    let viewModel: ProfileViewModel
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: String
+    @State private var isSaving = false
+    @FocusState private var isNameFocused: Bool
+
+    init(viewModel: ProfileViewModel) {
+        self.viewModel = viewModel
+        let initialName = viewModel.publicIdentitySource == "display_name"
+            ? viewModel.publicAuthorName ?? ""
+            : ""
+        _draft = State(initialValue: initialName)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Name")
+                        .font(.headline)
+
+                    TextField("Explorer", text: $draft)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .focused($isNameFocused)
+                        .disabled(isSaving)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color(UIColor.secondarySystemGroupedBackground))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(inputBorderColor, lineWidth: 1)
+                        )
+
+                    validationMessage
+                        .frame(minHeight: 20, alignment: .leading)
+                }
+
+                Button {
+                    Task { await save() }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isSaving {
+                            ProgressView()
+                                .tint(Color(UIColor.systemBackground))
+                        }
+
+                        Text(isSaving ? "Saving" : "Save name")
+                            .font(.headline)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(canSave ? Color.primary : Color.secondary.opacity(0.18))
+                    .foregroundStyle(canSave ? Color(UIColor.systemBackground) : .secondary)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSave)
+
+                Spacer(minLength: 0)
+            }
+            .padding(24)
+            .onAppear {
+                viewModel.displayNameUpdateErrorMessage = nil
+                isNameFocused = true
+            }
+            .onChange(of: draft) {
+                viewModel.displayNameUpdateErrorMessage = nil
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var validationMessage: some View {
+        if let message = viewModel.displayNameUpdateErrorMessage {
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.red)
+        } else if let message = validationError {
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.red)
+        } else {
+            Text("Use 1-40 characters.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var normalizedDraft: String {
+        draft
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSave: Bool {
+        guard !isSaving, validationError == nil else { return false }
+        return normalizedDraft != viewModel.publicAuthorName
+    }
+
+    private var inputBorderColor: Color {
+        validationError == nil ? Color.primary.opacity(0.08) : .red.opacity(0.45)
+    }
+
+    private var validationError: String? {
+        if normalizedDraft.isEmpty { return "Name cannot be empty." }
+        if normalizedDraft.count > 40 { return "Name must be 40 characters or fewer." }
+        if normalizedDraft.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) {
+            return "Name cannot include control characters."
+        }
+        return nil
+    }
+
+    private func save() async {
+        guard canSave else { return }
+        isSaving = true
+        defer { isSaving = false }
+
+        let didSave = await viewModel.updatePublicDisplayName(normalizedDraft)
+        if didSave {
+            dismiss()
+        }
     }
 }
 

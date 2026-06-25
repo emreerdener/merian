@@ -13,6 +13,7 @@ import {
   assert,
   assertEquals,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { buildPreservedGhostIdentityUpdate } from "../merge-ghost-profile/identity.ts";
 
 // ---------------------------------------------------------------------------
 // ghost_id UUID format validation
@@ -72,8 +73,8 @@ Deno.test("self-merge guard — identical IDs trigger early return after identit
   const id = crypto.randomUUID();
   const callOrder: string[] = [];
 
-  async function stubSyncPublicAuthorIdentity() {
-    callOrder.push("syncPublicAuthorIdentity");
+  function stubSyncPublicAuthorIdentity() {
+    return Promise.resolve(callOrder.push("syncPublicAuthorIdentity"));
   }
 
   const result = simulateSelfMergeGuard(id, id);
@@ -127,32 +128,36 @@ Deno.test("verifyGhostUser — authenticated account is rejected with 403", () =
 // ---------------------------------------------------------------------------
 // Transfer operation order
 // scans, collections, posts, follows, and public identity sync must all happen
-// before purge to avoid ON DELETE CASCADE silently dropping data.
+// before purge to avoid ON DELETE CASCADE silently dropping data. Preserved
+// ghost identity is applied after purge so the old username row is gone.
 // ---------------------------------------------------------------------------
 
 Deno.test("transfer order — scans, collections, identity sync, purge execute in correct sequence", async () => {
   const callOrder: string[] = [];
 
-  async function stubTransferScans() {
-    callOrder.push("transferScans");
+  function stubTransferScans() {
+    return Promise.resolve(callOrder.push("transferScans"));
   }
-  async function stubTransferCollections() {
-    callOrder.push("transferCollections");
+  function stubTransferCollections() {
+    return Promise.resolve(callOrder.push("transferCollections"));
   }
-  async function stubTransferExplorePosts() {
-    callOrder.push("transferExplorePosts");
+  function stubTransferExplorePosts() {
+    return Promise.resolve(callOrder.push("transferExplorePosts"));
   }
-  async function stubTransferCommunityRequests() {
-    callOrder.push("transferCommunityRequests");
+  function stubTransferCommunityRequests() {
+    return Promise.resolve(callOrder.push("transferCommunityRequests"));
   }
-  async function stubTransferUserFollows() {
-    callOrder.push("transferUserFollows");
+  function stubTransferUserFollows() {
+    return Promise.resolve(callOrder.push("transferUserFollows"));
   }
-  async function stubSyncPublicAuthorIdentity() {
-    callOrder.push("syncPublicAuthorIdentity");
+  function stubSyncPublicAuthorIdentity() {
+    return Promise.resolve(callOrder.push("syncPublicAuthorIdentity"));
   }
-  async function stubPurgeGhostUser() {
-    callOrder.push("purgeGhostUser");
+  function stubPurgeGhostUser() {
+    return Promise.resolve(callOrder.push("purgeGhostUser"));
+  }
+  function stubApplyPreservedGhostIdentity() {
+    return Promise.resolve(callOrder.push("applyPreservedGhostIdentity"));
   }
 
   await stubTransferScans();
@@ -162,6 +167,7 @@ Deno.test("transfer order — scans, collections, identity sync, purge execute i
   await stubTransferUserFollows();
   await stubSyncPublicAuthorIdentity();
   await stubPurgeGhostUser();
+  await stubApplyPreservedGhostIdentity();
 
   assertEquals(callOrder, [
     "transferScans",
@@ -171,32 +177,36 @@ Deno.test("transfer order — scans, collections, identity sync, purge execute i
     "transferUserFollows",
     "syncPublicAuthorIdentity",
     "purgeGhostUser",
+    "applyPreservedGhostIdentity",
   ]);
 });
 
 Deno.test("transfer order — purge must not run before follow transfer", async () => {
   const callOrder: string[] = [];
 
-  async function stubTransferScans() {
-    callOrder.push("transferScans");
+  function stubTransferScans() {
+    return Promise.resolve(callOrder.push("transferScans"));
   }
-  async function stubTransferCollections() {
-    callOrder.push("transferCollections");
+  function stubTransferCollections() {
+    return Promise.resolve(callOrder.push("transferCollections"));
   }
-  async function stubTransferExplorePosts() {
-    callOrder.push("transferExplorePosts");
+  function stubTransferExplorePosts() {
+    return Promise.resolve(callOrder.push("transferExplorePosts"));
   }
-  async function stubTransferCommunityRequests() {
-    callOrder.push("transferCommunityRequests");
+  function stubTransferCommunityRequests() {
+    return Promise.resolve(callOrder.push("transferCommunityRequests"));
   }
-  async function stubTransferUserFollows() {
-    callOrder.push("transferUserFollows");
+  function stubTransferUserFollows() {
+    return Promise.resolve(callOrder.push("transferUserFollows"));
   }
-  async function stubSyncPublicAuthorIdentity() {
-    callOrder.push("syncPublicAuthorIdentity");
+  function stubSyncPublicAuthorIdentity() {
+    return Promise.resolve(callOrder.push("syncPublicAuthorIdentity"));
   }
-  async function stubPurgeGhostUser() {
-    callOrder.push("purgeGhostUser");
+  function stubPurgeGhostUser() {
+    return Promise.resolve(callOrder.push("purgeGhostUser"));
+  }
+  function stubApplyPreservedGhostIdentity() {
+    return Promise.resolve(callOrder.push("applyPreservedGhostIdentity"));
   }
 
   await stubTransferScans();
@@ -206,8 +216,10 @@ Deno.test("transfer order — purge must not run before follow transfer", async 
   await stubTransferUserFollows();
   await stubSyncPublicAuthorIdentity();
   await stubPurgeGhostUser();
+  await stubApplyPreservedGhostIdentity();
 
   const purgeIndex = callOrder.indexOf("purgeGhostUser");
+  const preserveIndex = callOrder.indexOf("applyPreservedGhostIdentity");
   const communityRequestsIndex = callOrder.indexOf("transferCommunityRequests");
   const followsIndex = callOrder.indexOf("transferUserFollows");
   const syncIndex = callOrder.indexOf("syncPublicAuthorIdentity");
@@ -223,4 +235,63 @@ Deno.test("transfer order — purge must not run before follow transfer", async 
     syncIndex < purgeIndex,
     "syncPublicAuthorIdentity must run before purgeGhostUser",
   );
+  assert(
+    purgeIndex < preserveIndex,
+    "applyPreservedGhostIdentity must run after purgeGhostUser",
+  );
+});
+
+Deno.test("guest identity preservation — custom display name, avatar, and edited username win", () => {
+  const update = buildPreservedGhostIdentityUpdate({
+    publicUsername: "river_wren",
+    publicAuthorName: "River Wren",
+    publicIdentitySource: "display_name",
+    customAvatarUrl: "https://media.merian.app/avatars/ghost/avatar.webp",
+    customAvatarUpdatedAt: "2026-06-25T12:00:00.000Z",
+    defaultPublicUsername: "cedar_path_42",
+  });
+
+  assertEquals(update, {
+    public_author_name: "River Wren",
+    public_identity_source: "display_name",
+    custom_avatar_url: "https://media.merian.app/avatars/ghost/avatar.webp",
+    custom_avatar_updated_at: "2026-06-25T12:00:00.000Z",
+    public_avatar_url: "https://media.merian.app/avatars/ghost/avatar.webp",
+    public_username: "river_wren",
+  });
+});
+
+Deno.test("guest identity preservation — untouched defaults fall back to provider identity", () => {
+  const update = buildPreservedGhostIdentityUpdate({
+    publicUsername: "cedar_path_42",
+    publicAuthorName: "cedar_path_42",
+    publicIdentitySource: "alias",
+    customAvatarUrl: null,
+    customAvatarUpdatedAt: null,
+    defaultPublicUsername: "cedar_path_42",
+  });
+
+  assertEquals(update, {});
+});
+
+Deno.test("guest identity preservation — custom avatar can win without custom display name", () => {
+  const update = buildPreservedGhostIdentityUpdate({
+    publicUsername: "cedar_path_42",
+    publicAuthorName: "cedar_path_42",
+    publicIdentitySource: "alias",
+    customAvatarUrl: "https://media.merian.app/avatars/ghost/avatar.webp",
+    customAvatarUpdatedAt: null,
+    defaultPublicUsername: "cedar_path_42",
+  });
+
+  assertEquals(
+    update.public_avatar_url,
+    "https://media.merian.app/avatars/ghost/avatar.webp",
+  );
+  assertEquals(
+    update.custom_avatar_url,
+    "https://media.merian.app/avatars/ghost/avatar.webp",
+  );
+  assertEquals("public_username" in update, false);
+  assertEquals("public_author_name" in update, false);
 });

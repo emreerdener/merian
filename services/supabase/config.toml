@@ -481,6 +481,9 @@ verify_jwt = false
 [functions.update-public-username]
 verify_jwt = false
 
+[functions.update-public-display-name]
+verify_jwt = false
+
 [functions.check-public-username]
 verify_jwt = false
 

@@ -1786,6 +1786,15 @@ final class MerianNetworkClient {
         return try makeExploreDecoder().decode(PublicUsernameUpdateResponse.self, from: data)
     }
 
+    func updatePublicDisplayName(_ displayName: String) async throws -> PublicDisplayNameUpdateResponse {
+        let functionUrl = try endpointURL("update-public-display-name")
+        let bodyData = try JSONSerialization.data(withJSONObject: [
+            "display_name": displayName
+        ])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(PublicDisplayNameUpdateResponse.self, from: data)
+    }
+
     func updatePublicAvatar(r2ObjectKey: String, mimeType: String) async throws -> PublicAvatarUpdateResponse {
         let functionUrl = try endpointURL("update-public-avatar")
         let bodyData = try JSONSerialization.data(withJSONObject: [

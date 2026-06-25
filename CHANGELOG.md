@@ -34,6 +34,9 @@ TestFlight, App Store, support, and QA.
 
 ### Added
 
+- Added guest profile customization: guests can now choose a public profile
+  picture, display name, and username before signing in, and those choices carry
+  into Apple or Google sign-in.
 - Added a GBIF-backed Community Taxonomy Index so Ask the Community search can
   suggest taxa that are not yet enriched in Merian's Dictionary, plus
   first-class species enrichment jobs and the first Birds coverage target for
