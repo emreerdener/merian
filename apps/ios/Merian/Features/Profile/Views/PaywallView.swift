@@ -311,48 +311,51 @@ struct PaywallView: View {
         .padding(.horizontal, 10)
     }
 
+    @ViewBuilder
     private var stickyPurchaseBar: some View {
-        VStack(spacing: 10) {
-            Button {
-                Task { await purchaseSelectedPackage() }
-            } label: {
-                VStack(spacing: 3) {
-                    if isPurchasing {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Text(purchaseButtonTitle)
-                            .font(.system(size: 18, weight: .bold))
-                        Text(purchaseButtonSubtitle)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.78))
+        if !packages.isEmpty {
+            VStack(spacing: 10) {
+                Button {
+                    Task { await purchaseSelectedPackage() }
+                } label: {
+                    VStack(spacing: 3) {
+                        if isPurchasing {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Text(purchaseButtonTitle)
+                                .font(.system(size: 18, weight: .bold))
+                            Text(purchaseButtonSubtitle)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.78))
+                        }
                     }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 66)
+                    .background(
+                        LinearGradient(
+                            colors: selectedPackage == nil
+                                ? [Color.secondary.opacity(0.26), Color.secondary.opacity(0.16)]
+                                : [Color(red: 0.10, green: 0.62, blue: 0.74), Color(red: 0.13, green: 0.78, blue: 0.54)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: Capsule()
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.primary.opacity(selectedPackage == nil ? 0.08 : 0.18), lineWidth: 1.5)
+                    )
+                    .shadow(color: .black.opacity(0.34), radius: 18, y: 10)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 66)
-                .background(
-                    LinearGradient(
-                        colors: selectedPackage == nil
-                            ? [Color.secondary.opacity(0.26), Color.secondary.opacity(0.16)]
-                            : [Color(red: 0.10, green: 0.62, blue: 0.74), Color(red: 0.13, green: 0.78, blue: 0.54)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    in: Capsule()
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(Color.primary.opacity(selectedPackage == nil ? 0.08 : 0.18), lineWidth: 1.5)
-                )
-                .shadow(color: .black.opacity(0.34), radius: 18, y: 10)
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .disabled(selectedPackage == nil || isPurchasing)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.white)
-            .disabled(selectedPackage == nil || isPurchasing)
+            .padding(.horizontal, 28)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
         }
-        .padding(.horizontal, 28)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
     }
 
     private var purchaseButtonTitle: String {

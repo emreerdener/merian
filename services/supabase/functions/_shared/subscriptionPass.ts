@@ -1,4 +1,4 @@
-export const SEVEN_DAY_PASS_PRODUCT_ID = "merian_7_day_pass";
+export const SEVEN_DAY_PASS_PRODUCT_ID = "pro_week";
 export const SEVEN_DAY_PASS_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface RevenueCatPassEvent {

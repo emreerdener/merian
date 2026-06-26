@@ -9,7 +9,7 @@ struct SevenDayPassPurchase {
 }
 
 enum SevenDayPassAccessPolicy {
-    static let productIdentifier = "merian_7_day_pass"
+    static let productIdentifier = "pro_week"
     static let duration: TimeInterval = 7 * 24 * 60 * 60
 
     static func isActive(
