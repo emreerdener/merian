@@ -101,32 +101,44 @@ struct PaywallView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
-                Color(uiColor: .systemGroupedBackground)
-                    .ignoresSafeArea()
+            GeometryReader { geometry in
+                let availableHeight = geometry.size.height
+                let isCompact = availableHeight < 620
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 30) {
-                        heroCarousel
-                            .padding(.horizontal, -20)
+                ZStack(alignment: .top) {
+                    Color(uiColor: .systemGroupedBackground)
+                        .ignoresSafeArea()
 
-                        planPicker
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: isCompact ? 20 : 30) {
+                            heroCarousel(availableHeight: availableHeight, isCompact: isCompact)
+                                .padding(.horizontal, -20)
 
-                        comparisonSection
+                            planPicker(isCompact: isCompact)
 
-                        reviewsStack
-                            .padding(.bottom, 8)
+                            comparisonSection
 
-                        memberSupportedSection
+                            reviewsStack
+                                .padding(.bottom, 8)
 
-                        paywallActionLinks
-                            .padding(.bottom, 16)
+                            memberSupportedSection
+
+                            paywallActionLinks
+                                .padding(.bottom, 16)
+
+                            if isCompact {
+                                purchaseBar(isCompact: true)
+                                    .padding(.bottom, 8)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 24)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 24)
-                }
-                .safeAreaInset(edge: .bottom) {
-                    stickyPurchaseBar
+                    .safeAreaInset(edge: .bottom) {
+                        if !isCompact {
+                            purchaseBar(isCompact: false)
+                        }
+                    }
                 }
             }
             .navigationTitle("Merian Pro")
@@ -156,15 +168,16 @@ struct PaywallView: View {
         }
     }
 
-    private var heroCarousel: some View {
-        TabView(selection: $selectedHeroIndex) {
+    private func heroCarousel(availableHeight: CGFloat, isCompact: Bool) -> some View {
+        let carouselHeight = isCompact ? min(320, availableHeight * 0.45) : 388
+        return TabView(selection: $selectedHeroIndex) {
             ForEach(Array(paywallHeroSlides.enumerated()), id: \.element.id) { index, slide in
-                PaywallHeroSlideView(slide: slide)
+                PaywallHeroSlideView(slide: slide, isCompact: isCompact, availableHeight: availableHeight)
                     .tag(index)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
-        .frame(height: 388)
+        .frame(height: carouselHeight)
         .simultaneousGesture(
             DragGesture(minimumDistance: 8)
                 .onChanged { _ in
@@ -189,7 +202,7 @@ struct PaywallView: View {
     }
 
     @ViewBuilder
-    private var planPicker: some View {
+    private func planPicker(isCompact: Bool) -> some View {
         if revenueCatManager.isFetchingOfferings && packages.isEmpty {
             VStack(spacing: 14) {
                 ProgressView()
@@ -198,7 +211,7 @@ struct PaywallView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, minHeight: 190)
+            .frame(maxWidth: .infinity, minHeight: isCompact ? 160 : 190)
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -219,7 +232,7 @@ struct PaywallView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-            .frame(maxWidth: .infinity, minHeight: 190)
+            .frame(maxWidth: .infinity, minHeight: isCompact ? 160 : 190)
             .padding(.horizontal, 22)
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
             .overlay(
@@ -233,7 +246,8 @@ struct PaywallView: View {
                         ForEach(packages) { package in
                             PaywallPlanCard(
                                 package: package,
-                                isSelected: package.identifier == selectedPackage?.identifier
+                                isSelected: package.identifier == selectedPackage?.identifier,
+                                isCompact: isCompact
                             ) {
                                 selectedPackageIdentifier = package.identifier
                             }
@@ -337,7 +351,7 @@ struct PaywallView: View {
     }
 
     @ViewBuilder
-    private var stickyPurchaseBar: some View {
+    private func purchaseBar(isCompact: Bool) -> some View {
         if !packages.isEmpty {
             Button {
                 Task { await purchaseSelectedPackage() }
@@ -375,9 +389,9 @@ struct PaywallView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.white)
             .disabled(selectedPackage == nil || isPurchasing)
-            .padding(.horizontal, 28)
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.horizontal, isCompact ? 8 : 28)
+            .padding(.top, isCompact ? 8 : 14)
+            .padding(.bottom, isCompact ? 8 : 12)
         }
     }
 
@@ -553,9 +567,14 @@ private struct PaywallReviewRowView: View {
 
 private struct PaywallHeroSlideView: View {
     let slide: PaywallHeroSlide
+    let isCompact: Bool
+    let availableHeight: CGFloat
 
     var body: some View {
-        VStack(spacing: 16) {
+        let imageHeight: CGFloat = isCompact ? min(130, availableHeight * 0.18) : 184
+        let containerHeight: CGFloat = isCompact ? min(200, availableHeight * 0.26) : 276
+
+        VStack(spacing: isCompact ? 8 : 16) {
             ZStack {
                 RadialGradient(
                     stops: [
@@ -567,98 +586,99 @@ private struct PaywallHeroSlideView: View {
                     startRadius: 18,
                     endRadius: 134
                 )
-                    .frame(width: 350, height: 276)
+                    .frame(width: 350, height: containerHeight)
                     .accessibilityHidden(true)
 
                 Image(slide.imageName)
                     .resizable()
                     .scaledToFit()
-                    .frame(height: 184)
+                    .frame(height: imageHeight)
                     .frame(maxWidth: .infinity)
                     .shadow(color: .black.opacity(0.12), radius: 14, y: 10)
             }
-            .frame(height: 276)
+            .frame(height: containerHeight)
             .frame(maxWidth: .infinity)
 
-            VStack(spacing: 7) {
+            VStack(spacing: isCompact ? 4 : 7) {
                 Text(slide.title)
-                    .font(.system(size: 29, weight: .bold))
+                    .font(.system(size: isCompact ? 22 : 29, weight: .bold))
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.86)
 
                 Text(slide.subtitle)
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.system(size: isCompact ? 14 : 17, weight: .medium))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(2)
                     .padding(.horizontal, 10)
             }
         }
-        .padding(.bottom, 26)
+        .padding(.bottom, isCompact ? 12 : 26)
     }
 }
 
 private struct PaywallPlanCard: View {
     let package: Package
     let isSelected: Bool
+    let isCompact: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: isCompact ? 8 : 14) {
                 HStack(alignment: .top) {
                     Text(badgeText)
-                        .font(.system(size: 12, weight: .heavy))
+                        .font(.system(size: isCompact ? 10 : 12, weight: .heavy))
                         .foregroundStyle(accent)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
+                        .padding(.horizontal, isCompact ? 10 : 12)
+                        .padding(.vertical, isCompact ? 5 : 7)
                         .background(accent.opacity(0.14), in: Capsule())
 
                     Spacer()
 
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 25, weight: .bold))
+                        .font(.system(size: isCompact ? 20 : 25, weight: .bold))
                         .foregroundStyle(isSelected ? accent : Color.secondary.opacity(0.45))
                 }
 
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: isCompact ? 4 : 7) {
                     Text(planName)
-                        .font(.system(size: 34, weight: .heavy))
+                        .font(.system(size: isCompact ? 28 : 34, weight: .heavy))
                         .foregroundStyle(.primary)
                         .minimumScaleFactor(0.72)
                         .lineLimit(1)
 
                     Text(planDescription)
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: isCompact ? 15 : 18, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .lineSpacing(3)
+                        .lineSpacing(isCompact ? 2 : 3)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 4)
 
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: isCompact ? 3 : 5) {
                     HStack(alignment: .firstTextBaseline, spacing: 5) {
                         Text(package.storeProduct.localizedPriceString)
-                            .font(.system(size: 28, weight: .bold))
+                            .font(.system(size: isCompact ? 24 : 28, weight: .bold))
                             .foregroundStyle(.primary)
                         Text(priceSuffix)
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(.system(size: isCompact ? 15 : 18, weight: .semibold))
                             .foregroundStyle(.secondary)
                     }
 
                     Text(renewalText)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: isCompact ? 12 : 14, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.86)
                 }
             }
-            .padding(.top, 18)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 22)
-            .frame(width: 310, height: 252)
+            .padding(.top, isCompact ? 14 : 18)
+            .padding(.horizontal, isCompact ? 16 : 20)
+            .padding(.bottom, isCompact ? 16 : 22)
+            .frame(width: isCompact ? 280 : 310, height: isCompact ? 210 : 252)
             .background(
                 LinearGradient(
                     colors: [

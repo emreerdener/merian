@@ -71,7 +71,7 @@ struct FeedbackSurveyView: View {
         RecommendationOption(
             rating: 7,
             title: "To the right person",
-            detail: "I would recommend Merian to someone who fits the beta well."
+            detail: "I would recommend Merian to fellow nature enthusiasts."
         ),
         RecommendationOption(
             rating: 10,
@@ -357,10 +357,6 @@ struct FeedbackSurveyView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Overall, how satisfied are you with Merian right now?")
                 .font(.headline)
-
-            Text("Pick the face that best matches how Merian feels today.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
 
             HStack(spacing: 8) {
                 ForEach(satisfactionOptions) { option in
