@@ -296,7 +296,9 @@ struct DescribeInputView: View {
     /// natural sentence flow.
     private func appendTag(_ tag: GuidedQuestion.Tag) {
         DescribeTagTracker.shared.recordUsage(for: tag.tagId)
-        
+        isTextFieldFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+
         // Handle toggling off an active funnel
         if promptManager.activeQuestionIndex == 0 && promptManager.activeSubjectId == tag.tagId {
             promptManager.clearSubjectSelection()

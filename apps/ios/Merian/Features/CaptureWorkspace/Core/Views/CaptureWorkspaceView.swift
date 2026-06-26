@@ -364,8 +364,12 @@ struct CaptureWorkspaceView: View {
             audioCaptureManager.reset()
             AppDIContainer.shared.environmentContextManager.stopLiveLocationTracking()
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
             guard captureMode == .describe else {
+                restoreBottomChrome(animated: false)
+                return
+            }
+            guard isSoftwareKeyboardVisible(from: notification) else {
                 restoreBottomChrome(animated: false)
                 return
             }
@@ -508,6 +512,15 @@ struct CaptureWorkspaceView: View {
             transaction.animation = nil
             withTransaction(transaction, update)
         }
+    }
+
+    private func isSoftwareKeyboardVisible(from notification: Notification) -> Bool {
+        guard let endFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+            return true
+        }
+        let screenBounds = UIScreen.main.bounds
+        let visibleKeyboardHeight = max(0, screenBounds.maxY - endFrame.minY)
+        return visibleKeyboardHeight > 80
     }
 
     private func updateControlBarHeight(_ newHeight: CGFloat) {

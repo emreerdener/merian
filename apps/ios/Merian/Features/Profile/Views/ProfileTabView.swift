@@ -23,14 +23,16 @@ struct ProfileTabView: View {
         ScrollView(showsIndicators: false) {
             // MARK: - Core Profile Content
             VStack(spacing: 24) {
-                // MARK: - User Profile
-                UserProfile(
-                    totalScans: totalCaptures,
-                    completedAchievements: awards.completedCount
-                )
+                VStack(spacing: 24) {
+                    // MARK: - User Profile
+                    UserProfile(
+                        totalScans: totalCaptures,
+                        completedAchievements: awards.completedCount
+                    )
 
-                // MARK: - Stats
-                UserStats(speciesCount: uniqueSpeciesCount, streak: currentStreak)
+                    // MARK: - Stats
+                    UserStats(speciesCount: uniqueSpeciesCount, streak: currentStreak)
+                }
 
                 // MARK: - Public Explore Scans
                 ProfilePublicScansPreview(

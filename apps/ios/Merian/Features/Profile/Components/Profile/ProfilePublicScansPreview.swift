@@ -19,7 +19,7 @@ struct ProfilePublicScansPreview: View {
     @State private var isLibraryPresented = false
 
     private let previewLimit = 9
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
+    private let columns = ProfilePublishedScanGridStyle.columns
 
     var body: some View {
         content
@@ -151,7 +151,7 @@ struct ProfilePublicScansPreview: View {
 
     private func scanGrid(items: [ProfilePublicScanPreviewItem]) -> some View {
         LazyVGrid(columns: columns, spacing: 2) {
-            ForEach(items) { item in
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 Button {
                     Task { await openPreviewItem(item) }
                 } label: {
@@ -163,6 +163,7 @@ struct ProfilePublicScansPreview: View {
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
                     .clipped()
+                    .profilePublishedScanTileCorners(index: index, itemCount: items.count)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Published scan")
@@ -342,7 +343,7 @@ private struct ProfilePublishedScansLibraryView: View {
     @State private var selectedPostRoute: ExplorePostRoute?
 
     private let pageSize = 30
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
+    private let columns = ProfilePublishedScanGridStyle.columns
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -497,7 +498,7 @@ private struct ProfilePublishedScansLibraryView: View {
 
     private var libraryGrid: some View {
         LazyVGrid(columns: columns, spacing: 2) {
-            ForEach(posts) { post in
+            ForEach(Array(posts.enumerated()), id: \.element.id) { index, post in
                 Button {
                     openPost(post)
                 } label: {
@@ -509,6 +510,7 @@ private struct ProfilePublishedScansLibraryView: View {
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
                     .clipped()
+                    .profilePublishedScanTileCorners(index: index, itemCount: posts.count)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(viewModel.resolvedSpeciesCommonName(for: post)), published scan")
@@ -695,6 +697,32 @@ private struct ProfilePublicScanImageView: View {
     }
 }
 
+private enum ProfilePublishedScanGridStyle {
+    static let columnCount = 3
+    static let spacing: CGFloat = 2
+    static let cornerRadius: CGFloat = 16
+
+    static var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: spacing), count: columnCount)
+    }
+
+    static func cornerRadii(index: Int, itemCount: Int) -> RectangleCornerRadii {
+        guard itemCount > 0 else { return RectangleCornerRadii() }
+
+        let rowStart = (index / columnCount) * columnCount
+        let rowEnd = min(rowStart + columnCount, itemCount) - 1
+        let isLeadingEdge = index == rowStart
+        let isTrailingEdge = index == rowEnd
+
+        return RectangleCornerRadii(
+            topLeading: isLeadingEdge ? cornerRadius : 0,
+            bottomLeading: isLeadingEdge ? cornerRadius : 0,
+            bottomTrailing: isTrailingEdge ? cornerRadius : 0,
+            topTrailing: isTrailingEdge ? cornerRadius : 0
+        )
+    }
+}
+
 private extension String {
     var trimmedProfilePreviewValue: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
@@ -703,6 +731,15 @@ private extension String {
 }
 
 private extension View {
+    func profilePublishedScanTileCorners(index: Int, itemCount: Int) -> some View {
+        clipShape(
+            UnevenRoundedRectangle(
+                cornerRadii: ProfilePublishedScanGridStyle.cornerRadii(index: index, itemCount: itemCount),
+                style: .continuous
+            )
+        )
+    }
+
     func profileExploreStateStyle() -> some View {
         self
             .font(.subheadline)

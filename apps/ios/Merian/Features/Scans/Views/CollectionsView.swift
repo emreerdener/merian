@@ -173,6 +173,7 @@ struct CollectionsView: View {
                     }
                 }
             }
+            .padding(.top, isSearchHeaderVisible ? 0 : 16)
             .padding(.bottom, 16)
         }
         .collectionRenameAlert(
@@ -214,6 +215,10 @@ struct CollectionsView: View {
                 refreshCollectionSnapshot()
             }
         }
+    }
+
+    private var isSearchHeaderVisible: Bool {
+        isSearchFocused || !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     private var collectionsSignature: String {

@@ -8,6 +8,19 @@ TestFlight, App Store, support, and QA.
 
 ### Fixed
 
+- Matched Profile signed-out spacing below the sign-in buttons to the gap
+  between the stat cards.
+- Fixed Describe suggestions so tapping a prompt chip no longer leaves the
+  bottom toolbar hidden.
+- Updated the Describe add button so empty inputs show a secondary outline state
+  and filled inputs show the active filled state.
+- Fixed Profile published-scan grids so partial rows keep rounded outer image
+  corners instead of exposing sharp edges.
+- Added swipe-down dismissal to the full-screen Insight image viewer.
+- Fixed the full-screen Insight image viewer so fit-to-screen images stay
+  vertically centered.
+- Added a little more top spacing to Collections so the first cards sit more
+  comfortably below the Scans toolbar.
 - Fixed Explore Index Catalog scrolling so the grouped gray background fills
   the full page instead of ending partway down the catalog.
 - Fixed resolved Ask the Community publishing so owner-approved species

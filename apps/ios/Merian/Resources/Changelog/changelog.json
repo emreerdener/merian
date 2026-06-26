@@ -15,6 +15,13 @@
         {
           "title": "Fixed",
           "items": [
+            "Profile signed-out spacing below the sign-in buttons now matches the gap between the stat cards.",
+            "Describe suggestions now keep the bottom toolbar available after you tap a prompt chip.",
+            "The Describe add button now uses a secondary outline state when the input is empty and the filled active state once text is present.",
+            "Profile published-scan grids now keep rounded outer image corners on partial rows instead of exposing sharp edges.",
+            "The full-screen Insight image viewer now closes with a downward swipe.",
+            "Full-screen Insight images now stay vertically centered in the viewer.",
+            "Collections now has a little more top spacing so the first cards sit more comfortably below the Scans toolbar.",
             "Explore Index Catalog scrolling now keeps the grouped gray background behind the full page instead of ending partway down the catalog."
           ]
         }

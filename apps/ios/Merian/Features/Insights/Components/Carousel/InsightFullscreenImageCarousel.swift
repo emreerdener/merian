@@ -32,11 +32,52 @@ struct InsightFullscreenImageCarousel: View {
             .scrollPosition(id: $selectedItemID)
             .ignoresSafeArea()
 
-            controls
+            topControls
+            bottomControls
         }
+        .simultaneousGesture(swipeDownToDismissGesture)
         .onAppear {
             selectedItemID = presentation.items[safe: presentation.initialSelectedIndex]?.id
         }
+    }
+
+    private var swipeDownToDismissGesture: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { value in
+                let verticalDistance = value.translation.height
+                let horizontalDistance = abs(value.translation.width)
+                let predictedVerticalDistance = value.predictedEndTranslation.height
+                let effectiveVerticalDistance = max(verticalDistance, predictedVerticalDistance * 0.55)
+
+                guard effectiveVerticalDistance > 70 else { return }
+                guard effectiveVerticalDistance > horizontalDistance * 1.2 else { return }
+
+                dismiss()
+            }
+    }
+
+    private var topControls: some View {
+        VStack {
+            HStack {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(14)
+                        .background(Circle().fill(.white.opacity(0.14)))
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close image viewer")
+
+                Spacer()
+            }
+            .padding(.top, 12)
+            .padding(.horizontal, 16)
+
+            Spacer()
+        }
+        .allowsHitTesting(true)
     }
 
     @ViewBuilder
@@ -61,23 +102,8 @@ struct InsightFullscreenImageCarousel: View {
         }
     }
 
-    private var controls: some View {
+    private var bottomControls: some View {
         VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(10)
-                        .background(Circle().fill(.white.opacity(0.15)))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close image viewer")
-                .padding(.top, 12)
-                .padding(.trailing, 16)
-            }
-
             Spacer()
 
             VStack(spacing: 12) {

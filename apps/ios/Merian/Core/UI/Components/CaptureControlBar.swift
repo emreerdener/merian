@@ -86,10 +86,12 @@ struct CaptureControlBar: View {
                 // Describe also disabled while a refinement image is still loading.
                 let isSubmitDisabled: Bool = isAtCapacity
                     || (captureMode == .describe && viewModel.isStagingRefinement)
+                let isInputActive = captureMode != .describe || !observationContext.isEmpty
 
                 CaptureButton(
                     captureMode: captureMode,
                     willStageOnly: willStageOnly,
+                    isInputActive: isInputActive,
                     onAction: {
                         switch captureMode {
                         case .visual:
@@ -181,6 +183,7 @@ struct CaptureControlBar: View {
 private struct CaptureButton: View {
     let captureMode: CaptureMode
     let willStageOnly: Bool
+    let isInputActive: Bool
     let onAction: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -201,13 +204,22 @@ private struct CaptureButton: View {
     private var innerFill: Color {
         switch captureMode {
         case .visual:   return .white
-        case .describe: return Color.primary
+        case .describe: return isInputActive ? Color.primary : Color.clear
         case .audio:
             // Red = "recording action available" (idle or paused → tap to record/resume).
             // Neutral = "currently recording, tap to pause".
             if isAudioReview { return Color.primary }
             if isRecording && !isPaused { return Color.primary }
             return Color.red
+        }
+    }
+
+    private var iconColor: Color {
+        switch captureMode {
+        case .describe:
+            isInputActive ? Color(UIColor.systemBackground) : Color.primary
+        default:
+            Color(UIColor.systemBackground)
         }
     }
 
@@ -235,13 +247,15 @@ private struct CaptureButton: View {
                     .fill(innerFill)
                     .frame(width: 72, height: 72)
                     .animation(.easeInOut(duration: 0.25), value: isAudioReview)
+                    .animation(.easeInOut(duration: 0.2), value: isInputActive)
                     .animation(.easeInOut(duration: 0.2), value: isRecording && !isPaused)
 
                 if captureMode == .describe || isAudioReview {
                     Image(systemName: willStageOnly ? "plus" : "arrow.up")
                         .font(.system(size: 32))
-                        .foregroundStyle(Color(UIColor.systemBackground))
+                        .foregroundStyle(iconColor)
                         .transition(.scale.combined(with: .opacity))
+                        .animation(.easeInOut(duration: 0.2), value: isInputActive)
                 } else if isRecording && !isPaused {
                     Image(systemName: "pause.fill")
                         .font(.system(size: 26, weight: .medium))

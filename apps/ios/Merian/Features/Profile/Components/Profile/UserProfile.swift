@@ -17,7 +17,7 @@ struct UserProfile: View {
     var body: some View {
         VStack {
             if profileViewModel.isGuestUser {
-                VStack(spacing: 16) {
+                VStack(spacing: 24) {
                     profileCard
                     signInButtons
                 }
