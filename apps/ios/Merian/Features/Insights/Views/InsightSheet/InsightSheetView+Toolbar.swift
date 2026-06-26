@@ -58,7 +58,8 @@ extension InsightSheetView {
             onAskCommunity: viewModel.canRequestCommunityIdentification ? {
                 viewModel.state.isCommunityRequestSheetPresented = true
             } : nil,
-            isAnalyzing: viewModel.isProcessing
+            isAnalyzing: viewModel.isProcessing,
+            isProActive: RevenueCatManager.shared.isProActive
         )
 
         InsightBottomToolbar(

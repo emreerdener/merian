@@ -281,15 +281,19 @@ extension CandidateSwipeModal {
                 })
 
                 if let onRefineScan = onRefineScan {
-                    SlideToConfirm(label: "Reanalyze species", onConfirm: {
-                        if RevenueCatManager.shared.isProActive {
-                            isDismissing = true
-                            onRefineScan()
-                            isPresented = false
-                        } else {
-                            showPaywall = true
-                        }
-                    }, color: .orange)
+                    SlideToConfirm(
+                        label: RevenueCatManager.shared.isProActive ? "Reanalyze species" : "Reanalyze species (Pro)",
+                        onConfirm: {
+                            if RevenueCatManager.shared.isProActive {
+                                isDismissing = true
+                                onRefineScan()
+                                isPresented = false
+                            } else {
+                                showPaywall = true
+                            }
+                        },
+                        color: .orange
+                    )
                 }
 
                 if onAskCommunity != nil {

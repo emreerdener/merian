@@ -1,7 +1,7 @@
-import Foundation
 import Observation
 import os
 @_spi(Internal) import RevenueCat
+import UIKit
 
 struct SevenDayPassPurchase {
     let productIdentifier: String
@@ -205,5 +205,21 @@ enum SevenDayPassAccessPolicy {
         }
         let info = try await Purchases.shared.restorePurchases()
         updateEntitlements(with: info)
+    }
+
+    /// Presents the App Store subscription management UI or opens the subscriptions settings page.
+    func showManageSubscriptions() {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+        guard Purchases.isConfigured else { return }
+        Task {
+            do {
+                try await Purchases.shared.showManageSubscriptions()
+            } catch {
+                MerianLog.general.debug("Purchases.showManageSubscriptions failed: \(error.localizedDescription, privacy: .private)")
+                if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                    _ = await UIApplication.shared.open(url)
+                }
+            }
+        }
     }
 }

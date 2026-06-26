@@ -107,6 +107,23 @@ struct Preferences: View {
                 isProActive: revenueCatManager.isProActive,
                 onUpgrade: { showPaywall = true }
             )
+
+            ProFeatureToggleRow(
+                title: "Expedition mode",
+                description: "Maximizes battery life off-grid by capping camera frame rates, disabling heavy visual effects, and suppressing haptics.",
+                isOn: Binding(
+                    get: { appSettings.isExpeditionModeActive },
+                    set: { newValue in
+                        appSettings.isExpeditionModeActive = newValue
+                        hwOrchestrator.isExpeditionModeActive = newValue
+                        hardwareOrchestrator.evaluateConstraints()
+                    }
+                ),
+                icon: "map.fill",
+                iconColor: ProSettingsStyle.accent,
+                isProActive: revenueCatManager.isProActive,
+                onUpgrade: { showPaywall = true }
+            )
         } header: {
             Text("Pro")
         }
@@ -137,7 +154,7 @@ struct Preferences: View {
             // MARK: - Capture Modes
             Button { captureModeOrderSettingsActive = true } label: {
                 SettingsNavigationRow(
-                    title: "Capture modes",
+                    title: "Capture mode order",
                     description: "Choose your default mode and reorder Scan, Record, and Describe.",
                     icon: "rectangle.split.3x1.fill",
                     iconColor: .yellow
@@ -151,22 +168,6 @@ struct Preferences: View {
                 isOn: $appSettings.requiresScanConfirmation,
                 icon: "hand.tap.fill",
                 iconColor: .blue
-            )
-
-            // MARK: - Expedition Mode
-            SettingsToggleRow(
-                title: "Expedition mode",
-                description: "Maximizes battery life off-grid by capping camera frame rates, disabling heavy visual effects, and suppressing haptics.",
-                isOn: Binding(
-                    get: { appSettings.isExpeditionModeActive },
-                    set: { newValue in
-                        appSettings.isExpeditionModeActive = newValue
-                        hwOrchestrator.isExpeditionModeActive = newValue
-                        hardwareOrchestrator.evaluateConstraints()
-                    }
-                ),
-                icon: "map.fill",
-                iconColor: .green
             )
 
         } header: {

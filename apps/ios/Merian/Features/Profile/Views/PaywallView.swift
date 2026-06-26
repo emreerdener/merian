@@ -32,7 +32,7 @@ private let paywallHeroSlides = [
     PaywallHeroSlide(
         imageName: "pw_bird",
         title: "Listen, compare, record",
-        subtitle: "Unlock audio IDs, multi-capture context, and richer insight cards.",
+        subtitle: "Unlock multi-capture context, expedition modes, and richer insight cards.",
         glowColor: .cyan
     )
 ]
@@ -40,10 +40,10 @@ private let paywallHeroSlides = [
 private let paywallComparisons = [
     PaywallFeatureComparison(title: "Daily scans", freeValue: "1", proValue: "Unlimited"),
     PaywallFeatureComparison(title: "AI model", freeValue: "Flash", proValue: "Pro"),
-    PaywallFeatureComparison(title: "Audio IDs", freeValue: "-", proValue: "Included"),
     PaywallFeatureComparison(title: "Multi-capture", freeValue: "-", proValue: "Included"),
     PaywallFeatureComparison(title: "Apple Watch logging", freeValue: "-", proValue: "Included"),
-    PaywallFeatureComparison(title: "Group events", freeValue: "Join only", proValue: "Host")
+    PaywallFeatureComparison(title: "Group events", freeValue: "Join only", proValue: "Host"),
+    PaywallFeatureComparison(title: "Expedition mode", freeValue: "-", proValue: "Included")
 ]
 
 struct PaywallView: View {

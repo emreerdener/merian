@@ -40,13 +40,19 @@ struct PlanCard: View {
                 }
             }
             
-            Text(revenueCat.isProActive ? "You have unlimited identifications, offline taxonomy packs, and the Apple Watch companion natively unlocked." : "You have 1 free scan daily. Upgrade to unlock more advanced AI reasoning, unlimited identifications, audio recording, Apple Watch logging, and offline Field Queue caching.")
+            Text(revenueCat.isProActive ? "You have unlimited identifications, offline taxonomy packs, and the Apple Watch companion natively unlocked." : "You have 1 free scan daily. Upgrade to unlock more advanced AI reasoning, unlimited identifications, Apple Watch logging, and offline Field Queue caching.")
                 .font(.system(.subheadline))
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .lineSpacing(2)
             
-            Button(action: { showPaywall = true }) {
+            Button(action: {
+                if revenueCat.isProActive {
+                    revenueCat.showManageSubscriptions()
+                } else {
+                    showPaywall = true
+                }
+            }) {
                 HStack {
                     Image(systemName: revenueCat.isProActive ? "gearshape" : "arrow.up.circle")
                         .font(.system(size: 20, weight: .semibold))

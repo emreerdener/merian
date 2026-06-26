@@ -40,6 +40,41 @@ struct TopToolbar: ToolbarContent {
     var onConfirmIdentification: (() -> Void)?
     var onAskCommunity: (() -> Void)?
     let isAnalyzing: Bool
+    let isProActive: Bool
+
+    init(
+        commonName: String,
+        isCommonNameScrolledPast: Bool,
+        isSavingPhotos: Binding<Bool>,
+        showDeleteConfirmation: Binding<Bool>,
+        hasUserPhotos: Bool,
+        leadingControl: LeadingControl = .close,
+        onSavePhotos: @escaping () -> Void,
+        hasFieldNotes: Bool,
+        onFieldNotes: @escaping () -> Void,
+        onReanalyze: (() -> Void)? = nil,
+        onReviewAlternatives: (() -> Void)? = nil,
+        onConfirmIdentification: (() -> Void)? = nil,
+        onAskCommunity: (() -> Void)? = nil,
+        isAnalyzing: Bool,
+        isProActive: Bool
+    ) {
+        self.commonName = commonName
+        self.isCommonNameScrolledPast = isCommonNameScrolledPast
+        self._isSavingPhotos = isSavingPhotos
+        self._showDeleteConfirmation = showDeleteConfirmation
+        self.hasUserPhotos = hasUserPhotos
+        self.leadingControl = leadingControl
+        self.onSavePhotos = onSavePhotos
+        self.hasFieldNotes = hasFieldNotes
+        self.onFieldNotes = onFieldNotes
+        self.onReanalyze = onReanalyze
+        self.onReviewAlternatives = onReviewAlternatives
+        self.onConfirmIdentification = onConfirmIdentification
+        self.onAskCommunity = onAskCommunity
+        self.isAnalyzing = isAnalyzing
+        self.isProActive = isProActive
+    }
     
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
@@ -109,7 +144,11 @@ struct TopToolbar: ToolbarContent {
             }
             if let onReanalyze = onReanalyze {
                 Button(action: onReanalyze) {
-                    Label("Reanalyze species", systemImage: "arrow.2.circlepath")
+                    if isProActive {
+                        Label("Reanalyze species", systemImage: "arrow.2.circlepath")
+                    } else {
+                        Label("Reanalyze species (Pro)", systemImage: "lock.fill")
+                    }
                 }
             }
             if let onAskCommunity = onAskCommunity {
