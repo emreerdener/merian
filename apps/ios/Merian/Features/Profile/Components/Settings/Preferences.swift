@@ -197,6 +197,12 @@ struct Preferences: View {
             } label: {
                 Label("Test Explore Onboarding", systemImage: "safari")
             }
+            
+            Button {
+                showPaywall = true
+            } label: {
+                Label("Show Paywall", systemImage: "creditcard")
+            }
         } header: {
             Text("Developer")
         }

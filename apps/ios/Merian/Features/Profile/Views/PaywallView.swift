@@ -37,6 +37,35 @@ private let paywallHeroSlides = [
     )
 ]
 
+private struct PaywallReview: Identifiable {
+    let id = UUID()
+    let title: String
+    let rating: Int
+    let body: String
+    let author: String
+}
+
+private let paywallReviews = [
+    PaywallReview(
+        title: "Essential field tool",
+        rating: 5,
+        body: "Merian Pro has completely transformed my weekend hikes. The expedition mode saves so much battery, and the Pro AI offline capabilities are insanely accurate.",
+        author: "ForestPathfinder"
+    ),
+    PaywallReview(
+        title: "Stunning UI & details",
+        rating: 5,
+        body: "The depth of local ecological information inside the Pro insight cards is exceptional. Highly recommend it to anyone wanting to learn more about the outdoors.",
+        author: "EcoExplorer"
+    ),
+    PaywallReview(
+        title: "Absolutely worth it",
+        rating: 5,
+        body: "Unlimited scans are a must! I take dozens of pictures of mosses and lichens during fieldwork and the app never misses a beat. Essential for my job.",
+        author: "BioResearcher"
+    )
+]
+
 private let paywallComparisons = [
     PaywallFeatureComparison(title: "Daily scans", freeValue: "1", proValue: "Unlimited"),
     PaywallFeatureComparison(title: "AI model", freeValue: "Flash", proValue: "Pro"),
@@ -71,36 +100,51 @@ struct PaywallView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color(uiColor: .systemGroupedBackground)
-                .ignoresSafeArea()
+        NavigationStack {
+            ZStack(alignment: .top) {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 30) {
-                    brandHeader
-                        .padding(.top, 28)
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 30) {
+                        heroCarousel
+                            .padding(.horizontal, -20)
 
-                    heroCarousel
-                        .padding(.horizontal, -20)
+                        planPicker
 
-                    planPicker
+                        comparisonSection
 
-                    comparisonSection
+                        reviewsStack
+                            .padding(.bottom, 8)
 
-                    memberSupportedSection
+                        memberSupportedSection
 
-                    footerActions
-                        .padding(.top, 4)
-                        .padding(.bottom, 132)
+                        paywallActionLinks
+                            .padding(.bottom, 16)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal, 20)
+                .safeAreaInset(edge: .bottom) {
+                    stickyPurchaseBar
+                }
             }
-            .safeAreaInset(edge: .bottom) {
-                stickyPurchaseBar
+            .navigationTitle("Merian Pro")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.primary)
+                    }
+                }
             }
         }
         .presentationBackground(Color(uiColor: .systemGroupedBackground))
-        .presentationDragIndicator(.visible)
+        .presentationDragIndicator(.hidden)
         .task {
             if revenueCatManager.currentOfferings == nil {
                 await revenueCatManager.fetchOfferings()
@@ -110,17 +154,6 @@ struct PaywallView: View {
         .onChange(of: packages.map(\.identifier)) { _, _ in
             selectDefaultPackageIfNeeded()
         }
-    }
-
-    private var brandHeader: some View {
-        HStack(spacing: 6) {
-            Text("Merian")
-                .font(.system(size: 20, weight: .bold))
-            Text("PRO")
-                .font(.system(size: 20, weight: .heavy))
-                .foregroundStyle(.primary)
-        }
-        .accessibilityElement(children: .combine)
     }
 
     private var heroCarousel: some View {
@@ -289,74 +322,92 @@ struct PaywallView: View {
         .padding(.vertical, 10)
     }
 
-    private var footerActions: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            PaywallFooterButton(icon: "arrow.clockwise", title: isRestoring ? "Restoring..." : "Restore Purchases") {
-                Task { await tryRestore() }
-            }
-            .disabled(isRestoring)
-
-            PaywallFooterButton(icon: "giftcard", title: "Redeem Code") {
-                Purchases.shared.presentCodeRedemptionSheet()
-            }
-
-            Link(destination: URL(string: "https://merian.earth/privacy")!) {
-                PaywallFooterLabel(icon: "hand.raised", title: "Privacy Policy")
-            }
-
-            Link(destination: URL(string: "https://merian.earth/terms")!) {
-                PaywallFooterLabel(icon: "signature", title: "Terms of Use")
+    private var reviewsStack: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(paywallReviews.enumerated()), id: \.element.id) { index, review in
+                PaywallReviewRowView(review: review)
+                
+                if index < paywallReviews.count - 1 {
+                    Divider()
+                        .padding(.vertical, 8)
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 4)
     }
 
     @ViewBuilder
     private var stickyPurchaseBar: some View {
         if !packages.isEmpty {
-            VStack(spacing: 10) {
-                Button {
-                    Task { await purchaseSelectedPackage() }
-                } label: {
-                    VStack(spacing: 3) {
-                        if isPurchasing {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text(purchaseButtonTitle)
-                                .font(.system(size: 18, weight: .bold))
-                            Text(purchaseButtonSubtitle)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.78))
-                        }
+            Button {
+                Task { await purchaseSelectedPackage() }
+            } label: {
+                VStack(spacing: 3) {
+                    if isPurchasing {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Text(purchaseButtonTitle)
+                            .font(.system(size: 18, weight: .bold))
+                        Text(purchaseButtonSubtitle)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.78))
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 66)
-                    .background(
-                        LinearGradient(
-                            colors: selectedPackage == nil
-                                ? [Color.secondary.opacity(0.26), Color.secondary.opacity(0.16)]
-                                : [Color(red: 0.10, green: 0.62, blue: 0.74), Color(red: 0.13, green: 0.78, blue: 0.54)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        in: Capsule()
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.primary.opacity(selectedPackage == nil ? 0.08 : 0.18), lineWidth: 1.5)
-                    )
-                    .shadow(color: .black.opacity(0.34), radius: 18, y: 10)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white)
-                .disabled(selectedPackage == nil || isPurchasing)
+                .frame(maxWidth: .infinity)
+                .frame(height: 66)
+                .background(
+                    LinearGradient(
+                        colors: selectedPackage == nil
+                            ? [Color.secondary.opacity(0.26), Color.secondary.opacity(0.16)]
+                            : [Color(red: 0.10, green: 0.62, blue: 0.74), Color(red: 0.13, green: 0.78, blue: 0.54)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    in: Capsule()
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color.primary.opacity(selectedPackage == nil ? 0.08 : 0.18), lineWidth: 1.5)
+                )
+                .shadow(color: .black.opacity(0.34), radius: 18, y: 10)
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .disabled(selectedPackage == nil || isPurchasing)
             .padding(.horizontal, 28)
             .padding(.top, 14)
-            .padding(.bottom, 10)
+            .padding(.bottom, 12)
         }
+    }
+
+    private var paywallActionLinks: some View {
+        HStack(spacing: 24) {
+            if let termsUrl = URL(string: "https://merian.earth/terms") {
+                Link("Terms", destination: termsUrl)
+                    .foregroundStyle(.secondary)
+            }
+            
+            if let privacyUrl = URL(string: "https://merian.earth/privacy") {
+                Link("Privacy", destination: privacyUrl)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Button {
+                Task { await tryRestore() }
+            } label: {
+                HStack(spacing: 4) {
+                    Text("Restore")
+                    if isRestoring {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+            }
+            .foregroundStyle(.secondary)
+        }
+        .font(.system(size: 13, weight: .medium))
+        .buttonStyle(.plain)
     }
 
     private var purchaseButtonTitle: String {
@@ -378,7 +429,7 @@ struct PaywallView: View {
 
         let price = selectedPackage.storeProduct.localizedPriceString
         if selectedPackage.isSevenDayPassPlan {
-            return "\(price) for 7 days."
+            return "\(price) for 7 days"
         }
 
         switch selectedPackage.packageType {
@@ -465,6 +516,38 @@ struct PaywallView: View {
         } catch {
             MerianLog.general.error("In-app purchase failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+}
+
+private struct PaywallReviewRowView: View {
+    let review: PaywallReview
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(review.title)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.leading)
+            
+            HStack(spacing: 3) {
+                ForEach(0..<review.rating, id: \.self) { _ in
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.orange)
+                }
+            }
+            
+            Text(review.body)
+                .font(.system(size: 15, weight: .regular))
+                .foregroundColor(.primary.opacity(0.85))
+                .lineSpacing(3)
+                .multilineTextAlignment(.leading)
+            
+            Text(review.author)
+                .font(.system(size: 13, weight: .medium).italic())
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 8)
     }
 }
 
