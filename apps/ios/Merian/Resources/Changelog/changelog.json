@@ -4,7 +4,7 @@
     {
       "id": "2026-06-25-insight-image-viewer",
       "date": "2026-06-25",
-      "title": "Insight image viewer",
+      "title": "Insight viewer and interface polish",
       "sections": [
         {
           "title": "Added",
@@ -30,7 +30,7 @@
     {
       "id": "2026-06-21-explore-tree-orientation",
       "date": "2026-06-21",
-      "title": "Explore Tree orientation",
+      "title": "Dictionary, taxonomy tree, and layout updates",
       "sections": [
         {
           "title": "Changed",
@@ -194,7 +194,7 @@
     {
       "id": "2026-06-18-explore-discovery-menu",
       "date": "2026-06-18",
-      "title": "Explore discovery menu",
+      "title": "Restructured navigation and Dictionary Catalog",
       "sections": [
         {
           "title": "Added",
@@ -211,7 +211,7 @@
     {
       "id": "2026-06-17-durable-biological-media",
       "date": "2026-06-17",
-      "title": "Durable biological evidence",
+      "title": "Scan durability, reanalysis, and geoprivacy fixes",
       "sections": [
         {
           "title": "Changed",
@@ -366,7 +366,7 @@
     {
       "id": "2026-06-11-explore-species-details",
       "date": "2026-06-11",
-      "title": "Explore species details",
+      "title": "Explore post details and dictionary improvements",
       "sections": [
         {
           "title": "Improved",
@@ -403,7 +403,7 @@
     {
       "id": "2026-06-04-field-notes",
       "date": "2026-06-04",
-      "title": "Field notes and sharing polish",
+      "title": "Custom profile pictures, metadata, and sharing improvements",
       "sections": [
         {
           "title": "Added",
