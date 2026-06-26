@@ -2,27 +2,6 @@
   "schemaVersion": 1,
   "entries": [
     {
-      "id": "2026-06-26-pro-feature-adjustments",
-      "date": "2026-06-26",
-      "title": "Pro features and settings polish",
-      "sections": [
-        {
-          "title": "Changed",
-          "items": [
-            "Audio recording is now a standard free feature available to everyone, and references to it have been removed from the Pro paywall matrix and descriptions.",
-            "Expedition mode has been moved to the Pro section in Settings, prompting non-Pro users to upgrade when tapped."
-          ]
-        },
-        {
-          "title": "Fixed",
-          "items": [
-            "The Reanalyze species option in the scan details and candidate review menus is now locked to Pro members, showing a (Pro) lock tag and opening the paywall for free users.",
-            "Tapping Manage plan for active Pro users now opens Apple's subscription management sheet or settings page instead of showing the paywall."
-          ]
-        }
-      ]
-    },
-    {
       "id": "2026-06-25-insight-image-viewer",
       "date": "2026-06-25",
       "title": "Insight image viewer",
