@@ -135,6 +135,7 @@ deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/concurrency_test.ts \
   services/supabase/functions/update-public-avatar/index.ts \
   services/supabase/functions/update-public-display-name/index.ts \
+  services/supabase/functions/insight-chat/index.ts \
   services/supabase/functions/auto-purge-nonbio/index.ts \
   services/supabase/functions/delete-scan/index.ts
 
@@ -142,7 +143,9 @@ deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/aws_test.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
   services/supabase/functions/update-public-avatar/avatar_test.ts \
-  services/supabase/functions/_tests/updatePublicDisplayName.test.ts
+  services/supabase/functions/_tests/updatePublicDisplayName.test.ts \
+  services/supabase/functions/insight-chat/guards_test.ts \
+  services/supabase/functions/insight-chat/prompt_test.ts
 
 make db-push
 make functions-deploy
@@ -178,3 +181,7 @@ After deployment:
   `view = coverage` and returns the Birds coverage target quickly.
 - Confirm `sync-community-taxonomy-index` accepts a tiny `dry_run = true` Birds
   request without advancing `taxonomy_coverage_targets.next_import_offset`.
+- Confirm the Supabase Edge secret `INSIGHT_CHAT_ENABLED=true` is set only for
+  environments where Pro Field chat should be live, then smoke-test
+  `/insight-chat` with `action: "load"` against an owned completed biological
+  scan.

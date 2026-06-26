@@ -18,6 +18,9 @@ are identified by a persistent Keychain-backed
 - **`scans`**: Records GPS bounds, the LLM-generated `ai_confidence_score`,
   `inference_tier`, UUID references, and the `ecology_type_enum` for each scan,
   tied to the user's streak.
+- **`insight_chat_conversations` / `insight_chat_messages`**: Private Pro
+  follow-up chat rows keyed to owned `scans.id`, with owner-only RLS, scan cascade
+  cleanup, and assistant token telemetry for cost audits.
 - **`users`**: Binds the IDFV (or authenticated UUID) to the product schema,
   tracking usage limits, subscription tier, public Explore display identity,
   avatar projection, and canonical `public_username` handle.
@@ -76,8 +79,9 @@ Several utilities are shared across all Edge Functions via
   asynchronous `node-fetch` style queries to log per-scan events to PostHog for
   behavioral analytics (conversion funnel, scan frequency, species discovery
   rate). LLM token cost analytics are NOT owned by PostHog — they are owned by
-  Supabase SQL queries in `services/supabase/analytics/` (see below), which
-  query the `scans` table directly as the authoritative source.
+  Supabase SQL queries in `services/supabase/analytics/` (see below). Scan
+  inference cost queries read `scans`; Insight chat cost queries read assistant
+  rows in `insight_chat_messages`.
 - **`tierCache.ts`**: Worker-level `_tierCache` Map storing tier resolutions
   with a 5-minute TTL to eliminate DB round-trips on warm isolate reuse.
   **Bounded at 1000 entries**: on overflow, expired entries are swept first
@@ -390,7 +394,7 @@ The `/identify` Edge Function acts as the inference proxy:
     for Flash, 5000 for Pro) and is billed at the output token rate — it is the
     dominant cost driver for Pro scans. `llm_cached_tokens` is non-zero when
     Gemini's implicit context caching served the system instruction prefix from
-    cache (Flash only; requires the prefix to exceed 1,024 tokens); cached
+    cache (Flash only; requires the prefix to exceed 2,048 tokens); cached
     tokens are billed at 75% off the standard input rate. `colors` feeds into
     `semanticTags` on the Swift side for full-text search. `ai_reasoning` is
     fetched back during historical cloud sync and stored as
@@ -847,7 +851,8 @@ that operate on anonymous IDFV boundaries:
 
 - The `GEMINI_API_KEY` is absent from the iOS client bundle (`Info.plist` and
   `.xcconfig`). All LLM calls go through Supabase Edge Functions (`identify`,
-  `identify-multimodal`, `enrich-scan`, etc.), which hold the key server-side.
+  `identify-multimodal`, `enrich-scan`, `insight-chat`, etc.), which hold the key
+  server-side.
 - App-facing anonymous-compatible Edge Functions set `verify_jwt = false` in
   `config.toml`. Authenticated endpoints then perform manual JWT verification
   via `requireAuth` inside `withEdgeHandler`. This is mandatory for
@@ -968,15 +973,16 @@ then returns local media paths for `FileIOActor` cleanup.
 `services/supabase/analytics/` contains version-controlled SQL queries for LLM
 cost observability. These are the authoritative source for API spend analysis —
 PostHog owns behavioral metrics (funnel, session, conversion); Supabase SQL owns
-cost metrics (token counts are persisted directly to `public.scans` and are
-queryable at the row level without any sampling or event pipeline delay).
+cost metrics. Scan token counts are persisted to `public.scans`; Insight chat
+assistant token counts are persisted to `public.insight_chat_messages`.
 
 Run these in **Supabase → SQL Editor → Save** to pin them as named queries:
 
 | File                              | Purpose                                                                                                                                                                                                                                            |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `token_cost_summary.sql`          | Estimated API spend by tier for any date window. Applies current Gemini pricing constants (Flash: $0.075/M input, $0.01875/M cached, $0.30/M output; Pro: $1.25/M input, $10/M output) against actual stored token counts.                         |
-| `cache_effectiveness.sql`         | Daily Flash implicit cache hit rate and savings in cents. A hit is any scan where `llm_cached_tokens > 0`. Only meaningful for Flash scans after the system instruction exceeded the 1,024-token caching threshold.                                |
+| `token_cost_summary.sql`          | Estimated scan inference spend by tier for any date window. Applies current Gemini pricing constants (Flash: $0.30/M input, $0.03/M cached, $2.50/M output; Pro: $1.25/M input, $10/M output) against actual stored token counts.                  |
+| `insight_chat_cost_summary.sql`   | Estimated Gemini 2.5 Flash spend for Pro Insight chat assistant replies, using token telemetry persisted on `insight_chat_messages`.                                                                                                                |
+| `cache_effectiveness.sql`         | Daily Flash implicit cache hit rate and savings in cents. A hit is any scan where `llm_cached_tokens > 0`. Only meaningful for Flash scans after the system instruction exceeded the 2,048-token caching threshold.                                |
 | `thinking_token_distribution.sql` | P50/P90/P95/max thinking token usage by tier, plus `pct_at_budget_ceiling` — the percentage of scans where thinking usage approached the configured budget (2,048 Flash / 5,000 Pro). A high ceiling-hit rate signals the budget should be raised. |
 | `daily_cost_trend.sql`            | Per-day API spend by tier for the last 30 days. Use to spot cost anomalies from traffic surges or pricing changes.                                                                                                                                 |
 | `token_averages_by_week.sql`      | Weekly averages for all token fields plus cache hit rate. Shows step-changes after system instruction deployments and validates financial model assumptions.                                                                                       |
@@ -1270,6 +1276,9 @@ Vault via the CLI (`supabase secrets set KEY=VALUE`):
 
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
+- **`INSIGHT_CHAT_ENABLED`**: Set to `true` to expose the Pro Insight chat Edge
+  Function after deployment. Any other value keeps `/insight-chat` unavailable
+  even when the client UI is shipped.
 - **`POSTHOG_API_KEY`**: Authenticates server-side ingestion into PostHog.
 - **`CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY`**: Grants
   backend write access to the R2 Storage bucket.

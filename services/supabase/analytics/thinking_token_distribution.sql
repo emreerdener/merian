@@ -25,7 +25,7 @@ SELECT
   )                                                               AS pct_at_budget_ceiling,
   -- Total thinking output cost (cents)
   ROUND(SUM(CASE
-    WHEN inference_tier = 'flash' THEN llm_thinking_tokens * 0.300 / 1000000.0 * 100
+    WHEN inference_tier = 'flash' THEN llm_thinking_tokens * 2.500 / 1000000.0 * 100
     WHEN inference_tier = 'pro'  THEN llm_thinking_tokens * 10.00 / 1000000.0 * 100
     ELSE 0
   END), 4)                                                        AS thinking_cost_cents

@@ -5,9 +5,9 @@
 
 WITH pricing AS (
   SELECT
-    0.075   / 1000000.0 AS flash_input,
-    0.01875 / 1000000.0 AS flash_cached,
-    0.300   / 1000000.0 AS flash_output,
+    0.300 / 1000000.0 AS flash_input,
+    0.030 / 1000000.0 AS flash_cached,
+    2.500 / 1000000.0 AS flash_output,
     1.25    / 1000000.0 AS pro_input,
     10.00   / 1000000.0 AS pro_output
 )

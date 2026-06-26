@@ -222,6 +222,8 @@ Tests are organized under `apps/ios/MerianTests/Core` and `apps/ios/MerianTests/
   skip/reject/confirm/restart/exhausted transitions without SwiftUI animation
   state. `SpeciesObservationStatsViewModelTests.swift` covers actor/reducer
   aggregation plus reducer normalization and empty-bucket behavior.
+  `InsightChatTests.swift` covers Pro Field chat request/response decoding,
+  context-aware prompt chip generation, and the 600-character draft cap.
   `UserTagsMutationControllerTests.swift` verifies tag saves commit locally
   before external cloud/search side effects can run.
 - **`CaptureTelemetryTests.swift`**: Directly validates that offline/historic
@@ -457,6 +459,11 @@ logic models decoupled from live Apple ecosystem HTTP constraints.
 Merian relies on Supabase Edge Functions. Due to the rapid iteration cycle of
 Gemini structures, type safety at the network boundary (Swift → TS) must be
 guaranteed by AST regression guards.
+
+Function-local tests under `services/supabase/functions/insight-chat/` verify
+the text-only prompt context, raw image URL exclusion, raw-image-access system
+instruction, supported action parsing, feature flag helper, message caps, and
+deterministic safety refusals.
 
 ### `validate_edge_dtos.ts`
 

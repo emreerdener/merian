@@ -1,7 +1,8 @@
 -- CACHE EFFECTIVENESS
 -- Measures implicit context caching hit rate and token savings for Flash scans.
 -- A cache hit is any scan where llm_cached_tokens > 0.
--- Only meaningful for Flash scans after the system instruction expanded past 1,024 tokens.
+-- Only meaningful for Flash calls whose repeated prompt prefix reaches the
+-- current Gemini 2.5 Flash implicit caching floor.
 -- NULL llm_cached_tokens = scan predates the column or caching was not triggered.
 
 SELECT
@@ -19,7 +20,7 @@ SELECT
   -- (cached_tokens * (flash_input_rate - flash_cached_rate))
   ROUND(
     SUM(llm_cached_tokens) FILTER (WHERE llm_cached_tokens > 0)
-    * (0.075 - 0.01875) / 1000000.0 * 100,           -- result in cents
+    * (0.300 - 0.030) / 1000000.0 * 100,             -- result in cents
     4
   )                                                   AS cache_savings_cents
 FROM public.scans

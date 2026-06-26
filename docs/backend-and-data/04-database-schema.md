@@ -800,6 +800,37 @@ The transaction log for every successful identification.
   never receive this object. This field is not copied into `species_dictionary`;
   species identity remains keyed by `scientific_name`.
 
+### `insight_chat_conversations`, `insight_chat_messages`
+
+Private saved follow-up chat for completed biological Insight sheets. Added in
+migration `20260626120000_add_insight_chat.sql`.
+
+- `insight_chat_conversations.id` (UUID): Primary key.
+- `scan_id` (UUID FK -> `scans.id`, cascade delete): The owned scan this chat is
+  attached to. `(scan_id, user_id)` is unique so each user has at most one
+  conversation per scan.
+- `user_id` (UUID FK -> `users.id`, cascade delete): Owner. RLS allows users to
+  read, insert, update, and delete only rows where `auth.uid() = user_id`.
+- `created_at`, `updated_at`: Conversation timestamps; `updated_at` is maintained
+  by the shared timestamp trigger.
+- `insight_chat_messages.id` (UUID): Primary key.
+- `conversation_id` (UUID FK -> `insight_chat_conversations.id`, cascade delete):
+  Parent conversation. Deleting a scan deletes its conversation and messages.
+- `scan_id`, `user_id`: Denormalized owner bounds for indexes, RLS, analytics, and
+  daily send limits.
+- `role`: CHECK-constrained to `user` or `assistant`.
+- `message_text`: Plain text message content. User messages are capped by the
+  Edge Function at 600 characters.
+- `client_message_id`: Optional client-generated UUID for idempotent user sends;
+  unique per conversation when present.
+- `model`, `prompt_tokens`, `candidate_tokens`, `thinking_tokens`,
+  `total_tokens`, `cached_tokens`: Gemini telemetry for assistant replies.
+- `is_refusal`, `refusal_reason`, `safety_metadata`: Safety/refusal audit fields
+  for local guardrail refusals and model-declared refusals.
+
+These tables are private scan data. They are not read by Explore, public species
+dictionary endpoints, public web pages, or Darwin Core exports.
+
 ### `scan_import_jobs`
 
 Parked queue visibility table for scans that originate in the native Photos

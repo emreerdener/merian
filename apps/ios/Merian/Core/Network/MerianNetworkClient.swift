@@ -2150,6 +2150,65 @@ final class MerianNetworkClient {
         _ = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
     }
 
+    // MARK: - Insight Chat
+
+    func loadInsightChat(scanId: String) async throws -> InsightChatResponse {
+        try await insightChat(action: "load", scanId: scanId, messageText: nil, clientMessageId: nil)
+    }
+
+    func sendInsightChatMessage(
+        scanId: String,
+        messageText: String,
+        clientMessageId: String
+    ) async throws -> InsightChatResponse {
+        try await insightChat(
+            action: "send",
+            scanId: scanId,
+            messageText: messageText,
+            clientMessageId: clientMessageId
+        )
+    }
+
+    func deleteInsightChat(scanId: String) async throws -> InsightChatResponse {
+        try await insightChat(action: "delete", scanId: scanId, messageText: nil, clientMessageId: nil)
+    }
+
+    private func insightChat(
+        action: String,
+        scanId: String,
+        messageText: String?,
+        clientMessageId: String?
+    ) async throws -> InsightChatResponse {
+        let functionUrl = try endpointURL("insight-chat")
+        let body = InsightChatRequestBody(
+            action: action,
+            scanId: scanId,
+            messageText: messageText,
+            clientMessageId: clientMessageId
+        )
+        let bodyData = try JSONEncoder().encode(body)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            timeoutInterval: 45.0
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            if let date = DateUtilities.iso8601FractionalFormatter.date(from: value)
+                ?? DateUtilities.iso8601Formatter.date(from: value) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid ISO 8601 date: \(value)"
+            )
+        }
+        return try decoder.decode(InsightChatEnvelope.self, from: data).data
+    }
+
     private func shouldAttemptExploreMediaRestore(after error: Error) -> Bool {
         guard case let MerianError.httpError(statusCode, message) = error,
               statusCode == 409 else {

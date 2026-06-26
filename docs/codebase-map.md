@@ -156,6 +156,7 @@ Inference and media staging:
 - `audio-spec`
 - `check-scan-status`
 - `enrich-scan`
+- `insight-chat`
 
 Public species data:
 

@@ -6,6 +6,9 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Insight Chat
+- Added a Pro-only Field chat card to biological Insight sheets so saved scans can keep private AI follow-up conversations with prompt chips, typed questions, safety guardrails, and server-side token tracking.
+
 ### Image Viewer & Reference Gallery
 - Added a full-screen Insight image viewer so tapping a scan image opens a fit-centered, swipeable carousel with zoom and reference attribution.
 - Added swipe-down dismissal to the full-screen Insight image viewer.

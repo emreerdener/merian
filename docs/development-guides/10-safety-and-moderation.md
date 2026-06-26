@@ -116,6 +116,21 @@ This prevents orphaned public objects when the database write fails after media 
 
 The `ERROR` status now halts ingestion in `identify/index.ts` — when `modResult.status === "ERROR"`, the scan insert is skipped entirely. Without this guard, a moderation pipeline failure (e.g. abuse strike DB write failed) would create a permanent DB record with `image_storage_urls: null`. The outer catch in `moderation.ts` now uses `logStructuredError` instead of bare `console.error` for alertable observability. Abuse strike fetch/write failures now throw rather than log-and-continue — returning `SHADOWBANNED` or `DELETED_WARNING` when the DB write silently failed would falsely indicate the penalty was recorded.
 
+## Insight Chat Safety
+
+`/insight-chat` is a post-identification text-only follow-up surface, not a media
+moderation path. It never receives raw image bytes or cloud image URLs. The Edge
+Function builds context from private stored scan evidence and the species
+dictionary, then calls `gemini-2.5-flash` only after ownership, Pro tier, feature
+flag, and rate-limit checks pass.
+
+The system prompt must state that the assistant has no raw image access and
+answers only from saved evidence. Local deterministic guards refuse or redirect
+edible/foraging certainty, medical or veterinary treatment, dangerous handling,
+illegal collection, pesticide/poison instructions, and human-subject
+identification. Refused answers should stay educational and conservative rather
+than giving action instructions.
+
 ## Flagged Reviews (User-Reported)
 
 Separate from the automated moderation system, users can manually report a scan via the flag flow in `BiologicalView`. This writes a row to the `flagged_reviews` table via the `/flag-issue` Edge Function:

@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-26-insight-chat",
+      "date": "2026-06-26",
+      "title": "Pro Insight chat",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Pro members can now ask saved follow-up questions from biological Insight sheets with Field chat."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-25-insight-image-viewer",
       "date": "2026-06-25",
       "title": "Insight viewer and interface polish",

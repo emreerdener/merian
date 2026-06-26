@@ -396,6 +396,9 @@ verify_jwt = false
 [functions.enrich-scan]
 verify_jwt = false
 
+[functions.insight-chat]
+verify_jwt = false
+
 [functions.safe-delete]
 verify_jwt = false
 

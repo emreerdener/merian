@@ -3068,6 +3068,99 @@ users, including active trial users, are exempt.
 
 ---
 
+## Deno `/insight-chat` Edge Node
+
+Private Pro follow-up chat for completed biological Insight sheets. The endpoint
+uses the authenticated Supabase user from `withEdgeHandler`, verifies ownership of
+`scan_id`, resolves the effective tier through `_shared/tierCache.ts`, and is
+server-gated by `INSIGHT_CHAT_ENABLED=true`.
+
+### Request Payload
+
+```json
+{
+  "action": "send",
+  "scan_id": "A1B2C3D4-...",
+  "message_text": "What traits support this identification?",
+  "client_message_id": "11111111-1111-4111-8111-111111111111"
+}
+```
+
+`action` accepts `load`, `send`, or `delete`. `load` and `delete` require only
+`scan_id`. `send` requires `message_text` and may include `client_message_id` for
+idempotency. The server caps v1 at 600 characters per user message, 30 total
+messages per conversation, and 20 sends per Pro user per day. Effective Pro
+includes active trial users.
+
+### Prompt and Privacy Boundary
+
+The server builds chat context from stored text data only: species names,
+taxonomy, hazard type, confidence, candidates/lookalikes, habitat/Wikipedia
+overview, `ai_reasoning`, field notes, capture date/month, location label,
+weather, elevation, and image-quality metadata. It does not include raw image
+bytes, R2 object keys, cloud image URLs, Explore comments, public post metadata,
+or Darwin Core export payloads.
+
+The Gemini request uses `gemini-2.5-flash` with a stable prompt prefix,
+`maxOutputTokens: 700`, no streaming, no Google Search grounding, and thinking
+disabled. Assistant messages store model/token telemetry, including cached tokens
+when Gemini reports implicit cache hits.
+
+### Response Payload
+
+```json
+{
+  "data": {
+    "conversation_id": "22222222-2222-4222-8222-222222222222",
+    "messages": [
+      {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "role": "user",
+        "message_text": "What traits support this identification?",
+        "created_at": "2026-06-26T16:20:00.000Z",
+        "is_refusal": false,
+        "refusal_reason": null
+      },
+      {
+        "id": "44444444-4444-4444-8444-444444444444",
+        "role": "assistant",
+        "message_text": "The saved evidence points to...",
+        "created_at": "2026-06-26T16:20:02.000Z",
+        "is_refusal": false,
+        "refusal_reason": null
+      }
+    ],
+    "limits": {
+      "max_user_message_chars": 600,
+      "max_messages_per_conversation": 30,
+      "daily_send_limit": 20,
+      "sends_remaining_today": 19
+    }
+  }
+}
+```
+
+### Safety and Errors
+
+The system prompt states the assistant has no raw image access and answers only
+from stored scan evidence. The Edge Function refuses or redirects edible/foraging
+certainty, medical/veterinary treatment, dangerous handling, illegal collection,
+pesticide/poison instructions, and human-subject identification requests.
+
+| Status | Body | Meaning |
+| ------ | ---- | ------- |
+| `400` | `{ "code": "unsupported_scan", ... }` | Scan is non-biological or request shape is invalid |
+| `402` | `{ "code": "pro_required", ... }` | Effective tier is not Pro/trial |
+| `403` | `{ "code": "feature_disabled", ... }` | `INSIGHT_CHAT_ENABLED` is not set to `true` |
+| `404` | `{ "code": "scan_not_ready", ... }` | No owned completed scan row exists yet |
+| `429` | `{ "code": "daily_limit_reached", ... }` | Daily send cap reached |
+
+Telemetry emits `InsightChatSent`, `InsightChatAnswered`, `InsightChatRefused`,
+`InsightChatRateLimited`, and `InsightChatModelError` with latency and token
+fields when available.
+
+---
+
 ## Deno `/sync-collections` Edge Node
 
 Synchronizes locally created Scan Collections with the PostgreSQL `collections`
