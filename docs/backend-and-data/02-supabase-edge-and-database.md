@@ -19,8 +19,8 @@ are identified by a persistent Keychain-backed
   `inference_tier`, UUID references, and the `ecology_type_enum` for each scan,
   tied to the user's streak.
 - **`insight_chat_conversations` / `insight_chat_messages`**: Private Pro
-  follow-up chat rows keyed to owned `scans.id`, with owner-only RLS, scan cascade
-  cleanup, and assistant token telemetry for cost audits.
+  follow-up chat conversations keyed to owned `scans.id`, with owner-only RLS,
+  scan cascade cleanup, and assistant token telemetry for cost audits.
 - **`users`**: Binds the IDFV (or authenticated UUID) to the product schema,
   tracking usage limits, subscription tier, public Explore display identity,
   avatar projection, and canonical `public_username` handle.
@@ -1276,9 +1276,6 @@ Vault via the CLI (`supabase secrets set KEY=VALUE`):
 
 - **`GEMINI_API_KEY`**: Authenticates all `gemini-2.5-flash` and
   `gemini-2.5-pro` model inferences.
-- **`INSIGHT_CHAT_ENABLED`**: Set to `true` to expose the Pro Insight chat Edge
-  Function after deployment. Any other value keeps `/insight-chat` unavailable
-  even when the client UI is shipped.
 - **`POSTHOG_API_KEY`**: Authenticates server-side ingestion into PostHog.
 - **`CLOUDFLARE_R2_ACCESS_KEY_ID` / `CLOUDFLARE_R2_SECRET_ACCESS_KEY`**: Grants
   backend write access to the R2 Storage bucket.

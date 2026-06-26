@@ -3,17 +3,16 @@ import {
   MAX_USER_MESSAGE_CHARS,
 } from "./types.ts";
 
-export function isInsightChatFeatureEnabled(
-  value: string | undefined,
-): boolean {
-  return value === "true";
-}
-
-export function normalizeAction(value: unknown): "load" | "send" | "delete" {
-  if (value === "load" || value === "send" || value === "delete") return value;
-  throw Object.assign(new Error("action must be load, send, or delete."), {
-    status: 400,
-  });
+export function normalizeAction(
+  value: unknown,
+): "load" | "send" | "delete" {
+  if (value === "load" || value === "send" || value === "delete") {
+    return value;
+  }
+  throw Object.assign(
+    new Error("action must be load, send, or delete."),
+    { status: 400 },
+  );
 }
 
 export function normalizeUserMessage(value: unknown): string {

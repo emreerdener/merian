@@ -807,8 +807,8 @@ migration `20260626120000_add_insight_chat.sql`.
 
 - `insight_chat_conversations.id` (UUID): Primary key.
 - `scan_id` (UUID FK -> `scans.id`, cascade delete): The owned scan this chat is
-  attached to. `(scan_id, user_id)` is unique so each user has at most one
-  conversation per scan.
+  attached to. `scan_id` and `user_id` are unique together so each user has one
+  saved Field chat per scan.
 - `user_id` (UUID FK -> `users.id`, cascade delete): Owner. RLS allows users to
   read, insert, update, and delete only rows where `auth.uid() = user_id`.
 - `created_at`, `updated_at`: Conversation timestamps; `updated_at` is maintained
@@ -823,8 +823,8 @@ migration `20260626120000_add_insight_chat.sql`.
   Edge Function at 600 characters.
 - `client_message_id`: Optional client-generated UUID for idempotent user sends;
   unique per conversation when present.
-- `model`, `prompt_tokens`, `candidate_tokens`, `thinking_tokens`,
-  `total_tokens`, `cached_tokens`: Gemini telemetry for assistant replies.
+- `model`, `llm_prompt_tokens`, `llm_candidate_tokens`, `llm_thinking_tokens`,
+  `llm_total_tokens`, `llm_cached_tokens`: Gemini telemetry for assistant replies.
 - `is_refusal`, `refusal_reason`, `safety_metadata`: Safety/refusal audit fields
   for local guardrail refusals and model-declared refusals.
 

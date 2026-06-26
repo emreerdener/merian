@@ -15,6 +15,7 @@ final class InsightChatViewModel {
     var isDeleting = false
     var isOffline = false
     var conversationId: String?
+    var unavailableScanId: String?
     var limits = InsightChatLimits(
         maxUserMessageCharacters: 600,
         maxMessagesPerConversation: 30,
@@ -56,12 +57,14 @@ final class InsightChatViewModel {
             && limits.sendsRemainingToday > 0
     }
 
+    func isUnavailable(for scanId: String?) -> Bool {
+        guard let scanId else { return true }
+        return unavailableScanId == scanId
+    }
+
     func loadIfNeeded(scanId: String, isProActive: Bool) async {
         guard isProActive else {
-            loadedScanId = nil
-            messages = []
-            conversationId = nil
-            errorMessage = nil
+            clearLoadedState()
             return
         }
 
@@ -84,7 +87,7 @@ final class InsightChatViewModel {
             apply(try await MerianNetworkClient.shared.loadInsightChat(scanId: scanId))
         } catch {
             loadedScanId = nil
-            errorMessage = userFacingMessage(for: error)
+            handle(error, scanId: scanId)
         }
     }
 
@@ -119,11 +122,15 @@ final class InsightChatViewModel {
                 clientMessageId: clientMessageId
             ))
         } catch {
-            errorMessage = userFacingMessage(for: error)
+            handle(error, scanId: scanId)
             if draftText.isEmpty {
                 draftText = trimmed
             }
         }
+    }
+
+    func deleteCurrentConversation(scanId: String) async {
+        await deleteConversation(scanId: scanId)
     }
 
     func deleteConversation(scanId: String) async {
@@ -139,7 +146,7 @@ final class InsightChatViewModel {
         do {
             apply(try await MerianNetworkClient.shared.deleteInsightChat(scanId: scanId))
         } catch {
-            errorMessage = userFacingMessage(for: error)
+            handle(error, scanId: scanId)
         }
     }
 
@@ -188,9 +195,35 @@ final class InsightChatViewModel {
         conversationId = response.conversationId
         messages = response.messages
         limits = response.limits
+        unavailableScanId = nil
     }
 
-    private func userFacingMessage(for error: Error) -> String {
+    private func clearLoadedState() {
+        loadedScanId = nil
+        messages = []
+        conversationId = nil
+        errorMessage = nil
+        unavailableScanId = nil
+    }
+
+    private func handle(_ error: Error, scanId: String) {
+        errorMessage = Self.userFacingMessage(for: error)
+        if Self.isDeterministicallyUnavailable(error) {
+            unavailableScanId = scanId
+        }
+    }
+
+    static func isDeterministicallyUnavailable(_ error: Error) -> Bool {
+        guard case let MerianError.httpError(statusCode, message) = error else {
+            return false
+        }
+
+        if statusCode == 403 || statusCode == 404 { return true }
+        if statusCode == 400 && message.contains("unsupported_scan") { return true }
+        return false
+    }
+
+    static func userFacingMessage(for error: Error) -> String {
         if let urlError = error as? URLError {
             switch urlError.code {
             case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed:
@@ -204,6 +237,8 @@ final class InsightChatViewModel {
             switch statusCode {
             case 402:
                 return "Merian Pro is required."
+            case 403:
+                return "This scan belongs to another account."
             case 429:
                 return "Chat limit reached for today."
             case 404:

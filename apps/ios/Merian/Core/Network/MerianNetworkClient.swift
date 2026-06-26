@@ -2153,7 +2153,12 @@ final class MerianNetworkClient {
     // MARK: - Insight Chat
 
     func loadInsightChat(scanId: String) async throws -> InsightChatResponse {
-        try await insightChat(action: "load", scanId: scanId, messageText: nil, clientMessageId: nil)
+        try await insightChat(
+            action: "load",
+            scanId: scanId,
+            messageText: nil,
+            clientMessageId: nil
+        )
     }
 
     func sendInsightChatMessage(
@@ -2170,7 +2175,12 @@ final class MerianNetworkClient {
     }
 
     func deleteInsightChat(scanId: String) async throws -> InsightChatResponse {
-        try await insightChat(action: "delete", scanId: scanId, messageText: nil, clientMessageId: nil)
+        try await insightChat(
+            action: "delete",
+            scanId: scanId,
+            messageText: nil,
+            clientMessageId: nil
+        )
     }
 
     private func insightChat(

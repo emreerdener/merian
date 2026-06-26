@@ -4,12 +4,10 @@ import SwiftUI
 struct BiologicalView: View {
     // MARK: - Dependencies
     @Environment(InferenceEngine.self) var inferenceEngine
-    @Environment(RevenueCatManager.self) private var revenueCat
     @Bindable var viewModel: InsightSheetViewModel
     @Binding var isSafariPresented: Bool
     @Binding var selectedWikiURL: URL?
     @Environment(\.modelContext) private var modelContext
-    @State private var chatViewModel = InsightChatViewModel()
 
     // MARK: - Context State
     var timestamp: Date?
@@ -134,26 +132,10 @@ struct BiologicalView: View {
                 )
                 .cardEntrance(index: 4)
 
-                if let speciesData = inferenceEngine.speciesData,
-                   speciesData.isHumanSubject == false,
-                   let scanId = speciesData.scanId {
-                    InsightChatCard(
-                        viewModel: chatViewModel,
-                        scanId: scanId,
-                        speciesData: speciesData,
-                        timestamp: timestamp,
-                        isProActive: revenueCat.isProActive,
-                        onUnlock: {
-                            viewModel.state.showPaywall = true
-                        }
-                    )
-                    .cardEntrance(index: 5)
-                }
-    
                 // MARK: - Habitat & Distribution
                 if !isUnknownSubject {
                     HabitatAndDistributionCard()
-                        .cardEntrance(index: 6)
+                        .cardEntrance(index: 5)
                 }
 
                 // MARK: - Observation Patterns
@@ -164,7 +146,7 @@ struct BiologicalView: View {
                         speciesId: viewModel.activeConfirmedSpeciesId,
                         scientificName: scientificName
                     )
-                    .cardEntrance(index: 7)
+                    .cardEntrance(index: 6)
                 }
     
                 // MARK: - Biological Classification
@@ -173,7 +155,7 @@ struct BiologicalView: View {
                         taxonomyData: inferenceEngine.speciesData?.taxonomy,
                         scientificName: inferenceEngine.speciesData?.scientificName
                     )
-                    .cardEntrance(index: 8)
+                    .cardEntrance(index: 7)
                 }
     
                 // MARK: - Similar Species Gallery
@@ -193,7 +175,7 @@ struct BiologicalView: View {
                         }
                     }
                     .animation(.easeInOut, value: inferenceEngine.isLookalikesLoading)
-                    .cardEntrance(index: 9)
+                    .cardEntrance(index: 8)
                 }
     
                 // MARK: - Spatiotemporal Context
@@ -202,12 +184,12 @@ struct BiologicalView: View {
                     timestamp: timestamp,
                     imageCount: viewModel.activeImageCount
                 )
-                .cardEntrance(index: 10)
+                .cardEntrance(index: 9)
 
                 // MARK: - Custom Tags
                 if let scanId = inferenceEngine.speciesData?.scanId {
                     UserTagsCard(scanId: scanId)
-                        .cardEntrance(index: 11)
+                        .cardEntrance(index: 10)
                 }
             }
         }

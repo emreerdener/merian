@@ -576,16 +576,17 @@ or audio attached:
   a non-zero value means Google served those prefix tokens from cache at the 75%
   discount rate.
 - **Insight Chat (`insight-chat`)**: Pro follow-up chat uses
-  `gemini-2.5-flash` from an authenticated Edge Function. The client never sends
-  raw image data for chat turns; the server assembles a text-only context from
-  the owned scan row, species dictionary fields, AI reasoning, telemetry,
+  `gemini-2.5-flash` from an authenticated Edge Function and appears as an
+  Insight bottom-sheet conversation surface. The client never sends raw image
+  data for chat turns; the server assembles a text-only context from the owned
+  scan row, species dictionary fields, AI reasoning, telemetry,
   candidates/lookalikes, field context, and image-quality metadata. Chat
-  messages are private rows in `insight_chat_conversations` /
-  `insight_chat_messages`, capped at 600 user characters, 30 messages per scan
-  conversation, and 20 sends per Pro user per day. Token usage is stored on
-  assistant message rows and tracked with `InsightChatAnswered`,
+  conversations and messages are private rows in `insight_chat_conversations` /
+  `insight_chat_messages`; each scan has one saved conversation per user.
+  User messages are capped at 600 characters, each conversation is capped at
+  30 messages, and all chats share the 20 sends per Pro user per day.
+  Token usage is stored on assistant message rows and tracked with `InsightChatAnswered`,
   `InsightChatRefused`, `InsightChatRateLimited`, and `InsightChatModelError`.
-  Rollout is server-gated by `INSIGHT_CHAT_ENABLED=true`.
 - **Dynamic Diagnostic Thresholds**: The dynamic presentation of diagnostic data
   (e.g., lookalikes, confidence hooks, and identification candidates) is gated
   by the tier-specific `diagnosticTrigger`. **Canonical source of truth**:

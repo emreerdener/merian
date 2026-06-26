@@ -35,6 +35,11 @@ struct TopToolbar: ToolbarContent {
     let onSavePhotos: () -> Void
     let hasFieldNotes: Bool
     let onFieldNotes: () -> Void
+    let collections: [ScanCollection]
+    let selectedCollectionIds: Set<String>
+    let toggleScanInCollection: (ScanCollection) -> Void
+    @Binding var showNewCollectionAlert: Bool
+    let hasCollectionScanId: Bool
     var onReanalyze: (() -> Void)?
     var onReviewAlternatives: (() -> Void)?
     var onConfirmIdentification: (() -> Void)?
@@ -52,6 +57,11 @@ struct TopToolbar: ToolbarContent {
         onSavePhotos: @escaping () -> Void,
         hasFieldNotes: Bool,
         onFieldNotes: @escaping () -> Void,
+        collections: [ScanCollection],
+        selectedCollectionIds: Set<String>,
+        toggleScanInCollection: @escaping (ScanCollection) -> Void,
+        showNewCollectionAlert: Binding<Bool>,
+        hasCollectionScanId: Bool,
         onReanalyze: (() -> Void)? = nil,
         onReviewAlternatives: (() -> Void)? = nil,
         onConfirmIdentification: (() -> Void)? = nil,
@@ -68,6 +78,11 @@ struct TopToolbar: ToolbarContent {
         self.onSavePhotos = onSavePhotos
         self.hasFieldNotes = hasFieldNotes
         self.onFieldNotes = onFieldNotes
+        self.collections = collections
+        self.selectedCollectionIds = selectedCollectionIds
+        self.toggleScanInCollection = toggleScanInCollection
+        self._showNewCollectionAlert = showNewCollectionAlert
+        self.hasCollectionScanId = hasCollectionScanId
         self.onReanalyze = onReanalyze
         self.onReviewAlternatives = onReviewAlternatives
         self.onConfirmIdentification = onConfirmIdentification
@@ -127,8 +142,16 @@ struct TopToolbar: ToolbarContent {
             Label(hasFieldNotes ? "Update field notes" : "Add field notes", systemImage: "square.and.pencil")
         }
 
-         Button(role: .destructive, action: { showDeleteConfirmation = true }) {
-                Label("Delete scan", systemImage: "trash")
+        AddCollectionTopMenu(
+            collections: collections,
+            selectedCollectionIds: selectedCollectionIds,
+            toggleScanInCollection: toggleScanInCollection,
+            showNewCollectionAlert: $showNewCollectionAlert,
+            hasScanId: hasCollectionScanId
+        )
+
+        Button(role: .destructive, action: { showDeleteConfirmation = true }) {
+            Label("Delete scan", systemImage: "trash")
         }
         
         Section("Identification") {

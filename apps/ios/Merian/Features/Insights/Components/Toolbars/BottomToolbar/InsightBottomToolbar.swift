@@ -5,10 +5,9 @@ struct InsightBottomToolbar: ToolbarContent {
     @Environment(ProfileViewModel.self) private var profileViewModel
     
     let showBottomBarTools: Bool
-    let collections: [ScanCollection]
     let recordSnapshot: InsightToolbarRecordSnapshot?
-    let toggleScanInCollection: (ScanCollection) -> Void
-    @Binding var showNewCollectionAlert: Bool
+    let canShowInsightChat: Bool
+    let onInsightChat: () -> Void
     let shareExternally: () -> Void
     let onShareToExplore: ((ExplorePostComposerDraft) -> Void)?
     let onEditExplorePost: ((ExplorePostComposerDraft) -> Void)?
@@ -86,13 +85,9 @@ struct InsightBottomToolbar: ToolbarContent {
 
                 Spacer()
 
-                 AddCollectionButton(
-                    collections: collections,
-                    selectedCollectionIds: recordSnapshot?.collectionIds ?? [],
-                    toggleScanInCollection: toggleScanInCollection,
-                    showNewCollectionAlert: $showNewCollectionAlert,
-                    hasScanId: recordSnapshot != nil || speciesData.scanId != nil
-                )
+                if canShowInsightChat {
+                    InsightChatToolbarButton(action: onInsightChat)
+                }
             }
         }
     }
@@ -110,5 +105,35 @@ struct InsightBottomToolbar: ToolbarContent {
         default:
             return .obscured
         }
+    }
+}
+
+private struct InsightChatToolbarButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            buttonContent
+                .buttonStyle(.glass)
+        } else {
+            buttonContent
+                .buttonStyle(.plain)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                }
+        }
+    }
+
+    private var buttonContent: some View {
+        Button(action: action) {
+            Label("Chat", systemImage: "sparkles")
+                .font(.system(size: 16, weight: .semibold))
+                .labelStyle(.titleAndIcon)
+        }
+        .accessibilityLabel("Open Field chat")
     }
 }

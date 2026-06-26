@@ -84,4 +84,27 @@ struct InsightChatTests {
         #expect(viewModel.draftText.count == 600)
         #expect(viewModel.trimmedDraft.count == 600)
     }
+
+    @Test func testForbiddenChatErrorExplainsAccountOwnership() {
+        let message = InsightChatViewModel.userFacingMessage(
+            for: MerianError.httpError(statusCode: 403, message: #"{"error":"Forbidden"}"#)
+        )
+
+        #expect(message == "This scan belongs to another account.")
+    }
+
+    @Test func testDeterministicUnavailableErrorsHideChatEntry() {
+        #expect(InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(statusCode: 403, message: #"{"error":"Forbidden"}"#)
+        ))
+        #expect(InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(statusCode: 404, message: #"{"code":"scan_not_ready"}"#)
+        ))
+        #expect(InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(statusCode: 400, message: #"{"code":"unsupported_scan"}"#)
+        ))
+        #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(statusCode: 429, message: #"{"code":"daily_limit_reached"}"#)
+        ))
+    }
 }

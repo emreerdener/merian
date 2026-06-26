@@ -12,7 +12,7 @@ The function accepts authenticated POST requests with:
 - `client_message_id`: optional UUID for idempotent sends
 
 Responses return `data.conversation_id`, ordered `data.messages`, and
-`data.limits`.
+`data.limits`. Each scan has at most one saved chat conversation per user.
 
 ## Privacy
 
@@ -26,13 +26,12 @@ public post metadata, or Darwin Core export payloads to the prompt.
 
 ## Rollout and Limits
 
-- Requires `INSIGHT_CHAT_ENABLED=true`.
 - Requires effective Pro tier from `_shared/tierCache.ts`; active trials count
   as Pro.
 - Uses `gemini-2.5-flash`, `maxOutputTokens: 700`, no streaming, no Google
   Search grounding, and thinking disabled.
-- Caps v1 at 30 messages per scan conversation and 20 sends per Pro user per
-  day.
+- Each scan has one saved conversation per user, capped at 30 messages. All
+  Insight chat sends share the 20 sends per Pro user per day limit.
 
 ## Safety
 

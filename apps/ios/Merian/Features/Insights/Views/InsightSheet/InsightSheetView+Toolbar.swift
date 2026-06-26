@@ -35,6 +35,13 @@ extension InsightSheetView {
             onFieldNotes: {
                 viewModel.state.isFieldNotesSheetPresented = true
             },
+            collections: collections,
+            selectedCollectionIds: viewModel.toolbarRecordSnapshot?.collectionIds ?? [],
+            toggleScanInCollection: { collection in
+                viewModel.toggleScanInCollection(collection, modelContext: modelContext)
+            },
+            showNewCollectionAlert: $viewModel.state.showNewCollectionAlert,
+            hasCollectionScanId: viewModel.toolbarRecordSnapshot != nil || inferenceEngine.speciesData?.scanId != nil,
             onReanalyze: viewModel.canReanalyze ? {
                 if RevenueCatManager.shared.isProActive {
                     if let record = viewModel.activeLocalRecord {
@@ -64,12 +71,15 @@ extension InsightSheetView {
 
         InsightBottomToolbar(
             showBottomBarTools: viewModel.state.showBottomBarTools && !viewModel.isProcessing,
-            collections: collections,
             recordSnapshot: viewModel.toolbarRecordSnapshot,
-            toggleScanInCollection: { collection in
-                viewModel.toggleScanInCollection(collection, modelContext: modelContext)
+            canShowInsightChat: canShowInsightChat,
+            onInsightChat: {
+                if RevenueCatManager.shared.isProActive {
+                    viewModel.state.isInsightChatSheetPresented = true
+                } else {
+                    viewModel.state.showPaywall = true
+                }
             },
-            showNewCollectionAlert: $viewModel.state.showNewCollectionAlert,
             shareExternally: { viewModel.shareDiscovery(inferenceEngine: inferenceEngine) },
             onShareToExplore: viewModel.canShareToExplore ? { draft in
                 Task {
@@ -114,5 +124,19 @@ extension InsightSheetView {
                 )
             }
         )
+    }
+
+    private var canShowInsightChat: Bool {
+        guard !viewModel.isProcessing,
+              let speciesData = inferenceEngine.speciesData,
+              speciesData.isBiological,
+              !speciesData.isHumanSubject,
+              let scanId = speciesData.scanId,
+              !scanId.isEmpty,
+              !chatViewModel.isUnavailable(for: scanId) else {
+            return false
+        }
+
+        return true
     }
 }

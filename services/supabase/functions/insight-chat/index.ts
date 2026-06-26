@@ -18,7 +18,6 @@ import {
 } from "./db.ts";
 import {
   assertConversationHasRoom,
-  isInsightChatFeatureEnabled,
   isSafetyCriticalQuestion,
   normalizeAction,
   normalizeUserMessage,
@@ -108,13 +107,6 @@ Deno.serve((req: Request) =>
     const parsedBody = await parseJsonBody(req);
     if (parsedBody instanceof Response) return parsedBody;
 
-    if (!isInsightChatFeatureEnabled(Deno.env.get("INSIGHT_CHAT_ENABLED"))) {
-      return jsonResponse({
-        code: "feature_disabled",
-        error: "Insight chat is not available.",
-      }, 403);
-    }
-
     const action = normalizeAction(parsedBody.action);
     const scanId = requireUuid(parsedBody.scan_id, "scan_id");
     const sendsToday = await countUserSendsToday(user.id, supabaseAdmin);
@@ -197,12 +189,15 @@ Deno.serve((req: Request) =>
       ? null
       : requireUuid(parsedBody.client_message_id, "client_message_id");
 
-    const conversation = await getOrCreateConversation(
+    const resolvedConversation = await getOrCreateConversation(
       user.id,
       scanId,
       supabaseAdmin,
     );
-    const beforeMessages = await fetchMessages(conversation.id, supabaseAdmin);
+    const beforeMessages = await fetchMessages(
+      resolvedConversation.id,
+      supabaseAdmin,
+    );
     if (
       clientMessageId &&
       beforeMessages.some((message) =>
@@ -210,14 +205,18 @@ Deno.serve((req: Request) =>
       )
     ) {
       return jsonResponse({
-        data: responsePayload(conversation.id, beforeMessages, sendsToday),
+        data: responsePayload(
+          resolvedConversation.id,
+          beforeMessages,
+          sendsToday,
+        ),
       }, 200);
     }
     assertConversationHasRoom(beforeMessages.length);
 
     const startedAt = Date.now();
     const userMessage = await insertUserMessage(
-      conversation.id,
+      resolvedConversation.id,
       user.id,
       scanId,
       messageText,
@@ -243,7 +242,7 @@ Deno.serve((req: Request) =>
       } catch (error) {
         trackPostHogEvent(user, "InsightChatModelError", {
           scan_id: scanId,
-          conversation_id: conversation.id,
+          conversation_id: resolvedConversation.id,
           error: error instanceof Error ? error.message : String(error),
         }).catch((e) =>
           console.error("PostHog InsightChatModelError failed:", e)
@@ -253,18 +252,21 @@ Deno.serve((req: Request) =>
     }
 
     await insertAssistantMessage(
-      conversation.id,
+      resolvedConversation.id,
       user.id,
       scanId,
       assistantResult,
       supabaseAdmin,
     );
 
-    const messages = await fetchMessages(conversation.id, supabaseAdmin);
+    const messages = await fetchMessages(
+      resolvedConversation.id,
+      supabaseAdmin,
+    );
     const usage = assistantResult.usage;
     const telemetry = {
       scan_id: scanId,
-      conversation_id: conversation.id,
+      conversation_id: resolvedConversation.id,
       user_message_id: userMessage.id,
       llm_model: assistantResult.usage ? INSIGHT_CHAT_MODEL : null,
       latency_ms: Date.now() - startedAt,
@@ -281,7 +283,7 @@ Deno.serve((req: Request) =>
 
     trackPostHogEvent(user, "InsightChatSent", {
       scan_id: scanId,
-      conversation_id: conversation.id,
+      conversation_id: resolvedConversation.id,
       message_length: messageText.length,
       plan: tier.plan,
     }).catch((e) => console.error("PostHog InsightChatSent failed:", e));
@@ -294,7 +296,11 @@ Deno.serve((req: Request) =>
       .catch((e) => console.error("PostHog InsightChatAnswered failed:", e));
 
     return jsonResponse({
-      data: responsePayload(conversation.id, messages, sendsToday + 1),
+      data: responsePayload(
+        resolvedConversation.id,
+        messages,
+        sendsToday + 1,
+      ),
     }, 200);
   })
 );

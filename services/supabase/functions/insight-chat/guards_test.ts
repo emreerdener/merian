@@ -3,23 +3,18 @@ import {
   assertThrows,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
-  isInsightChatFeatureEnabled,
   isSafetyCriticalQuestion,
   normalizeAction,
   normalizeUserMessage,
   refusalAnswer,
 } from "./guards.ts";
 
-Deno.test("feature flag only enables on explicit true", () => {
-  assertEquals(isInsightChatFeatureEnabled("true"), true);
-  assertEquals(isInsightChatFeatureEnabled("false"), false);
-  assertEquals(isInsightChatFeatureEnabled(undefined), false);
-});
-
 Deno.test("normalizeAction accepts only supported actions", () => {
   assertEquals(normalizeAction("load"), "load");
   assertEquals(normalizeAction("send"), "send");
   assertEquals(normalizeAction("delete"), "delete");
+  assertThrows(() => normalizeAction("list"));
+  assertThrows(() => normalizeAction("create"));
   assertThrows(() => normalizeAction("archive"));
 });
 

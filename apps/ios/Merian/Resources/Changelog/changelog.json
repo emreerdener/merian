@@ -9,7 +9,8 @@
         {
           "title": "Added",
           "items": [
-            "Pro members can now ask saved follow-up questions from biological Insight sheets with Field chat."
+            "Biological Insight sheets now open Field chat from the bottom toolbar as a dedicated sheet with one saved conversation per scan.",
+            "Add to collection now lives in the Insight header menu below field notes, keeping the bottom toolbar focused on sharing and chat."
           ]
         }
       ]

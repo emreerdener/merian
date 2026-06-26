@@ -42,7 +42,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/features-and-hardware/02-revenue-and-identity.md`](./features-and-hardware/02-revenue-and-identity.md)** — RevenueCat integration, Pro entitlements, and Ghost Session identity model.
 - **[`/features-and-hardware/03-gamification-and-telemetry.md`](./features-and-hardware/03-gamification-and-telemetry.md)** — Achievement system, scan telemetry capture, and PostHog analytics.
 - **[`/features-and-hardware/04-onboarding.md`](./features-and-hardware/04-onboarding.md)** — Six-step permission flow, onboarding state machine, and the `hasCompletedOnboarding` gate.
-- **[`/features-and-hardware/05-insight-sheet.md`](./features-and-hardware/05-insight-sheet.md)** — InsightSheet view architecture, mixed-media carousel handoff, species data rendering, Pro Field chat, and graceful degradation states.
+- **[`/features-and-hardware/05-insight-sheet.md`](./features-and-hardware/05-insight-sheet.md)** — InsightSheet view architecture, mixed-media carousel handoff, species data rendering, Field chat, and graceful degradation states.
 - **[`/features-and-hardware/06-profile-and-gamification.md`](./features-and-hardware/06-profile-and-gamification.md)** — Profile public avatars, heatmap, collections, and gamification award calculations.
 - **[`/features-and-hardware/07-feature-modules-and-ui.md`](./features-and-hardware/07-feature-modules-and-ui.md)** — SwiftUI architectural views and modular extraction blocks.
 - **[`/features-and-hardware/08-app-intents.md`](./features-and-hardware/08-app-intents.md)** — App Intents integration for Siri and Shortcuts.

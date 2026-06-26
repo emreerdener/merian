@@ -9,6 +9,7 @@ import {
 
 const MESSAGE_SELECT =
   "id,conversation_id,scan_id,user_id,role,message_text,client_message_id,model,llm_prompt_tokens,llm_candidate_tokens,llm_thinking_tokens,llm_total_tokens,llm_cached_tokens,is_refusal,refusal_reason,safety_metadata,created_at";
+const CONVERSATION_SELECT = "id,scan_id,user_id,created_at,updated_at";
 
 export function formatMessage(
   row: InsightChatMessageRow,
@@ -76,7 +77,7 @@ export async function fetchConversation(
 ): Promise<InsightChatConversationRow | null> {
   const { data, error } = await supabaseAdmin
     .from("insight_chat_conversations")
-    .select("id,scan_id,user_id,created_at,updated_at")
+    .select(CONVERSATION_SELECT)
     .eq("user_id", userId)
     .eq("scan_id", scanId)
     .maybeSingle();
@@ -98,7 +99,7 @@ export async function getOrCreateConversation(
   const { data, error } = await supabaseAdmin
     .from("insight_chat_conversations")
     .insert({ user_id: userId, scan_id: scanId })
-    .select("id,scan_id,user_id,created_at,updated_at")
+    .select(CONVERSATION_SELECT)
     .single();
 
   if (error) {

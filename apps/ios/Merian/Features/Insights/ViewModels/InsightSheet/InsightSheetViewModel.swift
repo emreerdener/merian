@@ -60,6 +60,7 @@ final class InsightSheetViewModel {
         var showDeleteConfirmation = false
         var showSaveSuccessAlert = false
         var showNewCollectionAlert = false
+        var isInsightChatSheetPresented = false
         var isCandidateSwipePresented = false
         var showPaywall = false
         var toastMessage: String?

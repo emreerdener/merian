@@ -3072,8 +3072,7 @@ users, including active trial users, are exempt.
 
 Private Pro follow-up chat for completed biological Insight sheets. The endpoint
 uses the authenticated Supabase user from `withEdgeHandler`, verifies ownership of
-`scan_id`, resolves the effective tier through `_shared/tierCache.ts`, and is
-server-gated by `INSIGHT_CHAT_ENABLED=true`.
+`scan_id`, and resolves the effective tier through `_shared/tierCache.ts`.
 
 ### Request Payload
 
@@ -3086,10 +3085,12 @@ server-gated by `INSIGHT_CHAT_ENABLED=true`.
 }
 ```
 
-`action` accepts `load`, `send`, or `delete`. `load` and `delete` require only
-`scan_id`. `send` requires `message_text` and may include `client_message_id` for
-idempotency. The server caps v1 at 600 characters per user message, 30 total
-messages per conversation, and 20 sends per Pro user per day. Effective Pro
+`action` accepts `load`, `send`, or `delete`. `load` returns the single saved
+conversation for the scan when one exists. `send` creates that conversation when
+missing, requires `message_text`, and may include `client_message_id` for
+idempotency. `delete` clears the scan's saved chat. The server caps v1 at 600
+characters per user message, 30 total messages per conversation, and 20 sends
+per Pro user per day across all of that user's Insight chats. Effective Pro
 includes active trial users.
 
 ### Prompt and Privacy Boundary
@@ -3116,7 +3117,7 @@ when Gemini reports implicit cache hits.
       {
         "id": "33333333-3333-4333-8333-333333333333",
         "role": "user",
-        "message_text": "What traits support this identification?",
+        "text": "What traits support this identification?",
         "created_at": "2026-06-26T16:20:00.000Z",
         "is_refusal": false,
         "refusal_reason": null
@@ -3124,7 +3125,7 @@ when Gemini reports implicit cache hits.
       {
         "id": "44444444-4444-4444-8444-444444444444",
         "role": "assistant",
-        "message_text": "The saved evidence points to...",
+        "text": "The saved evidence points to...",
         "created_at": "2026-06-26T16:20:02.000Z",
         "is_refusal": false,
         "refusal_reason": null
@@ -3151,7 +3152,6 @@ pesticide/poison instructions, and human-subject identification requests.
 | ------ | ---- | ------- |
 | `400` | `{ "code": "unsupported_scan", ... }` | Scan is non-biological or request shape is invalid |
 | `402` | `{ "code": "pro_required", ... }` | Effective tier is not Pro/trial |
-| `403` | `{ "code": "feature_disabled", ... }` | `INSIGHT_CHAT_ENABLED` is not set to `true` |
 | `404` | `{ "code": "scan_not_ready", ... }` | No owned completed scan row exists yet |
 | `429` | `{ "code": "daily_limit_reached", ... }` | Daily send cap reached |
 

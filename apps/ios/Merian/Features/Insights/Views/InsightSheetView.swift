@@ -22,6 +22,7 @@ struct InsightSheetView: View {
 
     // MARK: - State
     @State var viewModel: InsightSheetViewModel
+    @State var chatViewModel = InsightChatViewModel()
     @State private var queuedCompletionHandoffInFlight = false
 
     // Seed queued scans and persisted records at @State initialization time so the
@@ -91,6 +92,27 @@ struct InsightSheetView: View {
         )
         .sheet(isPresented: $viewModel.state.showPaywall) {
             PaywallView()
+        }
+        .sheet(isPresented: $viewModel.state.isInsightChatSheetPresented) {
+            if let speciesData = inferenceEngine.speciesData,
+               let scanId = speciesData.scanId {
+                InsightChatSheet(
+                    viewModel: chatViewModel,
+                    scanId: scanId,
+                    speciesData: speciesData,
+                    timestamp: viewModel.activeRecordTimestamp,
+                    onClose: {
+                        viewModel.state.isInsightChatSheetPresented = false
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .onChange(of: chatViewModel.isUnavailable(for: scanId)) { _, isUnavailable in
+                    if isUnavailable {
+                        viewModel.state.isInsightChatSheetPresented = false
+                    }
+                }
+            }
         }
         .sheet(isPresented: $viewModel.state.showExploreOnboarding) {
             ExploreOnboardingPrompt(
