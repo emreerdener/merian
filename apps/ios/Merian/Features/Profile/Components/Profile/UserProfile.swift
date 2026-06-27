@@ -378,11 +378,21 @@ private struct PublicDisplayNameEditSheet: View {
 
     init(viewModel: ProfileViewModel) {
         self.viewModel = viewModel
-        let initialName = viewModel.publicIdentitySource == "display_name"
-            ? viewModel.publicAuthorName ?? ""
-            : ""
+        let initialName: String
+        if viewModel.publicIdentitySource == "display_name",
+           let publicAuthorName = viewModel.publicAuthorName,
+           !publicAuthorName.isEmpty {
+            initialName = publicAuthorName
+        } else if !viewModel.isGuestUser,
+                  let loggedInName = viewModel.userName,
+                  !loggedInName.isEmpty {
+            initialName = loggedInName
+        } else {
+            initialName = ""
+        }
         _draft = State(initialValue: initialName)
     }
+
 
     var body: some View {
         NavigationStack {

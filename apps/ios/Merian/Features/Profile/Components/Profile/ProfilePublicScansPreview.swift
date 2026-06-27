@@ -697,7 +697,7 @@ private struct ProfilePublicScanImageView: View {
     }
 }
 
-private enum ProfilePublishedScanGridStyle {
+enum ProfilePublishedScanGridStyle {
     static let columnCount = 3
     static let spacing: CGFloat = 2
     static let cornerRadius: CGFloat = 16
@@ -709,16 +709,27 @@ private enum ProfilePublishedScanGridStyle {
     static func cornerRadii(index: Int, itemCount: Int) -> RectangleCornerRadii {
         guard itemCount > 0 else { return RectangleCornerRadii() }
 
-        let rowStart = (index / columnCount) * columnCount
-        let rowEnd = min(rowStart + columnCount, itemCount) - 1
-        let isLeadingEdge = index == rowStart
-        let isTrailingEdge = index == rowEnd
+        let r = index / columnCount
+        let c = index % columnCount
+        let totalRows = (itemCount + columnCount - 1) / columnCount
+
+        func itemsInRow(_ row: Int) -> Int {
+            min(columnCount, itemCount - row * columnCount)
+        }
+
+        let isTopLeft = r == 0 && c == 0
+        let isTopRight = r == 0 && c == itemsInRow(0) - 1
+
+        let isBottomLeft = c == 0 && r == totalRows - 1
+
+        let hasNoCellBelow = (r + 1 == totalRows) || (c >= itemsInRow(r + 1))
+        let isBottomRight = c == itemsInRow(r) - 1 && hasNoCellBelow
 
         return RectangleCornerRadii(
-            topLeading: isLeadingEdge ? cornerRadius : 0,
-            bottomLeading: isLeadingEdge ? cornerRadius : 0,
-            bottomTrailing: isTrailingEdge ? cornerRadius : 0,
-            topTrailing: isTrailingEdge ? cornerRadius : 0
+            topLeading: isTopLeft ? cornerRadius : 0,
+            bottomLeading: isBottomLeft ? cornerRadius : 0,
+            bottomTrailing: isBottomRight ? cornerRadius : 0,
+            topTrailing: isTopRight ? cornerRadius : 0
         )
     }
 }
@@ -730,7 +741,7 @@ private extension String {
     }
 }
 
-private extension View {
+extension View {
     func profilePublishedScanTileCorners(index: Int, itemCount: Int) -> some View {
         clipShape(
             UnevenRoundedRectangle(

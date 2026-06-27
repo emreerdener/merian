@@ -370,7 +370,6 @@ struct ExploreAuthorProfileSheet: View {
                     )
                 } else {
                     profileGrid(posts: Array(profile.previewPosts.prefix(previewLimit)))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
 
             if profile.publishedPostCount > previewLimit {
@@ -461,31 +460,32 @@ struct ExploreAuthorProfileSheet: View {
     private func profileGrid(
         posts: [ExplorePost],
         shouldPaginate: Bool = false
-    ) -> some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
+     ) -> some View {
+         let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
 
-        return LazyVGrid(columns: columns, spacing: 2) {
-            ForEach(posts) { post in
-                Button {
-                    openPost(post)
-                } label: {
-                    ExploreHeroImageView(
-                        imageUrl: post.heroImageUrl,
-                        reloadGeneration: viewModel.mediaReloadGeneration,
-                        maxDimension: 360
-                    )
-                    .aspectRatio(1, contentMode: .fill)
-                    .clipped()
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(viewModel.resolvedSpeciesCommonName(for: post)), published scan")
-                .onAppear {
-                    guard shouldPaginate, post.id == libraryPosts.last?.id else { return }
-                    Task { await loadMoreLibraryPostsIfNeeded() }
-                }
-            }
-        }
-    }
+         return LazyVGrid(columns: columns, spacing: 2) {
+             ForEach(Array(posts.enumerated()), id: \.element.id) { index, post in
+                 Button {
+                     openPost(post)
+                 } label: {
+                     ExploreHeroImageView(
+                         imageUrl: post.heroImageUrl,
+                         reloadGeneration: viewModel.mediaReloadGeneration,
+                         maxDimension: 360
+                     )
+                     .aspectRatio(1, contentMode: .fill)
+                     .clipped()
+                     .profilePublishedScanTileCorners(index: index, itemCount: posts.count)
+                 }
+                 .buttonStyle(.plain)
+                 .accessibilityLabel("\(viewModel.resolvedSpeciesCommonName(for: post)), published scan")
+                 .onAppear {
+                     guard shouldPaginate, post.id == libraryPosts.last?.id else { return }
+                     Task { await loadMoreLibraryPostsIfNeeded() }
+                 }
+             }
+         }
+     }
 
     @ViewBuilder
     private func authorAvatar(url: URL?, size: CGFloat) -> some View {
