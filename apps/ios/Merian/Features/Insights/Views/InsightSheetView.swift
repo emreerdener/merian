@@ -112,6 +112,13 @@ struct InsightSheetView: View {
                         viewModel.state.isInsightChatSheetPresented = false
                     }
                 }
+                .onChange(of: chatViewModel.errorMessage) { _, errorMessage in
+                    if errorMessage == "Merian Pro is required." {
+                        viewModel.state.isInsightChatSheetPresented = false
+                        viewModel.state.showPaywall = true
+                        chatViewModel.errorMessage = nil
+                    }
+                }
             }
         }
         .sheet(isPresented: $viewModel.state.showExploreOnboarding) {

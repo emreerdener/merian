@@ -109,11 +109,10 @@ struct InsightChatSheet: View {
 
     private var emptyState: some View {
         VStack(spacing: 10) {
-            Image("sparkle")
+            Image("sparkles")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 32, height: 32)
-                .foregroundStyle(.secondary)
             Text("What would you like to know?")
                 .font(.headline)
             if let error = viewModel.errorMessage {
