@@ -170,7 +170,15 @@ final class InsightChatViewModel {
     }
 
     func suggestionChips(for speciesData: SpeciesData, timestamp: Date?) -> [String] {
-        Self.suggestionChips(for: speciesData, timestamp: timestamp)
+        let allChips = Self.suggestionChips(for: speciesData, timestamp: timestamp)
+        let sentTexts = Set(
+            messages.filter { $0.role == .user }
+                .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            + [pendingUserMessage?.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()].compactMap { $0 }
+        )
+        return allChips.filter { chip in
+            !sentTexts.contains(chip.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        }
     }
 
     static func suggestionChips(for speciesData: SpeciesData, timestamp: Date?) -> [String] {

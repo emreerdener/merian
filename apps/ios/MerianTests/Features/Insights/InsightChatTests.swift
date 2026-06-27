@@ -29,6 +29,68 @@ struct InsightChatTests {
         #expect(chips[2] == "What should I know about the hazard?")
     }
 
+    @Test func testSuggestionChipsExcludesSentAndPendingMessages() {
+        let species = SpeciesData(
+            scanId: "chat_scan",
+            commonName: "Monarch",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "Orange wings.", hazardType: "irritant"),
+            confidenceScore: 0.72,
+            candidates: [
+                IdentificationCandidate(
+                    scientificName: "Danaus gilippus",
+                    commonName: "Queen",
+                    confidenceScore: 0.61
+                )
+            ]
+        )
+        let date = DateComponents(calendar: Calendar(identifier: .gregorian), year: 2026, month: 6, day: 26).date
+        
+        let viewModel = InsightChatViewModel()
+        
+        // 1. Initially all 3 chips should be present
+        var chips = viewModel.suggestionChips(for: species, timestamp: date)
+        #expect(chips.count == 3)
+        #expect(chips.contains("How do I tell it apart from Queen?"))
+        #expect(chips.contains("Is it typical to see this in June?"))
+        #expect(chips.contains("What should I know about the hazard?"))
+        
+        // 2. Add one of the chips to messages as a user message
+        viewModel.messages = [
+            InsightChatMessage(
+                id: "msg1",
+                conversationId: "conv1",
+                scanId: "chat_scan",
+                role: .user,
+                text: "How do I tell it apart from Queen?",
+                clientMessageId: nil,
+                model: nil,
+                isRefusal: false,
+                refusalReason: nil,
+                createdAt: Date()
+            )
+        ]
+        
+        chips = viewModel.suggestionChips(for: species, timestamp: date)
+        #expect(chips.count == 2)
+        #expect(!chips.contains("How do I tell it apart from Queen?"))
+        #expect(chips.contains("Is it typical to see this in June?"))
+        #expect(chips.contains("What should I know about the hazard?"))
+        
+        // 3. Set a pending user message matching another chip
+        viewModel.pendingUserMessage = PendingInsightChatMessage(
+            id: "pending1",
+            text: "Is it typical to see this in June?  ",
+            createdAt: Date()
+        )
+        
+        chips = viewModel.suggestionChips(for: species, timestamp: date)
+        #expect(chips.count == 1)
+        #expect(!chips.contains("How do I tell it apart from Queen?"))
+        #expect(!chips.contains("Is it typical to see this in June?"))
+        #expect(chips.contains("What should I know about the hazard?"))
+    }
+
     @Test func testInsightChatDecodesSnakeCasePayloadAndDates() throws {
         let json = """
         {
