@@ -46,9 +46,6 @@ const scan: ChatScanContext = {
     family: "Nymphalidae",
     genus: "Danaus",
     iucn_red_list_status: "least_concern",
-    diagnostic_primary_rationale: "Orange wings with black veins.",
-    diagnostic_lookalikes: ["Danaus gilippus"],
-    diagnostic_differentiators_json: '{"wing":"veins"}',
     alternative_common_names: ["Milkweed butterfly"],
     similar_species: ["Danaus gilippus"],
   },
@@ -58,6 +55,7 @@ Deno.test("scan context uses text evidence and excludes image URLs", () => {
   const block = buildScanContextBlock(scan);
   assertStringIncludes(block, "Monarch");
   assertStringIncludes(block, "Orange wings");
+  assertStringIncludes(block, "Danaus gilippus");
   assertStringIncludes(block, "0.8 meters");
   assertEquals(block.includes("image_storage_urls"), false);
   assertEquals(block.includes("https://"), false);

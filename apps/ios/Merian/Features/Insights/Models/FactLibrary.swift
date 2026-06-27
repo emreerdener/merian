@@ -21,16 +21,16 @@ struct FactLibrary {
         InsightFact(text: "A honeybee must visit roughly 2 million flowers and fly 55,000 miles to produce one pound of honey.", category: "INSECTS"),
         InsightFact(text: "Tardigrades survive the vacuum of space, temperatures from −272 °C to 151 °C, and radiation 1,000× lethal to humans.", category: "EXTREMOPHILES"),
         InsightFact(text: "Trees in a forest share carbon and nutrients through underground fungal networks — the 'Wood Wide Web.'", category: "ECOLOGY"),
-        InsightFact(text: "Some jellyfish are considered biologically immortal — they revert to a juvenile state when old or stressed.", category: "MARINE LIFE"),
+        InsightFact(text: "Some jellyfish are considered biologically immortal — they revert to a juvenile state when old or stressed.", category: "MARINELIFE"),
         InsightFact(text: "The mantis shrimp has 16 types of photoreceptors. Humans have 3.", category: "SENSES"),
         InsightFact(text: "A single gram of forest soil can contain up to 1 billion bacteria from thousands of distinct species.", category: "MICROBIOLOGY"),
         InsightFact(text: "Over 90% of all land plant species have mycorrhizal fungi colonizing their roots.", category: "FUNGI"),
         InsightFact(text: "Each firefly species flashes a unique light-pulse pattern — its own private language for finding mates.", category: "BEHAVIOR"),
-        InsightFact(text: "The pistol shrimp snaps its claw so fast it generates a cavitation bubble briefly hotter than the Sun's surface.", category: "MARINE LIFE"),
+        InsightFact(text: "The pistol shrimp snaps its claw so fast it generates a cavitation bubble briefly hotter than the Sun's surface.", category: "MARINELIFE"),
         InsightFact(text: "Crows can recognize individual human faces and hold grudges against people who have wronged them.", category: "INTELLIGENCE"),
         InsightFact(text: "Hummingbirds are the only birds capable of sustained backward flight.", category: "BIRDS"),
         InsightFact(text: "Orchids are the largest family of flowering plants — comprising roughly 10% of all flower species on Earth.", category: "BOTANY"),
-        InsightFact(text: "The blue whale's heart beats just 5–8 times per minute when diving and is roughly the size of a small car.", category: "MARINE LIFE"),
+        InsightFact(text: "The blue whale's heart beats just 5–8 times per minute when diving and is roughly the size of a small car.", category: "MARINELIFE"),
 
         // MARK: - Mammals
         InsightFact(text: "Wombats are the only animals in the world known to produce cube-shaped poop, which prevents it from rolling away.", category: "MAMMALS"),
@@ -42,14 +42,14 @@ struct FactLibrary {
         InsightFact(text: "Sloths have such a slow metabolism that it can take them up to a month to completely digest a single leaf.", category: "MAMMALS"),
 
         // MARK: - Marine & Aquatic Life
-        InsightFact(text: "Octopuses have three hearts, nine brains, and blue blood. Two hearts pump blood to the gills, and one to the rest of the body.", category: "MARINE LIFE"),
-        InsightFact(text: "The Greenland shark has the longest known lifespan of all vertebrate species, estimated to live between 250 and 500 years.", category: "MARINE LIFE"),
-        InsightFact(text: "Male seahorses, not the females, carry eggs in a specialized brood pouch and give birth to the tiny seahorse fry.", category: "MARINE LIFE"),
-        InsightFact(text: "Corals are not plants; they are animals. A single coral branch is a colony made up of thousands of tiny animals called polyps.", category: "MARINE LIFE"),
-        InsightFact(text: "The tongue of an adult blue whale is so massive that it weighs as much as an entire elephant.", category: "MARINE LIFE"),
-        InsightFact(text: "To eat, a sea star extrudes its stomach out of its mouth, digests its prey outside its body, and then swallows its stomach back whole.", category: "MARINE LIFE"),
-        InsightFact(text: "Sharks do not have traditional scales; their skin is covered in tiny, tooth-like structures called dermal denticles.", category: "MARINE LIFE"),
-        InsightFact(text: "The colossal squid has the largest eyes in the animal kingdom, each roughly the size of a dinner plate.", category: "MARINE LIFE"),
+        InsightFact(text: "Octopuses have three hearts, nine brains, and blue blood. Two hearts pump blood to the gills, and one to the rest of the body.", category: "MARINELIFE"),
+        InsightFact(text: "The Greenland shark has the longest known lifespan of all vertebrate species, estimated to live between 250 and 500 years.", category: "MARINELIFE"),
+        InsightFact(text: "Male seahorses, not the females, carry eggs in a specialized brood pouch and give birth to the tiny seahorse fry.", category: "MARINELIFE"),
+        InsightFact(text: "Corals are not plants; they are animals. A single coral branch is a colony made up of thousands of tiny animals called polyps.", category: "MARINELIFE"),
+        InsightFact(text: "The tongue of an adult blue whale is so massive that it weighs as much as an entire elephant.", category: "MARINELIFE"),
+        InsightFact(text: "To eat, a sea star extrudes its stomach out of its mouth, digests its prey outside its body, and then swallows its stomach back whole.", category: "MARINELIFE"),
+        InsightFact(text: "Sharks do not have traditional scales; their skin is covered in tiny, tooth-like structures called dermal denticles.", category: "MARINELIFE"),
+        InsightFact(text: "The colossal squid has the largest eyes in the animal kingdom, each roughly the size of a dinner plate.", category: "MARINELIFE"),
 
         // MARK: - Birds
         InsightFact(text: "The Arctic tern has the longest migration of any animal, flying from the Arctic to the Antarctic and back—up to 44,000 miles every year.", category: "BIRDS"),

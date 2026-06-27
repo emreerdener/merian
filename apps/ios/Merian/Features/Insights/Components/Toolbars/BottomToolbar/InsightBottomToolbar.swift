@@ -112,27 +112,13 @@ private struct InsightChatToolbarButton: View {
     let action: () -> Void
 
     var body: some View {
-        if #available(iOS 26.0, *) {
-            buttonContent
-                .buttonStyle(.glass)
-        } else {
-            buttonContent
-                .buttonStyle(.plain)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay {
-                    Capsule()
-                        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-                }
-        }
-    }
-
-    private var buttonContent: some View {
         Button(action: action) {
-            Label("Chat", systemImage: "sparkles")
-                .font(.system(size: 16, weight: .semibold))
-                .labelStyle(.titleAndIcon)
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("Field chat")
+            }
+            .padding(.horizontal, 8)
         }
         .accessibilityLabel("Open Field chat")
     }

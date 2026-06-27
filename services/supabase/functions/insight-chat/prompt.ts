@@ -114,15 +114,6 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     `Alternative Common Names: ${
       formatArray(species?.alternative_common_names) ?? "Unavailable"
     }`,
-    `Diagnostic Rationale: ${
-      trimText(species?.diagnostic_primary_rationale) ?? "Unavailable"
-    }`,
-    `Diagnostic Lookalikes: ${
-      formatArray(species?.diagnostic_lookalikes) ?? "Unavailable"
-    }`,
-    `Diagnostic Differentiators: ${
-      trimText(species?.diagnostic_differentiators_json, 900) ?? "Unavailable"
-    }`,
     `Similar Species: ${
       formatArray(species?.similar_species) ?? "Unavailable"
     }`,

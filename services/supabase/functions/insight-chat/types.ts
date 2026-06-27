@@ -103,9 +103,6 @@ export interface SpeciesDictionaryContext {
   family: string | null;
   genus: string | null;
   iucn_red_list_status: string | null;
-  diagnostic_primary_rationale: string | null;
-  diagnostic_lookalikes: string[] | null;
-  diagnostic_differentiators_json: string | null;
   alternative_common_names: string[] | null;
   similar_species: string[] | null;
 }

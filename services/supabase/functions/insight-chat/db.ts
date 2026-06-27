@@ -44,13 +44,11 @@ export async function fetchOwnedScan(
       species_dictionary:species_id(
         id,scientific_name,common_names,wikipedia_overview,habitat_description,hazard_type,
         kingdom,phylum,class,order,family,genus,iucn_red_list_status,
-        diagnostic_primary_rationale,diagnostic_lookalikes,diagnostic_differentiators_json,
         alternative_common_names,similar_species
       ),
       confirmed_species:confirmed_species_id(
         id,scientific_name,common_names,wikipedia_overview,habitat_description,hazard_type,
         kingdom,phylum,class,order,family,genus,iucn_red_list_status,
-        diagnostic_primary_rationale,diagnostic_lookalikes,diagnostic_differentiators_json,
         alternative_common_names,similar_species
       )
     `)

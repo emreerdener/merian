@@ -2,12 +2,19 @@ import Foundation
 import Network
 import Observation
 
+struct PendingInsightChatMessage: Identifiable, Equatable {
+    let id: String
+    let text: String
+    let createdAt: Date
+}
+
 @MainActor
 @Observable
 final class InsightChatViewModel {
     static let maxDraftCharacters = 600
 
     var messages: [InsightChatMessage] = []
+    var pendingUserMessage: PendingInsightChatMessage?
     var draftText = ""
     var errorMessage: String?
     var isLoading = false
@@ -110,10 +117,18 @@ final class InsightChatViewModel {
         isSending = true
         errorMessage = nil
         let clientMessageId = UUID().uuidString
+        pendingUserMessage = PendingInsightChatMessage(
+            id: clientMessageId,
+            text: trimmed,
+            createdAt: Date()
+        )
         if trimmed == draftText.trimmingCharacters(in: .whitespacesAndNewlines) {
             draftText = ""
         }
-        defer { isSending = false }
+        defer {
+            pendingUserMessage = nil
+            isSending = false
+        }
 
         do {
             apply(try await MerianNetworkClient.shared.sendInsightChatMessage(
@@ -194,6 +209,7 @@ final class InsightChatViewModel {
     private func apply(_ response: InsightChatResponse) {
         conversationId = response.conversationId
         messages = response.messages
+        pendingUserMessage = nil
         limits = response.limits
         unavailableScanId = nil
     }
@@ -201,6 +217,7 @@ final class InsightChatViewModel {
     private func clearLoadedState() {
         loadedScanId = nil
         messages = []
+        pendingUserMessage = nil
         conversationId = nil
         errorMessage = nil
         unavailableScanId = nil

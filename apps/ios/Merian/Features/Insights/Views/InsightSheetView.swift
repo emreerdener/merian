@@ -106,7 +106,7 @@ struct InsightSheetView: View {
                     }
                 )
                 .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
+                .presentationDragIndicator(.visible)
                 .onChange(of: chatViewModel.isUnavailable(for: scanId)) { _, isUnavailable in
                     if isUnavailable {
                         viewModel.state.isInsightChatSheetPresented = false

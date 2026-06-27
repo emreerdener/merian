@@ -13,66 +13,67 @@ struct InsightChatSheet: View {
         viewModel.suggestionChips(for: speciesData, timestamp: timestamp)
     }
 
+    private var hasVisibleMessages: Bool {
+        !viewModel.messages.isEmpty || viewModel.pendingUserMessage != nil
+    }
+
+    private var isSendButtonActive: Bool {
+        viewModel.canSend || viewModel.isSending
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
-            Divider()
-
+        NavigationStack {
             messageList
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            composer
+                .background(Color(uiColor: .systemBackground))
+                .navigationTitle("Field chat")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { toolbarContent }
+                .safeAreaInset(edge: .bottom) {
+                    composer
+                        .background(
+                            Color(uiColor: .systemBackground)
+                                .ignoresSafeArea(edges: .bottom)
+                                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: -4)
+                        )
+                }
         }
-        .background(Color(uiColor: .systemBackground))
+        .presentationBackground(Color(uiColor: .systemBackground))
         .task(id: scanId) {
             await viewModel.loadIfNeeded(scanId: scanId, isProActive: true)
         }
     }
 
-    private var topBar: some View {
-        HStack(spacing: 12) {
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .bold))
-                    .frame(width: 36, height: 36)
+                    .font(.system(size: 16, weight: .bold))
             }
-            .buttonStyle(.plain)
             .accessibilityLabel("Close field chat")
-
-            Text("Field chat")
-                .font(.headline)
-
-            Spacer()
-
-            Menu {
-                if !viewModel.messages.isEmpty {
-                    Button(role: .destructive) {
-                        Task { await viewModel.deleteCurrentConversation(scanId: scanId) }
-                    } label: {
-                        Label("Delete chat", systemImage: "trash")
-                    }
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 15, weight: .bold))
-                    .frame(width: 36, height: 36)
-            }
-            .buttonStyle(.plain)
-            .disabled(viewModel.isLoading || viewModel.isDeleting || viewModel.messages.isEmpty)
-            .accessibilityLabel("Field chat options")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+
+        ToolbarItem(placement: .principal) {
+            VStack(spacing: 2) {
+                Text("Field chat")
+                    .font(.headline)
+                Text(speciesData.commonName)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+
     }
 
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    if viewModel.isLoading && viewModel.messages.isEmpty {
+                    if viewModel.isLoading && !hasVisibleMessages {
                         ProgressView()
                             .frame(maxWidth: .infinity, minHeight: 180)
-                    } else if viewModel.messages.isEmpty {
+                    } else if !hasVisibleMessages {
                         emptyState
                             .frame(maxWidth: .infinity, minHeight: 180)
                     } else {
@@ -80,16 +81,28 @@ struct InsightChatSheet: View {
                             InsightChatBubble(message: message)
                                 .id(message.id)
                         }
+
+                        if let pendingMessage = viewModel.pendingUserMessage {
+                            InsightChatPendingUserBubble(message: pendingMessage)
+                                .id(pendingMessage.id)
+                            InsightChatAssistantLoadingBubble()
+                                .id("assistant-loading-\(pendingMessage.id)")
+                        }
                     }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id("insight-chat-bottom-anchor")
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 18)
             }
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: viewModel.messages.count) { _, _ in
-                guard let lastId = viewModel.messages.last?.id else { return }
-                withAnimation(.easeOut(duration: 0.2)) {
-                    proxy.scrollTo(lastId, anchor: .bottom)
-                }
+                scrollToBottom(proxy)
+            }
+            .onChange(of: viewModel.pendingUserMessage?.id) { _, _ in
+                scrollToBottom(proxy)
             }
         }
     }
@@ -119,12 +132,25 @@ struct InsightChatSheet: View {
                             Button {
                                 Task { await viewModel.send(chip, scanId: scanId) }
                             } label: {
-                                Text(chip)
-                                    .font(.subheadline.weight(.semibold))
-                                    .lineLimit(1)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 9)
-                                    .background(.regularMaterial, in: Capsule())
+                                HStack(spacing: 6) {
+                                    Image(systemName: "sparkles")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text(chip)
+                                        .lineLimit(1)
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .padding(.horizontal, 13)
+                                .padding(.vertical, 9)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color(uiColor: .secondarySystemBackground))
+                                )
+                                .overlay(
+                                    Capsule(style: .continuous)
+                                        .stroke(Color.accentColor.opacity(0.28), lineWidth: 1)
+                                )
+                                .contentShape(Capsule(style: .continuous))
                             }
                             .buttonStyle(.plain)
                             .disabled(viewModel.isSending)
@@ -153,18 +179,27 @@ struct InsightChatSheet: View {
                     composerFocused = false
                     Task { await viewModel.sendDraft(scanId: scanId) }
                 } label: {
-                    Image(systemName: viewModel.isSending ? "hourglass" : "arrow.up")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(viewModel.canSend ? Color.white : Color.secondary)
+                    ZStack {
+                        if viewModel.isSending {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .controlSize(.small)
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(viewModel.canSend ? Color.white : Color.secondary)
+                        }
+                    }
                         .frame(width: 40, height: 40)
                         .background(
                             Circle()
-                                .fill(viewModel.canSend ? Color.accentColor : Color(uiColor: .tertiarySystemFill))
+                                .fill(isSendButtonActive ? Color.accentColor : Color(uiColor: .tertiarySystemFill))
                         )
                 }
                 .buttonStyle(.plain)
                 .disabled(!viewModel.canSend)
-                .accessibilityLabel("Send follow-up")
+                .accessibilityLabel(viewModel.isSending ? "Sending follow-up" : "Send follow-up")
             }
             .padding(.horizontal, 16)
 
@@ -178,6 +213,12 @@ struct InsightChatSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(.bar)
+    }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        withAnimation(.easeOut(duration: 0.2)) {
+            proxy.scrollTo("insight-chat-bottom-anchor", anchor: .bottom)
+        }
     }
 }
 
@@ -205,6 +246,53 @@ private struct InsightChatBubble: View {
                 .textSelection(.enabled)
 
             if !isUser { Spacer(minLength: 44) }
+        }
+    }
+}
+
+private struct InsightChatPendingUserBubble: View {
+    let message: PendingInsightChatMessage
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 44)
+
+            Text(message.text)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.16))
+                )
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .textSelection(.enabled)
+        }
+    }
+}
+
+private struct InsightChatAssistantLoadingBubble: View {
+    var body: some View {
+        HStack {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .controlSize(.small)
+                Text("Thinking")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemBackground))
+            )
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Field chat is thinking")
+
+            Spacer(minLength: 44)
         }
     }
 }
