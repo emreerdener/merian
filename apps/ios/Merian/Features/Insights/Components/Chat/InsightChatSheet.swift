@@ -62,46 +62,48 @@ struct InsightChatSheet: View {
     }
 
     private var messageList: some View {
-        Group {
-            if viewModel.isLoading && !hasVisibleMessages {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if !hasVisibleMessages {
-                emptyState
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
-                            ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
-                                InsightChatBubble(
-                                    message: message,
-                                    isLastMessage: index == viewModel.messages.count - 1 && viewModel.pendingUserMessage == nil
-                                )
-                                .id(message.id)
-                            }
+        GeometryReader { geometry in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Group {
+                        if viewModel.isLoading && !hasVisibleMessages {
+                            ProgressView()
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                        } else if !hasVisibleMessages {
+                            emptyState
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                        } else {
+                            LazyVStack(alignment: .leading, spacing: 12) {
+                                ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                                    InsightChatBubble(
+                                        message: message,
+                                        isLastMessage: index == viewModel.messages.count - 1 && viewModel.pendingUserMessage == nil
+                                    )
+                                    .id(message.id)
+                                }
 
-                            if let pendingMessage = viewModel.pendingUserMessage {
-                                InsightChatPendingUserBubble(message: pendingMessage)
-                                    .id(pendingMessage.id)
-                                InsightChatAssistantLoadingBubble()
-                                    .id("assistant-loading-\(pendingMessage.id)")
-                            }
+                                if let pendingMessage = viewModel.pendingUserMessage {
+                                    InsightChatPendingUserBubble(message: pendingMessage)
+                                        .id(pendingMessage.id)
+                                    InsightChatAssistantLoadingBubble()
+                                        .id("assistant-loading-\(pendingMessage.id)")
+                                }
 
-                            Color.clear
-                                .frame(height: 1)
-                                .id("insight-chat-bottom-anchor")
+                                Color.clear
+                                    .frame(height: 1)
+                                    .id("insight-chat-bottom-anchor")
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 18)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 18)
                     }
-                    .scrollDismissesKeyboard(.interactively)
-                    .onChange(of: viewModel.messages.count) { _, _ in
-                        scrollToBottom(proxy)
-                    }
-                    .onChange(of: viewModel.pendingUserMessage?.id) { _, _ in
-                        scrollToBottom(proxy)
-                    }
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .onChange(of: viewModel.messages.count) { _, _ in
+                    scrollToBottom(proxy)
+                }
+                .onChange(of: viewModel.pendingUserMessage?.id) { _, _ in
+                    scrollToBottom(proxy)
                 }
             }
         }
@@ -112,7 +114,7 @@ struct InsightChatSheet: View {
             Image("sparkles")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 32, height: 32)
+                .frame(width: 100, height: 100)
             Text("What would you like to know?")
                 .font(.headline)
             if let error = viewModel.errorMessage {
@@ -157,7 +159,7 @@ struct InsightChatSheet: View {
                 }
             }
 
-            HStack(alignment: .bottom, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
                 TextField("Ask Merian AI", text: Binding(
                     get: { viewModel.draftText },
                     set: { viewModel.setDraftText($0) }
@@ -165,7 +167,7 @@ struct InsightChatSheet: View {
                 .lineLimit(1...5)
                 .textFieldStyle(.plain)
                 .focused($composerFocused)
-                .padding(.vertical, 11)
+                .padding(.vertical, 6)
                 .padding(.leading, 16)
 
                 Button {
@@ -194,8 +196,8 @@ struct InsightChatSheet: View {
                 .disabled(!viewModel.canSend)
                 .accessibilityLabel(viewModel.isSending ? "Sending follow-up" : "Send follow-up")
                 .padding(.trailing, 8)
-                .padding(.bottom, 6)
             }
+            .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(Color(uiColor: .secondarySystemBackground))
