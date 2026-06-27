@@ -2837,6 +2837,7 @@
 				21CC6ACD2ED3E29E2FC749EF /* Frameworks */,
 				9366E30E8D330C75D1C78E44 /* Embed Foundation Extensions */,
 				BD2DB57784E75CA81D57CF89 /* Embed Watch Content */,
+				8DF4334D5BA49F07F9CD8D10 /* SwiftLint Validation */,
 			);
 			buildRules = (
 			);
@@ -2987,6 +2988,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		8DF4334D5BA49F07F9CD8D10 /* SwiftLint Validation */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "SwiftLint Validation";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"\nif which swiftlint >/dev/null; then\n  swiftlint\nelse\n  echo \"warning: SwiftLint not installed locally. Run 'brew install swiftlint' to enable automated static analysis.\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		2970F2AD158432B0B0EB8F1D /* Sources */ = {

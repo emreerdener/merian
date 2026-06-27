@@ -73,6 +73,16 @@ targets:
         package: TelemetryDeck
       - package: RiveRuntime
       - package: GoogleSignIn
+    postBuildScripts:
+      - name: SwiftLint Validation
+        basedOnDependencyAnalysis: false
+        script: |
+          export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+          if which swiftlint >/dev/null; then
+            swiftlint
+          else
+            echo "warning: SwiftLint not installed locally. Run 'brew install swiftlint' to enable automated static analysis."
+          fi
   MerianWatch:
     type: application
     platform: watchOS

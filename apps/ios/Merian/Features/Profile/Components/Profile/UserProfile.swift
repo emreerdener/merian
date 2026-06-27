@@ -393,7 +393,6 @@ private struct PublicDisplayNameEditSheet: View {
         _draft = State(initialValue: initialName)
     }
 
-
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 20) {
