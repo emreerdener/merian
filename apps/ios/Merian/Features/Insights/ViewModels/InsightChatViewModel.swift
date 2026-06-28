@@ -3,9 +3,20 @@ import Network
 import Observation
 
 struct PendingInsightChatMessage: Identifiable, Equatable {
+    enum DeliveryState: Equatable {
+        case sending
+        case failed(String)
+    }
+
     let id: String
     let text: String
     let createdAt: Date
+    var deliveryState: DeliveryState = .sending
+
+    var isSending: Bool {
+        if case .sending = deliveryState { return true }
+        return false
+    }
 }
 
 @MainActor
@@ -20,9 +31,13 @@ final class InsightChatViewModel {
     var isLoading = false
     var isSending = false
     var isDeleting = false
+    var isSubmittingFeedback = false
+    var isSummarizingNotes = false
     var isOffline = false
     var conversationId: String?
     var unavailableScanId: String?
+    var submittedFeedback: [String: InsightChatFeedbackRating] = [:]
+    var notesSummaryDraft: String?
     var limits = InsightChatLimits(
         maxUserMessageCharacters: 600,
         maxMessagesPerConversation: 30,
@@ -58,6 +73,7 @@ final class InsightChatViewModel {
     var canSend: Bool {
         !isOffline
             && !isSending
+            && pendingUserMessage == nil
             && !trimmedDraft.isEmpty
             && trimmedDraft.count <= limits.maxUserMessageCharacters
             && messages.count < limits.maxMessagesPerConversation
@@ -117,21 +133,10 @@ final class InsightChatViewModel {
             return
         }
 
-        HapticManager.shared.triggerMediumPulse()
-        isSending = true
-        errorMessage = nil
         let clientMessageId = UUID().uuidString
-        pendingUserMessage = PendingInsightChatMessage(
-            id: clientMessageId,
-            text: trimmed,
-            createdAt: Date()
-        )
+        beginSending(trimmed, clientMessageId: clientMessageId)
         if trimmed == draftText.trimmingCharacters(in: .whitespacesAndNewlines) {
             draftText = ""
-        }
-        defer {
-            pendingUserMessage = nil
-            isSending = false
         }
 
         do {
@@ -140,13 +145,33 @@ final class InsightChatViewModel {
                 messageText: trimmed,
                 clientMessageId: clientMessageId
             ))
+            isSending = false
             HapticManager.shared.triggerSuccessPulse()
         } catch {
             handle(error, scanId: scanId, playHaptic: true)
-            if draftText.isEmpty {
-                draftText = trimmed
-            }
+            pendingUserMessage = PendingInsightChatMessage(
+                id: clientMessageId,
+                text: trimmed,
+                createdAt: Date(),
+                deliveryState: .failed(Self.userFacingMessage(for: error))
+            )
+            isSending = false
         }
+    }
+
+    func retryFailedMessage(scanId: String) async {
+        guard let pendingUserMessage,
+              case .failed = pendingUserMessage.deliveryState else { return }
+        await send(pendingUserMessage.text, scanId: scanId)
+    }
+
+    func editFailedMessage() {
+        guard let pendingUserMessage,
+              case .failed = pendingUserMessage.deliveryState else { return }
+        draftText = pendingUserMessage.text
+        self.pendingUserMessage = nil
+        errorMessage = nil
+        HapticManager.shared.triggerSelectionPulse()
     }
 
     func deleteCurrentConversation(scanId: String) async {
@@ -176,16 +201,69 @@ final class InsightChatViewModel {
         draftText = String(newValue.prefix(limits.maxUserMessageCharacters))
     }
 
+    func submitFeedback(
+        scanId: String,
+        messageId: String,
+        rating: InsightChatFeedbackRating,
+        note: String? = nil
+    ) async -> Bool {
+        guard !isOffline else {
+            HapticManager.shared.triggerErrorThump()
+            errorMessage = "Connect to send feedback."
+            return false
+        }
+
+        isSubmittingFeedback = true
+        defer { isSubmittingFeedback = false }
+
+        do {
+            let response = try await MerianNetworkClient.shared.submitInsightChatFeedback(
+                scanId: scanId,
+                messageId: messageId,
+                rating: rating,
+                note: note
+            )
+            submittedFeedback[response.messageId] = response.rating
+            HapticManager.shared.triggerSuccessPulse()
+            return true
+        } catch {
+            handle(error, scanId: scanId, playHaptic: true)
+            return false
+        }
+    }
+
+    func summarizeForFieldNotes(scanId: String) async {
+        guard !isOffline else {
+            HapticManager.shared.triggerErrorThump()
+            errorMessage = "Connect to summarize chat."
+            return
+        }
+        guard !messages.isEmpty else { return }
+
+        isSummarizingNotes = true
+        defer { isSummarizingNotes = false }
+
+        do {
+            let response = try await MerianNetworkClient.shared.summarizeInsightChatForFieldNotes(scanId: scanId)
+            notesSummaryDraft = response.summaryText
+            HapticManager.shared.triggerSuccessPulse()
+        } catch {
+            handle(error, scanId: scanId, playHaptic: true)
+        }
+    }
+
     func suggestionChips(for speciesData: SpeciesData, timestamp: Date?) -> [String] {
         let allChips = Self.suggestionChips(for: speciesData, timestamp: timestamp)
-        let sentTexts = Set(
-            messages.filter { $0.role == .user }
-                .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-            + [pendingUserMessage?.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()].compactMap { $0 }
-        )
+        let sentTexts = Set(sentAndPendingPromptTexts)
         return allChips.filter { chip in
             !sentTexts.contains(chip.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
         }
+    }
+
+    var sentAndPendingPromptTexts: [String] {
+        messages.filter { $0.role == .user }
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            + [pendingUserMessage?.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()].compactMap { $0 }
     }
 
     static func suggestionChips(for speciesData: SpeciesData, timestamp: Date?) -> [String] {
@@ -231,12 +309,47 @@ final class InsightChatViewModel {
         return uniquePrompts(candidates).prefix(3).map { $0 }
     }
 
+    static func comparisonPrompt(for speciesData: SpeciesData) -> String? {
+        comparisonPromptName(for: speciesData).map { "How do I tell it apart from \($0)?" }
+    }
+
+    static func hasLookalikeContext(_ speciesData: SpeciesData) -> Bool {
+        comparisonPromptName(for: speciesData) != nil
+    }
+
+    static func sourceChips(for speciesData: SpeciesData, fieldNotes: String?) -> [String] {
+        var chips: [String] = []
+        if speciesData.aiReasoning?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            chips.append("AI reasoning")
+        }
+        if hasObservedTraits(speciesData) {
+            chips.append("Observed traits")
+        }
+        if hasHabitatContext(speciesData) || speciesData.locationName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            chips.append("Habitat")
+        }
+        if fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            chips.append("Field notes")
+        }
+        if hasLookalikeContext(speciesData) {
+            chips.append("Lookalikes")
+        }
+        chips.append("Scan context")
+        return uniquePrompts(chips).prefix(4).map { $0 }
+    }
+
+    static func shouldOfferConfidenceReview(for speciesData: SpeciesData) -> Bool {
+        let bands = MerianConfig.confidenceBands(forInferenceTier: speciesData.inferenceTier)
+        return speciesData.confidenceScore < bands.strong || hasLookalikeContext(speciesData)
+    }
+
     private func apply(_ response: InsightChatResponse) {
         conversationId = response.conversationId
         messages = response.messages
         pendingUserMessage = nil
         limits = response.limits
         unavailableScanId = nil
+        errorMessage = nil
     }
 
     private func clearLoadedState() {
@@ -246,6 +359,8 @@ final class InsightChatViewModel {
         conversationId = nil
         errorMessage = nil
         unavailableScanId = nil
+        submittedFeedback = [:]
+        notesSummaryDraft = nil
     }
 
     private func handle(_ error: Error, scanId: String, playHaptic: Bool = false) {
@@ -256,6 +371,17 @@ final class InsightChatViewModel {
         if Self.isDeterministicallyUnavailable(error) {
             unavailableScanId = scanId
         }
+    }
+
+    private func beginSending(_ text: String, clientMessageId: String) {
+        HapticManager.shared.triggerMediumPulse()
+        isSending = true
+        errorMessage = nil
+        pendingUserMessage = PendingInsightChatMessage(
+            id: clientMessageId,
+            text: text,
+            createdAt: Date()
+        )
     }
 
     static func isDeterministicallyUnavailable(_ error: Error) -> Bool {
@@ -339,6 +465,15 @@ final class InsightChatViewModel {
         }
         let ecologyType = speciesData.ecologyType.trimmingCharacters(in: .whitespacesAndNewlines)
         return !ecologyType.isEmpty && ecologyType.caseInsensitiveCompare("unknown") != .orderedSame
+    }
+
+    private static func hasObservedTraits(_ speciesData: SpeciesData) -> Bool {
+        if speciesData.colors?.isEmpty == false { return true }
+        if speciesData.lifeStage?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { return true }
+        if speciesData.reproductiveCondition?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { return true }
+        if speciesData.sexEvidence?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false { return true }
+        if speciesData.estimatedSizeCm != nil || speciesData.individualCount != nil { return true }
+        return false
     }
 
     private static func visualTraitPhrase(from reasoning: String?) -> String? {

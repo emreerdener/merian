@@ -10,6 +10,7 @@ TestFlight, App Store, support, and QA.
 - Added Field chat as a bottom-sheet experience from biological Insight toolbars, with one saved conversation per scan, prompt chips, typed follow-ups, safety guardrails, and server-side token tracking.
 - Moved Add to collection into the Insight header menu below field notes, freeing the bottom toolbar for Chat.
 - Expanded Field chat's private scan context so answers can use review provenance, observed traits, ecology metadata, species group tags, and image/capture-quality signals without sending image data or public Explore content.
+- Improved Field chat recovery and trust cues with offline read-only messaging, in-thread failed-send retry/edit, safety guidance headers, source chips, answer actions, private answer feedback, and append-only field-notes handoff.
 
 ### Image Viewer & Reference Gallery
 - Added a full-screen Insight image viewer so tapping a scan image opens a fit-centered, swipeable carousel with zoom and reference attribution.

@@ -4,6 +4,14 @@ struct InsightChatEnvelope: Decodable {
     let data: InsightChatResponse
 }
 
+struct InsightChatFeedbackEnvelope: Decodable {
+    let data: InsightChatFeedbackResponse
+}
+
+struct InsightChatSummaryEnvelope: Decodable {
+    let data: InsightChatSummaryResponse
+}
+
 struct InsightChatResponse: Decodable, Equatable {
     let conversationId: String?
     let messages: [InsightChatMessage]
@@ -28,6 +36,34 @@ struct InsightChatLimits: Decodable, Equatable {
         case dailySendLimit = "daily_send_limit"
         case sendsRemainingToday = "sends_remaining_today"
     }
+}
+
+struct InsightChatFeedbackResponse: Decodable, Equatable {
+    let ok: Bool
+    let rating: InsightChatFeedbackRating
+    let messageId: String
+
+    private enum CodingKeys: String, CodingKey {
+        case ok
+        case rating
+        case messageId = "message_id"
+    }
+}
+
+struct InsightChatSummaryResponse: Decodable, Equatable {
+    let summaryText: String
+
+    private enum CodingKeys: String, CodingKey {
+        case summaryText = "summary_text"
+    }
+}
+
+enum InsightChatFeedbackRating: String, Codable, CaseIterable {
+    case helpful
+    case notHelpful = "not_helpful"
+    case wrong
+    case unsafe
+    case other
 }
 
 struct InsightChatMessage: Identifiable, Decodable, Equatable {
@@ -66,11 +102,17 @@ struct InsightChatRequestBody: Encodable {
     let scanId: String
     let messageText: String?
     let clientMessageId: String?
+    let messageId: String?
+    let feedbackRating: InsightChatFeedbackRating?
+    let feedbackNote: String?
 
     private enum CodingKeys: String, CodingKey {
         case action
         case scanId = "scan_id"
         case messageText = "message_text"
         case clientMessageId = "client_message_id"
+        case messageId = "message_id"
+        case feedbackRating = "feedback_rating"
+        case feedbackNote = "feedback_note"
     }
 }

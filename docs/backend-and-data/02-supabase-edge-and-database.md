@@ -972,9 +972,11 @@ then returns local media paths for `FileIOActor` cleanup.
 
 `services/supabase/analytics/` contains version-controlled SQL queries for LLM
 cost observability. These are the authoritative source for API spend analysis —
-PostHog owns behavioral metrics (funnel, session, conversion); Supabase SQL owns
+PostHog owns behavioral metrics (funnel, session, conversion, prompt/action
+taps, answer categories, refusals, and feedback submissions); Supabase SQL owns
 cost metrics. Scan token counts are persisted to `public.scans`; Insight chat
-assistant token counts are persisted to `public.insight_chat_messages`.
+assistant token counts are persisted to `public.insight_chat_messages`, while
+private answer ratings are stored in `public.insight_chat_message_feedback`.
 
 Run these in **Supabase → SQL Editor → Save** to pin them as named queries:
 

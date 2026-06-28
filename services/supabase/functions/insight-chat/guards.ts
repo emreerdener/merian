@@ -5,14 +5,45 @@ import {
 
 export function normalizeAction(
   value: unknown,
-): "load" | "send" | "delete" {
-  if (value === "load" || value === "send" || value === "delete") {
+): "load" | "send" | "delete" | "feedback" | "summarize_notes" {
+  if (
+    value === "load" || value === "send" || value === "delete" ||
+    value === "feedback" || value === "summarize_notes"
+  ) {
     return value;
   }
   throw Object.assign(
-    new Error("action must be load, send, or delete."),
+    new Error("action must be load, send, delete, feedback, or summarize_notes."),
     { status: 400 },
   );
+}
+
+export function normalizeFeedbackRating(value: unknown) {
+  if (
+    value === "helpful" || value === "not_helpful" || value === "wrong" ||
+    value === "unsafe" || value === "other"
+  ) {
+    return value;
+  }
+  throw Object.assign(new Error("feedback_rating is invalid."), { status: 400 });
+}
+
+export function normalizeFeedbackNote(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value !== "string") {
+    throw Object.assign(new Error("feedback_note must be a string."), {
+      status: 400,
+    });
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > 1000) {
+    throw Object.assign(
+      new Error("feedback_note must be 1000 characters or fewer."),
+      { status: 400 },
+    );
+  }
+  return trimmed;
 }
 
 export function normalizeUserMessage(value: unknown): string {

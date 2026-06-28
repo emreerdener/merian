@@ -1,16 +1,33 @@
 import SwiftUI
+import UIKit
+
+enum InsightChatFieldNotesAppendKind {
+    case answer
+    case summary
+}
 
 struct InsightChatSheet: View {
     @Bindable var viewModel: InsightChatViewModel
     let scanId: String
     let speciesData: SpeciesData
     let timestamp: Date?
+    let fieldNotes: String?
+    let onToast: (String) -> Void
+    let onAskCommunity: (() -> Void)?
+    let onAppendToFieldNotes: (String, InsightChatFieldNotesAppendKind) -> Void
+    let onReviewConfidence: (() -> Void)?
     let onClose: () -> Void
 
     @FocusState private var composerFocused: Bool
+    @State private var pendingFieldNotesAppend: InsightChatPendingFieldNotesAppend?
+    @State private var pendingFeedbackMessage: InsightChatMessage?
 
     private var chips: [String] {
         viewModel.suggestionChips(for: speciesData, timestamp: timestamp)
+    }
+
+    private var sourceChips: [String] {
+        InsightChatViewModel.sourceChips(for: speciesData, fieldNotes: fieldNotes)
     }
 
     private var hasVisibleMessages: Bool {
@@ -59,6 +76,60 @@ struct InsightChatSheet: View {
                 }
         }
         .presentationBackground(Color(uiColor: .systemBackground))
+        .confirmationDialog(
+            "Add to field notes?",
+            isPresented: Binding(
+                get: { pendingFieldNotesAppend != nil },
+                set: { if !$0 { pendingFieldNotesAppend = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Append to field notes") {
+                guard let pendingFieldNotesAppend else { return }
+                onAppendToFieldNotes(pendingFieldNotesAppend.text, pendingFieldNotesAppend.kind)
+                self.pendingFieldNotesAppend = nil
+                onToast("Added to field notes")
+                HapticManager.shared.triggerSuccessPulse()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingFieldNotesAppend = nil
+            }
+        } message: {
+            Text("This will add a new Field chat section and keep your existing notes.")
+        }
+        .confirmationDialog(
+            "What seems wrong?",
+            isPresented: Binding(
+                get: { pendingFeedbackMessage != nil },
+                set: { if !$0 { pendingFeedbackMessage = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Not helpful") { submitFeedback(.notHelpful) }
+            Button("Seems wrong") { submitFeedback(.wrong) }
+            Button("Unsafe") { submitFeedback(.unsafe) }
+            Button("Other") { submitFeedback(.other) }
+            Button("Cancel", role: .cancel) {
+                pendingFeedbackMessage = nil
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { viewModel.notesSummaryDraft != nil },
+            set: { if !$0 { viewModel.notesSummaryDraft = nil } }
+        )) {
+            InsightChatNotesDraftSheet(
+                draftText: viewModel.notesSummaryDraft ?? "",
+                onCancel: {
+                    viewModel.notesSummaryDraft = nil
+                },
+                onAppend: { draft in
+                    onAppendToFieldNotes(draft, .summary)
+                    viewModel.notesSummaryDraft = nil
+                    onToast("Added summary to field notes")
+                    HapticManager.shared.triggerSuccessPulse()
+                }
+            )
+        }
         .task(id: scanId) {
             await viewModel.loadIfNeeded(scanId: scanId, isProActive: true)
         }
@@ -125,7 +196,28 @@ struct InsightChatSheet: View {
                                     InsightChatBubble(
                                         message: message,
                                         scientificNames: scientificNames,
-                                        isLastMessage: index == viewModel.messages.count - 1 && viewModel.pendingUserMessage == nil
+                                        sourceChips: sourceChips,
+                                        isLastMessage: index == viewModel.messages.count - 1 && viewModel.pendingUserMessage == nil,
+                                        feedbackRating: viewModel.submittedFeedback[message.id],
+                                        canCompareWithLookalikes: InsightChatViewModel.hasLookalikeContext(speciesData),
+                                        canAskCommunity: onAskCommunity != nil,
+                                        canReviewConfidence: InsightChatViewModel.shouldOfferConfidenceReview(for: speciesData),
+                                        isSummarizingNotes: viewModel.isSummarizingNotes,
+                                        onAction: { action in
+                                            handleAction(action, message: message)
+                                        },
+                                        onPositiveFeedback: {
+                                            Task {
+                                                _ = await viewModel.submitFeedback(
+                                                    scanId: scanId,
+                                                    messageId: message.id,
+                                                    rating: .helpful
+                                                )
+                                            }
+                                        },
+                                        onNegativeFeedback: {
+                                            pendingFeedbackMessage = message
+                                        }
                                     )
                                     .id(message.id)
                                 }
@@ -133,11 +225,20 @@ struct InsightChatSheet: View {
                                 if let pendingMessage = viewModel.pendingUserMessage {
                                     InsightChatPendingUserBubble(
                                         message: pendingMessage,
-                                        scientificNames: scientificNames
+                                        scientificNames: scientificNames,
+                                        onRetry: {
+                                            Task { await viewModel.retryFailedMessage(scanId: scanId) }
+                                        },
+                                        onEdit: {
+                                            viewModel.editFailedMessage()
+                                            composerFocused = true
+                                        }
                                     )
                                         .id(pendingMessage.id)
-                                    InsightChatAssistantLoadingBubble()
-                                        .id("assistant-loading-\(pendingMessage.id)")
+                                    if pendingMessage.isSending {
+                                        InsightChatAssistantLoadingBubble()
+                                            .id("assistant-loading-\(pendingMessage.id)")
+                                    }
                                 }
 
                                 Color.clear
@@ -194,11 +295,13 @@ struct InsightChatSheet: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !viewModel.isOffline && !viewModel.isSending && !chips.isEmpty && viewModel.draftText.isEmpty {
+            if !viewModel.isOffline && !viewModel.isSending && viewModel.pendingUserMessage == nil && !chips.isEmpty && viewModel.draftText.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(chips, id: \.self) { chip in
                             Button {
+                                HapticManager.shared.triggerSelectionPulse()
+                                trackPromptChip(chip)
                                 Task { await viewModel.send(chip, scanId: scanId) }
                             } label: {
                                 Text(chip)
@@ -225,7 +328,46 @@ struct InsightChatSheet: View {
                 }
             }
 
-            HStack(alignment: .center, spacing: 10) {
+            if viewModel.isOffline {
+                offlineComposerNotice
+            } else {
+                composerInput
+            }
+
+            if let error = viewModel.errorMessage, !viewModel.messages.isEmpty {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+            }
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+    }
+
+    private var offlineComposerNotice: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "wifi.slash")
+            Text("Connect to ask a follow-up.")
+                .font(.subheadline)
+            Spacer()
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.primary.opacity(0.10), lineWidth: 1)
+        )
+        .padding(.horizontal, 16)
+    }
+
+    private var composerInput: some View {
+        HStack(alignment: .center, spacing: 10) {
                 TextField("Ask Merian AI", text: Binding(
                     get: { viewModel.draftText },
                     set: { viewModel.setDraftText($0) }
@@ -262,28 +404,18 @@ struct InsightChatSheet: View {
                 .disabled(!viewModel.canSend)
                 .accessibilityLabel(viewModel.isSending ? "Sending follow-up" : "Send follow-up")
                 .padding(.trailing, 8)
-            }
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemBackground))
-                    .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-            )
-            .padding(.horizontal, 16)
-
-            if let error = viewModel.errorMessage, !viewModel.messages.isEmpty {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 16)
-            }
         }
-        .padding(.top, 8)
-        .padding(.bottom, 8)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+        )
+        .padding(.horizontal, 16)
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
@@ -291,12 +423,143 @@ struct InsightChatSheet: View {
             proxy.scrollTo("insight-chat-bottom-anchor", anchor: .bottom)
         }
     }
+
+    private func handleAction(_ action: InsightChatReplyAction, message: InsightChatMessage) {
+        HapticManager.shared.triggerSelectionPulse()
+        trackAction(action.rawValue, message: message)
+
+        switch action {
+        case .copyAnswer:
+            UIPasteboard.general.string = message.text
+            onToast("Copied answer")
+        case .askCommunity:
+            onClose()
+            onAskCommunity?()
+        case .compareLookalikes:
+            guard let prompt = InsightChatViewModel.comparisonPrompt(for: speciesData) else { return }
+            Task { await viewModel.send(prompt, scanId: scanId) }
+        case .addToFieldNotes:
+            pendingFieldNotesAppend = InsightChatPendingFieldNotesAppend(text: message.text, kind: .answer)
+        case .summarizeToFieldNotes:
+            Task { await viewModel.summarizeForFieldNotes(scanId: scanId) }
+        case .reviewConfidence:
+            onClose()
+            onReviewConfidence?()
+        }
+    }
+
+    private func submitFeedback(_ rating: InsightChatFeedbackRating) {
+        guard let message = pendingFeedbackMessage else { return }
+        pendingFeedbackMessage = nil
+        trackAction("feedback_\(rating.rawValue)", message: message)
+        Task {
+            let didSubmit = await viewModel.submitFeedback(
+                scanId: scanId,
+                messageId: message.id,
+                rating: rating
+            )
+            if didSubmit {
+                onToast("Feedback sent")
+            }
+        }
+    }
+
+    private func trackAction(_ action: String, message: InsightChatMessage?) {
+        PostHogManager.shared.capture("InsightChatActionTapped", properties: [
+            "action": action,
+            "scan_id": scanId,
+            "message_id": message?.id ?? "",
+            "is_refusal": message?.isRefusal ?? false,
+            "has_lookalikes": InsightChatViewModel.hasLookalikeContext(speciesData)
+        ])
+    }
+
+    private func trackPromptChip(_ prompt: String) {
+        PostHogManager.shared.capture("InsightChatActionTapped", properties: [
+            "action": "prompt_chip",
+            "prompt_category": promptCategory(prompt),
+            "scan_id": scanId,
+            "message_id": "",
+            "is_refusal": false,
+            "has_lookalikes": InsightChatViewModel.hasLookalikeContext(speciesData)
+        ])
+    }
+
+    private func promptCategory(_ prompt: String) -> String {
+        let normalized = prompt.lowercased()
+        if normalized.contains("tell it apart") { return "lookalike_compare" }
+        if normalized.contains("risk") { return "hazard" }
+        if normalized.contains("invasive") { return "invasive" }
+        if normalized.contains("traits support") { return "evidence" }
+        if normalized.contains("habitat") { return "habitat" }
+        if normalized.contains("typical in") { return "season" }
+        if normalized.contains("strong match") || normalized.contains("uncertain") { return "confidence" }
+        return "generic"
+    }
+}
+
+private struct InsightChatPendingFieldNotesAppend: Identifiable {
+    let id = UUID()
+    let text: String
+    let kind: InsightChatFieldNotesAppendKind
+}
+
+private enum InsightChatReplyAction: String, CaseIterable {
+    case copyAnswer = "copy_answer"
+    case askCommunity = "ask_community"
+    case compareLookalikes = "compare_lookalikes"
+    case addToFieldNotes = "add_to_field_notes"
+    case summarizeToFieldNotes = "summarize_to_field_notes"
+    case reviewConfidence = "review_confidence"
+
+    var title: String {
+        switch self {
+        case .copyAnswer:
+            return "Copy answer"
+        case .askCommunity:
+            return "Ask community"
+        case .compareLookalikes:
+            return "Compare lookalikes"
+        case .addToFieldNotes:
+            return "Add to field notes"
+        case .summarizeToFieldNotes:
+            return "Summarize to notes"
+        case .reviewConfidence:
+            return "Review confidence"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .copyAnswer:
+            return "doc.on.doc"
+        case .askCommunity:
+            return "person.2"
+        case .compareLookalikes:
+            return "arrow.left.arrow.right"
+        case .addToFieldNotes:
+            return "square.and.pencil"
+        case .summarizeToFieldNotes:
+            return "text.badge.plus"
+        case .reviewConfidence:
+            return "gauge.with.needle"
+        }
+    }
 }
 
 private struct InsightChatBubble: View {
     let message: InsightChatMessage
     let scientificNames: [String]
+    let sourceChips: [String]
     let isLastMessage: Bool
+    let feedbackRating: InsightChatFeedbackRating?
+    let canCompareWithLookalikes: Bool
+    let canAskCommunity: Bool
+    let canReviewConfidence: Bool
+    let isSummarizingNotes: Bool
+    let onAction: (InsightChatReplyAction) -> Void
+    let onPositiveFeedback: () -> Void
+    let onNegativeFeedback: () -> Void
 
     private var isUser: Bool {
         message.role == .user
@@ -327,28 +590,60 @@ private struct InsightChatBubble: View {
                     .textSelection(.enabled)
             }
         } else {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
+                if message.isRefusal {
+                    Label("Safe field guidance", systemImage: "shield.lefthalf.filled")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
                 Text(formattedText)
                     .font(.subheadline)
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
-                
+
+                if !sourceChips.isEmpty {
+                    InsightChatSourceChips(chips: sourceChips)
+                }
+
+                InsightChatReplyActions(
+                    actions: availableActions,
+                    isSummarizingNotes: isSummarizingNotes,
+                    onAction: onAction
+                )
+
+                InsightChatFeedbackRow(
+                    rating: feedbackRating,
+                    onPositive: onPositiveFeedback,
+                    onNegative: onNegativeFeedback
+                )
+
                 if isLastMessage {
                     Text("Merian AI can make mistakes.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                        .padding(.top, 4)
                 }
             }
             .padding(.vertical, 4)
         }
+    }
+
+    private var availableActions: [InsightChatReplyAction] {
+        var actions: [InsightChatReplyAction] = [.copyAnswer, .addToFieldNotes]
+        if canAskCommunity { actions.append(.askCommunity) }
+        if canCompareWithLookalikes { actions.append(.compareLookalikes) }
+        if canReviewConfidence { actions.append(.reviewConfidence) }
+        if isLastMessage { actions.append(.summarizeToFieldNotes) }
+        return actions
     }
 }
 
 private struct InsightChatPendingUserBubble: View {
     let message: PendingInsightChatMessage
     let scientificNames: [String]
+    let onRetry: () -> Void
+    let onEdit: () -> Void
 
     private var formattedText: AttributedString {
         InsightChatMessageFormatter.formattedText(
@@ -361,17 +656,155 @@ private struct InsightChatPendingUserBubble: View {
         HStack {
             Spacer(minLength: 44)
 
-            Text(formattedText)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.16))
-                )
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .textSelection(.enabled)
+            VStack(alignment: .trailing, spacing: 6) {
+                Text(formattedText)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.16))
+                    )
+                    .textSelection(.enabled)
+
+                if case .failed(let reason) = message.deliveryState {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Text(reason)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            Button("Edit", action: onEdit)
+                            Button("Try again", action: onRetry)
+                                .fontWeight(.semibold)
+                        }
+                        .font(.caption)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+}
+
+private struct InsightChatSourceChips: View {
+    let chips: [String]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                Text("Based on")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                ForEach(chips, id: \.self) { chip in
+                    Text(chip)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule(style: .continuous).fill(Color(uiColor: .secondarySystemBackground)))
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct InsightChatReplyActions: View {
+    let actions: [InsightChatReplyAction]
+    let isSummarizingNotes: Bool
+    let onAction: (InsightChatReplyAction) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(actions, id: \.self) { action in
+                    Button {
+                        onAction(action)
+                    } label: {
+                        HStack(spacing: 5) {
+                            if action == .summarizeToFieldNotes && isSummarizingNotes {
+                                ProgressView()
+                                    .controlSize(.mini)
+                            } else {
+                                Image(systemName: action.icon)
+                                    .font(.caption)
+                            }
+                            Text(action.title)
+                        }
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Capsule(style: .continuous).fill(Color(uiColor: .tertiarySystemFill)))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(action == .summarizeToFieldNotes && isSummarizingNotes)
+                }
+            }
+        }
+    }
+}
+
+private struct InsightChatFeedbackRow: View {
+    let rating: InsightChatFeedbackRating?
+    let onPositive: () -> Void
+    let onNegative: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if let rating {
+                Label(rating == .helpful ? "Helpful" : "Feedback sent", systemImage: "checkmark.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                Button(action: onPositive) {
+                    Image(systemName: "hand.thumbsup")
+                }
+                .accessibilityLabel("Mark answer helpful")
+                Button(action: onNegative) {
+                    Image(systemName: "hand.thumbsdown")
+                }
+                .accessibilityLabel("Report answer")
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+}
+
+private struct InsightChatNotesDraftSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var draftText: String
+    let onCancel: () -> Void
+    let onAppend: (String) -> Void
+
+    init(draftText: String, onCancel: @escaping () -> Void, onAppend: @escaping (String) -> Void) {
+        _draftText = State(initialValue: draftText)
+        self.onCancel = onCancel
+        self.onAppend = onAppend
+    }
+
+    var body: some View {
+        NavigationStack {
+            TextEditor(text: $draftText)
+                .padding()
+                .navigationTitle("Review note")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            onCancel()
+                            dismiss()
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Append") {
+                            onAppend(draftText)
+                            dismiss()
+                        }
+                        .disabled(draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
         }
     }
 }

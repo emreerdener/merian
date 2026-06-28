@@ -97,4 +97,19 @@ final class PostHogManager {
     func reset() {
         PostHogSDK.shared.reset()
     }
+
+    // MARK: - Events
+
+    func capture(_ event: String, properties: [String: Any] = [:]) {
+        lock.lock()
+        let configured = _isConfigured
+        lock.unlock()
+
+        guard configured else {
+            MerianLog.general.debug("PostHog event buffered nowhere because SDK is not configured: \(event, privacy: .public)")
+            return
+        }
+
+        PostHogSDK.shared.capture(event, properties: properties)
+    }
 }

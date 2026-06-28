@@ -96,26 +96,47 @@ struct InsightSheetView: View {
         .sheet(isPresented: $viewModel.state.isInsightChatSheetPresented) {
             if let speciesData = inferenceEngine.speciesData,
                let scanId = speciesData.scanId {
-                InsightChatSheet(
-                    viewModel: chatViewModel,
-                    scanId: scanId,
-                    speciesData: speciesData,
-                    timestamp: viewModel.activeRecordTimestamp,
-                    onClose: {
-                        viewModel.state.isInsightChatSheetPresented = false
-                    }
-                )
+	                InsightChatSheet(
+	                    viewModel: chatViewModel,
+	                    scanId: scanId,
+	                    speciesData: speciesData,
+	                    timestamp: viewModel.activeRecordTimestamp,
+	                    fieldNotes: viewModel.shareableFieldNotes,
+	                    onToast: { message in
+	                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+	                            viewModel.state.toastMessage = message
+	                        }
+	                    },
+	                    onAskCommunity: viewModel.canRequestCommunityIdentification ? {
+	                        viewModel.state.isCommunityRequestSheetPresented = true
+	                    } : nil,
+	                    onAppendToFieldNotes: { text, kind in
+	                        appendInsightChatTextToFieldNotes(text, kind: kind)
+	                    },
+	                    onReviewConfidence: {
+	                        if viewModel.canReviewAlternatives {
+	                            viewModel.state.isCandidateSwipePresented = true
+	                        } else {
+	                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+	                                viewModel.state.toastMessage = "Confidence review is not available for this scan"
+	                            }
+	                        }
+	                    },
+	                    onClose: {
+	                        viewModel.state.isInsightChatSheetPresented = false
+	                    }
+	                )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
-                .onChange(of: chatViewModel.errorMessage) { _, errorMessage in
-                    if errorMessage == "Merian Pro is required." {
-                        viewModel.state.isInsightChatSheetPresented = false
-                        viewModel.state.showPaywall = true
-                        chatViewModel.errorMessage = nil
-                    }
-                }
-            }
-        }
+	                .onChange(of: chatViewModel.errorMessage) { _, errorMessage in
+	                    if errorMessage == "Merian Pro is required." {
+	                        viewModel.state.isInsightChatSheetPresented = false
+	                        viewModel.state.showPaywall = true
+	                        chatViewModel.errorMessage = nil
+	                    }
+	                }
+	            }
+	        }
         .sheet(isPresented: $viewModel.state.showExploreOnboarding) {
             ExploreOnboardingPrompt(
                 onShare: {
@@ -147,6 +168,36 @@ struct InsightSheetView: View {
                 allowsInsightPresentation: false
             )
         }
+    }
+}
+
+private extension InsightSheetView {
+    func appendInsightChatTextToFieldNotes(
+        _ text: String,
+        kind: InsightChatFieldNotesAppendKind
+    ) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let title: String
+        switch kind {
+        case .answer:
+            title = "Field chat answer"
+        case .summary:
+            title = "Field chat summary"
+        }
+
+        let dateText = DateFormatter.localizedString(
+            from: Date(),
+            dateStyle: .medium,
+            timeStyle: .short
+        )
+        let section = "\(title) - \(dateText)\n\(trimmed)"
+        let existing = viewModel.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let combined = existing.isEmpty ? section : "\(existing)\n\n\(section)"
+
+        viewModel.updateFieldNotes(combined, modelContext: modelContext)
+        viewModel.state.dismissedFieldNotesCardScanId = nil
     }
 }
 

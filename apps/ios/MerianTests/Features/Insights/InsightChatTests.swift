@@ -226,6 +226,91 @@ struct InsightChatTests {
         #expect(viewModel.trimmedDraft.count == 600)
     }
 
+    @Test func testFailedPendingMessageBlocksNewSendsUntilRecovered() {
+        let viewModel = InsightChatViewModel()
+        viewModel.setDraftText("Can I ask another?")
+        viewModel.pendingUserMessage = PendingInsightChatMessage(
+            id: "pending1",
+            text: "Original failed question",
+            createdAt: Date(),
+            deliveryState: .failed("Chat is unavailable right now.")
+        )
+
+        #expect(!viewModel.canSend)
+
+        viewModel.editFailedMessage()
+
+        #expect(viewModel.pendingUserMessage == nil)
+        #expect(viewModel.draftText == "Original failed question")
+    }
+
+    @Test func testSourceChipsReflectAvailableScanContext() {
+        let species = SpeciesData(
+            scanId: "chat_scan",
+            commonName: "Hottentot Fig",
+            scientificName: "Carpobrotus edulis",
+            insightData: InsightData(
+                aiReasoning: "Fleshy leaves and pale yellow flowers support the identification.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.91,
+            similarSpecies: SimilarSpecies(entries: [
+                SimilarSpeciesEntry(
+                    scientificName: "Lampranthus spectabilis",
+                    commonName: "Trailing Ice Plant",
+                    referenceImageUrl: nil,
+                    iucnRedListStatus: nil
+                )
+            ]),
+            aiReasoning: "Fleshy leaves and pale yellow flowers support the identification.",
+            habitatDescription: "Coastal dunes.",
+            colors: ["yellow", "green"],
+            lifeStage: "flowering"
+        )
+
+        let chips = InsightChatViewModel.sourceChips(
+            for: species,
+            fieldNotes: "Growing on a dune trail."
+        )
+
+        #expect(chips.contains("AI reasoning"))
+        #expect(chips.contains("Observed traits"))
+        #expect(chips.contains("Habitat"))
+        #expect(chips.contains("Field notes"))
+    }
+
+    @Test func testFeedbackAndSummaryResponsesDecode() throws {
+        let feedbackJson = """
+        {
+          "data": {
+            "ok": true,
+            "message_id": "message_1",
+            "rating": "wrong"
+          }
+        }
+        """
+        let feedback = try JSONDecoder().decode(
+            InsightChatFeedbackEnvelope.self,
+            from: Data(feedbackJson.utf8)
+        ).data
+        #expect(feedback.ok)
+        #expect(feedback.messageId == "message_1")
+        #expect(feedback.rating == .wrong)
+
+        let summaryJson = """
+        {
+          "data": {
+            "summary_text": "Observed near a wet meadow."
+          }
+        }
+        """
+        let summary = try JSONDecoder().decode(
+            InsightChatSummaryEnvelope.self,
+            from: Data(summaryJson.utf8)
+        ).data
+        #expect(summary.summaryText == "Observed near a wet meadow.")
+    }
+
     @Test func testForbiddenChatErrorExplainsAccountOwnership() {
         let message = InsightChatViewModel.userFacingMessage(
             for: MerianError.httpError(statusCode: 403, message: #"{"error":"Forbidden"}"#)

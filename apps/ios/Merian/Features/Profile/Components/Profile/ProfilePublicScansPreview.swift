@@ -498,7 +498,7 @@ private struct ProfilePublishedScansLibraryView: View {
 
     private var libraryGrid: some View {
         LazyVGrid(columns: columns, spacing: 2) {
-            ForEach(Array(posts.enumerated()), id: \.element.id) { index, post in
+            ForEach(Array(posts.enumerated()), id: \.element.id) { _, post in
                 Button {
                     openPost(post)
                 } label: {

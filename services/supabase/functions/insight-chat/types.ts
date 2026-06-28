@@ -3,8 +3,19 @@ export const MAX_USER_MESSAGE_CHARS = 600;
 export const MAX_MESSAGES_PER_CONVERSATION = 30;
 export const DAILY_SEND_LIMIT = 20;
 
-export type InsightChatAction = "load" | "send" | "delete";
+export type InsightChatAction =
+  | "load"
+  | "send"
+  | "delete"
+  | "feedback"
+  | "summarize_notes";
 export type InsightChatRole = "user" | "assistant";
+export type InsightChatFeedbackRating =
+  | "helpful"
+  | "not_helpful"
+  | "wrong"
+  | "unsafe"
+  | "other";
 
 export interface InsightChatMessageRow {
   id: string;
@@ -56,6 +67,16 @@ export interface InsightChatResponsePayload {
     daily_send_limit: number;
     sends_remaining_today: number;
   };
+}
+
+export interface InsightChatFeedbackPayload {
+  ok: boolean;
+  message_id: string;
+  rating: InsightChatFeedbackRating;
+}
+
+export interface InsightChatSummaryPayload {
+  summary_text: string;
 }
 
 export interface ChatScanContext {

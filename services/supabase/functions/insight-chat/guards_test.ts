@@ -13,6 +13,8 @@ Deno.test("normalizeAction accepts only supported actions", () => {
   assertEquals(normalizeAction("load"), "load");
   assertEquals(normalizeAction("send"), "send");
   assertEquals(normalizeAction("delete"), "delete");
+  assertEquals(normalizeAction("feedback"), "feedback");
+  assertEquals(normalizeAction("summarize_notes"), "summarize_notes");
   assertThrows(() => normalizeAction("list"));
   assertThrows(() => normalizeAction("create"));
   assertThrows(() => normalizeAction("archive"));

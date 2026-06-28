@@ -3091,13 +3091,37 @@ uses the authenticated Supabase user from `withEdgeHandler`, verifies ownership 
 }
 ```
 
-`action` accepts `load`, `send`, or `delete`. `load` returns the single saved
-conversation for the scan when one exists. `send` creates that conversation when
-missing, requires `message_text`, and may include `client_message_id` for
-idempotency. `delete` clears the scan's saved chat. The server caps v1 at 600
-characters per user message, 30 total messages per conversation, and 20 sends
-per Pro user per day across all of that user's Insight chats. Effective Pro
-includes active trial users.
+Feedback and field-notes summary actions use the same endpoint:
+
+```json
+{
+  "action": "feedback",
+  "scan_id": "A1B2C3D4-...",
+  "message_id": "33333333-3333-4333-8333-333333333333",
+  "feedback_rating": "wrong",
+  "feedback_note": "Optional short private note"
+}
+```
+
+```json
+{
+  "action": "summarize_notes",
+  "scan_id": "A1B2C3D4-..."
+}
+```
+
+`action` accepts `load`, `send`, `delete`, `feedback`, or `summarize_notes`.
+`load` returns the single saved conversation for the scan when one exists.
+`send` creates that conversation when missing, requires `message_text`, and may
+include `client_message_id` for idempotency. `delete` clears the scan's saved
+chat. `feedback` stores private owner-only answer feedback for an assistant
+`message_id` with `feedback_rating` (`helpful`, `not_helpful`, `wrong`,
+`unsafe`, `other`) and optional `feedback_note`. `summarize_notes` returns a
+reviewable field-notes draft from the current saved chat and scan context; the
+client must append it only after user confirmation and must never replace
+existing field notes. The server caps v1 at 600 characters per user message, 30
+total messages per conversation, and 20 sends per Pro user per day across all of
+that user's Insight chats. Effective Pro includes active trial users.
 
 ### Prompt and Privacy Boundary
 
@@ -3109,6 +3133,10 @@ capture date/month, location label, weather, elevation, and image/capture-qualit
 metadata. It does not include raw image bytes, R2 object keys, cloud image URLs,
 exact GPS coordinates, Explore comments, public post metadata, or Darwin Core
 export payloads.
+
+Location-aware answers may use only the saved private location label, month,
+elevation, ecology type, and weather. The prompt explicitly forbids inferring,
+requesting, revealing, or reconstructing exact GPS coordinates.
 
 The Gemini request uses `gemini-2.5-flash` with a stable prompt prefix,
 `maxOutputTokens: 700`, no streaming, no Google Search grounding, and thinking
@@ -3149,6 +3177,28 @@ when Gemini reports implicit cache hits.
 }
 ```
 
+For `feedback`:
+
+```json
+{
+  "data": {
+    "ok": true,
+    "message_id": "33333333-3333-4333-8333-333333333333",
+    "rating": "wrong"
+  }
+}
+```
+
+For `summarize_notes`:
+
+```json
+{
+  "data": {
+    "summary_text": "Concise reviewed draft text for append-only field notes."
+  }
+}
+```
+
 ### Safety and Errors
 
 The system prompt states the assistant has no raw image access and answers only
@@ -3164,8 +3214,12 @@ pesticide/poison instructions, and human-subject identification requests.
 | `429` | `{ "code": "daily_limit_reached", ... }` | Daily send cap reached |
 
 Telemetry emits `InsightChatSent`, `InsightChatAnswered`, `InsightChatRefused`,
-`InsightChatRateLimited`, and `InsightChatModelError` with latency and token
-fields when available.
+`InsightChatRateLimited`, `InsightChatModelError`,
+`InsightChatFeedbackSubmitted`, and `InsightChatNotesSummarized` with latency
+and token fields when available. Send/answer events include a deterministic
+`answer_category` so token cost can be reviewed by broad question type. iOS also
+emits `InsightChatActionTapped` to PostHog for local answer actions,
+prompt-chip taps, and feedback affordances.
 
 ---
 

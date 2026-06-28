@@ -804,10 +804,12 @@ The transaction log for every successful identification.
   never receive this object. This field is not copied into `species_dictionary`;
   species identity remains keyed by `scientific_name`.
 
-### `insight_chat_conversations`, `insight_chat_messages`
+### `insight_chat_conversations`, `insight_chat_messages`, `insight_chat_message_feedback`
 
-Private saved follow-up chat for completed biological Insight sheets. Added in
-migration `20260626120000_add_insight_chat.sql`.
+Private saved follow-up chat for completed biological Insight sheets. Chat
+conversations/messages were added in migration
+`20260626120000_add_insight_chat.sql`; answer feedback was added in
+`20260628120000_add_insight_chat_feedback.sql`.
 
 - `insight_chat_conversations.id` (UUID): Primary key.
 - `scan_id` (UUID FK -> `scans.id`, cascade delete): The owned scan this chat is
@@ -831,6 +833,15 @@ migration `20260626120000_add_insight_chat.sql`.
   `llm_total_tokens`, `llm_cached_tokens`: Gemini telemetry for assistant replies.
 - `is_refusal`, `refusal_reason`, `safety_metadata`: Safety/refusal audit fields
   for local guardrail refusals and model-declared refusals.
+- `insight_chat_message_feedback.id` (UUID): Primary key for private answer
+  feedback.
+- `message_id`, `conversation_id`, `scan_id`, `user_id`: Owner and cascade-delete
+  bounds. Feedback is unique per `(message_id, user_id)` and deletes with the
+  assistant message, conversation, scan, or user.
+- `rating`: CHECK-constrained to `helpful`, `not_helpful`, `wrong`, `unsafe`, or
+  `other`.
+- `note`: Optional short private feedback note, capped at 1000 characters.
+- `created_at`, `updated_at`: Feedback timestamps maintained by trigger.
 
 These tables are private scan data. They are not read by Explore, public species
 dictionary endpoints, public web pages, or Darwin Core exports.

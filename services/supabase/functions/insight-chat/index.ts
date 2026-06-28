@@ -9,17 +9,21 @@ import {
   countUserSendsToday,
   deleteConversation,
   fetchConversation,
+  fetchOwnedAssistantMessage,
   fetchMessages,
   fetchOwnedScan,
   formatMessage,
   getOrCreateConversation,
   insertAssistantMessage,
   insertUserMessage,
+  upsertMessageFeedback,
 } from "./db.ts";
 import {
   assertConversationHasRoom,
   isSafetyCriticalQuestion,
   normalizeAction,
+  normalizeFeedbackNote,
+  normalizeFeedbackRating,
   normalizeUserMessage,
   refusalAnswer,
 } from "./guards.ts";
@@ -53,6 +57,28 @@ function responsePayload(
     messages: messages.map(formatMessage),
     limits: limitsPayload(sendsToday),
   };
+}
+
+function messageCategory(text: string): string {
+  const normalized = text.toLowerCase();
+  if (normalized.includes("tell it apart") || normalized.includes("compare")) {
+    return "lookalike_compare";
+  }
+  if (normalized.includes("risk") || normalized.includes("hazard")) {
+    return "hazard";
+  }
+  if (normalized.includes("invasive")) return "invasive";
+  if (normalized.includes("trait") || normalized.includes("support this id")) {
+    return "evidence";
+  }
+  if (normalized.includes("habitat")) return "habitat";
+  if (normalized.includes("typical in") || normalized.includes("season")) {
+    return "season";
+  }
+  if (normalized.includes("strong match") || normalized.includes("uncertain")) {
+    return "confidence";
+  }
+  return "generic";
 }
 
 async function generateAssistantReply(
@@ -100,6 +126,50 @@ async function generateAssistantReply(
       : null,
     usage: result.usageMetadata,
   };
+}
+
+async function generateFieldNotesSummary(
+  systemInstruction: string,
+  messages: InsightChatMessageRow[],
+): Promise<{
+  summaryText: string;
+  usage: ModelChatResult["usage"];
+}> {
+  const responseSchema = {
+    type: Type.OBJECT,
+    properties: {
+      summary_text: { type: Type.STRING },
+    },
+    required: ["summary_text"],
+  };
+  const userPrompt = `${
+    buildUserPrompt(messages, "Summarize this chat into private field notes.")
+  }
+
+[FIELD NOTES DRAFT REQUEST]
+Create a concise, factual field-notes draft from the saved scan context and chat.
+Use only observation-relevant details. Do not replace existing notes. Do not add
+medical, edible, legal, pesticide, or exact-location instructions.`;
+
+  const result = await _genAI.models.generateContent({
+    model: INSIGHT_CHAT_MODEL,
+    contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+    config: {
+      systemInstruction,
+      temperature: 0.15,
+      maxOutputTokens: 450,
+      responseMimeType: "application/json",
+      responseSchema,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  });
+
+  const parsed = extractJson<{ summary_text?: unknown }>(result.text ?? "");
+  const summaryText = typeof parsed.summary_text === "string" &&
+      parsed.summary_text.trim()
+    ? parsed.summary_text.trim()
+    : "Field chat discussed the saved observation and follow-up identification context.";
+  return { summaryText, usage: result.usageMetadata };
 }
 
 Deno.serve((req: Request) =>
@@ -161,6 +231,82 @@ Deno.serve((req: Request) =>
           sendsToday,
         ),
       }, 200);
+    }
+
+    if (action === "feedback") {
+      const messageId = requireUuid(parsedBody.message_id, "message_id");
+      const rating = normalizeFeedbackRating(parsedBody.feedback_rating);
+      const note = normalizeFeedbackNote(parsedBody.feedback_note);
+      const message = await fetchOwnedAssistantMessage(
+        user.id,
+        scanId,
+        messageId,
+        supabaseAdmin,
+      );
+      if (!message) {
+        return jsonResponse({
+          code: "message_not_found",
+          error: "Assistant message not found.",
+        }, 404);
+      }
+
+      await upsertMessageFeedback(
+        user.id,
+        message,
+        rating,
+        note,
+        supabaseAdmin,
+      );
+      trackPostHogEvent(user, "InsightChatFeedbackSubmitted", {
+        scan_id: scanId,
+        conversation_id: message.conversation_id,
+        message_id: message.id,
+        rating,
+        is_refusal: message.is_refusal,
+        refusal_reason: message.refusal_reason,
+      }).catch((e) =>
+        console.error("PostHog InsightChatFeedbackSubmitted failed:", e)
+      );
+      return jsonResponse({
+        data: { ok: true, message_id: message.id, rating },
+      }, 200);
+    }
+
+    if (action === "summarize_notes") {
+      if (!existingConversation) {
+        return jsonResponse({
+          code: "conversation_not_found",
+          error: "No chat messages to summarize.",
+        }, 404);
+      }
+      const messages = await fetchMessages(existingConversation.id, supabaseAdmin);
+      if (messages.length === 0) {
+        return jsonResponse({
+          code: "conversation_empty",
+          error: "No chat messages to summarize.",
+        }, 400);
+      }
+      const startedAt = Date.now();
+      const summary = await generateFieldNotesSummary(
+        buildSystemInstruction(scan),
+        messages,
+      );
+      const usage = summary.usage;
+      trackPostHogEvent(user, "InsightChatNotesSummarized", {
+        scan_id: scanId,
+        conversation_id: existingConversation.id,
+        message_count: messages.length,
+        latency_ms: Date.now() - startedAt,
+        llm_model: INSIGHT_CHAT_MODEL,
+        llm_prompt_tokens: usage?.promptTokenCount ?? null,
+        llm_candidate_tokens: usage?.candidatesTokenCount ?? null,
+        llm_thinking_tokens: usage?.thoughtsTokenCount ?? null,
+        llm_total_tokens: usage?.totalTokenCount ?? null,
+        llm_cached_tokens: usage?.cachedContentTokenCount ?? null,
+      }).catch((e) =>
+        console.error("PostHog InsightChatNotesSummarized failed:", e)
+      );
+      return jsonResponse({ data: { summary_text: summary.summaryText } }, 200);
     }
 
     if (sendsToday >= DAILY_SEND_LIMIT) {
@@ -268,6 +414,7 @@ Deno.serve((req: Request) =>
       scan_id: scanId,
       conversation_id: resolvedConversation.id,
       user_message_id: userMessage.id,
+      answer_category: messageCategory(messageText),
       llm_model: assistantResult.usage ? INSIGHT_CHAT_MODEL : null,
       latency_ms: Date.now() - startedAt,
       llm_prompt_tokens: usage?.promptTokenCount ?? null,
@@ -285,6 +432,7 @@ Deno.serve((req: Request) =>
       scan_id: scanId,
       conversation_id: resolvedConversation.id,
       message_length: messageText.length,
+      answer_category: messageCategory(messageText),
       plan: tier.plan,
     }).catch((e) => console.error("PostHog InsightChatSent failed:", e));
 

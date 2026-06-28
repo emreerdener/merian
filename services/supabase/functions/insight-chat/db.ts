@@ -1,6 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   ChatScanContext,
+  InsightChatFeedbackRating,
   InsightChatConversationRow,
   InsightChatMessagePayload,
   InsightChatMessageRow,
@@ -257,6 +258,52 @@ export async function deleteConversation(
     .eq("scan_id", scanId);
   if (error) {
     throw new Error(`Failed to delete chat conversation: ${error.message}`);
+  }
+}
+
+export async function fetchOwnedAssistantMessage(
+  userId: string,
+  scanId: string,
+  messageId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<InsightChatMessageRow | null> {
+  const { data, error } = await supabaseAdmin
+    .from("insight_chat_messages")
+    .select(MESSAGE_SELECT)
+    .eq("id", messageId)
+    .eq("scan_id", scanId)
+    .eq("user_id", userId)
+    .eq("role", "assistant")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to fetch chat message: ${error.message}`);
+  }
+  return (data as InsightChatMessageRow | null) ?? null;
+}
+
+export async function upsertMessageFeedback(
+  userId: string,
+  message: InsightChatMessageRow,
+  rating: InsightChatFeedbackRating,
+  note: string | null,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("insight_chat_message_feedback")
+    .upsert({
+      message_id: message.id,
+      conversation_id: message.conversation_id,
+      scan_id: message.scan_id,
+      user_id: userId,
+      rating,
+      note,
+    }, {
+      onConflict: "message_id,user_id",
+    });
+
+  if (error) {
+    throw new Error(`Failed to save chat feedback: ${error.message}`);
   }
 }
 

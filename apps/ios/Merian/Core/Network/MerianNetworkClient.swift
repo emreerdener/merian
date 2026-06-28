@@ -2194,7 +2194,10 @@ final class MerianNetworkClient {
             action: action,
             scanId: scanId,
             messageText: messageText,
-            clientMessageId: clientMessageId
+            clientMessageId: clientMessageId,
+            messageId: nil,
+            feedbackRating: nil,
+            feedbackNote: nil
         )
         let bodyData = try JSONEncoder().encode(body)
         let (data, _) = try await performAuthenticatedRequest(
@@ -2217,6 +2220,54 @@ final class MerianNetworkClient {
             )
         }
         return try decoder.decode(InsightChatEnvelope.self, from: data).data
+    }
+
+    func submitInsightChatFeedback(
+        scanId: String,
+        messageId: String,
+        rating: InsightChatFeedbackRating,
+        note: String? = nil
+    ) async throws -> InsightChatFeedbackResponse {
+        let body = InsightChatRequestBody(
+            action: "feedback",
+            scanId: scanId,
+            messageText: nil,
+            clientMessageId: nil,
+            messageId: messageId,
+            feedbackRating: rating,
+            feedbackNote: note
+        )
+        let data = try await performInsightChatRequest(body)
+        return try JSONDecoder().decode(InsightChatFeedbackEnvelope.self, from: data).data
+    }
+
+    func summarizeInsightChatForFieldNotes(scanId: String) async throws -> InsightChatSummaryResponse {
+        let body = InsightChatRequestBody(
+            action: "summarize_notes",
+            scanId: scanId,
+            messageText: nil,
+            clientMessageId: nil,
+            messageId: nil,
+            feedbackRating: nil,
+            feedbackNote: nil
+        )
+        let data = try await performInsightChatRequest(body, timeoutInterval: 45.0)
+        return try JSONDecoder().decode(InsightChatSummaryEnvelope.self, from: data).data
+    }
+
+    private func performInsightChatRequest(
+        _ body: InsightChatRequestBody,
+        timeoutInterval: TimeInterval = 20.0
+    ) async throws -> Data {
+        let functionUrl = try endpointURL("insight-chat")
+        let bodyData = try JSONEncoder().encode(body)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            timeoutInterval: timeoutInterval
+        )
+        return data
     }
 
     private func shouldAttemptExploreMediaRestore(after error: Error) -> Bool {

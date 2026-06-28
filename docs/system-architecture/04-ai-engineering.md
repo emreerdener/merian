@@ -581,13 +581,19 @@ or audio attached:
   data for chat turns; the server assembles a text-only context from the owned
   scan row, species dictionary fields, AI reasoning, identification provenance,
   observed traits, ecology annotations, species group tags, telemetry,
-  candidates/lookalikes, field context, and image/capture-quality metadata. Chat
-  conversations and messages are private rows in `insight_chat_conversations` /
-  `insight_chat_messages`; each scan has one saved conversation per user.
-  User messages are capped at 600 characters, each conversation is capped at
-  30 messages, and all chats share the 20 sends per Pro user per day.
-  Token usage is stored on assistant message rows and tracked with `InsightChatAnswered`,
-  `InsightChatRefused`, `InsightChatRateLimited`, and `InsightChatModelError`.
+  candidates/lookalikes, coarse field context, and image/capture-quality
+  metadata. Exact GPS coordinates, raw image bytes, storage keys, cloud image
+  URLs, Explore/community content, and export payloads are excluded. Chat
+  conversations, messages, and answer feedback are private rows in
+  `insight_chat_conversations`, `insight_chat_messages`, and
+  `insight_chat_message_feedback`; each scan has one saved conversation per
+  user. User messages are capped at 600 characters, each conversation is capped
+  at 30 messages, and all chats share the 20 sends per Pro user per day. Token
+  usage is stored on assistant message rows and tracked with
+  `InsightChatAnswered`, `InsightChatRefused`, `InsightChatRateLimited`,
+  `InsightChatModelError`, `InsightChatFeedbackSubmitted`, and
+  `InsightChatNotesSummarized`; send/answer events include a deterministic
+  `answer_category` for prompt and cost review.
 - **Dynamic Diagnostic Thresholds**: The dynamic presentation of diagnostic data
   (e.g., lookalikes, confidence hooks, and identification candidates) is gated
   by the tier-specific `diagnosticTrigger`. **Canonical source of truth**:
