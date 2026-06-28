@@ -369,7 +369,7 @@ struct ExploreAuthorProfileSheet: View {
                             .fill(Color(uiColor: .secondarySystemGroupedBackground))
                     )
                 } else {
-                    profileGrid(posts: Array(profile.previewPosts.prefix(previewLimit)))
+                    profileGrid(posts: Array(profile.previewPosts.prefix(previewLimit)), applyCornerRounding: true)
                 }
 
             if profile.publishedPostCount > previewLimit {
@@ -459,7 +459,8 @@ struct ExploreAuthorProfileSheet: View {
 
     private func profileGrid(
         posts: [ExplorePost],
-        shouldPaginate: Bool = false
+        shouldPaginate: Bool = false,
+        applyCornerRounding: Bool = false
      ) -> some View {
          let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
 
@@ -468,14 +469,24 @@ struct ExploreAuthorProfileSheet: View {
                  Button {
                      openPost(post)
                  } label: {
-                     ExploreHeroImageView(
-                         imageUrl: post.heroImageUrl,
-                         reloadGeneration: viewModel.mediaReloadGeneration,
-                         maxDimension: 360
-                     )
-                     .aspectRatio(1, contentMode: .fill)
-                     .clipped()
-                     .profilePublishedScanTileCorners(index: index, itemCount: posts.count)
+                     if applyCornerRounding {
+                         ExploreHeroImageView(
+                             imageUrl: post.heroImageUrl,
+                             reloadGeneration: viewModel.mediaReloadGeneration,
+                             maxDimension: 360
+                         )
+                         .aspectRatio(1, contentMode: .fill)
+                         .clipped()
+                         .profilePublishedScanTileCorners(index: index, itemCount: posts.count)
+                     } else {
+                         ExploreHeroImageView(
+                             imageUrl: post.heroImageUrl,
+                             reloadGeneration: viewModel.mediaReloadGeneration,
+                             maxDimension: 360
+                         )
+                         .aspectRatio(1, contentMode: .fill)
+                         .clipped()
+                     }
                  }
                  .buttonStyle(.plain)
                  .accessibilityLabel("\(viewModel.resolvedSpeciesCommonName(for: post)), published scan")

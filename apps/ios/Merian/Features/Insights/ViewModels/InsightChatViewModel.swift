@@ -106,14 +106,17 @@ final class InsightChatViewModel {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         guard !isOffline else {
+            HapticManager.shared.triggerErrorThump()
             errorMessage = "Connect to send."
             return
         }
         guard trimmed.count <= limits.maxUserMessageCharacters else {
+            HapticManager.shared.triggerErrorThump()
             errorMessage = "Keep questions under \(limits.maxUserMessageCharacters) characters."
             return
         }
 
+        HapticManager.shared.triggerMediumPulse()
         isSending = true
         errorMessage = nil
         let clientMessageId = UUID().uuidString
@@ -136,8 +139,9 @@ final class InsightChatViewModel {
                 messageText: trimmed,
                 clientMessageId: clientMessageId
             ))
+            HapticManager.shared.triggerSuccessPulse()
         } catch {
-            handle(error, scanId: scanId)
+            handle(error, scanId: scanId, playHaptic: true)
             if draftText.isEmpty {
                 draftText = trimmed
             }
@@ -150,6 +154,7 @@ final class InsightChatViewModel {
 
     func deleteConversation(scanId: String) async {
         guard !isOffline else {
+            HapticManager.shared.triggerErrorThump()
             errorMessage = "Connect to delete chat."
             return
         }
@@ -160,8 +165,9 @@ final class InsightChatViewModel {
 
         do {
             apply(try await MerianNetworkClient.shared.deleteInsightChat(scanId: scanId))
+            HapticManager.shared.triggerSuccessPulse()
         } catch {
-            handle(error, scanId: scanId)
+            handle(error, scanId: scanId, playHaptic: true)
         }
     }
 
@@ -241,7 +247,10 @@ final class InsightChatViewModel {
         unavailableScanId = nil
     }
 
-    private func handle(_ error: Error, scanId: String) {
+    private func handle(_ error: Error, scanId: String, playHaptic: Bool = false) {
+        if playHaptic {
+            HapticManager.shared.triggerErrorThump()
+        }
         errorMessage = Self.userFacingMessage(for: error)
         if Self.isDeterministicallyUnavailable(error) {
             unavailableScanId = scanId

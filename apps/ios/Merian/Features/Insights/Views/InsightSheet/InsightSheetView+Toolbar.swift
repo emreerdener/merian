@@ -75,8 +75,10 @@ extension InsightSheetView {
             canShowInsightChat: canShowInsightChat,
             onInsightChat: {
                 if RevenueCatManager.shared.isProActive {
+                    HapticManager.shared.triggerSheetSpring()
                     viewModel.state.isInsightChatSheetPresented = true
                 } else {
+                    HapticManager.shared.triggerSelectionPulse()
                     viewModel.state.showPaywall = true
                 }
             },

@@ -17,6 +17,10 @@ struct InsightChatSheet: View {
         !viewModel.messages.isEmpty || viewModel.pendingUserMessage != nil
     }
 
+    private var showsEmptyAccentGradient: Bool {
+        !hasVisibleMessages && !viewModel.isLoading
+    }
+
     private var isSendButtonActive: Bool {
         viewModel.canSend || viewModel.isSending
     }
@@ -31,8 +35,16 @@ struct InsightChatSheet: View {
 
     var body: some View {
         NavigationStack {
-            messageList
-                .background(Color(uiColor: .systemBackground))
+            ZStack {
+                Color(uiColor: .systemBackground)
+                    .ignoresSafeArea()
+
+                emptyAccentGradient
+                    .opacity(showsEmptyAccentGradient ? 1 : 0)
+                    .animation(.easeOut(duration: 0.24), value: showsEmptyAccentGradient)
+
+                messageList
+            }
                 .navigationTitle("Field chat")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
@@ -46,10 +58,28 @@ struct InsightChatSheet: View {
         }
     }
 
+    private var emptyAccentGradient: some View {
+        LinearGradient(
+            stops: [
+                .init(color: Color.accentColor.opacity(0.24), location: 0),
+                .init(color: Color.accentColor.opacity(0.13), location: 0.24),
+                .init(color: Color.accentColor.opacity(0.04), location: 0.48),
+                .init(color: Color.accentColor.opacity(0), location: 0.7)
+            ],
+            startPoint: .bottom,
+            endPoint: .top
+        )
+        .ignoresSafeArea(edges: .bottom)
+        .allowsHitTesting(false)
+    }
+
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button(action: onClose) {
+            Button {
+                HapticManager.shared.triggerSelectionPulse()
+                onClose()
+            } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .bold))
             }
@@ -135,6 +165,7 @@ struct InsightChatSheet: View {
                 .frame(width: 100, height: 100)
             Text("What would you like to know about \(speciesData.commonName)?")
                 .font(.title2)
+                .multilineTextAlignment(.center)
             if let error = viewModel.errorMessage {
                 Text(error)
                     .font(.footnote)

@@ -12,6 +12,7 @@ struct InsightChatTests {
             scientificName: "Danaus plexippus",
             insightData: InsightData(aiReasoning: "Orange wings with dark vein patterns.", hazardType: "irritant"),
             confidenceScore: 0.72,
+            aiReasoning: "Orange wings with dark vein patterns.",
             candidates: [
                 IdentificationCandidate(
                     scientificName: "Danaus gilippus",
@@ -43,7 +44,8 @@ struct InsightChatTests {
                     referenceImageUrl: nil,
                     iucnRedListStatus: nil
                 )
-            ])
+            ]),
+            aiReasoning: "Dense succulent leaves and pink flowers."
         )
         let chips = InsightChatViewModel.suggestionChips(for: species, timestamp: nil)
 
@@ -61,6 +63,7 @@ struct InsightChatTests {
             ),
             confidenceScore: 0.91,
             isInvasive: true,
+            aiReasoning: "Fleshy leaves and pale yellow flowers support the identification.",
             habitatDescription: "Coastal dunes and sandy disturbed sites."
         )
         let date = DateComponents(calendar: Calendar(identifier: .gregorian), year: 2026, month: 6, day: 26).date
@@ -110,6 +113,7 @@ struct InsightChatTests {
             scientificName: "Danaus plexippus",
             insightData: InsightData(aiReasoning: "Orange wings with dark vein patterns.", hazardType: "irritant"),
             confidenceScore: 0.72,
+            aiReasoning: "Orange wings with dark vein patterns.",
             candidates: [
                 IdentificationCandidate(
                     scientificName: "Danaus gilippus",

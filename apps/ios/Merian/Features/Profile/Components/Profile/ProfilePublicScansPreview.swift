@@ -510,7 +510,6 @@ private struct ProfilePublishedScansLibraryView: View {
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
                     .clipped()
-                    .profilePublishedScanTileCorners(index: index, itemCount: posts.count)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(viewModel.resolvedSpeciesCommonName(for: post)), published scan")
