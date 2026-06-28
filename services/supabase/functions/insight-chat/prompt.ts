@@ -15,6 +15,7 @@ Safety and scope rules:
 - Do not provide dangerous handling, capture, harassment, pesticide, poison, illegal collection, or habitat-damaging instructions.
 - Do not identify or characterize human subjects.
 - Be conservative around poisonous, venomous, allergenic, irritant, threatened, endangered, protected, or invasive organisms.
+- When the saved scan context says "Merian Invasive Flag: Yes", treat that as authoritative Merian scan evidence that the species is flagged invasive. You may distinguish this from exact local legal status if no local authority is listed, but do not say the provided information does not indicate invasiveness.
 - If the stored identification is uncertain, say so plainly and explain which stored evidence supports or limits the answer.
 - Keep answers concise: normally 2 to 5 short paragraphs or a short bullet list.
 - Prefer field-observable traits, seasonality, habitat, behavior, and lookalike comparison.
@@ -73,6 +74,43 @@ function compactJson(value: unknown, maxLength = 800): string | null {
   }
 }
 
+function formatBooleanFlag(value: boolean | null | undefined): string {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return "Unavailable";
+}
+
+function formatNumber(
+  value: number | null | undefined,
+  suffix = "",
+): string {
+  return typeof value === "number" && Number.isFinite(value)
+    ? `${value}${suffix}`
+    : "Unavailable";
+}
+
+function selectedSpeciesSource(scan: ChatScanContext): string {
+  if (scan.confirmed_species_id) return "Confirmed species";
+  if (scan.species_id) return "Initial AI species";
+  return "Unavailable";
+}
+
+function identificationSource(scan: ChatScanContext): string {
+  if (trimText(scan.user_identification_override, 160)) {
+    return "User corrected identification";
+  }
+  if (scan.user_confirmed_identification === true) {
+    return "User confirmed AI identification";
+  }
+  if (scan.user_review_state === "ai_confirmed") {
+    return "User confirmed AI identification";
+  }
+  if (scan.user_review_state === "user_overridden") {
+    return "User corrected identification";
+  }
+  return "AI suggested identification";
+}
+
 export function resolvedSpecies(
   scan: ChatScanContext,
 ): SpeciesDictionaryContext | null {
@@ -100,17 +138,6 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
       trimText(species?.scientific_name, 160) ?? "Unavailable"
     }`,
     `Taxonomy: ${taxonomy || "Unavailable"}`,
-    `AI Confidence: ${scan.ai_confidence_score ?? "Unavailable"}`,
-    `User Override: ${
-      trimText(scan.user_identification_override, 160) ?? "None"
-    }`,
-    `User Confirmed ID: ${
-      scan.user_confirmed_identification === true ? "Yes" : "No"
-    }`,
-    `Hazard Type: ${trimText(species?.hazard_type, 80) ?? "none"}`,
-    `IUCN Red List Status: ${
-      trimText(species?.iucn_red_list_status, 80) ?? "Unavailable"
-    }`,
     `Alternative Common Names: ${
       formatArray(species?.alternative_common_names) ?? "Unavailable"
     }`,
@@ -120,6 +147,44 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     `Habitat: ${trimText(species?.habitat_description, 900) ?? "Unavailable"}`,
     `Wikipedia Overview: ${
       trimText(species?.wikipedia_overview, 1000) ?? "Unavailable"
+    }`,
+    "",
+    "[IDENTIFICATION PROVENANCE]",
+    `Identification Source: ${identificationSource(scan)}`,
+    `Selected Species Source: ${selectedSpeciesSource(scan)}`,
+    `User Review State: ${
+      trimText(scan.user_review_state, 80) ?? "Unavailable"
+    }`,
+    `AI Confidence: ${formatNumber(scan.ai_confidence_score)}`,
+    `User Override: ${
+      trimText(scan.user_identification_override, 160) ?? "None"
+    }`,
+    `User Confirmed ID: ${
+      scan.user_confirmed_identification === true ? "Yes" : "No"
+    }`,
+    "",
+    "[OBSERVED TRAITS]",
+    `Colors: ${formatArray(scan.colors) ?? "Unavailable"}`,
+    `Life Stage: ${trimText(scan.life_stage, 80) ?? "Unavailable"}`,
+    `Reproductive Condition: ${
+      trimText(scan.reproductive_condition, 80) ?? "Unavailable"
+    }`,
+    `Estimated Size Cm: ${formatNumber(scan.estimated_size_cm)}`,
+    `Individual Count: ${formatNumber(scan.individual_count)}`,
+    `Sex: ${trimText(scan.sex, 80) ?? "Unavailable"}`,
+    `Sex Confidence: ${formatNumber(scan.sex_confidence)}`,
+    `Sex Evidence: ${trimText(scan.sex_evidence, 240) ?? "Unavailable"}`,
+    "",
+    "[ECOLOGY]",
+    `Ecology Type: ${trimText(scan.ecology_type, 80) ?? "Unavailable"}`,
+    `Hazard Type: ${trimText(species?.hazard_type, 80) ?? "none"}`,
+    `Merian Invasive Flag: ${formatBooleanFlag(scan.is_invasive)}`,
+    `Ecological Interactions: ${
+      formatArray(scan.ecological_interactions) ?? "Unavailable"
+    }`,
+    `Species Group Tags: ${formatArray(species?.group_tags) ?? "Unavailable"}`,
+    `IUCN Red List Status: ${
+      trimText(species?.iucn_red_list_status, 80) ?? "Unavailable"
     }`,
     "",
     "[ENCOUNTER CONTEXT]",
@@ -132,11 +197,15 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     `Depth/Scale Text: ${
       trimText(scan.depth_scale_text, 120) ?? "Unavailable"
     }`,
-    `Image Quality Score: ${scan.image_quality_score ?? "Unavailable"}`,
     `Observation Context: ${
       compactJson(scan.user_observation_context, 900) ?? "Unavailable"
     }`,
     `Candidate IDs: ${compactJson(scan.candidates, 900) ?? "Unavailable"}`,
+    "",
+    "[IMAGE/CAPTURE QUALITY]",
+    `Image Quality Score: ${formatNumber(scan.image_quality_score)}`,
+    `Blur Score: ${formatNumber(scan.blur_score)}`,
+    `Zoom Factor: ${formatNumber(scan.zoom_factor, "x")}`,
     "",
     "[INITIAL VISION OBSERVATION]",
     trimText(scan.ai_reasoning, 1200) ?? "Unavailable",

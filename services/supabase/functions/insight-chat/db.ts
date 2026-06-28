@@ -38,18 +38,20 @@ export async function fetchOwnedScan(
     .select(`
       id,user_id,timestamp,gps_elevation,weather_condition,weather_temperature_f,
       semantic_location,current_month,time_of_day,depth_scale_text,
-      ai_confidence_score,ai_reasoning,candidates,image_quality_score,
-      is_biological_subject,user_identification_override,user_confirmed_identification,
+      ai_confidence_score,ai_reasoning,candidates,image_quality_score,blur_score,zoom_factor,
+      ecology_type,colors,life_stage,reproductive_condition,estimated_size_cm,individual_count,
+      ecological_interactions,sex,sex_confidence,sex_evidence,
+      is_invasive,is_biological_subject,user_identification_override,user_confirmed_identification,user_review_state,
       user_observation_context,confirmed_species_id,species_id,
       species_dictionary:species_id(
         id,scientific_name,common_names,wikipedia_overview,habitat_description,hazard_type,
         kingdom,phylum,class,order,family,genus,iucn_red_list_status,
-        alternative_common_names,similar_species
+        alternative_common_names,similar_species,group_tags
       ),
       confirmed_species:confirmed_species_id(
         id,scientific_name,common_names,wikipedia_overview,habitat_description,hazard_type,
         kingdom,phylum,class,order,family,genus,iucn_red_list_status,
-        alternative_common_names,similar_species
+        alternative_common_names,similar_species,group_tags
       )
     `)
     .eq("id", scanId)

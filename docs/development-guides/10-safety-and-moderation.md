@@ -121,8 +121,8 @@ The `ERROR` status now halts ingestion in `identify/index.ts` — when `modResul
 `/insight-chat` is a post-identification text-only follow-up surface, not a media
 moderation path. It never receives raw image bytes or cloud image URLs. The Edge
 Function builds context from private stored scan evidence and the species
-dictionary, then calls `gemini-2.5-flash` only after ownership, Pro tier, feature
-flag, and rate-limit checks pass.
+dictionary, then calls `gemini-2.5-flash` only after ownership, Pro tier, and
+rate-limit checks pass.
 
 The system prompt must state that the assistant has no raw image access and
 answers only from saved evidence. Local deterministic guards refuse or redirect

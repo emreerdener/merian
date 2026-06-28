@@ -3097,10 +3097,12 @@ includes active trial users.
 
 The server builds chat context from stored text data only: species names,
 taxonomy, hazard type, confidence, candidates/lookalikes, habitat/Wikipedia
-overview, `ai_reasoning`, field notes, capture date/month, location label,
-weather, elevation, and image-quality metadata. It does not include raw image
-bytes, R2 object keys, cloud image URLs, Explore comments, public post metadata,
-or Darwin Core export payloads.
+overview, invasive flag, identification provenance, user review state, observed
+traits, ecological annotations, species group tags, `ai_reasoning`, field notes,
+capture date/month, location label, weather, elevation, and image/capture-quality
+metadata. It does not include raw image bytes, R2 object keys, cloud image URLs,
+exact GPS coordinates, Explore comments, public post metadata, or Darwin Core
+export payloads.
 
 The Gemini request uses `gemini-2.5-flash` with a stable prompt prefix,
 `maxOutputTokens: 700`, no streaming, no Google Search grounding, and thinking

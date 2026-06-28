@@ -25,9 +25,23 @@ const scan: ChatScanContext = {
     "Orange wings with black veins support the butterfly identification.",
   candidates: [{ scientific_name: "Danaus gilippus" }],
   image_quality_score: 88,
+  blur_score: 0.12,
+  zoom_factor: 2,
+  ecology_type: "wild",
+  colors: ["orange", "black"],
+  life_stage: "adult",
+  reproductive_condition: "not_applicable",
+  estimated_size_cm: 8.5,
+  individual_count: 2,
+  ecological_interactions: ["nectaring on milkweed"],
+  sex: "cannot_determine",
+  sex_confidence: null,
+  sex_evidence: null,
+  is_invasive: true,
   is_biological_subject: true,
   user_identification_override: null,
   user_confirmed_identification: false,
+  user_review_state: "unreviewed",
   user_observation_context: { free_text: "Near milkweed." },
   confirmed_species_id: null,
   species_id: "00000000-0000-4000-8000-000000000003",
@@ -48,6 +62,7 @@ const scan: ChatScanContext = {
     iucn_red_list_status: "least_concern",
     alternative_common_names: ["Milkweed butterfly"],
     similar_species: ["Danaus gilippus"],
+    group_tags: ["animal", "insect", "butterfly"],
   },
 };
 
@@ -57,7 +72,34 @@ Deno.test("scan context uses text evidence and excludes image URLs", () => {
   assertStringIncludes(block, "Orange wings");
   assertStringIncludes(block, "Danaus gilippus");
   assertStringIncludes(block, "0.8 meters");
+  assertStringIncludes(block, "[IDENTIFICATION PROVENANCE]");
+  assertStringIncludes(
+    block,
+    "Identification Source: AI suggested identification",
+  );
+  assertStringIncludes(block, "Selected Species Source: Initial AI species");
+  assertStringIncludes(block, "User Review State: unreviewed");
+  assertStringIncludes(block, "[OBSERVED TRAITS]");
+  assertStringIncludes(block, "Colors: orange, black");
+  assertStringIncludes(block, "Life Stage: adult");
+  assertStringIncludes(block, "Estimated Size Cm: 8.5");
+  assertStringIncludes(block, "Individual Count: 2");
+  assertStringIncludes(block, "[ECOLOGY]");
+  assertStringIncludes(block, "Ecology Type: wild");
+  assertStringIncludes(block, "Merian Invasive Flag: Yes");
+  assertStringIncludes(
+    block,
+    "Ecological Interactions: nectaring on milkweed",
+  );
+  assertStringIncludes(block, "Species Group Tags: animal, insect, butterfly");
+  assertStringIncludes(block, "[IMAGE/CAPTURE QUALITY]");
+  assertStringIncludes(block, "Image Quality Score: 88");
+  assertStringIncludes(block, "Blur Score: 0.12");
+  assertStringIncludes(block, "Zoom Factor: 2x");
   assertEquals(block.includes("image_storage_urls"), false);
+  assertEquals(block.includes("storage_key"), false);
+  assertEquals(block.includes("latitude"), false);
+  assertEquals(block.includes("longitude"), false);
   assertEquals(block.includes("https://"), false);
 });
 
@@ -67,6 +109,11 @@ Deno.test("system instruction states raw image is unavailable", () => {
   assertStringIncludes(
     instruction,
     "Do not provide edible or foraging certainty",
+  );
+  assertStringIncludes(instruction, "Merian Invasive Flag: Yes");
+  assertStringIncludes(
+    instruction,
+    "do not say the provided information does not indicate invasiveness",
   );
 });
 

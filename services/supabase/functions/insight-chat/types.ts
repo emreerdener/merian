@@ -73,9 +73,23 @@ export interface ChatScanContext {
   ai_reasoning: string | null;
   candidates: unknown;
   image_quality_score: number | null;
+  blur_score: number | null;
+  zoom_factor: number | null;
+  ecology_type: string | null;
+  colors: string[] | null;
+  life_stage: string | null;
+  reproductive_condition: string | null;
+  estimated_size_cm: number | null;
+  individual_count: number | null;
+  ecological_interactions: string[] | null;
+  sex: string | null;
+  sex_confidence: number | null;
+  sex_evidence: string | null;
+  is_invasive: boolean | null;
   is_biological_subject: boolean | null;
   user_identification_override: string | null;
   user_confirmed_identification: boolean | null;
+  user_review_state: string | null;
   user_observation_context: unknown;
   confirmed_species_id: string | null;
   species_id: string | null;
@@ -105,6 +119,7 @@ export interface SpeciesDictionaryContext {
   iucn_red_list_status: string | null;
   alternative_common_names: string[] | null;
   similar_species: string[] | null;
+  group_tags: string[] | null;
 }
 
 export interface ModelChatResult {

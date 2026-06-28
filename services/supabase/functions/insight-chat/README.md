@@ -18,8 +18,10 @@ Responses return `data.conversation_id`, ordered `data.messages`, and
 
 Chat context is assembled server-side from stored text evidence only: species
 names, taxonomy, hazard type, confidence, candidates/lookalikes, habitat,
-Wikipedia overview, `ai_reasoning`, field notes, capture date/month, location
-label, weather, elevation, and image-quality metadata.
+Wikipedia overview, invasive flag, review/provenance state, observed traits,
+ecological annotations, species group tags, `ai_reasoning`, field notes, capture
+date/month, location label, weather, elevation, and image/capture-quality
+metadata.
 
 Do not add raw image bytes, R2 object keys, cloud image URLs, Explore comments,
 public post metadata, or Darwin Core export payloads to the prompt.

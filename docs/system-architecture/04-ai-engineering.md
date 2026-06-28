@@ -579,8 +579,9 @@ or audio attached:
   `gemini-2.5-flash` from an authenticated Edge Function and appears as an
   Insight bottom-sheet conversation surface. The client never sends raw image
   data for chat turns; the server assembles a text-only context from the owned
-  scan row, species dictionary fields, AI reasoning, telemetry,
-  candidates/lookalikes, field context, and image-quality metadata. Chat
+  scan row, species dictionary fields, AI reasoning, identification provenance,
+  observed traits, ecology annotations, species group tags, telemetry,
+  candidates/lookalikes, field context, and image/capture-quality metadata. Chat
   conversations and messages are private rows in `insight_chat_conversations` /
   `insight_chat_messages`; each scan has one saved conversation per user.
   User messages are capped at 600 characters, each conversation is capped at
