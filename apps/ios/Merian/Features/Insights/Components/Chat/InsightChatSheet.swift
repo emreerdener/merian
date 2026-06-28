@@ -21,6 +21,14 @@ struct InsightChatSheet: View {
         viewModel.canSend || viewModel.isSending
     }
 
+    private var scientificNames: [String] {
+        [
+            speciesData.scientificName,
+            speciesData.aiScientificName
+        ] + (speciesData.candidates?.map(\.scientificName) ?? [])
+            + (speciesData.similarSpecies?.lookalikes ?? [])
+    }
+
     var body: some View {
         NavigationStack {
             messageList
@@ -77,13 +85,17 @@ struct InsightChatSheet: View {
                                 ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
                                     InsightChatBubble(
                                         message: message,
+                                        scientificNames: scientificNames,
                                         isLastMessage: index == viewModel.messages.count - 1 && viewModel.pendingUserMessage == nil
                                     )
                                     .id(message.id)
                                 }
 
                                 if let pendingMessage = viewModel.pendingUserMessage {
-                                    InsightChatPendingUserBubble(message: pendingMessage)
+                                    InsightChatPendingUserBubble(
+                                        message: pendingMessage,
+                                        scientificNames: scientificNames
+                                    )
                                         .id(pendingMessage.id)
                                     InsightChatAssistantLoadingBubble()
                                         .id("assistant-loading-\(pendingMessage.id)")
@@ -99,6 +111,12 @@ struct InsightChatSheet: View {
                     }
                 }
                 .scrollDismissesKeyboard(.interactively)
+                .background(
+                    ExploreKeyboardDismissTapRecognizer(
+                        isEnabled: composerFocused,
+                        onTap: { composerFocused = false }
+                    )
+                )
                 .onChange(of: viewModel.messages.count) { _, _ in
                     scrollToBottom(proxy)
                 }
@@ -115,8 +133,8 @@ struct InsightChatSheet: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 100, height: 100)
-            Text("What would you like to know?")
-                .font(.headline)
+            Text("What would you like to know about \(speciesData.commonName)?")
+                .font(.title2)
             if let error = viewModel.errorMessage {
                 Text(error)
                     .font(.footnote)
@@ -229,10 +247,18 @@ struct InsightChatSheet: View {
 
 private struct InsightChatBubble: View {
     let message: InsightChatMessage
+    let scientificNames: [String]
     let isLastMessage: Bool
 
     private var isUser: Bool {
         message.role == .user
+    }
+
+    private var formattedText: AttributedString {
+        InsightChatMessageFormatter.formattedText(
+            message.text,
+            scientificNames: scientificNames
+        )
     }
 
     var body: some View {
@@ -240,7 +266,7 @@ private struct InsightChatBubble: View {
             HStack {
                 Spacer(minLength: 44)
 
-                Text(message.text)
+                Text(formattedText)
                     .font(.subheadline)
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 12)
@@ -254,7 +280,7 @@ private struct InsightChatBubble: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 4) {
-                Text(message.text)
+                Text(formattedText)
                     .font(.subheadline)
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -274,12 +300,20 @@ private struct InsightChatBubble: View {
 
 private struct InsightChatPendingUserBubble: View {
     let message: PendingInsightChatMessage
+    let scientificNames: [String]
+
+    private var formattedText: AttributedString {
+        InsightChatMessageFormatter.formattedText(
+            message.text,
+            scientificNames: scientificNames
+        )
+    }
 
     var body: some View {
         HStack {
             Spacer(minLength: 44)
 
-            Text(message.text)
+            Text(formattedText)
                 .font(.subheadline)
                 .foregroundStyle(.primary)
                 .padding(.horizontal, 12)
@@ -290,6 +324,85 @@ private struct InsightChatPendingUserBubble: View {
                 )
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .textSelection(.enabled)
+        }
+    }
+}
+
+private enum InsightChatMessageFormatter {
+    static func formattedText(_ text: String, scientificNames: [String]) -> AttributedString {
+        let cleaned = textByRemovingScientificNameMarkers(from: text)
+        var result = AttributedString(cleaned.text)
+
+        for scientificName in uniqueNames(scientificNames + cleaned.markedScientificNames) {
+            applyMonospacedStyle(to: &result, matching: scientificName)
+        }
+
+        return result
+    }
+
+    private static func textByRemovingScientificNameMarkers(
+        from text: String
+    ) -> (text: String, markedScientificNames: [String]) {
+        var output = ""
+        var markedScientificNames: [String] = []
+        var cursor = text.startIndex
+
+        while let opening = text[cursor...].firstIndex(of: "*") {
+            let afterOpening = text.index(after: opening)
+            guard let closing = text[afterOpening...].firstIndex(of: "*") else { break }
+
+            let candidate = String(text[afterOpening..<closing])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            output += String(text[cursor..<opening])
+            if isLikelyScientificName(candidate) {
+                output += candidate
+                markedScientificNames.append(candidate)
+            } else {
+                output += "*" + candidate + "*"
+            }
+
+            cursor = text.index(after: closing)
+        }
+
+        output += String(text[cursor...])
+        return (output, markedScientificNames)
+    }
+
+    private static func isLikelyScientificName(_ text: String) -> Bool {
+        let words = text
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+
+        guard (2...4).contains(words.count),
+              let firstCharacter = words.first?.first,
+              firstCharacter.isUppercase else {
+            return false
+        }
+
+        return words.dropFirst().allSatisfy { word in
+            let trimmed = word.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:()[]{}"))
+            guard let firstCharacter = trimmed.first else { return false }
+            return firstCharacter.isLowercase || firstCharacter == "x" || firstCharacter == "×"
+        }
+    }
+
+    private static func uniqueNames(_ names: [String]) -> [String] {
+        var seen = Set<String>()
+        return names.compactMap { name in
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            let key = trimmed.lowercased()
+            guard seen.insert(key).inserted else { return nil }
+            return trimmed
+        }
+    }
+
+    private static func applyMonospacedStyle(to text: inout AttributedString, matching scientificName: String) {
+        var searchRange = text.startIndex..<text.endIndex
+        while let range = text[searchRange].range(of: scientificName, options: .caseInsensitive) {
+            text[range].font = .system(.subheadline, design: .monospaced)
+            searchRange = range.upperBound..<text.endIndex
         }
     }
 }

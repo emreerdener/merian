@@ -5,12 +5,12 @@ import Testing
 
 @MainActor
 struct InsightChatTests {
-    @Test func testSuggestionChipsPreferCandidateThenMonthAndHazard() {
+    @Test func testSuggestionChipsRankCandidateHazardAndEvidencePrompts() {
         let species = SpeciesData(
             scanId: "chat_scan",
             commonName: "Monarch",
             scientificName: "Danaus plexippus",
-            insightData: InsightData(aiReasoning: "Orange wings.", hazardType: "irritant"),
+            insightData: InsightData(aiReasoning: "Orange wings with dark vein patterns.", hazardType: "irritant"),
             confidenceScore: 0.72,
             candidates: [
                 IdentificationCandidate(
@@ -25,8 +25,82 @@ struct InsightChatTests {
 
         #expect(chips.count == 3)
         #expect(chips[0] == "How do I tell it apart from Queen?")
-        #expect(chips[1] == "Is it typical to see this in June?")
-        #expect(chips[2] == "What should I know about the hazard?")
+        #expect(chips[1] == "What should I know about its irritant risk?")
+        #expect(chips[2] == "Which wing and pattern traits support this ID?")
+    }
+
+    @Test func testSuggestionChipsUseLookalikeWhenCandidateIsUnavailable() {
+        let species = SpeciesData(
+            scanId: "chat_scan",
+            commonName: "Trailing Ice Plant",
+            scientificName: "Lampranthus spectabilis",
+            insightData: InsightData(aiReasoning: "Dense succulent leaves and pink flowers.", hazardType: "none"),
+            confidenceScore: 0.82,
+            similarSpecies: SimilarSpecies(entries: [
+                SimilarSpeciesEntry(
+                    scientificName: "Carpobrotus edulis",
+                    commonName: "Hottentot Fig",
+                    referenceImageUrl: nil,
+                    iucnRedListStatus: nil
+                )
+            ])
+        )
+        let chips = InsightChatViewModel.suggestionChips(for: species, timestamp: nil)
+
+        #expect(chips.first == "How do I tell it apart from Hottentot Fig?")
+    }
+
+    @Test func testSuggestionChipsPreferInvasiveAndTraitPrompts() {
+        let species = SpeciesData(
+            scanId: "chat_scan",
+            commonName: "Hottentot Fig",
+            scientificName: "Carpobrotus edulis",
+            insightData: InsightData(
+                aiReasoning: "Fleshy leaves and pale yellow flowers support the identification.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.91,
+            isInvasive: true,
+            habitatDescription: "Coastal dunes and sandy disturbed sites."
+        )
+        let date = DateComponents(calendar: Calendar(identifier: .gregorian), year: 2026, month: 6, day: 26).date
+        let chips = InsightChatViewModel.suggestionChips(for: species, timestamp: date)
+
+        #expect(chips == [
+            "Why is Hottentot Fig invasive here?",
+            "Which leaf and flower traits support this ID?",
+            "Does this habitat fit Hottentot Fig?"
+        ])
+    }
+
+    @Test func testSuggestionChipsIncludeSpeciesNameInSeasonPrompt() {
+        let species = SpeciesData(
+            scanId: "chat_scan",
+            commonName: "Monarch",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "The subject is visible.", hazardType: "none"),
+            confidenceScore: 0.72
+        )
+        let date = DateComponents(calendar: Calendar(identifier: .gregorian), year: 2026, month: 6, day: 26).date
+        let chips = InsightChatViewModel.suggestionChips(for: species, timestamp: date)
+
+        #expect(chips.first == "Is Monarch typical in June?")
+        #expect(chips.count == 3)
+    }
+
+    @Test func testSuggestionChipsFallbackReturnsThreePrompts() {
+        let species = SpeciesData(
+            scanId: "chat_scan",
+            commonName: "",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "", hazardType: "none"),
+            confidenceScore: 0.62
+        )
+        let chips = InsightChatViewModel.suggestionChips(for: species, timestamp: nil)
+
+        #expect(chips.count == 3)
+        #expect(chips[0].contains("Danaus plexippus"))
+        #expect(chips.contains("What makes this ID uncertain?"))
     }
 
     @Test func testSuggestionChipsExcludesSentAndPendingMessages() {
@@ -34,7 +108,7 @@ struct InsightChatTests {
             scanId: "chat_scan",
             commonName: "Monarch",
             scientificName: "Danaus plexippus",
-            insightData: InsightData(aiReasoning: "Orange wings.", hazardType: "irritant"),
+            insightData: InsightData(aiReasoning: "Orange wings with dark vein patterns.", hazardType: "irritant"),
             confidenceScore: 0.72,
             candidates: [
                 IdentificationCandidate(
@@ -52,8 +126,8 @@ struct InsightChatTests {
         var chips = viewModel.suggestionChips(for: species, timestamp: date)
         #expect(chips.count == 3)
         #expect(chips.contains("How do I tell it apart from Queen?"))
-        #expect(chips.contains("Is it typical to see this in June?"))
-        #expect(chips.contains("What should I know about the hazard?"))
+        #expect(chips.contains("What should I know about its irritant risk?"))
+        #expect(chips.contains("Which wing and pattern traits support this ID?"))
         
         // 2. Add one of the chips to messages as a user message
         viewModel.messages = [
@@ -74,21 +148,21 @@ struct InsightChatTests {
         chips = viewModel.suggestionChips(for: species, timestamp: date)
         #expect(chips.count == 2)
         #expect(!chips.contains("How do I tell it apart from Queen?"))
-        #expect(chips.contains("Is it typical to see this in June?"))
-        #expect(chips.contains("What should I know about the hazard?"))
+        #expect(chips.contains("What should I know about its irritant risk?"))
+        #expect(chips.contains("Which wing and pattern traits support this ID?"))
         
         // 3. Set a pending user message matching another chip
         viewModel.pendingUserMessage = PendingInsightChatMessage(
             id: "pending1",
-            text: "Is it typical to see this in June?  ",
+            text: "What should I know about its irritant risk?  ",
             createdAt: Date()
         )
         
         chips = viewModel.suggestionChips(for: species, timestamp: date)
         #expect(chips.count == 1)
         #expect(!chips.contains("How do I tell it apart from Queen?"))
-        #expect(!chips.contains("Is it typical to see this in June?"))
-        #expect(chips.contains("What should I know about the hazard?"))
+        #expect(!chips.contains("What should I know about its irritant risk?"))
+        #expect(chips.contains("Which wing and pattern traits support this ID?"))
     }
 
     @Test func testInsightChatDecodesSnakeCasePayloadAndDates() throws {
@@ -118,7 +192,8 @@ struct InsightChatTests {
             }
           }
         }
-        """.data(using: .utf8)!
+        """
+        let data = Data(json.utf8)
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
@@ -131,7 +206,7 @@ struct InsightChatTests {
             return date
         }
 
-        let response = try decoder.decode(InsightChatEnvelope.self, from: json).data
+        let response = try decoder.decode(InsightChatEnvelope.self, from: data).data
 
         #expect(response.conversationId == "conversation_1")
         #expect(response.messages.first?.role == .assistant)

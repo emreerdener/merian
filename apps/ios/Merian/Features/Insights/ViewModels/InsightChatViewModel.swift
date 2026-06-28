@@ -182,36 +182,46 @@ final class InsightChatViewModel {
     }
 
     static func suggestionChips(for speciesData: SpeciesData, timestamp: Date?) -> [String] {
-        var chips: [String] = []
+        let speciesName = displayName(for: speciesData)
+        var candidates: [String] = []
 
-        if let candidate = speciesData.candidates?.first {
-            let name = candidate.commonName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-                ?? candidate.scientificName
-            chips.append("How do I tell it apart from \(name)?")
-        } else if let lookalike = speciesData.similarSpecies?.filteredEntries(
-            excludingScientificName: speciesData.scientificName,
-            excludingCommonName: speciesData.commonName
-        ).first {
-            let name = lookalike.commonName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-                ?? lookalike.scientificName
-            chips.append("How do I tell it apart from \(name)?")
+        if let comparisonName = comparisonPromptName(for: speciesData) {
+            candidates.append("How do I tell it apart from \(comparisonName)?")
+        }
+
+        if speciesData.insightData.isHazardous {
+            let hazard = hazardLabel(speciesData.insightData.hazardType)
+            candidates.append("What should I know about its \(hazard) risk?")
+        }
+
+        if speciesData.isInvasive {
+            candidates.append("Why is \(speciesName) invasive here?")
+        }
+
+        if let traitPhrase = visualTraitPhrase(from: speciesData.aiReasoning) {
+            candidates.append("Which \(traitPhrase) traits support this ID?")
+        }
+
+        if hasHabitatContext(speciesData) {
+            candidates.append("Does this habitat fit \(speciesName)?")
         }
 
         let monthDate = timestamp ?? Date()
         let month = monthFormatter.string(from: monthDate)
-        chips.append("Is it typical to see this in \(month)?")
+        candidates.append("Is \(speciesName) typical in \(month)?")
 
-        if speciesData.insightData.isHazardous {
-            chips.append("What should I know about the hazard?")
+        if speciesData.confidenceScore >= 0.8 {
+            candidates.append("What makes this a strong match?")
+        } else if speciesData.confidenceScore < 0.7 {
+            candidates.append("What makes this ID uncertain?")
         } else {
-            chips.append("What habitat should I look for nearby?")
+            candidates.append("What traits support this ID?")
         }
 
-        if chips.count < 3 {
-            chips.append("What traits support this ID?")
-        }
+        candidates.append("What should I look for nearby?")
+        candidates.append("What traits support this ID?")
 
-        return Array(chips.prefix(3))
+        return uniquePrompts(candidates).prefix(3).map { $0 }
     }
 
     private func apply(_ response: InsightChatResponse) {
@@ -281,6 +291,95 @@ final class InsightChatViewModel {
         formatter.dateFormat = "LLLL"
         return formatter
     }()
+
+    private static func comparisonPromptName(for speciesData: SpeciesData) -> String? {
+        if let candidate = speciesData.candidates?.first {
+            return candidate.commonName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                ?? candidate.scientificName
+        }
+
+        let lookalike = speciesData.similarSpecies?.filteredEntries(
+            excludingScientificName: speciesData.scientificName,
+            excludingCommonName: speciesData.commonName
+        ).first
+        return lookalike?.displayCommonName(comparedTo: speciesData.commonName)
+            ?? lookalike?.scientificName
+    }
+
+    private static func displayName(for speciesData: SpeciesData) -> String {
+        let commonName = speciesData.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !commonName.isEmpty, commonName.caseInsensitiveCompare("not applicable") != .orderedSame {
+            return commonName
+        }
+        let scientificName = speciesData.scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return scientificName.nilIfEmpty ?? "this species"
+    }
+
+    private static func hazardLabel(_ hazardType: String) -> String {
+        let normalized = hazardType
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "_", with: " ")
+            .lowercased()
+        return normalized.nilIfEmpty ?? "hazard"
+    }
+
+    private static func hasHabitatContext(_ speciesData: SpeciesData) -> Bool {
+        if speciesData.habitatDescription?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty != nil {
+            return true
+        }
+        let ecologyType = speciesData.ecologyType.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !ecologyType.isEmpty && ecologyType.caseInsensitiveCompare("unknown") != .orderedSame
+    }
+
+    private static func visualTraitPhrase(from reasoning: String?) -> String? {
+        guard let normalizedReasoning = reasoning?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+              !normalizedReasoning.isEmpty else {
+            return nil
+        }
+
+        let traitGroups: [(label: String, keywords: [String])] = [
+            ("leaf", ["leaf", "leaves", "foliage"]),
+            ("flower", ["flower", "flowers", "petal", "petals", "bloom", "blooms"]),
+            ("wing", ["wing", "wings"]),
+            ("color", ["color", "colors", "colored", "colour", "hue"]),
+            ("pattern", ["pattern", "patterns", "stripe", "stripes", "spot", "spots", "marking", "markings"]),
+            ("stem", ["stem", "stems", "branch", "branches"]),
+            ("cap", ["cap", "caps", "mushroom"]),
+            ("gill", ["gill", "gills"]),
+            ("fruit", ["fruit", "fruits", "berry", "berries"]),
+            ("body", ["body", "abdomen", "thorax", "leg", "legs"])
+        ]
+
+        let matchedLabels = traitGroups.compactMap { group -> String? in
+            group.keywords.contains { normalizedReasoning.contains($0) } ? group.label : nil
+        }
+
+        switch matchedLabels.count {
+        case 0:
+            return nil
+        case 1:
+            return matchedLabels[0]
+        default:
+            return matchedLabels.prefix(2).joined(separator: " and ")
+        }
+    }
+
+    private static func uniquePrompts(_ prompts: [String]) -> [String] {
+        var seen = Set<String>()
+        var unique: [String] = []
+
+        for prompt in prompts {
+            let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.lowercased()
+            guard seen.insert(key).inserted else { continue }
+            unique.append(trimmed)
+        }
+
+        return unique
+    }
 }
 
 private extension String {
