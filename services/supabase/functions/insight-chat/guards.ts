@@ -13,7 +13,9 @@ export function normalizeAction(
     return value;
   }
   throw Object.assign(
-    new Error("action must be load, send, delete, feedback, or summarize_notes."),
+    new Error(
+      "action must be load, send, delete, feedback, or summarize_notes.",
+    ),
     { status: 400 },
   );
 }
@@ -25,7 +27,9 @@ export function normalizeFeedbackRating(value: unknown) {
   ) {
     return value;
   }
-  throw Object.assign(new Error("feedback_rating is invalid."), { status: 400 });
+  throw Object.assign(new Error("feedback_rating is invalid."), {
+    status: 400,
+  });
 }
 
 export function normalizeFeedbackNote(value: unknown): string | null {

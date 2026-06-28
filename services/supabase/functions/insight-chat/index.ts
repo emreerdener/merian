@@ -9,8 +9,8 @@ import {
   countUserSendsToday,
   deleteConversation,
   fetchConversation,
-  fetchOwnedAssistantMessage,
   fetchMessages,
+  fetchOwnedAssistantMessage,
   fetchOwnedScan,
   formatMessage,
   getOrCreateConversation,
@@ -279,7 +279,10 @@ Deno.serve((req: Request) =>
           error: "No chat messages to summarize.",
         }, 404);
       }
-      const messages = await fetchMessages(existingConversation.id, supabaseAdmin);
+      const messages = await fetchMessages(
+        existingConversation.id,
+        supabaseAdmin,
+      );
       if (messages.length === 0) {
         return jsonResponse({
           code: "conversation_empty",
