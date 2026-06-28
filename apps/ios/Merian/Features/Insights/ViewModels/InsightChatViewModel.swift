@@ -88,6 +88,7 @@ final class InsightChatViewModel {
 
         isLoading = true
         errorMessage = nil
+        unavailableScanId = nil
         defer { isLoading = false }
 
         do {

@@ -633,6 +633,10 @@ The transaction log for every successful identification.
 - `blur_score` (Float): 0.0 to 1.0. Mathematically derived natively in the Edge
   orchestrator from Gemini's `image_quality.sharpness` score to reduce
   generation latency.
+- `zoom_factor` (Float, nullable): Non-default camera zoom factor at capture.
+  Added in migration `20260628100000_add_zoom_factor_to_scans.sql` so server-side
+  follow-up surfaces can use the same capture-quality context shown locally.
+  `NULL` for 1x captures, unsupported modalities, and older scans.
 - `gps_lat_exact` / `gps_long_exact` (Float): **CHECK constraints**
   (`20260405000005`): `gps_lat_exact` bounded `[-90, 90]`, `gps_long_exact`
   bounded `[-180, 180]`. Added `NOT VALID` — future inserts/updates validated;

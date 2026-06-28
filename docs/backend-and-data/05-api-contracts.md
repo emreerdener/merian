@@ -452,6 +452,7 @@ before any full response buffer is assembled.
   "currentMonth": 3,
   "timeOfDay": "2:00 PM",
   "timestamp": "2026-03-21T09:46:03.000Z",
+  "zoomFactor": 2,
   "estimated_size_cm": 15.2,
   "description": "Small brown moth, roughly 2 cm wingspan, spotted resting on bark at night",
   "observation_context": {
@@ -480,6 +481,11 @@ relationship mirror. Both fields are `null` for image-only scans. The edge
 function accepts an array guard (`!Array.isArray(observation_context)`) before
 writing to prevent an accidental array submission from being persisted as
 malformed JSONB.
+
+`zoomFactor` is sent when the capture used a non-default camera zoom. The Edge
+function persists it to `public.scans.zoom_factor` for owner-facing context such
+as Insight scan information and Field chat; it is omitted for 1x captures and
+non-visual submissions.
 
 `currentMonth` and `timeOfDay` are derived from the image's own capture date
 (`telemetry.timestamp`) when available — not always from the current wall clock.

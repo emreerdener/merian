@@ -821,6 +821,10 @@ Deno.serve((req: Request) =>
             ai_confidence_score: payloadReadyForClient.confidence_score,
             is_biological_subject: parsedData.is_biological_subject,
             blur_score: payloadReadyForClient.blur_score,
+            zoom_factor: typeof zoomFactor === "number" &&
+                Number.isFinite(zoomFactor) && zoomFactor > 0
+              ? zoomFactor
+              : null,
             ecology_type: payloadReadyForClient.ecology_type,
             is_invasive: payloadReadyForClient.is_invasive,
             weather_condition: weatherCondition,

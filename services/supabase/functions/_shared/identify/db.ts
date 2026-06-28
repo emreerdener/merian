@@ -265,6 +265,7 @@ export interface ScanInsertRow {
   ai_confidence_score?: number;
   is_biological_subject: boolean;
   blur_score?: number;
+  zoom_factor?: number | null;
   ecology_type?: string;
   is_invasive?: boolean;
   weather_condition?: string;

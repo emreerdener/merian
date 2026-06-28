@@ -18,11 +18,15 @@ struct InsightChatSheet: View {
     }
 
     private var showsEmptyAccentGradient: Bool {
-        !hasVisibleMessages && !viewModel.isLoading
+        !hasVisibleMessages && !viewModel.isLoading && !showsBlockingError
     }
 
     private var isSendButtonActive: Bool {
         viewModel.canSend || viewModel.isSending
+    }
+
+    private var showsBlockingError: Bool {
+        viewModel.errorMessage != nil && !hasVisibleMessages && !viewModel.isLoading
     }
 
     private var scientificNames: [String] {
@@ -49,7 +53,9 @@ struct InsightChatSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
                 .safeAreaInset(edge: .bottom) {
-                    composer
+                    if !showsBlockingError {
+                        composer
+                    }
                 }
         }
         .presentationBackground(Color(uiColor: .systemBackground))
@@ -106,6 +112,9 @@ struct InsightChatSheet: View {
                     Group {
                         if viewModel.isLoading && !hasVisibleMessages {
                             ProgressView()
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                        } else if showsBlockingError {
+                            unavailableState
                                 .frame(width: geometry.size.width, height: geometry.size.height)
                         } else if !hasVisibleMessages {
                             emptyState
@@ -166,12 +175,20 @@ struct InsightChatSheet: View {
             Text("What would you like to know about \(speciesData.commonName)?")
                 .font(.title2)
                 .multilineTextAlignment(.center)
-            if let error = viewModel.errorMessage {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+        }
+    }
+
+    private var unavailableState: some View {
+        ContentUnavailableView {
+            Label("Chat unavailable", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(viewModel.errorMessage ?? "Field chat is unavailable right now.")
+        } actions: {
+            Button("Retry") {
+                HapticManager.shared.triggerSelectionPulse()
+                Task { await viewModel.load(scanId: scanId) }
             }
+            .buttonStyle(.borderedProminent)
         }
     }
 

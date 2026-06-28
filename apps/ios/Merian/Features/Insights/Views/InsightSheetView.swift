@@ -107,11 +107,6 @@ struct InsightSheetView: View {
                 )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
-                .onChange(of: chatViewModel.isUnavailable(for: scanId)) { _, isUnavailable in
-                    if isUnavailable {
-                        viewModel.state.isInsightChatSheetPresented = false
-                    }
-                }
                 .onChange(of: chatViewModel.errorMessage) { _, errorMessage in
                     if errorMessage == "Merian Pro is required." {
                         viewModel.state.isInsightChatSheetPresented = false

@@ -10,6 +10,29 @@ import {
 const MESSAGE_SELECT =
   "id,conversation_id,scan_id,user_id,role,message_text,client_message_id,model,llm_prompt_tokens,llm_candidate_tokens,llm_thinking_tokens,llm_total_tokens,llm_cached_tokens,is_refusal,refusal_reason,safety_metadata,created_at";
 const CONVERSATION_SELECT = "id,scan_id,user_id,created_at,updated_at";
+const SCAN_CONTEXT_SELECT = `
+  id,user_id,timestamp,gps_elevation,weather_condition,weather_temperature_f,
+  semantic_location,current_month,time_of_day,depth_scale_text,
+  ai_confidence_score,ai_reasoning,candidates,image_quality_score,blur_score,zoom_factor,
+  ecology_type,colors,life_stage,reproductive_condition,estimated_size_cm,individual_count,
+  ecological_interactions,sex,sex_confidence,sex_evidence,
+  is_invasive,is_biological_subject,user_identification_override,user_confirmed_identification,user_review_state,
+  user_observation_context,confirmed_species_id,species_id,
+  species_dictionary:species_id(
+    id,scientific_name,common_names,wikipedia_overview,habitat_description,hazard_type,
+    kingdom,phylum,class,order,family,genus,iucn_red_list_status,
+    alternative_common_names,similar_species,group_tags
+  ),
+  confirmed_species:confirmed_species_id(
+    id,scientific_name,common_names,wikipedia_overview,habitat_description,hazard_type,
+    kingdom,phylum,class,order,family,genus,iucn_red_list_status,
+    alternative_common_names,similar_species,group_tags
+  )
+`;
+const SCAN_CONTEXT_SELECT_WITHOUT_ZOOM = SCAN_CONTEXT_SELECT.replace(
+  "image_quality_score,blur_score,zoom_factor",
+  "image_quality_score,blur_score",
+);
 
 export function formatMessage(
   row: InsightChatMessageRow,
@@ -33,29 +56,26 @@ export async function fetchOwnedScan(
   scanId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<ChatScanContext | null> {
-  const { data, error } = await supabaseAdmin
+  const result = await supabaseAdmin
     .from("scans")
-    .select(`
-      id,user_id,timestamp,gps_elevation,weather_condition,weather_temperature_f,
-      semantic_location,current_month,time_of_day,depth_scale_text,
-      ai_confidence_score,ai_reasoning,candidates,image_quality_score,blur_score,zoom_factor,
-      ecology_type,colors,life_stage,reproductive_condition,estimated_size_cm,individual_count,
-      ecological_interactions,sex,sex_confidence,sex_evidence,
-      is_invasive,is_biological_subject,user_identification_override,user_confirmed_identification,user_review_state,
-      user_observation_context,confirmed_species_id,species_id,
-      species_dictionary:species_id(
-        id,scientific_name,common_names,wikipedia_overview,habitat_description,hazard_type,
-        kingdom,phylum,class,order,family,genus,iucn_red_list_status,
-        alternative_common_names,similar_species,group_tags
-      ),
-      confirmed_species:confirmed_species_id(
-        id,scientific_name,common_names,wikipedia_overview,habitat_description,hazard_type,
-        kingdom,phylum,class,order,family,genus,iucn_red_list_status,
-        alternative_common_names,similar_species,group_tags
-      )
-    `)
+    .select(SCAN_CONTEXT_SELECT)
     .eq("id", scanId)
     .maybeSingle();
+  let data = result.data as Record<string, unknown> | null;
+  let error = result.error;
+
+  if (error && error.message.includes("zoom_factor")) {
+    const fallback = await supabaseAdmin
+      .from("scans")
+      .select(SCAN_CONTEXT_SELECT_WITHOUT_ZOOM)
+      .eq("id", scanId)
+      .maybeSingle();
+    const fallbackData = fallback.data as unknown as
+      | Record<string, unknown>
+      | null;
+    data = fallbackData == null ? null : { ...fallbackData, zoom_factor: null };
+    error = fallback.error;
+  }
 
   if (error) throw new Error(`Failed to fetch scan context: ${error.message}`);
   if (!data) return null;
@@ -67,7 +87,7 @@ export async function fetchOwnedScan(
       { status: 403 },
     );
   }
-  return data as ChatScanContext;
+  return data as unknown as ChatScanContext;
 }
 
 export async function fetchConversation(
