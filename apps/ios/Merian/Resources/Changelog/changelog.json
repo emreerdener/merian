@@ -10,7 +10,8 @@
           "title": "Added",
           "items": [
             "Biological Insight sheets now open Field chat from the bottom toolbar as a dedicated sheet with one saved conversation per scan.",
-            "Add to collection now lives in the Insight header menu below field notes, keeping the bottom toolbar focused on sharing and chat."
+            "Add to collection now lives in the Insight header menu below field notes, keeping the bottom toolbar focused on sharing and chat.",
+            "Field chat answers now use richer private scan context, including observed traits, ecology metadata, review state, and capture-quality signals."
           ]
         }
       ]

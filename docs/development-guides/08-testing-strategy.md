@@ -462,9 +462,9 @@ Gemini structures, type safety at the network boundary (Swift → TS) must be
 guaranteed by AST regression guards.
 
 Function-local tests under `services/supabase/functions/insight-chat/` verify
-the text-only prompt context, raw image URL exclusion, raw-image-access system
-instruction, supported action parsing, message caps, and deterministic safety
-refusals.
+the expanded text-only prompt context, raw image URL/storage-key/coordinate
+exclusion, raw-image-access system instruction, supported action parsing,
+message caps, and deterministic safety refusals.
 
 ### `validate_edge_dtos.ts`
 

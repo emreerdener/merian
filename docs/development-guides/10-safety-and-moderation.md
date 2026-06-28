@@ -124,6 +124,13 @@ Function builds context from private stored scan evidence and the species
 dictionary, then calls `gemini-2.5-flash` only after ownership, Pro tier, and
 rate-limit checks pass.
 
+The chat prompt may include stored private species and scan text such as
+taxonomy, hazard/invasive flags, review provenance, observed traits, ecological
+annotations, species group tags, field notes, weather/elevation labels, and
+image/capture-quality scores. It must not include raw image bytes, cloud image
+URLs, storage keys, exact GPS coordinates, Explore/community content, or export
+payloads.
+
 The system prompt must state that the assistant has no raw image access and
 answers only from saved evidence. Local deterministic guards refuse or redirect
 edible/foraging certainty, medical or veterinary treatment, dangerous handling,

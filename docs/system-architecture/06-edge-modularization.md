@@ -40,7 +40,7 @@ The `types.ts` script ensures explicit DTO (Data Transfer Object) mapping parity
 **Current key additions (as of V34):**
 - `_shared/identify/types.ts`: `ClientPayload` includes `alternative_common_names?: string[] | null`; `CachedSpeciesRow` includes `alternative_common_names: string[] | null` to mirror `species_dictionary`.
 - `enrich-scan/types.ts`: `CachedSpeciesData` includes `alternative_common_names: string[] | null`; read by `getCachedSpecies` and conditionally written by `updateSpeciesEnrichment`.
-- `insight-chat/`: follows the same `index.ts` / `db.ts` / `types.ts` split and adds `prompt.ts` for text-only Gemini context construction plus `guards.ts` for action, limit, feature-flag, and deterministic safety checks.
+- `insight-chat/`: follows the same `index.ts` / `db.ts` / `types.ts` split and adds `prompt.ts` for text-only Gemini context construction plus `guards.ts` for action, limit, entitlement, and deterministic safety checks.
 - The identify and enrich-scan `db.ts` files include `alternative_common_names` in their `SPECIES_SELECT`/select strings and upsert/update payloads. Any new column added to `species_dictionary` that is served to the client must be added to all four of these locations simultaneously.
 
 ## 4. Threshold Constants (`thresholds.ts`)
