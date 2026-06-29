@@ -4,7 +4,7 @@ Running checklist for Merian's bounded GBIF-backed Community Taxonomy Index
 imports. Update this file whenever we run another import batch, change the
 worker, or promote coverage information into product surfaces.
 
-Last updated: 2026-06-23
+Last updated: 2026-06-29
 
 ## Current Policy
 
@@ -31,13 +31,13 @@ Last updated: 2026-06-23
 
 ## Production Status
 
-Last verified remote status: 2026-06-23 after Birds offset 350.
+Last verified remote status: 2026-06-29 after Birds offset 650.
 Coverage values below still reflect the last captured status snapshot; refresh
 `community-taxonomy-status` coverage view before exposing any progress claim.
 
 | Target         | GBIF Root | Imported Offsets | Imported Rows | Next Offset | Indexed Species | Dictionary Species |   Coverage |
 | -------------- | --------- | ---------------- | ------------: | ----------: | --------------: | -----------------: | ---------: |
-| Birds (`Aves`) | `212`     | `0`, `50`, `100`, `150`, `350`, `450`, `550` |         `550` |       `650` |           `718` |               `69` | `0.0961` |
+| Birds (`Aves`) | `212`     | `0`, `50`, `100`, `150`, `350`, `450`, `550`, `650`, `750`, `850`, `950`, `1050`, `1150`, `1250`, `1350`, `1450`, `1550`, `1650`, `1750`, `1850`, `1950`, `2050`, `2150`, `2250`, `2350`, `2450`, `2550` |         `2550` |       `2650` |           `2695` |               `69` | `0.025603` |
 
 GBIF reported `14,641` accepted bird species under Aves during the first import
 run. This is the expected rough denominator for completing the Birds target over
@@ -60,11 +60,32 @@ cursor used when the import worker is called without an explicit `offset`.
 | 2026-06-23 | Birds  |  `450` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
 | 2026-06-23 | Birds  |  `550` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
 
+| 2026-06-29 | Birds  |  `650` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `750` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `850` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `950` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `1050` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `1150` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `1250` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `1350` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `1450` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `1550` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `1650` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `1750` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `1850` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `1950` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `2050` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `2150` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `2250` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `2350` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `2450` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+| 2026-06-29 | Birds  |  `2550` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
+
 ## Next Import Batches
 
-- [ ] Birds offset `650`, limit `100`.
-- [ ] Birds offset `750`, limit `100`.
-- [ ] Birds offset `850`, limit `100`.
+- [ ] Birds offset `2650`, limit `100`.
+- [ ] Birds offset `2750`, limit `100`.
+- [ ] Birds offset `2850`, limit `100`.
 - [ ] Recheck `community-taxonomy-status` coverage view after every 1-3 batches.
 - [ ] Stop and investigate if any import row has `status != completed` or
       `error_count > 0`.
