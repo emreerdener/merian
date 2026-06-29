@@ -436,6 +436,7 @@ final class InsightChatViewModel {
             return
         }
         if isLoadingPrompts && !force { return }
+        isLoadingPrompts = true
 
         Task { [weak self] in
             await self?.refreshPromptSuggestions(scanId: scanId)

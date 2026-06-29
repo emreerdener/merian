@@ -39,6 +39,19 @@ struct InsightChatSheet: View {
         viewModel.canSend
     }
 
+    private var showsPromptChips: Bool {
+        guard hasVisibleMessages || !viewModel.isOffline,
+              !viewModel.isLoading,
+              !viewModel.isSending,
+              viewModel.pendingUserMessage == nil,
+              viewModel.draftText.isEmpty,
+              !chips.isEmpty else {
+            return false
+        }
+
+        return !viewModel.isLoadingPrompts || !viewModel.suggestedPrompts.isEmpty
+    }
+
     private var showsBlockingError: Bool {
         viewModel.errorMessage != nil && !hasVisibleMessages && !viewModel.isLoading
     }
@@ -303,7 +316,7 @@ struct InsightChatSheet: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if (hasVisibleMessages || !viewModel.isOffline) && !viewModel.isSending && viewModel.pendingUserMessage == nil && !chips.isEmpty && viewModel.draftText.isEmpty {
+            if showsPromptChips {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(chips, id: \.self) { chip in
