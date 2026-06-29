@@ -27,7 +27,11 @@ import {
   normalizeUserMessage,
   refusalAnswer,
 } from "./guards.ts";
-import { buildSystemInstruction, buildUserPrompt } from "./prompt.ts";
+import {
+  buildSystemInstruction,
+  buildUserPrompt,
+  sanitizeFieldNotesDraft,
+} from "./prompt.ts";
 import {
   DAILY_SEND_LIMIT,
   INSIGHT_CHAT_MODEL,
@@ -148,7 +152,9 @@ async function generateFieldNotesSummary(
 
 [FIELD NOTES DRAFT REQUEST]
 Create a concise, factual field-notes draft from the saved scan context and chat.
-Use only observation-relevant details. Do not replace existing notes. Do not add
+Use only observation-relevant details. Refer to the observation by common name,
+scientific name, or "this observation"; never include scan ids, UUIDs, storage
+ids, or other internal identifiers. Do not replace existing notes. Do not add
 medical, edible, legal, pesticide, or exact-location instructions.`;
 
   const result = await _genAI.models.generateContent({
@@ -165,10 +171,11 @@ medical, edible, legal, pesticide, or exact-location instructions.`;
   });
 
   const parsed = extractJson<{ summary_text?: unknown }>(result.text ?? "");
-  const summaryText = typeof parsed.summary_text === "string" &&
+  const rawSummaryText = typeof parsed.summary_text === "string" &&
       parsed.summary_text.trim()
     ? parsed.summary_text.trim()
     : "Field chat discussed the saved observation and follow-up identification context.";
+  const summaryText = sanitizeFieldNotesDraft(rawSummaryText);
   return { summaryText, usage: result.usageMetadata };
 }
 

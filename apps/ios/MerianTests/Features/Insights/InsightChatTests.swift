@@ -244,41 +244,6 @@ struct InsightChatTests {
         #expect(viewModel.draftText == "Original failed question")
     }
 
-    @Test func testSourceChipsReflectAvailableScanContext() {
-        let species = SpeciesData(
-            scanId: "chat_scan",
-            commonName: "Hottentot Fig",
-            scientificName: "Carpobrotus edulis",
-            insightData: InsightData(
-                aiReasoning: "Fleshy leaves and pale yellow flowers support the identification.",
-                hazardType: "none"
-            ),
-            confidenceScore: 0.91,
-            similarSpecies: SimilarSpecies(entries: [
-                SimilarSpeciesEntry(
-                    scientificName: "Lampranthus spectabilis",
-                    commonName: "Trailing Ice Plant",
-                    referenceImageUrl: nil,
-                    iucnRedListStatus: nil
-                )
-            ]),
-            aiReasoning: "Fleshy leaves and pale yellow flowers support the identification.",
-            habitatDescription: "Coastal dunes.",
-            colors: ["yellow", "green"],
-            lifeStage: "flowering"
-        )
-
-        let chips = InsightChatViewModel.sourceChips(
-            for: species,
-            fieldNotes: "Growing on a dune trail."
-        )
-
-        #expect(chips.contains("AI reasoning"))
-        #expect(chips.contains("Observed traits"))
-        #expect(chips.contains("Habitat"))
-        #expect(chips.contains("Field notes"))
-    }
-
     @Test func testFeedbackAndSummaryResponsesDecode() throws {
         let feedbackJson = """
         {

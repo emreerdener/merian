@@ -100,27 +100,15 @@ struct InsightSheetView: View {
 	                    viewModel: chatViewModel,
 	                    scanId: scanId,
 	                    speciesData: speciesData,
+	                    displayName: viewModel.resolvedHeaderTitle,
 	                    timestamp: viewModel.activeRecordTimestamp,
-	                    fieldNotes: viewModel.shareableFieldNotes,
 	                    onToast: { message in
 	                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
 	                            viewModel.state.toastMessage = message
 	                        }
 	                    },
-	                    onAskCommunity: viewModel.canRequestCommunityIdentification ? {
-	                        viewModel.state.isCommunityRequestSheetPresented = true
-	                    } : nil,
 	                    onAppendToFieldNotes: { text, kind in
 	                        appendInsightChatTextToFieldNotes(text, kind: kind)
-	                    },
-	                    onReviewConfidence: {
-	                        if viewModel.canReviewAlternatives {
-	                            viewModel.state.isCandidateSwipePresented = true
-	                        } else {
-	                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-	                                viewModel.state.toastMessage = "Confidence review is not available for this scan"
-	                            }
-	                        }
 	                    },
 	                    onClose: {
 	                        viewModel.state.isInsightChatSheetPresented = false
@@ -174,18 +162,12 @@ struct InsightSheetView: View {
 private extension InsightSheetView {
     func appendInsightChatTextToFieldNotes(
         _ text: String,
-        kind: InsightChatFieldNotesAppendKind
+        kind _: InsightChatFieldNotesAppendKind
     ) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        let title: String
-        switch kind {
-        case .answer:
-            title = "Field chat answer"
-        case .summary:
-            title = "Field chat summary"
-        }
+        let title = "Field chat summary"
 
         let dateText = DateFormatter.localizedString(
             from: Date(),

@@ -109,17 +109,60 @@ struct InsightBottomToolbar: ToolbarContent {
 }
 
 private struct InsightChatToolbarButton: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 14, weight: .semibold))
-                Text("Field chat")
+        ZStack {
+            Button(action: action) {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Field chat")
+                }
+                .padding(.horizontal, 8)
+                .background {
+                    FieldChatGlowAccent(reduceMotion: reduceMotion)
+                }
             }
-            .padding(.horizontal, 8)
+            .accessibilityLabel("Open Field chat")
         }
-        .accessibilityLabel("Open Field chat")
+    }
+}
+
+private struct FieldChatGlowAccent: View {
+    let reduceMotion: Bool
+
+    @State private var isPulsing = false
+
+    var body: some View {
+        Capsule(style: .continuous)
+            .fill(
+                AngularGradient(
+                    colors: [
+                        Color(red: 0.20, green: 0.55, blue: 1.00),
+                        Color(red: 0.30, green: 0.95, blue: 0.65),
+                        Color(red: 1.00, green: 0.88, blue: 0.30),
+                        Color(red: 1.00, green: 0.38, blue: 0.58),
+                        Color(red: 0.62, green: 0.40, blue: 1.00),
+                        Color(red: 0.20, green: 0.55, blue: 1.00)
+                    ],
+                    center: .center
+                )
+            )
+            .padding(.horizontal, -12)
+            .padding(.vertical, -8)
+            .blur(radius: 10)
+            .opacity(reduceMotion ? 0.20 : (isPulsing ? 0.34 : 0.18))
+            .scaleEffect(reduceMotion ? 1.0 : (isPulsing ? 1.08 : 0.98))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+                    isPulsing = true
+                }
+            }
     }
 }

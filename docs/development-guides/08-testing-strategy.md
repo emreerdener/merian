@@ -223,7 +223,7 @@ Tests are organized under `apps/ios/MerianTests/Core` and `apps/ios/MerianTests/
   state. `SpeciesObservationStatsViewModelTests.swift` covers actor/reducer
   aggregation plus reducer normalization and empty-bucket behavior.
   `InsightChatTests.swift` covers Field chat request/response decoding,
-  feedback/summary DTO decoding, context-aware prompt and source chip
+  feedback/summary DTO decoding, context-aware prompt
   generation, failed outgoing recovery state, deterministic unavailable-state
   hiding, and the 600-character draft cap.
   `UserTagsMutationControllerTests.swift` verifies tag saves commit locally

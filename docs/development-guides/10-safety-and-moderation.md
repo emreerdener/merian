@@ -128,8 +128,8 @@ The chat prompt may include stored private species and scan text such as
 taxonomy, hazard/invasive flags, review provenance, observed traits, ecological
 annotations, species group tags, field notes, weather/elevation labels, and
 image/capture-quality scores. It must not include raw image bytes, cloud image
-URLs, storage keys, exact GPS coordinates, Explore/community content, or export
-payloads.
+URLs, storage keys, internal scan IDs, exact GPS coordinates,
+Explore/community content, or export payloads.
 
 The system prompt must state that the assistant has no raw image access and
 answers only from saved evidence. Local deterministic guards refuse or redirect

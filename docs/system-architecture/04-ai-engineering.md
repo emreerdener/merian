@@ -582,8 +582,8 @@ or audio attached:
   scan row, species dictionary fields, AI reasoning, identification provenance,
   observed traits, ecology annotations, species group tags, telemetry,
   candidates/lookalikes, coarse field context, and image/capture-quality
-  metadata. Exact GPS coordinates, raw image bytes, storage keys, cloud image
-  URLs, Explore/community content, and export payloads are excluded. Chat
+  metadata. Exact GPS coordinates, raw image bytes, storage keys, internal scan
+  IDs, cloud image URLs, Explore/community content, and export payloads are excluded. Chat
   conversations, messages, and answer feedback are private rows in
   `insight_chat_conversations`, `insight_chat_messages`, and
   `insight_chat_message_feedback`; each scan has one saved conversation per

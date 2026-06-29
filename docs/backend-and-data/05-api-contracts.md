@@ -3131,8 +3131,8 @@ overview, invasive flag, identification provenance, user review state, observed
 traits, ecological annotations, species group tags, `ai_reasoning`, field notes,
 capture date/month, location label, weather, elevation, and image/capture-quality
 metadata. It does not include raw image bytes, R2 object keys, cloud image URLs,
-exact GPS coordinates, Explore comments, public post metadata, or Darwin Core
-export payloads.
+internal scan IDs, exact GPS coordinates, Explore comments, public post
+metadata, or Darwin Core export payloads.
 
 Location-aware answers may use only the saved private location label, month,
 elevation, ecology type, and weather. The prompt explicitly forbids inferring,
@@ -3219,7 +3219,7 @@ Telemetry emits `InsightChatSent`, `InsightChatAnswered`, `InsightChatRefused`,
 and token fields when available. Send/answer events include a deterministic
 `answer_category` so token cost can be reviewed by broad question type. iOS also
 emits `InsightChatActionTapped` to PostHog for local answer actions,
-prompt-chip taps, and feedback affordances.
+prompt-chip taps, the sheet options menu, and feedback affordances.
 
 ---
 

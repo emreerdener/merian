@@ -27,7 +27,7 @@ struct FieldNotesCard: View {
                     Text(trimmedPreview)
                         .font(.body)
                         .foregroundStyle(.primary)
-                        .lineLimit(4)
+                        .lineLimit(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                         .textSelection(.disabled)

@@ -12,7 +12,11 @@
             "Biological Insight sheets now open Field chat from the bottom toolbar as a dedicated sheet with one saved conversation per scan.",
             "Add to collection now lives in the Insight header menu below field notes, keeping the bottom toolbar focused on sharing and chat.",
             "Field chat answers now use richer private scan context, including observed traits, ecology metadata, review state, and capture-quality signals.",
-            "Field chat now supports offline read-only viewing, failed-send retry and edit, source chips, safety guidance headers, answer feedback, and append-only field-notes actions."
+            "Field chat now supports offline read-only viewing, failed-send retry and edit, safety guidance headers, answer feedback, and append-only field-notes actions.",
+            "The Field chat toolbar button now has a subtle rainbow glow so the AI entry point is easier to notice without changing its native button style.",
+            "Field notes cards now show more of your notes before truncating longer entries.",
+            "Field chat summaries now use readable observation labels instead of internal scan IDs.",
+            "Field chat answer actions are now focused on icon-only copy and inline feedback, with summaries and feature feedback in the sheet options menu."
           ]
         }
       ]
@@ -25,7 +29,8 @@
         {
           "title": "Added",
           "items": [
-            "Insight images now open into a full-screen, fit-centered carousel with swipe navigation, zoom, and reference attribution."
+            "Insight images now open into a full-screen, fit-centered carousel with swipe navigation, zoom, and reference attribution.",
+            "Species Dictionary reference galleries now open into the same full-screen image viewer."
           ]
         },
         {

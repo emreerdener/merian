@@ -56,6 +56,13 @@ function englishCommonName(
   return trimText(value, 120);
 }
 
+function observationLabel(species: SpeciesDictionaryContext | null): string {
+  const commonName = englishCommonName(species);
+  const scientificName = trimText(species?.scientific_name, 160);
+  if (commonName && scientificName) return `${commonName} (${scientificName})`;
+  return commonName ?? scientificName ?? "this observation";
+}
+
 function formatArray(value: unknown, maxItems = 6): string | null {
   if (!Array.isArray(value)) return null;
   const items = value
@@ -132,7 +139,7 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
 
   const rows: string[] = [
     "[SAVED SCAN CONTEXT]",
-    `Scan ID: ${scan.id}`,
+    `Observation Label: ${observationLabel(species)}`,
     `Observed At: ${scan.timestamp}`,
     `Common Name: ${englishCommonName(species) ?? "Unavailable"}`,
     `Scientific Name: ${
@@ -213,6 +220,19 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
   ];
 
   return rows.join("\n");
+}
+
+export function sanitizeFieldNotesDraft(text: string): string {
+  return text
+    .replace(
+      /\bObservation\s+[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}:\s*/gi,
+      "",
+    )
+    .replace(
+      /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
+      "this observation",
+    )
+    .trim();
 }
 
 export function buildConversationHistory(

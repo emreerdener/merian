@@ -232,13 +232,13 @@ final class InsightChatViewModel {
         }
     }
 
-    func summarizeForFieldNotes(scanId: String) async {
+    func summarizeForFieldNotes(scanId: String) async -> Bool {
         guard !isOffline else {
             HapticManager.shared.triggerErrorThump()
             errorMessage = "Connect to summarize chat."
-            return
+            return false
         }
-        guard !messages.isEmpty else { return }
+        guard !messages.isEmpty else { return false }
 
         isSummarizingNotes = true
         defer { isSummarizingNotes = false }
@@ -247,13 +247,23 @@ final class InsightChatViewModel {
             let response = try await MerianNetworkClient.shared.summarizeInsightChatForFieldNotes(scanId: scanId)
             notesSummaryDraft = response.summaryText
             HapticManager.shared.triggerSuccessPulse()
+            return true
         } catch {
             handle(error, scanId: scanId, playHaptic: true)
+            return false
         }
     }
 
-    func suggestionChips(for speciesData: SpeciesData, timestamp: Date?) -> [String] {
-        let allChips = Self.suggestionChips(for: speciesData, timestamp: timestamp)
+    func suggestionChips(
+        for speciesData: SpeciesData,
+        timestamp: Date?,
+        displayName: String? = nil
+    ) -> [String] {
+        let allChips = Self.suggestionChips(
+            for: speciesData,
+            timestamp: timestamp,
+            displayName: displayName
+        )
         let sentTexts = Set(sentAndPendingPromptTexts)
         return allChips.filter { chip in
             !sentTexts.contains(chip.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
@@ -266,8 +276,13 @@ final class InsightChatViewModel {
             + [pendingUserMessage?.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()].compactMap { $0 }
     }
 
-    static func suggestionChips(for speciesData: SpeciesData, timestamp: Date?) -> [String] {
-        let speciesName = displayName(for: speciesData)
+    static func suggestionChips(
+        for speciesData: SpeciesData,
+        timestamp: Date?,
+        displayName: String? = nil
+    ) -> [String] {
+        let speciesName = displayName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            ?? Self.displayName(for: speciesData)
         var candidates: [String] = []
 
         if let comparisonName = comparisonPromptName(for: speciesData) {
@@ -315,27 +330,6 @@ final class InsightChatViewModel {
 
     static func hasLookalikeContext(_ speciesData: SpeciesData) -> Bool {
         comparisonPromptName(for: speciesData) != nil
-    }
-
-    static func sourceChips(for speciesData: SpeciesData, fieldNotes: String?) -> [String] {
-        var chips: [String] = []
-        if speciesData.aiReasoning?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-            chips.append("AI reasoning")
-        }
-        if hasObservedTraits(speciesData) {
-            chips.append("Observed traits")
-        }
-        if hasHabitatContext(speciesData) || speciesData.locationName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-            chips.append("Habitat")
-        }
-        if fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-            chips.append("Field notes")
-        }
-        if hasLookalikeContext(speciesData) {
-            chips.append("Lookalikes")
-        }
-        chips.append("Scan context")
-        return uniquePrompts(chips).prefix(4).map { $0 }
     }
 
     static func shouldOfferConfidenceReview(for speciesData: SpeciesData) -> Bool {

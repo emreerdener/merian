@@ -6,6 +6,7 @@ import {
   buildScanContextBlock,
   buildSystemInstruction,
   buildUserPrompt,
+  sanitizeFieldNotesDraft,
 } from "./prompt.ts";
 import { ChatScanContext, InsightChatMessageRow } from "./types.ts";
 
@@ -68,6 +69,7 @@ const scan: ChatScanContext = {
 
 Deno.test("scan context uses text evidence and excludes image URLs", () => {
   const block = buildScanContextBlock(scan);
+  assertStringIncludes(block, "Observation Label: Monarch (Danaus plexippus)");
   assertStringIncludes(block, "Monarch");
   assertStringIncludes(block, "Orange wings");
   assertStringIncludes(block, "Danaus gilippus");
@@ -101,6 +103,23 @@ Deno.test("scan context uses text evidence and excludes image URLs", () => {
   assertEquals(block.includes("latitude"), false);
   assertEquals(block.includes("longitude"), false);
   assertEquals(block.includes("https://"), false);
+  assertEquals(block.includes(`Scan ID: ${scan.id}`), false);
+  assertEquals(block.includes(scan.id), false);
+});
+
+Deno.test("field notes summary text removes internal UUID labels", () => {
+  assertEquals(
+    sanitizeFieldNotesDraft(
+      "Observation 46b35079-75a1-4e47-bfd3-0414c2fdda00: An adult Indian Fig Opuntia was fruiting.",
+    ),
+    "An adult Indian Fig Opuntia was fruiting.",
+  );
+  assertEquals(
+    sanitizeFieldNotesDraft(
+      "Follow-up for 46b35079-75a1-4e47-bfd3-0414c2fdda00 confirmed cactus traits.",
+    ),
+    "Follow-up for this observation confirmed cactus traits.",
+  );
 });
 
 Deno.test("system instruction states raw image is unavailable", () => {

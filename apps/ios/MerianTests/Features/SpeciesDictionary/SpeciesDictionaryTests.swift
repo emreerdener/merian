@@ -194,6 +194,43 @@ struct SpeciesDictionaryTests {
         #expect(response.data.referenceImages.first?.source.label == "Reference")
     }
 
+    @Test func testSpeciesDictionaryImageGalleryPresentationMapsSelectedReferenceImage() throws {
+        let images = [
+            SpeciesDictionaryReferenceImage(
+                url: "https://example.com/first.jpg",
+                source: .wikipedia,
+                license: "CC BY-SA",
+                attribution: "First Photographer",
+                width: 1200,
+                height: 900
+            ),
+            SpeciesDictionaryReferenceImage(
+                url: "https://example.com/second.jpg",
+                source: .gbif,
+                license: nil,
+                attribution: nil,
+                width: nil,
+                height: nil
+            )
+        ]
+
+        let presentation = try #require(SpeciesDictionaryImageGalleryBuilder.presentation(
+            for: images,
+            selectedImageID: images[1].id
+        ))
+
+        #expect(presentation.items.map(\.id) == [
+            "species-reference-https://example.com/first.jpg",
+            "species-reference-https://example.com/second.jpg"
+        ])
+        #expect(presentation.items.map(\.referenceAttributionLabel) == ["Wikipedia", "GBIF"])
+        #expect(presentation.initialSelectedIndex == 1)
+        #expect(presentation.items.map(\.source) == [
+            .referenceURL("https://example.com/first.jpg"),
+            .referenceURL("https://example.com/second.jpg")
+        ])
+    }
+
     @Test func testGetSpeciesDictionaryConstructsPayloadAndParsesResponse() async throws {
         let testData = Data("""
         {

@@ -49,6 +49,7 @@ struct SpeciesDictionaryPageContentView: View {
 
     @State private var viewModel: SpeciesDictionaryPageViewModel
     @State private var isCommonNameScrolledPast = false
+    @State private var fullscreenGalleryPresentation: InsightImageGalleryPresentation?
 
     init(
         scientificName: String,
@@ -103,6 +104,9 @@ struct SpeciesDictionaryPageContentView: View {
                 await viewModel.load()
             }
             .toolbar(.hidden, for: .bottomBar)
+            .fullScreenCover(item: $fullscreenGalleryPresentation) { presentation in
+                InsightFullscreenImageCarousel(presentation: presentation)
+            }
     }
 
     @ViewBuilder
@@ -154,6 +158,9 @@ struct SpeciesDictionaryPageContentView: View {
                             entryPoint: viewModel.entryPoint.rawValue,
                             source: image.source.rawValue
                         )
+                    },
+                    onImageTap: { presentation in
+                        fullscreenGalleryPresentation = presentation
                     }
                 )
 

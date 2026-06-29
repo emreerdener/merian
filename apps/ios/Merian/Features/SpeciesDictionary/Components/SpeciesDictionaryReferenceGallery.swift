@@ -4,6 +4,7 @@ struct SpeciesDictionaryReferenceGallery: View {
     let scientificName: String
     let images: [SpeciesDictionaryReferenceImage]
     let onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)?
+    let onImageTap: ((InsightImageGalleryPresentation) -> Void)?
 
     @State private var selectedImageId: String?
     @State private var failedImageIds = Set<String>()
@@ -11,11 +12,13 @@ struct SpeciesDictionaryReferenceGallery: View {
     init(
         scientificName: String,
         images: [SpeciesDictionaryReferenceImage],
-        onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)? = nil
+        onImageLoadFailed: ((SpeciesDictionaryReferenceImage) -> Void)? = nil,
+        onImageTap: ((InsightImageGalleryPresentation) -> Void)? = nil
     ) {
         self.scientificName = scientificName
         self.images = images
         self.onImageLoadFailed = onImageLoadFailed
+        self.onImageTap = onImageTap
     }
 
     private let imageSize: CGFloat = UIScreen.main.bounds.width
@@ -145,6 +148,12 @@ struct SpeciesDictionaryReferenceGallery: View {
         .frame(maxWidth: .infinity)
         .frame(maxHeight: .infinity)
         .clipped()
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                presentFullscreenGallery(startingAt: image.id)
+            }
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel(for: image))
     }
@@ -171,5 +180,43 @@ struct SpeciesDictionaryReferenceGallery: View {
         guard !failedImageIds.contains(image.id) else { return }
         failedImageIds.insert(image.id)
         onImageLoadFailed?(image)
+    }
+
+    private func presentFullscreenGallery(startingAt imageID: String?) {
+        guard let presentation = SpeciesDictionaryImageGalleryBuilder.presentation(
+            for: images,
+            selectedImageID: imageID
+        ) else { return }
+
+        onImageTap?(presentation)
+    }
+}
+
+struct SpeciesDictionaryImageGalleryBuilder {
+    static func buildItems(for images: [SpeciesDictionaryReferenceImage]) -> [InsightImageGalleryItem] {
+        images.map { image in
+            InsightImageGalleryItem(
+                id: "species-reference-\(image.id)",
+                source: .referenceURL(image.url),
+                referenceAttributionLabel: image.source.label
+            )
+        }
+    }
+
+    static func presentation(
+        for images: [SpeciesDictionaryReferenceImage],
+        selectedImageID: String?
+    ) -> InsightImageGalleryPresentation? {
+        let items = buildItems(for: images)
+        guard !items.isEmpty else { return nil }
+
+        let selectedIndex = images.firstIndex { image in
+            image.id == selectedImageID
+        } ?? 0
+
+        return InsightImageGalleryPresentation(
+            items: items,
+            initialSelectedIndex: selectedIndex
+        )
     }
 }
