@@ -3285,11 +3285,14 @@ pesticide/poison instructions, and human-subject identification requests.
 
 Telemetry emits `InsightChatSent`, `InsightChatAnswered`, `InsightChatRefused`,
 `InsightChatRateLimited`, `InsightChatModelError`,
-`InsightChatFeedbackSubmitted`, and `InsightChatNotesSummarized` with latency
-and token fields when available. Send/answer events include a deterministic
-`answer_category` so token cost can be reviewed by broad question type. iOS also
-emits `InsightChatActionTapped` to PostHog for local answer actions,
-prompt-chip taps, the sheet options menu, and feedback affordances.
+`InsightChatPromptsGenerated`, `InsightChatFeedbackSubmitted`,
+`InsightChatFeatureFeedbackSubmitted`, and `InsightChatNotesSummarized` with
+latency and token fields when available. Send/answer events include a
+deterministic `answer_category` so token cost can be reviewed by broad question
+type. Prompt generation events include prompt categories, fallback/error state,
+and token usage when available. iOS also emits `InsightChatActionTapped` to
+PostHog for local answer actions, prompt-chip taps, the sheet options menu, and
+feedback affordances.
 
 ---
 
