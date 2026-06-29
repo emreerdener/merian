@@ -5,16 +5,23 @@ import {
 
 export function normalizeAction(
   value: unknown,
-): "load" | "send" | "delete" | "feedback" | "summarize_notes" {
+):
+  | "load"
+  | "send"
+  | "delete"
+  | "feedback"
+  | "summarize_notes"
+  | "suggest_prompts" {
   if (
     value === "load" || value === "send" || value === "delete" ||
-    value === "feedback" || value === "summarize_notes"
+    value === "feedback" || value === "summarize_notes" ||
+    value === "suggest_prompts"
   ) {
     return value;
   }
   throw Object.assign(
     new Error(
-      "action must be load, send, delete, feedback, or summarize_notes.",
+      "action must be load, send, delete, feedback, summarize_notes, or suggest_prompts.",
     ),
     { status: 400 },
   );

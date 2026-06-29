@@ -3,6 +3,7 @@ import {
   assertStringIncludes,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  buildPromptSuggestionsPrompt,
   buildScanContextBlock,
   buildSystemInstruction,
   buildUserPrompt,
@@ -161,4 +162,34 @@ Deno.test("conversation prompt appends current question after history", () => {
   assertStringIncludes(prompt, "Merian: It is often found near milkweed.");
   assertStringIncludes(prompt, "[CURRENT USER QUESTION]");
   assertStringIncludes(prompt, "What should I compare next?");
+});
+
+Deno.test("prompt suggestion prompt uses history and safety constraints", () => {
+  const messages = [{
+    id: "m1",
+    conversation_id: "c1",
+    scan_id: scan.id,
+    user_id: scan.user_id,
+    role: "user",
+    message_text: "Which wing traits support this ID?",
+    client_message_id: null,
+    model: null,
+    llm_prompt_tokens: null,
+    llm_candidate_tokens: null,
+    llm_thinking_tokens: null,
+    llm_total_tokens: null,
+    llm_cached_tokens: null,
+    is_refusal: false,
+    refusal_reason: null,
+    safety_metadata: null,
+    created_at: "2026-06-26T12:00:01Z",
+  }] satisfies InsightChatMessageRow[];
+
+  const prompt = buildPromptSuggestionsPrompt(messages);
+  assertStringIncludes(prompt, "[PROMPT CHIP REQUEST]");
+  assertStringIncludes(prompt, "Which wing traits support this ID?");
+  assertStringIncludes(prompt, "Avoid repeating user questions");
+  assertStringIncludes(prompt, "Do not ask for edible certainty");
+  assertStringIncludes(prompt, "exact GPS/location details");
+  assertStringIncludes(prompt, "lookalike_compare");
 });

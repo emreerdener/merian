@@ -223,9 +223,9 @@ Tests are organized under `apps/ios/MerianTests/Core` and `apps/ios/MerianTests/
   state. `SpeciesObservationStatsViewModelTests.swift` covers actor/reducer
   aggregation plus reducer normalization and empty-bucket behavior.
   `InsightChatTests.swift` covers Field chat request/response decoding,
-  feedback/summary DTO decoding, context-aware prompt
-  generation, failed outgoing recovery state, deterministic unavailable-state
-  hiding, and the 600-character draft cap.
+  feedback/summary/prompt-suggestion DTO decoding, local fallback and
+  AI-generated quick prompt merging/filtering, failed outgoing recovery state,
+  deterministic unavailable-state hiding, and the 600-character draft cap.
   `UserTagsMutationControllerTests.swift` verifies tag saves commit locally
   before external cloud/search side effects can run.
 - **`CaptureTelemetryTests.swift`**: Directly validates that offline/historic
@@ -465,7 +465,8 @@ guaranteed by AST regression guards.
 Function-local tests under `services/supabase/functions/insight-chat/` verify
 the expanded text-only prompt context, raw image URL/storage-key/coordinate
 exclusion, raw-image-access system instruction, supported action parsing,
-message caps, and deterministic safety refusals.
+message caps, deterministic safety refusals, and the `suggest_prompts` action's
+safe three-prompt JSON contract.
 
 ### `validate_edge_dtos.ts`
 

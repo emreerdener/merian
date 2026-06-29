@@ -123,6 +123,14 @@ struct InsightSheetView: View {
 	                        chatViewModel.errorMessage = nil
 	                    }
 	                }
+                .onChange(of: chatViewModel.unavailableScanId) { _, unavailableScanId in
+                    guard unavailableScanId == scanId else { return }
+                    viewModel.state.isInsightChatSheetPresented = false
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        viewModel.state.toastMessage = chatViewModel.errorMessage
+                            ?? "Field chat isn't available for this scan."
+                    }
+                }
 	            }
 	        }
         .sheet(isPresented: $viewModel.state.showExploreOnboarding) {

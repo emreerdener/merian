@@ -594,6 +594,14 @@ or audio attached:
   `InsightChatModelError`, `InsightChatFeedbackSubmitted`, and
   `InsightChatNotesSummarized`; send/answer events include a deterministic
   `answer_category` for prompt and cost review.
+  The same Edge Function also supports `action: "suggest_prompts"` for
+  AI-generated quick prompt chips. Prompt suggestions use the same private
+  text-only scan context plus recent saved chat history, return exactly three
+  short non-persisted prompts with allowlisted telemetry categories, and never
+  consume the daily chat send limit. iOS requests suggestions after initial chat
+  load and after successful assistant responses, keeps local deterministic chips
+  as a fallback, and suppresses prompt refresh while typing, offline, after
+  failed sends, or after feedback taps.
 - **Dynamic Diagnostic Thresholds**: The dynamic presentation of diagnostic data
   (e.g., lookalikes, confidence hooks, and identification candidates) is gated
   by the tier-specific `diagnosticTrigger`. **Canonical source of truth**:

@@ -75,8 +75,20 @@ extension InsightSheetView {
             canShowInsightChat: canShowInsightChat,
             onInsightChat: {
                 if RevenueCatManager.shared.isProActive {
-                    HapticManager.shared.triggerSheetSpring()
-                    viewModel.state.isInsightChatSheetPresented = true
+                    guard let scanId = inferenceEngine.speciesData?.scanId else { return }
+                    Task { @MainActor in
+                        let canPresent = await chatViewModel.prepareForPresentation(scanId: scanId)
+                        if canPresent {
+                            HapticManager.shared.triggerSheetSpring()
+                            viewModel.state.isInsightChatSheetPresented = true
+                        } else {
+                            HapticManager.shared.triggerErrorThump()
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                viewModel.state.toastMessage = chatViewModel.errorMessage
+                                    ?? "Field chat isn't available for this scan."
+                            }
+                        }
+                    }
                 } else {
                     HapticManager.shared.triggerSelectionPulse()
                     viewModel.state.showPaywall = true

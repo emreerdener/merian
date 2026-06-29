@@ -8,7 +8,8 @@ export type InsightChatAction =
   | "send"
   | "delete"
   | "feedback"
-  | "summarize_notes";
+  | "summarize_notes"
+  | "suggest_prompts";
 export type InsightChatRole = "user" | "assistant";
 export type InsightChatFeedbackRating =
   | "helpful"
@@ -77,6 +78,16 @@ export interface InsightChatFeedbackPayload {
 
 export interface InsightChatSummaryPayload {
   summary_text: string;
+}
+
+export interface InsightChatPromptSuggestionPayload {
+  text: string;
+  category: string;
+}
+
+export interface InsightChatPromptSuggestionsPayload {
+  conversation_id: string | null;
+  prompts: InsightChatPromptSuggestionPayload[];
 }
 
 export interface ChatScanContext {

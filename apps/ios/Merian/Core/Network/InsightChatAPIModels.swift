@@ -12,6 +12,10 @@ struct InsightChatSummaryEnvelope: Decodable {
     let data: InsightChatSummaryResponse
 }
 
+struct InsightChatPromptSuggestionsEnvelope: Decodable {
+    let data: InsightChatPromptSuggestionsResponse
+}
+
 struct InsightChatResponse: Decodable, Equatable {
     let conversationId: String?
     let messages: [InsightChatMessage]
@@ -56,6 +60,21 @@ struct InsightChatSummaryResponse: Decodable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case summaryText = "summary_text"
     }
+}
+
+struct InsightChatPromptSuggestionsResponse: Decodable, Equatable {
+    let conversationId: String?
+    let prompts: [InsightChatPromptSuggestion]
+
+    private enum CodingKeys: String, CodingKey {
+        case conversationId = "conversation_id"
+        case prompts
+    }
+}
+
+struct InsightChatPromptSuggestion: Decodable, Equatable {
+    let text: String
+    let category: String
 }
 
 enum InsightChatFeedbackRating: String, Codable, CaseIterable {

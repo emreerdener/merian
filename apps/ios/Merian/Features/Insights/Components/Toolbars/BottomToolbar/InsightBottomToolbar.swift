@@ -114,29 +114,42 @@ private struct InsightChatToolbarButton: View {
     let action: () -> Void
 
     var body: some View {
-        ZStack {
-            Button(action: action) {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("Field chat")
-                }
-                .padding(.horizontal, 8)
-                .background {
-                    FieldChatGlowAccent(reduceMotion: reduceMotion)
-                }
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("Field chat")
             }
-            .accessibilityLabel("Open Field chat")
+            .padding(.horizontal, 8)
+            .fixedSize()
         }
+        .background {
+            FieldChatGlowAccent(reduceMotion: reduceMotion)
+                .frame(width: 156, height: 54)
+        }
+        .accessibilityLabel("Open Field chat")
     }
 }
 
 private struct FieldChatGlowAccent: View {
     let reduceMotion: Bool
 
-    @State private var isPulsing = false
-
     var body: some View {
+        if reduceMotion {
+            glow
+                .opacity(0.18)
+        } else {
+            TimelineView(.animation) { context in
+                let phase = context.date.timeIntervalSinceReferenceDate
+                    .truncatingRemainder(dividingBy: 8) / 8
+                glow
+                    .hueRotation(.degrees(phase * 34))
+                    .opacity(0.22)
+            }
+        }
+    }
+
+    private var glow: some View {
         Capsule(style: .continuous)
             .fill(
                 AngularGradient(
@@ -151,18 +164,8 @@ private struct FieldChatGlowAccent: View {
                     center: .center
                 )
             )
-            .padding(.horizontal, -12)
-            .padding(.vertical, -8)
-            .blur(radius: 10)
-            .opacity(reduceMotion ? 0.20 : (isPulsing ? 0.34 : 0.18))
-            .scaleEffect(reduceMotion ? 1.0 : (isPulsing ? 1.08 : 0.98))
+            .blur(radius: 12)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-            .onAppear {
-                guard !reduceMotion else { return }
-                withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
-                    isPulsing = true
-                }
-            }
     }
 }

@@ -131,6 +131,13 @@ image/capture-quality scores. It must not include raw image bytes, cloud image
 URLs, storage keys, internal scan IDs, exact GPS coordinates,
 Explore/community content, or export payloads.
 
+AI-generated quick prompt chips are produced through the same `/insight-chat`
+privacy boundary with `action: "suggest_prompts"`. They must remain short,
+scan-specific, and safe; prompt generation must not ask for edible certainty,
+medical/veterinary treatment, illegal collection, pesticide/poison instructions,
+exact-location details, or human-subject identification. Prompt generation is
+best-effort and must fail independently from normal chat load/send behavior.
+
 The system prompt must state that the assistant has no raw image access and
 answers only from saved evidence. Local deterministic guards refuse or redirect
 edible/foraging certainty, medical or veterinary treatment, dangerous handling,

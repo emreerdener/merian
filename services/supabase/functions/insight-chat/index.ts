@@ -28,6 +28,7 @@ import {
   refusalAnswer,
 } from "./guards.ts";
 import {
+  buildPromptSuggestionsPrompt,
   buildSystemInstruction,
   buildUserPrompt,
   sanitizeFieldNotesDraft,
@@ -36,11 +37,25 @@ import {
   DAILY_SEND_LIMIT,
   INSIGHT_CHAT_MODEL,
   InsightChatMessageRow,
+  InsightChatPromptSuggestionPayload,
   InsightChatResponsePayload,
   MAX_MESSAGES_PER_CONVERSATION,
   MAX_USER_MESSAGE_CHARS,
   ModelChatResult,
 } from "./types.ts";
+
+const PROMPT_CATEGORY_ALLOWLIST = new Set([
+  "lookalike_compare",
+  "hazard",
+  "invasive",
+  "evidence",
+  "habitat",
+  "season",
+  "confidence",
+  "ecology",
+  "field_notes",
+  "generic",
+]);
 
 function limitsPayload(sendsToday: number) {
   return {
@@ -179,6 +194,89 @@ medical, edible, legal, pesticide, or exact-location instructions.`;
   return { summaryText, usage: result.usageMetadata };
 }
 
+function sanitizePromptSuggestions(
+  prompts: unknown,
+): InsightChatPromptSuggestionPayload[] {
+  if (!Array.isArray(prompts)) return [];
+
+  const seen = new Set<string>();
+  const safePattern =
+    /\b(eat|edible|taste|cook|bake|brew|tea|forag|feed|consume|treat|treatment|dosage|medicine|medical|veterinary|pesticide|poison|kill|exterminate|trap|capture|handle|pick up|relocate|collect|harvest|permit|gps|coordinates|latitude|longitude|person|human)\b/i;
+  const suggestions: InsightChatPromptSuggestionPayload[] = [];
+
+  for (const prompt of prompts) {
+    if (!prompt || typeof prompt !== "object") continue;
+    const rawText = "text" in prompt ? prompt.text : null;
+    const rawCategory = "category" in prompt ? prompt.category : null;
+    if (typeof rawText !== "string") continue;
+
+    const text = rawText.trim().replace(/\s+/g, " ");
+    if (!text || text.length > 120 || safePattern.test(text)) continue;
+
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const category = typeof rawCategory === "string" &&
+        PROMPT_CATEGORY_ALLOWLIST.has(rawCategory)
+      ? rawCategory
+      : "generic";
+
+    suggestions.push({ text, category });
+    if (suggestions.length === 3) break;
+  }
+
+  return suggestions;
+}
+
+async function generatePromptSuggestions(
+  systemInstruction: string,
+  messages: InsightChatMessageRow[],
+): Promise<{
+  prompts: InsightChatPromptSuggestionPayload[];
+  usage: ModelChatResult["usage"];
+}> {
+  const responseSchema = {
+    type: Type.OBJECT,
+    properties: {
+      prompts: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            text: { type: Type.STRING },
+            category: { type: Type.STRING },
+          },
+          required: ["text", "category"],
+        },
+      },
+    },
+    required: ["prompts"],
+  };
+
+  const result = await _genAI.models.generateContent({
+    model: INSIGHT_CHAT_MODEL,
+    contents: [{
+      role: "user",
+      parts: [{ text: buildPromptSuggestionsPrompt(messages) }],
+    }],
+    config: {
+      systemInstruction,
+      temperature: 0.45,
+      maxOutputTokens: 220,
+      responseMimeType: "application/json",
+      responseSchema,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  });
+
+  const parsed = extractJson<{ prompts?: unknown }>(result.text ?? "");
+  return {
+    prompts: sanitizePromptSuggestions(parsed.prompts),
+    usage: result.usageMetadata,
+  };
+}
+
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
@@ -238,6 +336,65 @@ Deno.serve((req: Request) =>
           sendsToday,
         ),
       }, 200);
+    }
+
+    if (action === "suggest_prompts") {
+      const messages = existingConversation
+        ? await fetchMessages(existingConversation.id, supabaseAdmin)
+        : [];
+      const startedAt = Date.now();
+
+      try {
+        const suggestions = await generatePromptSuggestions(
+          buildSystemInstruction(scan),
+          messages,
+        );
+        const usage = suggestions.usage;
+        trackPostHogEvent(user, "InsightChatPromptsGenerated", {
+          scan_id: scanId,
+          conversation_id: existingConversation?.id ?? null,
+          prompt_categories: suggestions.prompts.map((prompt) =>
+            prompt.category
+          ),
+          prompt_count: suggestions.prompts.length,
+          fallback_state: suggestions.prompts.length === 3
+            ? "model"
+            : "partial_model",
+          latency_ms: Date.now() - startedAt,
+          llm_model: INSIGHT_CHAT_MODEL,
+          llm_prompt_tokens: usage?.promptTokenCount ?? null,
+          llm_candidate_tokens: usage?.candidatesTokenCount ?? null,
+          llm_thinking_tokens: usage?.thoughtsTokenCount ?? null,
+          llm_total_tokens: usage?.totalTokenCount ?? null,
+          llm_cached_tokens: usage?.cachedContentTokenCount ?? null,
+        }).catch((e) =>
+          console.error("PostHog InsightChatPromptsGenerated failed:", e)
+        );
+
+        return jsonResponse({
+          data: {
+            conversation_id: existingConversation?.id ?? null,
+            prompts: suggestions.prompts,
+          },
+        }, 200);
+      } catch (error) {
+        trackPostHogEvent(user, "InsightChatPromptsGenerated", {
+          scan_id: scanId,
+          conversation_id: existingConversation?.id ?? null,
+          prompt_categories: [],
+          prompt_count: 0,
+          fallback_state: "model_error",
+          latency_ms: Date.now() - startedAt,
+          llm_model: INSIGHT_CHAT_MODEL,
+          error: error instanceof Error ? error.message : String(error),
+        }).catch((e) =>
+          console.error("PostHog InsightChatPromptsGenerated failed:", e)
+        );
+        return jsonResponse({
+          code: "prompt_suggestions_unavailable",
+          error: "Prompt suggestions are unavailable right now.",
+        }, 502);
+      }
     }
 
     if (action === "feedback") {

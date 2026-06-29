@@ -169,6 +169,67 @@ struct InsightChatTests {
         #expect(chips.contains("Which wing and pattern traits support this ID?"))
     }
 
+    @Test func testAISuggestionChipsReplaceFallbackAndUseCategories() {
+        let species = SpeciesData(
+            scanId: "chat_scan",
+            commonName: "Monarch",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "Orange wings with dark vein patterns.", hazardType: "none"),
+            confidenceScore: 0.72
+        )
+        let viewModel = InsightChatViewModel()
+        viewModel.suggestedPrompts = [
+            InsightChatPromptSuggestion(text: "Which milkweed clues matter here?", category: "ecology"),
+            InsightChatPromptSuggestion(text: "What wing detail should I check next?", category: "evidence"),
+            InsightChatPromptSuggestion(text: "Could this be Queen instead?", category: "lookalike_compare")
+        ]
+
+        let chips = viewModel.suggestionChips(for: species, timestamp: nil)
+
+        #expect(chips == [
+            "Which milkweed clues matter here?",
+            "What wing detail should I check next?",
+            "Could this be Queen instead?"
+        ])
+        #expect(viewModel.category(forPrompt: "What wing detail should I check next?") == "evidence")
+    }
+
+    @Test func testAISuggestionChipsFilterSentPromptsAndFillFromFallback() {
+        let species = SpeciesData(
+            scanId: "chat_scan",
+            commonName: "Monarch",
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "Orange wings with dark vein patterns.", hazardType: "none"),
+            confidenceScore: 0.72
+        )
+        let viewModel = InsightChatViewModel()
+        viewModel.suggestedPrompts = [
+            InsightChatPromptSuggestion(text: "Which milkweed clues matter here?", category: "ecology"),
+            InsightChatPromptSuggestion(text: "What wing detail should I check next?", category: "evidence")
+        ]
+        viewModel.messages = [
+            InsightChatMessage(
+                id: "msg1",
+                conversationId: "conv1",
+                scanId: "chat_scan",
+                role: .user,
+                text: "Which milkweed clues matter here?",
+                clientMessageId: nil,
+                model: nil,
+                isRefusal: false,
+                refusalReason: nil,
+                createdAt: Date()
+            )
+        ]
+
+        let chips = viewModel.suggestionChips(for: species, timestamp: nil)
+
+        #expect(chips.count == 3)
+        #expect(!chips.contains("Which milkweed clues matter here?"))
+        #expect(chips.first == "What wing detail should I check next?")
+        #expect(chips.contains("What makes this ID uncertain?"))
+    }
+
     @Test func testInsightChatDecodesSnakeCasePayloadAndDates() throws {
         let json = """
         {
@@ -276,6 +337,40 @@ struct InsightChatTests {
         #expect(summary.summaryText == "Observed near a wet meadow.")
     }
 
+    @Test func testPromptSuggestionResponseDecodes() throws {
+        let json = """
+        {
+          "data": {
+            "conversation_id": "conversation_1",
+            "prompts": [
+              {
+                "text": "Which leaf trait should I check?",
+                "category": "evidence"
+              },
+              {
+                "text": "Does this habitat fit?",
+                "category": "habitat"
+              },
+              {
+                "text": "What lookalike is closest?",
+                "category": "lookalike_compare"
+              }
+            ]
+          }
+        }
+        """
+
+        let response = try JSONDecoder().decode(
+            InsightChatPromptSuggestionsEnvelope.self,
+            from: Data(json.utf8)
+        ).data
+
+        #expect(response.conversationId == "conversation_1")
+        #expect(response.prompts.count == 3)
+        #expect(response.prompts[0].text == "Which leaf trait should I check?")
+        #expect(response.prompts[0].category == "evidence")
+    }
+
     @Test func testForbiddenChatErrorExplainsAccountOwnership() {
         let message = InsightChatViewModel.userFacingMessage(
             for: MerianError.httpError(statusCode: 403, message: #"{"error":"Forbidden"}"#)
@@ -297,5 +392,15 @@ struct InsightChatTests {
         #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
             MerianError.httpError(statusCode: 429, message: #"{"code":"daily_limit_reached"}"#)
         ))
+    }
+
+    @Test func testMarkUnavailableStoresScanScopedChatUnavailableState() {
+        let viewModel = InsightChatViewModel()
+
+        viewModel.markUnavailable(scanId: "scan_1")
+
+        #expect(viewModel.isUnavailable(for: "scan_1"))
+        #expect(!viewModel.isUnavailable(for: "scan_2"))
+        #expect(viewModel.errorMessage == "Field chat isn't available for this scan.")
     }
 }

@@ -262,3 +262,29 @@ export function buildUserPrompt(
     buildConversationHistory(messages)
   }\n\n[CURRENT USER QUESTION]\n${userMessage}`;
 }
+
+export function buildPromptSuggestionsPrompt(
+  messages: InsightChatMessageRow[],
+): string {
+  return `${buildConversationHistory(messages)}
+
+[PROMPT CHIP REQUEST]
+Generate three short, tappable follow-up questions for the user to ask next in
+Merian Field chat. Each prompt must be grounded in the saved scan context and
+recent conversation above. Make the prompts specific to this observation using
+distinctive observed traits, lookalikes/candidates, confidence uncertainty,
+hazard or invasive status, ecology/habitat, season/month, life stage,
+reproductive state, colors, field notes, or recent user questions when useful.
+
+Rules:
+- Return exactly three prompt objects.
+- Keep each prompt concise, ideally 55 characters or fewer.
+- Avoid repeating user questions already present in chat history.
+- Do not ask for edible certainty, medical/veterinary treatment, illegal
+  collection, pesticide/poison instructions, exact GPS/location details, or
+  human-subject identification.
+- Prefer natural follow-ups that would help a field observer learn what to
+  inspect next.
+- Use one category for each prompt: lookalike_compare, hazard, invasive,
+  evidence, habitat, season, confidence, ecology, field_notes, or generic.`;
+}

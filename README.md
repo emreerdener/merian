@@ -45,7 +45,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Diagnostic comparison: primary match rationale, confusing lookalike, and key visual differentiators.
 - New species discovery celebration banner.
 - Private field notes persist on `LocalScanRecord` / `OfflineQueuedScan` and can optionally be published to Explore posts.
-- Pro-only Field chat lets users ask saved follow-up questions from completed biological insights without resending raw images.
+- Pro-only Field chat lets users ask saved follow-up questions from completed biological insights without resending raw images, with AI-generated quick prompts grounded in the saved scan context.
 
 ### Explore
 - Public feed, following feed, trending, nearby, and map views backed by Supabase RPCs and Edge Functions.
@@ -104,7 +104,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Sign in with Apple / Google OAuth merges Ghost identity via `linkIdentityWithIdToken` or the `/merge-ghost-profile` Edge RPC.
 - RevenueCat webhook drives `free` ↔ `pro` tier updates while leaving existing scan media in place.
 - Free tier: 1 scan/day. Pro: unlimited scans, Gemini 2.5 Pro model, offline queue.
-- Pro follow-up chat is served by a Supabase Edge Function using Gemini 2.5 Flash against stored scan evidence only.
+- Pro follow-up chat is served by a Supabase Edge Function using Gemini 2.5 Flash against stored scan evidence only; the same function also generates short, scan-specific prompt chips from private text context.
 
 ### Evidence Retention
 - Biological scan media is durable regardless of subscription tier. Temporary staging, quarantine, and export objects still expire quickly, and non-biological scans are cleaned up after the retention window.

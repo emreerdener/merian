@@ -11,10 +11,12 @@ TestFlight, App Store, support, and QA.
 - Moved Add to collection into the Insight header menu below field notes, freeing the bottom toolbar for Chat.
 - Expanded Field chat's private scan context so answers can use review provenance, observed traits, ecology metadata, species group tags, and image/capture-quality signals without sending image data or public Explore content.
 - Improved Field chat recovery and trust cues with offline read-only messaging, in-thread failed-send retry/edit, safety guidance headers, answer actions, private answer feedback, and append-only field-notes handoff.
-- Added a subtle rainbow glow behind the Field chat toolbar button to make the AI entry point easier to notice without changing the native button style.
+- Added a subtle, steady rainbow glow behind the Field chat toolbar button to make the AI entry point easier to notice without moving or restyling the native button label.
 - Field notes cards now show up to 10 preview lines before truncating longer notes.
 - Field chat summaries now use human-readable observation labels instead of internal scan IDs.
 - Simplified Field chat answer actions to icon-only copy and inline feedback, with thread summaries and feature feedback in the sheet options menu.
+- Field chat quick prompts now refresh with AI-generated, scan-specific follow-up ideas based on the saved observation and recent chat.
+- Field chat now checks scan availability before opening so scans owned by another signed-in account are hidden with a clear unavailable toast instead of launching into a 403 error.
 
 ### Image Viewer & Reference Gallery
 - Added a full-screen Insight image viewer so tapping a scan image opens a fit-centered, swipeable carousel with zoom and reference attribution.

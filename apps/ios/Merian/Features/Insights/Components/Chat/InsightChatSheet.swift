@@ -303,7 +303,7 @@ struct InsightChatSheet: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !viewModel.isOffline && !viewModel.isSending && viewModel.pendingUserMessage == nil && !chips.isEmpty && viewModel.draftText.isEmpty {
+            if (hasVisibleMessages || !viewModel.isOffline) && !viewModel.isSending && viewModel.pendingUserMessage == nil && !chips.isEmpty && viewModel.draftText.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(chips, id: \.self) { chip in
@@ -329,7 +329,7 @@ struct InsightChatSheet: View {
                                     .contentShape(Capsule(style: .continuous))
                             }
                             .buttonStyle(.plain)
-                            .disabled(viewModel.isSending)
+                            .disabled(viewModel.isSending || viewModel.isOffline)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -469,24 +469,12 @@ struct InsightChatSheet: View {
     private func trackPromptChip(_ prompt: String) {
         PostHogManager.shared.capture("InsightChatActionTapped", properties: [
             "action": "prompt_chip",
-            "prompt_category": promptCategory(prompt),
+            "prompt_category": viewModel.category(forPrompt: prompt),
             "scan_id": scanId,
             "message_id": "",
             "is_refusal": false,
             "has_lookalikes": InsightChatViewModel.hasLookalikeContext(speciesData)
         ])
-    }
-
-    private func promptCategory(_ prompt: String) -> String {
-        let normalized = prompt.lowercased()
-        if normalized.contains("tell it apart") { return "lookalike_compare" }
-        if normalized.contains("risk") { return "hazard" }
-        if normalized.contains("invasive") { return "invasive" }
-        if normalized.contains("traits support") { return "evidence" }
-        if normalized.contains("habitat") { return "habitat" }
-        if normalized.contains("typical in") { return "season" }
-        if normalized.contains("strong match") || normalized.contains("uncertain") { return "confidence" }
-        return "generic"
     }
 }
 
@@ -620,13 +608,12 @@ private struct InsightChatAnswerControls: View {
     let onNegativeFeedback: () -> Void
     let onCopy: () -> Void
 
+    @State private var copyConfirmationToken: UUID?
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 14) {
-                Button(action: onCopy) {
-                    Image(systemName: "doc.on.doc")
-                }
-                .accessibilityLabel("Copy answer")
+                copyControl
 
                 feedbackControls
             }
@@ -635,6 +622,32 @@ private struct InsightChatAnswerControls: View {
             .padding(.horizontal, 16)
         }
         .padding(.horizontal, -16)
+    }
+
+    private var copyControl: some View {
+        HStack(spacing: 8) {
+            Button {
+                showCopyConfirmation()
+                onCopy()
+            } label: {
+                Image(systemName: "doc.on.doc")
+            }
+            .accessibilityLabel("Copy answer")
+
+            if copyConfirmationToken != nil {
+                Text("Copied")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color(.secondarySystemBackground))
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    .accessibilityHidden(true)
+            }
+        }
     }
 
     @ViewBuilder
@@ -656,6 +669,21 @@ private struct InsightChatAnswerControls: View {
                     Image(systemName: "hand.thumbsdown")
                 }
                 .accessibilityLabel("Report answer")
+            }
+        }
+    }
+
+    private func showCopyConfirmation() {
+        let token = UUID()
+        withAnimation(.easeOut(duration: 0.16)) {
+            copyConfirmationToken = token
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            guard copyConfirmationToken == token else { return }
+            withAnimation(.easeOut(duration: 0.18)) {
+                copyConfirmationToken = nil
             }
         }
     }

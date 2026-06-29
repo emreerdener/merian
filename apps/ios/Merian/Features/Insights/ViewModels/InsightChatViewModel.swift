@@ -33,9 +33,12 @@ final class InsightChatViewModel {
     var isDeleting = false
     var isSubmittingFeedback = false
     var isSummarizingNotes = false
+    var isLoadingPrompts = false
+    var isCheckingAvailability = false
     var isOffline = false
     var conversationId: String?
     var unavailableScanId: String?
+    var suggestedPrompts: [InsightChatPromptSuggestion] = []
     var submittedFeedback: [String: InsightChatFeedbackRating] = [:]
     var notesSummaryDraft: String?
     var limits = InsightChatLimits(
@@ -48,6 +51,7 @@ final class InsightChatViewModel {
     @ObservationIgnored private let monitor = NWPathMonitor()
     @ObservationIgnored private let monitorQueue = DispatchQueue(label: "com.merian.insight-chat.network")
     @ObservationIgnored private var loadedScanId: String?
+    @ObservationIgnored private var promptRequestGeneration = 0
 
     init() {
         monitor.pathUpdateHandler = { [weak self] path in
@@ -85,13 +89,53 @@ final class InsightChatViewModel {
         return unavailableScanId == scanId
     }
 
+    func prepareForPresentation(scanId: String) async -> Bool {
+        guard !isUnavailable(for: scanId) else {
+            errorMessage = "Field chat isn't available for this scan."
+            return false
+        }
+        guard !isOffline else {
+            errorMessage = "Connect to use Field chat."
+            return false
+        }
+        guard !isCheckingAvailability else { return false }
+
+        isCheckingAvailability = true
+        defer { isCheckingAvailability = false }
+
+        do {
+            let status = try await MerianNetworkClient.shared.checkScanStatus(scanId: scanId)
+            guard status == "found" else {
+                markUnavailable(
+                    scanId: scanId,
+                    message: "Field chat isn't available for this scan."
+                )
+                return false
+            }
+            errorMessage = nil
+            unavailableScanId = nil
+            return true
+        } catch {
+            handle(error, scanId: scanId)
+            return false
+        }
+    }
+
+    func markUnavailable(scanId: String, message: String? = nil) {
+        unavailableScanId = scanId
+        errorMessage = message ?? "Field chat isn't available for this scan."
+    }
+
     func loadIfNeeded(scanId: String, isProActive: Bool) async {
         guard isProActive else {
             clearLoadedState()
             return
         }
 
-        guard loadedScanId != scanId else { return }
+        guard loadedScanId != scanId else {
+            refreshPromptSuggestionsAfterStateChange(scanId: scanId, force: false)
+            return
+        }
         loadedScanId = scanId
         await load(scanId: scanId)
     }
@@ -109,6 +153,7 @@ final class InsightChatViewModel {
 
         do {
             apply(try await MerianNetworkClient.shared.loadInsightChat(scanId: scanId))
+            refreshPromptSuggestionsAfterStateChange(scanId: scanId, force: false)
         } catch {
             loadedScanId = nil
             handle(error, scanId: scanId)
@@ -146,6 +191,7 @@ final class InsightChatViewModel {
                 clientMessageId: clientMessageId
             ))
             isSending = false
+            refreshPromptSuggestionsAfterStateChange(scanId: scanId, force: true)
             HapticManager.shared.triggerSuccessPulse()
         } catch {
             handle(error, scanId: scanId, playHaptic: true)
@@ -259,15 +305,28 @@ final class InsightChatViewModel {
         timestamp: Date?,
         displayName: String? = nil
     ) -> [String] {
-        let allChips = Self.suggestionChips(
+        let fallbackChips = Self.suggestionChips(
             for: speciesData,
             timestamp: timestamp,
             displayName: displayName
         )
         let sentTexts = Set(sentAndPendingPromptTexts)
-        return allChips.filter { chip in
-            !sentTexts.contains(chip.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        var seen = Set<String>()
+        var chips: [String] = []
+
+        for prompt in suggestedPrompts.map(\.text) + fallbackChips {
+            let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            let key = trimmed.lowercased()
+            guard !trimmed.isEmpty,
+                  !sentTexts.contains(key),
+                  seen.insert(key).inserted else {
+                continue
+            }
+            chips.append(trimmed)
+            if chips.count == 3 { break }
         }
+
+        return chips
     }
 
     var sentAndPendingPromptTexts: [String] {
@@ -332,6 +391,16 @@ final class InsightChatViewModel {
         comparisonPromptName(for: speciesData) != nil
     }
 
+    func category(forPrompt prompt: String) -> String {
+        let key = prompt.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let suggestedPrompt = suggestedPrompts.first(where: {
+            $0.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == key
+        }) {
+            return suggestedPrompt.category
+        }
+        return Self.localPromptCategory(for: prompt)
+    }
+
     static func shouldOfferConfidenceReview(for speciesData: SpeciesData) -> Bool {
         let bands = MerianConfig.confidenceBands(forInferenceTier: speciesData.inferenceTier)
         return speciesData.confidenceScore < bands.strong || hasLookalikeContext(speciesData)
@@ -355,6 +424,44 @@ final class InsightChatViewModel {
         unavailableScanId = nil
         submittedFeedback = [:]
         notesSummaryDraft = nil
+        suggestedPrompts = []
+        isLoadingPrompts = false
+    }
+
+    private func refreshPromptSuggestionsAfterStateChange(
+        scanId: String,
+        force: Bool
+    ) {
+        guard !isOffline, unavailableScanId != scanId else {
+            return
+        }
+        if isLoadingPrompts && !force { return }
+
+        Task { [weak self] in
+            await self?.refreshPromptSuggestions(scanId: scanId)
+        }
+    }
+
+    private func refreshPromptSuggestions(scanId: String) async {
+        guard !isOffline else { return }
+
+        promptRequestGeneration += 1
+        let requestGeneration = promptRequestGeneration
+        isLoadingPrompts = true
+        defer {
+            if promptRequestGeneration == requestGeneration {
+                isLoadingPrompts = false
+            }
+        }
+
+        do {
+            let response = try await MerianNetworkClient.shared.suggestInsightChatPrompts(scanId: scanId)
+            guard promptRequestGeneration == requestGeneration else { return }
+            suggestedPrompts = response.prompts
+        } catch {
+            guard promptRequestGeneration == requestGeneration else { return }
+            suggestedPrompts = []
+        }
     }
 
     private func handle(_ error: Error, scanId: String, playHaptic: Bool = false) {
@@ -503,6 +610,20 @@ final class InsightChatViewModel {
         default:
             return matchedLabels.prefix(2).joined(separator: " and ")
         }
+    }
+
+    private static func localPromptCategory(for prompt: String) -> String {
+        let normalized = prompt.lowercased()
+        if normalized.contains("tell it apart") { return "lookalike_compare" }
+        if normalized.contains("risk") { return "hazard" }
+        if normalized.contains("invasive") { return "invasive" }
+        if normalized.contains("traits support") { return "evidence" }
+        if normalized.contains("habitat") { return "habitat" }
+        if normalized.contains("typical in") { return "season" }
+        if normalized.contains("strong match") || normalized.contains("uncertain") {
+            return "confidence"
+        }
+        return "generic"
     }
 
     private static func uniquePrompts(_ prompts: [String]) -> [String] {

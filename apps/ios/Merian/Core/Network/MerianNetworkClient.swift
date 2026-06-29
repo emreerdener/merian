@@ -2255,6 +2255,20 @@ final class MerianNetworkClient {
         return try JSONDecoder().decode(InsightChatSummaryEnvelope.self, from: data).data
     }
 
+    func suggestInsightChatPrompts(scanId: String) async throws -> InsightChatPromptSuggestionsResponse {
+        let body = InsightChatRequestBody(
+            action: "suggest_prompts",
+            scanId: scanId,
+            messageText: nil,
+            clientMessageId: nil,
+            messageId: nil,
+            feedbackRating: nil,
+            feedbackNote: nil
+        )
+        let data = try await performInsightChatRequest(body, timeoutInterval: 30.0)
+        return try JSONDecoder().decode(InsightChatPromptSuggestionsEnvelope.self, from: data).data
+    }
+
     private func performInsightChatRequest(
         _ body: InsightChatRequestBody,
         timeoutInterval: TimeInterval = 20.0

@@ -3110,7 +3110,18 @@ Feedback and field-notes summary actions use the same endpoint:
 }
 ```
 
-`action` accepts `load`, `send`, `delete`, `feedback`, or `summarize_notes`.
+AI-generated quick prompts use the same endpoint and never include user draft
+text:
+
+```json
+{
+  "action": "suggest_prompts",
+  "scan_id": "A1B2C3D4-..."
+}
+```
+
+`action` accepts `load`, `send`, `delete`, `feedback`, `summarize_notes`, or
+`suggest_prompts`.
 `load` returns the single saved conversation for the scan when one exists.
 `send` creates that conversation when missing, requires `message_text`, and may
 include `client_message_id` for idempotency. `delete` clears the scan's saved
@@ -3119,9 +3130,13 @@ chat. `feedback` stores private owner-only answer feedback for an assistant
 `unsafe`, `other`) and optional `feedback_note`. `summarize_notes` returns a
 reviewable field-notes draft from the current saved chat and scan context; the
 client must append it only after user confirmation and must never replace
-existing field notes. The server caps v1 at 600 characters per user message, 30
-total messages per conversation, and 20 sends per Pro user per day across all of
-that user's Insight chats. Effective Pro includes active trial users.
+existing field notes. `suggest_prompts` returns three short, non-persisted prompt
+chip suggestions plus allowlisted categories for telemetry; it uses the same
+owned scan context and recent saved chat history, does not consume the daily send
+limit, and is best-effort so load/send chat behavior remains independent if
+prompt generation fails. The server caps v1 at 600 characters per user message,
+30 total messages per conversation, and 20 sends per Pro user per day across all
+of that user's Insight chats. Effective Pro includes active trial users.
 
 ### Prompt and Privacy Boundary
 
@@ -3142,6 +3157,13 @@ The Gemini request uses `gemini-2.5-flash` with a stable prompt prefix,
 `maxOutputTokens: 700`, no streaming, no Google Search grounding, and thinking
 disabled. Assistant messages store model/token telemetry, including cached tokens
 when Gemini reports implicit cache hits.
+
+Prompt suggestions are generated with the same text-only privacy boundary. The
+model must return exactly three short prompt strings with safe categories such as
+`evidence`, `lookalike_compare`, `habitat`, `season`, `hazard`, `invasive`,
+`confidence`, `field_notes`, or `generic`. The guardrail prompt forbids edible
+certainty, medical/veterinary treatment, illegal collection, pesticide/poison
+instructions, exact-location requests, and human-subject identification.
 
 ### Response Payload
 
@@ -3173,6 +3195,30 @@ when Gemini reports implicit cache hits.
       "daily_send_limit": 20,
       "sends_remaining_today": 19
     }
+  }
+}
+```
+
+For `suggest_prompts`:
+
+```json
+{
+  "data": {
+    "conversation_id": "22222222-2222-4222-8222-222222222222",
+    "prompts": [
+      {
+        "text": "Which leaf detail should I check next?",
+        "category": "evidence"
+      },
+      {
+        "text": "Could this be a lookalike?",
+        "category": "lookalike_compare"
+      },
+      {
+        "text": "Does this habitat fit?",
+        "category": "habitat"
+      }
+    ]
   }
 }
 ```

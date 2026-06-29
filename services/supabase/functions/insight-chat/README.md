@@ -7,12 +7,18 @@ Private Pro follow-up chat for completed biological Insight sheets.
 The function accepts authenticated POST requests with:
 
 - `action: "load" | "send" | "delete"`
+- `action: "feedback" | "summarize_notes" | "suggest_prompts"` for answer
+  feedback, field-note drafts, and AI-generated quick prompts
 - `scan_id`: owned `public.scans.id`
 - `message_text`: required for `send`, capped at 600 characters
 - `client_message_id`: optional UUID for idempotent sends
 
 Responses return `data.conversation_id`, ordered `data.messages`, and
 `data.limits`. Each scan has at most one saved chat conversation per user.
+`suggest_prompts` returns `data.prompts`, three non-persisted prompt chip
+suggestions with allowlisted telemetry categories. Prompt generation is
+best-effort and independent from `load` / `send`; iOS falls back to local
+deterministic chips if this action fails.
 
 ## Privacy
 
@@ -34,6 +40,13 @@ public post metadata, or Darwin Core export payloads to the prompt.
   Search grounding, and thinking disabled.
 - Each scan has one saved conversation per user, capped at 30 messages. All
   Insight chat sends share the 20 sends per Pro user per day limit.
+- Quick prompt suggestions are generated asynchronously from saved text context
+  and recent chat history, then regenerated after successful chat turns. Prompt
+  generation does not consume the user send limit and falls back to local iOS
+  suggestions if unavailable. Generated prompt text should stay short enough for
+  chips and must avoid edible certainty, medical/veterinary treatment, illegal
+  collection, pesticide/poison instructions, exact-location requests, and
+  human-subject identification.
 
 ## Safety
 

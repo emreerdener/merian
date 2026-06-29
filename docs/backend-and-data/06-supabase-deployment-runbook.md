@@ -181,5 +181,5 @@ After deployment:
   `view = coverage` and returns the Birds coverage target quickly.
 - Confirm `sync-community-taxonomy-index` accepts a tiny `dry_run = true` Birds
   request without advancing `taxonomy_coverage_targets.next_import_offset`.
-- Smoke-test `/insight-chat` with `action: "load"` against an owned completed
-  biological scan.
+- Smoke-test `/insight-chat` with `action: "load"` and `action:
+  "suggest_prompts"` against an owned completed biological scan.
