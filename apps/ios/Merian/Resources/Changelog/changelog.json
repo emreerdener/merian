@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-29-species-seasonality-heatmap",
+      "date": "2026-06-29",
+      "title": "Species seasonality heatmap",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Species seasonality charts now use one unified month heatmap with represented totals, peak month detail, and a clearer unavailable state while buckets refresh."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-26-insight-chat",
       "date": "2026-06-26",
       "title": "Pro Insight chat",

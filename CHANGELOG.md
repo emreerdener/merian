@@ -103,6 +103,7 @@ TestFlight, App Store, support, and QA.
 - Updated the Explore Dictionary Tree zoom and locate controls with liquid-glass circular button chrome.
 - Fixed the Explore Dictionary Recently Added row so its species count reflects the newest entries instead of duplicating the full All total.
 - Fixed Species Dictionary catalog and overview surfaces so non-biological encyclopedia rows are filtered out before they can appear as dictionary records.
+- Replaced species seasonality line charts with a unified month heatmap that shows represented totals, peak month detail, and a clearer unavailable state while buckets refresh.
 - Fixed similar species so lookalike suggestions load reliably in insight sheets.
 - Species dictionary galleries now admit more published Merian photos by lowering the Merian reference-image quality gate while keeping the species confidence gate in place.
 - Explore Dictionary now uses already-granted location access to improve the Your Region category, while falling back to the device locale without showing a Dictionary-specific permission prompt.

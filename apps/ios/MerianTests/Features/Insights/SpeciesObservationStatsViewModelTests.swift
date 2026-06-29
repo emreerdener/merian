@@ -128,6 +128,124 @@ struct SpeciesObservationStatsViewModelTests {
         #expect(SpeciesObservationStatsReducer.emptyHistoryCounts(now: date(year: 2026, month: 5, day: 17)).count == 77)
     }
 
+    @Test func testSeasonalityHeatmapDerivesSparseAvailableMonths() {
+        let model = SpeciesSeasonalityHeatmapModel.make(
+            localValues: monthCounts([5: 1]),
+            localTotal: 1,
+            publicValues: nil,
+            publicTotal: nil
+        )
+
+        #expect(model.hasContent)
+        #expect(model.total == 1)
+        #expect(model.cells.first(where: { $0.month == 5 })?.count == 1)
+        #expect(model.cells.first(where: { $0.month == 5 })?.intensity == 1)
+        #expect(model.cells.first(where: { $0.month == 4 })?.count == 0)
+        #expect(model.totalLine == "1 observation")
+        #expect(model.detailLine == "Peak May: 1 observation")
+    }
+
+    @Test func testSeasonalityHeatmapFadesAroundObservedMonths() {
+        let model = SpeciesSeasonalityHeatmapModel.make(
+            localValues: monthCounts([3: 1]),
+            localTotal: 1,
+            publicValues: nil,
+            publicTotal: nil
+        )
+
+        #expect(model.cells.first(where: { $0.month == 3 })?.intensity == 1)
+        #expect(model.cells.first(where: { $0.month == 3 })?.displayIntensity == 1)
+        #expect(model.cells.first(where: { $0.month == 2 })?.count == 0)
+        #expect(model.cells.first(where: { $0.month == 2 })?.displayIntensity == 0.42)
+        #expect(model.cells.first(where: { $0.month == 1 })?.displayIntensity == 0.18)
+        #expect(model.cells.first(where: { $0.month == 12 })?.displayIntensity == 0)
+    }
+
+    @Test func testSeasonalityHeatmapFadeWrapsAcrossYearBoundary() {
+        let model = SpeciesSeasonalityHeatmapModel.make(
+            localValues: monthCounts([12: 1]),
+            localTotal: 1,
+            publicValues: nil,
+            publicTotal: nil
+        )
+
+        #expect(model.cells.first(where: { $0.month == 12 })?.displayIntensity == 1)
+        #expect(model.cells.first(where: { $0.month == 1 })?.displayIntensity == 0.42)
+        #expect(model.cells.first(where: { $0.month == 2 })?.displayIntensity == 0.18)
+    }
+
+    @Test func testSeasonalityHeatmapMarksMissingBucketsUnavailable() {
+        let model = SpeciesSeasonalityHeatmapModel.make(
+            localValues: SpeciesObservationStatsReducer.emptyMonthCounts(),
+            localTotal: 0,
+            publicValues: SpeciesObservationStatsReducer.emptyMonthCounts(),
+            publicTotal: 89
+        )
+
+        #expect(model.hasContent)
+        #expect(model.seasonalityUnavailable)
+        #expect(model.hasObservations == false)
+        #expect(model.detailLine == nil)
+    }
+
+    @Test func testSeasonalityHeatmapLabelsRepresentedTotalWhenBucketsAreMissing() {
+        let model = SpeciesSeasonalityHeatmapModel.make(
+            localValues: monthCounts([8: 1]),
+            localTotal: 1,
+            publicValues: SpeciesObservationStatsReducer.emptyMonthCounts(),
+            publicTotal: 462
+        )
+
+        #expect(model.seasonalityUnavailable)
+        #expect(model.total == 1)
+        #expect(model.totalLine == "1 observation represented")
+        #expect(model.detailLine == "Peak Aug: 1 observation")
+    }
+
+    @Test func testSeasonalityHeatmapCombinesAvailableSources() {
+        let localAvailable = SpeciesSeasonalityHeatmapModel.make(
+            localValues: monthCounts([4: 1]),
+            localTotal: 1,
+            publicValues: nil,
+            publicTotal: nil
+        )
+        let externalAvailable = SpeciesSeasonalityHeatmapModel.make(
+            localValues: SpeciesObservationStatsReducer.emptyMonthCounts(),
+            localTotal: 0,
+            publicValues: monthCounts([8: 12]),
+            publicTotal: 12
+        )
+        let combined = SpeciesSeasonalityHeatmapModel.make(
+            localValues: monthCounts([5: 1]),
+            localTotal: 1,
+            publicValues: monthCounts([5: 3, 6: 2]),
+            publicTotal: 5
+        )
+        let empty = SpeciesSeasonalityHeatmapModel.make(
+            localValues: SpeciesObservationStatsReducer.emptyMonthCounts(),
+            localTotal: 0,
+            publicValues: nil,
+            publicTotal: nil
+        )
+
+        #expect(localAvailable.cells.first(where: { $0.month == 4 })?.count == 1)
+        #expect(externalAvailable.total == 12)
+        #expect(externalAvailable.cells.first(where: { $0.month == 8 })?.count == 12)
+        #expect(combined.total == 6)
+        #expect(combined.cells.first(where: { $0.month == 5 })?.count == 4)
+        #expect(combined.cells.first(where: { $0.month == 6 })?.count == 2)
+        #expect(combined.cells.first(where: { $0.month == 4 })?.displayIntensity == 0.42)
+        #expect(combined.totalLine == "6 observations")
+        #expect(combined.detailLine == "Peak May: 4 observations")
+        #expect(empty.hasContent == false)
+    }
+
+    private func monthCounts(_ countsByMonth: [Int: Int]) -> [SpeciesObservationMonthCount] {
+        (1...12).map { month in
+            SpeciesObservationMonthCount(month: month, count: countsByMonth[month, default: 0])
+        }
+    }
+
     private func date(year: Int, month: Int, day: Int) -> Date {
         var components = DateComponents()
         components.calendar = Calendar(identifier: .gregorian)

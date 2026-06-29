@@ -124,10 +124,6 @@ struct ExplorePostDetailView: View {
                                 .padding(.top, 14)
                                 .padding(.bottom, 12)
 
-                            hashtagRow
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 4)
-
                             VStack(spacing: 24) {
                                 ExplorePostDetailSpeciesSummary(
                                     scientificName: post.speciesScientificName,
@@ -140,6 +136,8 @@ struct ExplorePostDetailView: View {
                                         evaluateCommonNameScrollOffset(maxY: $0)
                                     }
                                 )
+
+                                hashtagRow
 
                                 toxicityBanner
 
@@ -481,7 +479,8 @@ struct ExplorePostDetailView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.vertical, 2)
+            .padding(.top, -8)
+            .padding(.bottom, 2)
         }
     }
 

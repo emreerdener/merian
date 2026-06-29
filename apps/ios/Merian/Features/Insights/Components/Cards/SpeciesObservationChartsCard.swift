@@ -35,7 +35,9 @@ struct SpeciesObservationChartsCard: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(accessibilitySummary)
 
-            footer
+            if selectedTab != .seasonality || viewModel.publicErrorMessage != nil {
+                footer
+            }
         }
         .card()
         .task(id: loadKey) {
@@ -51,11 +53,8 @@ struct SpeciesObservationChartsCard: View {
     private var chartContent: some View {
         switch selectedTab {
         case .seasonality:
-            monthChart(
-                points: normalizedMonthPoints([
-                    ("Local", viewModel.localStats.seasonality),
-                    ("Public", viewModel.publicStats?.seasonality ?? [])
-                ]),
+            seasonalityHeatmap(
+                model: seasonalityHeatmapModel,
                 emptyTitle: "No seasonal observations yet"
             )
         case .history:
@@ -74,6 +73,28 @@ struct SpeciesObservationChartsCard: View {
                 ),
                 emptyTitle: "No life-stage observations yet"
             )
+        }
+    }
+
+    private var seasonalityHeatmapModel: SpeciesSeasonalityHeatmapModel {
+        SpeciesSeasonalityHeatmapModel.make(
+            localValues: viewModel.localStats.seasonality,
+            localTotal: viewModel.localStats.totalObservations,
+            publicValues: viewModel.publicStats?.seasonality,
+            publicTotal: viewModel.publicStats?.totalObservations
+        )
+    }
+
+    private func seasonalityHeatmap(
+        model: SpeciesSeasonalityHeatmapModel,
+        emptyTitle: String
+    ) -> some View {
+        Group {
+            if model.hasContent {
+                SpeciesObservationSeasonalityHeatmapView(model: model)
+            } else {
+                emptyChartState(title: emptyTitle)
+            }
         }
     }
 
@@ -176,25 +197,35 @@ struct SpeciesObservationChartsCard: View {
     @ViewBuilder
     private var footer: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(summaryLine)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if selectedTab != .seasonality {
+                Text(summaryLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            if let rawCountLine {
+            if selectedTab != .seasonality,
+               let rawCountLine {
                 Text(rawCountLine)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let publicStats = viewModel.publicStats,
+            if selectedTab != .seasonality,
+               let publicStats = viewModel.publicStats,
                publicStats.status == .partial || publicStats.status == .stale {
-                Text(publicStats.status == .stale ? "Using cached public data." : "Some public annotation buckets are still refreshing.")
+                Text(
+                    publicStats.status == .stale
+                        ? "Using cached public data."
+                        : "Some public annotation buckets are still refreshing."
+                )
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             } else if viewModel.publicErrorMessage != nil {
-                Text("Public baseline unavailable; local observations are still shown.")
+                Text(selectedTab == .seasonality
+                    ? "Some observation data is unavailable; available months are still shown."
+                    : "Public baseline unavailable; local observations are still shown.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -210,7 +241,9 @@ struct SpeciesObservationChartsCard: View {
 
     private var emptyDetail: String {
         switch selectedTab {
-        case .seasonality, .history:
+        case .seasonality:
+            return "Observations will appear here as this species is recorded."
+        case .history:
             return "Local logs will appear here as this species is recorded."
         case .lifeStage:
             return "Merian shows local life stages when the log includes them and public iNaturalist annotations when available."
@@ -218,7 +251,17 @@ struct SpeciesObservationChartsCard: View {
     }
 
     private var accessibilitySummary: String {
-        [
+        if selectedTab == .seasonality {
+            return [
+                "Seasonality heatmap for \(scientificName).",
+                seasonalityHeatmapModel.accessibilitySummary,
+                rawCountLine
+            ]
+            .compactMap { $0 }
+            .joined(separator: " ")
+        }
+
+        return [
             "\(selectedTab.title) chart for \(scientificName).",
             summaryLine,
             rawCountLine
@@ -277,10 +320,7 @@ struct SpeciesObservationChartsCard: View {
     private var rawCountLine: String? {
         switch selectedTab {
         case .seasonality:
-            return joinedRawSummaries([
-                peakMonthSummary(name: "Local", values: viewModel.localStats.seasonality),
-                peakMonthSummary(name: "Public", values: viewModel.publicStats?.seasonality ?? [])
-            ])
+            return seasonalityHeatmapModel.detailLine
         case .history:
             return joinedRawSummaries([
                 peakHistorySummary(name: "Local", values: viewModel.localStats.history),
@@ -292,17 +332,6 @@ struct SpeciesObservationChartsCard: View {
                 topCategorySummary(name: "Public", series: viewModel.publicStats?.lifeStage ?? [])
             ])
         }
-    }
-
-    private func peakMonthSummary(
-        name: String,
-        values: [SpeciesObservationMonthCount]
-    ) -> String? {
-        guard let peak = values.max(by: { $0.count < $1.count }),
-              peak.hasObservations else {
-            return nil
-        }
-        return "\(name) peak \(Self.monthAbbreviation(for: peak.month)): \(peak.count.formatted())"
     }
 
     private func peakHistorySummary(
@@ -339,6 +368,275 @@ struct SpeciesObservationChartsCard: View {
         guard month >= 1 && month <= 12 else { return "" }
         return Calendar.current.shortMonthSymbols[month - 1]
     }
+}
+
+private struct SpeciesObservationSeasonalityHeatmapView: View {
+    let model: SpeciesSeasonalityHeatmapModel
+
+    var body: some View {
+        VStack(alignment: .center, spacing: 12) {
+            if model.seasonalityUnavailable && !model.hasObservations {
+                unavailableRow
+            } else {
+                monthGrid
+
+                legendRow
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private var legendRow: some View {
+        HStack(spacing: 6) {
+            Text("Less")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            ForEach(0..<4) { index in
+                let intensity = Double(index) / 3.0
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(color(intensity: intensity))
+                    .frame(width: 12, height: 12)
+            }
+
+            Text("More")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.top, 4)
+    }
+
+    private var monthGrid: some View {
+        VStack(spacing: 8) {
+            ForEach(0..<3) { rowIndex in
+                HStack(spacing: 8) {
+                    ForEach(0..<4) { colIndex in
+                        let index = rowIndex * 4 + colIndex
+                        if index < model.cells.count {
+                            let cell = model.cells[index]
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(color(intensity: cell.displayIntensity))
+                                .overlay {
+                                    ZStack {
+                                        if cell.hasObservations {
+                                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                .strokeBorder(color(intensity: 1), lineWidth: 1)
+                                                .opacity(0.28)
+                                        }
+
+                                        Text(Self.monthAbbreviation(for: cell.month))
+                                            .font(.caption.weight(.semibold))
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.8)
+                                            .foregroundStyle(cell.displayIntensity >= 0.55 ? .white : .secondary)
+                                            .padding(.horizontal, 4)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .accessibilityLabel(
+                                    "\(Self.monthAbbreviation(for: cell.month)) \(cell.count) observations"
+                                )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var unavailableRow: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(Color.secondary.opacity(0.12))
+            .overlay {
+                Text("Seasonality unavailable")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .padding(.horizontal, 8)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func color(intensity: Double) -> Color {
+        guard intensity > 0 else {
+            return Color.secondary.opacity(0.12)
+        }
+
+        return Color.green.opacity(0.18 + (0.82 * intensity))
+    }
+
+    private static func monthAbbreviation(for month: Int) -> String {
+        guard month >= 1 && month <= 12 else { return "" }
+        return Calendar.current.shortMonthSymbols[month - 1]
+    }
+}
+
+struct SpeciesSeasonalityHeatmapModel: Equatable, Sendable {
+    let cells: [SpeciesSeasonalityHeatmapCell]
+    let total: Int
+    let detailLine: String?
+    let seasonalityUnavailable: Bool
+
+    var totalLine: String? {
+        guard total.signum() == 1 else { return nil }
+        let label = Self.observationLabel(for: total)
+        return seasonalityUnavailable ? "\(label) represented" : label
+    }
+
+    var hasObservations: Bool {
+        cells.contains(where: \.hasObservations)
+    }
+
+    var hasContent: Bool {
+        hasObservations || seasonalityUnavailable
+    }
+
+    var accessibilitySummary: String {
+        if seasonalityUnavailable && !hasObservations {
+            return "Seasonality unavailable."
+        }
+
+        guard let peak = cells.max(by: { $0.count < $1.count }),
+              peak.hasObservations else {
+            return "No seasonal observations."
+        }
+
+        return [
+            "\(Self.observationLabel(for: total)) \(seasonalityUnavailable ? "represented;" : "total;")",
+            "peak \(Self.monthAbbreviation(for: peak.month)) \(peak.count.formatted())."
+        ]
+        .joined(separator: " ")
+    }
+
+    static func make(
+        localValues: [SpeciesObservationMonthCount],
+        localTotal: Int,
+        publicValues: [SpeciesObservationMonthCount]?,
+        publicTotal: Int?
+    ) -> SpeciesSeasonalityHeatmapModel {
+        let normalizedLocal = normalizedMonthValues(localValues)
+        let normalizedPublic = publicValues.map { normalizedMonthValues($0) }
+        let publicTotal = publicTotal ?? 0
+        let publicHasMonthlyCounts = normalizedPublic?.contains(where: \.hasObservations) == true
+        let publicSeasonalityUnavailable = publicTotal > 0 && publicHasMonthlyCounts == false
+
+        let combinedValues = combinedMonthValues(
+            localValues: normalizedLocal,
+            publicValues: publicSeasonalityUnavailable ? nil : normalizedPublic
+        )
+        let total = localTotal + (publicSeasonalityUnavailable ? 0 : publicTotal)
+        let maxCount = max(combinedValues.map(\.count).max() ?? 0, 1)
+        let rawIntensities = combinedValues.map { value in
+            Double(value.count) / Double(maxCount)
+        }
+        let displayIntensities = smoothedDisplayIntensities(rawIntensities)
+        let cells = combinedValues.enumerated().map { index, value in
+            SpeciesSeasonalityHeatmapCell(
+                month: value.month,
+                count: value.count,
+                intensity: rawIntensities[index],
+                displayIntensity: displayIntensities[index]
+            )
+        }
+
+        return SpeciesSeasonalityHeatmapModel(
+            cells: cells,
+            total: total,
+            detailLine: Self.detailLine(for: cells),
+            seasonalityUnavailable: publicSeasonalityUnavailable
+        )
+    }
+
+    private static func normalizedMonthValues(
+        _ values: [SpeciesObservationMonthCount]
+    ) -> [SpeciesObservationMonthCount] {
+        let countsByMonth = values.reduce(into: [Int: Int]()) { result, value in
+            result[value.month, default: 0] += value.count
+        }
+        return (1...12).map { month in
+            SpeciesObservationMonthCount(month: month, count: countsByMonth[month, default: 0])
+        }
+    }
+
+    private static func combinedMonthValues(
+        localValues: [SpeciesObservationMonthCount],
+        publicValues: [SpeciesObservationMonthCount]?
+    ) -> [SpeciesObservationMonthCount] {
+        let publicCountsByMonth = Dictionary(
+            uniqueKeysWithValues: (publicValues ?? []).map { ($0.month, $0.count) }
+        )
+        return localValues.map { value in
+            SpeciesObservationMonthCount(
+                month: value.month,
+                count: value.count + publicCountsByMonth[value.month, default: 0]
+            )
+        }
+    }
+
+    private static func detailLine(for cells: [SpeciesSeasonalityHeatmapCell]) -> String? {
+        guard let peak = cells.max(by: { $0.count < $1.count }),
+              peak.hasObservations else {
+            return nil
+        }
+
+        return "Peak \(Self.monthAbbreviation(for: peak.month)): \(Self.observationLabel(for: peak.count))"
+    }
+
+    private static func monthAbbreviation(for month: Int) -> String {
+        guard month >= 1 && month <= 12 else { return "" }
+        return Calendar.current.shortMonthSymbols[month - 1]
+    }
+
+    private static func smoothedDisplayIntensities(_ rawIntensities: [Double]) -> [Double] {
+        guard rawIntensities.count == 12,
+              rawIntensities.contains(where: { $0 > 0 }) else {
+            return rawIntensities
+        }
+
+        return rawIntensities.indices.map { index in
+            let neighborIntensity = rawIntensities.indices
+                .map { observedIndex -> Double in
+                    guard rawIntensities[observedIndex] > 0 else { return 0 }
+                    let distance = cyclicDistance(from: index, to: observedIndex, count: rawIntensities.count)
+                    return rawIntensities[observedIndex] * falloff(for: distance)
+                }
+                .max() ?? 0
+
+            return max(rawIntensities[index], neighborIntensity)
+        }
+    }
+
+    private static func cyclicDistance(from index: Int, to otherIndex: Int, count: Int) -> Int {
+        let distance = abs(index - otherIndex)
+        return min(distance, count - distance)
+    }
+
+    private static func falloff(for distance: Int) -> Double {
+        switch distance {
+        case 0:
+            return 1
+        case 1:
+            return 0.42
+        case 2:
+            return 0.18
+        default:
+            return 0
+        }
+    }
+
+    private static func observationLabel(for count: Int) -> String {
+        "\(count.formatted()) \(count == 1 ? "observation" : "observations")"
+    }
+}
+
+struct SpeciesSeasonalityHeatmapCell: Equatable, Identifiable, Sendable {
+    let month: Int
+    let count: Int
+    let intensity: Double
+    let displayIntensity: Double
+
+    var id: Int { month }
+    var hasObservations: Bool { count.signum() == 1 }
 }
 
 private enum SpeciesObservationChartTab: String, CaseIterable, Identifiable {
@@ -387,3 +685,65 @@ private extension String {
         return trimmed
     }
 }
+
+#if DEBUG
+#Preview("Seasonality - combined") {
+    SpeciesObservationSeasonalityHeatmapView(
+        model: .make(
+            localValues: [
+                SpeciesObservationMonthCount(month: 4, count: 1),
+                SpeciesObservationMonthCount(month: 5, count: 1)
+            ],
+            localTotal: 2,
+            publicValues: [
+                SpeciesObservationMonthCount(month: 4, count: 39),
+                SpeciesObservationMonthCount(month: 5, count: 50)
+            ],
+            publicTotal: 89
+        )
+    )
+    .padding()
+}
+
+#Preview("Seasonality - partial data") {
+    SpeciesObservationSeasonalityHeatmapView(
+        model: .make(
+            localValues: [
+                SpeciesObservationMonthCount(month: 5, count: 1)
+            ],
+            localTotal: 1,
+            publicValues: SpeciesObservationStatsReducer.emptyMonthCounts(),
+            publicTotal: 89
+        )
+    )
+    .padding()
+}
+
+#Preview("Seasonality - observations") {
+    SpeciesObservationSeasonalityHeatmapView(
+        model: .make(
+            localValues: SpeciesObservationStatsReducer.emptyMonthCounts(),
+            localTotal: 0,
+            publicValues: [
+                SpeciesObservationMonthCount(month: 7, count: 12),
+                SpeciesObservationMonthCount(month: 8, count: 28),
+                SpeciesObservationMonthCount(month: 9, count: 16)
+            ],
+            publicTotal: 56
+        )
+    )
+    .padding()
+}
+
+#Preview("Seasonality - empty") {
+    SpeciesObservationSeasonalityHeatmapView(
+        model: .make(
+            localValues: SpeciesObservationStatsReducer.emptyMonthCounts(),
+            localTotal: 0,
+            publicValues: nil,
+            publicTotal: nil
+        )
+    )
+    .padding()
+}
+#endif

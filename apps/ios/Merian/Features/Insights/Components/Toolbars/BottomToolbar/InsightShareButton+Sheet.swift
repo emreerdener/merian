@@ -369,7 +369,7 @@ extension InsightShareButton {
             .font(.subheadline.weight(.semibold))
             .padding(.horizontal, 12)
             .padding(.vertical, 11)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 46, maxHeight: 46)
             .background(
                 Capsule(style: .continuous)
                     .fill(secondaryActionFillColor(isProminent: isProminent, systemImage: systemImage))
