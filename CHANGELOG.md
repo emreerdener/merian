@@ -58,6 +58,7 @@ TestFlight, App Store, support, and QA.
 - Reordered Profile so identity and stats lead the page, followed by published scans, the non-Pro plan card, persona progress, the scan heatmap, and achievements.
 
 ### Explore Feed & Map Refinements
+- Updated Explore post sharing copy so shared links introduce the Merian public web preview more clearly.
 - Added dynamic species-type filters to Explore Map, with horizontal filter pills, a detailed filter sheet, and backend-backed category counts for the current map region.
 - Fixed Explore feed hashtag rows so long hashtag sets can scroll edge to edge without being clipped by card padding.
 - Fixed the Explore edit-post sheet so the Save footer stays compact instead of expanding up the screen.

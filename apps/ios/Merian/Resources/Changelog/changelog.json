@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-29-explore-web-sharing",
+      "date": "2026-06-29",
+      "title": "Explore web sharing",
+      "sections": [
+        {
+          "title": "Changed",
+          "items": [
+            "Explore post shares now use clearer Merian copy before the public web preview link."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-29-species-seasonality-heatmap",
       "date": "2026-06-29",
       "title": "Species seasonality heatmap",

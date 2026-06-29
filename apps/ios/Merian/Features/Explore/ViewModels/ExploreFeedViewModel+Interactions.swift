@@ -94,7 +94,7 @@ extension ExploreFeedViewModel {
     }
 
     func share(_ post: ExplorePost) {
-        var shareText = resolvedSpeciesCommonName(for: post)
+        var shareText = "Check out this Merian Explore post: \(resolvedSpeciesCommonName(for: post))"
         if !post.speciesScientificName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             shareText += " (\(post.speciesScientificName))"
         }

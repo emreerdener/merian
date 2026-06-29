@@ -7,10 +7,15 @@ type ExplorePostRow = {
   shared_at: string;
   author_user_id: string;
   author_name: string;
+  author_username?: string | null;
   author_avatar_url?: string | null;
+  author_is_pro?: boolean | null;
+  hashtags?: string[] | null;
   species_common_name: string;
   species_scientific_name: string;
+  pet_identification?: unknown;
   public_location_label?: string | null;
+  location_sharing?: "open" | "obscured" | "private" | null;
   time_of_day?: string | null;
   current_month?: number | null;
   weather_condition?: string | null;
@@ -19,6 +24,29 @@ type ExplorePostRow = {
   comment_count: number;
   viewer_has_liked: boolean;
   is_owned_by_viewer: boolean;
+};
+
+type ExplorePostDetailRow = {
+  post_id: string;
+  field_notes?: string | null;
+  location_sharing?: "open" | "obscured" | "private" | null;
+  hashtags?: string[] | null;
+  species_dictionary_id?: string | null;
+  alternative_common_names?: string[] | null;
+  taxonomy_kingdom?: string | null;
+  taxonomy_phylum?: string | null;
+  taxonomy_class?: string | null;
+  taxonomy_order?: string | null;
+  taxonomy_family?: string | null;
+  taxonomy_genus?: string | null;
+  ai_reasoning?: string | null;
+  habitat_description?: string | null;
+  gbif_taxon_key?: number | null;
+  iucn_red_list_status?: string | null;
+  hazard_type?: string | null;
+  wikipedia_url?: string | null;
+  reference_image_url?: string | null;
+  wikipedia_overview?: string | null;
 };
 
 const stateCodeToName: Record<string, string> = {
@@ -96,10 +124,14 @@ export type ExplorePost = {
   sharedAt: string;
   authorUserId: string;
   authorName: string;
+  authorUsername?: string | null;
   authorAvatarUrl?: string | null;
+  authorIsPro: boolean;
+  hashtags: string[];
   speciesCommonName: string;
   speciesScientificName: string;
   publicLocationLabel?: string | null;
+  locationSharing?: "open" | "obscured" | "private" | null;
   timeOfDay?: string | null;
   currentMonth?: number | null;
   weatherCondition?: string | null;
@@ -108,6 +140,34 @@ export type ExplorePost = {
   commentCount: number;
   viewerHasLiked: boolean;
   isOwnedByViewer: boolean;
+};
+
+export type ExploreReferenceImage = {
+  url: string;
+  source: "Merian" | "Wikipedia" | "GBIF";
+};
+
+export type ExplorePostDetail = {
+  postId: string;
+  fieldNotes?: string | null;
+  locationSharing?: "open" | "obscured" | "private" | null;
+  hashtags: string[];
+  speciesDictionaryId?: string | null;
+  alternativeCommonNames: string[];
+  taxonomy: Array<{ label: string; value: string }>;
+  aiReasoning?: string | null;
+  habitatDescription?: string | null;
+  gbifTaxonKey?: number | null;
+  iucnRedListStatus?: string | null;
+  hazardType?: string | null;
+  wikipediaUrl?: string | null;
+  referenceImages: ExploreReferenceImage[];
+  wikipediaOverview?: string | null;
+};
+
+export type ExplorePostPageData = {
+  post: ExplorePost;
+  detail: ExplorePostDetail | null;
 };
 
 function containsCoordinatePair(value: string) {
@@ -274,6 +334,87 @@ function publicDisplayLocationLabel(location?: string | null) {
   return isSafeCityPart(state) ? state : null;
 }
 
+function trimmedString(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizedStringList(values?: string[] | null) {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const value of values ?? []) {
+    const trimmed = trimmedString(value);
+    if (!trimmed || seen.has(trimmed.toLowerCase())) {
+      continue;
+    }
+
+    seen.add(trimmed.toLowerCase());
+    normalized.push(trimmed);
+  }
+
+  return normalized;
+}
+
+function referenceImageSource(urlString: string, index: number, wikipediaUrl?: string | null): ExploreReferenceImage["source"] {
+  let host = "";
+  try {
+    host = new URL(urlString).host.toLowerCase();
+  } catch {
+    return "GBIF";
+  }
+
+  if (host === "media.merian.app" || host.endsWith(".merian.app")) {
+    return "Merian";
+  }
+
+  if (host.includes("wikipedia") || host.includes("wikimedia")) {
+    return "Wikipedia";
+  }
+
+  if (index === 0 && trimmedString(wikipediaUrl)) {
+    return "Wikipedia";
+  }
+
+  return "GBIF";
+}
+
+function referenceImagesFrom(value?: string | null, wikipediaUrl?: string | null) {
+  const seen = new Set<string>();
+  const urls = (value ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return urls.flatMap((url, index) => {
+    if (seen.has(url)) {
+      return [];
+    }
+
+    seen.add(url);
+    return [{
+      url,
+      source: referenceImageSource(url, index, wikipediaUrl),
+    }];
+  });
+}
+
+function taxonomyRows(row: ExplorePostDetailRow) {
+  const values: Array<[string, string | null | undefined]> = [
+    ["Kingdom", row.taxonomy_kingdom],
+    ["Phylum", row.taxonomy_phylum],
+    ["Class", row.taxonomy_class],
+    ["Order", row.taxonomy_order],
+    ["Family", row.taxonomy_family],
+    ["Genus", row.taxonomy_genus],
+  ];
+
+  return values.flatMap(([label, value]) => {
+    const trimmed = trimmedString(value);
+    return trimmed ? [{ label, value: trimmed }] : [];
+  });
+}
+
 function mapExplorePost(row: ExplorePostRow): ExplorePost {
   return {
     postId: row.post_id,
@@ -282,10 +423,14 @@ function mapExplorePost(row: ExplorePostRow): ExplorePost {
     sharedAt: row.shared_at,
     authorUserId: row.author_user_id,
     authorName: row.author_name,
+    authorUsername: row.author_username,
     authorAvatarUrl: row.author_avatar_url,
+    authorIsPro: row.author_is_pro === true,
+    hashtags: normalizedStringList(row.hashtags),
     speciesCommonName: row.species_common_name,
     speciesScientificName: row.species_scientific_name,
     publicLocationLabel: publicDisplayLocationLabel(row.public_location_label),
+    locationSharing: row.location_sharing,
     timeOfDay: row.time_of_day,
     currentMonth: row.current_month,
     weatherCondition: row.weather_condition,
@@ -295,6 +440,54 @@ function mapExplorePost(row: ExplorePostRow): ExplorePost {
     viewerHasLiked: row.viewer_has_liked,
     isOwnedByViewer: row.is_owned_by_viewer,
   };
+}
+
+function mapExplorePostDetail(row: ExplorePostDetailRow): ExplorePostDetail {
+  return {
+    postId: row.post_id,
+    fieldNotes: trimmedString(row.field_notes),
+    locationSharing: row.location_sharing,
+    hashtags: normalizedStringList(row.hashtags),
+    speciesDictionaryId: row.species_dictionary_id,
+    alternativeCommonNames: normalizedStringList(row.alternative_common_names),
+    taxonomy: taxonomyRows(row),
+    aiReasoning: trimmedString(row.ai_reasoning),
+    habitatDescription: trimmedString(row.habitat_description),
+    gbifTaxonKey: row.gbif_taxon_key,
+    iucnRedListStatus: trimmedString(row.iucn_red_list_status),
+    hazardType: trimmedString(row.hazard_type),
+    wikipediaUrl: trimmedString(row.wikipedia_url),
+    referenceImages: referenceImagesFrom(
+      row.reference_image_url,
+      row.wikipedia_url,
+    ),
+    wikipediaOverview: trimmedString(row.wikipedia_overview),
+  };
+}
+
+async function fetchExplorePostDetail(
+  postId: string,
+): Promise<ExplorePostDetail | null> {
+  const supabase = createServerSupabaseClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const publicViewerId = process.env.SUPABASE_PUBLIC_VIEWER_ID ?? null;
+  const { data, error } = await supabase.rpc("get_explore_post_detail", {
+    self_id: publicViewerId,
+    target_post_id: postId,
+  });
+
+  if (error) {
+    throw new Error(`Failed to fetch Explore post detail: ${error.message}`);
+  }
+
+  const rows = (data ?? []) as ExplorePostDetailRow[];
+  const detail = rows[0];
+
+  return detail ? mapExplorePostDetail(detail) : null;
 }
 
 export async function fetchExplorePost(
@@ -320,4 +513,26 @@ export async function fetchExplorePost(
   const post = rows[0];
 
   return post ? mapExplorePost(post) : null;
+}
+
+export async function fetchExplorePostPage(
+  postId: string,
+): Promise<ExplorePostPageData | null> {
+  const post = await fetchExplorePost(postId);
+
+  if (!post) {
+    return null;
+  }
+
+  let detail: ExplorePostDetail | null = null;
+  try {
+    detail = await fetchExplorePostDetail(postId);
+  } catch (error) {
+    console.warn("explore_post_detail_fetch_failed", {
+      post_id: postId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return { post, detail };
 }

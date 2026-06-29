@@ -22,7 +22,11 @@ This URL is the long-term share target for Explore posts. It should render a use
 - Web page audience: anonymous recipients of shared Explore posts.
 - Metadata audience: iMessage, social crawlers, link unfurlers, and search previews.
 
-The public web page is not the full Explore product yet. It is a public detail surface for one post, with enough context to understand what was shared and a clean path back into the app.
+The public web page is not the full Explore product yet. It is a rich read-only
+detail surface for one post, with enough context to understand what was shared
+and a clean path back into the app. Anonymous web visitors can view the post and
+comment count, but they cannot like, comment, reply, follow, report, or edit on
+the web surface.
 
 ## Data Flow
 
@@ -38,9 +42,13 @@ The public web page is not the full Explore product yet. It is a public detail s
    }
    ```
 
-5. The server maps the RPC row into the `ExplorePost` page model.
-6. `generateMetadata(...)` emits canonical, Open Graph, and Twitter metadata using the post title and hero image.
-7. The page renders the public post with Mantine components.
+5. The page calls `get_explore_post_detail` with the same viewer id and post id
+   to hydrate public field notes, hashtags, reference images, overview,
+   conservation status, taxonomy labels, and alternate names.
+6. The server maps those RPC rows into the `ExplorePost` page model.
+7. `generateMetadata(...)` emits canonical, Open Graph, and Twitter metadata using the post title and hero image.
+8. The page renders the public post with default Mantine components and props,
+   without route-specific CSS classes or custom page chrome.
 
 If the RPC returns no visible row, the route returns a not-found page and marks metadata as non-indexable.
 
@@ -77,6 +85,10 @@ The web page may render only data already intended for the public Explore projec
 - public author display name/avatar, plus canonical username handle only if the
   public projection supplies it
 - public like/comment counts
+- public field notes already copied onto the Explore post
+- normalized public hashtags
+- public reference images, species overview, conservation status, taxonomy
+  labels, and alternate names from the Explore detail projection
 
 The web page must not render:
 
@@ -94,6 +106,10 @@ The web page must trust the public post projection as-is. Post-level
 route must not query scan GPS, scan `semantic_location`, or scan geoprivacy to
 reconstruct location. If Explore geoprivacy changes, the RPC/view contract must
 be updated before the web UI consumes the new fields.
+
+`get_explore_post_detail` should not hide an otherwise visible post only because
+`location_sharing = 'private'`; that setting suppresses public location display,
+not the public species-detail content.
 
 ## Sharing Strategy
 

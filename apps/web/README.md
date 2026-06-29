@@ -8,8 +8,9 @@ The first route is the public Explore share page:
 /explore/post/[postId]
 ```
 
-It fetches the public Explore projection from Supabase on the server and emits
-Open Graph metadata so Messages/social shares can render a clean preview.
+It fetches the public Explore post and detail projections from Supabase on the
+server, renders a rich read-only post page with default Mantine components, and
+emits Open Graph metadata so Messages/social shares can render a clean preview.
 
 The production domain is:
 
@@ -112,7 +113,9 @@ omit this parameter so recipients see their own browser/system preference.
 ## Public Routes
 
 - `/` — lightweight Merian public home.
-- `/explore/post/[postId]` — public Explore share page.
+- `/explore/post/[postId]` — public Explore share page. The MVP is read-only:
+  anonymous visitors can view post context and comment counts, but cannot like,
+  comment, reply, follow, report, or edit from the web page.
 - `/apple-app-site-association` and `/.well-known/apple-app-site-association` — served Apple App Site Association file for iOS deep linking capabilities.
 - `/privacy` — App Store privacy policy URL.
 - `/privacy-choices` — optional App Store privacy choices URL and data deletion help.
@@ -124,12 +127,17 @@ omit this parameter so recipients see their own browser/system preference.
 
 ## Privacy Notes
 
-The public page should consume only the privacy-safe Explore projection returned
-by `get_explore_post`: public image, species labels, public author identity,
-counts, shared timestamp, and privacy-filtered location/telemetry. If the
-public projection later supplies `author_username`, render it only as a public
-handle. Do not expose exact coordinates, private field notes, raw scan
-telemetry, auth data, private email, or server credentials.
+The public page should consume only the privacy-safe Explore projections
+returned by `get_explore_post` and `get_explore_post_detail`: public image,
+species labels, public author identity, counts, shared timestamp,
+privacy-filtered location/telemetry, public field notes, normalized hashtags,
+reference images, overview text, conservation status, taxonomy labels, and
+alternate names. If the public projection supplies `author_username`, render it
+only as a public handle. Do not expose exact coordinates, private field notes,
+raw scan telemetry, auth data, private email, or server credentials.
+
+The Explore share page intentionally uses default Mantine components and
+component props instead of route-specific CSS classes or custom page chrome.
 
 See `../../docs/features-and-hardware/17-public-web-share-pages.md` for the full
 contract and Universal Links roadmap.
