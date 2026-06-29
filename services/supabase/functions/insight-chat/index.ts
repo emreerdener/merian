@@ -15,6 +15,7 @@ import {
   formatMessage,
   getOrCreateConversation,
   insertAssistantMessage,
+  insertFeatureFeedback,
   insertUserMessage,
   upsertMessageFeedback,
 } from "./db.ts";
@@ -22,6 +23,7 @@ import {
   assertConversationHasRoom,
   isSafetyCriticalQuestion,
   normalizeAction,
+  normalizeFeatureFeedbackSentiment,
   normalizeFeedbackNote,
   normalizeFeedbackRating,
   normalizeUserMessage,
@@ -433,6 +435,39 @@ Deno.serve((req: Request) =>
       );
       return jsonResponse({
         data: { ok: true, message_id: message.id, rating },
+      }, 200);
+    }
+
+    if (action === "feature_feedback") {
+      const sentiment = normalizeFeatureFeedbackSentiment(
+        parsedBody.feature_feedback_sentiment,
+      );
+      const note = normalizeFeedbackNote(parsedBody.feedback_note);
+      if (!sentiment && !note) {
+        return jsonResponse({
+          code: "feature_feedback_empty",
+          error: "Feature feedback requires a rating or note.",
+        }, 400);
+      }
+
+      const saved = await insertFeatureFeedback(
+        user.id,
+        scanId,
+        existingConversation?.id ?? null,
+        sentiment,
+        note,
+        supabaseAdmin,
+      );
+      trackPostHogEvent(user, "InsightChatFeatureFeedbackSubmitted", {
+        scan_id: scanId,
+        conversation_id: existingConversation?.id ?? null,
+        sentiment,
+        has_note: note != null,
+      }).catch((e) =>
+        console.error("PostHog InsightChatFeatureFeedbackSubmitted failed:", e)
+      );
+      return jsonResponse({
+        data: { ok: true, id: saved.id, sentiment: saved.sentiment },
       }, 200);
     }
 

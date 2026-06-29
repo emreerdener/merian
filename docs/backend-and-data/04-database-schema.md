@@ -804,12 +804,13 @@ The transaction log for every successful identification.
   never receive this object. This field is not copied into `species_dictionary`;
   species identity remains keyed by `scientific_name`.
 
-### `insight_chat_conversations`, `insight_chat_messages`, `insight_chat_message_feedback`
+### `insight_chat_conversations`, `insight_chat_messages`, `insight_chat_message_feedback`, `insight_chat_feature_feedback`
 
 Private saved follow-up chat for completed biological Insight sheets. Chat
 conversations/messages were added in migration
 `20260626120000_add_insight_chat.sql`; answer feedback was added in
-`20260628120000_add_insight_chat_feedback.sql`.
+`20260628120000_add_insight_chat_feedback.sql`; sheet-level feature feedback was
+added in `20260629100000_add_insight_chat_feature_feedback.sql`.
 
 - `insight_chat_conversations.id` (UUID): Primary key.
 - `scan_id` (UUID FK -> `scans.id`, cascade delete): The owned scan this chat is
@@ -842,6 +843,17 @@ conversations/messages were added in migration
   `other`.
 - `note`: Optional short private feedback note, capped at 1000 characters.
 - `created_at`, `updated_at`: Feedback timestamps maintained by trigger.
+- `insight_chat_feature_feedback.id` (UUID): Primary key for private feedback on
+  the Field chat experience itself.
+- `conversation_id` (UUID FK -> `insight_chat_conversations.id`, set null):
+  Optional chat thread context. The row remains useful if the thread is deleted.
+- `scan_id`, `user_id`: Owner bounds. Feature feedback deletes with the scan or
+  user and is RLS owner-only.
+- `sentiment`: Optional CHECK-constrained `positive` / `negative` rating from
+  the sheet-level feedback modal.
+- `note`: Optional short private feature-feedback note, capped at 1000
+  characters. Feature feedback requires either `sentiment` or `note`.
+- `created_at`: Submission timestamp.
 
 These tables are private scan data. They are not read by Explore, public species
 dictionary endpoints, public web pages, or Darwin Core exports.

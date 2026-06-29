@@ -17,6 +17,7 @@
             "Field notes cards now show more of your notes before truncating longer entries.",
             "Field chat summaries now use readable observation labels instead of internal scan IDs.",
             "Field chat answer actions are now focused on icon-only copy and inline feedback, with summaries and feature feedback in the sheet options menu.",
+            "Field chat sheet feedback is now saved privately with the scan instead of being telemetry-only.",
             "Field chat quick prompts now refresh with AI-generated, scan-specific follow-up ideas based on the saved observation and recent chat.",
             "Field chat now checks scan availability before opening so scans owned by another signed-in account show a clear unavailable state instead of launching into a chat error."
           ]

@@ -8,6 +8,10 @@ struct InsightChatFeedbackEnvelope: Decodable {
     let data: InsightChatFeedbackResponse
 }
 
+struct InsightChatFeatureFeedbackEnvelope: Decodable {
+    let data: InsightChatFeatureFeedbackResponse
+}
+
 struct InsightChatSummaryEnvelope: Decodable {
     let data: InsightChatSummaryResponse
 }
@@ -54,6 +58,12 @@ struct InsightChatFeedbackResponse: Decodable, Equatable {
     }
 }
 
+struct InsightChatFeatureFeedbackResponse: Decodable, Equatable {
+    let ok: Bool
+    let id: String
+    let sentiment: InsightChatFeatureFeedbackSentiment?
+}
+
 struct InsightChatSummaryResponse: Decodable, Equatable {
     let summaryText: String
 
@@ -83,6 +93,29 @@ enum InsightChatFeedbackRating: String, Codable, CaseIterable {
     case wrong
     case unsafe
     case other
+}
+
+enum InsightChatFeatureFeedbackSentiment: String, Codable, CaseIterable {
+    case positive
+    case negative
+
+    var title: String {
+        switch self {
+        case .positive:
+            "Helpful"
+        case .negative:
+            "Not helpful"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .positive:
+            "hand.thumbsup"
+        case .negative:
+            "hand.thumbsdown"
+        }
+    }
 }
 
 struct InsightChatMessage: Identifiable, Decodable, Equatable {
@@ -124,6 +157,7 @@ struct InsightChatRequestBody: Encodable {
     let messageId: String?
     let feedbackRating: InsightChatFeedbackRating?
     let feedbackNote: String?
+    let featureFeedbackSentiment: InsightChatFeatureFeedbackSentiment?
 
     private enum CodingKeys: String, CodingKey {
         case action
@@ -133,5 +167,6 @@ struct InsightChatRequestBody: Encodable {
         case messageId = "message_id"
         case feedbackRating = "feedback_rating"
         case feedbackNote = "feedback_note"
+        case featureFeedbackSentiment = "feature_feedback_sentiment"
     }
 }

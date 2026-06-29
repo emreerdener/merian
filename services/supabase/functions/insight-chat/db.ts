@@ -2,6 +2,7 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   ChatScanContext,
   InsightChatConversationRow,
+  InsightChatFeatureFeedbackSentiment,
   InsightChatFeedbackRating,
   InsightChatMessagePayload,
   InsightChatMessageRow,
@@ -305,6 +306,38 @@ export async function upsertMessageFeedback(
   if (error) {
     throw new Error(`Failed to save chat feedback: ${error.message}`);
   }
+}
+
+export async function insertFeatureFeedback(
+  userId: string,
+  scanId: string,
+  conversationId: string | null,
+  sentiment: InsightChatFeatureFeedbackSentiment | null,
+  note: string | null,
+  supabaseAdmin: SupabaseClient,
+): Promise<
+  { id: string; sentiment: InsightChatFeatureFeedbackSentiment | null }
+> {
+  const { data, error } = await supabaseAdmin
+    .from("insight_chat_feature_feedback")
+    .insert({
+      conversation_id: conversationId,
+      scan_id: scanId,
+      user_id: userId,
+      sentiment,
+      note,
+    })
+    .select("id,sentiment")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to save chat feature feedback: ${error.message}`);
+  }
+
+  return data as {
+    id: string;
+    sentiment: InsightChatFeatureFeedbackSentiment | null;
+  };
 }
 
 export async function countUserSendsToday(

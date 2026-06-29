@@ -976,7 +976,9 @@ PostHog owns behavioral metrics (funnel, session, conversion, prompt/action
 taps, answer categories, refusals, and feedback submissions); Supabase SQL owns
 cost metrics. Scan token counts are persisted to `public.scans`; Insight chat
 assistant token counts are persisted to `public.insight_chat_messages`, while
-private answer ratings are stored in `public.insight_chat_message_feedback`.
+private answer ratings and sheet-level feedback are stored in
+`public.insight_chat_message_feedback` and
+`public.insight_chat_feature_feedback`.
 
 Run these in **Supabase → SQL Editor → Save** to pin them as named queries:
 

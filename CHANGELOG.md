@@ -15,6 +15,7 @@ TestFlight, App Store, support, and QA.
 - Field notes cards now show up to 10 preview lines before truncating longer notes.
 - Field chat summaries now use human-readable observation labels instead of internal scan IDs.
 - Simplified Field chat answer actions to icon-only copy and inline feedback, with thread summaries and feature feedback in the sheet options menu.
+- Field chat sheet feedback is now saved privately with the scan instead of being telemetry-only.
 - Field chat quick prompts now refresh with AI-generated, scan-specific follow-up ideas based on the saved observation and recent chat.
 - Field chat now checks scan availability before opening so scans owned by another signed-in account are hidden with a clear unavailable toast instead of launching into a 403 error.
 

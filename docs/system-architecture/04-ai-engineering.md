@@ -583,10 +583,11 @@ or audio attached:
   observed traits, ecology annotations, species group tags, telemetry,
   candidates/lookalikes, coarse field context, and image/capture-quality
   metadata. Exact GPS coordinates, raw image bytes, storage keys, internal scan
-  IDs, cloud image URLs, Explore/community content, and export payloads are excluded. Chat
-  conversations, messages, and answer feedback are private rows in
-  `insight_chat_conversations`, `insight_chat_messages`, and
-  `insight_chat_message_feedback`; each scan has one saved conversation per
+  IDs, cloud image URLs, Explore/community content, and export payloads are
+  excluded. Chat conversations, messages, answer feedback, and sheet-level
+  feature feedback are private rows in `insight_chat_conversations`,
+  `insight_chat_messages`, `insight_chat_message_feedback`, and
+  `insight_chat_feature_feedback`; each scan has one saved conversation per
   user. User messages are capped at 600 characters, each conversation is capped
   at 30 messages, and all chats share the 20 sends per Pro user per day. Token
   usage is stored on assistant message rows and tracked with

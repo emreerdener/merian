@@ -323,6 +323,23 @@ struct InsightChatTests {
         #expect(feedback.messageId == "message_1")
         #expect(feedback.rating == .wrong)
 
+        let featureFeedbackJson = """
+        {
+          "data": {
+            "ok": true,
+            "id": "feature_feedback_1",
+            "sentiment": "positive"
+          }
+        }
+        """
+        let featureFeedback = try JSONDecoder().decode(
+            InsightChatFeatureFeedbackEnvelope.self,
+            from: Data(featureFeedbackJson.utf8)
+        ).data
+        #expect(featureFeedback.ok)
+        #expect(featureFeedback.id == "feature_feedback_1")
+        #expect(featureFeedback.sentiment == .positive)
+
         let summaryJson = """
         {
           "data": {

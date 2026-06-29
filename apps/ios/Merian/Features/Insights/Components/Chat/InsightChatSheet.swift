@@ -17,7 +17,7 @@ struct InsightChatSheet: View {
 
     @FocusState private var composerFocused: Bool
     @State private var pendingFeedbackMessage: InsightChatMessage?
-    @State private var isFeatureFeedbackDialogPresented = false
+    @State private var isFeatureFeedbackSheetPresented = false
 
     private var chips: [String] {
         viewModel.suggestionChips(
@@ -102,19 +102,12 @@ struct InsightChatSheet: View {
                 pendingFeedbackMessage = nil
             }
         }
-        .confirmationDialog(
-            "How is Field chat working?",
-            isPresented: $isFeatureFeedbackDialogPresented,
-            titleVisibility: .visible
-        ) {
-            Button("Helpful") { submitFeatureFeedback("helpful") }
-            Button("Not helpful") { submitFeatureFeedback("not_helpful") }
-            Button("Seems wrong") { submitFeatureFeedback("wrong") }
-            Button("Unsafe") { submitFeatureFeedback("unsafe") }
-            Button("Other") { submitFeatureFeedback("other") }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Your feedback helps us improve Field chat.")
+        .sheet(isPresented: $isFeatureFeedbackSheetPresented) {
+            InsightChatFeatureFeedbackSheet { sentiment, note in
+                submitFeatureFeedback(sentiment: sentiment, note: note)
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.hidden)
         }
         .sheet(isPresented: Binding(
             get: { viewModel.notesSummaryDraft != nil },
@@ -127,8 +120,6 @@ struct InsightChatSheet: View {
                 },
                 onAppend: { draft in
                     onAppendToFieldNotes(draft, .summary)
-                    viewModel.notesSummaryDraft = nil
-                    onToast("Added summary to field notes")
                     HapticManager.shared.triggerSuccessPulse()
                 }
             )
@@ -186,7 +177,7 @@ struct InsightChatSheet: View {
 
                 Button {
                     HapticManager.shared.triggerSelectionPulse()
-                    isFeatureFeedbackDialogPresented = true
+                    isFeatureFeedbackSheetPresented = true
                 } label: {
                     Label("Give feedback", systemImage: "message")
                 }
@@ -317,36 +308,13 @@ struct InsightChatSheet: View {
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
             if showsPromptChips {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(chips, id: \.self) { chip in
-                            Button {
-                                HapticManager.shared.triggerSelectionPulse()
-                                trackPromptChip(chip)
-                                Task { await viewModel.send(chip, scanId: scanId) }
-                            } label: {
-                                Text(chip)
-                                    .lineLimit(1)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                    .padding(.horizontal, 13)
-                                    .padding(.vertical, 9)
-                                    .background(
-                                        Capsule(style: .continuous)
-                                            .fill(Color(uiColor: .secondarySystemBackground))
-                                    )
-                                    .overlay(
-                                        Capsule(style: .continuous)
-                                            .stroke(Color.accentColor.opacity(0.28), lineWidth: 1)
-                                    )
-                                    .contentShape(Capsule(style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(viewModel.isSending || viewModel.isOffline)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                }
+                promptChipsRow
+                    .transition(
+                        .asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .opacity
+                        )
+                    )
             }
 
             if viewModel.isOffline {
@@ -364,6 +332,40 @@ struct InsightChatSheet: View {
         }
         .padding(.top, 8)
         .padding(.bottom, 8)
+        .animation(.easeOut(duration: 0.24), value: showsPromptChips)
+    }
+
+    private var promptChipsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(chips, id: \.self) { chip in
+                    Button {
+                        HapticManager.shared.triggerSelectionPulse()
+                        trackPromptChip(chip)
+                        Task { await viewModel.send(chip, scanId: scanId) }
+                    } label: {
+                        Text(chip)
+                            .lineLimit(1)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 9)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(Color(uiColor: .secondarySystemBackground))
+                            )
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .stroke(Color.accentColor.opacity(0.28), lineWidth: 1)
+                            )
+                            .contentShape(Capsule(style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.isSending || viewModel.isOffline)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
     }
 
     private var offlineComposerNotice: some View {
@@ -473,10 +475,20 @@ struct InsightChatSheet: View {
         ])
     }
 
-    private func submitFeatureFeedback(_ rating: String) {
-        trackAction("feature_feedback_\(rating)", message: nil)
-        onToast("Feedback sent")
-        HapticManager.shared.triggerSuccessPulse()
+    private func submitFeatureFeedback(
+        sentiment: InsightChatFeatureFeedbackSentiment?,
+        note: String
+    ) {
+        Task {
+            let didSubmit = await viewModel.submitFeatureFeedback(
+                scanId: scanId,
+                sentiment: sentiment,
+                note: note
+            )
+            if didSubmit {
+                onToast("Feedback sent")
+            }
+        }
     }
 
     private func trackPromptChip(_ prompt: String) {
@@ -630,7 +642,7 @@ private struct InsightChatAnswerControls: View {
 
                 feedbackControls
             }
-            .font(.system(size: 18, weight: .semibold))
+            .font(.system(size: 16, weight: .semibold))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 16)
         }
@@ -643,7 +655,7 @@ private struct InsightChatAnswerControls: View {
                 showCopyConfirmation()
                 onCopy()
             } label: {
-                Image(systemName: "doc.on.doc")
+                Image(systemName: "square.on.square")
             }
             .accessibilityLabel("Copy answer")
 
@@ -702,9 +714,122 @@ private struct InsightChatAnswerControls: View {
     }
 }
 
+private struct InsightChatFeatureFeedbackSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var textIsFocused: Bool
+    @State private var selectedSentiment: InsightChatFeatureFeedbackSentiment?
+    @State private var feedbackText = ""
+
+    let onSubmit: (InsightChatFeatureFeedbackSentiment?, String) -> Void
+
+    private var trimmedFeedbackText: String {
+        feedbackText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSubmit: Bool {
+        selectedSentiment != nil || !trimmedFeedbackText.isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("How is Field chat working?")
+                    .font(.title3.weight(.semibold))
+
+                sentimentPicker
+
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: $feedbackText)
+                        .focused($textIsFocused)
+                        .frame(minHeight: 150)
+                        .padding(12)
+                        .scrollContentBackground(.hidden)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(Color(uiColor: .secondarySystemBackground))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(Color.primary.opacity(0.10), lineWidth: 1)
+                        )
+
+                    if feedbackText.isEmpty {
+                        Text("Tell us what felt good, confusing, wrong, or missing.")
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 20)
+                            .allowsHitTesting(false)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .navigationTitle("Give feedback")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Send") {
+                        onSubmit(selectedSentiment, trimmedFeedbackText)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(!canSubmit)
+                }
+            }
+            .onAppear {
+                textIsFocused = true
+            }
+        }
+        .presentationBackground(Color(uiColor: .systemBackground))
+    }
+
+    private var sentimentPicker: some View {
+        HStack(spacing: 10) {
+            ForEach(InsightChatFeatureFeedbackSentiment.allCases, id: \.self) { sentiment in
+                Button {
+                    HapticManager.shared.triggerSelectionPulse()
+                    selectedSentiment = sentiment
+                } label: {
+                    Label(sentiment.title, systemImage: sentiment.systemImage)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(sentiment == selectedSentiment
+                                      ? Color.accentColor.opacity(0.16)
+                                      : Color(uiColor: .secondarySystemBackground))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(
+                                    sentiment == selectedSentiment
+                                        ? Color.accentColor.opacity(0.45)
+                                        : Color.primary.opacity(0.08),
+                                    lineWidth: 1
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(sentiment == selectedSentiment ? Color.accentColor : Color.primary)
+            }
+        }
+    }
+}
+
 private struct InsightChatNotesDraftSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draftText: String
+    @State private var confirmationMessage: String?
+    @State private var isCompletingAppend = false
     let onCancel: () -> Void
     let onAppend: (String) -> Void
 
@@ -734,20 +859,53 @@ private struct InsightChatNotesDraftSheet: View {
                 }
                 .safeAreaInset(edge: .bottom) {
                     Button {
-                        onAppend(draftText)
-                        dismiss()
+                        appendAndConfirm()
                     } label: {
                         Label("Add to field notes", systemImage: "square.and.pencil")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .disabled(draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCompletingAppend)
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
                     .padding(.bottom, 8)
                     .background(.bar)
                 }
+        }
+        .overlay(alignment: .bottom) {
+            if let confirmationMessage {
+                ToastBanner(onDismiss: nil) {
+                    Label(confirmationMessage, systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                }
+                .padding(.bottom, 104)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: confirmationMessage)
+    }
+
+    private func appendAndConfirm() {
+        guard !isCompletingAppend else { return }
+        let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        isCompletingAppend = true
+        onAppend(draftText)
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            confirmationMessage = "Added to field notes"
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            withAnimation(.easeOut(duration: 0.18)) {
+                confirmationMessage = nil
+            }
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            onCancel()
+            dismiss()
         }
     }
 }

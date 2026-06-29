@@ -3105,6 +3105,15 @@ Feedback and field-notes summary actions use the same endpoint:
 
 ```json
 {
+  "action": "feature_feedback",
+  "scan_id": "A1B2C3D4-...",
+  "feature_feedback_sentiment": "positive",
+  "feedback_note": "Optional short private note"
+}
+```
+
+```json
+{
   "action": "summarize_notes",
   "scan_id": "A1B2C3D4-..."
 }
@@ -3120,19 +3129,22 @@ text:
 }
 ```
 
-`action` accepts `load`, `send`, `delete`, `feedback`, `summarize_notes`, or
-`suggest_prompts`.
+`action` accepts `load`, `send`, `delete`, `feedback`, `feature_feedback`,
+`summarize_notes`, or `suggest_prompts`.
 `load` returns the single saved conversation for the scan when one exists.
 `send` creates that conversation when missing, requires `message_text`, and may
 include `client_message_id` for idempotency. `delete` clears the scan's saved
 chat. `feedback` stores private owner-only answer feedback for an assistant
 `message_id` with `feedback_rating` (`helpful`, `not_helpful`, `wrong`,
-`unsafe`, `other`) and optional `feedback_note`. `summarize_notes` returns a
-reviewable field-notes draft from the current saved chat and scan context; the
-client must append it only after user confirmation and must never replace
-existing field notes. `suggest_prompts` returns three short, non-persisted prompt
-chip suggestions plus allowlisted categories for telemetry; it uses the same
-owned scan context and recent saved chat history, does not consume the daily send
+`unsafe`, `other`) and optional `feedback_note`. `feature_feedback` stores
+private owner-only feedback on the Field chat sheet itself with optional
+`feature_feedback_sentiment` (`positive` or `negative`) and optional
+`feedback_note`; at least one is required. `summarize_notes` returns a reviewable
+field-notes draft from the current saved chat and scan context; the client must
+append it only after user confirmation and must never replace existing field
+notes. `suggest_prompts` returns three short, non-persisted prompt chip
+suggestions plus allowlisted categories for telemetry; it uses the same owned
+scan context and recent saved chat history, does not consume the daily send
 limit, and is best-effort so load/send chat behavior remains independent if
 prompt generation fails. The server caps v1 at 600 characters per user message,
 30 total messages per conversation, and 20 sends per Pro user per day across all
@@ -3231,6 +3243,18 @@ For `feedback`:
     "ok": true,
     "message_id": "33333333-3333-4333-8333-333333333333",
     "rating": "wrong"
+  }
+}
+```
+
+For `feature_feedback`:
+
+```json
+{
+  "data": {
+    "ok": true,
+    "id": "44444444-4444-4444-8444-444444444444",
+    "sentiment": "positive"
   }
 }
 ```

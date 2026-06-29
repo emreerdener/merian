@@ -7,8 +7,10 @@ Private Pro follow-up chat for completed biological Insight sheets.
 The function accepts authenticated POST requests with:
 
 - `action: "load" | "send" | "delete"`
-- `action: "feedback" | "summarize_notes" | "suggest_prompts"` for answer
-  feedback, field-note drafts, and AI-generated quick prompts
+- `action: "feedback" | "feature_feedback" | "summarize_notes" |
+  "suggest_prompts"`
+  for answer feedback, sheet-level feature feedback, field-note drafts, and
+  AI-generated quick prompts
 - `scan_id`: owned `public.scans.id`
 - `message_text`: required for `send`, capped at 600 characters
 - `client_message_id`: optional UUID for idempotent sends

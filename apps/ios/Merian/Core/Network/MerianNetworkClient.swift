@@ -2197,7 +2197,8 @@ final class MerianNetworkClient {
             clientMessageId: clientMessageId,
             messageId: nil,
             feedbackRating: nil,
-            feedbackNote: nil
+            feedbackNote: nil,
+            featureFeedbackSentiment: nil
         )
         let bodyData = try JSONEncoder().encode(body)
         let (data, _) = try await performAuthenticatedRequest(
@@ -2235,10 +2236,30 @@ final class MerianNetworkClient {
             clientMessageId: nil,
             messageId: messageId,
             feedbackRating: rating,
-            feedbackNote: note
+            feedbackNote: note,
+            featureFeedbackSentiment: nil
         )
         let data = try await performInsightChatRequest(body)
         return try JSONDecoder().decode(InsightChatFeedbackEnvelope.self, from: data).data
+    }
+
+    func submitInsightChatFeatureFeedback(
+        scanId: String,
+        sentiment: InsightChatFeatureFeedbackSentiment?,
+        note: String?
+    ) async throws -> InsightChatFeatureFeedbackResponse {
+        let body = InsightChatRequestBody(
+            action: "feature_feedback",
+            scanId: scanId,
+            messageText: nil,
+            clientMessageId: nil,
+            messageId: nil,
+            feedbackRating: nil,
+            feedbackNote: note,
+            featureFeedbackSentiment: sentiment
+        )
+        let data = try await performInsightChatRequest(body)
+        return try JSONDecoder().decode(InsightChatFeatureFeedbackEnvelope.self, from: data).data
     }
 
     func summarizeInsightChatForFieldNotes(scanId: String) async throws -> InsightChatSummaryResponse {
@@ -2249,7 +2270,8 @@ final class MerianNetworkClient {
             clientMessageId: nil,
             messageId: nil,
             feedbackRating: nil,
-            feedbackNote: nil
+            feedbackNote: nil,
+            featureFeedbackSentiment: nil
         )
         let data = try await performInsightChatRequest(body, timeoutInterval: 45.0)
         return try JSONDecoder().decode(InsightChatSummaryEnvelope.self, from: data).data
@@ -2263,7 +2285,8 @@ final class MerianNetworkClient {
             clientMessageId: nil,
             messageId: nil,
             feedbackRating: nil,
-            feedbackNote: nil
+            feedbackNote: nil,
+            featureFeedbackSentiment: nil
         )
         let data = try await performInsightChatRequest(body, timeoutInterval: 30.0)
         return try JSONDecoder().decode(InsightChatPromptSuggestionsEnvelope.self, from: data).data

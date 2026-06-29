@@ -8,6 +8,7 @@ export type InsightChatAction =
   | "send"
   | "delete"
   | "feedback"
+  | "feature_feedback"
   | "summarize_notes"
   | "suggest_prompts";
 export type InsightChatRole = "user" | "assistant";
@@ -17,6 +18,7 @@ export type InsightChatFeedbackRating =
   | "wrong"
   | "unsafe"
   | "other";
+export type InsightChatFeatureFeedbackSentiment = "positive" | "negative";
 
 export interface InsightChatMessageRow {
   id: string;
@@ -74,6 +76,12 @@ export interface InsightChatFeedbackPayload {
   ok: boolean;
   message_id: string;
   rating: InsightChatFeedbackRating;
+}
+
+export interface InsightChatFeatureFeedbackPayload {
+  ok: boolean;
+  id: string;
+  sentiment: InsightChatFeatureFeedbackSentiment | null;
 }
 
 export interface InsightChatSummaryPayload {

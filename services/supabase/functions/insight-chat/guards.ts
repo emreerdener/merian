@@ -10,18 +10,19 @@ export function normalizeAction(
   | "send"
   | "delete"
   | "feedback"
+  | "feature_feedback"
   | "summarize_notes"
   | "suggest_prompts" {
   if (
     value === "load" || value === "send" || value === "delete" ||
-    value === "feedback" || value === "summarize_notes" ||
-    value === "suggest_prompts"
+    value === "feedback" || value === "feature_feedback" ||
+    value === "summarize_notes" || value === "suggest_prompts"
   ) {
     return value;
   }
   throw Object.assign(
     new Error(
-      "action must be load, send, delete, feedback, summarize_notes, or suggest_prompts.",
+      "action must be load, send, delete, feedback, feature_feedback, summarize_notes, or suggest_prompts.",
     ),
     { status: 400 },
   );
@@ -37,6 +38,17 @@ export function normalizeFeedbackRating(value: unknown) {
   throw Object.assign(new Error("feedback_rating is invalid."), {
     status: 400,
   });
+}
+
+export function normalizeFeatureFeedbackSentiment(value: unknown) {
+  if (value == null) return null;
+  if (value === "positive" || value === "negative") {
+    return value;
+  }
+  throw Object.assign(
+    new Error("feature_feedback_sentiment is invalid."),
+    { status: 400 },
+  );
 }
 
 export function normalizeFeedbackNote(value: unknown): string | null {

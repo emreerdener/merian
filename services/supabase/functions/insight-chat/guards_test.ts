@@ -5,6 +5,7 @@ import {
 import {
   isSafetyCriticalQuestion,
   normalizeAction,
+  normalizeFeatureFeedbackSentiment,
   normalizeUserMessage,
   refusalAnswer,
 } from "./guards.ts";
@@ -14,11 +15,20 @@ Deno.test("normalizeAction accepts only supported actions", () => {
   assertEquals(normalizeAction("send"), "send");
   assertEquals(normalizeAction("delete"), "delete");
   assertEquals(normalizeAction("feedback"), "feedback");
+  assertEquals(normalizeAction("feature_feedback"), "feature_feedback");
   assertEquals(normalizeAction("summarize_notes"), "summarize_notes");
   assertEquals(normalizeAction("suggest_prompts"), "suggest_prompts");
   assertThrows(() => normalizeAction("list"));
   assertThrows(() => normalizeAction("create"));
   assertThrows(() => normalizeAction("archive"));
+});
+
+Deno.test("normalizeFeatureFeedbackSentiment accepts optional sentiment", () => {
+  assertEquals(normalizeFeatureFeedbackSentiment("positive"), "positive");
+  assertEquals(normalizeFeatureFeedbackSentiment("negative"), "negative");
+  assertEquals(normalizeFeatureFeedbackSentiment(null), null);
+  assertEquals(normalizeFeatureFeedbackSentiment(undefined), null);
+  assertThrows(() => normalizeFeatureFeedbackSentiment("mixed"));
 });
 
 Deno.test("normalizeUserMessage trims and caps text", () => {

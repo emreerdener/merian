@@ -32,6 +32,7 @@ final class InsightChatViewModel {
     var isSending = false
     var isDeleting = false
     var isSubmittingFeedback = false
+    var isSubmittingFeatureFeedback = false
     var isSummarizingNotes = false
     var isLoadingPrompts = false
     var isCheckingAvailability = false
@@ -270,6 +271,36 @@ final class InsightChatViewModel {
                 note: note
             )
             submittedFeedback[response.messageId] = response.rating
+            HapticManager.shared.triggerSuccessPulse()
+            return true
+        } catch {
+            handle(error, scanId: scanId, playHaptic: true)
+            return false
+        }
+    }
+
+    func submitFeatureFeedback(
+        scanId: String,
+        sentiment: InsightChatFeatureFeedbackSentiment?,
+        note: String
+    ) async -> Bool {
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard sentiment != nil || !trimmedNote.isEmpty else { return false }
+        guard !isOffline else {
+            HapticManager.shared.triggerErrorThump()
+            errorMessage = "Connect to send feedback."
+            return false
+        }
+
+        isSubmittingFeatureFeedback = true
+        defer { isSubmittingFeatureFeedback = false }
+
+        do {
+            _ = try await MerianNetworkClient.shared.submitInsightChatFeatureFeedback(
+                scanId: scanId,
+                sentiment: sentiment,
+                note: trimmedNote.isEmpty ? nil : trimmedNote
+            )
             HapticManager.shared.triggerSuccessPulse()
             return true
         } catch {
