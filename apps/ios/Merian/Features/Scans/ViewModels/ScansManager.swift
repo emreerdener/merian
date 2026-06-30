@@ -11,6 +11,143 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     var id: String { self.rawValue }
 }
 
+enum CollectionSortOption: String, CaseIterable, Identifiable, Sendable {
+    case newest = "Newest"
+    case oldest = "Oldest"
+    case aToZ = "A to Z"
+    case zToA = "Z to A"
+    var id: String { self.rawValue }
+}
+
+enum CollectionTypeFilter: String, CaseIterable, Identifiable, Hashable {
+    case userCreated = "User-created"
+    case smartSuggestions = "Smart suggestions"
+    case builtIn = "Built-in"
+    var id: String { rawValue }
+}
+
+struct CollectionLibraryFilters: Equatable {
+    var typeFilters: Set<CollectionTypeFilter> = []
+
+    var hasActiveFilters: Bool {
+        activeFilterCount > 0
+    }
+
+    var activeFilterCount: Int {
+        typeFilters.count
+    }
+
+    mutating func clear() {
+        self = CollectionLibraryFilters()
+    }
+}
+
+enum ScanDateFilter: String, CaseIterable, Identifiable, Hashable {
+    case today = "Today"
+    case thisWeek = "This week"
+    case thisMonth = "This month"
+    case thisYear = "This year"
+    case custom = "Custom range"
+    var id: String { rawValue }
+}
+
+enum ScanLocationFilter: String, CaseIterable, Identifiable, Hashable {
+    case hasLocation = "Has location"
+    case noLocation = "No location"
+    var id: String { rawValue }
+}
+
+enum ScanEcologyFilter: String, CaseIterable, Identifiable, Hashable {
+    case wild = "Wild"
+    case captive = "Captive"
+    case domesticated = "Domesticated"
+    case pet = "Pet"
+    var id: String { rawValue }
+}
+
+enum ScanQualityFilter: String, CaseIterable, Identifiable, Hashable {
+    case highQuality = "High quality"
+    case mediumQuality = "Medium quality"
+    case lowQuality = "Low quality"
+    case noScore = "No quality score"
+    var id: String { rawValue }
+}
+
+enum ScanIdentificationFilter: String, CaseIterable, Identifiable, Hashable {
+    case confirmed = "Confirmed ID"
+    case corrected = "Corrected ID"
+    case aiOnly = "AI-only ID"
+    var id: String { rawValue }
+}
+
+enum ScanSeasonFilter: String, CaseIterable, Identifiable, Hashable {
+    case spring = "Spring"
+    case summer = "Summer"
+    case fall = "Fall"
+    case winter = "Winter"
+    var id: String { rawValue }
+}
+
+struct ScanLibraryFilterOptions {
+    var customTags: [String] = []
+    var hazardTypes: [String] = []
+    var conservationStatuses: [String] = []
+    var lifeStages: [String] = []
+    var weatherConditions: [String] = []
+    var taxonomyClasses: [String] = []
+    var taxonomyOrders: [String] = []
+    var taxonomyFamilies: [String] = []
+    var taxonomyGenera: [String] = []
+}
+
+struct ScanLibraryFilters: Equatable {
+    var dateFilters: Set<ScanDateFilter> = []
+    var customStartDate: Date?
+    var customEndDate: Date?
+    var locationFilters: Set<ScanLocationFilter> = []
+    var customTags: Set<String> = []
+    var isInvasive = false
+    var hazardTypes: Set<String> = []
+    var conservationStatuses: Set<String> = []
+    var lifeStages: Set<String> = []
+    var ecologyFilters: Set<ScanEcologyFilter> = []
+    var qualityFilters: Set<ScanQualityFilter> = []
+    var identificationFilters: Set<ScanIdentificationFilter> = []
+    var weatherConditions: Set<String> = []
+    var seasons: Set<ScanSeasonFilter> = []
+    var taxonomyClasses: Set<String> = []
+    var taxonomyOrders: Set<String> = []
+    var taxonomyFamilies: Set<String> = []
+    var taxonomyGenera: Set<String> = []
+
+    var hasAdvancedFilters: Bool {
+        activeAdvancedFilterCount > 0
+    }
+
+    var activeAdvancedFilterCount: Int {
+        dateFilters.count
+            + locationFilters.count
+            + customTags.count
+            + (isInvasive ? 1 : 0)
+            + hazardTypes.count
+            + conservationStatuses.count
+            + lifeStages.count
+            + ecologyFilters.count
+            + qualityFilters.count
+            + identificationFilters.count
+            + weatherConditions.count
+            + seasons.count
+            + taxonomyClasses.count
+            + taxonomyOrders.count
+            + taxonomyFamilies.count
+            + taxonomyGenera.count
+    }
+
+    mutating func clear() {
+        self = ScanLibraryFilters()
+    }
+}
+
 @MainActor
 @Observable final class ScansManager {
     private static let rawSnapshotExtractionBatchSize = 128
@@ -27,6 +164,12 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
     var filteredScans: [LocalScanRecord] = []
     var isFiltering: Bool = true
     var activeCategoryFilter: String = "All"
+    var filters = ScanLibraryFilters() {
+        didSet {
+            guard oldValue != filters else { return }
+            performSearch(query: searchQuery)
+        }
+    }
     var isSelectionMode: Bool = false
     var selectedScans: Set<String> = []
 
@@ -36,14 +179,11 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var collections: [ScanCollection] = []
-    
     // MARK: - Static Bounds
     let maxBatchSelectionLimit = 20
 
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     @ObservationIgnored private var appSettings: AppSettings
-
     init(appSettings: AppSettings? = nil) {
         self.appSettings = appSettings ?? AppSettings.shared
         ScanLibraryEvents.searchIndexUpdatePublisher()
@@ -59,6 +199,20 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 
     func bindSettings(_ appSettings: AppSettings) {
         self.appSettings = appSettings
+    }
+
+    var hasActiveFilters: Bool {
+        activeCategoryFilter != "All" || filters.hasAdvancedFilters
+    }
+
+    var activeFilterCount: Int {
+        filters.activeAdvancedFilterCount + (activeCategoryFilter == "All" ? 0 : 1)
+    }
+
+    func clearFilters() {
+        activeCategoryFilter = "All"
+        filters.clear()
+        performSearch(query: searchQuery)
     }
     
     // MARK: - Data Ingestion
@@ -228,6 +382,32 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
             }
         }
     }
+
+    // MARK: - Filter Options
+    var filterOptions: ScanLibraryFilterOptions {
+        ScanLibraryFilterOptions(
+            customTags: uniqueDisplayValues(allScans.flatMap(\.customTags)),
+            hazardTypes: uniqueDisplayValues(allScans.map(\.hazardType)),
+            conservationStatuses: uniqueDisplayValues(allScans.compactMap(\.iucnRedListStatus)),
+            lifeStages: uniqueDisplayValues(allScans.compactMap(\.lifeStage)),
+            weatherConditions: uniqueDisplayValues(allScans.compactMap(\.weatherCondition)),
+            taxonomyClasses: uniqueDisplayValues(allScans.compactMap(\.taxonomyClass)),
+            taxonomyOrders: uniqueDisplayValues(allScans.compactMap(\.taxonomyOrder)),
+            taxonomyFamilies: uniqueDisplayValues(allScans.compactMap(\.taxonomyFamily)),
+            taxonomyGenera: uniqueDisplayValues(allScans.compactMap(\.taxonomyGenus))
+        )
+    }
+
+    private func uniqueDisplayValues(_ values: [String]) -> [String] {
+        var valuesByNormalizedKey: [String: String] = [:]
+        for value in values {
+            guard let normalized = normalizedFilterValue(value) else { continue }
+            valuesByNormalizedKey[normalized] = valuesByNormalizedKey[normalized] ?? value.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return valuesByNormalizedKey.values.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
     
     // MARK: - Search Execution
     func performSearch(query: String, category: String? = nil) {
@@ -256,7 +436,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
 
             guard let self = self else { return }
 
-            if text.isEmpty && catMatch == "all" {
+            if text.isEmpty && catMatch == "all" && !self.filters.hasAdvancedFilters {
                 let sortedIds = await self.sortedAllScanIDs(for: self.sortOption)
                 if Task.isCancelled { return }
                 
@@ -264,20 +444,26 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
                 self.completeSearch(with: finalSorted, query: text)
                 return
             }
-            
-            let searchIndex = self.searchIndexSnapshot
-            if searchIndex.isEmpty {
-                self.completeSearch(with: [], query: text)
-                return
+
+            let matchingIds: [String]
+            if text.isEmpty && catMatch == "all" {
+                matchingIds = self.allScans.map(\.id)
+            } else {
+                let searchIndex = self.searchIndexSnapshot
+                if searchIndex.isEmpty {
+                    self.completeSearch(with: [], query: text)
+                    return
+                }
+
+                let filterActor = SearchFilterActor()
+                matchingIds = await filterActor.filter(text: text, searchIndex: searchIndex, catMatch: catMatch)
             }
-            
-            let filterActor = SearchFilterActor()
-            let matchingIds = await filterActor.filter(text: text, searchIndex: searchIndex, catMatch: catMatch)
-            
+
             if Task.isCancelled { return }
-            
+
             let sortOpt = self.sortOption
-            let subsetPrimitives = self.sortPrimitives(for: matchingIds)
+            let filteredRecords = self.applyAdvancedFilters(to: self.records(for: matchingIds))
+            let subsetPrimitives = self.sortPrimitives(for: filteredRecords.map(\.id))
             
             let sortedIds = await Task.detached(priority: .userInitiated) {
                 return ScansManager.executeDetachedSort(on: subsetPrimitives, sortOption: sortOpt).map { $0.id }
@@ -305,6 +491,197 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         case .aToZ: return subset.sorted { $0.commonName.localizedCaseInsensitiveCompare($1.commonName) == .orderedAscending }
         case .zToA: return subset.sorted { $0.commonName.localizedCaseInsensitiveCompare($1.commonName) == .orderedDescending }
         }
+    }
+
+    private func applyAdvancedFilters(to scans: [LocalScanRecord]) -> [LocalScanRecord] {
+        guard filters.hasAdvancedFilters else { return scans }
+        let activeFilters = filters
+        let calendar = Calendar.current
+        let now = Date()
+
+        return scans.filter { scan in
+            matchesDateFilters(scan, filters: activeFilters, calendar: calendar, now: now)
+                && matchesLocationFilters(scan, filters: activeFilters)
+                && matchesCustomTagFilters(scan, filters: activeFilters)
+                && matchesNaturalistFilters(scan, filters: activeFilters)
+                && matchesQualityFilters(scan, filters: activeFilters)
+                && matchesIdentificationFilters(scan, filters: activeFilters)
+                && matchesWeatherSeasonFilters(scan, filters: activeFilters, calendar: calendar)
+                && matchesTaxonomyFilters(scan, filters: activeFilters)
+        }
+    }
+
+    private func matchesDateFilters(
+        _ scan: LocalScanRecord,
+        filters: ScanLibraryFilters,
+        calendar: Calendar,
+        now: Date
+    ) -> Bool {
+        guard !filters.dateFilters.isEmpty else { return true }
+        let date = scan.captureDate ?? scan.timestamp
+        return filters.dateFilters.contains { filter in
+            switch filter {
+            case .today:
+                return calendar.isDateInToday(date)
+            case .thisWeek:
+                return dateInterval(.weekOfYear, calendar: calendar, now: now)?.contains(date) == true
+            case .thisMonth:
+                return dateInterval(.month, calendar: calendar, now: now)?.contains(date) == true
+            case .thisYear:
+                return dateInterval(.year, calendar: calendar, now: now)?.contains(date) == true
+            case .custom:
+                return matchesCustomDateRange(date, filters: filters, calendar: calendar)
+            }
+        }
+    }
+
+    private func dateInterval(_ component: Calendar.Component, calendar: Calendar, now: Date) -> DateInterval? {
+        calendar.dateInterval(of: component, for: now)
+    }
+
+    private func matchesCustomDateRange(_ date: Date, filters: ScanLibraryFilters, calendar: Calendar) -> Bool {
+        let start = filters.customStartDate.map { calendar.startOfDay(for: $0) }
+        let end = filters.customEndDate.flatMap {
+            calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: $0))
+        }
+
+        if let start, date < start { return false }
+        if let end, date >= end { return false }
+        return start != nil || end != nil
+    }
+
+    private func matchesLocationFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
+        guard !filters.locationFilters.isEmpty else { return true }
+        let hasLocation = scan.gpsLatitude != nil
+            || scan.gpsLongitude != nil
+            || normalizedFilterValue(scan.locationName) != nil
+
+        return filters.locationFilters.contains { filter in
+            switch filter {
+            case .hasLocation:
+                return hasLocation
+            case .noLocation:
+                return !hasLocation
+            }
+        }
+    }
+
+    private func matchesCustomTagFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
+        matchesAnyNormalizedValue(scan.customTags, selectedValues: filters.customTags)
+    }
+
+    private func matchesNaturalistFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
+        if filters.isInvasive && !scan.isInvasive { return false }
+        if !matchesNormalizedValue(scan.hazardType, selectedValues: filters.hazardTypes) { return false }
+        if !matchesNormalizedValue(scan.iucnRedListStatus, selectedValues: filters.conservationStatuses) { return false }
+        if !matchesNormalizedValue(scan.lifeStage, selectedValues: filters.lifeStages) { return false }
+
+        guard !filters.ecologyFilters.isEmpty else { return true }
+        return filters.ecologyFilters.contains { filter in
+            switch filter {
+            case .wild:
+                return normalizedFilterValue(scan.ecologyType) == "wild"
+            case .captive:
+                return normalizedFilterValue(scan.ecologyType) == "captive"
+            case .domesticated:
+                return normalizedFilterValue(scan.ecologyType) == "domesticated"
+            case .pet:
+                return scan.petIdentification != nil || normalizedFilterValue(scan.ecologyType) == "pet"
+            }
+        }
+    }
+
+    private func matchesQualityFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
+        guard !filters.qualityFilters.isEmpty else { return true }
+        return filters.qualityFilters.contains { filter in
+            switch filter {
+            case .highQuality:
+                return (scan.imageQualityScore ?? -1) >= 80
+            case .mediumQuality:
+                guard let imageQualityScore = scan.imageQualityScore else { return false }
+                return imageQualityScore >= 60 && imageQualityScore < 80
+            case .lowQuality:
+                guard let imageQualityScore = scan.imageQualityScore else { return false }
+                return imageQualityScore < 60
+            case .noScore:
+                return scan.imageQualityScore == nil
+            }
+        }
+    }
+
+    private func matchesIdentificationFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
+        guard !filters.identificationFilters.isEmpty else { return true }
+        let isCorrected = scan.userIdentificationOverride != nil
+        let isConfirmed = scan.userConfirmedIdentification || scan.confirmedSpeciesId != nil
+        return filters.identificationFilters.contains { filter in
+            switch filter {
+            case .confirmed:
+                return isConfirmed
+            case .corrected:
+                return isCorrected
+            case .aiOnly:
+                return !isConfirmed && !isCorrected
+            }
+        }
+    }
+
+    private func matchesWeatherSeasonFilters(
+        _ scan: LocalScanRecord,
+        filters: ScanLibraryFilters,
+        calendar: Calendar
+    ) -> Bool {
+        if !matchesNormalizedValue(scan.weatherCondition, selectedValues: filters.weatherConditions) {
+            return false
+        }
+
+        guard !filters.seasons.isEmpty else { return true }
+        let month = calendar.component(.month, from: scan.captureDate ?? scan.timestamp)
+        guard let season = season(for: month) else { return false }
+        return filters.seasons.contains(season)
+    }
+
+    private func season(for month: Int) -> ScanSeasonFilter? {
+        switch month {
+        case 3...5:
+            return .spring
+        case 6...8:
+            return .summer
+        case 9...11:
+            return .fall
+        case 1, 2, 12:
+            return .winter
+        default:
+            return nil
+        }
+    }
+
+    private func matchesTaxonomyFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
+        matchesNormalizedValue(scan.taxonomyClass, selectedValues: filters.taxonomyClasses)
+            && matchesNormalizedValue(scan.taxonomyOrder, selectedValues: filters.taxonomyOrders)
+            && matchesNormalizedValue(scan.taxonomyFamily, selectedValues: filters.taxonomyFamilies)
+            && matchesNormalizedValue(scan.taxonomyGenus, selectedValues: filters.taxonomyGenera)
+    }
+
+    private func matchesAnyNormalizedValue(_ values: [String], selectedValues: Set<String>) -> Bool {
+        guard !selectedValues.isEmpty else { return true }
+        let normalizedSelectedValues = Set(selectedValues.compactMap(normalizedFilterValue))
+        guard !normalizedSelectedValues.isEmpty else { return true }
+        return values
+            .compactMap(normalizedFilterValue)
+            .contains { normalizedSelectedValues.contains($0) }
+    }
+
+    private func matchesNormalizedValue(_ value: String?, selectedValues: Set<String>) -> Bool {
+        guard !selectedValues.isEmpty else { return true }
+        guard let normalized = normalizedFilterValue(value) else { return false }
+        return Set(selectedValues.compactMap(normalizedFilterValue)).contains(normalized)
+    }
+
+    private func normalizedFilterValue(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty, normalized != "none", normalized != "unknown" else { return nil }
+        return normalized
     }
     
     private func applySort() {

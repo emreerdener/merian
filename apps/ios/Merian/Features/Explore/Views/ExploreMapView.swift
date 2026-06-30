@@ -68,7 +68,8 @@ struct ExploreMapView: View {
                 .padding(.horizontal, 20)
             }
 
-            overlayChrome
+            topOverlayChrome
+            bottomOverlayChrome
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemBackground))
@@ -172,7 +173,7 @@ struct ExploreMapView: View {
         }
     }
 
-    private var overlayChrome: some View {
+    private var topOverlayChrome: some View {
         VStack(spacing: 8) {
             mapFilterBar
 
@@ -206,27 +207,30 @@ struct ExploreMapView: View {
                 }
                 .buttonStyle(.plain)
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .animation(.easeInOut(duration: 0.18), value: viewModel.needsSearchInArea)
+        .animation(.easeInOut(duration: 0.18), value: viewModel.isOffline)
+    }
 
-            Spacer()
-
-            HStack(alignment: .bottom, spacing: 12) {
+    private var bottomOverlayChrome: some View {
+        VStack(spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
                 infoChip
-                Spacer()
+                Spacer(minLength: 16)
                 recenterButton
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 30)
+            .frame(maxWidth: .infinity, alignment: .center)
 
             if activePreviewCenterPost != nil {
                 previewCarousel
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding(.top, 0)
         .padding(.bottom, Self.tabBarOverlayClearance)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .animation(.spring(response: 0.28, dampingFraction: 0.84), value: activePreviewCenterPost != nil)
-        .animation(.easeInOut(duration: 0.18), value: viewModel.needsSearchInArea)
-        .animation(.easeInOut(duration: 0.18), value: viewModel.isOffline)
     }
 
     private var mapFilterBar: some View {

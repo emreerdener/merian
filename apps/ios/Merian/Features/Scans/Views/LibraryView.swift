@@ -11,7 +11,6 @@ struct LibraryView: View {
     @Environment(\.dismiss) private var dismiss
 
     // MARK: - App State Context
-    let filterCategories: [String]
     let isSearchFocused: Bool
     var queuedScans: [QueuedScanSnapshot] = []
 
@@ -30,22 +29,9 @@ struct LibraryView: View {
     var body: some View {
         VStack(spacing: 8) {
             // 1. Dynamic Header Constraints
-            if searchManager.searchQuery.isEmpty && !isSearchFocused {
-                CategoryFilterBar(
-                    items: filterCategories,
-                    activeItem: searchManager.activeCategoryFilter,
-                    title: { $0 },
-                    onSelection: { category in
-                        if !searchManager.searchQuery.isEmpty {
-                            searchManager.searchQuery = ""
-                        } else {
-                            searchManager.performSearch(query: "", category: category)
-                        }
-                    }
-                )
-            } else {
+            if shouldShowHeader {
                 HStack {
-                    Text(searchManager.searchQuery.isEmpty ? "Search library" : "Search results")
+                    Text(headerTitle)
                         .font(.title3)
                         .fontWeight(.bold)
 
@@ -65,86 +51,101 @@ struct LibraryView: View {
             let completedScanIds = Set(searchManager.allScans.map(\.id))
             let visibleQueuedScans = queuedScans.filter { !completedScanIds.contains($0.id) }
             let hasContent = !searchManager.filteredScans.isEmpty || !visibleQueuedScans.isEmpty
-            ZStack(alignment: .bottom) {
-                ScrollView {
-                    if hasContent {
-                        ScansGrid(
-                            scans: searchManager.filteredScans,
-                            queuedScans: visibleQueuedScans,
-                            onSelect: onSelect,
-                            onDelete: onDelete,
-                            isSelected: isSelected,
-                            onAddScans: nil,
-                            onQueuedScanTapped: { snapshot in
-                                openQueuedScan(snapshot)
-                            },
-                            onQueuedScanDelete: { snapshot in
-                                Task {
-                                    await offlineQueueManager.deleteQueuedScan(scanId: snapshot.id)
-                                    await MainActor.run {
-                                        withAnimation { toastMessage = "Scan cancelled & deleted" }
-                                    }
-                                }
-                            },
-                            customMenuItems: { scan in
-                                Group {
-                                    if let onShareToExplore, scan.isExploreShareEligible {
-                                        Button {
-                                            onShareToExplore(scan)
-                                        } label: {
-                                            Label("Share to Explore", systemImage: "safari")
+            GeometryReader { proxy in
+                ZStack(alignment: .bottom) {
+                    ScrollView {
+                        if hasContent {
+                            ScansGrid(
+                                scans: searchManager.filteredScans,
+                                queuedScans: visibleQueuedScans,
+                                onSelect: onSelect,
+                                onDelete: onDelete,
+                                isSelected: isSelected,
+                                onAddScans: nil,
+                                onQueuedScanTapped: { snapshot in
+                                    openQueuedScan(snapshot)
+                                },
+                                onQueuedScanDelete: { snapshot in
+                                    Task {
+                                        await offlineQueueManager.deleteQueuedScan(scanId: snapshot.id)
+                                        await MainActor.run {
+                                            withAnimation { toastMessage = "Scan cancelled & deleted" }
                                         }
                                     }
+                                },
+                                customMenuItems: { scan in
+                                    Group {
+                                        if let onShareToExplore, scan.isExploreShareEligible {
+                                            Button {
+                                                onShareToExplore(scan)
+                                            } label: {
+                                                Label("Share to Explore", systemImage: "safari")
+                                            }
+                                        }
+                                    }
+                                },
+                                isSelectionMode: isSelectionMode
+                            )
+                        } else if searchManager.isFiltering {
+                            Color.clear
+                                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                        } else {
+                            EmptyStateView(
+                                imageName: "fireflies",
+                                title: "No scans found",
+                                message: {
+                                    if !searchManager.searchQuery.isEmpty {
+                                        return "No results for \"\(searchManager.searchQuery)\""
+                                    } else if searchManager.hasActiveFilters {
+                                        return "No scans match the current filters"
+                                    } else {
+                                        return "Start exploring and capture your first scan!"
+                                    }
+                                }()
+                            ) {
+                                if searchManager.hasActiveFilters {
+                                    Button {
+                                        HapticManager.shared.triggerMediumPulse()
+                                        searchManager.clearFilters()
+                                    } label: {
+                                        Text("Clear filters")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.regular)
+                                } else if searchManager.searchQuery.isEmpty {
+                                    Button {
+                                        dismiss()
+                                    } label: {
+                                        Text("Start scanning")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.regular)
                                 }
-                            },
-                            isSelectionMode: isSelectionMode
-                        )
-                    } else if searchManager.isFiltering {
-                        Color.clear
-                            .frame(maxWidth: .infinity, idealHeight: 400)
-                    } else {
-                        EmptyStateView(
-                            imageName: "fireflies",
-                            title: "No scans found",
-                            message: {
-                                if !searchManager.searchQuery.isEmpty {
-                                    return "No results for \"\(searchManager.searchQuery)\" in \(searchManager.activeCategoryFilter)"
-                                } else if searchManager.activeCategoryFilter != "All" {
-                                    return "You haven't documented any \(searchManager.activeCategoryFilter.lowercased()) yet"
-                                } else {
-                                    return "Start exploring and capture your first scan!"
-                                }
-                            }()
-                        ) {
-                            if searchManager.searchQuery.isEmpty {
-                                Button {
-                                    dismiss()
-                                } label: {
-                                    Text("Start scanning")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.regular)
                             }
+                            .frame(maxWidth: .infinity, minHeight: proxy.size.height)
                         }
                     }
-                }
+                    .scrollClipDisabled()
 
-                if let message = toastMessage {
-                    ToastBanner(onDismiss: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            toastMessage = nil
+                    if let message = toastMessage {
+                        ToastBanner(onDismiss: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                toastMessage = nil
+                            }
+                        }) {
+                            Text(message)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
                         }
-                    }) {
-                        Text(message)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
+                        .padding(.bottom, 60)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .zIndex(100)
                     }
-                    .padding(.bottom, 60)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(100)
                 }
             }
             .task(id: toastMessage) {
@@ -160,8 +161,29 @@ struct LibraryView: View {
                 }
             }
         }
+        .padding(.top, shouldShowHeader ? 0 : 16)
         .containerRelativeFrame(.horizontal)
         .id(ScansTab.library)
+    }
+
+    private var shouldShowHeader: Bool {
+        isSearchFocused || !searchManager.searchQuery.isEmpty || searchManager.hasActiveFilters
+    }
+
+    private var headerTitle: String {
+        if !searchManager.searchQuery.isEmpty {
+            return "Search results"
+        }
+
+        if searchManager.activeCategoryFilter != "All" {
+            return searchManager.activeCategoryFilter
+        }
+
+        if searchManager.hasActiveFilters {
+            return "Filtered scans"
+        }
+
+        return "Search library"
     }
 
     private func openQueuedScan(_ snapshot: QueuedScanSnapshot) {

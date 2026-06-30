@@ -80,11 +80,16 @@ TestFlight, App Store, support, and QA.
 
 ### Collections
 - Added a little more top spacing to Collections so the first cards sit more comfortably below the Scans toolbar.
+- Added a Scans-style Collections filter sheet with sorting plus User-created, Smart suggestions, and Built-in collection type filters.
 - Added a taller full-width Featured scans collection at the top of Collections with a daily rotating set of up to 24 scans from your library.
 - Moved collection creation into a blue plus button in the Collections toolbar and removed the unused Collections sort menu.
 - Converted Favorites, Needs review, and Non-biological into gallery-style artwork collection tiles.
 - Added smart default Collections that suggest helpful scan groupings from your library, such as recent finds, places, review candidates, and common organism groups, plus an Explore posts collection, with local hide controls while Needs review stays pinned.
 - Smart Collection cards now use varied matching scan covers, except Recent finds, instead of always reusing the newest scan thumbnail.
+
+### Scans Library
+- Added a full Scans filter sheet for sorting, category, dates, location, tags, naturalist details, photo quality, identification state, weather, season, and taxonomy.
+- Scans filters now stack with search and sorting, with a visible active-filter count and a clear action that keeps the current search text.
 
 ### Describe Modality Improvements
 - Fixed Describe suggestions so tapping a prompt chip no longer leaves the bottom toolbar hidden.

@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-30-scans-library-filters",
+      "date": "2026-06-30",
+      "title": "Scans library filters",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Scans now has a full filter sheet for sorting, category, dates, location, tags, naturalist details, photo quality, identification state, weather, season, and taxonomy.",
+            "Scans filters now stack with search and sorting, with a visible active-filter count and a clear action that keeps the current search text."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-30-collections-add-button",
       "date": "2026-06-30",
       "title": "Collections polish",
@@ -11,6 +25,7 @@
           "items": [
             "Collections now starts with a taller full-width Featured scans collection that uses a daily rotating set of up to 24 scans from your library.",
             "Favorites, Needs review, and Non-biological now appear as gallery-style artwork collection tiles.",
+            "Collections now has a Scans-style filter sheet with sorting plus User-created, Smart suggestions, and Built-in collection type filters.",
             "Collection creation now lives in a blue plus button in the Collections toolbar, the unused Collections sort menu has been removed, and Needs review stays pinned instead of being hideable."
           ]
         }

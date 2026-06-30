@@ -69,7 +69,7 @@ struct ScansToolbarModifier: ViewModifier {
                                 .font(.system(size: 16, weight: .bold))
                         }
                     }
-                    
+
                     ToolbarItem(placement: .topBarTrailing) {
                         if activeTab == .collections {
                             Button(action: onNewCollection) {
@@ -93,17 +93,10 @@ struct ScansToolbarModifier: ViewModifier {
                                         Label("3x3", systemImage: "square.grid.3x3")
                                     }
                                 }
-                                
-                                Picker(selection: $searchManager.sortOption) {
-                                    ForEach(ScanSortOption.allCases) { option in
-                                        Text(option.rawValue).tag(option)
-                                    }
-                                } label: {
-                                    Label("Sort by", systemImage: "arrow.up.arrow.down")
+
+                                Button(action: { searchManager.isSelectionMode = true }) {
+                                    Label("Select multiple", systemImage: "checkmark.circle")
                                 }
-                                .pickerStyle(.menu)
-                                
-                                Button(action: { searchManager.isSelectionMode = true }) { Label("Select multiple", systemImage: "checkmark.circle") }
                             } label: {
                                 Image(systemName: "ellipsis")
                                     .font(.system(size: 16, weight: .bold))
@@ -111,7 +104,7 @@ struct ScansToolbarModifier: ViewModifier {
                             .accessibilityLabel("More options")
                         }
                     }
-                    
+
                     ToolbarItem(placement: .principal) {
                         Picker("View", selection: $activeTab) {
                             Text("Scans").tag(ScansTab.library)
@@ -120,6 +113,7 @@ struct ScansToolbarModifier: ViewModifier {
                         .pickerStyle(.segmented)
                         .frame(width: 200)
                     }
+
                 }
             }
             .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .bottomBar)

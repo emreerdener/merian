@@ -60,6 +60,8 @@ struct ScansSheetView: View {
     @State private var showSelectionLimitAlert = false
     @State private var isSearchFocused = false
     @State private var isNonBiologicalScansPresented = false
+    @State private var collectionSortOption: CollectionSortOption = .newest
+    @State private var collectionFilters = CollectionLibraryFilters()
     
     // MARK: - Static Bounds
     private let filterCategories = ["All", "Plants", "Fungi", "Insects", "Birds", "Mammals", "Reptiles", "Other"]
@@ -91,9 +93,6 @@ struct ScansSheetView: View {
         .onChange(of: rawRecords) { _, _ in
             handleRawRecordsChange()
         }
-        .onChange(of: collections) { _, _ in
-            handleCollectionsChange()
-        }
         .onChange(of: offlineQueueManager.unsyncedItemsCount) { _, _ in
             // `@Observable` change notifications are queued and delivered on the next active
             // render pass — reliable even when the app was backgrounded when the scan
@@ -116,6 +115,9 @@ struct ScansSheetView: View {
             tabPager
             .modifier(ScansSheetModifiers(
                 searchManager: searchManager, activeTab: $activeTab, isSearchFocused: $isSearchFocused,
+                collectionSortOption: $collectionSortOption,
+                collectionFilters: $collectionFilters,
+                filterCategories: filterCategories,
                 showNewCollectionAlert: $showNewCollectionAlert,
                 newCollectionName: $newCollectionName, scanToDelete: $scanToDelete,
                 showDeleteConfirmation: $showDeleteConfirmation, showBatchDeleteConfirmation: $showBatchDeleteConfirmation,
@@ -133,6 +135,7 @@ struct ScansSheetView: View {
                     onDelete: { showBatchDeleteConfirmation = true }
                 )
             }
+            .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .navigationBar)
             .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .bottomBar)
             .navigationDestination(for: ScanInsightRoute.self) { route in
                 localInsightDestination(for: route)
@@ -156,7 +159,6 @@ struct ScansSheetView: View {
             HStack(spacing: 0) {
                 LibraryTabContent(
                     searchManager: searchManager,
-                    filterCategories: filterCategories,
                     queuedScans: queuedScans,
                     isSearchFocused: $isSearchFocused,
                     onScanSelected: { record in
@@ -171,6 +173,8 @@ struct ScansSheetView: View {
                     searchManager: searchManager,
                     isSearchFocused: isSearchFocused,
                     collections: collections,
+                    collectionSortOption: collectionSortOption,
+                    collectionFilters: $collectionFilters,
                     hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
                     onHideSmartCollection: hideSmartCollection,
                     newlyCreatedCollection: $newlyCreatedCollection
@@ -253,11 +257,6 @@ struct ScansSheetView: View {
         refreshThumbnailPipeline()
     }
 
-    private func handleCollectionsChange() {
-        searchManager.collections = collections
-        searchManager.performSearch(query: searchManager.searchQuery)
-    }
-
     private func handleOfflineQueueCountChange() {
         refreshQueuedScans()
         syncStateFromStore()
@@ -325,7 +324,6 @@ struct ScansSheetView: View {
     /// Synchronizes native SwiftData reactive arrays with the offline search manager engine.
     private func syncStateLocally() {
         searchManager.allScans = allRecords
-        searchManager.collections = collections
         searchManager.performSearch(query: searchManager.searchQuery)
     }
 
@@ -449,13 +447,9 @@ struct ScansSheetView: View {
         ShareImportLog.logger.debug(
             "ScansSheetView.syncStateFromStore: records=\(records.count, privacy: .public) latest=\(latestSummary, privacy: .public)"
         )
-        guard scanListSignature(records) != scanListSignature(searchManager.allScans) else {
-            searchManager.collections = collections
-            return
-        }
+        guard scanListSignature(records) != scanListSignature(searchManager.allScans) else { return }
 
         searchManager.allScans = records
-        searchManager.collections = collections
         searchManager.performSearch(query: searchManager.searchQuery)
     }
 
@@ -492,7 +486,6 @@ struct ScansSheetView: View {
 
 private struct LibraryTabContent: View {
     @Bindable var searchManager: ScansManager
-    let filterCategories: [String]
     let queuedScans: [QueuedScanSnapshot]
     @Binding var isSearchFocused: Bool
     let onScanSelected: (LocalScanRecord) -> Void
@@ -506,7 +499,6 @@ private struct LibraryTabContent: View {
     var body: some View {
         LibraryView(
             searchManager: searchManager,
-            filterCategories: filterCategories,
             isSearchFocused: isSearchFocused,
             queuedScans: queuedScans,
             isSelectionMode: searchManager.isSelectionMode,
@@ -550,6 +542,8 @@ private struct CollectionsTabContent: View {
     let searchManager: ScansManager
     let isSearchFocused: Bool
     let collections: [ScanCollection]
+    let collectionSortOption: CollectionSortOption
+    @Binding var collectionFilters: CollectionLibraryFilters
     let hiddenSmartCollectionIDs: Set<String>
     let onHideSmartCollection: (SmartCollectionSnapshot) -> Void
     @Binding var newlyCreatedCollection: ScanCollection?
@@ -559,6 +553,8 @@ private struct CollectionsTabContent: View {
             searchQuery: searchManager.searchQuery,
             isSearchFocused: isSearchFocused,
             collections: collections,
+            collectionSortOption: collectionSortOption,
+            filters: $collectionFilters,
             hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
             onHideSmartCollection: onHideSmartCollection,
             newlyCreatedCollection: $newlyCreatedCollection
@@ -638,15 +634,10 @@ private struct ScansSheetToolbar: ToolbarContent {
                                 Label("3x3", systemImage: "square.grid.3x3")
                             }
                         }
-                        Picker(selection: Binding(get: { searchManager.sortOption }, set: { searchManager.sortOption = $0 })) {
-                            ForEach(ScanSortOption.allCases) { option in
-                                Text(option.rawValue).tag(option)
-                            }
-                        } label: {
-                            Label("Sort by", systemImage: "arrow.up.arrow.down")
+
+                        Button(action: { searchManager.isSelectionMode = true }) {
+                            Label("Select multiple", systemImage: "checkmark.circle")
                         }
-                        .pickerStyle(.menu)
-                        Button(action: { searchManager.isSelectionMode = true }) { Label("Select multiple", systemImage: "checkmark.circle") }
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 16, weight: .bold))
@@ -663,6 +654,5 @@ private struct ScansSheetToolbar: ToolbarContent {
                 .frame(width: 200)
             }
         }
-        
     }
 }

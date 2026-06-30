@@ -1,6 +1,6 @@
-import XCTest
-import SwiftData
 @testable import Merian
+import SwiftData
+import XCTest
 
 @MainActor
 final class ScansManagerTests: XCTestCase {
@@ -156,6 +156,16 @@ final class ScansManagerTests: XCTestCase {
         XCTFail("ScansManager debug hooks are unavailable outside DEBUG builds.")
         trigger()
         #endif
+    }
+
+    private func waitForFilterCompletion(
+        after update: @MainActor (inout ScanLibraryFilters) -> Void
+    ) async {
+        await waitForSearchCompletion(for: searchManager.searchQuery) {
+            var updated = searchManager.filters
+            update(&updated)
+            searchManager.filters = updated
+        }
     }
     
     func testEmptySearchReturnsAllScans() async throws {
@@ -336,6 +346,201 @@ final class ScansManagerTests: XCTestCase {
         }
 
         XCTAssertEqual(searchManager.filteredScans.map(\.id), [bird.id])
+    }
+
+    func testExpandedDateLocationAndTagFiltersStackWithSort() async throws {
+        let older = try createTestScan(
+            commonName: "Older Backyard Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "wild"
+        )
+        older.captureDate = Date(timeIntervalSince1970: 100)
+        older.timestamp = Date(timeIntervalSince1970: 100)
+        older.gpsLatitude = 41.0
+        older.customTags = ["backyard"]
+
+        let newer = try createTestScan(
+            commonName: "Newer Backyard Finch",
+            scientificName: "Haemorhous mexicanus",
+            ecologyType: "wild"
+        )
+        newer.captureDate = Date(timeIntervalSince1970: 200)
+        newer.timestamp = Date(timeIntervalSince1970: 200)
+        newer.gpsLongitude = -87.0
+        newer.customTags = ["backyard"]
+
+        let noLocation = try createTestScan(
+            commonName: "Indoor Mushroom",
+            scientificName: "Amanita muscaria",
+            ecologyType: "wild"
+        )
+        noLocation.captureDate = Date(timeIntervalSince1970: 300)
+        noLocation.timestamp = Date(timeIntervalSince1970: 300)
+        noLocation.customTags = ["backyard"]
+
+        searchManager.sortOption = .oldest
+        searchManager.allScans = [newer, noLocation, older]
+
+        await waitForFilterCompletion {
+            $0.dateFilters = [.custom]
+            $0.customStartDate = Date(timeIntervalSince1970: 50)
+            $0.customEndDate = Date(timeIntervalSince1970: 250)
+            $0.locationFilters = [.hasLocation]
+            $0.customTags = ["backyard"]
+        }
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [older.id, newer.id])
+    }
+
+    func testExpandedNaturalistQualityIdentificationAndNotesFilters() async throws {
+        let matching = try createTestScan(
+            commonName: "Matching Lanternfly",
+            scientificName: "Lycorma delicatula",
+            ecologyType: "wild"
+        )
+        matching.isInvasive = true
+        matching.hazardType = "irritant"
+        matching.iucnRedListStatus = "Least Concern"
+        matching.lifeStage = "Adult"
+        matching.imageQualityScore = 90
+        matching.userConfirmedIdentification = true
+
+        let nonMatching = try createTestScan(
+            commonName: "Plain Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "wild"
+        )
+        nonMatching.imageQualityScore = 45
+
+        searchManager.allScans = [matching, nonMatching]
+
+        await waitForFilterCompletion {
+            $0.isInvasive = true
+            $0.hazardTypes = ["irritant"]
+            $0.conservationStatuses = ["Least Concern"]
+            $0.lifeStages = ["Adult"]
+            $0.ecologyFilters = [.wild]
+            $0.qualityFilters = [.highQuality]
+            $0.identificationFilters = [.confirmed]
+        }
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [matching.id])
+    }
+
+    func testExpandedQualityFilterIncludesMediumRange() async throws {
+        let high = try createTestScan(
+            commonName: "Sharp Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "wild"
+        )
+        high.imageQualityScore = 85
+
+        let medium = try createTestScan(
+            commonName: "Usable Finch",
+            scientificName: "Haemorhous mexicanus",
+            ecologyType: "wild"
+        )
+        medium.imageQualityScore = 70
+
+        let low = try createTestScan(
+            commonName: "Blurry Rose",
+            scientificName: "Rosa arkansana",
+            ecologyType: "wild"
+        )
+        low.imageQualityScore = 50
+
+        searchManager.allScans = [high, medium, low]
+
+        await waitForFilterCompletion {
+            $0.qualityFilters = [.mediumQuality]
+        }
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [medium.id])
+    }
+
+    func testExpandedWeatherSeasonAndTaxonomyFilters() async throws {
+        let matching = try createTestScan(
+            commonName: "Summer Finch",
+            scientificName: "Haemorhous mexicanus",
+            ecologyType: "wild",
+            taxonomyClass: "Aves"
+        )
+        matching.captureDate = DateComponents(calendar: Calendar.current, year: 2026, month: 6, day: 15).date
+        matching.weatherCondition = "Sunny"
+        matching.taxonomyOrder = "Passeriformes"
+        matching.taxonomyFamily = "Fringillidae"
+        matching.taxonomyGenus = "Haemorhous"
+
+        let nonMatching = try createTestScan(
+            commonName: "Rainy Finch",
+            scientificName: "Haemorhous purpureus",
+            ecologyType: "wild",
+            taxonomyClass: "Aves"
+        )
+        nonMatching.captureDate = DateComponents(calendar: Calendar.current, year: 2026, month: 6, day: 16).date
+        nonMatching.weatherCondition = "Rainy"
+        nonMatching.taxonomyOrder = "Passeriformes"
+        nonMatching.taxonomyFamily = "Fringillidae"
+        nonMatching.taxonomyGenus = "Haemorhous"
+
+        searchManager.allScans = [matching, nonMatching]
+
+        await waitForFilterCompletion {
+            $0.weatherConditions = ["Sunny"]
+            $0.seasons = [.summer]
+            $0.taxonomyClasses = ["Aves"]
+            $0.taxonomyOrders = ["Passeriformes"]
+            $0.taxonomyFamilies = ["Fringillidae"]
+            $0.taxonomyGenera = ["Haemorhous"]
+        }
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [matching.id])
+    }
+
+    func testExpandedFilterOptionsAndClearFilters() async throws {
+        let scan = try createTestScan(
+            commonName: "Tagged Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "wild",
+            taxonomyClass: "Magnoliopsida"
+        )
+        scan.customTags = ["yard"]
+        scan.hazardType = "none"
+        scan.iucnRedListStatus = "Least Concern"
+        scan.lifeStage = "Adult"
+        scan.weatherCondition = "Cloudy"
+        scan.taxonomyOrder = "Fagales"
+        scan.taxonomyFamily = "Fagaceae"
+        scan.taxonomyGenus = "Quercus"
+        searchManager.allScans = [scan]
+
+        let options = searchManager.filterOptions
+        XCTAssertEqual(options.customTags, ["yard"])
+        XCTAssertEqual(options.hazardTypes, [])
+        XCTAssertEqual(options.conservationStatuses, ["Least Concern"])
+        XCTAssertEqual(options.lifeStages, ["Adult"])
+        XCTAssertEqual(options.weatherConditions, ["Cloudy"])
+        XCTAssertEqual(options.taxonomyClasses, ["Magnoliopsida"])
+        XCTAssertEqual(options.taxonomyOrders, ["Fagales"])
+        XCTAssertEqual(options.taxonomyFamilies, ["Fagaceae"])
+        XCTAssertEqual(options.taxonomyGenera, ["Quercus"])
+
+        searchManager.searchQuery = "oak"
+        searchManager.performSearch(query: "oak", category: "Plants")
+        await waitForFilterCompletion {
+            $0.customTags = ["yard"]
+            $0.qualityFilters = [.noScore]
+        }
+        XCTAssertTrue(searchManager.hasActiveFilters)
+        XCTAssertEqual(searchManager.activeFilterCount, 3)
+
+        await waitForSearchCompletion(for: "oak") {
+            searchManager.clearFilters()
+        }
+
+        XCTAssertFalse(searchManager.hasActiveFilters)
+        XCTAssertEqual(searchManager.activeCategoryFilter, "All")
+        XCTAssertEqual(searchManager.searchQuery, "oak")
     }
 
     func testDebounceCancellation() async throws {

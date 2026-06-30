@@ -5,6 +5,8 @@ struct CollectionsView: View {
     let searchQuery: String
     let isSearchFocused: Bool
     let collections: [ScanCollection]
+    let collectionSortOption: CollectionSortOption
+    @Binding var filters: CollectionLibraryFilters
     let hiddenSmartCollectionIDs: Set<String>
     let onHideSmartCollection: (SmartCollectionSnapshot) -> Void
     @Binding var newlyCreatedCollection: ScanCollection?
@@ -28,40 +30,53 @@ struct CollectionsView: View {
             VStack(spacing: 16) {
                 let isSearching = !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
                 let query = searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
+                let showUserCreatedCollections = shouldShowCollectionType(.userCreated)
+                let showSmartSuggestionCollections = shouldShowCollectionType(.smartSuggestions)
+                let showBuiltInCollections = shouldShowCollectionType(.builtIn)
 
-                let userCollections = collections.filter {
-                    !$0.isDeleted && $0.name != "Favorites" && (!isSearching || $0.name.localizedCaseInsensitiveContains(query))
-                }
+                let userCollections = showUserCreatedCollections
+                    ? sortedUserCollections(collections.filter {
+                        !$0.isDeleted &&
+                            $0.name != "Favorites" &&
+                            (!isSearching || $0.name.localizedCaseInsensitiveContains(query))
+                    })
+                    : []
                 let favoritesCollection = collections.first { $0.name == "Favorites" && !$0.isDeleted }
                 let favoritesSummary = favoritesCollection.map { collectionSnapshot.summary(for: $0.id) } ?? .empty
 
-                let showFavorites = !isSearching || "favorites".contains(query)
-                let showNonBio = !isSearching || "non-biological".contains(query) || "non biological".contains(query)
-                let featuredCollection = SmartCollectionSuggester.featuredSnapshot(
-                    from: allScans,
-                    hiddenCollectionIDs: hiddenSmartCollectionIDs,
-                    referenceDate: featuredReferenceDate
-                )
+                let showFavorites = showBuiltInCollections && (!isSearching || "favorites".contains(query))
+                let showFavoritesRow = showFavorites && favoritesCollection != nil
+                let showNonBio = showBuiltInCollections &&
+                    (!isSearching || "non-biological".contains(query) || "non biological".contains(query))
+                let featuredCollection = showSmartSuggestionCollections
+                    ? SmartCollectionSuggester.featuredSnapshot(
+                        from: allScans,
+                        hiddenCollectionIDs: hiddenSmartCollectionIDs,
+                        referenceDate: featuredReferenceDate
+                    )
+                    : nil
                 let visibleFeaturedCollection = featuredCollection.flatMap { snapshot in
                     !isSearching || snapshot.title.localizedCaseInsensitiveContains(query) ? snapshot : nil
                 }
-                let visibleSmartCollections = smartCollections.filter {
-                    !isSearching || $0.title.localizedCaseInsensitiveContains(query)
-                }
+                let visibleSmartCollections = showSmartSuggestionCollections
+                    ? smartCollections.filter {
+                        !isSearching || $0.title.localizedCaseInsensitiveContains(query)
+                    }
+                    : []
                 let smartRowCollections = visibleSmartCollections.filter(\.isPinnedRow)
                 let smartCardCollections = visibleSmartCollections.filter { !$0.isPinnedRow }
                 let hasCardCollections = !userCollections.isEmpty || !smartCardCollections.isEmpty
                 let hasTopCollectionCards = visibleFeaturedCollection != nil || hasCardCollections
-                let hasRowCollections = (showFavorites && favoritesCollection != nil) || showNonBio || !smartRowCollections.isEmpty
+                let hasRowCollections = showFavoritesRow || showNonBio || !smartRowCollections.isEmpty
                 let totalFound = userCollections.count
                     + visibleSmartCollections.count
                     + (visibleFeaturedCollection == nil ? 0 : 1)
-                    + (showFavorites ? 1 : 0)
+                    + (showFavoritesRow ? 1 : 0)
                     + (showNonBio ? 1 : 0)
 
-                if isSearching || isSearchFocused {
+                if shouldShowHeader(isSearching: isSearching) {
                     HStack {
-                        Text(isSearching ? "Search results" : "Search collections")
+                        Text(headerTitle(isSearching: isSearching))
                             .font(.title3)
                             .fontWeight(.bold)
 
@@ -77,17 +92,32 @@ struct CollectionsView: View {
                     .padding(.bottom, 0)
                 }
 
-                if isSearching &&
-                    visibleFeaturedCollection == nil &&
-                    userCollections.isEmpty &&
-                    visibleSmartCollections.isEmpty &&
-                    !showFavorites &&
-                    !showNonBio {
+                if shouldShowEmptyFilteredState(
+                    isSearching: isSearching,
+                    visibleFeaturedCollection: visibleFeaturedCollection,
+                    userCollections: userCollections,
+                    visibleSmartCollections: visibleSmartCollections,
+                    showFavorites: showFavoritesRow,
+                    showNonBio: showNonBio
+                ) {
                     EmptyStateView(
-                        iconName: "magnifyingglass",
-                        title: "No results found",
-                        message: "No collections match \"\(searchQuery)\"."
-                    )
+                        iconName: isSearching ? "magnifyingglass" : "line.3.horizontal.decrease",
+                        title: "No collections found",
+                        message: emptyStateMessage(isSearching: isSearching)
+                    ) {
+                        if filters.hasActiveFilters {
+                            Button {
+                                HapticManager.shared.triggerMediumPulse()
+                                filters.clear()
+                            } label: {
+                                Text("Clear filters")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.regular)
+                        }
+                    }
                 } else {
                     if let visibleFeaturedCollection {
                         NavigationLink {
@@ -196,7 +226,11 @@ struct CollectionsView: View {
                     .padding(.top, hasTopCollectionCards ? 0 : 16)
                 }
 
-                if !isSearching && visibleFeaturedCollection == nil && userCollections.isEmpty && visibleSmartCollections.isEmpty {
+                if !isSearching &&
+                    !filters.hasActiveFilters &&
+                    visibleFeaturedCollection == nil &&
+                    userCollections.isEmpty &&
+                    visibleSmartCollections.isEmpty {
                     EmptyStateView(
                         imageName: "fireflies",
                         title: "Collections",
@@ -252,7 +286,70 @@ struct CollectionsView: View {
     }
 
     private var isSearchHeaderVisible: Bool {
-        isSearchFocused || !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
+        isSearchFocused ||
+            filters.hasActiveFilters ||
+            !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private func shouldShowCollectionType(_ type: CollectionTypeFilter) -> Bool {
+        filters.typeFilters.isEmpty || filters.typeFilters.contains(type)
+    }
+
+    private func shouldShowHeader(isSearching: Bool) -> Bool {
+        isSearching || isSearchFocused || filters.hasActiveFilters
+    }
+
+    private func headerTitle(isSearching: Bool) -> String {
+        if isSearching {
+            return "Search results"
+        }
+
+        if filters.hasActiveFilters {
+            return "Filtered collections"
+        }
+
+        return "Search collections"
+    }
+
+    private func shouldShowEmptyFilteredState(
+        isSearching: Bool,
+        visibleFeaturedCollection: SmartCollectionSnapshot?,
+        userCollections: [ScanCollection],
+        visibleSmartCollections: [SmartCollectionSnapshot],
+        showFavorites: Bool,
+        showNonBio: Bool
+    ) -> Bool {
+        (isSearching || filters.hasActiveFilters) &&
+            visibleFeaturedCollection == nil &&
+            userCollections.isEmpty &&
+            visibleSmartCollections.isEmpty &&
+            !showFavorites &&
+            !showNonBio
+    }
+
+    private func emptyStateMessage(isSearching: Bool) -> String {
+        if isSearching {
+            return "No collections match \"\(searchQuery)\"."
+        }
+
+        return "No collections match the current filters."
+    }
+
+    private func sortedUserCollections(_ collections: [ScanCollection]) -> [ScanCollection] {
+        switch collectionSortOption {
+        case .newest:
+            return collections.sorted { $0.createdAt > $1.createdAt }
+        case .oldest:
+            return collections.sorted { $0.createdAt < $1.createdAt }
+        case .aToZ:
+            return collections.sorted {
+                $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .zToA:
+            return collections.sorted {
+                $0.name.localizedStandardCompare($1.name) == .orderedDescending
+            }
+        }
     }
 
     private var collectionsSignature: String {
