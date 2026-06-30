@@ -580,6 +580,10 @@ struct MerianApp: App {
                     }
                 }
             }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                guard let url = activity.webpageURL else { return }
+                _ = handleMerianDeepLink(url)
+            }
         }
         // MARK: - Scene Phases
         .onChange(of: scenePhase) { oldPhase, newPhase in

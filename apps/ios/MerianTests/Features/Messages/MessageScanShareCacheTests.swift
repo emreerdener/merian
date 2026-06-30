@@ -1,7 +1,7 @@
 import Foundation
+@testable import Merian
 import UIKit
 import XCTest
-@testable import Merian
 
 final class MessageScanShareCacheTests: XCTestCase {
     private var temporaryRootURL: URL!
@@ -133,8 +133,13 @@ final class MessageScanShareCacheTests: XCTestCase {
             MerianDeepLinkRoute(url: URL(string: "merian://explore/post/post-123")!),
             .explorePost("post-123")
         )
+        XCTAssertEqual(
+            MerianDeepLinkRoute(url: URL(string: "https://merian.earth/explore/post/post-123")!),
+            .explorePost("post-123")
+        )
         XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "merian://scan")!))
         XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "https://merian.earth")!))
+        XCTAssertNil(MerianDeepLinkRoute(url: URL(string: "https://merian.earth/privacy")!))
     }
 
     private func makeRecord(

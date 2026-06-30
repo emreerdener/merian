@@ -174,7 +174,7 @@ Universal Links are fully configured for `merian.earth`, allowing shared explore
    - Paths: `["/explore/post/*"]`
 
 4. **Deep Linking Route Handler**:
-   Incoming `NSUserActivityTypeBrowsingWeb` web links route through the same native Explore post router that currently handles `merian://explore/post/{postId}`.
+   Incoming `NSUserActivityTypeBrowsingWeb` web links route through the same native Explore post router that handles `merian://explore/post/{postId}`. The native deep-link parser accepts `https://merian.earth/explore/post/{postId}` and ignores unrelated Merian web pages such as policy routes.
 
 The iOS app continues to support both the custom scheme (`merian://`) and HTTPS Universal Links to handle older shared payloads, widgets, and push actions.
 

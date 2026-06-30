@@ -9,7 +9,8 @@
         {
           "title": "Changed",
           "items": [
-            "Explore post shares now use clearer Merian copy before the public web preview link."
+            "Explore post shares now use clearer Merian copy before the public web preview link.",
+            "Explore post web links now open the matching native Explore post when Merian is installed."
           ]
         }
       ]

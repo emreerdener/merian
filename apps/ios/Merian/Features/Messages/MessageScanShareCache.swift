@@ -207,12 +207,27 @@ enum MerianDeepLinkRoute: Equatable {
     case scansLibrary
 
     init?(url: URL) {
-        guard url.scheme?.lowercased() == "merian",
+        guard let scheme = url.scheme?.lowercased(),
               let host = url.host?.lowercased() else {
             return nil
         }
 
         let pathComponents = url.pathComponents.filter { $0 != "/" }
+
+        if scheme == "https", host == "merian.earth" {
+            guard pathComponents.count == 3,
+                  pathComponents[0] == "explore",
+                  pathComponents[1] == "post",
+                  !pathComponents[2].isEmpty else {
+                return nil
+            }
+            self = .explorePost(pathComponents[2])
+            return
+        }
+
+        guard scheme == "merian" else {
+            return nil
+        }
 
         switch host {
         case "explore":
