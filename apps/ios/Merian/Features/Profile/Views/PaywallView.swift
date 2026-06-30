@@ -69,6 +69,7 @@ private let paywallReviews = [
 private let paywallComparisons = [
     PaywallFeatureComparison(title: "Daily scans", freeValue: "1", proValue: "Unlimited"),
     PaywallFeatureComparison(title: "AI model", freeValue: "Flash", proValue: "Pro"),
+    PaywallFeatureComparison(title: "AI chat", freeValue: "-", proValue: "Included"),
     PaywallFeatureComparison(title: "Multi-capture", freeValue: "-", proValue: "Included"),
     PaywallFeatureComparison(title: "Apple Watch logging", freeValue: "-", proValue: "Included"),
     PaywallFeatureComparison(title: "Group events", freeValue: "Join only", proValue: "Host"),
@@ -441,13 +442,16 @@ struct PaywallView: View {
     private var purchaseButtonSubtitle: String {
         guard let selectedPackage else { return "Check back soon or restore purchases" }
 
-        let price = selectedPackage.storeProduct.localizedPriceString
         if selectedPackage.isSevenDayPassPlan {
-            return "\(price) for 7 days"
+            return "\(selectedPackage.paywallDisplayPrice) for 7 days"
         }
 
+        if selectedPackage.isAnnualPlan {
+            return "\(selectedPackage.paywallDisplayPrice) per year. Cancel anytime."
+        }
+
+        let price = selectedPackage.paywallDisplayPrice
         switch selectedPackage.packageType {
-        case .annual: return "\(price) per year. Cancel anytime."
         case .monthly: return "\(price) per month. Cancel anytime."
         case .weekly: return "\(price) for one week."
         case .lifetime: return "\(price) one-time purchase."
@@ -462,16 +466,16 @@ struct PaywallView: View {
 
     private func preferredPackage(from packages: [Package]) -> Package? {
         packages.first(where: \.isSevenDayPassPlan)
-            ?? packages.first(where: { $0.packageType == .annual })
+            ?? packages.first(where: \.isAnnualPlan)
             ?? packages.first(where: { $0.packageType == .monthly })
             ?? packages.first
     }
 
     private func packageSortRank(_ package: Package) -> Int {
         if package.isSevenDayPassPlan { return 0 }
+        if package.isAnnualPlan { return 1 }
 
         switch package.packageType {
-        case .annual: return 1
         case .monthly: return 2
         case .lifetime: return 3
         default: return 4
@@ -660,20 +664,12 @@ private struct PaywallPlanCard: View {
 
                 VStack(alignment: .leading, spacing: isCompact ? 3 : 5) {
                     HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        Text(package.storeProduct.localizedPriceString)
+                        Text(package.paywallDisplayPrice)
                             .font(.system(size: isCompact ? 24 : 28, weight: .bold))
                             .foregroundStyle(.primary)
                         Text(priceSuffix)
                             .font(.system(size: isCompact ? 15 : 18, weight: .semibold))
                             .foregroundStyle(.secondary)
-                    }
-
-                    if let annualMonthlyEquivalentText {
-                        Text(annualMonthlyEquivalentText)
-                            .font(.system(size: isCompact ? 12 : 14, weight: .semibold))
-                            .foregroundStyle(.primary.opacity(0.76))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.86)
                     }
 
                     Text(renewalText)
@@ -686,7 +682,7 @@ private struct PaywallPlanCard: View {
             .padding(.top, isCompact ? 14 : 18)
             .padding(.horizontal, isCompact ? 16 : 20)
             .padding(.bottom, isCompact ? 16 : 22)
-            .frame(width: isCompact ? 280 : 310, height: isCompact ? 224 : 270)
+            .frame(width: isCompact ? 280 : 310, height: isCompact ? 210 : 252)
             .background(
                 LinearGradient(
                     colors: [
@@ -720,9 +716,10 @@ private struct PaywallPlanCard: View {
 
     private var badgeText: String {
         if package.isSevenDayPassPlan { return "NO SUBSCRIPTION" }
+        if package.isAnnualPlan { return "SUBSCRIPTION" }
 
         switch package.packageType {
-        case .annual, .monthly: return "SUBSCRIPTION"
+        case .monthly: return "SUBSCRIPTION"
         case .weekly: return "FIELD PASS"
         case .lifetime: return "NO SUBSCRIPTION"
         default: return "PRO"
@@ -731,9 +728,9 @@ private struct PaywallPlanCard: View {
 
     private var planName: String {
         if package.isSevenDayPassPlan { return "7 Day Pass" }
+        if package.isAnnualPlan { return "Annual" }
 
         switch package.packageType {
-        case .annual: return "Annual"
         case .monthly: return "Monthly"
         case .weekly: return "Weekly"
         case .lifetime: return "Lifetime"
@@ -745,9 +742,11 @@ private struct PaywallPlanCard: View {
         if package.isSevenDayPassPlan {
             return "Full Merian Pro access for 7 days."
         }
+        if package.isAnnualPlan {
+            return "The full Merian Pro experience for a year."
+        }
 
         switch package.packageType {
-        case .annual: return "The full Merian Pro experience for a year."
         case .monthly: return "All Pro tools with month-to-month flexibility."
         case .weekly: return "A short pass for trips, classes, and field days."
         case .lifetime: return "Pay once and keep every Pro feature for life."
@@ -757,26 +756,20 @@ private struct PaywallPlanCard: View {
 
     private var priceSuffix: String {
         if package.isSevenDayPassPlan { return "for 7 Days" }
+        if package.isAnnualPlan { return "/ Year" }
 
         switch package.packageType {
-        case .annual: return "/ Year"
         case .monthly: return "/ Month"
         case .weekly: return "/ Week"
         default: return ""
         }
     }
 
-    private var annualMonthlyEquivalentText: String? {
-        guard package.packageType == .annual,
-              let monthlyPrice = package.storeProduct.localizedPricePerMonth else { return nil }
-        return "(that's \(monthlyPrice)/month)"
-    }
-
     private var renewalText: String {
         if package.isSevenDayPassPlan { return "One-time access. No subscription." }
+        if package.isAnnualPlan { return "Plan auto-renews annually. Cancel anytime." }
 
         switch package.packageType {
-        case .annual: return "Plan auto-renews annually. Cancel anytime."
         case .monthly: return "Plan auto-renews monthly. Cancel anytime."
         case .weekly: return "One week of Pro."
         case .lifetime: return "One-time purchase."
@@ -785,12 +778,26 @@ private struct PaywallPlanCard: View {
     }
 }
 
+private enum PaywallFixedPlanDisplay {
+    static let sevenDayPassPrice = "$3.99"
+    static let annualPrice = "$24.99"
+    static let annualProductIdentifier = "pro_annual"
+}
+
 private extension Package {
+    var isAnnualPlan: Bool {
+        packageType == .annual
+            || storeProduct.productIdentifier == PaywallFixedPlanDisplay.annualProductIdentifier
+    }
+
     var isSevenDayPassPlan: Bool {
-        if packageType == .weekly { return true }
+        if packageType == .weekly || storeProduct.productIdentifier == SevenDayPassAccessPolicy.productIdentifier {
+            return true
+        }
 
         let searchableText = [
             identifier,
+            storeProduct.productIdentifier,
             storeProduct.localizedTitle,
             storeProduct.localizedDescription
         ]
@@ -802,6 +809,12 @@ private extension Package {
             || searchableText.contains("seven day")
             || searchableText.contains("7_day")
             || (searchableText.contains("7") && searchableText.contains("pass"))
+    }
+
+    var paywallDisplayPrice: String {
+        if isSevenDayPassPlan { return PaywallFixedPlanDisplay.sevenDayPassPrice }
+        if isAnnualPlan { return PaywallFixedPlanDisplay.annualPrice }
+        return storeProduct.localizedPriceString
     }
 }
 

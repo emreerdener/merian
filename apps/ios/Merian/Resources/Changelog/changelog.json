@@ -9,7 +9,8 @@
         {
           "title": "Changed",
           "items": [
-            "Annual Pro plan cards now show the equivalent monthly cost alongside the yearly subscription price."
+            "Pro plan cards now use the intended launch prices and labels for Annual and the 7 Day Pass, even while App Store product metadata is settling.",
+            "AI chat now appears in the Pro paywall feature comparison table."
           ]
         }
       ]
