@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   Avatar,
   Badge,
@@ -47,7 +47,7 @@ type ExplorePostPageProps = {
 };
 
 type ObservationRow = {
-  icon: ComponentType<{ size?: number }>;
+  icon: ReactNode;
   label: string;
   value: string;
 };
@@ -239,13 +239,13 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         </Card>
 
         {detail?.fieldNotes ? (
-          <InfoCard icon={IconNotes} title="Field notes">
+          <InfoCard icon={<IconNotes size={18} />} title="Field notes">
             <Text>{detail.fieldNotes}</Text>
           </InfoCard>
         ) : null}
 
         {detail?.referenceImages.length ? (
-          <InfoCard icon={IconPhoto} title="Reference images">
+          <InfoCard icon={<IconPhoto size={18} />} title="Reference images">
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
               {detail.referenceImages.map((image) => (
                 <Card key={image.url} withBorder radius="md" p="xs">
@@ -271,7 +271,7 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         ) : null}
 
         {hasOverview ? (
-          <InfoCard icon={IconBook} title="Overview">
+          <InfoCard icon={<IconBook size={18} />} title="Overview">
             <Stack gap="md">
               {conservationStatus ? (
                 <KeyValueRow
@@ -300,12 +300,12 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         ) : null}
 
         {observationRows.length ? (
-          <InfoCard icon={IconSparkles} title="Observation">
+          <InfoCard icon={<IconSparkles size={18} />} title="Observation">
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
               {observationRows.map((row) => (
                 <Group key={`${row.label}-${row.value}`} gap="sm" wrap="nowrap">
                   <ThemeIcon variant="light" radius="xl" size="lg">
-                    <row.icon size={18} />
+                    {row.icon}
                   </ThemeIcon>
                   <Stack gap={0}>
                     <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
@@ -320,7 +320,7 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         ) : null}
 
         {detail?.alternativeCommonNames.length ? (
-          <InfoCard icon={IconTag} title="Also known as">
+          <InfoCard icon={<IconTag size={18} />} title="Also known as">
             <Group gap="xs">
               {detail.alternativeCommonNames.map((name) => (
                 <Badge key={name} variant="default">
@@ -332,7 +332,7 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         ) : null}
 
         {detail?.taxonomy.length ? (
-          <InfoCard icon={IconBook} title="Taxonomy">
+          <InfoCard icon={<IconBook size={18} />} title="Taxonomy">
             <Stack gap="sm">
               {detail.taxonomy.map((row, index) => (
                 <Stack key={`${row.label}-${row.value}`} gap="sm">
@@ -353,7 +353,7 @@ function InfoCard({
   title,
   children,
 }: {
-  icon: ComponentType<{ size?: number }>;
+  icon: ReactNode;
   title: string;
   children: ReactNode;
 }) {
@@ -362,7 +362,7 @@ function InfoCard({
       <Stack gap="md">
         <Group gap="sm">
           <ThemeIcon variant="light" radius="xl" size="lg">
-            <Icon size={18} />
+            {Icon}
           </ThemeIcon>
           <Title order={2} size="h3">
             {title}
@@ -392,7 +392,7 @@ function buildObservationRows(post: ExplorePost) {
 
   if (post.publicLocationLabel) {
     rows.push({
-      icon: IconMapPin,
+      icon: <IconMapPin size={18} />,
       label: "Location",
       value: post.publicLocationLabel,
     });
@@ -401,7 +401,7 @@ function buildObservationRows(post: ExplorePost) {
   const observed = observationContext(post.currentMonth, post.timeOfDay);
   if (observed) {
     rows.push({
-      icon: IconCalendar,
+      icon: <IconCalendar size={18} />,
       label: "Observed",
       value: observed,
     });
@@ -410,7 +410,7 @@ function buildObservationRows(post: ExplorePost) {
   const weather = weatherLabel(post.weatherCondition, post.weatherTemperatureF);
   if (weather) {
     rows.push({
-      icon: IconCloud,
+      icon: <IconCloud size={18} />,
       label: "Weather",
       value: weather,
     });
@@ -419,7 +419,7 @@ function buildObservationRows(post: ExplorePost) {
   const shared = sharedDateLabel(post.sharedAt);
   if (shared) {
     rows.push({
-      icon: IconCalendar,
+      icon: <IconCalendar size={18} />,
       label: "Shared",
       value: shared,
     });
