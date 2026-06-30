@@ -51,6 +51,7 @@ TestFlight, App Store, support, and QA.
 ### Profile & Guest Account Polish
 - Matched Profile signed-out spacing below the sign-in buttons to the gap between the stat cards.
 - Fixed Profile published-scan grids so partial rows keep rounded outer image corners instead of exposing sharp edges.
+- Annual Pro plan cards now show the equivalent monthly cost alongside the yearly subscription price.
 - Added guest profile customization: guests can now choose a public profile picture, display name, and username before signing in, and those choices carry into Apple or Google sign-in.
 - Added custom public profile picture uploads for logged-in users, with R2-backed avatar storage, Profile picker support, and Explore/Profile identity refresh.
 - Replaced Explore profile loading spinners with skeleton placeholders that match the profile layout.

@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-30-pro-plan-pricing",
+      "date": "2026-06-30",
+      "title": "Pro plan pricing",
+      "sections": [
+        {
+          "title": "Changed",
+          "items": [
+            "Annual Pro plan cards now show the equivalent monthly cost alongside the yearly subscription price."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-30-scans-library-filters",
       "date": "2026-06-30",
       "title": "Scans library filters",

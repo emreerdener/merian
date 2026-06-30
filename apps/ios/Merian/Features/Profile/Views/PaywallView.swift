@@ -668,6 +668,14 @@ private struct PaywallPlanCard: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    if let annualMonthlyEquivalentText {
+                        Text(annualMonthlyEquivalentText)
+                            .font(.system(size: isCompact ? 12 : 14, weight: .semibold))
+                            .foregroundStyle(.primary.opacity(0.76))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.86)
+                    }
+
                     Text(renewalText)
                         .font(.system(size: isCompact ? 12 : 14, weight: .medium))
                         .foregroundStyle(.secondary)
@@ -678,7 +686,7 @@ private struct PaywallPlanCard: View {
             .padding(.top, isCompact ? 14 : 18)
             .padding(.horizontal, isCompact ? 16 : 20)
             .padding(.bottom, isCompact ? 16 : 22)
-            .frame(width: isCompact ? 280 : 310, height: isCompact ? 210 : 252)
+            .frame(width: isCompact ? 280 : 310, height: isCompact ? 224 : 270)
             .background(
                 LinearGradient(
                     colors: [
@@ -756,6 +764,12 @@ private struct PaywallPlanCard: View {
         case .weekly: return "/ Week"
         default: return ""
         }
+    }
+
+    private var annualMonthlyEquivalentText: String? {
+        guard package.packageType == .annual,
+              let monthlyPrice = package.storeProduct.localizedPricePerMonth else { return nil }
+        return "(that's \(monthlyPrice)/month)"
     }
 
     private var renewalText: String {
