@@ -17,19 +17,6 @@ import {
   Title,
 } from "@mantine/core";
 import {
-  IconArrowUpRight,
-  IconBook,
-  IconCalendar,
-  IconCloud,
-  IconHeart,
-  IconMapPin,
-  IconMessageCircle,
-  IconNotes,
-  IconPhoto,
-  IconSparkles,
-  IconTag,
-} from "@tabler/icons-react";
-import {
   fetchExplorePost,
   fetchExplorePostPage,
   type ExplorePost,
@@ -47,7 +34,7 @@ type ExplorePostPageProps = {
 };
 
 type ObservationRow = {
-  icon: ReactNode;
+  symbol: string;
   label: string;
   value: string;
 };
@@ -140,15 +127,13 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
     <Container size="lg" py={{ base: "md", sm: "xl" }}>
       <Stack gap="lg">
         <Card withBorder shadow="sm" radius="md" p={0}>
-          <Card.Section>
-            <Image
-              src={post.heroImageUrl}
-              alt={title}
-              fit="cover"
-              mah={680}
-              fallbackSrc="/image-placeholder.svg"
-            />
-          </Card.Section>
+          <Image
+            src={post.heroImageUrl}
+            alt={title}
+            fit="cover"
+            mah={680}
+            fallbackSrc="/image-placeholder.svg"
+          />
 
           <Stack gap="lg" p={{ base: "md", sm: "xl" }}>
             <Group justify="space-between" align="flex-start" gap="md">
@@ -171,15 +156,9 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
               </Group>
 
               <Group gap="xs">
-                <Badge leftSection={<IconHeart size={13} />} variant="light">
-                  {post.likeCount}
-                </Badge>
-                <Badge
-                  leftSection={<IconMessageCircle size={13} />}
-                  variant="light"
-                  color="gray"
-                >
-                  {post.commentCount}
+                <Badge variant="light">{post.likeCount} likes</Badge>
+                <Badge variant="light" color="gray">
+                  {post.commentCount} comments
                 </Badge>
               </Group>
             </Group>
@@ -206,11 +185,7 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
             {hashtags.length ? (
               <Group justify="center" gap="xs">
                 {hashtags.map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant="light"
-                    leftSection={<IconTag size={12} />}
-                  >
+                  <Badge key={tag} variant="light">
                     {tag}
                   </Badge>
                 ))}
@@ -221,7 +196,6 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
               <Button
                 component="a"
                 href={nativeExplorePostUrl(post.postId)}
-                rightSection={<IconArrowUpRight size={18} />}
               >
                 Open in Merian
               </Button>
@@ -239,25 +213,24 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         </Card>
 
         {detail?.fieldNotes ? (
-          <InfoCard icon={<IconNotes size={18} />} title="Field notes">
+          <InfoCard symbol="N" title="Field notes">
             <Text>{detail.fieldNotes}</Text>
           </InfoCard>
         ) : null}
 
         {detail?.referenceImages.length ? (
-          <InfoCard icon={<IconPhoto size={18} />} title="Reference images">
+          <InfoCard symbol="P" title="Reference images">
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
               {detail.referenceImages.map((image) => (
                 <Card key={image.url} withBorder radius="md" p="xs">
-                  <Card.Section>
-                    <Image
-                      src={image.url}
-                      alt={`${speciesLabel} reference image`}
-                      h={220}
-                      fit="cover"
-                      fallbackSrc="/image-placeholder.svg"
-                    />
-                  </Card.Section>
+                  <Image
+                    src={image.url}
+                    alt={`${speciesLabel} reference image`}
+                    h={220}
+                    fit="cover"
+                    fallbackSrc="/image-placeholder.svg"
+                    radius="sm"
+                  />
                   <Group justify="space-between" mt="sm">
                     <Text size="sm" fw={600}>
                       Source
@@ -271,7 +244,7 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         ) : null}
 
         {hasOverview ? (
-          <InfoCard icon={<IconBook size={18} />} title="Overview">
+          <InfoCard symbol="O" title="Overview">
             <Stack gap="md">
               {conservationStatus ? (
                 <KeyValueRow
@@ -290,7 +263,6 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
                   rel="noreferrer"
                   variant="light"
                   w="fit-content"
-                  rightSection={<IconArrowUpRight size={16} />}
                 >
                   Read source
                 </Button>
@@ -300,12 +272,14 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         ) : null}
 
         {observationRows.length ? (
-          <InfoCard icon={<IconSparkles size={18} />} title="Observation">
+          <InfoCard symbol="I" title="Observation">
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
               {observationRows.map((row) => (
                 <Group key={`${row.label}-${row.value}`} gap="sm" wrap="nowrap">
                   <ThemeIcon variant="light" radius="xl" size="lg">
-                    {row.icon}
+                    <Text size="xs" fw={700}>
+                      {row.symbol}
+                    </Text>
                   </ThemeIcon>
                   <Stack gap={0}>
                     <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
@@ -320,7 +294,7 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         ) : null}
 
         {detail?.alternativeCommonNames.length ? (
-          <InfoCard icon={<IconTag size={18} />} title="Also known as">
+          <InfoCard symbol="A" title="Also known as">
             <Group gap="xs">
               {detail.alternativeCommonNames.map((name) => (
                 <Badge key={name} variant="default">
@@ -332,7 +306,7 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         ) : null}
 
         {detail?.taxonomy.length ? (
-          <InfoCard icon={<IconBook size={18} />} title="Taxonomy">
+          <InfoCard symbol="T" title="Taxonomy">
             <Stack gap="sm">
               {detail.taxonomy.map((row, index) => (
                 <Stack key={`${row.label}-${row.value}`} gap="sm">
@@ -349,11 +323,11 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
 }
 
 function InfoCard({
-  icon: Icon,
+  symbol,
   title,
   children,
 }: {
-  icon: ReactNode;
+  symbol: string;
   title: string;
   children: ReactNode;
 }) {
@@ -362,7 +336,9 @@ function InfoCard({
       <Stack gap="md">
         <Group gap="sm">
           <ThemeIcon variant="light" radius="xl" size="lg">
-            {Icon}
+            <Text size="xs" fw={700}>
+              {symbol}
+            </Text>
           </ThemeIcon>
           <Title order={2} size="h3">
             {title}
@@ -392,7 +368,7 @@ function buildObservationRows(post: ExplorePost) {
 
   if (post.publicLocationLabel) {
     rows.push({
-      icon: <IconMapPin size={18} />,
+      symbol: "L",
       label: "Location",
       value: post.publicLocationLabel,
     });
@@ -401,7 +377,7 @@ function buildObservationRows(post: ExplorePost) {
   const observed = observationContext(post.currentMonth, post.timeOfDay);
   if (observed) {
     rows.push({
-      icon: <IconCalendar size={18} />,
+      symbol: "D",
       label: "Observed",
       value: observed,
     });
@@ -410,7 +386,7 @@ function buildObservationRows(post: ExplorePost) {
   const weather = weatherLabel(post.weatherCondition, post.weatherTemperatureF);
   if (weather) {
     rows.push({
-      icon: <IconCloud size={18} />,
+      symbol: "W",
       label: "Weather",
       value: weather,
     });
@@ -419,7 +395,7 @@ function buildObservationRows(post: ExplorePost) {
   const shared = sharedDateLabel(post.sharedAt);
   if (shared) {
     rows.push({
-      icon: <IconCalendar size={18} />,
+      symbol: "S",
       label: "Shared",
       value: shared,
     });
