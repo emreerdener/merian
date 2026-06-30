@@ -486,6 +486,19 @@ function logExplorePostRpcError(
   });
 }
 
+function supabaseUrlHost() {
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) {
+    return null;
+  }
+
+  try {
+    return new URL(url).host;
+  } catch {
+    return "invalid";
+  }
+}
+
 async function fetchExplorePostDetail(
   postId: string,
 ): Promise<ExplorePostDetail | null> {
@@ -518,6 +531,9 @@ export async function fetchExplorePost(
   const supabase = createServerSupabaseClient();
 
   if (!supabase) {
+    console.error("explore_post_supabase_config_missing", {
+      post_id: postId,
+    });
     return null;
   }
 
@@ -535,8 +551,16 @@ export async function fetchExplorePost(
   const rows = (data ?? []) as ExplorePostRow[];
   const post = rows[0];
 
+  if (!post) {
+    console.warn("explore_post_rpc_empty", {
+      post_id: postId,
+      supabase_host: supabaseUrlHost(),
+    });
+    return null;
+  }
+
   try {
-    return post ? mapExplorePost(post) : null;
+    return mapExplorePost(post);
   } catch (error) {
     console.error("explore_post_map_failed", {
       post_id: postId,
@@ -549,16 +573,7 @@ export async function fetchExplorePost(
 export async function fetchExplorePostPage(
   postId: string,
 ): Promise<ExplorePostPageData | null> {
-  let post: ExplorePost | null = null;
-  try {
-    post = await fetchExplorePost(postId);
-  } catch (error) {
-    console.error("explore_post_page_fetch_failed", {
-      post_id: postId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
+  const post = await fetchExplorePost(postId);
 
   if (!post) {
     return null;
