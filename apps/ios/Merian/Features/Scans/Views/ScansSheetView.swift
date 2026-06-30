@@ -127,8 +127,7 @@ struct ScansSheetView: View {
                 ScansSheetToolbar(
                     searchManager: searchManager, activeTab: $activeTab,
                     dismiss: dismiss,
-                    hiddenSmartCollectionCount: hiddenSmartCollectionIDs.count,
-                    onShowHiddenSmartCollections: showHiddenSmartCollections,
+                    onNewCollection: { showNewCollectionAlert = true },
                     onShare: shareSelectedScans,
                     onDownload: downloadSelectedScans,
                     onDelete: { showBatchDeleteConfirmation = true }
@@ -171,10 +170,9 @@ struct ScansSheetView: View {
                 CollectionsTabContent(
                     searchManager: searchManager,
                     isSearchFocused: isSearchFocused,
-                    sortedCollections: searchManager.sortedCollections,
+                    collections: collections,
                     hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
                     onHideSmartCollection: hideSmartCollection,
-                    showNewCollectionAlert: $showNewCollectionAlert,
                     newlyCreatedCollection: $newlyCreatedCollection
                 )
             }
@@ -229,12 +227,6 @@ struct ScansSheetView: View {
 
     private func hideSmartCollection(_ snapshot: SmartCollectionSnapshot) {
         hiddenSmartCollectionIDs = SmartCollectionPreferences.hide(id: snapshot.id)
-    }
-
-    private func showHiddenSmartCollections() {
-        SmartCollectionPreferences.clearHiddenIDs()
-        hiddenSmartCollectionIDs = []
-        HapticManager.shared.triggerSelectionPulse()
     }
 
     private func handleAppear() {
@@ -557,20 +549,18 @@ private struct LibraryTabContent: View {
 private struct CollectionsTabContent: View {
     let searchManager: ScansManager
     let isSearchFocused: Bool
-    let sortedCollections: [ScanCollection]
+    let collections: [ScanCollection]
     let hiddenSmartCollectionIDs: Set<String>
     let onHideSmartCollection: (SmartCollectionSnapshot) -> Void
-    @Binding var showNewCollectionAlert: Bool
     @Binding var newlyCreatedCollection: ScanCollection?
 
     var body: some View {
         CollectionsView(
             searchQuery: searchManager.searchQuery,
             isSearchFocused: isSearchFocused,
-            collections: sortedCollections,
+            collections: collections,
             hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
             onHideSmartCollection: onHideSmartCollection,
-            showNewCollectionAlert: $showNewCollectionAlert,
             newlyCreatedCollection: $newlyCreatedCollection
         )
     }
@@ -581,8 +571,7 @@ private struct ScansSheetToolbar: ToolbarContent {
     @Binding var activeTab: ScansTab
     @Environment(AppSettings.self) private var appSettings
     let dismiss: DismissAction
-    let hiddenSmartCollectionCount: Int
-    let onShowHiddenSmartCollections: () -> Void
+    let onNewCollection: () -> Void
     let onShare: () -> Void
     let onDownload: () -> Void
     let onDelete: () -> Void
@@ -627,22 +616,17 @@ private struct ScansSheetToolbar: ToolbarContent {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    if activeTab == .collections {
-                        if hiddenSmartCollectionCount > 0 {
-                            Button(action: onShowHiddenSmartCollections) {
-                                Label("Show hidden smart collections", systemImage: "eye")
-                            }
-                        }
-                        Picker(selection: Binding(get: { searchManager.collectionSortOption }, set: { searchManager.collectionSortOption = $0 })) {
-                            ForEach(ScanSortOption.allCases) { option in
-                                Text(option.rawValue).tag(option)
-                            }
-                        } label: {
-                            Label("Sort by", systemImage: "arrow.up.arrow.down")
-                        }
-                        .pickerStyle(.menu)
-                    } else if activeTab == .library {
+                if activeTab == .collections {
+                    Button(action: onNewCollection) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .bold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.circle)
+                    .tint(.blue)
+                    .accessibilityLabel("New collection")
+                } else if activeTab == .library {
+                    Menu {
                         ControlGroup {
                             Toggle(isOn: Binding(get: { appSettings.gridColumns == 1 }, set: { if $0 { appSettings.gridColumns = 1 } })) {
                                 Label("1x1", systemImage: "rectangle.grid.1x2")
@@ -663,12 +647,12 @@ private struct ScansSheetToolbar: ToolbarContent {
                         }
                         .pickerStyle(.menu)
                         Button(action: { searchManager.isSelectionMode = true }) { Label("Select multiple", systemImage: "checkmark.circle") }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16, weight: .bold))
                     }
-                } label: {
-                    Image(systemName: activeTab == .collections ? "line.3.horizontal.decrease" : "ellipsis")
-                        .font(.system(size: 16, weight: .bold))
+                    .accessibilityLabel("More options")
                 }
-                .accessibilityLabel(activeTab == .collections ? "Sort collections" : "More options")
             }
             ToolbarItem(placement: .principal) {
                 Picker("View", selection: $activeTab) {
@@ -680,13 +664,5 @@ private struct ScansSheetToolbar: ToolbarContent {
             }
         }
         
-        ToolbarItem(placement: .keyboard) {
-            HStack {
-                Spacer()
-                Button("Done") {
-                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                }
-            }
-        }
     }
 }

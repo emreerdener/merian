@@ -5,6 +5,7 @@ struct ScansToolbarModifier: ViewModifier {
     @Bindable var searchManager: ScansManager
     @Binding var activeTab: ScansTab
     let dismiss: DismissAction
+    let onNewCollection: () -> Void
     let onShare: () -> Void
     let onDownload: () -> Void
     let onDelete: () -> Void
@@ -70,18 +71,17 @@ struct ScansToolbarModifier: ViewModifier {
                     }
                     
                     ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            if activeTab == .collections {
-                                Picker(selection: $searchManager.collectionSortOption) {
-                                    ForEach(ScanSortOption.allCases) { option in
-                                        Text(option.rawValue).tag(option)
-                                    }
-                                } label: {
-                                    Label("Sort by", systemImage: "arrow.up.arrow.down")
-                                }
-                                .pickerStyle(.menu)
-                                
-                            } else if activeTab == .library {
+                        if activeTab == .collections {
+                            Button(action: onNewCollection) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 16, weight: .bold))
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .buttonBorderShape(.circle)
+                            .tint(.blue)
+                            .accessibilityLabel("New collection")
+                        } else if activeTab == .library {
+                            Menu {
                                 ControlGroup {
                                     Toggle(isOn: Binding(get: { appSettings.gridColumns == 1 }, set: { if $0 { appSettings.gridColumns = 1 } })) {
                                         Label("1x1", systemImage: "rectangle.grid.1x2")
@@ -104,12 +104,12 @@ struct ScansToolbarModifier: ViewModifier {
                                 .pickerStyle(.menu)
                                 
                                 Button(action: { searchManager.isSelectionMode = true }) { Label("Select multiple", systemImage: "checkmark.circle") }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.system(size: 16, weight: .bold))
                             }
-                        } label: {
-                            Image(systemName: activeTab == .collections ? "line.3.horizontal.decrease" : "ellipsis")
-                                .font(.system(size: 16, weight: .bold))
+                            .accessibilityLabel("More options")
                         }
-                        .accessibilityLabel(activeTab == .collections ? "Sort collections" : "More options")
                     }
                     
                     ToolbarItem(placement: .principal) {
@@ -119,16 +119,6 @@ struct ScansToolbarModifier: ViewModifier {
                         }
                         .pickerStyle(.segmented)
                         .frame(width: 200)
-                    }
-                }
-                
-                // 3. Global Keyboard Resignation
-                ToolbarItem(placement: .keyboard) {
-                    HStack {
-                        Spacer()
-                        Button("Done") {
-                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                        }
                     }
                 }
             }
@@ -143,6 +133,7 @@ extension View {
         searchManager: ScansManager,
         activeTab: Binding<ScansTab>,
         dismiss: DismissAction,
+        onNewCollection: @escaping () -> Void = {},
         onShare: @escaping () -> Void,
         onDownload: @escaping () -> Void,
         onDelete: @escaping () -> Void
@@ -151,6 +142,7 @@ extension View {
             searchManager: searchManager,
             activeTab: activeTab,
             dismiss: dismiss,
+            onNewCollection: onNewCollection,
             onShare: onShare,
             onDownload: onDownload,
             onDelete: onDelete

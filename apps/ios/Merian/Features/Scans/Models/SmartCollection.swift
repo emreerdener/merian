@@ -34,7 +34,7 @@ struct SmartCollectionSnapshot: Identifiable {
 
 enum SmartCollectionSuggester {
     private static let maximumSuggestions = 6
-    private static let maximumFeaturedScans = 23
+    private static let maximumFeaturedScans = 24
     private static let minimumRecentScans = 3
     private static let minimumReviewScans = 2
     private static let minimumSharedScans = 1

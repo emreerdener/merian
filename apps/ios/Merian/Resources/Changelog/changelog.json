@@ -9,9 +9,9 @@
         {
           "title": "Changed",
           "items": [
-            "Collections now starts with a taller full-width Featured scans collection that uses a daily rotating set of up to 23 scans from your library.",
+            "Collections now starts with a taller full-width Featured scans collection that uses a daily rotating set of up to 24 scans from your library.",
             "Favorites, Needs review, and Non-biological now appear as gallery-style artwork collection tiles.",
-            "Add collection now appears directly as a blue button below the default tiles, the toolbar menu now uses a filter-style sort button, and Needs review stays pinned instead of being hideable."
+            "Collection creation now lives in a blue plus button in the Collections toolbar, the unused Collections sort menu has been removed, and Needs review stays pinned instead of being hideable."
           ]
         }
       ]

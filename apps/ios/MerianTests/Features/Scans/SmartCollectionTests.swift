@@ -85,8 +85,8 @@ struct SmartCollectionTests {
             referenceDate: referenceDate.addingTimeInterval(24 * 60 * 60)
         ))
 
-        #expect(today.count == 23)
-        #expect(Set(today.scans.map(\.id)).count == 23)
+        #expect(today.count == 24)
+        #expect(Set(today.scans.map(\.id)).count == 24)
         #expect(today.scans.map(\.id) == sameDay.scans.map(\.id))
         #expect(today.scans.map(\.id) != nextDay.scans.map(\.id))
     }

@@ -7,7 +7,6 @@ struct CollectionsView: View {
     let collections: [ScanCollection]
     let hiddenSmartCollectionIDs: Set<String>
     let onHideSmartCollection: (SmartCollectionSnapshot) -> Void
-    @Binding var showNewCollectionAlert: Bool
     @Binding var newlyCreatedCollection: ScanCollection?
 
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var allScans: [LocalScanRecord]
@@ -195,21 +194,6 @@ struct CollectionsView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, hasTopCollectionCards ? 0 : 16)
-                }
-
-                if !isSearching {
-                    Button {
-                        showNewCollectionAlert = true
-                    } label: {
-                        Text("New collection")
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .clipShape(Capsule())
-                    }
-                    .padding(.horizontal, 16)
                 }
 
                 if !isSearching && visibleFeaturedCollection == nil && userCollections.isEmpty && visibleSmartCollections.isEmpty {

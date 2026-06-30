@@ -36,21 +36,7 @@ enum ScanSortOption: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var collectionSortOption: ScanSortOption = .newest
-    
     var collections: [ScanCollection] = []
-    
-    // MARK: - Collection Engine Bounds
-    var sortedCollections: [ScanCollection] {
-        collections.sorted { c1, c2 in
-            switch collectionSortOption {
-            case .newest: return c1.createdAt > c2.createdAt
-            case .oldest: return c1.createdAt < c2.createdAt
-            case .aToZ: return c1.name.localizedCaseInsensitiveCompare(c2.name) == .orderedAscending
-            case .zToA: return c1.name.localizedCaseInsensitiveCompare(c2.name) == .orderedDescending
-            }
-        }
-    }
     
     // MARK: - Static Bounds
     let maxBatchSelectionLimit = 20
