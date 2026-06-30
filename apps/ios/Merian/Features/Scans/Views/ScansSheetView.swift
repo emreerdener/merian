@@ -126,7 +126,7 @@ struct ScansSheetView: View {
             .toolbar {
                 ScansSheetToolbar(
                     searchManager: searchManager, activeTab: $activeTab,
-                    showNewCollectionAlert: $showNewCollectionAlert, dismiss: dismiss,
+                    dismiss: dismiss,
                     hiddenSmartCollectionCount: hiddenSmartCollectionIDs.count,
                     onShowHiddenSmartCollections: showHiddenSmartCollections,
                     onShare: shareSelectedScans,
@@ -579,7 +579,6 @@ private struct CollectionsTabContent: View {
 private struct ScansSheetToolbar: ToolbarContent {
     @Bindable var searchManager: ScansManager
     @Binding var activeTab: ScansTab
-    @Binding var showNewCollectionAlert: Bool
     @Environment(AppSettings.self) private var appSettings
     let dismiss: DismissAction
     let hiddenSmartCollectionCount: Int
@@ -630,9 +629,6 @@ private struct ScansSheetToolbar: ToolbarContent {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if activeTab == .collections {
-                        Button(action: { showNewCollectionAlert = true }) {
-                            Label("New collection", systemImage: "folder.badge.plus")
-                        }
                         if hiddenSmartCollectionCount > 0 {
                             Button(action: onShowHiddenSmartCollections) {
                                 Label("Show hidden smart collections", systemImage: "eye")
@@ -669,8 +665,10 @@ private struct ScansSheetToolbar: ToolbarContent {
                         Button(action: { searchManager.isSelectionMode = true }) { Label("Select multiple", systemImage: "checkmark.circle") }
                     }
                 } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold))
+                    Image(systemName: activeTab == .collections ? "line.3.horizontal.decrease" : "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
                 }
+                .accessibilityLabel(activeTab == .collections ? "Sort collections" : "More options")
             }
             ToolbarItem(placement: .principal) {
                 Picker("View", selection: $activeTab) {

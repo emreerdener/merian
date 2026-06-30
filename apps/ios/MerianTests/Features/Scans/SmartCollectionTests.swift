@@ -1,7 +1,7 @@
 import Foundation
+@testable import Merian
 import SwiftData
 import Testing
-@testable import Merian
 
 @Suite("Smart Default Collections")
 @MainActor
@@ -33,6 +33,32 @@ struct SmartCollectionTests {
         )
 
         #expect(suggestions.isEmpty)
+    }
+
+    @Test("Featured scans snapshot is available outside normal suggestions")
+    func testFeaturedSnapshotIsSeparateFromSuggestions() throws {
+        let scans = [
+            try makeScan(id: "featured-newest", name: "Newest Feature", timestamp: referenceDate),
+            try makeScan(id: "featured-older", name: "Older Feature", timestamp: referenceDate.addingTimeInterval(-10))
+        ]
+
+        let featured = try #require(SmartCollectionSuggester.featuredSnapshot(from: scans))
+        let suggestions = SmartCollectionSuggester.suggestions(
+            from: scans,
+            existingCollections: [],
+            referenceDate: referenceDate
+        )
+        let refreshed = SmartCollectionSuggester.refreshedSnapshot(for: featured, from: scans)
+
+        #expect(featured.title == "Featured scans")
+        #expect(featured.count == 2)
+        #expect(featured.coverScan?.id == "featured-newest")
+        #expect(refreshed.scans.map(\.id) == ["featured-newest", "featured-older"])
+        #expect(!suggestions.map(\.title).contains("Featured scans"))
+        #expect(SmartCollectionSuggester.featuredSnapshot(
+            from: scans,
+            hiddenCollectionIDs: [featured.id]
+        ) == nil)
     }
 
     @Test("Suggestions respect thresholds, ranking, and duplicate collection suppression")

@@ -35,14 +35,26 @@ struct CollectionsView: View {
 
                 let showFavorites = !isSearching || "favorites".contains(query)
                 let showNonBio = !isSearching || "non-biological".contains(query) || "non biological".contains(query)
+                let featuredCollection = SmartCollectionSuggester.featuredSnapshot(
+                    from: allScans,
+                    hiddenCollectionIDs: hiddenSmartCollectionIDs
+                )
+                let visibleFeaturedCollection = featuredCollection.flatMap { snapshot in
+                    !isSearching || snapshot.title.localizedCaseInsensitiveContains(query) ? snapshot : nil
+                }
                 let visibleSmartCollections = smartCollections.filter {
                     !isSearching || $0.title.localizedCaseInsensitiveContains(query)
                 }
                 let smartRowCollections = visibleSmartCollections.filter(\.isPinnedRow)
                 let smartCardCollections = visibleSmartCollections.filter { !$0.isPinnedRow }
                 let hasCardCollections = !userCollections.isEmpty || !smartCardCollections.isEmpty
+                let hasTopCollectionCards = visibleFeaturedCollection != nil || hasCardCollections
                 let hasRowCollections = (showFavorites && favoritesCollection != nil) || showNonBio || !smartRowCollections.isEmpty
-                let totalFound = userCollections.count + visibleSmartCollections.count + (showFavorites ? 1 : 0) + (showNonBio ? 1 : 0)
+                let totalFound = userCollections.count
+                    + visibleSmartCollections.count
+                    + (visibleFeaturedCollection == nil ? 0 : 1)
+                    + (showFavorites ? 1 : 0)
+                    + (showNonBio ? 1 : 0)
 
                 if isSearching || isSearchFocused {
                     HStack {
@@ -62,66 +74,92 @@ struct CollectionsView: View {
                     .padding(.bottom, 0)
                 }
 
-                if isSearching && userCollections.isEmpty && visibleSmartCollections.isEmpty && !showFavorites && !showNonBio {
+                if isSearching &&
+                    visibleFeaturedCollection == nil &&
+                    userCollections.isEmpty &&
+                    visibleSmartCollections.isEmpty &&
+                    !showFavorites &&
+                    !showNonBio {
                     EmptyStateView(
                         iconName: "magnifyingglass",
                         title: "No results found",
                         message: "No collections match \"\(searchQuery)\"."
                     )
-                } else if hasCardCollections {
-                    LazyVGrid(
-                        columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
-                        spacing: 16
-                    ) {
-                        ForEach(smartCardCollections) { smartCollection in
-                            NavigationLink {
-                                SmartCollectionDetailView(
-                                    snapshot: smartCollection,
-                                    onHideSmartCollection: onHideSmartCollection
-                                )
-                            } label: {
-                                SmartCollectionCard(snapshot: smartCollection)
-                            }
-                            .buttonStyle(.plain)
+                } else {
+                    if let visibleFeaturedCollection {
+                        NavigationLink {
+                            SmartCollectionDetailView(
+                                snapshot: visibleFeaturedCollection,
+                                onHideSmartCollection: onHideSmartCollection
+                            )
+                        } label: {
+                            FeaturedCollectionCard(snapshot: visibleFeaturedCollection)
                         }
-
-                        ForEach(userCollections) { collection in
-                            NavigationLink {
-                                CollectionDetailView(collection: collection)
-                            } label: {
-                                CollectionCard(
-                                    collection: collection,
-                                    summary: collectionSnapshot.summary(for: collection.id)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                Button {
-                                    collectionToEdit = collection
-                                    newCollectionName = collection.name
-                                    showRenameAlert = true
-                                } label: {
-                                    Label("Rename collection", systemImage: "pencil")
-                                }
-
-                                Button(role: .destructive) {
-                                    collectionToEdit = collection
-                                    showDeleteConfirmation = true
-                                } label: {
-                                    Label("Delete collection", systemImage: "trash")
-                                }
-                            }
-                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 16)
                     }
-                    .padding(.horizontal)
+
+                    if hasCardCollections {
+                        LazyVGrid(
+                            columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)],
+                            spacing: 16
+                        ) {
+                            ForEach(smartCardCollections) { smartCollection in
+                                NavigationLink {
+                                    SmartCollectionDetailView(
+                                        snapshot: smartCollection,
+                                        onHideSmartCollection: onHideSmartCollection
+                                    )
+                                } label: {
+                                    SmartCollectionCard(snapshot: smartCollection)
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            ForEach(userCollections) { collection in
+                                NavigationLink {
+                                    CollectionDetailView(collection: collection)
+                                } label: {
+                                    CollectionCard(
+                                        collection: collection,
+                                        summary: collectionSnapshot.summary(for: collection.id)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button {
+                                        collectionToEdit = collection
+                                        newCollectionName = collection.name
+                                        showRenameAlert = true
+                                    } label: {
+                                        Label("Rename collection", systemImage: "pencil")
+                                    }
+
+                                    Button(role: .destructive) {
+                                        collectionToEdit = collection
+                                        showDeleteConfirmation = true
+                                    } label: {
+                                        Label("Delete collection", systemImage: "trash")
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
                 }
 
                 if hasRowCollections {
-                    VStack(spacing: 16) {
+                    LazyVGrid(
+                        columns: Array(
+                            repeating: GridItem(.flexible(), spacing: 16),
+                            count: 3
+                        ),
+                        spacing: 16
+                    ) {
                         if showFavorites, let favoritesCollection {
-                            DefaultCollectionLink(
+                            DefaultCollectionCard(
                                 title: "Favorites",
-                                iconName: "heart",
+                                assetName: "heart",
                                 count: favoritesSummary.count
                             ) {
                                 CollectionDetailView(collection: favoritesCollection)
@@ -129,9 +167,9 @@ struct CollectionsView: View {
                         }
 
                         ForEach(smartRowCollections) { smartCollection in
-                            DefaultCollectionLink(
+                            DefaultCollectionCard(
                                 title: smartCollection.title,
-                                iconName: smartCollection.iconName,
+                                assetName: smartCollection.defaultCollectionAssetName,
                                 count: smartCollection.count
                             ) {
                                 SmartCollectionDetailView(
@@ -142,9 +180,9 @@ struct CollectionsView: View {
                         }
 
                         if showNonBio {
-                            DefaultCollectionLink(
+                            DefaultCollectionCard(
                                 title: "Non-biological",
-                                iconName: "cube",
+                                assetName: "cube",
                                 count: nonBioCount
                             ) {
                                 NonBiologicalScansView()
@@ -152,25 +190,30 @@ struct CollectionsView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, hasCardCollections ? 0 : 16)
+                    .padding(.top, hasTopCollectionCards ? 0 : 16)
                 }
 
-                if !isSearching && userCollections.isEmpty && visibleSmartCollections.isEmpty {
+                if !isSearching {
+                    Button {
+                        showNewCollectionAlert = true
+                    } label: {
+                        Text("New collection")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .clipShape(Capsule())
+                    }
+                    .padding(.horizontal, 16)
+                }
+
+                if !isSearching && visibleFeaturedCollection == nil && userCollections.isEmpty && visibleSmartCollections.isEmpty {
                     EmptyStateView(
                         imageName: "fireflies",
                         title: "Collections",
                         message: "Create your first collection to start organizing your scans."
-                    ) {
-                        Button {
-                            showNewCollectionAlert = true
-                        } label: {
-                            Text("New collection")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.regular)
-                    }
+                    )
                 }
             }
             .padding(.top, isSearchHeaderVisible ? 0 : 16)
@@ -273,5 +316,14 @@ struct CollectionsView: View {
 private extension SmartCollectionSnapshot {
     var isPinnedRow: Bool {
         definition.rule == .needsReview
+    }
+
+    var defaultCollectionAssetName: String {
+        switch definition.rule {
+        case .needsReview:
+            return "review"
+        default:
+            return iconName
+        }
     }
 }

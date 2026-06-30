@@ -80,6 +80,9 @@ TestFlight, App Store, support, and QA.
 
 ### Collections
 - Added a little more top spacing to Collections so the first cards sit more comfortably below the Scans toolbar.
+- Added a taller full-width Featured scans collection at the top of Collections with a rotating cover image from your scan library.
+- Moved Add collection out of the Collections menu and into a blue in-list button below the default rows, with the toolbar menu now shown as a filter-style sort button.
+- Converted Favorites, Needs review, and Non-biological into gallery-style artwork collection tiles.
 - Added smart default Collections that suggest helpful scan groupings from your library, such as recent finds, places, review candidates, and common organism groups, plus an Explore posts collection, with local hide controls.
 - Smart Collection cards now use varied matching scan covers, except Recent finds, instead of always reusing the newest scan thumbnail.
 

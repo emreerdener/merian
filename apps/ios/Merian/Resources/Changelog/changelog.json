@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-06-30-collections-add-button",
+      "date": "2026-06-30",
+      "title": "Collections polish",
+      "sections": [
+        {
+          "title": "Changed",
+          "items": [
+            "Collections now starts with a taller full-width Featured scans collection that cycles through cover images from your library.",
+            "Favorites, Needs review, and Non-biological now appear as gallery-style artwork collection tiles.",
+            "Add collection now appears directly as a blue button below the default tiles, and the toolbar menu now uses a filter-style sort button."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-29-explore-web-sharing",
       "date": "2026-06-29",
       "title": "Explore web sharing",

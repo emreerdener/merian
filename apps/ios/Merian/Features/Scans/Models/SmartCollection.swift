@@ -2,6 +2,7 @@ import Foundation
 
 struct SmartCollectionDefinition: Identifiable, Equatable {
     enum Rule: Equatable {
+        case featured
         case needsReview
         case recentFinds
         case shared
@@ -83,6 +84,31 @@ enum SmartCollectionSuggester {
             }
             .prefix(maximumSuggestions)
             .map { $0 }
+    }
+
+    static func featuredSnapshot(
+        from scans: [LocalScanRecord],
+        hiddenCollectionIDs: Set<String> = []
+    ) -> SmartCollectionSnapshot? {
+        let sortedScans = scans
+            .filter { $0.isBiological }
+            .sortedByNewest()
+        guard !sortedScans.isEmpty else { return nil }
+
+        let definition = SmartCollectionDefinition(
+            id: normalize("Featured scans"),
+            title: "Featured scans",
+            iconName: "sparkles",
+            rule: .featured,
+            rank: -1
+        )
+        guard !hiddenCollectionIDs.contains(definition.id) else { return nil }
+
+        return SmartCollectionSnapshot(
+            definition: definition,
+            scans: sortedScans,
+            coverScan: sortedScans.first
+        )
     }
 
     static func refreshedSnapshot(
@@ -301,6 +327,8 @@ enum SmartCollectionSuggester {
         from sortedScans: [LocalScanRecord]
     ) -> LocalScanRecord? {
         switch rule {
+        case .featured:
+            return sortedScans.first
         case .recentFinds:
             return sortedScans.first
         default:
@@ -344,6 +372,8 @@ enum SmartCollectionSuggester {
         referenceDate: Date
     ) -> [LocalScanRecord] {
         switch definition.rule {
+        case .featured:
+            return scans
         case .needsReview:
             return scans.filter(isReviewCandidate)
         case .recentFinds:

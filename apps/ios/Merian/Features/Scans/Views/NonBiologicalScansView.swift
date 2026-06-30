@@ -34,42 +34,45 @@ struct NonBiologicalScansView: View {
     // MARK: - View Layout
     
     var body: some View {
-        ScrollView {
-            if nonBioRecords.isEmpty {
-                EmptyStateView(
-                    iconName: "photo.on.rectangle.angled",
-                    title: "Empty",
-                    message: "This collection is currently empty. Non-biological items are automatically purged here after 30 days."
-                )
-            } else {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "info.circle")
-                        .foregroundColor(.red)
-                        .font(.system(size: 18))
-                    
-                    Text("Items in this collection are permanently deleted after 30 days to free up space.")
-                        .font(.footnote)
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
-                    
-                    Spacer()
-                }
-                .padding(16)
-                .background(Color.red.opacity(0.1))
-                .cornerRadius(12)
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-                
-                ScansGrid(scans: nonBioRecords, onSelect: { scan in
-                    scanToReanalyze = scan.id
-                }, onDelete: { scan in
-                    scanToDelete = scan.id
-                    showDeleteConfirmation = true
-                }) { scan in
-                    Button {
+        GeometryReader { geometry in
+            ScrollView {
+                if nonBioRecords.isEmpty {
+                    EmptyStateView(
+                        iconName: "photo.on.rectangle.angled",
+                        title: "Empty",
+                        message: "This collection is currently empty. Non-biological items are automatically purged here after 30 days."
+                    )
+                    .frame(minHeight: geometry.size.height)
+                } else {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(.red)
+                            .font(.system(size: 18))
+
+                        Text("Items in this collection are permanently deleted after 30 days to free up space.")
+                            .font(.footnote)
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+
+                        Spacer()
+                    }
+                    .padding(16)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+
+                    ScansGrid(scans: nonBioRecords, onSelect: { scan in
                         scanToReanalyze = scan.id
-                    } label: {
-                        Label("Reanalyze as biological", systemImage: "leaf.arrow.triangle.circlepath")
+                    }, onDelete: { scan in
+                        scanToDelete = scan.id
+                        showDeleteConfirmation = true
+                    }) { scan in
+                        Button {
+                            scanToReanalyze = scan.id
+                        } label: {
+                            Label("Reanalyze as biological", systemImage: "leaf.arrow.triangle.circlepath")
+                        }
                     }
                 }
             }

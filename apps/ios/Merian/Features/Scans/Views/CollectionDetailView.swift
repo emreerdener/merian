@@ -26,40 +26,43 @@ struct CollectionDetailView: View {
     
     // MARK: - View Layout
     var body: some View {
-        ScrollView {
-            if !memberScans.isEmpty {
-                
-                ScansGrid(scans: memberScans, onSelect: { scan in
-                    inferenceEngine.load(from: scan)
-                    selectedScanForInsight = ScanInsightRoute(scanId: scan.id)
-                }, onDelete: { scan in
-                    scanToDelete = scan.id
-                    showDeleteConfirmation = true
-                }, onAddScans: {
-                    showScanSelection = true
-                }) { scan in
-                    Button(role: .destructive) {
-                        removeFromCollection(scan: scan)
-                    } label: {
-                        Label("Remove from collection", systemImage: "minus.circle")
+        GeometryReader { geometry in
+            ScrollView {
+                if !memberScans.isEmpty {
+
+                    ScansGrid(scans: memberScans, onSelect: { scan in
+                        inferenceEngine.load(from: scan)
+                        selectedScanForInsight = ScanInsightRoute(scanId: scan.id)
+                    }, onDelete: { scan in
+                        scanToDelete = scan.id
+                        showDeleteConfirmation = true
+                    }, onAddScans: {
+                        showScanSelection = true
+                    }) { scan in
+                        Button(role: .destructive) {
+                            removeFromCollection(scan: scan)
+                        } label: {
+                            Label("Remove from collection", systemImage: "minus.circle")
+                        }
                     }
-                }
-            } else {
-                EmptyStateView(
-                    iconName: "photo.on.rectangle.angled",
-                    title: "Empty collection",
-                    message: "Add scans from your library to start building your collection."
-                ) {
-                    Button(action: { showScanSelection = true }) {
-                        Text("Explore library")
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 12)
-                            .background(Color.blue)
-                            .clipShape(Capsule())
+                } else {
+                    EmptyStateView(
+                        iconName: "photo.on.rectangle.angled",
+                        title: "Empty collection",
+                        message: "Add scans from your library to start building your collection."
+                    ) {
+                        Button(action: { showScanSelection = true }) {
+                            Text("Explore library")
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(Color.blue)
+                                .clipShape(Capsule())
+                        }
+                        .padding(.top, 8)
                     }
-                    .padding(.top, 8)
+                    .frame(minHeight: geometry.size.height)
                 }
             }
         }

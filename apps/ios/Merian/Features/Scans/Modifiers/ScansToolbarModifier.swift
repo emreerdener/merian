@@ -4,7 +4,6 @@ struct ScansToolbarModifier: ViewModifier {
     // MARK: - State Dependencies
     @Bindable var searchManager: ScansManager
     @Binding var activeTab: ScansTab
-    @Binding var showNewCollectionAlert: Bool
     let dismiss: DismissAction
     let onShare: () -> Void
     let onDownload: () -> Void
@@ -73,12 +72,6 @@ struct ScansToolbarModifier: ViewModifier {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             if activeTab == .collections {
-                                Button(action: {
-                                    showNewCollectionAlert = true
-                                }) {
-                                    Label("New collection", systemImage: "folder.badge.plus")
-                                }
-                                
                                 Picker(selection: $searchManager.collectionSortOption) {
                                     ForEach(ScanSortOption.allCases) { option in
                                         Text(option.rawValue).tag(option)
@@ -113,9 +106,10 @@ struct ScansToolbarModifier: ViewModifier {
                                 Button(action: { searchManager.isSelectionMode = true }) { Label("Select multiple", systemImage: "checkmark.circle") }
                             }
                         } label: {
-                            Image(systemName: "ellipsis")
+                            Image(systemName: activeTab == .collections ? "line.3.horizontal.decrease" : "ellipsis")
                                 .font(.system(size: 16, weight: .bold))
                         }
+                        .accessibilityLabel(activeTab == .collections ? "Sort collections" : "More options")
                     }
                     
                     ToolbarItem(placement: .principal) {
@@ -148,7 +142,6 @@ extension View {
     func scansToolbar(
         searchManager: ScansManager,
         activeTab: Binding<ScansTab>,
-        showNewCollectionAlert: Binding<Bool>,
         dismiss: DismissAction,
         onShare: @escaping () -> Void,
         onDownload: @escaping () -> Void,
@@ -157,7 +150,6 @@ extension View {
         self.modifier(ScansToolbarModifier(
             searchManager: searchManager,
             activeTab: activeTab,
-            showNewCollectionAlert: showNewCollectionAlert,
             dismiss: dismiss,
             onShare: onShare,
             onDownload: onDownload,

@@ -16,21 +16,24 @@ struct SmartCollectionDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            if liveSnapshot.scans.isEmpty {
-                EmptyStateView(
-                    iconName: liveSnapshot.iconName,
-                    title: liveSnapshot.title,
-                    message: "This smart collection no longer has matching scans."
-                )
-            } else {
-                ScansGrid(
-                    scans: liveSnapshot.scans,
-                    onSelect: { scan in
-                        inferenceEngine.load(from: scan)
-                        selectedScanForInsight = ScanInsightRoute(scanId: scan.id)
-                    }
-                )
+        GeometryReader { geometry in
+            ScrollView {
+                if liveSnapshot.scans.isEmpty {
+                    EmptyStateView(
+                        iconName: liveSnapshot.iconName,
+                        title: liveSnapshot.title,
+                        message: "This smart collection no longer has matching scans."
+                    )
+                    .frame(minHeight: geometry.size.height)
+                } else {
+                    ScansGrid(
+                        scans: liveSnapshot.scans,
+                        onSelect: { scan in
+                            inferenceEngine.load(from: scan)
+                            selectedScanForInsight = ScanInsightRoute(scanId: scan.id)
+                        }
+                    )
+                }
             }
         }
         .navigationTitle(snapshot.title)
