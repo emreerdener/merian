@@ -58,7 +58,15 @@ export async function generateMetadata({
   params,
 }: ExplorePostPageProps): Promise<Metadata> {
   const { postId } = await params;
-  const post = await fetchExplorePost(postId);
+  let post: ExplorePost | null = null;
+  try {
+    post = await fetchExplorePost(postId);
+  } catch (error) {
+    console.error("explore_post_metadata_fetch_failed", {
+      post_id: postId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   if (!post) {
     return {

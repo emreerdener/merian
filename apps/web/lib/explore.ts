@@ -1,5 +1,12 @@
 import { createServerSupabaseClient } from "./supabase";
 
+type SupabaseRpcError = {
+  code?: string;
+  details?: string;
+  hint?: string;
+  message?: string;
+};
+
 type ExplorePostRow = {
   post_id: string;
   scan_id: string;
@@ -465,6 +472,20 @@ function mapExplorePostDetail(row: ExplorePostDetailRow): ExplorePostDetail {
   };
 }
 
+function logExplorePostRpcError(
+  event: string,
+  postId: string,
+  error: SupabaseRpcError,
+) {
+  console.error(event, {
+    post_id: postId,
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+  });
+}
+
 async function fetchExplorePostDetail(
   postId: string,
 ): Promise<ExplorePostDetail | null> {
@@ -481,6 +502,7 @@ async function fetchExplorePostDetail(
   });
 
   if (error) {
+    logExplorePostRpcError("explore_post_detail_rpc_failed", postId, error);
     throw new Error(`Failed to fetch Explore post detail: ${error.message}`);
   }
 
@@ -506,19 +528,37 @@ export async function fetchExplorePost(
   });
 
   if (error) {
+    logExplorePostRpcError("explore_post_rpc_failed", postId, error);
     throw new Error(`Failed to fetch Explore post: ${error.message}`);
   }
 
   const rows = (data ?? []) as ExplorePostRow[];
   const post = rows[0];
 
-  return post ? mapExplorePost(post) : null;
+  try {
+    return post ? mapExplorePost(post) : null;
+  } catch (error) {
+    console.error("explore_post_map_failed", {
+      post_id: postId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 }
 
 export async function fetchExplorePostPage(
   postId: string,
 ): Promise<ExplorePostPageData | null> {
-  const post = await fetchExplorePost(postId);
+  let post: ExplorePost | null = null;
+  try {
+    post = await fetchExplorePost(postId);
+  } catch (error) {
+    console.error("explore_post_page_fetch_failed", {
+      post_id: postId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 
   if (!post) {
     return null;
