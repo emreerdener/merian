@@ -24,7 +24,7 @@ struct SmartCollectionDetailView: View {
                         title: liveSnapshot.title,
                         message: "This smart collection no longer has matching scans."
                     )
-                    .frame(minHeight: geometry.size.height)
+                    .frame(maxWidth: .infinity, minHeight: geometry.size.height)
                 } else {
                     ScansGrid(
                         scans: liveSnapshot.scans,
@@ -39,14 +39,16 @@ struct SmartCollectionDetailView: View {
         .navigationTitle(snapshot.title)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button(role: .destructive) {
-                        hideSmartCollection()
+                if snapshot.isHideable {
+                    Menu {
+                        Button(role: .destructive) {
+                            hideSmartCollection()
+                        } label: {
+                            Label("Hide smart collection", systemImage: "eye.slash")
+                        }
                     } label: {
-                        Label("Hide smart collection", systemImage: "eye.slash")
+                        Image(systemName: "ellipsis")
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
                 }
             }
         }
@@ -64,6 +66,7 @@ struct SmartCollectionDetailView: View {
     }
 
     private func hideSmartCollection() {
+        guard snapshot.isHideable else { return }
         onHideSmartCollection(snapshot)
         HapticManager.shared.triggerLightImpact()
         dismiss()

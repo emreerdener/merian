@@ -62,7 +62,7 @@ struct CollectionDetailView: View {
                         }
                         .padding(.top, 8)
                     }
-                    .frame(minHeight: geometry.size.height)
+                    .frame(maxWidth: .infinity, minHeight: geometry.size.height)
                 }
             }
         }

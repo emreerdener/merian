@@ -104,7 +104,7 @@ struct FeaturedCollectionCard: View {
     private let rotationTimer = Timer.publish(every: 5.0, on: .main, in: .common).autoconnect()
 
     private var featuredScans: [LocalScanRecord] {
-        Array(snapshot.scans.prefix(12))
+        snapshot.scans
     }
 
     private var featuredScan: LocalScanRecord? {

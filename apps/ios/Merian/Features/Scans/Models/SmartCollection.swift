@@ -29,17 +29,20 @@ struct SmartCollectionSnapshot: Identifiable {
     var iconName: String { definition.iconName }
     var count: Int { scans.count }
     var newestScanDate: Date { scans.map(\.timestamp).max() ?? .distantPast }
+    var isHideable: Bool { definition.rule != .needsReview }
 }
 
 enum SmartCollectionSuggester {
     private static let maximumSuggestions = 6
+    private static let maximumFeaturedScans = 23
     private static let minimumRecentScans = 3
     private static let minimumReviewScans = 2
     private static let minimumSharedScans = 1
     private static let minimumTaxonomyScans = 3
     private static let minimumLocationScans = 3
     private static let minimumSpecialScans = 2
-    private static let recentWindow: TimeInterval = 30 * 24 * 60 * 60
+    private static let dayInterval: TimeInterval = 24 * 60 * 60
+    private static let recentWindow: TimeInterval = 30 * dayInterval
     private static let taxonomyLibraryShare = 0.2
 
     static func suggestions(
@@ -72,7 +75,7 @@ enum SmartCollectionSuggester {
 
         return snapshots
             .filter { !activeCollectionNames.contains(normalizedCollectionName($0.title)) }
-            .filter { !hiddenCollectionIDs.contains($0.id) }
+            .filter { !$0.isHideable || !hiddenCollectionIDs.contains($0.id) }
             .sorted { lhs, rhs in
                 if lhs.definition.rank != rhs.definition.rank {
                     return lhs.definition.rank < rhs.definition.rank
@@ -88,12 +91,11 @@ enum SmartCollectionSuggester {
 
     static func featuredSnapshot(
         from scans: [LocalScanRecord],
-        hiddenCollectionIDs: Set<String> = []
+        hiddenCollectionIDs: Set<String> = [],
+        referenceDate: Date = Date()
     ) -> SmartCollectionSnapshot? {
-        let sortedScans = scans
-            .filter { $0.isBiological }
-            .sortedByNewest()
-        guard !sortedScans.isEmpty else { return nil }
+        let featuredScans = dailyFeaturedScans(from: scans, referenceDate: referenceDate)
+        guard !featuredScans.isEmpty else { return nil }
 
         let definition = SmartCollectionDefinition(
             id: normalize("Featured scans"),
@@ -106,8 +108,8 @@ enum SmartCollectionSuggester {
 
         return SmartCollectionSnapshot(
             definition: definition,
-            scans: sortedScans,
-            coverScan: sortedScans.first
+            scans: featuredScans,
+            coverScan: featuredScans.first
         )
     }
 
@@ -340,10 +342,46 @@ enum SmartCollectionSuggester {
         guard !scans.isEmpty else { return nil }
 
         let stableSeed = ([seed] + scans.map(\.id)).joined(separator: "|")
-        let hash = stableSeed.unicodeScalars.reduce(UInt64(14_695_981_039_346_656_037)) { result, scalar in
+        return scans[Int(stableHash(stableSeed) % UInt64(scans.count))]
+    }
+
+    private static func dailyFeaturedScans(
+        from scans: [LocalScanRecord],
+        referenceDate: Date
+    ) -> [LocalScanRecord] {
+        let sortedScans = scans
+            .filter { $0.isBiological }
+            .sortedByNewest()
+
+        guard sortedScans.count > maximumFeaturedScans else {
+            return sortedScans
+        }
+
+        let daySeed = Int(floor(referenceDate.timeIntervalSince1970 / dayInterval))
+        return sortedScans
+            .map { scan in
+                (
+                    scan: scan,
+                    rank: stableHash("\(daySeed)|\(scan.id)")
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.rank != rhs.rank {
+                    return lhs.rank < rhs.rank
+                }
+                if lhs.scan.timestamp != rhs.scan.timestamp {
+                    return lhs.scan.timestamp > rhs.scan.timestamp
+                }
+                return lhs.scan.id < rhs.scan.id
+            }
+            .prefix(maximumFeaturedScans)
+            .map(\.scan)
+    }
+
+    private static func stableHash(_ value: String) -> UInt64 {
+        value.unicodeScalars.reduce(UInt64(14_695_981_039_346_656_037)) { result, scalar in
             (result ^ UInt64(scalar.value)) &* 1_099_511_628_211
         }
-        return scans[Int(hash % UInt64(scans.count))]
     }
 
     private static func isReviewCandidate(_ scan: LocalScanRecord) -> Bool {
@@ -373,7 +411,7 @@ enum SmartCollectionSuggester {
     ) -> [LocalScanRecord] {
         switch definition.rule {
         case .featured:
-            return scans
+            return dailyFeaturedScans(from: scans, referenceDate: referenceDate)
         case .needsReview:
             return scans.filter(isReviewCandidate)
         case .recentFinds:
@@ -422,13 +460,20 @@ enum SmartCollectionSuggester {
 }
 
 enum SmartCollectionPreferences {
+    private static let nonHideableIDs: Set<String> = ["needs review"]
+
     static func hiddenIDs(defaults: UserDefaults = .standard) -> Set<String> {
         Set(defaults.stringArray(forKey: UserDefaultsKeys.hiddenSmartCollectionIDs) ?? [])
+            .subtracting(nonHideableIDs)
     }
 
     @discardableResult
     static func hide(id: String, defaults: UserDefaults = .standard) -> Set<String> {
         var ids = hiddenIDs(defaults: defaults)
+        guard !nonHideableIDs.contains(id) else {
+            persistHiddenIDs(ids, defaults: defaults)
+            return ids
+        }
         ids.insert(id)
         persistHiddenIDs(ids, defaults: defaults)
         return ids

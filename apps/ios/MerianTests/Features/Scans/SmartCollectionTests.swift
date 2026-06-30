@@ -61,6 +61,36 @@ struct SmartCollectionTests {
         ) == nil)
     }
 
+    @Test("Featured scans cap and rotate daily")
+    func testFeaturedScansCapAndRotateDaily() throws {
+        let scans = try (0..<30).map { index in
+            try makeScan(
+                id: "featured-\(index)",
+                name: "Featured \(index)",
+                timestamp: referenceDate.addingTimeInterval(TimeInterval(-index))
+            )
+        }
+        try context.save()
+
+        let today = try #require(SmartCollectionSuggester.featuredSnapshot(
+            from: scans,
+            referenceDate: referenceDate
+        ))
+        let sameDay = try #require(SmartCollectionSuggester.featuredSnapshot(
+            from: scans,
+            referenceDate: referenceDate.addingTimeInterval(60 * 60)
+        ))
+        let nextDay = try #require(SmartCollectionSuggester.featuredSnapshot(
+            from: scans,
+            referenceDate: referenceDate.addingTimeInterval(24 * 60 * 60)
+        ))
+
+        #expect(today.count == 23)
+        #expect(Set(today.scans.map(\.id)).count == 23)
+        #expect(today.scans.map(\.id) == sameDay.scans.map(\.id))
+        #expect(today.scans.map(\.id) != nextDay.scans.map(\.id))
+    }
+
     @Test("Suggestions respect thresholds, ranking, and duplicate collection suppression")
     func testSuggestionRankingAndSuppression() throws {
         let existingBirds = ScanCollection(name: "Birds")
@@ -402,6 +432,43 @@ struct SmartCollectionTests {
             referenceDate: referenceDate
         )
         #expect(restoredSuggestions.map(\.title).contains("Recent finds"))
+    }
+
+    @Test("Needs review cannot be hidden")
+    func testNeedsReviewCannotBeHidden() throws {
+        let scans = try (0..<2).map {
+            try makeScan(
+                name: "Review \($0)",
+                confidenceScore: 0.42,
+                timestamp: referenceDate.addingTimeInterval(TimeInterval(-$0))
+            )
+        }
+        try context.save()
+
+        let snapshot = try #require(SmartCollectionSuggester.suggestions(
+            from: scans,
+            existingCollections: [],
+            referenceDate: referenceDate
+        ).first { $0.title == "Needs review" })
+        #expect(!snapshot.isHideable)
+
+        let hiddenSuggestions = SmartCollectionSuggester.suggestions(
+            from: scans,
+            existingCollections: [],
+            hiddenCollectionIDs: [snapshot.id],
+            referenceDate: referenceDate
+        )
+        #expect(hiddenSuggestions.map(\.title).contains("Needs review"))
+
+        let suiteName = "SmartCollectionNeedsReviewTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let storedIDs = SmartCollectionPreferences.hide(id: snapshot.id, defaults: defaults)
+        #expect(storedIDs.isEmpty)
+        #expect(SmartCollectionPreferences.hiddenIDs(defaults: defaults).isEmpty)
     }
 
     private func makeScan(

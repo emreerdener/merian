@@ -20,6 +20,9 @@ struct CollectionsView: View {
     @State private var showRenameAlert = false
     @State private var showDeleteConfirmation = false
     @State private var newCollectionName = ""
+    @State private var featuredReferenceDate = Date()
+
+    private let featuredRefreshTimer = Timer.publish(every: 3_600, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ScrollView {
@@ -37,7 +40,8 @@ struct CollectionsView: View {
                 let showNonBio = !isSearching || "non-biological".contains(query) || "non biological".contains(query)
                 let featuredCollection = SmartCollectionSuggester.featuredSnapshot(
                     from: allScans,
-                    hiddenCollectionIDs: hiddenSmartCollectionIDs
+                    hiddenCollectionIDs: hiddenSmartCollectionIDs,
+                    referenceDate: featuredReferenceDate
                 )
                 let visibleFeaturedCollection = featuredCollection.flatMap { snapshot in
                     !isSearching || snapshot.title.localizedCaseInsensitiveContains(query) ? snapshot : nil
@@ -252,6 +256,9 @@ struct CollectionsView: View {
         .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
             refreshCollectionSnapshot()
             refreshNonBioCount()
+        }
+        .onReceive(featuredRefreshTimer) { date in
+            featuredReferenceDate = date
         }
         .onReceive(AppEventPublisher.shared.publisher) { event in
             if case .exploreShareStateChanged = event {

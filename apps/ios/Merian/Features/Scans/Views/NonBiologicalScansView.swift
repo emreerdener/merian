@@ -42,7 +42,7 @@ struct NonBiologicalScansView: View {
                         title: "Empty",
                         message: "This collection is currently empty. Non-biological items are automatically purged here after 30 days."
                     )
-                    .frame(minHeight: geometry.size.height)
+                    .frame(maxWidth: .infinity, minHeight: geometry.size.height)
                 } else {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: "info.circle")
