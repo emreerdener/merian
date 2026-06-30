@@ -73,6 +73,36 @@ export async function fetchGBIFVernacularNames(
   }
 }
 
+interface WikiSummary {
+  url: string | null;
+  extract: string | null;
+  img: string | null;
+  title: string | null;
+  type: string | null;
+}
+
+async function fetchWikiSummary(title: string): Promise<WikiSummary | null> {
+  try {
+    const wikiRes = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${
+        encodeURIComponent(title.replace(/ /g, "_"))
+      }`,
+      { signal: AbortSignal.timeout(2500) },
+    );
+    if (!wikiRes.ok) return null;
+    const wikiJson = await wikiRes.json();
+    const url = wikiJson.content_urls?.desktop?.page || null;
+    const extract = wikiJson.extract || null;
+    const img = wikiJson.originalimage?.source ||
+      wikiJson.thumbnail?.source || null;
+    const resTitle = wikiJson.title || null;
+    const type = wikiJson.type || null;
+    return { url, extract, img, title: resTitle, type };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchExternalEnrichment(
   scientificName: string,
 ): Promise<ExternalEnrichmentData> {
@@ -92,6 +122,7 @@ export async function fetchExternalEnrichment(
         let key: number | null = null;
         let urls: string[] = [];
         let vernacularNames: string[] = [];
+        let rank: string | null = null;
 
         const gbifRes = await fetch(
           `https://api.gbif.org/v1/species/match?name=${
@@ -103,6 +134,7 @@ export async function fetchExternalEnrichment(
         const gbifJson = await gbifRes.json();
         key = gbifJson.usageKey || null;
         const taxonomy = gbifTaxonomyFromMatch(gbifJson);
+        rank = stringValue(gbifJson.rank);
 
         if (key) {
           // Fetch occurrence images and vernacular names in parallel — both depend on key
@@ -146,24 +178,11 @@ export async function fetchExternalEnrichment(
             );
           }
         }
-        return { key, urls, vernacularNames, taxonomy };
+        return { key, urls, vernacularNames, taxonomy, rank };
       })(),
 
       (async () => {
-        const wikiRes = await fetch(
-          `https://en.wikipedia.org/api/rest_v1/page/summary/${
-            encodeURIComponent(scientificName.replace(/ /g, "_"))
-          }`,
-          { signal: AbortSignal.timeout(2500) },
-        );
-        if (!wikiRes.ok) throw new Error("Wikipedia lookup failed");
-        const wikiJson = await wikiRes.json();
-        const url = wikiJson.content_urls?.desktop?.page || null;
-        const extract = wikiJson.extract || null;
-        const img = wikiJson.originalimage?.source ||
-          wikiJson.thumbnail?.source || null;
-        const title = wikiJson.title || null;
-        return { url, extract, img, title };
+        return await fetchWikiSummary(scientificName);
       })(),
     ]);
 
@@ -173,13 +192,61 @@ export async function fetchExternalEnrichment(
       alternativeCommonNames = gbifOutcome.value.vernacularNames;
       gbifTaxonomy = gbifOutcome.value.taxonomy;
     }
-    if (wikiOutcome.status === "fulfilled") {
-      wikiUrl = wikiOutcome.value.url;
-      wikiExtract = wikiOutcome.value.extract;
-      wikiTitle = wikiOutcome.value.title;
-      if (wikiOutcome.value.img) {
-        fetchedUrls.unshift(wikiOutcome.value.img);
+
+    let wikiImg: string | null = null;
+    if (wikiOutcome.status === "fulfilled" && wikiOutcome.value) {
+      let summary = wikiOutcome.value;
+      if (summary.type === "disambiguation") {
+        const rank = gbifOutcome.status === "fulfilled" ? gbifOutcome.value.rank : null;
+        const taxonomy = gbifOutcome.status === "fulfilled" ? gbifOutcome.value.taxonomy : null;
+
+        const suffixSet = new Set<string>();
+        if (rank === "GENUS") {
+          suffixSet.add("genus");
+        }
+        if (taxonomy?.kingdom === "Plantae") {
+          suffixSet.add("plant");
+        }
+        if (taxonomy?.kingdom === "Animalia") {
+          if (taxonomy?.class === "Insecta") {
+            suffixSet.add("insect");
+          }
+          if (taxonomy?.class === "Aves") {
+            suffixSet.add("bird");
+          }
+          suffixSet.add("animal");
+        }
+        if (taxonomy?.kingdom === "Fungi") {
+          suffixSet.add("fungus");
+        }
+        // Fallbacks
+        suffixSet.add("genus");
+        suffixSet.add("plant");
+        suffixSet.add("animal");
+
+        for (const suffix of suffixSet) {
+          const candidateTitle = `${scientificName} (${suffix})`;
+          const candidateSummary = await fetchWikiSummary(candidateTitle);
+          if (candidateSummary && candidateSummary.type !== "disambiguation") {
+            summary = candidateSummary;
+            break;
+          }
+        }
       }
+
+      if (summary.type !== "disambiguation") {
+        wikiUrl = summary.url;
+        wikiExtract = summary.extract;
+        wikiTitle = summary.title;
+        wikiImg = summary.img;
+      } else {
+        wikiUrl = summary.url;
+        wikiTitle = summary.title;
+      }
+    }
+
+    if (wikiImg) {
+      fetchedUrls.unshift(wikiImg);
     }
 
     if (fetchedUrls.length > 0) {

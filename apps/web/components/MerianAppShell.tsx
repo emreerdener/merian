@@ -45,18 +45,8 @@ export function MerianAppShell({ children }: MerianAppShellProps) {
             <Group gap="xs" wrap="nowrap">
               <Button
                 component="a"
-                href="/login"
-                variant="subtle"
-                size="sm"
-                visibleFrom="sm"
-              >
-                Log in
-              </Button>
-              <Button
-                component="a"
                 href={primaryCtaHref}
                 size="sm"
-                rightSection={<IconArrowUpRight size={16} />}
                 visibleFrom="xs"
               >
                 {primaryCtaLabel}
@@ -77,4 +67,3 @@ export function MerianAppShell({ children }: MerianAppShellProps) {
     </AppShell>
   );
 }
-

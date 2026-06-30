@@ -1,5 +1,16 @@
 import { createServerSupabaseClient } from "./supabase";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUuid(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
+
+function cleanViewerId(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed && isValidUuid(trimmed) ? trimmed : null;
+}
+
 type SupabaseRpcError = {
   code?: string;
   details?: string;
@@ -502,13 +513,17 @@ function supabaseUrlHost() {
 async function fetchExplorePostDetail(
   postId: string,
 ): Promise<ExplorePostDetail | null> {
+  if (!isValidUuid(postId)) {
+    return null;
+  }
+
   const supabase = createServerSupabaseClient();
 
   if (!supabase) {
     return null;
   }
 
-  const publicViewerId = process.env.SUPABASE_PUBLIC_VIEWER_ID ?? null;
+  const publicViewerId = cleanViewerId(process.env.SUPABASE_PUBLIC_VIEWER_ID);
   const { data, error } = await supabase.rpc("get_explore_post_detail", {
     self_id: publicViewerId,
     target_post_id: postId,
@@ -528,6 +543,10 @@ async function fetchExplorePostDetail(
 export async function fetchExplorePost(
   postId: string,
 ): Promise<ExplorePost | null> {
+  if (!isValidUuid(postId)) {
+    return null;
+  }
+
   const supabase = createServerSupabaseClient();
 
   if (!supabase) {
@@ -537,7 +556,7 @@ export async function fetchExplorePost(
     return null;
   }
 
-  const publicViewerId = process.env.SUPABASE_PUBLIC_VIEWER_ID ?? null;
+  const publicViewerId = cleanViewerId(process.env.SUPABASE_PUBLIC_VIEWER_ID);
   const { data, error } = await supabase.rpc("get_explore_post", {
     self_id: publicViewerId,
     target_post_id: postId,

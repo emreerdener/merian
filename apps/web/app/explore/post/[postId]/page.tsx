@@ -21,11 +21,15 @@ import {
   fetchExplorePostPage,
   type ExplorePost,
 } from "@/lib/explore";
+import { compactSpeciesTitle, postTitle } from "@/lib/formatting";
 import {
-  compactSpeciesTitle,
-  nativeExplorePostUrl,
-  postTitle,
-} from "@/lib/formatting";
+  IconAlertTriangle,
+  IconCalendar,
+  IconCloud,
+  IconBinoculars,
+  IconMapPin,
+  IconUser,
+} from "@tabler/icons-react";
 
 type ExplorePostPageProps = {
   params: Promise<{
@@ -41,6 +45,7 @@ type ObservationRow = {
 
 export const revalidate = 300;
 
+// MARK: - Metadata Generation
 export async function generateMetadata({
   params,
 }: ExplorePostPageProps): Promise<Metadata> {
@@ -100,7 +105,10 @@ export async function generateMetadata({
   };
 }
 
-export default async function ExplorePostPage({ params }: ExplorePostPageProps) {
+// MARK: - Page Component
+export default async function ExplorePostPage({
+  params,
+}: ExplorePostPageProps) {
   const { postId } = await params;
   const data = await fetchExplorePostPage(postId);
 
@@ -114,24 +122,44 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
     post.speciesCommonName,
     post.speciesScientificName,
   );
-  const appStoreUrl = process.env.NEXT_PUBLIC_APP_STORE_URL;
   const hashtags = detail?.hashtags.length ? detail.hashtags : post.hashtags;
   const observationRows = buildObservationRows(post);
   const conservationStatus = normalizedIucnStatus(detail?.iucnRedListStatus);
   const hasOverview = Boolean(conservationStatus || detail?.wikipediaOverview);
-  const authorLabel = post.authorUsername
-    ? `@${post.authorUsername}`
-    : "Shared on Merian";
+
+  const hazardType = detail?.hazardType?.trim().toLowerCase() || "none";
+  let hazardTitle = "Toxic";
+  let hazardSubtitle = "This species may be harmful. Avoid physical contact.";
+  let hazardColor = "yellow";
+
+  if (hazardType === "venomous") {
+    hazardTitle = "Venomous";
+    hazardSubtitle = "Can inject venom through bite or sting. Do not handle.";
+    hazardColor = "red";
+  } else if (hazardType === "poisonous") {
+    hazardTitle = "Toxic";
+    hazardSubtitle = "This species may be harmful. Avoid physical contact.";
+    hazardColor = "red";
+  } else if (hazardType === "allergenic") {
+    hazardTitle = "Allergenic";
+    hazardSubtitle =
+      "May trigger severe allergic reactions in some individuals.";
+    hazardColor = "yellow";
+  } else if (hazardType === "irritant") {
+    hazardTitle = "Irritant";
+    hazardSubtitle = "May cause skin or eye irritation on contact.";
+    hazardColor = "yellow";
+  }
 
   return (
-    <Container size="lg" py={{ base: "md", sm: "xl" }}>
+    <Container size="sm" py={{ base: "md", sm: "xl" }}>
       <Stack gap="lg">
-        <Card withBorder shadow="sm" radius="md" p={0}>
+        <Card withBorder shadow="sm" radius="lg" p={0}>
           <Image
             src={post.heroImageUrl}
             alt={title}
             fit="cover"
-            mah={680}
+            mah={600}
             fallbackSrc="/image-placeholder.svg"
           />
 
@@ -139,42 +167,47 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
             <Group justify="space-between" align="flex-start" gap="md">
               <Group gap="sm">
                 <Avatar
-                  src={post.authorAvatarUrl}
+                  src={post.authorAvatarUrl || undefined}
                   alt={post.authorName}
                   radius="xl"
                   size="md"
-                />
+                >
+                  <IconUser size={18} />
+                </Avatar>
                 <Stack gap={2}>
                   <Group gap="xs">
-                    <Text fw={700}>{post.authorName}</Text>
+                    <Text fw={700}>
+                      {post.authorUsername
+                        ? `@${post.authorUsername}`
+                        : post.authorName}
+                    </Text>
                     {post.authorIsPro ? <Badge size="xs">Pro</Badge> : null}
                   </Group>
-                  <Text size="sm" c="dimmed">
-                    {authorLabel}
-                  </Text>
+                  {post.publicLocationLabel ? (
+                    <Text size="sm" c="dimmed">
+                      {post.publicLocationLabel}
+                    </Text>
+                  ) : null}
                 </Stack>
               </Group>
 
               <Group gap="xs">
-                <Badge variant="light">{post.likeCount} likes</Badge>
-                <Badge variant="light" color="gray">
-                  {post.commentCount} comments
-                </Badge>
+                <Badge variant="default">{post.likeCount} likes</Badge>
+                <Badge variant="default">{post.commentCount} comments</Badge>
               </Group>
             </Group>
 
             <Stack gap="xs" align="center">
-              <Text fw={700} c="dimmed" tt="uppercase" size="xs">
-                Merian Explore
-              </Text>
-              <Title order={1} ta="center">
-                {post.speciesCommonName || title}
-              </Title>
-              {post.speciesScientificName ? (
-                <Text size="lg" c="dimmed" fs="italic" ta="center">
-                  {post.speciesScientificName}
-                </Text>
-              ) : null}
+              <Stack gap={0} align="center">
+                {post.speciesScientificName ? (
+                  <Text size="lg" c="dimmed" fs="italic" ta="center">
+                    {post.speciesScientificName}
+                  </Text>
+                ) : null}
+                <Title order={1} ta="center">
+                  {post.speciesCommonName || title}
+                </Title>
+              </Stack>
               {detail?.aiReasoning ? (
                 <Text maw={760} ta="center">
                   {detail.aiReasoning}
@@ -186,50 +219,72 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
               <Group justify="center" gap="xs">
                 {hashtags.map((tag) => (
                   <Badge key={tag} variant="light">
-                    {tag}
+                    {tag.startsWith("#") ? tag : `#${tag}`}
                   </Badge>
                 ))}
               </Group>
             ) : null}
 
-            <Group justify="center">
-              <Button
-                component="a"
-                href={nativeExplorePostUrl(post.postId)}
+            {hazardType !== "none" ? (
+              <Card
+                withBorder
+                radius="lg"
+                p="md"
+                style={{
+                  backgroundColor: `var(--mantine-color-${hazardColor}-light)`,
+                  maxWidth: 600,
+                  width: "100%",
+                  margin: "0 auto",
+                }}
               >
-                Open in Merian
-              </Button>
-              {appStoreUrl ? (
-                <Button component="a" href={appStoreUrl} variant="light">
-                  Get the app
-                </Button>
-              ) : (
-                <Button component="a" href="/" variant="light">
-                  Join the beta
-                </Button>
-              )}
-            </Group>
+                <Group gap="md" align="center" wrap="nowrap">
+                  <ThemeIcon
+                    variant="light"
+                    color={hazardColor}
+                    size="xl"
+                    radius="md"
+                  >
+                    <IconAlertTriangle size={32} />
+                  </ThemeIcon>
+                  <Stack gap={2}>
+                    <Text
+                      size="xs"
+                      fw={700}
+                      style={{ letterSpacing: "1px" }}
+                      tt="uppercase"
+                      c={`${hazardColor}.8`}
+                    >
+                      Caution
+                    </Text>
+                    <Text fw={700} size="md">
+                      {hazardTitle}
+                    </Text>
+                    <Text size="sm">{hazardSubtitle}</Text>
+                  </Stack>
+                </Group>
+              </Card>
+            ) : null}
           </Stack>
         </Card>
 
         {detail?.fieldNotes ? (
-          <InfoCard symbol="N" title="Field notes">
+          <InfoCard title="Field notes">
             <Text>{detail.fieldNotes}</Text>
           </InfoCard>
         ) : null}
 
         {detail?.referenceImages.length ? (
-          <InfoCard symbol="P" title="Reference images">
+          <InfoCard title="Reference images">
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
               {detail.referenceImages.map((image) => (
-                <Card key={image.url} withBorder radius="md" p="xs">
+                <Card key={image.url} withBorder radius="lg" p="xs">
                   <Image
                     src={image.url}
                     alt={`${speciesLabel} reference image`}
                     h={220}
                     fit="cover"
                     fallbackSrc="/image-placeholder.svg"
-                    radius="sm"
+                    radius="lg"
                   />
                   <Group justify="space-between" mt="sm">
                     <Text size="sm" fw={600}>
@@ -244,13 +299,10 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         ) : null}
 
         {hasOverview ? (
-          <InfoCard symbol="O" title="Overview">
+          <InfoCard title="Overview">
             <Stack gap="md">
               {conservationStatus ? (
-                <KeyValueRow
-                  label="Conservation"
-                  value={conservationStatus}
-                />
+                <KeyValueRow label="Conservation" value={conservationStatus} />
               ) : null}
               {detail?.wikipediaOverview ? (
                 <Text>{detail.wikipediaOverview}</Text>
@@ -261,7 +313,7 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
                   href={detail.wikipediaUrl}
                   target="_blank"
                   rel="noreferrer"
-                  variant="light"
+                  variant="outline"
                   w="fit-content"
                 >
                   Read source
@@ -272,29 +324,44 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         ) : null}
 
         {observationRows.length ? (
-          <InfoCard symbol="I" title="Observation">
+          <InfoCard title="Observation">
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-              {observationRows.map((row) => (
-                <Group key={`${row.label}-${row.value}`} gap="sm" wrap="nowrap">
-                  <ThemeIcon variant="light" radius="xl" size="lg">
-                    <Text size="xs" fw={700}>
-                      {row.symbol}
-                    </Text>
-                  </ThemeIcon>
-                  <Stack gap={0}>
-                    <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
-                      {row.label}
-                    </Text>
-                    <Text fw={600}>{row.value}</Text>
-                  </Stack>
-                </Group>
-              ))}
+              {observationRows.map((row) => {
+                let iconNode = null;
+                if (row.symbol === "L") {
+                  iconNode = <IconMapPin size={18} />;
+                } else if (row.symbol === "D") {
+                  iconNode = <IconBinoculars size={18} />;
+                } else if (row.symbol === "W") {
+                  iconNode = <IconCloud size={18} />;
+                } else if (row.symbol === "S") {
+                  iconNode = <IconCalendar size={18} />;
+                }
+
+                return (
+                  <Group
+                    key={`${row.label}-${row.value}`}
+                    gap="sm"
+                    wrap="nowrap"
+                  >
+                    <ThemeIcon variant="light" radius="xl" size="lg">
+                      {iconNode}
+                    </ThemeIcon>
+                    <Stack gap={0}>
+                      <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+                        {row.label}
+                      </Text>
+                      <Text fw={600}>{row.value}</Text>
+                    </Stack>
+                  </Group>
+                );
+              })}
             </SimpleGrid>
           </InfoCard>
         ) : null}
 
         {detail?.alternativeCommonNames.length ? (
-          <InfoCard symbol="A" title="Also known as">
+          <InfoCard title="Also known as">
             <Group gap="xs">
               {detail.alternativeCommonNames.map((name) => (
                 <Badge key={name} variant="default">
@@ -306,7 +373,7 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
         ) : null}
 
         {detail?.taxonomy.length ? (
-          <InfoCard symbol="T" title="Taxonomy">
+          <InfoCard title="Taxonomy">
             <Stack gap="sm">
               {detail.taxonomy.map((row, index) => (
                 <Stack key={`${row.label}-${row.value}`} gap="sm">
@@ -322,28 +389,14 @@ export default async function ExplorePostPage({ params }: ExplorePostPageProps) 
   );
 }
 
-function InfoCard({
-  symbol,
-  title,
-  children,
-}: {
-  symbol: string;
-  title: string;
-  children: ReactNode;
-}) {
+// MARK: - Subcomponents
+function InfoCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Card withBorder shadow="sm" radius="md" p={{ base: "md", sm: "lg" }}>
+    <Card withBorder shadow="sm" radius="lg" p={{ base: "md", sm: "lg" }}>
       <Stack gap="md">
-        <Group gap="sm">
-          <ThemeIcon variant="light" radius="xl" size="lg">
-            <Text size="xs" fw={700}>
-              {symbol}
-            </Text>
-          </ThemeIcon>
-          <Title order={2} size="h3">
-            {title}
-          </Title>
-        </Group>
+        <Title order={2} size="h3">
+          {title}
+        </Title>
         {children}
       </Stack>
     </Card>
@@ -363,6 +416,7 @@ function KeyValueRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+// MARK: - Helpers & Constants
 function buildObservationRows(post: ExplorePost) {
   const rows: ObservationRow[] = [];
 
@@ -415,14 +469,12 @@ function observationContext(month?: number | null, timeOfDay?: string | null) {
   return monthName ?? cleanTime ?? null;
 }
 
-function weatherLabel(
-  condition?: string | null,
-  temperature?: number | null,
-) {
+function weatherLabel(condition?: string | null, temperature?: number | null) {
   const cleanCondition = condition?.trim();
-  const cleanTemperature = typeof temperature === "number" && Number.isFinite(temperature)
-    ? `${Math.round(temperature)}F`
-    : null;
+  const cleanTemperature =
+    typeof temperature === "number" && Number.isFinite(temperature)
+      ? `${Math.round(temperature)}F`
+      : null;
 
   if (cleanCondition && cleanTemperature) {
     return `${cleanCondition}, ${cleanTemperature}`;
