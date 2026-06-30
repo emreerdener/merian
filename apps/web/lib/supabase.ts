@@ -19,6 +19,18 @@ function getSupabaseConfig(): SupabaseConfig | null {
   return { url, key };
 }
 
+function createModernSecretKeyFetch(key: string): typeof fetch {
+  return async (input, init) => {
+    const headers = new Headers(init?.headers);
+
+    if (headers.get("Authorization") === `Bearer ${key}`) {
+      headers.delete("Authorization");
+    }
+
+    return fetch(input, { ...init, headers });
+  };
+}
+
 export function createServerSupabaseClient() {
   const config = getSupabaseConfig();
 
@@ -26,10 +38,17 @@ export function createServerSupabaseClient() {
     return null;
   }
 
+  const usesModernSecretKey = config.key.startsWith("sb_secret_");
+
   return createClient(config.url, config.key, {
     auth: {
       persistSession: false,
       autoRefreshToken: false
+    },
+    global: {
+      fetch: usesModernSecretKey
+        ? createModernSecretKeyFetch(config.key)
+        : undefined
     }
   });
 }
