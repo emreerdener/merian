@@ -92,6 +92,7 @@ TestFlight, App Store, support, and QA.
 ### Scans Library
 - Added a full Scans filter sheet for sorting, category, dates, location, tags, naturalist details, photo quality, identification state, weather, season, and taxonomy.
 - Scans filters now stack with search and sorting, with a visible active-filter count and a clear action that keeps the current search text.
+- Changed the Scans and Collections active-filter badge to red so it stands out from the blue filter button.
 
 ### Describe Modality Improvements
 - Fixed Describe suggestions so tapping a prompt chip no longer leaves the bottom toolbar hidden.

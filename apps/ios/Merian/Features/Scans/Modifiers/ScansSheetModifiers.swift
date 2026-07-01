@@ -240,7 +240,7 @@ private struct ScansBottomSearchFilterBar: View {
                         .foregroundStyle(.white)
                         .monospacedDigit()
                         .frame(width: 22, height: 22)
-                        .background(Color.accentColor, in: Circle())
+                        .background(Color.red, in: Circle())
                         .offset(x: 4, y: -2)
                 }
             }

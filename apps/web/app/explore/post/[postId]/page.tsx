@@ -181,7 +181,18 @@ export default async function ExplorePostPage({
                         ? `@${post.authorUsername}`
                         : post.authorName}
                     </Text>
-                    {post.authorIsPro ? <Badge size="xs">Pro</Badge> : null}
+                    {post.authorIsPro ? (
+                      <Badge
+                        size="xs"
+                        variant="filled"
+                        style={{
+                          backgroundColor: "var(--mantine-color-text)",
+                          color: "var(--mantine-color-body)",
+                        }}
+                      >
+                        Pro
+                      </Badge>
+                    ) : null}
                   </Group>
                   {post.publicLocationLabel ? (
                     <Text size="sm" c="dimmed">
@@ -230,6 +241,7 @@ export default async function ExplorePostPage({
                 withBorder
                 radius="lg"
                 p="md"
+                shadow="none"
                 style={{
                   backgroundColor: `var(--mantine-color-${hazardColor}-light)`,
                   maxWidth: 600,
@@ -344,7 +356,7 @@ export default async function ExplorePostPage({
                     gap="sm"
                     wrap="nowrap"
                   >
-                    <ThemeIcon variant="light" radius="xl" size="lg">
+                    <ThemeIcon variant="default" radius="xl" size="lg">
                       {iconNode}
                     </ThemeIcon>
                     <Stack gap={0}>

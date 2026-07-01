@@ -578,8 +578,31 @@ export async function fetchExplorePost(
     return null;
   }
 
+  let authorUsername: string | null = null;
+  let isPro = false;
   try {
-    return mapExplorePost(post);
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("public_username, subscription_tier")
+      .eq("id", post.author_user_id)
+      .single();
+    if (!userError && userData) {
+      authorUsername = userData.public_username ?? null;
+      isPro = userData.subscription_tier === "pro";
+    }
+  } catch (err) {
+    console.warn("explore_post_author_enrichment_failed", {
+      author_user_id: post.author_user_id,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  try {
+    return mapExplorePost({
+      ...post,
+      author_username: authorUsername,
+      author_is_pro: isPro,
+    });
   } catch (error) {
     console.error("explore_post_map_failed", {
       post_id: postId,
