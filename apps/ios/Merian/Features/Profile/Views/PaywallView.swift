@@ -1,7 +1,7 @@
 import RevenueCat
 import SwiftUI
 
-private struct PaywallHeroSlide: Identifiable {
+struct PaywallHeroSlide: Identifiable {
     let id = UUID()
     let imageName: String
     let title: String
@@ -9,33 +9,48 @@ private struct PaywallHeroSlide: Identifiable {
     let glowColor: Color
 }
 
-private struct PaywallFeatureComparison: Identifiable {
+struct PaywallFeatureComparison: Identifiable {
     let id = UUID()
     let title: String
     let freeValue: String
     let proValue: String
 }
 
-private let paywallHeroSlides = [
-    PaywallHeroSlide(
-        imageName: "pw_butterfly",
-        title: "Unlimited field scans",
-        subtitle: "Keep identifying without daily scan limits.",
-        glowColor: .mint
-    ),
-    PaywallHeroSlide(
-        imageName: "pw_hawk",
-        title: "Pro AI vision",
-        subtitle: "Use Merian's most capable model for deeper analysis.",
-        glowColor: .orange
-    ),
-    PaywallHeroSlide(
-        imageName: "pw_bird",
-        title: "Listen, compare, record",
-        subtitle: "Unlock multi-capture context, expedition modes, and richer insight cards.",
-        glowColor: .cyan
-    )
-]
+enum ProPlanValueProps {
+    static let activePlanSummary = "You have unlimited field scans, Pro AI vision, AI chat, multi-capture, Apple Watch logging, and expedition mode unlocked."
+    static let upgradePlanSummary = "You have 1 free scan daily. Upgrade for unlimited field scans, Pro AI vision, AI chat, multi-capture, Apple Watch logging, and expedition mode."
+
+    static let featuredSlides = [
+        PaywallHeroSlide(
+            imageName: "pw_butterfly",
+            title: "Unlimited field scans",
+            subtitle: "Keep identifying without daily scan limits.",
+            glowColor: .mint
+        ),
+        PaywallHeroSlide(
+            imageName: "pw_hawk",
+            title: "Pro AI vision",
+            subtitle: "Use Merian's most capable model for deeper analysis.",
+            glowColor: .orange
+        ),
+        PaywallHeroSlide(
+            imageName: "pw_bird",
+            title: "Listen, compare, record",
+            subtitle: "Unlock multi-capture context, expedition modes, and richer insight cards.",
+            glowColor: .cyan
+        )
+    ]
+
+    static let comparisons = [
+        PaywallFeatureComparison(title: "Daily scans", freeValue: "1", proValue: "Unlimited"),
+        PaywallFeatureComparison(title: "AI model", freeValue: "Flash", proValue: "Pro"),
+        PaywallFeatureComparison(title: "AI chat", freeValue: "-", proValue: "Included"),
+        PaywallFeatureComparison(title: "Multi-capture", freeValue: "-", proValue: "Included"),
+        PaywallFeatureComparison(title: "Apple Watch logging", freeValue: "-", proValue: "Included"),
+        PaywallFeatureComparison(title: "Group events", freeValue: "Join only", proValue: "Host"),
+        PaywallFeatureComparison(title: "Expedition mode", freeValue: "-", proValue: "Included")
+    ]
+}
 
 private struct PaywallReview: Identifiable {
     let id = UUID()
@@ -64,16 +79,6 @@ private let paywallReviews = [
         body: "Unlimited scans are a must! I take dozens of pictures of mosses and lichens during fieldwork and the app never misses a beat. Essential for my job.",
         author: "BioResearcher"
     )
-]
-
-private let paywallComparisons = [
-    PaywallFeatureComparison(title: "Daily scans", freeValue: "1", proValue: "Unlimited"),
-    PaywallFeatureComparison(title: "AI model", freeValue: "Flash", proValue: "Pro"),
-    PaywallFeatureComparison(title: "AI chat", freeValue: "-", proValue: "Included"),
-    PaywallFeatureComparison(title: "Multi-capture", freeValue: "-", proValue: "Included"),
-    PaywallFeatureComparison(title: "Apple Watch logging", freeValue: "-", proValue: "Included"),
-    PaywallFeatureComparison(title: "Group events", freeValue: "Join only", proValue: "Host"),
-    PaywallFeatureComparison(title: "Expedition mode", freeValue: "-", proValue: "Included")
 ]
 
 struct PaywallView: View {
@@ -172,7 +177,7 @@ struct PaywallView: View {
     private func heroCarousel(availableHeight: CGFloat, isCompact: Bool) -> some View {
         let carouselHeight = isCompact ? min(320, availableHeight * 0.45) : 388
         return TabView(selection: $selectedHeroIndex) {
-            ForEach(Array(paywallHeroSlides.enumerated()), id: \.element.id) { index, slide in
+            ForEach(Array(ProPlanValueProps.featuredSlides.enumerated()), id: \.element.id) { index, slide in
                 PaywallHeroSlideView(slide: slide, isCompact: isCompact, availableHeight: availableHeight)
                     .tag(index)
             }
@@ -190,7 +195,7 @@ struct PaywallView: View {
         }
         .overlay(alignment: .bottom) {
             HStack(spacing: 7) {
-                ForEach(paywallHeroSlides.indices, id: \.self) { index in
+                ForEach(ProPlanValueProps.featuredSlides.indices, id: \.self) { index in
                     Capsule()
                         .fill(index == selectedHeroIndex ? Color.primary : Color.secondary.opacity(0.26))
                         .frame(width: index == selectedHeroIndex ? 20 : 7, height: 7)
@@ -295,10 +300,10 @@ struct PaywallView: View {
                 Divider()
                     .padding(.leading, 16)
 
-                ForEach(Array(paywallComparisons.enumerated()), id: \.element.id) { index, comparison in
+                ForEach(Array(ProPlanValueProps.comparisons.enumerated()), id: \.element.id) { index, comparison in
                     PaywallComparisonRow(comparison: comparison)
 
-                    if index < paywallComparisons.count - 1 {
+                    if index < ProPlanValueProps.comparisons.count - 1 {
                         Divider()
                             .padding(.leading, 16)
                     }
@@ -484,7 +489,7 @@ struct PaywallView: View {
 
     @MainActor
     private func autoAdvanceHeroCarousel() async {
-        guard !heroCarouselAutoAdvanceDisabled, paywallHeroSlides.count > 1 else { return }
+        guard !heroCarouselAutoAdvanceDisabled, ProPlanValueProps.featuredSlides.count > 1 else { return }
 
         while !Task.isCancelled {
             do {
@@ -496,7 +501,7 @@ struct PaywallView: View {
             guard !Task.isCancelled, !heroCarouselAutoAdvanceDisabled else { return }
 
             withAnimation(.easeInOut(duration: 0.35)) {
-                selectedHeroIndex = (selectedHeroIndex + 1) % paywallHeroSlides.count
+                selectedHeroIndex = (selectedHeroIndex + 1) % ProPlanValueProps.featuredSlides.count
             }
         }
     }

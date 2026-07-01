@@ -149,6 +149,9 @@ struct OverviewCard: View {
                                 Text(val)
                                     .font(.system(.body))
                                     .multilineTextAlignment(.leading)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .padding(.top, 4)
                         }

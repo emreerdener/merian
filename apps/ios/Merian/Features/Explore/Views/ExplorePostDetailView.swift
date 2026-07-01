@@ -362,7 +362,7 @@ struct ExplorePostDetailView: View {
             ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
         }
         .sheet(item: $selectedNotificationReplyThreadRoute) { route in
-            ExploreNotificationReplyThreadSheet(route: route)
+            ExploreNotificationReplyThreadSheet(viewModel: viewModel, route: route)
         }
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
             Task {

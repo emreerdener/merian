@@ -602,7 +602,7 @@ extension ExploreFeedViewModel {
     }
 
     func toggleReaction(for comment: ExploreComment, emoji: String) {
-        guard let updatedComment = commentWithUpdatedReaction(comment, emoji: emoji) else { return }
+        let updatedComment = comment.applyingReactionToggle(emoji: emoji)
         HapticManager.shared.triggerMediumPulse()
 
         if let parentCommentId = updatedComment.parentCommentId,
@@ -622,33 +622,6 @@ extension ExploreFeedViewModel {
                 MerianLog.network.error("Failed to toggle reaction: \(error)")
             }
         }
-    }
-
-    private func commentWithUpdatedReaction(_ comment: ExploreComment, emoji: String) -> ExploreComment? {
-        var updatedComment = comment
-        var updatedReactions = updatedComment.reactions ?? []
-
-        if let reactionIndex = updatedReactions.firstIndex(where: { $0.emoji == emoji }) {
-            var reaction = updatedReactions[reactionIndex]
-            if reaction.viewerHasReacted {
-                reaction.count -= 1
-                reaction.viewerHasReacted = false
-                if reaction.count < 1 {
-                    updatedReactions.remove(at: reactionIndex)
-                } else {
-                    updatedReactions[reactionIndex] = reaction
-                }
-            } else {
-                reaction.count += 1
-                reaction.viewerHasReacted = true
-                updatedReactions[reactionIndex] = reaction
-            }
-        } else {
-            updatedReactions.append(ExploreCommentReaction(emoji: emoji, count: 1, viewerHasReacted: true))
-        }
-
-        updatedComment.reactions = updatedReactions
-        return updatedComment
     }
 
     private func markReplyStateChanged() {

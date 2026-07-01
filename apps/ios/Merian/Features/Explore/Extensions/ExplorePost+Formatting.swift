@@ -133,4 +133,31 @@ extension ExploreComment {
             preferUsername: true
         )
     }
+
+    func applyingReactionToggle(emoji: String) -> ExploreComment {
+        var updatedComment = self
+        var updatedReactions = updatedComment.reactions ?? []
+
+        if let reactionIndex = updatedReactions.firstIndex(where: { $0.emoji == emoji }) {
+            var reaction = updatedReactions[reactionIndex]
+            if reaction.viewerHasReacted {
+                reaction.count -= 1
+                reaction.viewerHasReacted = false
+                if reaction.count < 1 {
+                    updatedReactions.remove(at: reactionIndex)
+                } else {
+                    updatedReactions[reactionIndex] = reaction
+                }
+            } else {
+                reaction.count += 1
+                reaction.viewerHasReacted = true
+                updatedReactions[reactionIndex] = reaction
+            }
+        } else {
+            updatedReactions.append(ExploreCommentReaction(emoji: emoji, count: 1, viewerHasReacted: true))
+        }
+
+        updatedComment.reactions = updatedReactions
+        return updatedComment
+    }
 }

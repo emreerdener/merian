@@ -2,6 +2,45 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-01-explore-reply-thread-reactions",
+      "date": "2026-07-01",
+      "title": "Explore reply reactions",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Notification-opened comment reply threads now include the same emoji reaction controls as regular Explore comments."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-01-insight-overview-interactions",
+      "date": "2026-07-01",
+      "title": "Insight overview polish",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Overview interactions now wrap fully instead of truncating longer ecological interaction notes."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-01-pro-plan-copy",
+      "date": "2026-07-01",
+      "title": "Pro plan copy",
+      "sections": [
+        {
+          "title": "Changed",
+          "items": [
+            "Pro plan cards now match the current paywall value props for unlimited field scans, Pro AI vision, AI chat, multi-capture, Apple Watch logging, and expedition mode."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-06-30-pro-plan-pricing",
       "date": "2026-06-30",
       "title": "Pro plan pricing",

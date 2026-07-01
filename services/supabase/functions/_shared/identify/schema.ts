@@ -345,7 +345,7 @@ export const getMerianResponseSchema = (
         items: { type: SchemaType.STRING },
         nullable: true,
         description:
-          "Active interactions with other biological organisms visible in the frame. Null for non-biological subjects.",
+          "Active interactions with other biological organisms visible in the frame. Use complete phrases; do not end entries with ellipses or truncated wording. Null for non-biological subjects.",
       },
     },
     required: [...SHARED_REQUIRED],

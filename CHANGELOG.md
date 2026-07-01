@@ -6,6 +6,12 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Explore
+- Fixed notification-opened comment reply threads so parent comments and replies include the same emoji reaction controls as regular Explore comments.
+
+### Insight Sheet
+- Fixed Overview interactions so longer ecological interaction notes wrap fully instead of truncating.
+
 ### Insight Chat
 - Added Field chat as a bottom-sheet experience from biological Insight toolbars, with one saved conversation per scan, prompt chips, typed follow-ups, safety guardrails, and server-side token tracking.
 - Moved Add to collection into the Insight header menu below field notes, freeing the bottom toolbar for Chat.
@@ -51,6 +57,7 @@ TestFlight, App Store, support, and QA.
 ### Profile & Guest Account Polish
 - Matched Profile signed-out spacing below the sign-in buttons to the gap between the stat cards.
 - Fixed Profile published-scan grids so partial rows keep rounded outer image corners instead of exposing sharp edges.
+- Updated Pro plan card copy to match the current paywall value props for unlimited field scans, Pro AI vision, AI chat, multi-capture, Apple Watch logging, and expedition mode.
 - Pro plan cards now use the intended launch prices and labels for Annual and the 7 Day Pass, even while App Store product metadata is settling.
 - Added AI chat to the Pro paywall feature comparison table.
 - Added guest profile customization: guests can now choose a public profile picture, display name, and username before signing in, and those choices carry into Apple or Google sign-in.

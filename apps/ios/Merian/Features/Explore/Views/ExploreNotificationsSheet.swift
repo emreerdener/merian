@@ -166,12 +166,14 @@ struct ExploreNotificationReplyFallback: Hashable {
 }
 
 struct ExploreNotificationReplyThreadSheet: View {
+    @Bindable var viewModel: ExploreFeedViewModel
     let route: ExploreNotificationReplyThreadRoute
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var parentComment: ExploreComment?
     @State private var replies: [ExploreComment] = []
+    @State private var reactingCommentId: String?
     @State private var isLoading = true
     @State private var isLoadingMoreReplies = false
     @State private var hasReachedEndOfReplies = true
@@ -287,6 +289,14 @@ struct ExploreNotificationReplyThreadSheet: View {
                 .font(.body)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            ExploreCommentReactionsView(
+                comment: comment,
+                reactingCommentId: $reactingCommentId,
+                onToggleReaction: { comment, emoji in
+                    toggleReaction(for: comment, emoji: emoji)
+                }
+            )
         }
         .padding(.horizontal, 2)
         .padding(.bottom, 4)
@@ -301,6 +311,14 @@ struct ExploreNotificationReplyThreadSheet: View {
                 .font(.body)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            ExploreCommentReactionsView(
+                comment: comment,
+                reactingCommentId: $reactingCommentId,
+                onToggleReaction: { comment, emoji in
+                    toggleReaction(for: comment, emoji: emoji)
+                }
+            )
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -386,6 +404,20 @@ struct ExploreNotificationReplyThreadSheet: View {
     private func createdAtText(for comment: ExploreComment) -> String? {
         guard let createdAtDate = comment.createdAtDate else { return nil }
         return createdAtDate.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func toggleReaction(for comment: ExploreComment, emoji: String) {
+        let updatedComment = comment.applyingReactionToggle(emoji: emoji)
+
+        if parentComment?.id == updatedComment.id {
+            parentComment = updatedComment
+        }
+
+        if let replyIndex = replies.firstIndex(where: { $0.id == updatedComment.id }) {
+            replies[replyIndex] = updatedComment
+        }
+
+        viewModel.toggleReaction(for: comment, emoji: emoji)
     }
 
     @MainActor
