@@ -280,3 +280,76 @@ a {
     width: 100%;
   }
 }
+
+.explore-grid-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+
+.explore-grid-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--mantine-shadow-md);
+}
+
+.explore-grid-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.explore-grid-card:hover .explore-grid-image {
+  transform: scale(1.05);
+}
+
+.explore-grid-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.4) 60%, rgba(0, 0, 0, 0) 100%);
+  color: #ffffff;
+  transition: background 0.3s ease;
+}
+
+.explore-grid-card:hover .explore-grid-overlay {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 60%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* Mantine Carousel custom premium styles */
+.mantine-Carousel-indicator {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 4px !important;
+  background-color: rgba(255, 255, 255, 0.5) !important;
+  transition: width 250ms ease, background-color 250ms ease !important;
+}
+
+.mantine-Carousel-indicator[data-active] {
+  width: 16px !important;
+  background-color: #ffffff !important;
+}
+
+.mantine-Carousel-control {
+  width: 46px !important;
+  height: 46px !important;
+  background-color: rgba(0, 0, 0, 0.45) !important;
+  color: #ffffff !important;
+  border: none !important;
+  transition: background-color 0.2s ease !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.mantine-Carousel-control svg {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.mantine-Carousel-control:hover {
+  background-color: rgba(0, 0, 0, 0.65) !important;
+}

@@ -30,6 +30,7 @@ import {
   IconMapPin,
   IconUser,
 } from "@tabler/icons-react";
+import { ImageCarousel } from "@/components/ImageCarousel";
 
 type ExplorePostPageProps = {
   params: Promise<{
@@ -155,12 +156,10 @@ export default async function ExplorePostPage({
     <Container size="sm" py={{ base: "md", sm: "xl" }}>
       <Stack gap="lg">
         <Card withBorder shadow="sm" radius="lg" p={0}>
-          <Image
-            src={post.heroImageUrl}
-            alt={title}
-            fit="cover"
-            mah={600}
-            fallbackSrc="/image-placeholder.svg"
+          <ImageCarousel
+            heroImageUrl={post.heroImageUrl}
+            referenceImages={detail?.referenceImages ?? []}
+            altText={title}
           />
 
           <Stack gap="lg" p={{ base: "md", sm: "xl" }}>
@@ -285,30 +284,7 @@ export default async function ExplorePostPage({
           </InfoCard>
         ) : null}
 
-        {detail?.referenceImages.length ? (
-          <InfoCard title="Reference images">
-            <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
-              {detail.referenceImages.map((image) => (
-                <Card key={image.url} withBorder radius="lg" p="xs">
-                  <Image
-                    src={image.url}
-                    alt={`${speciesLabel} reference image`}
-                    h={220}
-                    fit="cover"
-                    fallbackSrc="/image-placeholder.svg"
-                    radius="lg"
-                  />
-                  <Group justify="space-between" mt="sm">
-                    <Text size="sm" fw={600}>
-                      Source
-                    </Text>
-                    <Badge variant="light">{image.source}</Badge>
-                  </Group>
-                </Card>
-              ))}
-            </SimpleGrid>
-          </InfoCard>
-        ) : null}
+        {/* Reference images are now displayed directly in the main header image carousel */}
 
         {hasOverview ? (
           <InfoCard title="Overview">

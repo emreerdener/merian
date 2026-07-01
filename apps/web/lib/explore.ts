@@ -486,14 +486,15 @@ function mapExplorePostDetail(row: ExplorePostDetailRow): ExplorePostDetail {
 function logExplorePostRpcError(
   event: string,
   postId: string,
-  error: SupabaseRpcError,
+  error: any,
 ) {
   console.error(event, {
     post_id: postId,
-    code: error.code,
-    message: error.message,
-    details: error.details,
-    hint: error.hint,
+    code: error?.code,
+    message: error?.message || (error instanceof Error ? error.message : String(error)),
+    details: error?.details,
+    hint: error?.hint,
+    raw_error: error,
   });
 }
 
@@ -632,4 +633,25 @@ export async function fetchExplorePostPage(
   }
 
   return { post, detail };
+}
+
+export async function fetchExploreFeedPosts(limit = 16): Promise<ExplorePost[]> {
+  const supabase = createServerSupabaseClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const publicViewerId = cleanViewerId(process.env.SUPABASE_PUBLIC_VIEWER_ID);
+  const { data, error } = await supabase.rpc("get_explore_feed", {
+    self_id: publicViewerId,
+    max_limit: limit,
+  });
+
+  if (error) {
+    logExplorePostRpcError("fetch_explore_feed_rpc_failed", "feed", error);
+    return [];
+  }
+
+  const rows = (data ?? []) as ExplorePostRow[];
+  return rows.map(mapExplorePost);
 }
