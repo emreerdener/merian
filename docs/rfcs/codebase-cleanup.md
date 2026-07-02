@@ -141,7 +141,7 @@ After the large files are split, move code to clearer long-term homes:
 - Insight-specific export, carousel, and result-rendering helpers should stay
   under `apps/ios/Merian/Features/Insights/`.
 - Capture modality code should stay under
-  `apps/ios/Merian/Features/CaptureWorkspace/Modalities/<Mode>/`.
+  `apps/ios/Merian/Features/Capture/<Scan|Record|Describe>/`.
 - `Core/UI` should contain reusable primitives only; one-off feature chrome
   should move back into the feature.
 - `Core/Utilities` should shrink over time. New utilities belong there only when

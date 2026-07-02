@@ -9,7 +9,7 @@ triggering excessive SwiftUI view rebuilds.
 ### `SpeechManager`
 
 - `@MainActor @Observable final class` living at
-  `apps/ios/Merian/Features/Describe/Managers/SpeechManager.swift`, registered
+  `apps/ios/Merian/Features/Capture/Describe/Managers/SpeechManager.swift`, registered
   in `AppDIContainer` and distributed to the view hierarchy via
   `DIContainerModifier`.
 - Owns the full `AVAudioEngine` + `SFSpeechRecognizer` pipeline for live voice

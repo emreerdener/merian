@@ -6,29 +6,35 @@ This document defines the canonical structure for every feature in Merian and ex
 
 ## Directory Layout
 
-Every feature lives under `apps/ios/Merian/Features/<FeatureName>/` and follows this folder structure:
+Every feature lives under `apps/ios/Merian/Features/<FeatureName>/`. Prefer a product-area-first structure when a feature contains multiple user-facing areas. Shared shell, staging, submission, or support code should sit beside those product areas rather than mixing mode-specific UI in a single folder.
 
 ```
 Features/
-└── Camera/
-    ├── Components/         # Reusable sub-views that accept value-type inputs
-    │   └── ShutterButton.swift
-    ├── Managers/           # @Observable @MainActor hardware/service managers scoped to the feature
-    │   └── SpeechManager.swift
-    ├── Modifiers/          # ViewModifier and custom modifier structs
-    │   ├── CameraSheetRouter.swift
-    │   └── CropSheetModifier.swift
-    ├── Models/             # Feature-local data types (not SwiftData models)
-    │   └── ImageFileWrapper.swift
-    ├── Utilities/          # Feature-local helpers (e.g. ImageCropProcessor)
-    ├── ViewModels/         # @Observable @MainActor classes
-    │   ├── CaptureWorkspaceViewModel.swift    # Primary ViewModel
-    │   ├── Capture.swift            # Extension with capture logic
-    │   └── Analysis.swift           # Extension with analysis logic
-    └── Views/              # SwiftUI View structs only
-        ├── CaptureWorkspaceView.swift     # Root view, owns @State private var viewModel
-        └── PostProcessing/
-            └── ImageCropperView.swift
+└── Capture/
+    ├── Shell/              # Root view, root ViewModel, routing, and app chrome
+    │   ├── Modifiers/
+    │   ├── ViewModels/
+    │   └── Views/
+    ├── Scan/               # Camera-specific UI, controls, cropper, and capture logic
+    │   ├── Components/
+    │   ├── Modifiers/
+    │   ├── PostProcessing/
+    │   ├── ViewModels/
+    │   └── Views/
+    ├── Record/             # Audio-specific recording and visualization views
+    │   └── Views/
+    ├── Describe/           # Text/dictation input, prompts, subject matching
+    │   ├── Managers/
+    │   ├── Models/
+    │   └── Views/
+    ├── Staging/            # Multi-capture staging and pre-submit review
+    │   ├── Models/
+    │   └── Views/
+    ├── Submission/         # Live/offline analysis submission paths
+    │   └── ViewModels/
+    └── Shared/             # Capture-only shared models or coordination helpers
+        ├── Models/
+        └── ViewModels/
 ```
 
 **Rules:**

@@ -32,7 +32,7 @@ The context is intentionally not reset after submission, so users can swipe back
 
 ## 2. Guided Question System
 
-### `GuidedQuestion` & `GuidedQuestion.Tag` (`Features/Describe/Models/GuidedQuestion.swift`)
+### `GuidedQuestion` & `GuidedQuestion.Tag` (`Features/Capture/Describe/Models/GuidedQuestion.swift`)
 
 `GuidedQuestion` is the primitive that drives the tag-sheet carousel. Each question has a `prompt: String` and a `tags: [Tag]` array. A `Tag` carries:
 
@@ -63,7 +63,7 @@ The global `guidedQuestions: [GuidedQuestion]` array has 9 entries:
 
 ---
 
-### `SubjectFunnels` (`Features/Describe/Models/SubjectFunnels.swift`)
+### `SubjectFunnels` (`Features/Capture/Describe/Models/SubjectFunnels.swift`)
 
 `let subjectFunnels: [String: [GuidedQuestion]]` maps each subject `tagId` to a 4–5 question species-specific funnel. When a subject is selected, `DescribePromptManager.activateFunnel(for:)` prepends the subject question (index 0), inserts the funnel, and appends three shared telemetry questions (environment, location, open-ended) to form the `activeQuestions` array.
 
@@ -84,13 +84,13 @@ Defined funnels:
 
 ---
 
-### `SubjectKeywordMatcher` (`Features/Describe/Models/SubjectKeywordMatcher.swift`)
+### `SubjectKeywordMatcher` (`Features/Capture/Describe/Models/SubjectKeywordMatcher.swift`)
 
 A pure static struct. `infer(from: String) -> String?` lowercases and tokenizes the input, then looks each word up in a static `[String: String]` keyword table. Returns the first matching subject `tagId` or `nil`. Covers ~50 common-name keywords across all 8 subject types (e.g. `"hawk"` → `"subj_bird"`, `"beetle"` → `"subj_insec"`, `"frog"` → `"subj_rept"`). Used by `DescribeInputView` to auto-activate a funnel from typed or dictated text.
 
 ---
 
-### `DescribePromptManager` — Funnel State (`Features/Describe/Managers/DescribePromptManager.swift`)
+### `DescribePromptManager` — Funnel State (`Features/Capture/Describe/Managers/DescribePromptManager.swift`)
 
 New funnel-state properties added alongside the existing `activeQuestionIndex` and `interactedQuestionIndices`:
 
@@ -108,7 +108,7 @@ New funnel-state properties added alongside the existing `activeQuestionIndex` a
 
 ## 3. `DescribeInputView`
 
-Lives at `apps/ios/Merian/Features/Describe/Views/DescribeInputView.swift`.
+Lives at `apps/ios/Merian/Features/Capture/Describe/Views/DescribeInputView.swift`.
 
 **Layout contract**: fills the full page frame. The fixed `MediaModeToggle` overlay sits above it in the `CaptureWorkspaceView` Z-stack and must remain interactive — no content above `safeAreaInsets.top + 64` pt.
 
@@ -147,7 +147,7 @@ The tag scroll view carries `.id("tags_scroll_\(promptManager.activeQuestionInde
 
 ## 4. `SpeechManager`
 
-Lives at `apps/ios/Merian/Features/Describe/Managers/SpeechManager.swift`. Registered as `var speechManager = SpeechManager()` in `AppDIContainer` and distributed via `.environment(container.speechManager)` in `DIContainerModifier.body()`. Accessed in `CaptureWorkspaceView` as `@Environment(SpeechManager.self) var speechManager`.
+Lives at `apps/ios/Merian/Features/Capture/Describe/Managers/SpeechManager.swift`. Registered as `var speechManager = SpeechManager()` in `AppDIContainer` and distributed via `.environment(container.speechManager)` in `DIContainerModifier.body()`. Accessed in `CaptureWorkspaceView` as `@Environment(SpeechManager.self) var speechManager`.
 
 ### Class declaration
 

@@ -25,7 +25,7 @@ The `docs/` folder contains the master reference for the application:
 
 ## 2. Directory Structure
 The workspace enforces this layout inside `apps/ios/Merian/`:
-- `Features/`: Complete user domains (`CaptureWorkspace`, `Explore`, `Insights`, `Onboarding`, `Profile`, `Scans`, `SpeciesDictionary`).
+- `Features/`: Complete user domains (`Capture`, `Explore`, `Insights`, `Onboarding`, `Profile`, `Scans`, `SpeciesDictionary`).
 - `Core/`: Foundational logic organized into subdirectories:
   - `AI/`: `InferenceEngine`, `InferenceProcessingActor`
   - `Data/Database/`: `BackgroundDatabaseActor`, `FileIOActor`, `HistoricalDatabaseActor`, `ScanRepository`

@@ -6,7 +6,7 @@ Merian is a biological classification and gamification platform built for iOS an
 
 ```mermaid
 flowchart TD
-    A([📱 Capture Workspace]) -->|Builds ordered media timeline + telemetry| B[OfflineQueueManager]
+    A([📱 Capture]) -->|Builds ordered media timeline + telemetry| B[OfflineQueueManager]
     B -->|Persists Locally if Off-grid| C[(SwiftData Native DB)]
     C -->|NWPathMonitor Awoken by Cell Tower| D{Network Status 200 OK}
 
