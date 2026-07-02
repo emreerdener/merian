@@ -2598,15 +2598,15 @@ The Explore client decodes these endpoints via:
 
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreFeedViewModel.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreFeedViewModel+Interactions.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreFeedViewModel+Notifications.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreMapViewModel.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreNotificationsViewModel.swift`
-- `apps/ios/Merian/Features/Explore/Models/ExploreNotification.swift`
-- `apps/ios/Merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
-- `apps/ios/Merian/Features/Explore/Views/ExploreMapView.swift`
-- `apps/ios/Merian/Features/Explore/Views/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Interactions.swift`
+- `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Notifications.swift`
+- `apps/ios/Merian/Features/Explore/Map/ViewModels/ExploreMapViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/ViewModels/ExploreNotificationsViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
+- `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileSheet.swift`
+- `apps/ios/Merian/Features/Explore/Map/Views/ExploreMapView.swift`
+- `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
 
 The current feed UI uses only a subset of the payload for visible card
 rendering:

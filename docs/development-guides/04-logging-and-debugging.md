@@ -164,7 +164,7 @@ These trace messages are emitted from the comments extension of `ExploreFeedView
 - **Task Cancellation**: `[RepliesDebug] loadReplies URLSession cancelled / task cancelled`
 
 ### 2. UI-Level Lifecycle Tracing (`[UIRepliesDebug]`)
-These trace messages are emitted from the `.task` modifiers inside [ExplorePostDetailCommentsSection.swift](file:///Users/emreerdener/Developer/merian/apps/ios/Merian/Features/Explore/Components/ExplorePostDetailCommentsSection.swift) and [ExploreCommentsSheet.swift](file:///Users/emreerdener/Developer/merian/apps/ios/Merian/Features/Explore/Components/ExploreCommentsSheet.swift).
+These trace messages are emitted from the `.task` modifiers inside [ExplorePostDetailCommentsSection.swift](file:///Users/emreerdener/Developer/merian/apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostDetailCommentsSection.swift) and [ExploreCommentsSheet.swift](file:///Users/emreerdener/Developer/merian/apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentsSheet.swift).
 - **Task Start**: `[UIRepliesDebug] replyCountLabel task started for comment <ID>`
 - **Task End (via `defer` block)**: `[UIRepliesDebug] replyCountLabel task ended for comment <ID> - isCancelled: <true/false>`
 

@@ -59,13 +59,13 @@ Primary files:
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Features/Insights/Components/Cards/SpeciesObservationChartsCard.swift`
 - `apps/ios/Merian/Features/Insights/ViewModels/SpeciesObservationStatsViewModel.swift`
-- `apps/ios/Merian/Features/SpeciesDictionary/ViewModels/SpeciesDictionaryPageViewModel.swift`
-- `apps/ios/Merian/Features/SpeciesDictionary/Views/SpeciesDictionaryPageView.swift`
-- `apps/ios/Merian/Features/SpeciesDictionary/Components/SpeciesDictionaryReferenceGallery.swift`
-- `apps/ios/Merian/Features/SpeciesDictionary/Components/SpeciesDictionaryCards.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesDictionaryPageViewModel.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryReferenceGallery.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryCards.swift`
 - `apps/ios/Merian/Features/Insights/Components/Cards/SimilarSpeciesGallery.swift`
 - `apps/ios/Merian/Features/Insights/Views/Content/BiologicalView.swift`
-- `apps/ios/Merian/Features/Explore/Views/ExplorePostDetailView.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift`
 
 `SpeciesDictionaryPageView` is the standalone sheet shell. It owns a
 `NavigationStack`, presents at `.large`, hides the sheet grabber, and renders

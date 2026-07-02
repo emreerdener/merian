@@ -43,7 +43,7 @@ Primary files:
 - `apps/ios/Merian/Features/Insights/ViewModels/SpeciesObservationStatsViewModel.swift`
 - `apps/ios/Merian/Features/Insights/Components/Cards/SpeciesObservationChartsCard.swift`
 - `apps/ios/Merian/Features/Insights/Views/Content/BiologicalView.swift`
-- `apps/ios/Merian/Features/SpeciesDictionary/Views/SpeciesDictionaryPageView.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
 
 `SpeciesObservationStatsViewModel` is `@Observable @MainActor`, but local
 SwiftData fetching is delegated to `@ModelActor`

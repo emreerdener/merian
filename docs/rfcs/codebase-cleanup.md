@@ -14,6 +14,11 @@ architecture rewrite.
   `apps/ios/Merian/Features/<Feature>/`, shared app code under `apps/ios/Merian/Core/`, persistent
   models under `apps/ios/Merian/Models/`, public web code under `apps/web/`, and backend code
   under `services/supabase/`.
+- Prefer product-area-first feature folders over broad type buckets. For large
+  features, start with the user-facing surface (`Feed/`, `Map/`, `Identify/`,
+  `Catalog/`, `Tree/`) and place that area's `Views`, `Components`,
+  `ViewModels`, `Models`, and helpers inside it. Use `Shared/` only for code
+  that is genuinely reused by more than one product area.
 - Keep tests and docs aligned in the same change when public contracts, file
   ownership, or route shapes move.
 
@@ -51,13 +56,37 @@ Start with files whose size makes local reasoning expensive. Split by existing
 responsibility, keep symbols internal/private where possible, and run the build
 after each slice.
 
+For Explore and Species Dictionary, keep the vertical product folders intact:
+
+```text
+apps/ios/Merian/Features/Explore/
+  Shell/
+  Feed/
+  Map/
+  Identify/
+  Notifications/
+  AuthorProfile/
+  Shared/
+  Widgets/
+
+apps/ios/Merian/Features/SpeciesDictionary/
+  Detail/
+  Catalog/
+  Tree/
+```
+
+When working on the Explore feed, start in `Explore/Feed/`; that folder owns the
+observations feed, post cards, post detail, comments, hashtag presentation, feed
+formatting, and feed view-model extensions. Map and Community ID logic should
+not be placed there.
+
 Suggested first targets:
 
 | File | Cleanup Direction |
 |---|---|
 | `apps/ios/Merian/Core/AI/InferenceEngine.swift` | Split hydration, reference image loading, local classification, persistence, and result mapping into focused extensions. |
 | `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core. |
-| `apps/ios/Merian/Features/Explore/Views/ExplorePostDetailView.swift` | Keep the root route/container in place and extract detail sections, comments, toolbar, media, and UIKit gesture adapters. |
+| `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift` | Keep the root route/container in place and extract detail sections, comments, toolbar, media, and UIKit gesture adapters. |
 | `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift` | Separate keys, typed settings store, migration helpers, and cloud sync preference code. |
 
 Rules for this phase:
@@ -73,7 +102,10 @@ Rules for this phase:
 After the large files are split, move code to clearer long-term homes:
 
 - Explore-specific network DTOs and endpoint wrappers should live under
-  `apps/ios/Merian/Features/Explore/Network/` unless reused by another feature.
+  the narrowest Explore product area when only one area uses them, or under
+  `apps/ios/Merian/Features/Explore/Shared/Network/` when reused across
+  multiple Explore areas. Only move them outside Explore when another feature
+  depends on the same contract.
 - Insight-specific export, carousel, and result-rendering helpers should stay
   under `apps/ios/Merian/Features/Insights/`.
 - Capture modality code should stay under

@@ -124,11 +124,11 @@ Primary files:
 
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
-- `apps/ios/Merian/Features/Explore/Views/ExploreView.swift`
-- `apps/ios/Merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
-- `apps/ios/Merian/Features/Explore/Models/ExploreNotification.swift`
-- `apps/ios/Merian/Features/Explore/Components/NotificationRowView.swift`
-- `apps/ios/Merian/Features/Explore/Views/ExploreNotificationsSheet.swift`
+- `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileSheet.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Components/NotificationRowView.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationsSheet.swift`
 
 Important model changes:
 

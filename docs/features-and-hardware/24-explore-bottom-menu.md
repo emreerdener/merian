@@ -43,6 +43,31 @@ Dictionary. Observations owns a Feed/Map header toggle, and Dictionary keeps
 Tree inside its Catalog/Tree header toggle rather than exposing either Map or
 Tree as a separate root bottom-menu item.
 
+## iOS File Ownership
+
+Explore is organized by product area first so a contributor can open the folder
+for the surface they are changing:
+
+- `apps/ios/Merian/Features/Explore/Shell/` owns the root Explore sheet,
+  toolbar, root mode picker, navigation routes, and cross-area presentation.
+- `apps/ios/Merian/Features/Explore/Feed/` owns the Observations feed, post
+  cards, post detail, comments, hashtags, feed formatting, and feed
+  view-model extensions.
+- `apps/ios/Merian/Features/Explore/Map/` owns the Observations map surface,
+  map filters, waypoints, clusters, preview cards, and map view model.
+- `apps/ios/Merian/Features/Explore/Identify/` owns Community ID requests,
+  activity, request detail, taxonomy search, disagreement handling, and
+  community feedback entry points.
+- `apps/ios/Merian/Features/Explore/Notifications/` owns notification models,
+  rows, sheet UI, and notification fetch/read state.
+- `apps/ios/Merian/Features/Explore/AuthorProfile/` owns public Explore author
+  profile presentation.
+- `apps/ios/Merian/Features/Explore/Shared/` is reserved for Explore helpers
+  that are used by more than one product area.
+- `apps/ios/Merian/Features/SpeciesDictionary/Catalog/` owns the Explore Index
+  catalog and overview surfaces, while
+  `apps/ios/Merian/Features/SpeciesDictionary/Tree/` owns the Tree canvas.
+
 The bottom menu is intentionally root-scoped. It is hidden on pushed post
 details, Identify request details, catalog detail pages, hashtag lists, author
 profile sheets, comments, notification sheets, and the Insight sheet.

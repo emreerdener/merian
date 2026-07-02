@@ -160,19 +160,19 @@ notifications feed remains complete and continues to include mention rows.
 - DTOs and client method: `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
   and `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - Shared comment composer:
-  `apps/ios/Merian/Features/Explore/Components/ExploreCommentComposer.swift`
+  `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentComposer.swift`
 - Mention parsing, replacement, and attributed links:
-  `apps/ios/Merian/Features/Explore/Models/ExploreCommentMentionText.swift`
+  `apps/ios/Merian/Features/Explore/Feed/Models/ExploreCommentMentionText.swift`
 - Tappable rendered body:
-  `apps/ios/Merian/Features/Explore/Components/ExploreCommentBodyText.swift`
+  `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentBodyText.swift`
 - Comment surfaces:
-  `apps/ios/Merian/Features/Explore/Components/ExploreCommentsSheet.swift` and
-  `apps/ios/Merian/Features/Explore/Components/ExplorePostDetailCommentsSection.swift`
+  `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentsSheet.swift` and
+  `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostDetailCommentsSection.swift`
 - Profile routing:
-  `apps/ios/Merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
+  `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileSheet.swift`
 - Notification rendering:
-  `apps/ios/Merian/Features/Explore/Models/ExploreNotification.swift` and
-  `apps/ios/Merian/Features/Explore/Components/NotificationRowView.swift`
+  `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift` and
+  `apps/ios/Merian/Features/Explore/Notifications/Components/NotificationRowView.swift`
 - Push preference:
   `apps/ios/Merian/Features/Profile/Views/NotificationSettingsView.swift` and
   `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift`

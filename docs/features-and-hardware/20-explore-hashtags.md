@@ -126,15 +126,15 @@ shadowbanned authors, and blocked relationships are excluded.
 
 - DTOs and network calls: `Core/Network/ExploreAPIModels.swift` and
   `Core/Network/MerianNetworkClient.swift`
-- Feed chips: `Features/Explore/Components/ExplorePostCard.swift`
-- Detail chips: `Features/Explore/Views/ExplorePostDetailView.swift`
-- Tagged-post route and collection: `Features/Explore/Views/ExploreView.swift`
+- Feed chips: `Features/Explore/Feed/Components/ExplorePostCard.swift`
+- Detail chips: `Features/Explore/Feed/Views/ExplorePostDetailView.swift`
+- Tagged-post route and collection: `Features/Explore/Shell/ExploreView.swift`
 - Share input:
   `Features/Insights/Components/Toolbars/BottomToolbar/InsightShareButton.swift`
 - Composer UI:
-  `Features/Explore/Components/ExplorePostComposerView.swift`
+  `Features/Explore/Feed/Components/ExplorePostComposerView.swift`
 - Suggestion context and ranking:
-  `Features/Explore/Models/ExploreHashtagSuggestion.swift`
+  `Features/Explore/Feed/Models/ExploreHashtagSuggestion.swift`
 - Context assembly from scan/identification metadata:
   `Features/Insights/Components/Toolbars/BottomToolbar/InsightBottomToolbar.swift`
 - Regression tests:

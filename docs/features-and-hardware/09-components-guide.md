@@ -150,7 +150,7 @@ A horizontally scrolling carousel of ecologically similar lookalike species, ren
 
 ## Species Dictionary Reference Gallery
 
-**Location**: `Features/SpeciesDictionary/Components/SpeciesDictionaryReferenceGallery.swift`
+**Location**: `Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryReferenceGallery.swift`
 
 Displays public species reference images from `/species-dictionary`.
 

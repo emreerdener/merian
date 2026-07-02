@@ -135,10 +135,10 @@ Ghost-account merge repair:
 
 Primary files:
 
-- `apps/ios/Merian/Features/Explore/Views/ExploreAuthorProfileSheet.swift`
-- `apps/ios/Merian/Features/Explore/Views/ExploreView.swift`
-- `apps/ios/Merian/Features/Explore/Views/ExplorePostDetailView.swift`
-- `apps/ios/Merian/Features/Explore/Components/ExplorePostCard.swift`
+- `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileSheet.swift`
+- `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostCard.swift`
 - `apps/ios/Merian/Features/Profile/Components/Profile/ProfilePublicScansPreview.swift`
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`

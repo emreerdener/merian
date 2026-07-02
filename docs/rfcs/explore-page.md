@@ -767,10 +767,10 @@ The full detail page can still use the existing `get-explore-post` and `get-expl
 
 Recommended additions:
 
-- `apps/ios/Merian/Features/Explore/Views/ExploreMapView.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreMapViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Map/Views/ExploreMapView.swift`
+- `apps/ios/Merian/Features/Explore/Map/ViewModels/ExploreMapViewModel.swift`
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreFeedViewModel+Interactions.swift`
+- `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Interactions.swift`
 
 Current shipped state on `ExploreMapViewModel`:
 
@@ -884,19 +884,19 @@ Reporting:
 
 Recommended feature module:
 
-- `apps/ios/Merian/Features/Explore/Views/ExploreView.swift`
-- `apps/ios/Merian/Features/Explore/Views/ExploreMapView.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreFeedViewModel.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreMapViewModel.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreFeedViewModel+Interactions.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreFeedViewModel+Notifications.swift`
-- `apps/ios/Merian/Features/Explore/ViewModels/ExploreNotificationsViewModel.swift`
-- `apps/ios/Merian/Features/Explore/Models/ExploreNotification.swift`
+- `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Map/Views/ExploreMapView.swift`
+- `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Map/ViewModels/ExploreMapViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Interactions.swift`
+- `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Notifications.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/ViewModels/ExploreNotificationsViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
-- `apps/ios/Merian/Features/Explore/Components/ExplorePostCard.swift`
-- `apps/ios/Merian/Features/Explore/Components/ExploreCommentsSheet.swift`
-- `apps/ios/Merian/Features/Explore/Components/NotificationRowView.swift`
-- `apps/ios/Merian/Features/Explore/Views/ExploreNotificationsSheet.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostCard.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentsSheet.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Components/NotificationRowView.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationsSheet.swift`
 
 Routing changes:
 
