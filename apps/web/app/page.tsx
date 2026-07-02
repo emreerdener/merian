@@ -72,7 +72,11 @@ export default async function HomePage() {
           </Stack>
 
           {posts.length ? (
-            <SimpleGrid w="100%" cols={{ base: 2, sm: 3, md: 4 }} spacing="md">
+            <SimpleGrid
+              w="100%"
+              cols={{ base: 1, xs: 2, sm: 3, md: 4 }}
+              spacing="md"
+            >
               {posts.map((post) => (
                 <Anchor
                   key={post.postId}

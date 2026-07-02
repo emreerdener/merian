@@ -270,6 +270,23 @@ a {
     padding-block: clamp(2rem, 5vw, 4rem);
   }
 
+  .splash-page__copy {
+    text-align: center;
+    align-items: center;
+    margin-inline: auto;
+  }
+
+  .waitlist-signup {
+    margin-inline: auto;
+    width: 100%;
+  }
+
+  .waitlist-signup__fineprint,
+  .waitlist-signup__alert {
+    margin-left: 0;
+    text-align: center;
+  }
+
   .splash-art {
     margin-top: 2rem;
     justify-content: center;
@@ -303,6 +320,7 @@ a {
     flex-wrap: nowrap;
     gap: 0.75rem;
     padding: 0.75rem;
+    border-radius: 16px;
   }
 
   .waitlist-signup__button {
@@ -403,4 +421,18 @@ a {
     var(--mantine-color-gray-0),
     var(--mantine-color-dark-9)
   );
+}
+
+@media (max-width: 48em) {
+  .header-logo-container {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+  }
+
+  .header-actions-container {
+    position: absolute;
+    right: 0;
+  }
 }

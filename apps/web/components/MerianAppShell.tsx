@@ -57,12 +57,19 @@ export function MerianAppShell({ children }: MerianAppShellProps) {
       >
         <AppShellHeader className="merian-app-shell__header">
           <Container size="xl" h="100%">
-            <Group h="100%" justify="space-between" wrap="nowrap">
-              <Anchor href="/" fw={800} size="xl" c="var(--text-main)" underline="never">
+            <Group h="100%" justify="space-between" wrap="nowrap" style={{ position: "relative" }}>
+              <Anchor
+                href="/"
+                fw={800}
+                size="xl"
+                c="var(--text-main)"
+                underline="never"
+                className="header-logo-container"
+              >
                 Merian Earth
               </Anchor>
 
-              <Group gap="xs" wrap="nowrap">
+              <Group gap="xs" wrap="nowrap" className="header-actions-container">
                 {primaryCtaLabel === "Join beta" ? (
                   <Button
                     onClick={openModal}
