@@ -46,7 +46,7 @@ run real-device Photos share-sheet tests before enabling user-facing copy.
 
 | Target | Status | Extension point | Source | Shared dependencies |
 |---|---|---|---|---|
-| `MerianMessagesExtension` | Shipped | `com.apple.message-payload-provider` | `apps/ios/messages/MerianMessagesExtension/` | `MessageScanShareCache.swift`, App Group |
+| `MerianMessagesExtension` | Shipped | `com.apple.message-payload-provider` | `apps/ios/messages/MerianMessagesExtension/` | `apps/ios/messages/ScanSharing/Shared/`, App Group |
 | `MerianShareExtension` | Paused / not embedded | `com.apple.share-services` | `apps/ios/photos/PhotosImport/Extension/` | `MerianEnvironment.swift`, `ImageDownsampler.swift`, `apps/ios/photos/PhotosImport/Shared/`, App Group, shared keychain |
 
 Both targets set `APPLICATION_EXTENSION_API_ONLY = YES`. `MerianMessagesExtension`
@@ -74,11 +74,12 @@ downloads images.
 
 The cache is owned by:
 
-- `MessageScanShareCache.swift`: shared record, text, deep-link, and file-store
-  model.
-- `MessageScanShareCacheWriter.swift`: app-side writer that limits the cache to
-  the latest 100 completed biological scans and applies the current
-  `ProfileViewModel.defaultGeoprivacy` before writing captions.
+- `apps/ios/messages/ScanSharing/Shared/MessageScanShareCache.swift`: shared
+  record, text, deep-link, and file-store model.
+- `apps/ios/messages/ScanSharing/AppSupport/MessageScanShareCacheWriter.swift`:
+  app-side writer that limits the cache to the latest 100 completed biological
+  scans and applies the current `ProfileViewModel.defaultGeoprivacy` before
+  writing captions.
 - `MessageScanLibraryExtensionView.swift`: SwiftUI list/search UI hosted by
   `MessagesViewController`.
 

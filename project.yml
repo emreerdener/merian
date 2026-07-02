@@ -42,6 +42,8 @@ targets:
     deploymentTarget: "17.2"
     sources:
       - apps/ios/Merian
+      - apps/ios/messages/ScanSharing/AppSupport
+      - apps/ios/messages/ScanSharing/Shared
       - apps/ios/photos/PhotosImport/AppSupport
       - apps/ios/photos/PhotosImport/Shared
     entitlements:
@@ -141,7 +143,7 @@ targets:
     deploymentTarget: "17.2"
     sources:
       - apps/ios/messages/MerianMessagesExtension
-      - apps/ios/Merian/Features/Messages/MessageScanShareCache.swift
+      - apps/ios/messages/ScanSharing/Shared
     entitlements:
       path: apps/ios/messages/MerianMessagesExtension/Configuration/MerianMessagesExtension.entitlements
       properties:
