@@ -4,7 +4,7 @@ This directory is the technical master reference for the native iOS application,
 
 ## Current Snapshot
 
-- **App targets**: iOS app (`apps/ios/Merian/`), watchOS companion (`apps/watch/MerianWatch/`), Explore WidgetKit extension (`apps/ios/widgets/Explore/`), Messages extension (`apps/ios/messages/MerianMessagesExtension/`), paused Photos share extension source (`apps/ios/share/MerianShareExtension/`, not embedded in current app builds), unit tests, and UI tests.
+- **App targets**: iOS app (`apps/ios/Merian/`), watchOS companion (`apps/watch/MerianWatch/`), Explore WidgetKit extension (`apps/ios/widgets/Explore/`), Messages extension (`apps/ios/messages/MerianMessagesExtension/`), paused Photos share import source (`apps/ios/photos/PhotosImport/`, not embedded in current app builds), unit tests, and UI tests.
 - **Web frontend**: Next.js + Mantine app in `apps/web/`, initially serving public Explore share pages on `merian.earth`.
 - **Deployment target**: iOS 17.2 for the app and widget; watchOS 10.0 for the companion target.
 - **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is committed for convenience and should be regenerated after project-structure changes.

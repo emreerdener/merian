@@ -47,7 +47,7 @@ run real-device Photos share-sheet tests before enabling user-facing copy.
 | Target | Status | Extension point | Source | Shared dependencies |
 |---|---|---|---|---|
 | `MerianMessagesExtension` | Shipped | `com.apple.message-payload-provider` | `apps/ios/messages/MerianMessagesExtension/` | `MessageScanShareCache.swift`, App Group |
-| `MerianShareExtension` | Paused / not embedded | `com.apple.share-services` | `apps/ios/share/MerianShareExtension/` | `MerianEnvironment.swift`, `ImageDownsampler.swift`, `Features/ShareImport/Shared/`, App Group, shared keychain |
+| `MerianShareExtension` | Paused / not embedded | `com.apple.share-services` | `apps/ios/photos/PhotosImport/Extension/` | `MerianEnvironment.swift`, `ImageDownsampler.swift`, `apps/ios/photos/PhotosImport/Shared/`, App Group, shared keychain |
 
 Both targets set `APPLICATION_EXTENSION_API_ONLY = YES`. `MerianMessagesExtension`
 must use XcodeGen target type `app-extension.messages` so Xcode emits the
@@ -135,7 +135,7 @@ iMessage, not Share extensions.
 
 ### Activation
 
-`apps/ios/share/MerianShareExtension/Configuration/Info.plist` declares:
+`apps/ios/photos/PhotosImport/Extension/Configuration/Info.plist` declares:
 
 ```xml
 <key>NSExtensionPointIdentifier</key>

@@ -40,7 +40,10 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.2"
-    sources: [apps/ios/Merian]
+    sources:
+      - apps/ios/Merian
+      - apps/ios/photos/PhotosImport/AppSupport
+      - apps/ios/photos/PhotosImport/Shared
     entitlements:
       path: apps/ios/Merian/Configuration/Merian.entitlements
       properties:
@@ -162,17 +165,18 @@ targets:
   MerianShareExtension:
     # Paused / de-shipped as of 2026-05-19. The target and source are retained
     # for a future rebuild, but the Merian app target intentionally does not
-    # depend on or embed this extension in current release builds.
+    # depend on or embed this extension in current release builds. The target
+    # name is retained for compatibility; source now lives under PhotosImport.
     type: app-extension
     platform: iOS
     deploymentTarget: "17.2"
     sources:
-      - apps/ios/share/MerianShareExtension
+      - apps/ios/photos/PhotosImport/Extension
       - apps/ios/Merian/Configuration/MerianEnvironment.swift
       - apps/ios/Merian/Core/Utilities/ImageDownsampler.swift
-      - apps/ios/Merian/Features/ShareImport/Shared
+      - apps/ios/photos/PhotosImport/Shared
     entitlements:
-      path: apps/ios/share/MerianShareExtension/Configuration/MerianShareExtension.entitlements
+      path: apps/ios/photos/PhotosImport/Extension/Configuration/MerianShareExtension.entitlements
       properties:
         com.apple.security.application-groups: ["group.app.merian.shared"]
         keychain-access-groups: ["$(AppIdentifierPrefix)app.merian.shared"]
@@ -182,7 +186,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.merian.Merian.ShareExtension
-        INFOPLIST_FILE: apps/ios/share/MerianShareExtension/Configuration/Info.plist
+        INFOPLIST_FILE: apps/ios/photos/PhotosImport/Extension/Configuration/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
         CODE_SIGN_STYLE: Automatic
