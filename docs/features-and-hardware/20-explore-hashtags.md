@@ -130,13 +130,13 @@ shadowbanned authors, and blocked relationships are excluded.
 - Detail chips: `Features/Explore/Feed/Views/ExplorePostDetailView.swift`
 - Tagged-post route and collection: `Features/Explore/Shell/ExploreView.swift`
 - Share input:
-  `Features/Insights/Components/Toolbars/BottomToolbar/InsightShareButton.swift`
+  `Features/Insights/Sharing/Components/InsightShareButton.swift`
 - Composer UI:
   `Features/Explore/Feed/Components/ExplorePostComposerView.swift`
 - Suggestion context and ranking:
   `Features/Explore/Feed/Models/ExploreHashtagSuggestion.swift`
 - Context assembly from scan/identification metadata:
-  `Features/Insights/Components/Toolbars/BottomToolbar/InsightBottomToolbar.swift`
+  `Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift`
 - Regression tests:
   `MerianTests/Features/Explore/ExploreHashtagSuggestionTests.swift`
 

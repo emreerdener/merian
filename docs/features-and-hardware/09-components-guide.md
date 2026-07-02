@@ -42,7 +42,7 @@ A global `.viewModifier` that intercepts `.contextMenu` or `Menu` delete interac
 - Safely decouples the deletion `Task` from the view hierarchy, executing SwiftData `modelContext.delete()` constraints upstream of Cloudflare R2 binary deletions.
 
 ## 6. Confidence Badge: `ConfidenceBadge`
-**Location**: `Features/Insights/Components/Confidence/ConfidenceBadge.swift`
+**Location**: `Features/Insights/IdentificationReview/Confidence/Views/ConfidenceBadge.swift`
 
 A tappable liquid-glass capsule shown in `InsightHeader` that communicates the AI's confidence band — or the user's identification review decision — for a scan.
 - **Review state priority**: Before evaluating confidence bands, the badge checks `userIdentificationOverride` and `userConfirmedIdentification` passed from `InsightHeader`. If `userIdentificationOverride != nil`, the badge shows "Your ID" (indigo, `person.fill.checkmark`). If `userConfirmedIdentification == true`, it shows "Confirmed" (green, `checkmark.seal.fill`). These states render regardless of `confidenceScore` (including zero for historical scans). Tapping either state opens the explanation sheet where users can undo their review decision.
@@ -54,19 +54,19 @@ A tappable liquid-glass capsule shown in `InsightHeader` that communicates the A
 - **Sheet integration**: Tap opens `ConfidenceExplanationSheet`. The sheet uses stored candidates for the alternatives-exhausted Review again path and policy-visible candidates for the normal review card. Review-state cards are evaluated in priority order: `AllCandidatesReviewedView` (`alternativesExhausted == true`) → `OverriddenView` → `ConfirmedView`. When no review state is active, the normal confidence explanation is shown unobstructed. The `candidateCount: Int` prop that previously threaded `BiologicalView → InsightHeader → ConfidenceBadge → ConfidenceExplanationSheet` has been removed.
 
 ## 7. Confidence Spectrum: `ConfidenceSpectrum`
-**Location**: `Features/Insights/Components/Confidence/ConfidenceSpectrum.swift`
+**Location**: `Features/Insights/IdentificationReview/Confidence/Views/ConfidenceSpectrum.swift`
 
 A vertical timeline of `SpectrumNode` items inside `ConfidenceExplanationSheet`, explaining what each band means.
 - **Threshold parity**: Band percentage strings are computed dynamically based on the current user's entitlement tier via `MerianConfig.confidenceBands(for: isPro)`. This ensures that the displayed ranges in the UI always match the live badge thresholds exactly.
 - **Current bands**: Strong (≥ 96% Flash / ≥ 85% Pro), Possible (75–95% Flash / 65–84% Pro), Weak (below 75% Flash / below 65% Pro).
 
 ## 8. Overview: `OverviewCard`
-**Location**: `Features/Insights/Components/Cards/OverviewCard.swift`
+**Location**: `Features/Insights/Content/Cards/OverviewCard.swift`
 
 An informational liquid-glass component displaying AI-enriched encyclopedic extracts (`wikipediaOverview`), alongside a suite of dynamic biological `KeyValueRow` metrics, and a native Safari overlay button.
 - **Structural Rendering**: Dynamically parses and lists available biological telemetry such as `estimatedSizeCm`, `lifeStage`, `reproductiveCondition`, `sex`, and `ecologicalInteractions` while safely omitting empty values. Note: The `individualCount` metric is captured via backend Edge Functions for DWCA telemetry but intentionally omitted from this front-end display to conserve UI space.
 - **Heuristic Filtering**: Enforces a strict ≥60 character length threshold on `wikipediaOverview`. When valid, the extract is capped at an 8-line truncation limit to avoid walls of text, terminating gracefully into a "Read more on Wikipedia" pill that relies on injected parent `$isSafariPresented` bindings.
-- **Shared card chrome**: `OverviewCard` and `ExploreOverviewCard` keep separate data sourcing and visibility gates, but both render through focused helpers under `Features/Insights/Components/Cards/Chrome/`: `InsightCardHeader.swift`, `WikipediaSummarySection.swift`, and `WikipediaReadMoreButton.swift`. Future Explore/Insights cards should reuse these presentational helpers instead of copying header typography or Wikipedia button styling.
+- **Shared card chrome**: `OverviewCard` and `ExploreOverviewCard` keep separate data sourcing and visibility gates, but both render through focused helpers under `Features/Insights/Shared/Cards/Chrome/`: `InsightCardHeader.swift`, `WikipediaSummarySection.swift`, and `WikipediaReadMoreButton.swift`. Future Explore/Insights cards should reuse these presentational helpers instead of copying header typography or Wikipedia button styling.
 
 ## 9. Staggered Entrance: `CardEntranceModifier`
 **Location**: `Core/UI/Modifiers/CardEntranceModifier.swift`
@@ -88,7 +88,7 @@ A small presentation-only modifier for compact circular material controls. It ow
 - **Abstraction boundary**: Do not use this modifier for controls with additional animated backgrounds, semantic fills, or domain-specific geometry. `DictationButton`, `CaptureButton`, avatars, feed action pills, and map menus remain isolated because their visual contracts are not identical.
 
 ## 11. Habitat Map: `HabitatAndDistributionCard`
-**Location**: `Features/Insights/Components/Cards/HabitatAndDistributionCard.swift`
+**Location**: `Features/Insights/SpeciesReference/Cards/HabitatAndDistributionCard.swift`
 
 An edge-to-edge structural presentation component for the `gbifTaxonKey` density map and LLM `habitatDescription`.
 - **Edge-to-Edge Maps**: Rebuts the `.card()` background modifier found elsewhere, leveraging `-16pt` negative horizontal padding on its root `VStack` to cancel default `BiologicalView` safe area margins, allowing the map frame to stretch across the full width of the interface.
@@ -97,7 +97,7 @@ An edge-to-edge structural presentation component for the `gbifTaxonKey` density
 - **Null Fallbacks**: Wraps the map in a `ZStack` so that if `isEnrichmentLoading` completes but the GBIF occurrence dataset yields no result (nil `gbifTaxonKey`), `GBIFHeatmapMapView` still renders its world-level base map snapshot and drops a distinct "No distribution data available" pill directly atop it.
 
 ## 12. Observation Charts: `SpeciesObservationChartsCard`
-**Location**: `Features/Insights/Components/Cards/SpeciesObservationChartsCard.swift`
+**Location**: `Features/Insights/SpeciesReference/Cards/SpeciesObservationChartsCard.swift`
 
 A reusable Swift Charts card for species-level observation patterns.
 
@@ -119,7 +119,7 @@ A reusable Swift Charts card for species-level observation patterns.
   stale-cache states all keep the card mounted with explanatory copy.
 
 ## 13. Identification Candidates: `CandidatesCard`
-**Location**: `Features/Insights/Components/Cards/CandidatesCard.swift`
+**Location**: `Features/Insights/IdentificationReview/Candidates/Components/CandidatesCard.swift`
 
 A diagnostic card surfacing alternative species the AI genuinely considered, with a full approve/deny UX for the user's identification review. The card receives only policy-visible candidates; raw persisted candidate presence is not enough to mount the card. Manages a local `ReviewState` enum: `.pending`, `.confirmed`, `.overridden(to:)`.
 
@@ -132,7 +132,7 @@ A diagnostic card surfacing alternative species the AI genuinely considered, wit
 - **Data origin**: Candidates are scan-specific — they model genuine per-image uncertainty rather than species-level similarity. They are stored as a `candidates JSONB` column in `public.scans` (not in `species_dictionary`) and as `LocalScanRecord.candidatesData: Data?` (`MerianSchemaV28`) on-device. The override is stored as `LocalScanRecord.userIdentificationOverride: String?` (`MerianSchemaV29`) locally and in `public.scans.user_identification_override` in the cloud.
 
 ## 14. Similar Species Gallery: `SimilarSpeciesGallery`
-**Location**: `Features/Insights/Components/Cards/SimilarSpeciesGallery.swift`
+**Location**: `Features/Insights/SpeciesReference/Cards/SimilarSpeciesGallery.swift`
 
 A horizontally scrolling carousel of ecologically similar lookalike species, rendered in `BiologicalView` at card entrance index 4. Sourced from `speciesData.similarSpecies` (a `SimilarSpecies` struct with an `entries: [SimilarSpeciesEntry]` array), which is populated asynchronously by `fetchAndApplyEnrichment` and persisted to `LocalScanRecord.lookalikesData: Data?`.
 
@@ -161,7 +161,7 @@ Displays public species reference images from `/species-dictionary`.
 - **Fallback behavior**: Images without attribution metadata still render in iOS with source labeling. Future web renderers must run the shared public projection attribution audit before publishing reference media.
 
 ## 15. Candidate Swipe Experience: `CandidateSwipeModal`
-**Location**: `Features/Insights/Components/Candidates/CandidateSwipe/` (Directory) plus `Features/Insights/Models/CandidateReview/CandidateSwipeSession.swift`
+**Location**: `Features/Insights/IdentificationReview/Candidates/Views/` (Directory) plus `Features/Insights/IdentificationReview/Candidates/Models/CandidateSwipeSession.swift`
 
 A high-end, Tinder-style gesture interface allowing users to rapidly review and identify AI alternative candidates. The `CandidateSwipeModal` is split into focused component files, while the swipe-decision state lives in the feature-local `CandidateSwipeSession` model:
 
@@ -178,7 +178,7 @@ A high-end, Tinder-style gesture interface allowing users to rapidly review and 
 - **`GridSwipeableCell`**: The fallback wrapper component utilized when the user toggles the interface out of the Card Deck into the Grid layout.
 
 ## 16. Model Info Section: `ModelInfoSection`
-**Location**: `Features/Insights/Components/Confidence/ModelInfoSection.swift`
+**Location**: `Features/Insights/IdentificationReview/Confidence/Views/ModelInfoSection.swift`
 
 An informational card rendered inside `ConfidenceExplanationSheet`, positioned between `ConfidenceSpectrum` and `AIMistakesBanner`. Communicates which Merian AI tier processed the scan — using Merian AI branding rather than raw model names to preserve the product abstraction layer and future-proof against model changes.
 
@@ -188,7 +188,7 @@ An informational card rendered inside `ConfidenceExplanationSheet`, positioned b
 - **Visual style**: Matches the full-section glass card aesthetic of the sheet — `Color(uiColor: .secondarySystemFill).opacity(0.5)` fill, `RoundedRectangle(cornerRadius: 32, style: .continuous)`, `.white.opacity(0.1)` border stroke, and 24 pt inner padding — identical to `ConfidenceSpectrum` and `ProTips`.
 
 ## 17. Image Carousel: `ImagesCarousel`
-**Location**: `Features/Insights/Components/ImagesCarousel.swift`
+**Location**: `Features/Insights/Media/Carousel/ImagesCarousel.swift`
 
 The full-width image carousel at the top of the Insight Sheet, combining live captures, on-disk paths, and reference images into a horizontally scrolling full-screen strip with per-page pinch-to-zoom and pan.
 
@@ -212,7 +212,7 @@ The full-width image carousel at the top of the Insight Sheet, combining live ca
 - **`LiveCapturePageView`**: Asynchronously downsamples live capture `Data` in `DetachedWork.value(category: .imagePreparation)` and commits only the final `UIImage` to `@State`. It remains backed by `NSCache<NSNumber, UIImage>` keyed by `data.hashValue`, but ImageIO decode no longer runs from `body` layout evaluation.
 
 ## 18. Analyzing Content View: `AnalyzingContentView`
-**Location**: `Features/Insights/Views/Content/AnalyzingContentView.swift`
+**Location**: `Features/Insights/Content/Views/AnalyzingContentView.swift`
 
 The analyzing state rendered inside `InsightSheetView` when `viewModel.contentMode == .analyzing`. `contentMode` is `.analyzing` while `InferenceEngine.isProcessing == true`, `speciesData == nil`, **or** a `queuedContext` is set. The insight sheet opens immediately on scan submission — no fullscreen overlay is used. When `contentMode` transitions away from `.analyzing`, the view cross-fades out via `.easeInOut(duration: 0.35)` and `BiologicalView` or `NonBiologicalView` fades in. `InsightContentView` switches on `viewModel.contentMode` — not `inferenceEngine.isProcessing` directly — keeping the routing extensible without modifying the view.
 

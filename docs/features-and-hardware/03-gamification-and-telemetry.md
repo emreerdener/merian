@@ -18,7 +18,7 @@ Powers the interactive `.riv` Rive model rendered by `Terrarium`.
   `isBiological == true`. This prevents the app from triggering a discovery
   celebration for scans of gravel, car tires, or blurry floors.
 - Drives `CelebrationBanner`
-  (`Features/Insights/Components/Banners/CelebrationBanner.swift`) — when a
+  (`Features/Insights/Shared/Banners/CelebrationBanner.swift`) — when a
   biologically validated new discovery arrives,
   `InsightSheetViewModel.evaluateVoiceOverAndCelebration` checks
   `isNewDiscovery && isBiological` and sets `showCelebration = true`, triggering

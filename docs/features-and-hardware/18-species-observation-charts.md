@@ -39,10 +39,10 @@ Primary files:
 
 - `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
-- `apps/ios/Merian/Features/Insights/Models/SpeciesObservationStatsReducer.swift`
-- `apps/ios/Merian/Features/Insights/ViewModels/SpeciesObservationStatsViewModel.swift`
-- `apps/ios/Merian/Features/Insights/Components/Cards/SpeciesObservationChartsCard.swift`
-- `apps/ios/Merian/Features/Insights/Views/Content/BiologicalView.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Models/SpeciesObservationStatsReducer.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Cards/SpeciesObservationChartsCard.swift`
+- `apps/ios/Merian/Features/Insights/Content/Views/BiologicalView.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
 
 `SpeciesObservationStatsViewModel` is `@Observable @MainActor`, but local
