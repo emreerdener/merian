@@ -7,7 +7,11 @@ TestFlight, App Store, support, and QA.
 ## Unreleased
 
 ### Explore
+- Added a View insight action to your own Explore post menus, including posts opened from an Insight sheet or your Profile's published scans.
 - Fixed notification-opened comment reply threads so parent comments and replies include the same emoji reaction controls as regular Explore comments.
+
+### Scans
+- Restored the Explore posts scan filter so the Scans library can show scans that have already been shared to Explore.
 
 ### Insight Sheet
 - Fixed Overview interactions so longer ecological interaction notes wrap fully instead of truncating.

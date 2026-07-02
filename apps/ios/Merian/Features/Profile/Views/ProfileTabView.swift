@@ -7,6 +7,7 @@ import SwiftUI
 /// hardware calculations completely away from the orchestrator logic natively.
 struct ProfileTabView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(RevenueCatManager.self) private var revenueCatManager
     @Binding var showPaywall: Bool
     
@@ -18,6 +19,7 @@ struct ProfileTabView: View {
     @State private var awards: [AwardPayload] = []
     @State private var exploreViewModel = ExploreFeedViewModel()
     @State private var selectedPostRoute: ExplorePostRoute?
+    @State private var selectedInsightRoute: ScanInsightRoute?
     
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -92,9 +94,21 @@ struct ProfileTabView: View {
                         shouldOpenInsight: selectedPostRoute.shouldOpenInsight,
                         targetCommentId: selectedPostRoute.targetCommentId,
                         targetReplyParentCommentId: selectedPostRoute.targetReplyParentCommentId,
-                        allowsInsightPresentation: false
+                        allowsInsightPresentation: false,
+                        onOpenOwnedPostInsight: openInsight
                     )
                 }
+            }
+            .sheet(item: $selectedInsightRoute) { route in
+                InsightSheetView(
+                    isPresented: Binding(
+                        get: { selectedInsightRoute != nil },
+                        set: { if !$0 { selectedInsightRoute = nil } }
+                    ),
+                    initialScanId: route.scanId,
+                    inferenceEngine: inferenceEngine,
+                    allowsExplorePresentation: false
+                )
             }
             .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
                 SpeciesDictionaryPageContentView(
@@ -140,6 +154,21 @@ struct ProfileTabView: View {
             targetCommentId: nil,
             targetReplyParentCommentId: nil
         )
+    }
+
+    private func openInsight(scanId: String) -> Bool {
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+
+        guard let record = try? modelContext.fetch(descriptor).first else {
+            return false
+        }
+
+        inferenceEngine.load(from: record)
+        selectedInsightRoute = ScanInsightRoute(scanId: record.id)
+        return true
     }
 }
 

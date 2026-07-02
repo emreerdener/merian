@@ -88,6 +88,11 @@ enum ScanSeasonFilter: String, CaseIterable, Identifiable, Hashable {
     var id: String { rawValue }
 }
 
+enum ScanExplorePostFilter: String, CaseIterable, Identifiable, Hashable {
+    case shared = "Shared to Explore"
+    var id: String { rawValue }
+}
+
 struct ScanLibraryFilterOptions {
     var customTags: [String] = []
     var hazardTypes: [String] = []
@@ -119,6 +124,7 @@ struct ScanLibraryFilters: Equatable {
     var taxonomyOrders: Set<String> = []
     var taxonomyFamilies: Set<String> = []
     var taxonomyGenera: Set<String> = []
+    var explorePostFilters: Set<ScanExplorePostFilter> = []
 
     var hasAdvancedFilters: Bool {
         activeAdvancedFilterCount > 0
@@ -141,6 +147,7 @@ struct ScanLibraryFilters: Equatable {
             + taxonomyOrders.count
             + taxonomyFamilies.count
             + taxonomyGenera.count
+            + explorePostFilters.count
     }
 
     mutating func clear() {
@@ -184,8 +191,14 @@ struct ScanLibraryFilters: Equatable {
 
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     @ObservationIgnored private var appSettings: AppSettings
-    init(appSettings: AppSettings? = nil) {
+    @ObservationIgnored private var sharedPostIDProvider: (String) -> String?
+
+    init(
+        appSettings: AppSettings? = nil,
+        sharedPostIDProvider: @escaping (String) -> String? = { ExploreShareStateStore.sharedPostId(for: $0) }
+    ) {
         self.appSettings = appSettings ?? AppSettings.shared
+        self.sharedPostIDProvider = sharedPostIDProvider
         ScanLibraryEvents.searchIndexUpdatePublisher()
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
@@ -508,6 +521,7 @@ struct ScanLibraryFilters: Equatable {
                 && matchesIdentificationFilters(scan, filters: activeFilters)
                 && matchesWeatherSeasonFilters(scan, filters: activeFilters, calendar: calendar)
                 && matchesTaxonomyFilters(scan, filters: activeFilters)
+                && matchesExplorePostFilters(scan, filters: activeFilters)
         }
     }
 
@@ -660,6 +674,17 @@ struct ScanLibraryFilters: Equatable {
             && matchesNormalizedValue(scan.taxonomyOrder, selectedValues: filters.taxonomyOrders)
             && matchesNormalizedValue(scan.taxonomyFamily, selectedValues: filters.taxonomyFamilies)
             && matchesNormalizedValue(scan.taxonomyGenus, selectedValues: filters.taxonomyGenera)
+    }
+
+    private func matchesExplorePostFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
+        guard !filters.explorePostFilters.isEmpty else { return true }
+        let isSharedToExplore = sharedPostIDProvider(scan.id) != nil
+        return filters.explorePostFilters.contains { filter in
+            switch filter {
+            case .shared:
+                return isSharedToExplore
+            }
+        }
     }
 
     private func matchesAnyNormalizedValue(_ values: [String], selectedValues: Set<String>) -> Bool {

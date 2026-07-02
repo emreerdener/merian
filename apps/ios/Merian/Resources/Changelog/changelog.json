@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-02-explore-view-insight",
+      "date": "2026-07-02",
+      "title": "Explore post actions",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Your own Explore post menus now include View insight, including posts opened from an Insight sheet or your Profile's published scans."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-01-explore-reply-thread-reactions",
       "date": "2026-07-01",
       "title": "Explore reply reactions",
@@ -63,6 +76,7 @@
           "title": "Added",
           "items": [
             "Scans now has a full filter sheet for sorting, category, dates, location, tags, naturalist details, photo quality, identification state, weather, season, and taxonomy.",
+            "The Scans filter sheet now includes an Explore posts filter for scans that have already been shared to Explore.",
             "Scans filters now stack with search and sorting, with a visible active-filter count and a clear action that keeps the current search text.",
             "The Scans and Collections active-filter badge is now red so it stands out from the blue filter button."
           ]

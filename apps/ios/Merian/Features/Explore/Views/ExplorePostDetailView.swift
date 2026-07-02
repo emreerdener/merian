@@ -10,6 +10,7 @@ struct ExplorePostDetailView: View {
     let targetReplyParentCommentId: String?
     let notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget?
     let allowsInsightPresentation: Bool
+    let onOpenOwnedPostInsight: ((String) -> Bool)?
     let allowsAuthorProfilePresentation: Bool
     let onOpenCommunityIdentificationRequest: ((String) -> Void)?
 
@@ -59,6 +60,7 @@ struct ExplorePostDetailView: View {
         targetReplyParentCommentId: String? = nil,
         notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget? = nil,
         allowsInsightPresentation: Bool,
+        onOpenOwnedPostInsight: ((String) -> Bool)? = nil,
         allowsAuthorProfilePresentation: Bool = true,
         onOpenCommunityIdentificationRequest: ((String) -> Void)? = nil
     ) {
@@ -70,6 +72,7 @@ struct ExplorePostDetailView: View {
         self.targetReplyParentCommentId = targetReplyParentCommentId
         self.notificationReplyThreadTarget = notificationReplyThreadTarget
         self.allowsInsightPresentation = allowsInsightPresentation
+        self.onOpenOwnedPostInsight = onOpenOwnedPostInsight
         self.allowsAuthorProfilePresentation = allowsAuthorProfilePresentation
         self.onOpenCommunityIdentificationRequest = onOpenCommunityIdentificationRequest
     }
@@ -80,6 +83,10 @@ struct ExplorePostDetailView: View {
 
     private var fieldNotesArePublicOnExplore: Bool {
         detail?.trimmedFieldNotes != nil
+    }
+
+    private var canOpenOwnedPostInsight: Bool {
+        allowsInsightPresentation || onOpenOwnedPostInsight != nil
     }
 
     var body: some View {
@@ -238,7 +245,7 @@ struct ExplorePostDetailView: View {
                         ToolbarItem(placement: .topBarTrailing) {
                             ExplorePostDetailMenuButton(
                                 isOwnedByCurrentUser: isOwnedByCurrentUser(post),
-                                allowsInsightPresentation: allowsInsightPresentation,
+                                allowsInsightPresentation: canOpenOwnedPostInsight,
                                 onOpenInsight: { openInsight(for: post) },
                                 onEditPost: { openPostComposer(for: post) },
                                 onUnpublish: { postToUnpublish = post },
@@ -264,7 +271,7 @@ struct ExplorePostDetailView: View {
                             focusComments(using: scrollProxy, animated: false)
                         }
 
-                        if allowsInsightPresentation && shouldOpenInsight && !didAutoOpenInsight {
+                        if canOpenOwnedPostInsight && shouldOpenInsight && !didAutoOpenInsight {
                             didAutoOpenInsight = true
                             Task { @MainActor in
                                 try? await Task.sleep(nanoseconds: 250_000_000)
@@ -471,6 +478,7 @@ struct ExplorePostDetailView: View {
                             viewModel: viewModel,
                             route: ExploreHashtagRoute(hashtag: hashtag),
                             allowsInsightPresentation: allowsInsightPresentation,
+                            onOpenOwnedPostInsight: onOpenOwnedPostInsight,
                             allowsAuthorProfilePresentation: allowsAuthorProfilePresentation
                         )
                     } label: {
@@ -807,10 +815,30 @@ struct ExplorePostDetailView: View {
     }
 
     private func openInsight(for post: ExplorePost) {
-        guard allowsInsightPresentation else { return }
         guard isOwnedByCurrentUser(post) else { return }
 
         let scanId = post.scanId
+        if let fieldNotes = detail?.trimmedFieldNotes {
+            localFieldNotes = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
+                fieldNotes,
+                for: scanId,
+                modelContext: modelContext
+            )
+        }
+
+        if let onOpenOwnedPostInsight {
+            if onOpenOwnedPostInsight(scanId) {
+                HapticManager.shared.triggerSelectionPulse()
+                dismiss()
+            } else {
+                HapticManager.shared.triggerErrorThump()
+                viewModel.toastMessage = "This scan is not available on this device."
+            }
+            return
+        }
+
+        guard allowsInsightPresentation else { return }
+
         var descriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate { $0.id == scanId }
         )
@@ -820,14 +848,6 @@ struct ExplorePostDetailView: View {
             HapticManager.shared.triggerErrorThump()
             viewModel.toastMessage = "This scan is not available on this device."
             return
-        }
-
-        if let fieldNotes = detail?.trimmedFieldNotes {
-            localFieldNotes = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
-                fieldNotes,
-                for: scanId,
-                modelContext: modelContext
-            )
         }
 
         inferenceEngine.load(from: record)

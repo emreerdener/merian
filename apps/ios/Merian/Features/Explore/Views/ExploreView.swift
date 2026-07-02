@@ -36,6 +36,16 @@ struct ExploreView: View {
     @State private var dictionaryUserRegionIdentifier = Self.defaultDictionaryUserRegionIdentifier()
 
     private let allowsInsightPresentation: Bool
+    private let onOpenOwnedPostInsight: ((String) -> Bool)?
+
+    private var canOpenOwnedPostInsight: Bool {
+        allowsInsightPresentation || onOpenOwnedPostInsight != nil
+    }
+
+    private var ownedPostInsightHandler: ((String) -> Bool)? {
+        guard onOpenOwnedPostInsight != nil else { return nil }
+        return { scanId in openOwnedPostInsightFromParent(scanId) }
+    }
 
     private var activeTabBinding: Binding<ExploreTab> {
         Binding(
@@ -52,9 +62,11 @@ struct ExploreView: View {
         initialCommunityRequestId: String? = nil,
         initialTargetCommentId: String? = nil,
         initialTargetReplyParentCommentId: String? = nil,
-        allowsInsightPresentation: Bool = true
+        allowsInsightPresentation: Bool = true,
+        onOpenOwnedPostInsight: ((String) -> Bool)? = nil
     ) {
         self.allowsInsightPresentation = allowsInsightPresentation
+        self.onOpenOwnedPostInsight = onOpenOwnedPostInsight
         if let requestId = initialCommunityRequestId {
             var initialPath = NavigationPath()
             initialPath.append(ExploreCommunityRequestRoute(requestId: requestId))
@@ -110,6 +122,7 @@ struct ExploreView: View {
                     targetReplyParentCommentId: route.targetReplyParentCommentId,
                     notificationReplyThreadTarget: route.notificationReplyThreadTarget,
                     allowsInsightPresentation: allowsInsightPresentation,
+                    onOpenOwnedPostInsight: ownedPostInsightHandler,
                     onOpenCommunityIdentificationRequest: openCommunityIdentificationRequest
                 )
                 .toolbar(.hidden, for: .tabBar)
@@ -163,7 +176,8 @@ struct ExploreView: View {
                 ExploreHashtagPostsView(
                     viewModel: viewModel,
                     route: route,
-                    allowsInsightPresentation: allowsInsightPresentation
+                    allowsInsightPresentation: allowsInsightPresentation,
+                    onOpenOwnedPostInsight: ownedPostInsightHandler
                 )
                 .toolbar(.hidden, for: .tabBar)
                 .toolbar {}
@@ -331,7 +345,7 @@ struct ExploreView: View {
                 onOpenPostDetail: { openPostDetail(for: $0) },
                 onOpenAuthorProfile: { openAuthorProfile(for: $0) },
                 onOpenHashtag: openHashtag,
-                onOpenInsight: allowsInsightPresentation ? { openInsight(for: $0) } : nil
+                onOpenInsight: canOpenOwnedPostInsight ? { openInsight(for: $0) } : nil
             )
         case .map:
             ExploreMapView(
@@ -374,7 +388,7 @@ struct ExploreView: View {
         navigationPath.append(ExplorePostRoute(
             postId: post.id,
             shouldFocusCommentComposer: focusCommentComposer,
-            shouldOpenInsight: allowsInsightPresentation && openInsight,
+            shouldOpenInsight: canOpenOwnedPostInsight && openInsight,
             targetCommentId: targetCommentId,
             targetReplyParentCommentId: targetReplyParentCommentId,
             notificationReplyThreadTarget: notificationReplyThreadTarget
@@ -405,8 +419,19 @@ struct ExploreView: View {
     }
 
     private func openInsight(for post: ExplorePost) {
-        guard allowsInsightPresentation else { return }
         guard isOwnedByCurrentUser(post) else { return }
+
+        if onOpenOwnedPostInsight != nil {
+            if openOwnedPostInsightFromParent(post.scanId) {
+                HapticManager.shared.triggerSelectionPulse()
+            } else {
+                HapticManager.shared.triggerErrorThump()
+                viewModel.toastMessage = "This scan is not available on this device."
+            }
+            return
+        }
+
+        guard allowsInsightPresentation else { return }
 
         let scanId = post.scanId
         let descriptor = FetchDescriptor<LocalScanRecord>(
@@ -422,6 +447,15 @@ struct ExploreView: View {
         inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
+    }
+
+    private func openOwnedPostInsightFromParent(_ scanId: String) -> Bool {
+        guard let onOpenOwnedPostInsight else { return false }
+        let didOpen = onOpenOwnedPostInsight(scanId)
+        if didOpen {
+            dismiss()
+        }
+        return didOpen
     }
 
     private func isOwnedByCurrentUser(_ post: ExplorePost) -> Bool {
@@ -1002,6 +1036,7 @@ struct ExploreHashtagPostsView: View {
     @Bindable var viewModel: ExploreFeedViewModel
     let route: ExploreHashtagRoute
     let allowsInsightPresentation: Bool
+    let onOpenOwnedPostInsight: ((String) -> Bool)?
     var allowsAuthorProfilePresentation = true
 
     @Environment(\.modelContext) private var modelContext
@@ -1046,6 +1081,7 @@ struct ExploreHashtagPostsView: View {
                     targetCommentId: selectedPostRoute.targetCommentId,
                     targetReplyParentCommentId: selectedPostRoute.targetReplyParentCommentId,
                     allowsInsightPresentation: allowsInsightPresentation,
+                    onOpenOwnedPostInsight: onOpenOwnedPostInsight,
                     allowsAuthorProfilePresentation: allowsAuthorProfilePresentation
                 )
             }

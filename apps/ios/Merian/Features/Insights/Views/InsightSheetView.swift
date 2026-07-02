@@ -161,7 +161,14 @@ struct InsightSheetView: View {
             ExploreView(
                 initialPostId: viewModel.state.sharedExplorePostId,
                 initialCommunityRequestId: viewModel.state.sharedCommunityIdentificationRequestId,
-                allowsInsightPresentation: false
+                allowsInsightPresentation: false,
+                onOpenOwnedPostInsight: { scanId in
+                    viewModel.bindPresentedScan(
+                        scanId: scanId,
+                        modelContext: modelContext,
+                        inferenceEngine: inferenceEngine
+                    )
+                }
             )
         }
     }

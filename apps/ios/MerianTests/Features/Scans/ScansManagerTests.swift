@@ -2,24 +2,33 @@
 import SwiftData
 import XCTest
 
+private final class SharedExplorePostLookup {
+    var scanIDs: Set<String> = []
+}
+
 @MainActor
 final class ScansManagerTests: XCTestCase {
     
     var searchManager: ScansManager!
     var container: ModelContainer!
     var context: ModelContext!
+    var sharedExplorePostLookup: SharedExplorePostLookup!
     
     override func setUp() async throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         container = try ModelContainer(for: LocalScanRecord.self, ScanCollection.self, OfflineQueuedScan.self, configurations: configuration)
         context = ModelContext(container)
-        searchManager = ScansManager()
+        sharedExplorePostLookup = SharedExplorePostLookup()
+        searchManager = ScansManager(sharedPostIDProvider: { [weak sharedExplorePostLookup] scanID in
+            sharedExplorePostLookup?.scanIDs.contains(scanID) == true ? "post-\(scanID)" : nil
+        })
     }
     
     override func tearDown() async throws {
         searchManager = nil
         context = nil
         container = nil
+        sharedExplorePostLookup = nil
     }
     
     func createTestScan(
@@ -495,6 +504,33 @@ final class ScansManagerTests: XCTestCase {
         }
 
         XCTAssertEqual(searchManager.filteredScans.map(\.id), [matching.id])
+    }
+
+    func testExplorePostFilterUsesSharedPostLookup() async throws {
+        let shared = try createTestScan(
+            commonName: "Shared Finch",
+            scientificName: "Haemorhous mexicanus",
+            ecologyType: "wild"
+        )
+        shared.timestamp = Date(timeIntervalSince1970: 200)
+
+        let unshared = try createTestScan(
+            commonName: "Private Oak",
+            scientificName: "Quercus alba",
+            ecologyType: "wild"
+        )
+        unshared.timestamp = Date(timeIntervalSince1970: 300)
+
+        sharedExplorePostLookup.scanIDs = [shared.id]
+        searchManager.allScans = [shared, unshared]
+
+        await waitForFilterCompletion {
+            $0.explorePostFilters = [.shared]
+        }
+
+        XCTAssertEqual(searchManager.filteredScans.map(\.id), [shared.id])
+        XCTAssertTrue(searchManager.hasActiveFilters)
+        XCTAssertEqual(searchManager.activeFilterCount, 1)
     }
 
     func testExpandedFilterOptionsAndClearFilters() async throws {

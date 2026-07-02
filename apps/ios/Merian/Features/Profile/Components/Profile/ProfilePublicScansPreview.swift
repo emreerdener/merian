@@ -333,6 +333,7 @@ private struct ProfilePublishedScansLibraryView: View {
     let authorUserId: String
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(ProfileViewModel.self) private var profileViewModel
 
     @State private var posts: [ExplorePost] = []
@@ -341,6 +342,7 @@ private struct ProfilePublishedScansLibraryView: View {
     @State private var didFail = false
     @State private var hasReachedEnd = false
     @State private var selectedPostRoute: ExplorePostRoute?
+    @State private var selectedInsightRoute: ScanInsightRoute?
 
     private let pageSize = 30
     private let columns = ProfilePublishedScanGridStyle.columns
@@ -408,9 +410,21 @@ private struct ProfilePublishedScansLibraryView: View {
                     shouldOpenInsight: selectedPostRoute.shouldOpenInsight,
                     targetCommentId: selectedPostRoute.targetCommentId,
                     targetReplyParentCommentId: selectedPostRoute.targetReplyParentCommentId,
-                    allowsInsightPresentation: false
+                    allowsInsightPresentation: false,
+                    onOpenOwnedPostInsight: openInsight
                 )
             }
+        }
+        .sheet(item: $selectedInsightRoute) { route in
+            InsightSheetView(
+                isPresented: Binding(
+                    get: { selectedInsightRoute != nil },
+                    set: { if !$0 { selectedInsightRoute = nil } }
+                ),
+                initialScanId: route.scanId,
+                inferenceEngine: inferenceEngine,
+                allowsExplorePresentation: false
+            )
         }
     }
 
@@ -618,6 +632,21 @@ private struct ProfilePublishedScansLibraryView: View {
             targetCommentId: nil,
             targetReplyParentCommentId: nil
         )
+    }
+
+    private func openInsight(scanId: String) -> Bool {
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+
+        guard let record = try? modelContext.fetch(descriptor).first else {
+            return false
+        }
+
+        inferenceEngine.load(from: record)
+        selectedInsightRoute = ScanInsightRoute(scanId: record.id)
+        return true
     }
 }
 

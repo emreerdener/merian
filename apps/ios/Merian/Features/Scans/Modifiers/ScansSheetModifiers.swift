@@ -422,6 +422,7 @@ private enum ScansFilterGroup: Hashable {
     case taxonomyOrder
     case taxonomyFamily
     case taxonomyGenus
+    case explorePosts
 }
 
 private enum CollectionFilterGroup: Hashable {
@@ -642,6 +643,18 @@ private struct ScansFilterSheet: View {
                             keyPath: \.taxonomyGenera
                         )
                     }
+                }
+
+                filterDisclosureGroup(
+                    .explorePosts,
+                    title: "Explore posts",
+                    summary: selectedSummary(searchManager.filters.explorePostFilters, title: \.rawValue)
+                ) {
+                    multiSelectRows(
+                        ScanExplorePostFilter.allCases,
+                        keyPath: \.explorePostFilters,
+                        title: \.rawValue
+                    )
                 }
             }
             .listSectionSpacing(12)
