@@ -39,7 +39,7 @@ enum AchievementType: String, CaseIterable, Sendable, Identifiable {
                 descriptionText: "Document 5 different species",
                 detailProgressDescription: "Each unique species counts once toward this achievement.",
                 qualifyingScansTitle: "Qualifying scans",
-                imageName: "naturalist",
+                imageName: "leaf-feather",
                 tintToken: .ochre,
                 difficultyLevel: 0,
                 contributionKind: .uniqueSpecies { _ in
@@ -99,7 +99,7 @@ enum AchievementType: String, CaseIterable, Sendable, Identifiable {
                 descriptionText: "Document 10 species in urban or domesticated environments",
                 detailProgressDescription: "Each unique species captured in an urban or domesticated environment counts once.",
                 qualifyingScansTitle: "Qualifying scans",
-                imageName: "urban",
+                imageName: "urban-building",
                 tintToken: .slateBlue,
                 difficultyLevel: 0,
                 contributionKind: .uniqueSpecies { record in
@@ -498,11 +498,11 @@ public enum UserPersona: CaseIterable, Equatable {
     
     public var imageName: String {
         switch self {
-        case .observer: return "persona_observer"
-        case .explorer: return "persona_explorer"
-        case .naturalist: return "persona_naturalist"
-        case .scholar: return "persona_scholar"
-        case .apexObserver: return "persona_apex_observer"
+        case .observer: return "persona-observer"
+        case .explorer: return "persona-explorer"
+        case .naturalist: return "persona-naturalist"
+        case .scholar: return "persona-scholar"
+        case .apexObserver: return "persona-apex-observer"
         }
     }
     

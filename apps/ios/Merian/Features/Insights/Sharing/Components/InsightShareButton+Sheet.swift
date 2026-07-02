@@ -80,7 +80,7 @@ extension InsightShareButton {
                         .fill(Color.primary.opacity(0.1))
                         .frame(width: 58, height: 58)
 
-                    Image("identify")
+                    Image("bird-magnifier")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 44, height: 44)

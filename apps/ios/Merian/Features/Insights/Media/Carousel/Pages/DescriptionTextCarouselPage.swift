@@ -15,7 +15,7 @@ struct DescriptionTextCarouselPage: View {
                 Color(uiColor: .systemBackground)
                     .opacity(0.95)
                 
-                Image("description_bg")
+                Image("animals-background")
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFill()

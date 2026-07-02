@@ -76,7 +76,7 @@ struct FieldNotesCard: View {
 
     private var zeroStateIntro: some View {
         VStack(alignment: .center, spacing: 14) {
-            Image("insights_journal")
+            Image("journal-open")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 200)

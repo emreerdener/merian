@@ -29,15 +29,15 @@ let guidedQuestions: [GuidedQuestion] = [
     GuidedQuestion(
         prompt: "What did you find?",
         tags: [
-            .init(tagId: "subj_bird", label: "Bird", aiText: "a bird", defaultWeight: 100, imageName: "desc_bird"),
-            .init(tagId: "subj_insec", label: "Insect", aiText: "an insect", defaultWeight: 90, imageName: "desc_butterfly"),
-            .init(tagId: "subj_spid", label: "Spider", aiText: "a spider or arachnid", defaultWeight: 80, imageName: "desc_spider"),
-            .init(tagId: "subj_rept", label: "Reptile", aiText: "a reptile or amphibian", defaultWeight: 70, imageName: "desc_lizard"),
-            .init(tagId: "subj_plan", label: "Plant", aiText: "a plant or flower", defaultWeight: 60, imageName: "desc_plant"),
-            .init(tagId: "subj_mush", label: "Mushroom", aiText: "a mushroom or fungus", defaultWeight: 50, imageName: "desc_mushrooms"),
-            .init(tagId: "subj_mamm", label: "Mammal", aiText: "a mammal", defaultWeight: 40, imageName: "desc_mouse"),
-            .init(tagId: "subj_fish", label: "Fish", aiText: "a fish or aquatic creature", defaultWeight: 30, imageName: "desc_fish"),
-            .init(tagId: "subj_othr", label: "Other", aiText: "", defaultWeight: 20, imageName: "desc_worm")
+            .init(tagId: "subj_bird", label: "Bird", aiText: "a bird", defaultWeight: 100, imageName: "bird-cardinal"),
+            .init(tagId: "subj_insec", label: "Insect", aiText: "an insect", defaultWeight: 90, imageName: "butterfly-monarch"),
+            .init(tagId: "subj_spid", label: "Spider", aiText: "a spider or arachnid", defaultWeight: 80, imageName: "spider"),
+            .init(tagId: "subj_rept", label: "Reptile", aiText: "a reptile or amphibian", defaultWeight: 70, imageName: "lizard"),
+            .init(tagId: "subj_plan", label: "Plant", aiText: "a plant or flower", defaultWeight: 60, imageName: "fern"),
+            .init(tagId: "subj_mush", label: "Mushroom", aiText: "a mushroom or fungus", defaultWeight: 50, imageName: "mushrooms"),
+            .init(tagId: "subj_mamm", label: "Mammal", aiText: "a mammal", defaultWeight: 40, imageName: "mouse"),
+            .init(tagId: "subj_fish", label: "Fish", aiText: "a fish or aquatic creature", defaultWeight: 30, imageName: "fish"),
+            .init(tagId: "subj_othr", label: "Other", aiText: "", defaultWeight: 20, imageName: "worm")
         ]
     ),
     

@@ -7,7 +7,7 @@ struct ReadyStepView: View {
     // MARK: - Visual Layout
     var body: some View {
         OnboardingStepWrapper(
-            imageName: "bird",
+            imageName: "bird-magnifier",
             title: "Explore. Identify. Contribute.",
             subtitle: "Every capture contributes to a global database tracking wildlife and biodiversity.",
             primaryButtonTitle: "Start scanning",

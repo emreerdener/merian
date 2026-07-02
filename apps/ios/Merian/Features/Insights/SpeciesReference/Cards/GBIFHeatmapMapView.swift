@@ -57,7 +57,7 @@ struct GBIFHeatmapMapView: View {
                         endPoint: .bottom
                     )
 
-                    Image("WorldMapBase")
+                    Image("world-map-base")
                         .renderingMode(.original)
                         .resizable()
                         .scaledToFill()

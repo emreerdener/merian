@@ -37,7 +37,7 @@ Shared types live in `apps/ios/Merian/Features/Explore/Widgets/ExploreWidgetCach
 - Max cached items: `12`
 - Timeline rotation interval: `30 minutes`
 - Empty-state refresh interval: `60 minutes`
-- Bundled fallback asset: `ExploreWidgetPlaceholder` in the widget extension asset catalog, sourced from `apps/ios/Merian/Assets.xcassets/Widget/widget-flower.imageset/widget-flower.jpg`. The same photo is also copied into `apps/ios/widgets/Explore/Resources/ExploreWidgetPlaceholder.jpg` as a direct bundle fallback for WidgetKit gallery rendering. Keep the widget extension copies downsampled for WidgetKit memory limits; the current bundled copies are `1024x1024`.
+- Bundled fallback asset: `ExploreWidgetPlaceholder` in the widget extension asset catalog, sourced from `apps/ios/Merian/Assets.xcassets/Graphics3D/widget-flower.imageset/widget-flower.jpg`. The same photo is also copied into `apps/ios/widgets/Explore/Resources/ExploreWidgetPlaceholder.jpg` as a direct bundle fallback for WidgetKit gallery rendering. Keep the widget extension copies downsampled for WidgetKit memory limits; the current bundled copies are `1024x1024`.
 
 Each `ExploreWidgetItem` stores:
 

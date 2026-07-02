@@ -28,7 +28,7 @@ struct PlanCard: View {
                 Spacer()
                 
                 if revenueCat.isProActive {
-                    Image("pw_butterfly")
+                    Image("luna-moth")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 56, height: 56)

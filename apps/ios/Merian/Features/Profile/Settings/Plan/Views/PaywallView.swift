@@ -22,19 +22,19 @@ enum ProPlanValueProps {
 
     static let featuredSlides = [
         PaywallHeroSlide(
-            imageName: "pw_butterfly",
+            imageName: "luna-moth",
             title: "Unlimited field scans",
             subtitle: "Keep identifying without daily scan limits.",
             glowColor: .mint
         ),
         PaywallHeroSlide(
-            imageName: "pw_hawk",
+            imageName: "hawk",
             title: "Pro AI vision",
             subtitle: "Use Merian's most capable model for deeper analysis.",
             glowColor: .orange
         ),
         PaywallHeroSlide(
-            imageName: "pw_bird",
+            imageName: "blue-bird",
             title: "Listen, compare, record",
             subtitle: "Unlock multi-capture context, expedition modes, and richer insight cards.",
             glowColor: .cyan
@@ -324,7 +324,7 @@ struct PaywallView: View {
                 .font(.system(size: 26, weight: .medium))
                 .foregroundStyle(.primary)
 
-            Image("pw_heron")
+            Image("heron")
                 .resizable()
                 .scaledToFit()
                 .frame(height: 180)

@@ -926,12 +926,12 @@ private struct SpeciesDictionaryGroupCard: View {
 
     private var assetName: String? {
         switch group.id {
-        case "plants": "dictionary-plant"
-        case "birds": "dictionary-bird"
-        case "insects": "dictionary-butterfly"
-        case "fungi": "dictionary-mushrooms"
-        case "mammals": "dictionary-squirrel"
-        case "reptiles_amphibians": "dictionary-turtle"
+        case "plants": "fern"
+        case "birds": "eagle"
+        case "insects": "butterfly-monarch"
+        case "fungi": "mushrooms"
+        case "mammals": "squirrel"
+        case "reptiles_amphibians": "turtle"
         default: nil
         }
     }

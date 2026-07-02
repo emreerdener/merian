@@ -38,15 +38,15 @@ The `UserPersona` enumeration (defined in `GamificationModels.swift`) replaces l
 
 | Tier Level | Persona Title        | Unique Species Threshold | Asset Identifier     |
 | ---------- | -------------------- | ------------------------ | -------------------- |
-| Tier 1     | Observer             | 0                        | `persona_observer`   |
-| Tier 2     | Casual Explorer      | 10                       | `persona_explorer`   |
-| Tier 3     | Dedicated Naturalist | 50                       | `persona_naturalist` |
-| Tier 4     | Verified Scholar     | 250                      | `persona_scholar`    |
-| Tier 5     | Apex Observer        | 1000                     | `persona_apex`       |
+| Tier 1     | Observer             | 0                        | `persona-observer`   |
+| Tier 2     | Casual Explorer      | 10                       | `persona-explorer`   |
+| Tier 3     | Dedicated Naturalist | 50                       | `persona-naturalist` |
+| Tier 4     | Verified Scholar     | 250                      | `persona-scholar`    |
+| Tier 5     | Apex Observer        | 1000                     | `persona-apex-observer`       |
 
-The `Persona` UI component cross-references this enum against the user's live profile statistics to render the appropriate `.imageset` container from the `Profile/Personas/` catalog. It sits adjacent to the `Terrarium` component on the Profile Tab, which loads compounding biological elements based on the same 5-tier logic.
+The `Persona` UI component cross-references this enum against the user's live profile statistics to render the appropriate `.imageset` container from the `Personas/` asset catalog group. It sits adjacent to the `Terrarium` component on the Profile Tab, which loads compounding biological elements based on the same 5-tier logic.
 
-**Plan Card Integration**: The `PlanCard` dynamic banner also eschews standard SF Symbols in favor of custom vectors. Depending on `RevenueCatManager.shared.isProActive`, it targets `apps/ios/Merian/Assets.xcassets/Profile/Plan/sparkles.imageset` for Premium users, falling back to `compass.imageset` for Free-tier users.
+**Plan Card Integration**: The `PlanCard` dynamic banner also eschews standard SF Symbols in favor of reusable 3D artwork. Depending on `RevenueCatManager.shared.isProActive`, it uses `luna-moth` for Premium users and `compass` for Free-tier users from `apps/ios/Merian/Assets.xcassets/Graphics3D/`.
 
 ---
 

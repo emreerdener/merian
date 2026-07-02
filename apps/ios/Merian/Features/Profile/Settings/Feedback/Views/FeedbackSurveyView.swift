@@ -157,7 +157,7 @@ struct FeedbackSurveyView: View {
             Spacer(minLength: 20)
 
             VStack(spacing: 14) {
-                Image("pw_dragonfly")
+                Image("dragonfly")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 280, height: 280)

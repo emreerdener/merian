@@ -165,7 +165,7 @@ struct UserProfile: View {
                 }
             }) {
                 HStack {
-                    Image("google")
+                    Image("google-logo")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 18, height: 18)

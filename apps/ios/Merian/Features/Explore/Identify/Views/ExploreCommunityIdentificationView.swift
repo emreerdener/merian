@@ -457,7 +457,7 @@ private struct CommunityIdentificationBanner: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             HStack(spacing: 8) {
-                Image("identify")
+                Image("bird-magnifier")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 88, height: 88)

@@ -718,7 +718,7 @@ private struct ExploreFeedTabContent: View {
                 filterBar
                 
                 EmptyStateView(
-                    imageName: "explore-base",
+                    imageName: "nature-scene",
                     imageHeight: 300,
                     title: emptyStateTitle,
                     message: emptyStateMessage

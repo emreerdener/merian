@@ -9,7 +9,7 @@ feed. This file describes how to update it.
 - The user-facing screen is `ChangelogView`, reached from Profile -> Settings -> Changelog.
 - The app reads structured bundled data through `ChangelogStore` and renders newest entries first.
 - The in-app source of truth is `apps/ios/Merian/Resources/Changelog/changelog.json`.
-- Optional changelog images must be asset catalog images under `apps/ios/Merian/Assets.xcassets/Changelog`.
+- Optional changelog images must reference reusable asset catalog names. Put new reusable 3D artwork under `apps/ios/Merian/Assets.xcassets/Graphics3D/` rather than creating changelog-specific duplicates.
 - The root `CHANGELOG.md` remains developer/release-note source material for TestFlight, App Store, QA, and support notes. It is not parsed by the app.
 
 Xcode currently copies `changelog.json` to the app bundle root. `ChangelogStore`
@@ -54,15 +54,14 @@ Field rules:
 
 1. Decide whether the change should be visible to users.
 2. Add or edit an entry in `apps/ios/Merian/Resources/Changelog/changelog.json`.
-3. If an image is needed, add an image set under `apps/ios/Merian/Assets.xcassets/Changelog` and reference only its asset name in JSON.
+3. If an image is needed, reuse an existing asset name when possible. Add new reusable 3D artwork under `apps/ios/Merian/Assets.xcassets/Graphics3D/` and reference only its asset name in JSON.
 4. Update root `CHANGELOG.md` when the change is relevant to TestFlight, App Store, QA, or support.
 5. Run `make xcodegen` if new files or asset sets were added.
 6. Validate JSON:
 
 ```bash
 ruby -rjson -e 'ARGV.each { |path| JSON.parse(File.read(path)); puts "#{path}: OK" }' \
-  apps/ios/Merian/Resources/Changelog/changelog.json \
-  apps/ios/Merian/Assets.xcassets/Changelog/Contents.json
+  apps/ios/Merian/Resources/Changelog/changelog.json
 ```
 
 7. Build and run focused tests:

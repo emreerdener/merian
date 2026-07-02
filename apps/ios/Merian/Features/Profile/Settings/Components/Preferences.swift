@@ -228,7 +228,7 @@ private struct ProSettingsBanner: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Image("bird_tree")
+            Image("bird-tree")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 120, height: 120)
