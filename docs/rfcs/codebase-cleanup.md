@@ -73,12 +73,26 @@ apps/ios/Merian/Features/SpeciesDictionary/
   Detail/
   Catalog/
   Tree/
+
+apps/ios/Merian/Features/Scans/
+  Shell/
+  Library/
+  Collections/
+  NonBiological/
+  Shared/
 ```
 
 When working on the Explore feed, start in `Explore/Feed/`; that folder owns the
 observations feed, post cards, post detail, comments, hashtag presentation, feed
 formatting, and feed view-model extensions. Map and Community ID logic should
 not be placed there.
+
+When working on the Scans private library, start in `Scans/Library/`; that folder
+owns individual scan browsing, search/index state, and queued scan snapshots.
+Collection grids, smart collections, and collection detail/editing belong in
+`Scans/Collections/`. Cross-surface Scans-only UI belongs in `Scans/Shared/`,
+while controls reused outside Scans, such as `CategoryFilterBar`, belong in
+`Core/UI/Components/`.
 
 Suggested first targets:
 

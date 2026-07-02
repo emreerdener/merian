@@ -44,7 +44,7 @@ React, and Mantine for server-rendered public pages. Keep service-role secrets
 server-side only and run the web checks from `docs/development-guides/08-testing-strategy.md`
 when changing web routes.
 - `MerianLog` lives at `Core/MerianLog.swift`.
-- `SearchDatabaseActor` lives with `ScansManager` in `Features/Scans/ViewModels/ScansManager.swift` because it is an implementation detail of the Scans library search index.
+- `SearchDatabaseActor` lives with `ScansManager` in `Features/Scans/Library/ViewModels/ScansManager.swift` because it is an implementation detail of the Scans library search index.
 
 ## 3. Application State & Dependency Injection
 - **DO NOT** use scattered `@EnvironmentObject` implementations or rely heavily on SwiftUI environment scoping for heavy singletons.

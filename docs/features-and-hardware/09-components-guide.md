@@ -3,7 +3,7 @@
 Merian abstracts repetitive SwiftUI view structures into a dedicated components layer (`Core/UI/` and `Features/*/Components/`) to enforce DRY (Don't Repeat Yourself) principles and establish a unified aesthetic baseline.
 
 ## 1. Zero-State Handling: `EmptyStateView`
-**Location**: `Features/Scans/Components/EmptyStateView.swift`
+**Location**: `Features/Scans/Shared/Components/EmptyStateView.swift`
 
 Historically, empty states in the Scans Library, Non-Biological Vault, and Collections were monolithic `VStack` geometries scattered across multiple view files. These were consolidated into a single, strongly-typed `EmptyStateView` component.
 - **Dynamic Context**: It accepts dynamic messaging primitives (`title: String`, `message: String`, `systemImage: String`).
@@ -35,7 +35,7 @@ A custom geometry wrapper used heavily within the `ProfileView` Contribution Hea
 - **Tracking Physics**: Translates scroll offset physics into dynamic opacity bounds, preventing hard clipping of visual data structures (like the 11pt heat nodes) when they reach the geometric constraints of the device screen.
 
 ## 5. Destructive Safeties: `ScanDeletionDialogModifier`
-**Location**: `Features/Scans/Modifiers/ScanDeletionDialogModifier.swift`
+**Location**: `Features/Scans/Shared/Modifiers/ScanDeletionDialogModifier.swift`
 
 A global `.viewModifier` that intercepts `.contextMenu` or `Menu` delete interactions.
 - Replaces isolated inline `.alert` or `.confirmationDialog` blocks to ensure identical warning dialogue verbiage across all views.

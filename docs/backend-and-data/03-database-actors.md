@@ -184,7 +184,7 @@ let localStats = await actor.fetchLocalStats(
 
 ---
 
-### `SearchDatabaseActor` (`Features/Scans/ViewModels/ScansManager.swift`)
+### `SearchDatabaseActor` (`Features/Scans/Library/ViewModels/ScansManager.swift`)
 
 **Declaration**: `@ModelActor actor SearchDatabaseActor`
 
