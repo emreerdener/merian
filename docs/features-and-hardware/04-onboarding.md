@@ -1,6 +1,6 @@
 # Onboarding Flow
 
-Merian gates all hardware initialization, background sync, and lifecycle handlers behind a `hasCompletedOnboarding` flag in `UserDefaults`. This document explains the 6-step permission flow, the state machine, and the completion gate.
+Merian gates all hardware initialization, background sync, and lifecycle handlers behind a `hasCompletedOnboarding` flag in `UserDefaults`. This document explains the four-step permission flow, the state machine, and the completion gate.
 
 ---
 
@@ -8,11 +8,12 @@ Merian gates all hardware initialization, background sync, and lifecycle handler
 
 | File | Role |
 |---|---|
-| `OnboardingStep` enum | Defines the 6 steps in order |
-| `OnboardingViewModel` | `@Observable @MainActor` — owns `currentStep` and the injected `AppSettings.hasCompletedOnboarding` flag |
-| `OnboardingView` | Root view, switches content based on `currentStep` |
-| Step component views | One view per step, in `Features/Onboarding/Components/` |
-| `LocationPermissionDelegate` | `CLLocationManagerDelegate` for native location permission priming |
+| `Steps/Models/OnboardingStep.swift` | Defines the four steps in order |
+| `Shell/ViewModels/OnboardingViewModel.swift` | `@Observable @MainActor` — owns `currentStep` and the injected `AppSettings.hasCompletedOnboarding` flag |
+| `Shell/Views/OnboardingView.swift` | Root view, switches content based on `currentStep` |
+| `Steps/Welcome`, `Steps/CameraPermission`, `Steps/LocationPermission`, `Steps/Ready` | One self-contained SwiftUI view per onboarding step |
+| `Steps/Shared/OnboardingStepWrapper.swift` | Shared step layout and action-button chrome |
+| `Permissions/Location/LocationPermissionDelegate.swift` | `CLLocationManagerDelegate` for native location permission priming |
 
 ---
 
@@ -31,7 +32,7 @@ enum OnboardingStep: Int, CaseIterable {
 |---|---|---|
 | `.welcome` | `WelcomeStepView` | Branding screen — no permission request |
 | `.camera` | `CameraPermissionStepView` | Requests `AVCaptureDevice` camera permission |
-| `.location` | `LocationPermissionStepView` | Requests `CLLocationManager` always/when-in-use authorization via `LocationPermissionDelegate` |
+| `.location` | `LocationPermissionStepView` | Requests `CLLocationManager` when-in-use authorization via `LocationPermissionDelegate` |
 | `.ready` | `ReadyStepView` | Confirms setup complete; calls `viewModel.completeOnboarding()` |
 
 Each step view is wrapped in `OnboardingStepWrapper` which provides consistent layout, animation, and the "Continue" button that calls `viewModel.advanceStep()`.
