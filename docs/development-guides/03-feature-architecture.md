@@ -8,6 +8,26 @@ This document defines the canonical structure for every feature in Merian and ex
 
 Every feature lives under `apps/ios/Merian/Features/<FeatureName>/`. Prefer a product-area-first structure when a feature contains multiple user-facing areas. Shared shell, staging, submission, or support code should sit beside those product areas rather than mixing mode-specific UI in a single folder.
 
+Use this ownership order:
+
+1. Feature root: the main navigation or large product surface (`Explore`, `Scans`, `Profile`, `Capture`).
+2. Product area: the user-recognizable area inside that feature (`Feed`, `Map`, `Settings`, `Scan`, `Record`, `Describe`).
+3. Implementation type: `Views`, `Components`, `Models`, `ViewModels`, `Services`, or `Utilities`.
+
+```text
+Features/
+└── <FeatureName>/
+    ├── Shell/              # Root container, routing, tabs/pagers, and feature chrome
+    ├── <ProductArea>/      # User-recognizable area owned by this feature
+    │   ├── Views/
+    │   ├── Components/
+    │   ├── Models/
+    │   └── ViewModels/
+    └── Shared/             # Reused only inside this feature
+```
+
+Avoid parallel folders such as `Screens/` and `Views/`. In SwiftUI, a sheet, detail route, tab, or full-screen page is still a view; nesting should communicate ownership.
+
 ```
 Features/
 └── Capture/
@@ -44,6 +64,7 @@ Features/
 - `Models/` are local to the feature and never `@Model` (SwiftData models live in `apps/ios/Merian/Models/`).
 - `Modifiers/` implement `ViewModifier` or provide `.modifier(...)` call-site helpers.
 - `Managers/` hold `@Observable @MainActor final class` service objects that own a hardware or OS resource scoped to the feature (e.g. `SpeechManager` owns `AVAudioEngine`). Managers that must be shared across multiple features belong in `AppDIContainer` instead.
+- `Shared/` means shared within one feature. Promote to `Core/` only when the code is reused across features or represents app infrastructure.
 
 ---
 
@@ -174,3 +195,15 @@ Complex sheet routing logic (multiple `.sheet`, `.fullScreenCover`, custom modif
 7. If the feature introduces a hardware/OS resource manager scoped only to that feature, place it in `Managers/` (not `AppDIContainer`).
 8. Run `xcodegen generate` after adding any new Swift file or subdirectory — `project.yml` uses a directory wildcard (`sources: [apps/ios/Merian]`) so no `project.yml` edit is required, but the `.xcodeproj` must be regenerated.
 9. Update `docs/development-guides/07-ai-agent-guidelines.md` Section 2 if the directory structure changes.
+
+## Test Mirroring
+
+Unit tests mirror the production owner:
+
+```text
+MerianTests/
+  Core/<CoreArea>/
+  Features/<FeatureName>/<ProductArea>/
+```
+
+If a test primarily exercises a Core service, manager, actor, or infrastructure policy, place it under `MerianTests/Core` even when the behavior appears in a feature screen. If it primarily exercises product-area logic, view models, presentation policies, or local helpers, place it under the matching `MerianTests/Features/<FeatureName>/<ProductArea>/` folder.

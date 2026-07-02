@@ -84,6 +84,23 @@ boundaries:
 
 Tests are organized under `apps/ios/MerianTests/Core` and `apps/ios/MerianTests/Features`:
 
+- `Core/<CoreArea>/` mirrors cross-feature services, managers, actors, infrastructure, and shared app policies from `apps/ios/Merian/Core`.
+- `Features/<Feature>/<ProductArea>/` mirrors user-facing product areas from `apps/ios/Merian/Features`.
+- If a test covers a Core manager that happens to surface in a feature screen, keep the test under `Core`.
+- If a test covers local product-area behavior, view models, display policy, or feature-only helpers, keep the test under the matching feature folder.
+
+Example:
+
+```text
+MerianTests/
+  Core/Data/OfflineSync/
+  Features/Capture/Describe/
+  Features/Scans/Library/
+  Features/Scans/Collections/
+  Features/Profile/UserProfile/
+  Features/Profile/Settings/Changelog/
+```
+
 ### Analytics & Telemetry
 
 - **`AppTelemetryTests.swift`**: Calls `AppTelemetry.initialize()` in `setUp()`
@@ -283,7 +300,7 @@ Tests are organized under `apps/ios/MerianTests/Core` and `apps/ios/MerianTests/
     Replicates the `syncPendingScans` backoff formula inline and asserts the
     full delay sequence (0→1→2→4→8→16→30) and cap behavior. Also asserts
     `maxUploadRetryDelay == 30`.
-- **`CompositeLibraryTests.swift`** (`apps/ios/MerianTests/Features/Scans/`): Validates
+- **`CompositeLibraryTests.swift`** (`apps/ios/MerianTests/Features/Scans/Library/`): Validates
   the bounding behaviors of the composite `ScansGrid` that renders both
   `OfflineQueuedScan` and `LocalScanRecord` items in the same `LazyVGrid`.
   - **Unique ID Guarantee**: Inserts three `OfflineQueuedScan` records and
