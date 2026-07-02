@@ -6,6 +6,13 @@ This document covers the Profile tab architecture, how scan statistics are compu
 
 ## Architecture
 
+Profile is organized by product area under `apps/ios/Merian/Features/Profile/`:
+`Shell/` owns the profile/settings pager, `UserProfile/` owns the visible user profile tab
+and gamification/statistics surfaces, `Settings/` owns settings rows and account
+actions; `Settings/Plan/` owns subscription/paywall surfaces, `Settings/Notifications/` owns push
+preferences, `Settings/Changelog/` owns bundled release notes, `Settings/Feedback/` owns the beta
+survey, and `Shared/` owns cross-area profile state.
+
 | File                     | Role                                                                                                                      |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | `ProfileTabView`         | Root profile tab view                                                                                                     |

@@ -97,7 +97,7 @@ using `Set<String>` on `scientificName` to derive unique biological diversity
 per category, and resolves a matrix of lightweight `Sendable` structs
 (`AchievementPayload`) to the UI with exact chronological context for the "Smart
 sort" closures. These primitives are defined in
-`Features/Profile/Models/GamificationModels.swift`, isolated from UI loops.
+`Features/Profile/UserProfile/Models/GamificationModels.swift`, isolated from UI loops.
 
 ## Secure Telemetry Ecosystem
 

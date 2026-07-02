@@ -174,7 +174,7 @@ notifications feed remains complete and continues to include mention rows.
   `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift` and
   `apps/ios/Merian/Features/Explore/Notifications/Components/NotificationRowView.swift`
 - Push preference:
-  `apps/ios/Merian/Features/Profile/Views/NotificationSettingsView.swift` and
+  `apps/ios/Merian/Features/Profile/Settings/Notifications/Views/NotificationSettingsView.swift` and
   `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift`
 - Regression tests:
   `apps/ios/MerianTests/Features/Explore/ExploreCommentMentionTextTests.swift`

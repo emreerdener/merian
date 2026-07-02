@@ -139,10 +139,10 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostCard.swift`
-- `apps/ios/Merian/Features/Profile/Components/Profile/ProfilePublicScansPreview.swift`
+- `apps/ios/Merian/Features/Profile/UserProfile/Components/ProfilePublicScansPreview.swift`
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
-- `apps/ios/Merian/Features/Profile/Components/Profile/Achievements.swift`
+- `apps/ios/Merian/Features/Profile/UserProfile/Components/Achievements.swift`
 
 Important model types:
 

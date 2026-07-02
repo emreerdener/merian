@@ -122,7 +122,7 @@ The design principle is page-at-a-time streaming: each page is processed and rel
 
 ---
 
-### `ProfileDatabaseActor` (`Features/Profile/Components/Profile/UserStats.swift`)
+### `ProfileDatabaseActor` (`Features/Profile/UserProfile/Components/UserStats.swift`)
 
 **Declaration**: `@ModelActor actor ProfileDatabaseActor`
 

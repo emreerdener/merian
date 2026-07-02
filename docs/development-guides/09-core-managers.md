@@ -612,7 +612,7 @@ These helpers remain as parked implementation support for a future rebuild.
 ### `ProfileDatabaseActor` (Profile Stats)
 
 - `@ModelActor` living with `UserStats` in
-  `apps/ios/Merian/Features/Profile/Components/Profile/UserStats.swift`.
+  `apps/ios/Merian/Features/Profile/UserProfile/Components/UserStats.swift`.
 - Owns the off-main projection pipeline for `ProfileTabView`: species count,
   streak, 52-week heatmap, and award payloads.
 - **Shared stats projection**: `calculateProfileStats()`, `calculateAll()`,

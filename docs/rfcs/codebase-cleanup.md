@@ -80,6 +80,16 @@ apps/ios/Merian/Features/Scans/
   Collections/
   NonBiological/
   Shared/
+
+apps/ios/Merian/Features/Profile/
+  Shell/
+  UserProfile/
+  Settings/
+    Plan/
+    Notifications/
+    Changelog/
+    Feedback/
+  Shared/
 ```
 
 When working on the Explore feed, start in `Explore/Feed/`; that folder owns the
@@ -93,6 +103,14 @@ Collection grids, smart collections, and collection detail/editing belong in
 `Scans/Collections/`. Cross-surface Scans-only UI belongs in `Scans/Shared/`,
 while controls reused outside Scans, such as `CategoryFilterBar`, belong in
 `Core/UI/Components/`.
+
+When working on the Profile tab, start in `Profile/UserProfile/`; that folder owns
+identity, published scans, achievements, persona, terrarium, heatmap, and the
+profile stats actor. Settings rows and account actions belong in
+`Profile/Settings/`; plan/paywall surfaces live in `Profile/Settings/Plan/`, push toggles in
+`Profile/Settings/Notifications/`, bundled release notes in
+`Profile/Settings/Changelog/`, beta survey flows in `Profile/Settings/Feedback/`,
+and cross-area profile state lives in `Profile/Shared/`.
 
 Suggested first targets:
 
