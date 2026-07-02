@@ -58,9 +58,9 @@ Unfollow deletes the `(follower_user_id, followee_user_id)` row. It does not req
 
 ```sh
 deno fmt --check services/supabase/functions/set-user-follow
-deno lint services/supabase/functions/set-user-follow
-deno check services/supabase/functions/set-user-follow/index.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/userFollowsDb.test.ts services/supabase/functions/_tests/exploreNotificationsDb.test.ts
+deno lint --config services/supabase/functions/deno.json services/supabase/functions/set-user-follow
+deno check --config services/supabase/functions/deno.json services/supabase/functions/set-user-follow/index.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/userFollowsDb.test.ts services/supabase/functions/_tests/exploreNotificationsDb.test.ts
 ```
 
 The DB integration tests skip live assertions when the local Supabase Postgres instance is not running at `127.0.0.1:54322`.

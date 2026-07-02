@@ -239,9 +239,6 @@ struct ScansSheetView: View {
         if !queuedScans.isEmpty {
             kickQueuedScanPipeline(reason: "onAppear")
         }
-        Task { @MainActor in
-            await reconcileShareImportsFromSheet()
-        }
         appSettings.hasUnseenScan = false
         AppIconBadgeCoordinator.updateAppIconBadge()
     }
@@ -265,7 +262,6 @@ struct ScansSheetView: View {
 
     private func handleScenePhaseChange(_ newPhase: ScenePhase) {
         guard newPhase == .active else { return }
-        ShareImportLog.logger.debug("ScansSheetView.scenePhase active: refreshing queue and library snapshots")
         refreshLibraryAndQueue()
         if !queuedScans.isEmpty {
             kickQueuedScanPipeline(reason: "scenePhase")
@@ -273,23 +269,9 @@ struct ScansSheetView: View {
     }
 
     private func handleLibraryDidUpdate() {
-        ShareImportLog.logger.debug("ScansSheetView.libraryDidUpdate: refreshing queue and library snapshots")
         refreshLibraryAndQueue()
         if !queuedScans.isEmpty {
             kickQueuedScanPipeline(reason: "libraryDidUpdate")
-        }
-    }
-
-    @MainActor
-    private func reconcileShareImportsFromSheet() async {
-        ShareImportLog.logger.debug("ScansSheetView.onAppear: reconciling share imports backstop")
-        await ShareImportReceiptReconciler.reconcileIfNeeded(
-            modelContext: modelContext,
-            scanRepository: AppDIContainer.shared.scanRepository
-        )
-        refreshLibraryAndQueue()
-        if !queuedScans.isEmpty {
-            kickQueuedScanPipeline(reason: "post-reconcile")
         }
     }
 
@@ -358,14 +340,14 @@ struct ScansSheetView: View {
     private func kickQueuedScanPipeline(reason: String) {
         let now = Date()
         guard now.timeIntervalSince(lastQueuedPipelineKickAt) >= 2 else {
-            ShareImportLog.logger.debug(
+            MerianLog.data.debug(
                 "ScansSheetView.kickQueuedScanPipeline: throttled reason=\(reason, privacy: .public)"
             )
             return
         }
 
         lastQueuedPipelineKickAt = now
-        ShareImportLog.logger.debug(
+        MerianLog.data.debug(
             "ScansSheetView.kickQueuedScanPipeline: kicking reason=\(reason, privacy: .public)"
         )
         offlineQueueManager.syncPendingScans()
@@ -413,7 +395,7 @@ struct ScansSheetView: View {
             .sorted()
             .joined(separator: ",")
         let visibleSummary = visibleQueued.map(\.id).joined(separator: ",")
-        ShareImportLog.logger.debug(
+        MerianLog.data.debug(
             "ScansSheetView.refreshQueuedScans: freshContext queued=\(fetched.count, privacy: .public) visible=\(visibleQueued.count, privacy: .public) completedMatches=\(completedIds.count, privacy: .public) states=\(stateSummary, privacy: .public) visibleIds=\(visibleSummary, privacy: .public)"
         )
         let snapshots = visibleQueued.map {
@@ -444,7 +426,7 @@ struct ScansSheetView: View {
         let latestSummary = records.prefix(3).map { record in
             "\(record.id):\(record.commonName)"
         }.joined(separator: ",")
-        ShareImportLog.logger.debug(
+        MerianLog.data.debug(
             "ScansSheetView.syncStateFromStore: records=\(records.count, privacy: .public) latest=\(latestSummary, privacy: .public)"
         )
         guard scanListSignature(records) != scanListSignature(searchManager.allScans) else { return }

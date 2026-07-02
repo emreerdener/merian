@@ -8,7 +8,7 @@ Before contributing, please review our core architectural tenets. Refactoring co
 
 1.  **Thermal Management is King**: iOS is hostile to apps that run the GPU and CPU concurrently at full load. Any feature added to the viewfinder MUST interface with `HardwareOrchestrator`. Frame rates must dynamically drop behind modals or when the device hits `.fair` or `.serious` thermal states.
 2.  **Zero-OOM Edge Infrastructure**: Deno Edge Functions crash violently when handed 20MB Base64 strings. Merian processes media _exclusively_ via Gemini File URIs or Cloudflare R2 pointers. Do not attempt to reintroduce Base64 image bloat into the network payload arrays.
-3.  **Offline-First Paradigm**: Network availability in the field is chaotic. Any user-generated action (e.g., snapping a photo) must first natively write to the `NWPathMonitor` SwiftData queue rather than awaiting network validations globally. The paused `MerianShareExtension` prototype is the narrow exception pattern for a future rebuild: it must remain network/upload-only, must not open SwiftData, and may record only an App Group receipt for the containing app to reconcile later. It is not embedded in current app builds.
+3.  **Offline-First Paradigm**: Network availability in the field is chaotic. Any user-generated action (e.g., snapping a photo) must first natively write to the `NWPathMonitor` SwiftData queue rather than awaiting network validations globally. Extension targets must stay lightweight: they may read explicit App Group snapshots, but must not open the app's SwiftData store or run scan reconciliation work.
 4.  **Accessibility (a11y)**: If a feature presents visual data natively, it must possess native SwiftUI `.accessibilityLabel` arrays explicitly reading components in a human-friendly format (e.g., using `.combine` on Grid tables).
 
 ## Setting Up the Development Environment
@@ -38,14 +38,14 @@ Before contributing, please review our core architectural tenets. Refactoring co
   deno task test
   ```
   Runtime Edge dependencies are resolved through `services/supabase/functions/deno.json`.
-  Production deploys pass that import map to Supabase, so local type checks for
-  runtime files should do the same:
+  The Supabase CLI discovers that Deno config during function graph creation, so
+  local type checks for runtime files should use the same config:
   ```bash
   cd /Users/emreerdener/Developer/merian
   deno check --config services/supabase/functions/deno.json <changed edge files>
   ```
   New deployed functions should call `Deno.serve(...)` directly and avoid
-  runtime imports from deno.land or esm.sh; route packages through the import map
+  runtime imports from deno.land or esm.sh; route packages through `deno.json`
   and use local shared helpers such as `_shared/encoding.ts` where available.
 
 ## Submitting a Pull Request 🚀

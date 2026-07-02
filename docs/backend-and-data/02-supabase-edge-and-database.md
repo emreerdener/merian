@@ -142,17 +142,15 @@ Several utilities are shared across all Edge Functions via
 
 The `/generate-upload-urls` Edge Function signs direct-to-Cloudflare R2 `PUT`
 URLs for background staging. Current clients send a structured `files` manifest
-built by `MediaStagingContract` for the app queue. The parked
-`ShareImportNetworkClient` for the paused Photos share extension uses the same
-manifest shape for future rebuild work, but current app builds do not embed that
-extension. Each entry includes `fileName`, `mediaKind`, `contentType`, and
-`sizeBytes`. The Edge parser rejects unsanitized names, media-kind/content-type
-mismatches, over-budget audio or image files, batches above five files, and
-batches above two audio files before calling `generatePresignedPutUrl()`. Legacy
-`fileNames` remains accepted for older clients only; it is compatibility-only
-because it cannot express byte budgets. The limit and content-type contract is
-pinned in `docs/contracts/media-staging-upload-manifest.json` and loaded by both
-Swift and Deno tests.
+built by `MediaStagingContract` for the app queue. Each entry includes
+`fileName`, `mediaKind`, `contentType`, and `sizeBytes`. The Edge parser rejects
+unsanitized names, media-kind/content-type mismatches, over-budget audio or
+image files, batches above five files, and batches above two audio files before
+calling `generatePresignedPutUrl()`. Legacy `fileNames` remains accepted for
+older clients only; it is compatibility-only because it cannot express byte
+budgets. The limit and content-type contract is pinned in
+`docs/contracts/media-staging-upload-manifest.json` and loaded by both Swift and
+Deno tests.
 
 Profile avatar uploads also use this signing path. The iOS client uploads a
 single prepared square WebP or JPEG to `staging/{userId}/...`, then calls
@@ -226,32 +224,6 @@ with `public_identity_source = 'display_name'`. On success it returns:
   "display_name": "River Wren"
 }
 ```
-
-## The Photos Share Import Queue Node (`share-import-scan`)
-
-The `/share-import-scan` Edge Function is the parked fast-return queue endpoint
-for the paused native Photos share extension. Current iOS app builds do not
-embed `MerianShareExtension`, so this endpoint should not receive production iOS
-client traffic from the app. The retained extension prototype first requests a
-signed image URL from `/generate-upload-urls`, performs the R2 `PUT`, then calls
-`/share-import-scan` with the resulting staged object key and EXIF-derived
-telemetry.
-
-The function validates:
-
-- exactly one staged image key
-- ownership under `staging/{user.id}/...`
-- path traversal rejection through the shared media budget/key validator
-- MIME type membership in the allowed staged image content types
-- optional client scan id normalization to a UUID
-
-After validation it inserts `public.scan_import_jobs` with status `queued`,
-schedules a background call to `/identify-multimodal`, immediately returns
-`202 Accepted` with the `scan_id`, and updates the job row to `processing`,
-`completed`, or `failed` from the detached dispatch path. A completed job means
-`/identify-multimodal` accepted the inference request; the iOS app still relies
-on historical sync plus the App Group receipt reconciler to surface the
-completed scan locally.
 
 ## The Edge Inference Node (`identify`)
 
@@ -595,10 +567,7 @@ pipeline while the legacy endpoints remain deployed for compatibility.
      pipeline utilizing only the user's structured observation text.
 4. The current iOS client sends queued images via `r2ObjectKeys`, queued audio
    via `audioR2ObjectKeys`, live foreground audio via inline `audioBase64s`, and
-   text via `observation_contexts`. The parked Photos share-sheet import path
-   would reach this same inference node indirectly through `/share-import-scan`,
-   which supplies one staged image key plus EXIF timestamp/GPS metadata.
-   Telemetry on this path is camelCase (`gpsLatitude`, `semanticLocation`,
+   text via `observation_contexts`. Telemetry on this path is camelCase (`gpsLatitude`, `semanticLocation`,
    `deviceTimeZone`, etc.); the server also accepts legacy snake_case aliases
    for backward compatibility during offline queue replay and staged endpoint
    migration.
@@ -872,9 +841,12 @@ that operate on anonymous IDFV boundaries:
     intentionally skips `requireAuth` because it returns only public
     species-level iNaturalist aggregates and cache metadata. Local Merian
     observation data is not sent to this endpoint.
-  - **`refresh-species-content`**: Keeps `verify_jwt = false` so `pg_net` can
-    invoke the worker, then enforces the service-role bearer header inside Deno
-    with `timingSafeCompare`.
+  - **Internal service-role workers**: Keep `verify_jwt = false` so `pg_net`,
+    GitHub Actions, or another trusted server caller can reach the Deno
+    runtime, then enforce the service-role bearer header inside Deno with
+    `timingSafeCompare`. This includes species refresh, reference-image
+    refresh, taxonomy import/status/refresh, consensus processing, and
+    non-biological purge workers.
 - **Rule for new Edge Functions**: Every new function directory under
   `services/supabase/functions/` MUST have a corresponding `[functions.<name>]`
   entry in `config.toml` before deployment. Use `verify_jwt = false` for
@@ -926,11 +898,11 @@ Additional migration-specific indexes:
 ## Storage Economics & Evidence Retention
 
 Biological scan media is durable regardless of subscription tier. Migration
-`20260616130000_disable_free_tier_media_expiration.sql` unschedules the earlier
-free-tier URL scrubber and the targeted domesticated-media purge, then drops
-the broad `scrub_expired_free_tier_urls()` helper. Successful biological
-sightings keep their image evidence unless the user deletes the scan, moderation
-removes the media, or an operator performs an explicit support action.
+`20260616130000_disable_free_tier_media_expiration.sql` retired the earlier
+free-tier media expiration policy and the targeted domesticated-media purge.
+Successful biological sightings keep their image evidence unless the user
+deletes the scan, moderation removes the media, or an operator performs an
+explicit support action.
 
 **`get-filtered-discovery-feed`**: Applies
 `.not("image_storage_urls", "eq", "{}")` to exclude rows with cleared media from
@@ -1116,12 +1088,13 @@ Individual scan deletion severs the record from both Supabase and Cloudflare R2:
 
 #### V8 Execution Abstractions
 
-- **Deploy-Stable Runtime Imports**: Production deploys pass
-  `supabase/functions/deno.json` to `supabase functions deploy`. Runtime Edge
-  dependencies must resolve through that import map, preferably to npm
-  specifiers, so Supabase's bundler is not forced to fetch deno.land or esm.sh
-  modules while creating every function graph. Historical Supabase JS URL
-  imports are still remapped by the import map for compatibility. New
+- **Deploy-Stable Runtime Imports**: Production deploys rely on
+  `services/supabase/functions/deno.json`, discovered by the Supabase CLI during
+  function graph creation. Runtime Edge dependencies must resolve through that
+  Deno config, preferably to npm specifiers, so Supabase's bundler is not forced
+  to fetch deno.land or esm.sh modules while creating every function graph.
+  Historical Supabase JS URL imports are still remapped by the Deno config for
+  compatibility. New
   entrypoints should call `Deno.serve(...)` directly, and runtime base64/hex work
   should use `_shared/encoding.ts`.
 - **`_shared` Utilities**: The `http.ts`, `edgeHandler.ts`, `biology.ts`,

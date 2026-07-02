@@ -203,6 +203,6 @@ for dictionary/cache reads and writes.
 
 ```sh
 deno fmt --check services/supabase/functions/species-observation-stats
-deno lint services/supabase/functions/species-observation-stats
-deno test services/supabase/functions/species-observation-stats/db.test.ts
+deno lint --config services/supabase/functions/deno.json services/supabase/functions/species-observation-stats
+deno test --config services/supabase/functions/deno.json services/supabase/functions/species-observation-stats/db.test.ts
 ```

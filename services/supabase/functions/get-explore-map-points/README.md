@@ -102,9 +102,9 @@ continues to use `species_scientific_name`.
 ## Local Verification
 
 ```sh
-deno check services/supabase/functions/get-explore-map-points/index.ts
-deno test services/supabase/functions/get-explore-map-points/cluster.test.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/exploreMapDb.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/get-explore-map-points/index.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/get-explore-map-points/cluster.test.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreMapDb.test.ts
 ```
 
 DB integration tests require a running local Supabase Postgres instance at the

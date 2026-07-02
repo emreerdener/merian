@@ -439,26 +439,6 @@ triggering excessive SwiftUI view rebuilds.
   are included only when the user explicitly enables the action-sheet toggle in
   the Messages extension.
 
-### `ShareImportSharedStateWriter` and `ShareImportReceiptReconciler`
-
-The Photos share extension is paused and not embedded in current app builds.
-These helpers remain as parked implementation support for a future rebuild.
-
-- `ShareImportSharedStateWriter.refresh()` mirrors the main app's
-  `requiresScanConfirmation`, Pro state, free quota count, and alpha unlimited
-  flag into an App Group settings snapshot. It is called from app lifecycle,
-  settings changes, RevenueCat entitlement updates, and `UsageManager` quota
-  transitions, but no shipped extension currently consumes it.
-- `ShareImportReceiptStore` records parked Photos share-extension imports as
-  small App Group receipts keyed by `scanId`. Receipts are local coordination
-  data, not the scan source of truth.
-- `ShareImportReceiptReconciler.reconcileIfNeeded(...)` runs on app active when
-  receipts exist. It forces historical sync, looks for matching
-  `LocalScanRecord` rows, marks resolved scans as unseen, updates the app badge,
-  and clears only resolved receipts.
-- The SwiftData store remains in the app container. A future share extension
-  should stay network/upload-only and never open the app's persistent store.
-
 ### `SyncStateManager`
 
 - `@MainActor @Observable` singleton exposing the current sync phase to UI

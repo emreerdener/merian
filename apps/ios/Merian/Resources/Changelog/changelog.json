@@ -558,7 +558,7 @@
           "title": "Added",
           "items": [
             "A new Settings changelog collects selected release notes, feature notes, and in-progress work inside the app.",
-            "Native Messages and Photos share extension groundwork for sharing cached scan images, cards, descriptions, and queued image identification.",
+            "Native Messages extension groundwork for sharing cached scan images, cards, and descriptions.",
             "Logged-in users can upload custom public profile pictures, with Explore/Profile identity refresh.",
             "AI-derived sex observation metadata on scan records, the Overview card, Supabase persistence, and Darwin Core exports."
           ]

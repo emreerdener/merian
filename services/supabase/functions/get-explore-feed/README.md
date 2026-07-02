@@ -137,9 +137,9 @@ grant access to private scans.
 
 ```sh
 deno fmt --check services/supabase/functions/get-explore-feed
-deno lint services/supabase/functions/get-explore-feed
-deno check services/supabase/functions/get-explore-feed/index.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/exploreFeedDb.test.ts
+deno lint --config services/supabase/functions/deno.json services/supabase/functions/get-explore-feed
+deno check --config services/supabase/functions/deno.json services/supabase/functions/get-explore-feed/index.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreFeedDb.test.ts
 ```
 
 The DB integration tests skip live assertions when the local Supabase Postgres

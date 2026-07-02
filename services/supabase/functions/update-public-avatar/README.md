@@ -61,6 +61,6 @@ second.
 
 ```sh
 deno fmt --check services/supabase/functions/update-public-avatar
-deno check services/supabase/functions/update-public-avatar/index.ts
-deno test services/supabase/functions/update-public-avatar/avatar_test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/update-public-avatar/index.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/update-public-avatar/avatar_test.ts
 ```

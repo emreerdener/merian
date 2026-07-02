@@ -21,8 +21,8 @@ public enum ScanQueueState: Int, Sendable {
     /// Acts as a persistent distributed lock — only one pipeline can hold this state
     /// per scan. Transitioned atomically via `BackgroundDatabaseActor.tryClaimForInference`.
     case inferencing = 3
-    /// Legacy Photos share-extension placeholder state.
-    /// Local upload/replay workers ignore it, so the scans grid and queue badge exclude it.
+    /// Reserved legacy non-runnable import state.
+    /// Local upload/replay workers ignore it so older queued rows are not retried incorrectly.
     case externalImport = 4
     /// Tombstoned: upload or inference permanently rejected, or user-deleted.
     /// Awaiting purge by `purgeSoftDeletedRecords()`.

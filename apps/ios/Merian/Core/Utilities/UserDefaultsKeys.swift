@@ -1104,7 +1104,6 @@ final class AppSettings {
     var requiresScanConfirmation: Bool {
         didSet {
             persistBool(requiresScanConfirmation, oldValue: oldValue, key: UserDefaultsKeys.requiresScanConfirmation)
-            ShareImportSharedStateWriter.refresh()
         }
     }
     var isExpeditionModeActive: Bool {

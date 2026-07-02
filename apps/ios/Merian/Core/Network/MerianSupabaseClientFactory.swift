@@ -9,10 +9,7 @@ enum MerianSupabaseClientFactory {
             supabaseKey: MerianEnvironment.supabaseAnonKey,
             options: SupabaseClientOptions(
                 auth: .init(
-                    storage: KeychainLocalStorage(
-                        service: ShareImportSharedConstants.supabaseKeychainService,
-                        accessGroup: ShareImportAuthStore.keychainAccessGroup()
-                    ),
+                    storage: KeychainLocalStorage(),
                     emitLocalSessionAsInitialSession: emitLocalSessionAsInitialSession
                 )
             )

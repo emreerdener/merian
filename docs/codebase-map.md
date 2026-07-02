@@ -17,7 +17,6 @@ target, package, entitlement, build setting, or source-list changes.
 | `Merian` | iOS application | `apps/ios/Merian/` | iOS 17.2 |
 | `MerianExploreWidget` | WidgetKit app extension | `apps/ios/widgets/Explore/`, `apps/ios/Merian/Features/Explore/Widgets/ExploreWidgetCache.swift` | iOS 17.2 |
 | `MerianMessagesExtension` | Messages app extension | `apps/ios/messages/MerianMessagesExtension/`, `apps/ios/messages/ScanSharing/Shared/` | iOS 17.2 |
-| `MerianShareExtension` | Paused share extension, not embedded in current app builds | `apps/ios/photos/PhotosImport/Extension/`, `apps/ios/photos/PhotosImport/Shared/` | iOS 17.2 |
 | `MerianWatch` | watchOS companion app | `apps/watch/MerianWatch/` | watchOS 10.0 |
 | `merianTests` | Unit tests | `apps/ios/MerianTests/` | iOS 17.2 |
 | `merianUITests` | UI tests | `apps/ios/MerianUITests/` | iOS 17.2 |
@@ -97,7 +96,6 @@ V40 through V44 live in `SchemaVersions.swift` alongside the migration plan.
 | Scans | `apps/ios/Merian/Features/Scans/` | Product-area-first private scan library. `Shell/` owns the root sheet, pager, toolbar, and search chrome; `Library/` owns individual scans, `ScansManager`, the search index, and queued-scan snapshots; `Collections/` owns collection grids, detail routes, smart collections, and scan selection flows; `NonBiological/` owns the non-biological isolation surface; `Shared/` holds scan grid, thumbnail, empty-state, and deletion UI reused across Scans product areas. |
 | Explore | `apps/ios/Merian/Features/Explore/` | Product-area-first public discovery feature. `Shell/` owns the root sheet/router, `Feed/` owns observations feed, post detail, comments, hashtags, and feed interaction state, `Map/` owns the map surface, `Identify/` owns Community ID requests/activity, `Notifications/` owns Explore activity notifications, `AuthorProfile/` owns public author sheets, `Shared/` holds only cross-area Explore UI helpers, and `Widgets/` writes the Explore widget cache. |
 | Messages sharing | `apps/ios/messages/ScanSharing/`, `apps/ios/messages/MerianMessagesExtension/` | Shipped iMessage sharing surface. `MerianMessagesExtension/` owns the extension UI, `ScanSharing/Shared/` owns the App Group cache model read by both targets, and `ScanSharing/AppSupport/` owns the containing-app cache writer. |
-| Photos share import | `apps/ios/photos/PhotosImport/` | Paused and de-shipped as of 2026-05-19. `Extension/` holds the share extension UI, `Shared/` holds auth/upload/receipt helpers compiled by both targets, and `AppSupport/` holds containing-app reconciliation and settings writers. Tests, backend queueing, shared auth/session migration, App Group settings/receipts, and reconciliation code remain parked for a future rebuild, but the app target does not embed `MerianShareExtension`. |
 | Profile | `apps/ios/Merian/Features/Profile/` | Product-area-first account feature. `Shell/` owns the profile/settings pager and close chrome; `UserProfile/` owns the public profile card, published scans preview, achievements, persona, terrarium, heatmap, and profile stats actor; `Settings/` owns preferences, geoprivacy, export, resources, and danger-zone account actions; `Settings/Plan/` owns RevenueCat plan management, profile plan cards, and paywall UI; `Settings/Notifications/` owns push-notification preferences; `Settings/Changelog/` owns bundled release notes; `Settings/Feedback/` owns the beta survey; `Shared/` holds cross-area profile state such as `ProfileViewModel`. |
 | Species Dictionary | `apps/ios/Merian/Features/SpeciesDictionary/` | Product-area-first species reference feature. `Detail/` owns the public species page and reference gallery, `Catalog/` owns the Explore Index catalog/overview/regions surfaces, and `Tree/` owns the taxonomy canvas and graph model. |
 | Onboarding | `apps/ios/Merian/Features/Onboarding/` | Product-area-first permission priming flow. `Shell/` owns the root view and state machine, `Steps/` owns the welcome/camera/location/ready screens plus shared step chrome, and `Permissions/` owns native permission delegates. |
@@ -149,7 +147,6 @@ native iOS source tree.
 Inference and media staging:
 
 - `generate-upload-urls`
-- `share-import-scan`
 - `identify`
 - `identify-multimodal`
 - `identify-describe`
@@ -175,6 +172,23 @@ Explore and social:
 - `get-explore-comments`
 - `get-explore-comment-replies`
 - `get-explore-mention-suggestions`
+- `report-explore-comment`
+- `toggle-explore-comment-reaction`
+
+Explore community identification:
+
+- `request-community-identification`
+- `get-community-identification-feed`
+- `get-community-identification-detail`
+- `update-community-identification-request`
+- `search-community-taxa`
+- `submit-community-identification`
+- `withdraw-community-identification`
+- `restore-community-identification`
+- `submit-community-feedback`
+
+Explore publishing, activity, and delivery:
+
 - `get-explore-notifications`
 - `get-explore-unread-notification-count`
 - `mark-explore-notifications-read`
@@ -182,6 +196,7 @@ Explore and social:
 - `unshare-explore-post`
 - `update-explore-field-notes`
 - `update-public-username`
+- `update-public-display-name`
 - `update-public-avatar`
 - `check-public-username`
 - `get-scan-explore-share-state`
@@ -189,8 +204,6 @@ Explore and social:
 - `set-user-follow`
 - `create-explore-comment`
 - `delete-explore-comment`
-- `toggle-explore-comment-reaction`
-- `report-explore-comment`
 - `register-push-device`
 - `send-push-notification`
 - `block-user`
@@ -204,6 +217,7 @@ Data lifecycle, identity, and exports:
 - `safe-delete`
 - `delete-scan`
 - `flag-issue`
+- `submit-feedback-survey`
 - `request-export-dwca`
 - `export-dwca`
 - `revenuecat-webhook`
@@ -212,7 +226,13 @@ Data lifecycle, identity, and exports:
 Scheduled/background workers:
 
 - `refresh-species-content`
+- `refresh-species-model-content`
+- `refresh-taxonomy-nodes`
+- `community-taxonomy-status`
+- `sync-community-taxonomy-index`
+- `process-community-consensus-jobs`
 - `refresh-merian-reference-images`
+- `expire-subscription-passes`
 - `auto-purge-nonbio`
 
 Every function above has a `[functions.<name>]` entry in `services/supabase/config.toml`.
@@ -229,8 +249,8 @@ Swift unit tests live under `apps/ios/MerianTests/` and cover:
   queued handoff flows.
 - Core AI, network, security, hardware, analytics, utilities, and data actors.
 - Profile achievements, heatmap/stats, Explore, Species Dictionary, species
-  observation stats, Messages sharing, parked Photos share import helpers,
-  Insights, Scans, and onboarding view models.
+  observation stats, Messages sharing, Insights, Scans, and onboarding view
+  models.
 
 UI tests live under `apps/ios/MerianUITests/` and include launch coverage plus seeded
 flows in `MerianApp.swift` through `UITestSeedCoordinator`.
@@ -257,3 +277,8 @@ When changing the codebase, update docs in the same change if any of these move:
   contracts.
 - Public web routes, metadata, env variables, Universal Link behavior, or
   `merian.earth` share URL shape.
+- Native extension targets, App Group boundaries, or shipped/de-shipped
+  extension source ownership.
+- Asset catalog groups, reusable artwork names, app icons, brand marks, persona
+  art, or widget fallback imagery.
+- Release-note behavior in `CHANGELOG.md` or the bundled in-app changelog JSON.

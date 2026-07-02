@@ -98,7 +98,7 @@ struct QueuedContentView: View {
         case .inferencing:
             return "Analyzing..."
         case .externalImport:
-            return "Importing..."
+            return "Waiting..."
         case .failed:
             return "Needs attention"
         }
@@ -117,7 +117,7 @@ struct QueuedContentView: View {
         case .inferencing:
             return "Analyzing"
         case .externalImport:
-            return "Importing"
+            return "Waiting"
         case .failed:
             return "Upload paused"
         }
@@ -132,7 +132,7 @@ struct QueuedContentView: View {
         case .inferencing:
             return "Merian is identifying this scan. Results will appear here automatically."
         case .externalImport:
-            return "Merian is importing this scan into your library."
+            return "This scan is waiting for local recovery."
         case .failed:
             return "Merian could not finish processing this scan."
         }

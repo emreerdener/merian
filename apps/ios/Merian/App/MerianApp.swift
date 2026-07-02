@@ -557,9 +557,6 @@ struct MerianApp: App {
                     return
                 }
                 didRunInitialActivePhase = true
-                ShareImportLog.logger.debug(
-                    "MerianApp.onAppear: running initial active phase scenePhase=\(String(describing: scenePhase), privacy: .public)"
-                )
                 lifecycleManager.handleActivePhase()
             }
             .onChange(of: appSettings.themeMode) { _, newTheme in
@@ -634,35 +631,8 @@ struct MerianApp: App {
                 .appDidEnterActivePhaseWithScan(scanId: scanId)
             )
         case .scansLibrary:
-            Task { @MainActor in
-                await reconcileShareImportsForDeepLink(reason: "scansLibrary")
-                diContainer.appEventPublisher.send(.requestOpenScansLibraryIntent)
-            }
+            diContainer.appEventPublisher.send(.requestOpenScansLibraryIntent)
         }
         return true
-    }
-
-    @MainActor
-    private func reconcileShareImportsForDeepLink(reason: String) async {
-        guard !TestExecutionCoordinator.isRunningTests else { return }
-        ShareImportLog.logger.debug(
-            "MerianApp.reconcileShareImportsForDeepLink: begin reason=\(reason, privacy: .public)"
-        )
-        guard let context = diContainer.offlineQueueManager.modelContext else {
-            ShareImportLog.logger.error(
-                "MerianApp.reconcileShareImportsForDeepLink: missing modelContext reason=\(reason, privacy: .public)"
-            )
-            return
-        }
-
-        await ShareImportReceiptReconciler.reconcileIfNeeded(
-            modelContext: context,
-            scanRepository: diContainer.scanRepository
-        )
-        diContainer.offlineQueueManager.syncPendingScans()
-        diContainer.offlineQueueManager.replayInferenceForUploadedScans()
-        ShareImportLog.logger.debug(
-            "MerianApp.reconcileShareImportsForDeepLink: complete reason=\(reason, privacy: .public)"
-        )
     }
 }

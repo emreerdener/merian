@@ -472,9 +472,6 @@ entrypoint = "./functions/request-export-dwca/index.ts"
 [functions.share-scan-to-explore]
 verify_jwt = false
 
-[functions.share-import-scan]
-verify_jwt = false
-
 [functions.unshare-explore-post]
 verify_jwt = false
 
@@ -508,6 +505,12 @@ verify_jwt = false
 [functions.get-explore-mention-suggestions]
 verify_jwt = false
 
+[functions.report-explore-comment]
+verify_jwt = false
+
+[functions.toggle-explore-comment-reaction]
+verify_jwt = false
+
 [functions.get-explore-post]
 verify_jwt = false
 
@@ -526,10 +529,16 @@ verify_jwt = false
 [functions.refresh-species-model-content]
 verify_jwt = false
 
+[functions.refresh-taxonomy-nodes]
+verify_jwt = false
+
 [functions.community-taxonomy-status]
 verify_jwt = false
 
 [functions.sync-community-taxonomy-index]
+verify_jwt = false
+
+[functions.process-community-consensus-jobs]
 verify_jwt = false
 
 [functions.refresh-merian-reference-images]
@@ -563,6 +572,33 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.delete-explore-comment]
+verify_jwt = false
+
+[functions.request-community-identification]
+verify_jwt = false
+
+[functions.get-community-identification-feed]
+verify_jwt = false
+
+[functions.get-community-identification-detail]
+verify_jwt = false
+
+[functions.update-community-identification-request]
+verify_jwt = false
+
+[functions.search-community-taxa]
+verify_jwt = false
+
+[functions.submit-community-identification]
+verify_jwt = false
+
+[functions.withdraw-community-identification]
+verify_jwt = false
+
+[functions.restore-community-identification]
+verify_jwt = false
+
+[functions.submit-community-feedback]
 verify_jwt = false
 
 [functions.mark-explore-notifications-read]

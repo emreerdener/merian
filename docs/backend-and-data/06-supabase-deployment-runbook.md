@@ -19,8 +19,7 @@ The workflow performs the following steps:
    helper tests.
 5. Links the Supabase project.
 6. Pushes database migrations.
-7. Deploys all configured Edge Functions with `supabase functions deploy
-   --import-map supabase/functions/deno.json`.
+7. Deploys all Edge Function directories with `supabase functions deploy`.
 8. Smoke-tests the Community Taxonomy status endpoint and a dry-run bounded GBIF
    import with the production service-role credential.
 
@@ -29,22 +28,29 @@ Actual GBIF taxonomy imports are intentionally separated into
 smoke-tests a dry run; it does not write taxonomy rows or advance import
 cursors.
 
-Deploying all configured functions is intentional. Shared modules such as
+Deploying all function directories is intentional. Shared modules such as
 `functions/_shared/aws.ts`, `functions/_shared/mediaBudgets.ts`, and
 `functions/_shared/concurrency.ts` are bundled into each dependent Edge
 Function at deploy time; deploying a hand-maintained partial list risks leaving
 production on mixed helper versions.
 
-The deploy command explicitly passes `supabase/functions/deno.json` from the
-workflow's `services/` working directory. That import map keeps dependency
-resolution stable while Supabase builds each function graph: historical
-`https://esm.sh/@supabase/supabase-js@2.49.1` imports are remapped to the npm
-package, and runtime dependencies such as `aws4fetch` and `jszip` also resolve
-through npm instead of esm.sh. Edge entrypoints should use `Deno.serve(...)`
-directly rather than importing `serve` from Deno std. Shared runtime helpers
-should prefer local utilities such as `_shared/encoding.ts` for base64/hex
-helpers so production deploys do not fail when deno.land or esm.sh returns a
-transient 5xx during bundling.
+Each deployed function directory must also have a `[functions.<name>]` entry in
+`services/supabase/config.toml` so JWT behavior is explicit. Most
+anonymous-compatible app routes set `verify_jwt = false` and then perform
+manual auth inside Deno; the known authenticated-only exceptions are documented
+in `docs/backend-and-data/02-supabase-edge-and-database.md`.
+
+The deploy command relies on `services/supabase/functions/deno.json`, which the
+current Supabase CLI discovers during function graph creation. Do not pass the
+old `--import-map` flag; newer Supabase CLIs reject that flag during deploy.
+The Deno config keeps dependency resolution stable while Supabase builds each
+function graph: historical `https://esm.sh/@supabase/supabase-js@2.49.1`
+imports are remapped to the npm package, and runtime dependencies such as
+`aws4fetch` and `jszip` also resolve through npm instead of esm.sh. Edge
+entrypoints should use `Deno.serve(...)` directly rather than importing `serve`
+from Deno std. Shared runtime helpers should prefer local utilities such as
+`_shared/encoding.ts` for base64/hex helpers so production deploys do not fail
+when deno.land or esm.sh returns a transient 5xx during bundling.
 
 ## Required GitHub Secrets
 

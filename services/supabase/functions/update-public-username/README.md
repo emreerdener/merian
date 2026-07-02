@@ -58,7 +58,7 @@ such as `Emre E.` while profile surfaces can show `@emre_e` underneath.
 
 ```sh
 deno fmt --check services/supabase/functions/update-public-username services/supabase/functions/_tests/updatePublicUsername.test.ts
-deno lint services/supabase/functions/update-public-username services/supabase/functions/_tests/updatePublicUsername.test.ts
-deno check services/supabase/functions/update-public-username/index.ts
-deno test services/supabase/functions/_tests/updatePublicUsername.test.ts
+deno lint --config services/supabase/functions/deno.json services/supabase/functions/update-public-username services/supabase/functions/_tests/updatePublicUsername.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/update-public-username/index.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/_tests/updatePublicUsername.test.ts
 ```

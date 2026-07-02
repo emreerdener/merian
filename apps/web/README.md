@@ -27,6 +27,14 @@ npm install
 npm run dev
 ```
 
+If `npm run dev` reports `next: command not found`, install dependencies from
+inside `apps/web` first:
+
+```bash
+cd apps/web
+npm install
+```
+
 Required server-side variables:
 
 - `SUPABASE_URL`

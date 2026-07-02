@@ -82,7 +82,6 @@ import Supabase
             PostHogManager.shared.configure()
         }
 
-        ShareImportAuthStore.migrateLegacySessionToSharedIfNeeded()
         self.client = MerianSupabaseClientFactory.makeClient(emitLocalSessionAsInitialSession: true)
 
         super.init()

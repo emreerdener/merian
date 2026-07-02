@@ -69,6 +69,6 @@ All fields are optional:
 ## Verification
 
 ```bash
-deno check services/supabase/functions/refresh-merian-reference-images/index.ts services/supabase/functions/refresh-merian-reference-images/db.ts
-deno test --allow-env --allow-net services/supabase/functions/refresh-merian-reference-images/db.test.ts services/supabase/functions/_tests/merianReferenceImagesDb.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/refresh-merian-reference-images/index.ts services/supabase/functions/refresh-merian-reference-images/db.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/refresh-merian-reference-images/db.test.ts services/supabase/functions/_tests/merianReferenceImagesDb.test.ts
 ```

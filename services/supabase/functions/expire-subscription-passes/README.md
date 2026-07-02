@@ -27,7 +27,7 @@ so they are ignored by this worker.
 Run the worker and guarded database-query tests with:
 
 ```bash
-deno test --allow-all \
+deno test --config services/supabase/functions/deno.json --allow-all \
   services/supabase/functions/expire-subscription-passes/db_test.ts \
   services/supabase/functions/expire-subscription-passes/worker_test.ts
 ```

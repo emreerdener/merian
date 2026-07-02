@@ -96,9 +96,9 @@ The RPC uses the author's latest valid persisted `scans.device_time_zone` for cu
 
 ```sh
 deno fmt --check services/supabase/functions/get-explore-author-profile
-deno lint services/supabase/functions/get-explore-author-profile
-deno check services/supabase/functions/get-explore-author-profile/index.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
+deno lint --config services/supabase/functions/deno.json services/supabase/functions/get-explore-author-profile
+deno check --config services/supabase/functions/deno.json services/supabase/functions/get-explore-author-profile/index.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts
 ```
 
 The DB integration tests skip live assertions when the local Supabase Postgres instance is not running at `127.0.0.1:54322`.

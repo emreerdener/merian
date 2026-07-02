@@ -147,12 +147,12 @@ rows.
 Recommended checks:
 
 ```sh
-deno check services/supabase/functions/check-public-username/index.ts
-deno check services/supabase/functions/update-public-username/index.ts
-deno check services/supabase/functions/update-public-avatar/index.ts
-deno test services/supabase/functions/update-public-avatar/avatar_test.ts
-deno test services/supabase/functions/_tests/updatePublicUsername.test.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/exploreIdentityDb.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/check-public-username/index.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/update-public-username/index.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/update-public-avatar/index.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/update-public-avatar/avatar_test.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/_tests/updatePublicUsername.test.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreIdentityDb.test.ts
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 

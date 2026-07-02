@@ -163,8 +163,8 @@ iOS:
 Useful verification:
 
 ```sh
-deno check services/supabase/functions/get-explore-feed/index.ts services/supabase/functions/get-explore-author-profile/index.ts services/supabase/functions/get-explore-notifications/index.ts services/supabase/functions/set-user-follow/index.ts services/supabase/functions/block-user/index.ts services/supabase/functions/merge-ghost-profile/index.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/exploreFeedDb.test.ts services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts services/supabase/functions/_tests/exploreNotificationsDb.test.ts services/supabase/functions/_tests/mergeGhostProfile.test.ts services/supabase/functions/_tests/userFollowsDb.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/get-explore-feed/index.ts services/supabase/functions/get-explore-author-profile/index.ts services/supabase/functions/get-explore-notifications/index.ts services/supabase/functions/set-user-follow/index.ts services/supabase/functions/block-user/index.ts services/supabase/functions/merge-ghost-profile/index.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreFeedDb.test.ts services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts services/supabase/functions/_tests/exploreNotificationsDb.test.ts services/supabase/functions/_tests/mergeGhostProfile.test.ts services/supabase/functions/_tests/userFollowsDb.test.ts
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
 ```

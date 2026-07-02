@@ -103,8 +103,8 @@ No live shared post:
 ## Local Verification
 
 ```sh
-deno check services/supabase/functions/get-scan-explore-share-state/index.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/exploreScanShareStateDb.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/get-scan-explore-share-state/index.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreScanShareStateDb.test.ts
 ```
 
 DB integration tests require a running local Supabase Postgres instance at the

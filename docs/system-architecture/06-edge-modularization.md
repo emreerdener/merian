@@ -87,8 +87,9 @@ the global dependencies, refer directly to `_shared/README.md`.
 
 **Deploy Dependency Rule — Use the Function Import Map for Runtime Packages:**
 Runtime Edge code must resolve third-party packages through
-`services/supabase/functions/deno.json` and the GitHub deploy workflow must pass
-that map with `supabase functions deploy --import-map supabase/functions/deno.json`.
+`services/supabase/functions/deno.json`. The current Supabase CLI discovers
+that Deno config during `supabase functions deploy`; do not pass the retired
+`--import-map` deploy flag.
 Prefer npm specifiers in the import map for packages such as `aws4fetch`,
 `jszip`, `@google/genai`, and `@supabase/supabase-js`; avoid direct runtime
 imports from esm.sh or deno.land in deployed functions. A transient CDN 5xx while

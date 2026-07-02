@@ -19,7 +19,6 @@ final class AppLifecycleManager {
         guard container.appSettings.hasCompletedOnboarding else { return }
 
         container.usageManager.evaluateDailyRefresh()
-        ShareImportSharedStateWriter.refresh()
         container.pushNotificationManager.setupDelegate()
         container.pushNotificationManager.syncPermissionState()
         container.pushNotificationManager.registerForRemoteNotificationsIfAuthorized()
@@ -48,12 +47,6 @@ final class AppLifecycleManager {
             let now = Date()
 
             if let context = container.offlineQueueManager.modelContext {
-                ShareImportLog.logger.debug("AppLifecycleManager.handleActivePhase: reconciling share imports")
-                await ShareImportReceiptReconciler.reconcileIfNeeded(
-                    modelContext: context,
-                    scanRepository: container.scanRepository
-                )
-                ShareImportLog.logger.debug("AppLifecycleManager.handleActivePhase: share import reconcile complete")
                 await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context)
                 await container.scanRepository.purgeExpiredNonBiologicalScans(
                     modelContainer: context.container,
@@ -72,7 +65,6 @@ final class AppLifecycleManager {
                 }
             }
 
-            ShareImportLog.logger.debug("AppLifecycleManager.handleActivePhase: kicking offline queue after active phase")
             container.offlineQueueManager.syncPendingScans()
             // Recover scans whose upload completed but inference was interrupted
             // (e.g. app killed or suspended mid-inference). NWPathMonitor only fires

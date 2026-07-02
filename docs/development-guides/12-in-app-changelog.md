@@ -76,7 +76,7 @@ xcodebuild test-without-building -scheme Merian -project merian.xcodeproj -desti
 - Write for users, not commit history. Avoid internal class names, migrations, RPC names, or implementation details unless the user benefit is clear.
 - Keep bullets short and scannable.
 - Do not include secret URLs, private infrastructure names, or anything that implies unavailable App Store features.
-- Do not advertise parked or de-shipped surfaces, such as the paused Photos share-sheet import.
+- Do not advertise parked, retired, or de-shipped surfaces.
 
 ## Agent Rule
 

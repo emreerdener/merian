@@ -44,8 +44,6 @@ targets:
       - apps/ios/Merian
       - apps/ios/messages/ScanSharing/AppSupport
       - apps/ios/messages/ScanSharing/Shared
-      - apps/ios/photos/PhotosImport/AppSupport
-      - apps/ios/photos/PhotosImport/Shared
     entitlements:
       path: apps/ios/Merian/Configuration/Merian.entitlements
       properties:
@@ -160,39 +158,6 @@ targets:
         CODE_SIGN_STYLE: Automatic
         APPLICATION_EXTENSION_API_ONLY: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: "iMessage App Icon"
-      configs:
-        Release:
-          CODE_SIGN_IDENTITY: "Apple Development"
-
-  MerianShareExtension:
-    # Paused / de-shipped as of 2026-05-19. The target and source are retained
-    # for a future rebuild, but the Merian app target intentionally does not
-    # depend on or embed this extension in current release builds. The target
-    # name is retained for compatibility; source now lives under PhotosImport.
-    type: app-extension
-    platform: iOS
-    deploymentTarget: "17.2"
-    sources:
-      - apps/ios/photos/PhotosImport/Extension
-      - apps/ios/Merian/Configuration/MerianEnvironment.swift
-      - apps/ios/Merian/Core/Utilities/ImageDownsampler.swift
-      - apps/ios/photos/PhotosImport/Shared
-    entitlements:
-      path: apps/ios/photos/PhotosImport/Extension/Configuration/MerianShareExtension.entitlements
-      properties:
-        com.apple.security.application-groups: ["group.app.merian.shared"]
-        keychain-access-groups: ["$(AppIdentifierPrefix)app.merian.shared"]
-    configFiles:
-      Debug: Config.xcconfig
-      Release: Config.xcconfig
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.merian.Merian.ShareExtension
-        INFOPLIST_FILE: apps/ios/photos/PhotosImport/Extension/Configuration/Info.plist
-        GENERATE_INFOPLIST_FILE: NO
-        SKIP_INSTALL: YES
-        CODE_SIGN_STYLE: Automatic
-        APPLICATION_EXTENSION_API_ONLY: YES
       configs:
         Release:
           CODE_SIGN_IDENTITY: "Apple Development"

@@ -70,7 +70,6 @@ import Observation
             logFreeScanLimitOverrideIfNeeded()
             freeScansRemaining = maxFreeScansPerDay
             showPaywall = false
-            refreshShareImportSettings()
             return
         }
 
@@ -85,7 +84,6 @@ import Observation
             let used = defaults.integer(forKey: scansUsedKey)
             freeScansRemaining = max(0, maxFreeScansPerDay - used)
         }
-        refreshShareImportSettings()
     }
 
     // MARK: - Scan Consumption
@@ -111,7 +109,6 @@ import Observation
         defaults.set(used, forKey: scansUsedKey)
         defaults.set(Date(), forKey: lastScanDateKey)
         freeScansRemaining -= 1
-        refreshShareImportSettings()
     }
 
     /// Refunds a scan when processing fails and the user should not be charged.
@@ -125,19 +122,6 @@ import Observation
         if currentUsed > 0 {
             defaults.set(currentUsed - 1, forKey: scansUsedKey)
             freeScansRemaining += 1
-            refreshShareImportSettings()
         }
-    }
-
-    private func refreshShareImportSettings() {
-        ShareImportSharedSettingsStore.write(
-            ShareImportSettingsSnapshot(
-                generatedAt: Date(),
-                requiresScanConfirmation: AppSettings.shared.requiresScanConfirmation,
-                isProActive: RevenueCatManager.shared.isProActive,
-                freeScansRemaining: freeScansRemaining,
-                alphaUnlimitedFreeScansEnabled: MerianConfig.alphaUnlimitedFreeScansEnabled
-            )
-        )
     }
 }

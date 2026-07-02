@@ -169,7 +169,7 @@ For Supabase function changes:
 
 ```bash
 cd services/supabase/functions
-deno check <changed-entrypoint>.ts
+deno check --config deno.json <changed-entrypoint>.ts
 deno task test
 ```
 

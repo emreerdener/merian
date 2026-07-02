@@ -858,41 +858,6 @@ added in `20260629100000_add_insight_chat_feature_feedback.sql`.
 These tables are private scan data. They are not read by Explore, public species
 dictionary endpoints, public web pages, or Darwin Core exports.
 
-### `scan_import_jobs`
-
-Parked queue visibility table for scans that originate in the native Photos
-share extension. The extension is not embedded in current app builds, so this
-table is retained for future rebuild work rather than active product traffic.
-Added in migration `20260518100000_add_scan_import_jobs.sql`.
-
-- `id` (UUID): Primary key.
-- `scan_id` (UUID): Client scan id returned to the share extension and later
-  reconciled through the App Group receipt store.
-- `user_id` (UUID - Foreign Key): References `auth.users(id)` with cascade
-  delete.
-- `status` (Text): `queued`, `processing`, `completed`, or `failed`. The
-  `/share-import-scan` Edge Function inserts `queued`, sets `processing` before
-  dispatching `/identify-multimodal`, then stores `completed` or `failed` from
-  the identify response path.
-- `r2_object_key` (Text): The validated `staging/{userId}/...` image key. This
-  is never a public media URL and is used only to feed the queued inference.
-- `mime_type` (Text): Image content type accepted by the shared staging image
-  allowlist.
-- `response_status` (Integer, nullable): HTTP status returned by
-  `/identify-multimodal` when the background dispatch completes.
-- `error_message` (Text, nullable): Truncated failure message for dead-letter
-  visibility.
-- `created_at`, `updated_at` (TIMESTAMPTZ): Queue lifecycle timestamps.
-
-Indexes:
-
-- Unique `(scan_id, user_id)` to prevent duplicate queue rows for a single user.
-- `(user_id, status, created_at DESC)` for user-scoped queue visibility and
-  support diagnostics.
-
-RLS is enabled. Authenticated users can select only their own rows; writes are
-performed through the Edge Function with service-role privileges.
-
 ### `flagged_reviews`
 
 Captures user feedback reporting improper or harmful inferences.

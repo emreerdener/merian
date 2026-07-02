@@ -37,13 +37,11 @@ The server extracts the verified user identity from the `Authorization` Header
 JWT (`supabaseAdmin.auth.getUser()`), ignoring any `user_id` value in the
 request body. To prevent array-abuse memory locking on the Edge Node, the
 endpoint strictly requires exactly 1 to 5 `files`, with at most 2 audio files.
-The main app queue builds this manifest through `MediaStagingContract`. The
-parked Photos share extension prototype builds its one-image manifest through
-`ShareImportNetworkClient`, but that extension is not embedded in current app
-builds. Both paths must apply the same filename sanitization as the Edge
-function before upload URL generation. The Edge parser rejects unsanitized
-filenames, invalid `mediaKind` values, content-type/kind mismatches, and
-oversized media before signing. Structured manifests require `sizeBytes`; the
+The main app queue builds this manifest through `MediaStagingContract` and must
+apply the same filename sanitization as the Edge function before upload URL
+generation. The Edge parser rejects unsanitized filenames, invalid `mediaKind`
+values, content-type/kind mismatches, and oversized media before signing.
+Structured manifests require `sizeBytes`; the
 legacy `fileNames` array remains accepted for older clients but is
 compatibility-only and cannot express byte budgets. Pre-signed `PUT` URLs
 include an `X-Amz-Expires=86400` parameter (24 hours). This extended window
@@ -320,85 +318,6 @@ Internal service-role endpoint. Processes pending or retryable failed
 ```json
 { "limit": 25 }
 ```
-
----
-
-## Deno `/share-import-scan` Edge Node
-
-Parked endpoint for queueing one image shared from the native iOS Photos share
-extension after the image has already been uploaded to Cloudflare R2 staging.
-The endpoint returns quickly and does not wait for the AI result. Current app
-builds do not embed `MerianShareExtension`, so this contract is retained for
-future rebuild work rather than active product traffic.
-
-### Request Payload
-
-```json
-{
-  "scan_id": "11111111-1111-4111-8111-111111111111",
-  "r2ObjectKey": "staging/a1b2c3d4-e5f6-7890-abcd-ef1234567890/11111111-1111-4111-8111-111111111111_share_import.webp",
-  "mimeType": "image/webp",
-  "timestamp": "2026-05-18T15:00:00.000Z",
-  "gpsLatitude": 30.25,
-  "gpsLongitude": -97.75,
-  "gpsElevation": 150,
-  "deviceLocale": "en",
-  "deviceTimeZone": "America/Chicago",
-  "deviceRegion": "US"
-}
-```
-
-`scan_id` is optional. If present it must be a UUID; otherwise the Edge function
-generates one. The iOS share extension sends a UUID generated during image prep
-so its App Group receipt can later reconcile the cloud scan after historical
-sync.
-
-`r2ObjectKey` is required. The endpoint also accepts `r2ObjectKeys` for shape
-compatibility, but it must contain exactly one string. The key must belong to
-the authenticated user under `staging/{user.id}/...`; wrong-user and
-path-traversal keys are rejected before any inference dispatch.
-
-`mimeType` defaults to `image/webp` when absent and must be in the staged image
-allowlist from `_shared/mediaBudgets.ts`. Timestamp and GPS fields are optional;
-invalid coordinates are normalized to `null`.
-
-### Response Payload
-
-```json
-{
-  "success": true,
-  "scan_id": "11111111-1111-4111-8111-111111111111"
-}
-```
-
-Successful responses use HTTP `202 Accepted`. The function inserts
-`public.scan_import_jobs`, then schedules a background `/identify-multimodal`
-request with:
-
-```json
-{
-  "user_id": "Supabase Auth UUID",
-  "client_scan_id": "11111111-1111-4111-8111-111111111111",
-  "r2ObjectKeys": [
-    "staging/a1b2c3d4-e5f6-7890-abcd-ef1234567890/11111111-1111-4111-8111-111111111111_share_import.webp"
-  ],
-  "mimeType": "image/webp",
-  "timestamp": "2026-05-18T15:00:00.000Z",
-  "gpsLatitude": 30.25,
-  "gpsLongitude": -97.75,
-  "gpsElevation": 150,
-  "deviceLocale": "en",
-  "deviceTimeZone": "America/Chicago",
-  "deviceRegion": "US",
-  "currentMonth": 5,
-  "timeOfDay": "15:00"
-}
-```
-
-The extension should treat `202` as "queued", not "identified". The main app
-reconciles the result by loading App Group receipts, forcing historical sync on
-foreground, marking resolved scans as unseen, and clearing only receipts whose
-scan appears locally.
 
 ---
 

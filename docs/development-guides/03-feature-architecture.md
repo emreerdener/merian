@@ -161,7 +161,7 @@ func handlePhotoPickerSelection(newItems: [PhotosPickerItem], modelContext: Mode
 }
 ```
 
-Heavy SwiftData work (bulk fetches, ingest, reconciliation) is always delegated to a `@ModelActor` actor — see `docs/backend-and-data/05-database-actors.md`.
+Heavy SwiftData work (bulk fetches, ingest, reconciliation) is always delegated to a `@ModelActor` actor — see `docs/backend-and-data/03-database-actors.md`.
 
 ---
 

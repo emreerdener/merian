@@ -15,4 +15,4 @@ db-push:
 	supabase --workdir $(SUPABASE_WORKDIR) db push
 
 functions-deploy:
-	supabase --workdir $(SUPABASE_WORKDIR) functions deploy --import-map supabase/functions/deno.json
+	supabase --workdir $(SUPABASE_WORKDIR) functions deploy

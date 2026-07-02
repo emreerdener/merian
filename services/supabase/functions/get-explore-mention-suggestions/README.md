@@ -71,9 +71,9 @@ unrelated participants elsewhere on the post.
 
 ```sh
 deno fmt --check services/supabase/functions/get-explore-mention-suggestions
-deno lint services/supabase/functions/get-explore-mention-suggestions
-deno check services/supabase/functions/get-explore-mention-suggestions/index.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/exploreMentionsDb.test.ts
+deno lint --config services/supabase/functions/deno.json services/supabase/functions/get-explore-mention-suggestions
+deno check --config services/supabase/functions/deno.json services/supabase/functions/get-explore-mention-suggestions/index.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreMentionsDb.test.ts
 ```
 
 The DB integration tests skip live assertions when the local Supabase Postgres

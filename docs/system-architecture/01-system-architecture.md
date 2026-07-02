@@ -20,12 +20,8 @@ flowchart TD
     G -->|Upserts biological dictionaries| I[(PostgreSQL `species_dictionary`)]
     G -->|Persists UUID scan constraints| J[(PostgreSQL `scans`)]
 
-    K([Paused Photos Share Extension]) -. not embedded .-> E
-    K -. parked /share-import-scan path .-> M([Supabase Edge /share-import-scan])
-    M -->|Background identify dispatch| G
     C -->|Writes lightweight extension snapshots| N[(App Group Cache)]
     L([Messages Extension]) -->|Reads scan cache| N
-    K -. parked receipt design .-> N
 ```
 
 ## Core Architectural Pillars
@@ -68,7 +64,6 @@ The backend logic is strictly decoupled into modular, single-responsibility func
   - `/request-export-dwca`: Client-facing synchronous API controlling 24-hour rate limits for data exports.
   - `/export-dwca`: Heavy background worker (triggered via Service-Role Webhook) that compiles paginated Darwin Core Zip archives and dispatches emails via the Resend Node SDK.
   - `/generate-upload-urls`: Provisions short-lived S3 Pre-signed URLs for direct-to-Cloudflare `PUT` pushes, keeping massive binaries out of the Edge proxy memory.
-  - `/share-import-scan`: Parked fast-return queue endpoint for the paused Photos share extension. It validates one staged image key, inserts `scan_import_jobs`, and dispatches `/identify-multimodal` in the background. Current app builds do not embed `MerianShareExtension`, so this path should not receive production iOS client traffic.
 - **Data Lifecycle & Offline Sync**
   - `/sync-collections`: Reconciles offline iOS SwiftData modifications with the Postgres single source of truth.
   - `/delete-scan` & `/safe-delete`: Atomic operations cascading Postgres deletions out to Cloudflare R2 blobs to prevent orphaned objects.
@@ -81,7 +76,6 @@ The backend logic is strictly decoupled into modular, single-responsibility func
   - `apps/web/`: Next.js + Mantine frontend for public Merian pages on `merian.earth`.
   - `/explore/post/[postId]`: Server-rendered public Explore share route. It calls the `get_explore_post` RPC from the Next.js server, emits Open Graph metadata for rich previews, and links back into the native app with `merian://explore/post/{postId}`.
   - `MerianMessagesExtension` reads the App Group scan cache and inserts image, card, or description content into Messages without sending automatically.
-  - `MerianShareExtension` is paused and de-shipped as of 2026-05-19. Its source and backend queue path remain in the repo, but current app builds do not embed the extension or advertise Photos share-sheet import.
   - Universal Links should eventually bind `https://merian.earth/explore/post/{postId}` to the same native Explore detail router while preserving the web page as the fallback for users without the app.
 - **Moderation & Social**
   - `/get-filtered-discovery-feed`: Paginates public discovery queries from post-owned sharing fields, handles blocking mechanisms, and uses scrubbed or rounded public coordinates when Explore surfaces are allowed to expose location.

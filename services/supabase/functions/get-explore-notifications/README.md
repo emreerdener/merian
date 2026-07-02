@@ -77,9 +77,9 @@ in-app only. The push trigger skips `type = 'follow'`.
 
 ```sh
 deno fmt --check services/supabase/functions/get-explore-notifications
-deno lint services/supabase/functions/get-explore-notifications
-deno check services/supabase/functions/get-explore-notifications/index.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/exploreNotificationsDb.test.ts
+deno lint --config services/supabase/functions/deno.json services/supabase/functions/get-explore-notifications
+deno check --config services/supabase/functions/deno.json services/supabase/functions/get-explore-notifications/index.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreNotificationsDb.test.ts
 ```
 
 The DB integration tests skip live assertions when the local Supabase Postgres

@@ -22,15 +22,6 @@ inside a detached `autoreleasepool` and only publishes the bounded `UIImage`
 back to SwiftUI. Full-resolution originals are never inflated just to support
 pinch-to-zoom.
 
-Share extensions have an even smaller memory ceiling than the app process.
-`ShareImportItemProviderResolver` is file-backed only for image providers:
-`loadFileRepresentation` and `loadInPlaceFileRepresentation` are allowed,
-`loadDataRepresentation` is intentionally banned, and
-`ShareImportSharedConstants.sourceImageMaxBytes` caps accepted source files at
-50 MB before they are copied into the extension temp directory. Providers that
-cannot expose a file size are rejected with `fileTooLarge` rather than risking
-extension termination before downsampling starts.
-
 ### LocalImageLoader Unbounded ImageIO Execution
 While pre-fetching bounds concurrent image downloads, unbounded programmatic calls to `LocalImageLoader.loadLocal` and `fetchRemote` historically spawned dozens of unbounded `Task.detached` blocks on the global concurrent executor, driving immediate ImageIO over-subscription JetSam crashes during grid scrolling. The zero-OOM architecture resolves this by inserting a `private static let decodeSemaphore = DispatchSemaphore(value: 4)` directly inside the loader. All detached calls pass through `.wait()` and `.signal()`, acting as a global thread-safe valve against ImageIO concurrency thrash. The remote loader's dedicated `mediaSession` is now also capped to `httpMaximumConnectionsPerHost = 4` with `urlCache = nil`, aligning network fan-out with decode capacity and preventing the shared URL cache from ballooning with thumbnail responses.
 

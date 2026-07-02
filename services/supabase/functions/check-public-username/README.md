@@ -34,5 +34,5 @@ validation and uniqueness rules on save.
 ## Local Verification
 
 ```sh
-deno check services/supabase/functions/check-public-username/index.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/check-public-username/index.ts
 ```

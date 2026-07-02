@@ -10,8 +10,7 @@ This document explains what storage mechanism to use for persistent identity tok
 |---|---|---|
 | Supabase JWT (access token) | Supabase GoTrue SDK (internal Keychain) | Managed automatically by the SDK |
 | Supabase anonymous session | Supabase GoTrue SDK (internal Keychain) | Managed automatically by the SDK |
-| Supabase extension session copy | Shared keychain access group `$(AppIdentifierPrefix)app.merian.shared` | Parked auth handoff for the paused `MerianShareExtension`; migrated from the SDK keychain item by the containing app when the feature is re-enabled |
-| Extension settings/receipts/cache | App Group `group.app.merian.shared` | Non-secret extension coordination data shared by the app, Messages extension, widget, and parked Photos share-import path |
+| Extension cache | App Group `group.app.merian.shared` | Non-secret coordination data shared by the app, Messages extension, and Explore widget |
 | RevenueCat customer ID | RevenueCat SDK (internal) | Managed automatically by the SDK |
 | `SUPABASE_ANON_KEY` | `Config.xcconfig` → `MerianEnvironment.swift` | Read-only build config, not secret |
 | `REVENUECAT_API_KEY` | `Config.xcconfig` → `MerianEnvironment.swift` | Read-only build config, not secret |
@@ -98,46 +97,10 @@ Merian uses `group.app.merian.shared` for non-secret extension coordination:
 - Explore widget snapshots
 - Messages scan share cache (`message-scan-share-cache.json`,
   `MessageScanThumbnails/`, `MessageScanAttachments/`)
-- Parked Photos share-import settings snapshot
-- Parked Photos share-import receipts (`share-import-receipts.json`)
 
 Do not put provider secrets, service-role keys, raw private notes dumps, or
 SwiftData stores in the App Group. The App Group is for small, explicit
 handoff artifacts whose schema is owned by shared Swift structs.
-
-## Shared Supabase Session for the Photos Share Extension
-
-`MerianShareExtension` is paused and not embedded in current app builds as of
-2026-05-19. This section documents the retained implementation contract for a
-future rebuild; it is not a shipped runtime dependency today.
-
-When re-enabled, `MerianShareExtension` must authenticate network calls without
-launching the containing app. The main app therefore creates a second Supabase
-GoTrue session copy in the shared keychain access group.
-
-Implementation contract:
-
-- The main app configures Supabase through
-  `MerianSupabaseClientFactory.makeClient(...)`, using
-  `KeychainLocalStorage(service: "supabase.gotrue.swift", accessGroup:
-  ShareImportAuthStore.keychainAccessGroup())`.
-- On `SupabaseManager` initialization,
-  `ShareImportAuthStore.migrateLegacySessionToSharedIfNeeded()` copies a valid
-  legacy SDK session from the default keychain item to the shared access group
-  if the shared item is missing.
-- The extension reads the shared item directly with Security.framework via
-  `ShareImportKeychainSessionStore`. The Supabase SDK is not compiled into the
-  share extension target.
-- `ShareImportAuthStore.validAccessToken()` parses the stored session, checks
-  `expiresAt` or JWT `exp`, refreshes through
-  `/auth/v1/token?grant_type=refresh_token` when possible, and writes the
-  refreshed session back to the shared access group.
-
-The shared keychain access group is derived at runtime from
-`MERIAN_APP_IDENTIFIER_PREFIX` plus `app.merian.shared`. This key must be present
-in both the app and share-extension Info.plists. If the prefix is unresolved or
-missing in a future re-enabled extension build, the extension cannot read the
-shared session and must show an "open Merian" recovery state.
 
 ---
 

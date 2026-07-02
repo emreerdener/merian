@@ -157,7 +157,7 @@ TestFlight, App Store, support, and QA.
 - Reduced share-import, expanded-original-image, local species-chart, APNs fanout, collection-sync, and audio-carousel resource usage to prevent OOMs, main-thread stalls, and idle battery drain.
 - Hardened scan purge jobs so they cannot delete durable public avatar images.
 - Added AI-derived sex observation metadata to scan records, the Overview card, Supabase persistence, and Darwin Core exports.
-- Added native Messages and Photos share extensions: Messages can insert cached scan images/cards/descriptions, and Photos can queue one shared image for Merian identification.
+- Added native Messages extension groundwork for inserting cached scan images, cards, and descriptions into iMessage.
 
 ### Beta Feedback & Settings Changelog
 - Fixed the proactive beta feedback survey so the third-scan prompt waits until the Insight sheet closes instead of competing with the result sheet.

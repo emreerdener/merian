@@ -90,8 +90,8 @@ use the public post and species fields.
 ## Local Verification
 
 ```sh
-deno check services/supabase/functions/get-explore-hashtag-posts/index.ts
-deno test --allow-env --allow-net services/supabase/functions/_tests/exploreHashtagPostsDb.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/get-explore-hashtag-posts/index.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreHashtagPostsDb.test.ts
 ```
 
 The DB integration test skips live assertions when the local Supabase Postgres

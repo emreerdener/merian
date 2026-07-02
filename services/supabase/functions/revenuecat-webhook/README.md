@@ -56,7 +56,7 @@ while handling massive backend data moves, the module is strictly decoupled:
 Run the deterministic webhook and pass-policy tests with:
 
 ```bash
-deno test --allow-all \
+deno test --config services/supabase/functions/deno.json --allow-all \
   services/supabase/functions/_shared/subscriptionPass_test.ts \
   services/supabase/functions/revenuecat-webhook/events_test.ts \
   services/supabase/functions/revenuecat-webhook/index_test.ts

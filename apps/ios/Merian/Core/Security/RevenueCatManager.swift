@@ -151,7 +151,6 @@ enum SevenDayPassAccessPolicy {
         self.trialDaysRemaining = trialRemaining
         
         isProActive = isSubscribed || (trialRemaining > 0)
-        ShareImportSharedStateWriter.refresh()
     }
 
     /// Fetches available offerings for the paywall.
