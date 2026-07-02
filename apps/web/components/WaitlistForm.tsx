@@ -3,7 +3,7 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { Alert, Button, Group, Stack, Text, TextInput } from "@mantine/core";
-import { IconArrowRight, IconCheck, IconMail, IconX } from "@tabler/icons-react";
+import { IconArrowRight, IconCheck, IconX } from "@tabler/icons-react";
 
 type FormState = "idle" | "submitting" | "success" | "error";
 
@@ -21,9 +21,9 @@ export function WaitlistForm() {
       const response = await fetch("/api/waitlist", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email }),
       });
       const payload = (await response.json()) as { message?: string };
 
@@ -39,7 +39,7 @@ export function WaitlistForm() {
       setMessage(
         error instanceof Error
           ? error.message
-          : "Something went wrong. Please try again."
+          : "Something went wrong. Please try again.",
       );
     }
   }
@@ -47,7 +47,12 @@ export function WaitlistForm() {
   return (
     <Stack gap="sm" id="waitlist" className="waitlist-signup">
       <form onSubmit={handleSubmit}>
-        <Group gap="sm" wrap="nowrap" align="center" className="waitlist-signup__row">
+        <Group
+          gap="sm"
+          wrap="nowrap"
+          align="center"
+          className="waitlist-signup__row"
+        >
           <TextInput
             aria-label="Email address"
             placeholder="you@example.com"
@@ -58,7 +63,6 @@ export function WaitlistForm() {
             autoComplete="email"
             required
             size="lg"
-            leftSection={<IconMail size={18} />}
             className="waitlist-signup__input"
           />
           <Button
@@ -76,7 +80,13 @@ export function WaitlistForm() {
       {message ? (
         <Alert
           color={formState === "success" ? "green" : "red"}
-          icon={formState === "success" ? <IconCheck size={18} /> : <IconX size={18} />}
+          icon={
+            formState === "success" ? (
+              <IconCheck size={18} />
+            ) : (
+              <IconX size={18} />
+            )
+          }
           variant="light"
           className="waitlist-signup__alert"
         >

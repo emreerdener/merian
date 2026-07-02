@@ -23,67 +23,56 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const posts = await fetchExploreFeedPosts(16);
+  const posts = await fetchExploreFeedPosts(24);
 
   return (
     <Stack gap={0}>
       <Box className="splash-page">
-        <Container size="lg" className="splash-page__inner">
+        <Container size="xl" className="splash-page__inner">
           <Stack gap="xl" className="splash-page__copy">
             <Stack gap="md">
-              <Badge
-                className="splash-eyebrow"
-                variant="light"
-                leftSection={<IconLeaf size={14} />}
-              >
-                Beta group now forming
-              </Badge>
               <Title order={1} className="splash-title">
-                Merian
+                Merian Earth
               </Title>
               <Text className="splash-lede">
-                A field companion for curious naturalists: identify living things,
-                keep context with every observation, and help shape the public
-                Explore community before launch.
+                A field companion for curious naturalists: identify living
+                things, keep context with every observation, and help shape the
+                public Explore community before launch.
               </Text>
             </Stack>
 
             <WaitlistForm />
-
-            <Group gap="lg" className="splash-proof">
-              <Text component="span">Early iOS access</Text>
-              <Text component="span">Field notes</Text>
-              <Text component="span">Privacy-first sharing</Text>
-            </Group>
           </Stack>
 
           <Box className="splash-art" aria-hidden="true">
             <Image
-              src="/assets/waitlist/explore-base.png"
-              alt="Merian app interface on mobile screen showing field observations"
-              width={901}
-              height={901}
+              src="/assets/waitlist/sweet-acacia-mockup.png"
+              alt="Merian app mockup showing sweet acacia observation details"
+              width={1000}
+              height={2000}
               priority
+              unoptimized
               sizes="(max-width: 768px) 86vw, 46vw"
             />
           </Box>
         </Container>
       </Box>
 
-      {/* Explore Feed 4x4 Grid Section */}
-      <Container size="lg" py={{ base: "xl", md: "50px" }}>
+      {/* Explore Feed 4x6 Grid Section */}
+      <Container size="xl" w="100%" py={100} id="explore">
         <Stack gap="xl">
           <Stack gap="xs">
             <Title order={2} size="h2" fw={800}>
-              Community Discoveries
+              Community discoveries
             </Title>
             <Text c="dimmed" size="md">
-              Recent observations shared by naturalists in the field. Tap any discovery to explore details.
+              Recent observations shared by naturalists in the field. Tap any
+              discovery to explore details.
             </Text>
           </Stack>
 
           {posts.length ? (
-            <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="md">
+            <SimpleGrid w="100%" cols={{ base: 2, sm: 3, md: 4 }} spacing="md">
               {posts.map((post) => (
                 <Anchor
                   key={post.postId}
@@ -97,7 +86,13 @@ export default async function HomePage() {
                     className="explore-grid-card"
                     shadow="none"
                   >
-                    <Box style={{ position: "relative", paddingTop: "100%", overflow: "hidden" }}>
+                    <Box
+                      style={{
+                        position: "relative",
+                        paddingTop: "100%",
+                        overflow: "hidden",
+                      }}
+                    >
                       <img
                         src={post.heroImageUrl}
                         alt={post.speciesCommonName || "Observation"}
@@ -108,7 +103,9 @@ export default async function HomePage() {
                           {post.speciesCommonName || "Unknown Species"}
                         </Text>
                         <Text size="xs" style={{ opacity: 0.8 }} truncate>
-                          {post.speciesScientificName ? post.speciesScientificName : "Explore species"}
+                          {post.speciesScientificName
+                            ? post.speciesScientificName
+                            : "Explore species"}
                         </Text>
                       </Box>
                     </Box>

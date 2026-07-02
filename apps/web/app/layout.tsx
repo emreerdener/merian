@@ -4,9 +4,10 @@ import "./globals.css";
 
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { ColorSchemeScript, MantineProvider } from "@mantine/core";
+import { MantineProvider } from "@mantine/core";
 import { MerianAppShell } from "@/components/MerianAppShell";
 import { theme } from "./theme";
+import Script from "next/script";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://merian.earth"),
@@ -27,7 +28,19 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <ColorSchemeScript defaultColorScheme="auto" />
+        <Script
+          id="mantine-color-scheme-script"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var colorScheme = localStorage.getItem('mantine-color-scheme') || 'auto';
+                var computed = colorScheme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : colorScheme;
+                document.documentElement.setAttribute('data-mantine-color-scheme', computed);
+              } catch (e) {}
+            `
+          }}
+        />
       </head>
       <body>
         <MantineProvider theme={theme} defaultColorScheme="auto">

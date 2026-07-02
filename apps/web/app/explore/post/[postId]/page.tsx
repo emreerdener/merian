@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import {
+  Anchor,
   Avatar,
   Badge,
   Button,
@@ -24,6 +26,7 @@ import {
 import { compactSpeciesTitle, postTitle } from "@/lib/formatting";
 import {
   IconAlertTriangle,
+  IconArrowLeft,
   IconCalendar,
   IconCloud,
   IconBinoculars,
@@ -155,6 +158,20 @@ export default async function ExplorePostPage({
   return (
     <Container size="sm" py={{ base: "md", sm: "xl" }}>
       <Stack gap="lg">
+        <Link href="/#explore" style={{ textDecoration: "none" }}>
+          <Anchor
+            component="span"
+            display="inline-flex"
+            style={{ alignItems: "center", gap: "6px" }}
+            c="dimmed"
+            size="sm"
+            fw={500}
+          >
+            <IconArrowLeft size={16} />
+            Back to discoveries
+          </Anchor>
+        </Link>
+
         <Card withBorder shadow="sm" radius="lg" p={0}>
           <ImageCarousel
             heroImageUrl={post.heroImageUrl}
