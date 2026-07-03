@@ -1,4 +1,3 @@
-import CoreData
 import GoogleSignIn
 import SwiftData
 import SwiftUI
@@ -19,110 +18,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         Task { @MainActor in
             PushNotificationManager.shared.handleRemoteRegistrationFailure(error)
         }
-    }
-}
-
-// MARK: - Store Recovery
-
-enum ModelStoreRecoveryCoordinator {
-    private static let sqliteCorruptionCodes: Set<Int> = [11, 26] // SQLITE_CORRUPT, SQLITE_NOTADB
-    private static let unknownModelVersionErrorCode = 134504
-    private static let corruptionPhrases = [
-        "database disk image is malformed",
-        "file is not a database",
-        "file is encrypted or is not a database",
-        "sqlite_corrupt",
-        "sqlite_notadb",
-        "malformed database schema",
-        "corrupt",
-        "cannot use staged migration with an unknown model version",
-        "unknown model version"
-    ]
-
-    static func defaultStoreURL() -> URL {
-        URL.applicationSupportDirectory.appending(path: "default.store")
-    }
-
-    static func shouldAttemptRecovery(for error: Error) -> Bool {
-        errorChain(from: error).contains { candidate in
-            let nsError = candidate as NSError
-            if nsError.domain == NSSQLiteErrorDomain, sqliteCorruptionCodes.contains(nsError.code) {
-                return true
-            }
-            if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileReadCorruptFileError {
-                return true
-            }
-            if nsError.domain == NSCocoaErrorDomain, nsError.code == unknownModelVersionErrorCode {
-                return true
-            }
-
-            let normalizedText = [
-                nsError.localizedDescription,
-                nsError.userInfo[NSDebugDescriptionErrorKey] as? String,
-                nsError.userInfo[NSLocalizedFailureReasonErrorKey] as? String
-            ]
-            .compactMap { $0?.lowercased() }
-            .joined(separator: "\n")
-
-            return corruptionPhrases.contains { normalizedText.contains($0) }
-        }
-    }
-
-    static func hasStoreArtifacts(at storeURL: URL, fileManager: FileManager = .default) -> Bool {
-        !storeArtifacts(for: storeURL, fileManager: fileManager).isEmpty
-    }
-
-    @discardableResult
-    static func quarantineStoreArtifacts(at storeURL: URL, fileManager: FileManager = .default) throws -> URL {
-        let artifacts = storeArtifacts(for: storeURL, fileManager: fileManager)
-        guard !artifacts.isEmpty else {
-            throw CocoaError(.fileNoSuchFile)
-        }
-
-        let quarantineRoot = storeURL.deletingLastPathComponent().appending(path: "store-quarantine", directoryHint: .isDirectory)
-        try fileManager.createDirectory(at: quarantineRoot, withIntermediateDirectories: true)
-
-        let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-        let quarantineDirectory = quarantineRoot.appending(path: "\(timestamp)-\(UUID().uuidString)", directoryHint: .isDirectory)
-        try fileManager.createDirectory(at: quarantineDirectory, withIntermediateDirectories: false)
-
-        for artifact in artifacts {
-            let destination = quarantineDirectory.appending(path: artifact.lastPathComponent)
-            if fileManager.fileExists(atPath: destination.path) {
-                try fileManager.removeItem(at: destination)
-            }
-            try fileManager.moveItem(at: artifact, to: destination)
-        }
-
-        return quarantineDirectory
-    }
-
-    private static func storeArtifacts(for storeURL: URL, fileManager: FileManager) -> [URL] {
-        let candidates = [
-            storeURL,
-            URL(fileURLWithPath: storeURL.path + "-shm"),
-            URL(fileURLWithPath: storeURL.path + "-wal")
-        ]
-        return candidates.filter { fileManager.fileExists(atPath: $0.path) }
-    }
-
-    private static func errorChain(from rootError: Error) -> [Error] {
-        var collected: [Error] = []
-        var stack: [Error] = [rootError]
-
-        while let next = stack.popLast() {
-            collected.append(next)
-            let nsError = next as NSError
-
-            if let nestedError = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
-                stack.append(nestedError)
-            }
-            if let nestedErrors = nsError.userInfo[NSDetailedErrorsKey] as? [NSError] {
-                stack.append(contentsOf: nestedErrors)
-            }
-        }
-
-        return collected
     }
 }
 
@@ -338,9 +233,15 @@ struct StartupRecoveryNotice {
     let message: String
 }
 
+struct StartupRecoveryTelemetryEvent {
+    let outcome: String
+    let reason: String
+}
+
 struct ModelContainerBootstrapOutcome {
     let container: ModelContainer?
     let startupNotice: StartupRecoveryNotice?
+    let telemetryEvent: StartupRecoveryTelemetryEvent?
 }
 
 struct StartupRecoveryNoticeView: View {
@@ -410,10 +311,16 @@ struct MerianApp: App {
             // on the main thread. PostHog is configured by SupabaseManager before auth
             // events can identify the restored session.
             AppTelemetry.initialize()
+            if let telemetryEvent = bootstrapOutcome.telemetryEvent {
+                AppTelemetry.trackStartupStoreRecovery(
+                    outcome: telemetryEvent.outcome,
+                    reason: telemetryEvent.reason
+                )
+            }
         }
     }
 
-    private static func makePersistentContainer() throws -> ModelContainer {
+    private static func makePersistentContainerUnchecked() throws -> ModelContainer {
         let schema = Schema(versionedSchema: CurrentSchema.self)
         let config = ModelConfiguration(
             schema: schema,
@@ -422,7 +329,7 @@ struct MerianApp: App {
         return try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
     }
 
-    private static func makeInMemoryContainer() throws -> ModelContainer {
+    private static func makeInMemoryContainerUnchecked() throws -> ModelContainer {
         let schema = Schema(versionedSchema: CurrentSchema.self)
         let config = ModelConfiguration(
             schema: schema,
@@ -431,23 +338,65 @@ struct MerianApp: App {
         return try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
     }
 
+    private static func makeContainerCatchingObjectiveCExceptions(
+        _ buildContainer: () throws -> ModelContainer
+    ) throws -> ModelContainer {
+        var container: ModelContainer?
+        var swiftError: Error?
+        var exceptionError: NSError?
+
+        _ = MerianCatchObjCException({
+            do {
+                container = try buildContainer()
+            } catch {
+                swiftError = error
+            }
+        }, &exceptionError)
+
+        if let swiftError {
+            throw swiftError
+        }
+        if let exceptionError {
+            throw exceptionError
+        }
+        guard let container else {
+            throw NSError(
+                domain: "app.merian.model-container",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "ModelContainer creation returned no container."]
+            )
+        }
+        return container
+    }
+
+    private static func makePersistentContainer() throws -> ModelContainer {
+        try makeContainerCatchingObjectiveCExceptions {
+            try makePersistentContainerUnchecked()
+        }
+    }
+
+    private static func makeInMemoryContainer() throws -> ModelContainer {
+        try makeContainerCatchingObjectiveCExceptions {
+            try makeInMemoryContainerUnchecked()
+        }
+    }
+
     private static func bootstrapModelContainer() -> ModelContainerBootstrapOutcome {
         do {
             return ModelContainerBootstrapOutcome(
                 container: try makePersistentContainer(),
-                startupNotice: nil
+                startupNotice: nil,
+                telemetryEvent: nil
             )
         } catch {
             MerianLog.general.error("CRITICAL: Failed to initialize ModelContainer. Error: \(error.localizedDescription)")
 
             let storeURL = ModelStoreRecoveryCoordinator.defaultStoreURL()
-            let shouldAttemptRecovery = ModelStoreRecoveryCoordinator.shouldAttemptRecovery(for: error)
-                || ModelStoreRecoveryCoordinator.hasStoreArtifacts(at: storeURL)
-
-            if shouldAttemptRecovery {
+            if ModelStoreRecoveryCoordinator.shouldQuarantineStore(for: error, storeURL: storeURL) {
                 do {
                     let quarantineDirectory = try ModelStoreRecoveryCoordinator.quarantineStoreArtifacts(
-                        at: storeURL
+                        at: storeURL,
+                        for: error
                     )
                     let recoveredContainer = try makePersistentContainer()
                     MerianLog.general.error(
@@ -458,6 +407,10 @@ struct MerianApp: App {
                         startupNotice: StartupRecoveryNotice(
                             title: "Library Repaired",
                             message: "Merian recovered from a corrupted local store and rebuilt the library safely."
+                        ),
+                        telemetryEvent: StartupRecoveryTelemetryEvent(
+                            outcome: "recovered",
+                            reason: "corruption_quarantined"
                         )
                     )
                 } catch let recoveryError {
@@ -484,6 +437,10 @@ struct MerianApp: App {
                 startupNotice: StartupRecoveryNotice(
                     title: "Safe Mode Enabled",
                     message: reason
+                ),
+                telemetryEvent: StartupRecoveryTelemetryEvent(
+                    outcome: "safe_mode",
+                    reason: "persistent_store_unavailable"
                 )
             )
         } catch {
@@ -493,6 +450,10 @@ struct MerianApp: App {
                 startupNotice: StartupRecoveryNotice(
                     title: "Startup Blocked",
                     message: "Merian could not open either the persistent library or the safe-mode in-memory store. Restart the app after freeing storage or reinstalling if the issue persists."
+                ),
+                telemetryEvent: StartupRecoveryTelemetryEvent(
+                    outcome: "blocked",
+                    reason: "persistent_and_memory_store_unavailable"
                 )
             )
         }

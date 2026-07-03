@@ -175,6 +175,14 @@ enum AppTelemetry {
         send("SystemError", with: ["domain": errorDomain])
     }
 
+    /// Records launch-time local store recovery without including paths, user IDs, or exception text.
+    static func trackStartupStoreRecovery(outcome: String, reason: String) {
+        send("StartupStoreRecovery", with: [
+            "outcome": outcome,
+            "reason": reason
+        ])
+    }
+
     // MARK: - Private
 
     private static func send(_ signal: String, with params: [String: String]? = nil) {

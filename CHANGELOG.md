@@ -21,6 +21,7 @@ TestFlight, App Store, support, and QA.
 ### Scans
 - Added Image and Video media filters to the Scans filter sheet.
 - Restored the Explore posts scan filter so the Scans library can show scans that have already been shared to Explore.
+- Hardened launch recovery so a damaged local scan library can be quarantined safely without signing the user out.
 
 ### Insight Sheet
 - Added fullscreen playback for video scan media from the Insight carousel.

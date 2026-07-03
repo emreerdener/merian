@@ -1,0 +1,27 @@
+name: iOS Startup Safety
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  startup-store-recovery:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate generated project guardrails
+        run: make validate-ios-project
+
+      - name: Run startup store-recovery tests
+        run: |
+          xcodebuild test \
+            -scheme Merian \
+            -project merian.xcodeproj \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests

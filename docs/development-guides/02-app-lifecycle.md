@@ -125,3 +125,12 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
 
 - If the post-quarantine retry still cannot open the persistent store, startup now falls back to an in-memory `ModelContainer` and surfaces a recovery notice banner instead of crashing in a launch loop.
 - Lifecycle code must tolerate this safe mode. Do not assume persistent storage was available just because the app reached `.active`.
+
+## 2026-07 Startup Store-Recovery Guardrails
+
+- SwiftData/Core Data can raise Objective-C `NSException`s during `ModelContainer` initialization, which Swift `do/catch` cannot catch directly. `MerianApp` wraps container creation with a tiny Objective-C bridge so those launch-time exceptions become Swift errors and can enter the existing recovery path.
+- Store quarantine is intentionally narrow and owned by `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`: Merian only moves `default.store`, `default.store-shm`, and `default.store-wal` when the failure matches a verified SQLite/Core Data corruption signature and those store artifacts exist. Generic container failures must boot safe mode without moving user data.
+- Quarantine directories include `recovery-manifest.json` with app/build/OS metadata, moved artifact names, and a sanitized error reason. This manifest is for support and debugging only; it must not include user IDs, paths outside the quarantine, access tokens, or profile data.
+- Store recovery must never clear Keychain auth, Supabase sessions, device identity, profile state, or cloud ownership. Local SwiftData recovery is isolated from account identity so a damaged local library cannot sign a user out or orphan Explore posts.
+- Recovery emits the coarse `StartupStoreRecovery` telemetry event after analytics initialization with only `outcome` and `reason`.
+- Folder-level `README.md` files are documentation only. `project.yml` excludes markdown from the Merian target, and `make validate-ios-project` fails if generated Xcode resources start bundling markdown docs again.

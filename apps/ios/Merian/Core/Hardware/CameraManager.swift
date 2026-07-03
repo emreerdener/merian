@@ -872,14 +872,14 @@ private struct CameraVideoRecordingCompletion {
                     self.movieOutput.startRecording(to: outputURL, recordingDelegate: self)
                 }
 
-                Task { [weak self] in
+                Task { @MainActor [weak self] in
                     let durationNanos = UInt64(maxDuration * 1_000_000_000)
                     try? await Task.sleep(nanoseconds: durationNanos)
                     self?.stopVideoRecording()
                 }
             }
         } onCancel: {
-            Task { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.stopVideoRecording()
             }
         }

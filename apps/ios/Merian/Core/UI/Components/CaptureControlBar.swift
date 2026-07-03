@@ -321,6 +321,7 @@ private struct CaptureButton: View {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard !Task.isCancelled else { return }
             didTriggerVideoLongPress = true
+            HapticManager.shared.triggerHeavyImpact(intensity: 1.0)
             onVisualLongPressStart()
         }
     }

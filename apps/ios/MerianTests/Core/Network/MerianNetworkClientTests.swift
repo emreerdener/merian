@@ -81,6 +81,25 @@ struct MerianNetworkClientTests {
         MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
     }
 
+    @Test func testMissingAuthSessionRecoveryOnlyRegeneratesGuestSessions() {
+        #expect(MerianNetworkClient.shouldRegenerateSessionAfterMissingAuthSession(
+            hasAuthenticatedOAuth: false,
+            isGuestUser: true
+        ))
+        #expect(!MerianNetworkClient.shouldRegenerateSessionAfterMissingAuthSession(
+            hasAuthenticatedOAuth: true,
+            isGuestUser: true
+        ))
+        #expect(!MerianNetworkClient.shouldRegenerateSessionAfterMissingAuthSession(
+            hasAuthenticatedOAuth: false,
+            isGuestUser: false
+        ))
+        #expect(!MerianNetworkClient.shouldRegenerateSessionAfterMissingAuthSession(
+            hasAuthenticatedOAuth: true,
+            isGuestUser: false
+        ))
+    }
+
     @Test func testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON() async throws {
         // Arrange
         let testData = """

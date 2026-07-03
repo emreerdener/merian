@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-03-startup-library-recovery",
+      "date": "2026-07-03",
+      "title": "Startup library recovery",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Launch recovery now handles damaged local scan libraries more safely without signing you out."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-03-non-biological-scan-saving",
       "date": "2026-07-03",
       "title": "Non-biological scan saving",

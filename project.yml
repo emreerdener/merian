@@ -41,9 +41,15 @@ targets:
     platform: iOS
     deploymentTarget: "17.2"
     sources:
-      - apps/ios/Merian
-      - apps/ios/messages/ScanSharing/AppSupport
-      - apps/ios/messages/ScanSharing/Shared
+      - path: apps/ios/Merian
+        excludes:
+          - "**/*.md"
+      - path: apps/ios/messages/ScanSharing/AppSupport
+        excludes:
+          - "**/*.md"
+      - path: apps/ios/messages/ScanSharing/Shared
+        excludes:
+          - "**/*.md"
     entitlements:
       path: apps/ios/Merian/Configuration/Merian.entitlements
       properties:
@@ -62,6 +68,7 @@ targets:
         TARGETED_DEVICE_FAMILY: "1" # iPhone Only to bypass iPad Multitasking requirements
         CODE_SIGN_STYLE: Automatic
         ENABLE_USER_SCRIPT_SANDBOXING: NO
+        SWIFT_OBJC_BRIDGING_HEADER: apps/ios/Merian/Configuration/Merian-Bridging-Header.h
     dependencies:
       - target: MerianExploreWidget
         embed: true

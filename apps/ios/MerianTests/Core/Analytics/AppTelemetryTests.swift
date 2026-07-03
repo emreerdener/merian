@@ -1,5 +1,5 @@
-import XCTest
 @testable import Merian
+import XCTest
 
 final class AppTelemetryTests: XCTestCase {
 
@@ -30,6 +30,7 @@ final class AppTelemetryTests: XCTestCase {
         AppTelemetry.trackSpeciesDictionaryNotFound(entryPoint: "explore_detail_similar_species")
         AppTelemetry.trackSpeciesDictionaryRetry(entryPoint: "explore_detail_similar_species")
         AppTelemetry.trackSpeciesDictionaryImageFallback(entryPoint: "insight_similar_species", source: "gbif")
+        AppTelemetry.trackStartupStoreRecovery(outcome: "safe_mode", reason: "unit_test")
     }
 
     func testIsInitializedAfterSetUp() {

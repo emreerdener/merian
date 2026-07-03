@@ -533,6 +533,13 @@ final class MerianNetworkClient {
         return fallbackMessage.localizedCaseInsensitiveContains("Auth session missing")
     }
 
+    static func shouldRegenerateSessionAfterMissingAuthSession(
+        hasAuthenticatedOAuth: Bool,
+        isGuestUser: Bool
+    ) -> Bool {
+        !hasAuthenticatedOAuth && isGuestUser
+    }
+
     #if DEBUG
     func resetSpeciesDictionaryCacheForTesting() {
         speciesDictionaryCacheLock.lock()
@@ -640,16 +647,23 @@ final class MerianNetworkClient {
                         return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
                     }
 
+                    let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
                     let isGuest = await SupabaseManager.shared.isGuestUser
-                    if isGuest {
+                    if Self.shouldRegenerateSessionAfterMissingAuthSession(
+                        hasAuthenticatedOAuth: hasAuthenticatedOAuth,
+                        isGuestUser: isGuest
+                    ) {
                         MerianLog.network.debug("Missing anonymous auth session detected — regenerating ghost session.")
                         if await SupabaseManager.shared.resetGhostSessionForRetry() {
                             try? await Task.sleep(nanoseconds: 1_500_000_000)
                             return try await performAuthenticatedRequest(url: url, method: method, body: body, timeoutInterval: timeoutInterval, isRetry: true)
                         }
+
+                        await SupabaseManager.shared.clearLocalSessionAfterAuthFailure()
+                    } else {
+                        MerianLog.network.debug("Missing auth session detected for authenticated user; preserving local session.")
                     }
 
-                    await SupabaseManager.shared.clearLocalSessionAfterAuthFailure()
                     throw MerianError.invalidResponse
                 }
 

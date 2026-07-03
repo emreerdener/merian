@@ -224,7 +224,6 @@ extension CaptureWorkspaceViewModel {
         isVideoRecording = true
         videoRecordingProgress = 0
         startVideoRecordingProgressTimer()
-        AppDIContainer.shared.hapticManager.triggerHeavyImpact(intensity: 0.9)
 
         videoRecordingTask?.cancel()
         videoRecordingTask = Task {

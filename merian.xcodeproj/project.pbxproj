@@ -193,6 +193,7 @@
 		653576165C2B6ACE190F811B /* DeviceIdentityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F87DC06ADD940406F7EE95 /* DeviceIdentityManager.swift */; };
 		65C5E866CFC3A8224021A64A /* SpeciesDictionaryAPIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A35E68A08D8F2B774CC320E9 /* SpeciesDictionaryAPIModels.swift */; };
 		65D244B13ABA612046523A3F /* SmartCollectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792E3FD61C402272E52AFE88 /* SmartCollectionTests.swift */; };
+		65F44315AAA962D931C75B91 /* ModelStoreRecoveryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5388E968BCCAB06F94141AEB /* ModelStoreRecoveryCoordinator.swift */; };
 		66C5276C439BE9CE9B0149E9 /* HeatmapCellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9779FBE4B87B51D6C8BE378B /* HeatmapCellView.swift */; };
 		674E123F4937322176D304B6 /* AppTelemetryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF3A9B3A3E454734AA832AD3 /* AppTelemetryTests.swift */; };
 		688BD926B9F296F709458245 /* HardwareOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F7AD45FF06BC507AA5BBFD /* HardwareOrchestrator.swift */; };
@@ -294,6 +295,7 @@
 		A0DBE345374C5AAA19D55D33 /* ScansSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBD211402039075F9F88DA9 /* ScansSheetView.swift */; };
 		A1BB13183F07D2903662001F /* MessagesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53C94060DC966D4C94EFD6A /* MessagesViewController.swift */; };
 		A23A56326807DFF6A2BCF9DD /* SmartCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B5993CD7C1D3C1BCFCDFFF /* SmartCollection.swift */; };
+		A35BCF9F2C9B4C046645F1FA /* MerianObjCExceptionBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 357A8292F91AB68CD0180C45 /* MerianObjCExceptionBridge.m */; };
 		A38D59D642BD419E70ABBD64 /* CollectionModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D91871F468EC63CB05BE643 /* CollectionModifiers.swift */; };
 		A5781EA76CB470B8ED7D5A68 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 02945D0A38D824A984B84430 /* GoogleSignIn */; };
 		A59BAA1D6D2BF0ADDD1E8137 /* ExploreCommentsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA25C4810B3D57B1E3EA73E /* ExploreCommentsSheet.swift */; };
@@ -370,6 +372,7 @@
 		CC5304A7E67E874E9F9A74CD /* FileIOActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58507F2BA73789441DA21050 /* FileIOActor.swift */; };
 		CCCD956E4D9F90B75B41BA41 /* ToastBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D44AC15F7D06D0D9CDC93C /* ToastBanner.swift */; };
 		CCE496E6C94AF6BC7D6C664A /* SchemaV31.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD73940B23E4DE6F8296CF6 /* SchemaV31.swift */; };
+		CD19C17F9CF0833B01E1907D /* ModelStoreRecoveryCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 613330B48B8E4CD983D5823F /* ModelStoreRecoveryCoordinatorTests.swift */; };
 		CD2628BCBE21627A98AD1555 /* ConfidenceExplanationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BA0443DF0819F16EFD0222F /* ConfidenceExplanationSheet.swift */; };
 		CD41550C1EF87C2A4BA6BCFD /* OfflineQueueManager+URLSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00D2D4D5A3C8173ACDDA5812 /* OfflineQueueManager+URLSession.swift */; };
 		CD6821CB2646D863B0C8233B /* InsightSheetViewModel+ExploreSharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C39C4D71D630A0FCB2AAA92 /* InsightSheetViewModel+ExploreSharing.swift */; };
@@ -635,6 +638,7 @@
 		33E3B6DD9B47AA04AA39698E /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		33FD2D0B0B8D49842926B1FC /* AppDIContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDIContainer.swift; sourceTree = "<group>"; };
 		3486C8AECE6C3A67558CE8B9 /* WelcomeStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeStepView.swift; sourceTree = "<group>"; };
+		357A8292F91AB68CD0180C45 /* MerianObjCExceptionBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MerianObjCExceptionBridge.m; sourceTree = "<group>"; };
 		35A21F14BF2E58546307EFE9 /* BackgroundTaskWrapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskWrapperTests.swift; sourceTree = "<group>"; };
 		35AFE7419ADA1409D5287CB4 /* ScanThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanThumbnail.swift; sourceTree = "<group>"; };
 		35D283F9C8400C8546EE9329 /* ExploreUnavailableStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreUnavailableStateView.swift; sourceTree = "<group>"; };
@@ -686,6 +690,7 @@
 		52E06A037455313F2CF0E18A /* SchemaV21.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV21.swift; sourceTree = "<group>"; };
 		53276FFFE77033A84C87203D /* SpectrogramView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrogramView.swift; sourceTree = "<group>"; };
 		535EA1F7899A0593FA87CB7E /* ProfileTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileTabView.swift; sourceTree = "<group>"; };
+		5388E968BCCAB06F94141AEB /* ModelStoreRecoveryCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStoreRecoveryCoordinator.swift; sourceTree = "<group>"; };
 		53A8B2F9B74C00863B01225B /* ExploreKeyboardDismissTapRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreKeyboardDismissTapRecognizer.swift; sourceTree = "<group>"; };
 		5559A1C407342A4F4A6CD2FC /* SpeechManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechManager.swift; sourceTree = "<group>"; };
 		55E03700514B9D825F1A7A34 /* Analysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analysis.swift; sourceTree = "<group>"; };
@@ -718,6 +723,7 @@
 		5F5B2C80439BD24AC8143A7E /* SpeciesDictionaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesDictionaryTests.swift; sourceTree = "<group>"; };
 		5FDF90CB3A34FBD51EA35A74 /* MerianConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianConfig.swift; sourceTree = "<group>"; };
 		611596AEDBD83D91CCA1C479 /* SizeEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SizeEstimator.swift; sourceTree = "<group>"; };
+		613330B48B8E4CD983D5823F /* ModelStoreRecoveryCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStoreRecoveryCoordinatorTests.swift; sourceTree = "<group>"; };
 		6201DB4BFFE53115C924E4C8 /* ScanCollectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCollectionTests.swift; sourceTree = "<group>"; };
 		6216DDED11426B8A1720851D /* ZoomSliderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomSliderView.swift; sourceTree = "<group>"; };
 		6421E307AB43E24A15F3407B /* ProfileViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModelTests.swift; sourceTree = "<group>"; };
@@ -885,6 +891,7 @@
 		B45B7E06736DA1D7E791E347 /* AchievementsCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AchievementsCalculatorTests.swift; sourceTree = "<group>"; };
 		B4BAFD0F348F1C14D80BC360 /* WikipediaSummarySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WikipediaSummarySection.swift; sourceTree = "<group>"; };
 		B575B2160815DCDA14E10CAA /* StagedDescriptionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagedDescriptionSheet.swift; sourceTree = "<group>"; };
+		B607EDE5AA52349A60D26BD8 /* Merian-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Merian-Bridging-Header.h"; sourceTree = "<group>"; };
 		B84BD85381129E4F5F0E1909 /* LocationPermissionDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPermissionDelegate.swift; sourceTree = "<group>"; };
 		B908D21769120ABEDD0BF853 /* Array+Safe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Array+Safe.swift"; sourceTree = "<group>"; };
 		B943165DD4450FFD731122E1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -927,6 +934,7 @@
 		CF3A9B3A3E454734AA832AD3 /* AppTelemetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTelemetryTests.swift; sourceTree = "<group>"; };
 		CFB16E89CB4607F4CB77173E /* LocationPermissionStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPermissionStepView.swift; sourceTree = "<group>"; };
 		CFBE7C496A0467F758498810 /* MessageScanShareCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageScanShareCacheTests.swift; sourceTree = "<group>"; };
+		CFFD1F6BEDA11580A465D11E /* MerianObjCExceptionBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MerianObjCExceptionBridge.h; sourceTree = "<group>"; };
 		D005166727ADB6B9AAF31D7F /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
 		D067EB53B8E1A3078752F27E /* SpeciesObservationStatsAPIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeciesObservationStatsAPIModels.swift; sourceTree = "<group>"; };
 		D08C3CBD0E45D01DA0CD2072 /* MerianSupabaseClientFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MerianSupabaseClientFactory.swift; sourceTree = "<group>"; };
@@ -1444,6 +1452,14 @@
 			path = Core;
 			sourceTree = "<group>";
 		};
+		29C63F60DA82D4C729A6F545 /* StoreRecovery */ = {
+			isa = PBXGroup;
+			children = (
+				5388E968BCCAB06F94141AEB /* ModelStoreRecoveryCoordinator.swift */,
+			);
+			path = StoreRecovery;
+			sourceTree = "<group>";
+		};
 		2A17F7DFAFE0A68054696FBF /* SpeciesDictionary */ = {
 			isa = PBXGroup;
 			children = (
@@ -1524,6 +1540,7 @@
 			isa = PBXGroup;
 			children = (
 				5BA68CD91E356116156D2061 /* Info.plist */,
+				B607EDE5AA52349A60D26BD8 /* Merian-Bridging-Header.h */,
 				D2E5C836927FEDB08630D2CC /* Merian.entitlements */,
 				7A49C9ED18B1015B36EB9C2F /* MerianEnvironment.swift */,
 			);
@@ -1772,6 +1789,8 @@
 			children = (
 				B09EDBF5E76E53B8F4EFD5A2 /* LaunchScreen.storyboard */,
 				5D57A8D01CDAF8E994655620 /* MerianApp.swift */,
+				CFFD1F6BEDA11580A465D11E /* MerianObjCExceptionBridge.h */,
+				357A8292F91AB68CD0180C45 /* MerianObjCExceptionBridge.m */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -2219,6 +2238,14 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		7387CDB9F78941F29C23E570 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				613330B48B8E4CD983D5823F /* ModelStoreRecoveryCoordinatorTests.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
 		73C3B2A9B2D4FD34A4A26927 /* Notifications */ = {
 			isa = PBXGroup;
 			children = (
@@ -2526,6 +2553,7 @@
 				E327C6377502A88D4BC73345 /* CollectionPayloadTests.swift */,
 				28C02B69FDE44C27D8D00179 /* ExploreBadgePolicyTests.swift */,
 				F71C57AEAFAB467D561741E6 /* merianTests.swift */,
+				7387CDB9F78941F29C23E570 /* App */,
 				192842E967C6A9078FCF308D /* Core */,
 				F556569C6CEDDE242A2907D4 /* Features */,
 				02569BE1360F700BD77DEDD9 /* Messages */,
@@ -3231,6 +3259,7 @@
 				1FD942BF89193701906DF990 /* Database */,
 				122541D6DA4AAF8552B00B96 /* Images */,
 				A32FD8AA1960AF29251A707C /* OfflineSync */,
+				29C63F60DA82D4C729A6F545 /* StoreRecovery */,
 			);
 			path = Data;
 			sourceTree = "<group>";
@@ -3728,6 +3757,7 @@
 				82B0608E6EC3193C1E67F8B4 /* MerianNetworkClientTests.swift in Sources */,
 				B96C8A9003F1AFA7B501D22C /* MessageScanShareCacheTests.swift in Sources */,
 				16117E2F26BB086D39E35C9D /* MigrationPlanTests.swift in Sources */,
+				CD19C17F9CF0833B01E1907D /* ModelStoreRecoveryCoordinatorTests.swift in Sources */,
 				635B07AC333E4229260FB0A0 /* ObservationContextTests.swift in Sources */,
 				7C4B029B86B20666C1AA8487 /* OfflineQueueManagerAudioTests.swift in Sources */,
 				7408583185CACBBAC7D2D228 /* OfflineQueueManagerTests.swift in Sources */,
@@ -3997,11 +4027,13 @@
 				ED42DB2827BF8D98F5D1AD7F /* MerianError.swift in Sources */,
 				73426863D502C5C96DA43D18 /* MerianLog.swift in Sources */,
 				F366496097CBC48873E991A4 /* MerianNetworkClient.swift in Sources */,
+				A35BCF9F2C9B4C046645F1FA /* MerianObjCExceptionBridge.m in Sources */,
 				ADCB8FE6E3B226E3FE4BE445 /* MerianSupabaseClientFactory.swift in Sources */,
 				AC3E2D266D7A924298E84F2E /* MerianSystemFeedbackModifier.swift in Sources */,
 				23DB7937EF47D0E70B8D9291 /* MessageScanShareCache.swift in Sources */,
 				E8C7035CAE8AB4A78EFF0D47 /* MessageScanShareCacheWriter.swift in Sources */,
 				F1CAC142B43DAFB5E5B1FB52 /* ModelInfoSection.swift in Sources */,
+				65F44315AAA962D931C75B91 /* ModelStoreRecoveryCoordinator.swift in Sources */,
 				1B04384E625F8FC3D75ABF31 /* ModelTierBadge.swift in Sources */,
 				02DC751E0B5FE8592A530F7B /* NamePickerSheet.swift in Sources */,
 				8E3B6460CC05B8333F0908B4 /* NativePageCarousel+Coordinator.swift in Sources */,
@@ -4290,6 +4322,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.merian.Merian;
 				SDKROOT = iphoneos;
+				SWIFT_OBJC_BRIDGING_HEADER = "apps/ios/Merian/Configuration/Merian-Bridging-Header.h";
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
@@ -4585,6 +4618,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = app.merian.Merian;
 				SDKROOT = iphoneos;
+				SWIFT_OBJC_BRIDGING_HEADER = "apps/ios/Merian/Configuration/Merian-Bridging-Header.h";
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
