@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-07-02.
+Last reviewed: 2026-07-03.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -43,8 +43,9 @@ Web runtime config:
 
 | Area | File | Notes |
 |---|---|---|
-| SwiftUI app entry | `apps/ios/Merian/App/MerianApp.swift` | Builds the `ModelContainer` from `CurrentSchema`, performs corruption-aware store quarantine, configures `ScanRepository`, migrates species display preferences, initializes TelemetryDeck outside tests, applies global theme to `UIWindow`, and handles `merian://explore/post/<id>`, `merian://scan/<id>`, and `merian://scans` deep links. |
+| SwiftUI app entry | `apps/ios/Merian/App/MerianApp.swift` | Builds the `ModelContainer` from `CurrentSchema`, delegates corruption-aware store quarantine to `Core/Data/StoreRecovery/`, configures `ScanRepository`, migrates species display preferences, initializes TelemetryDeck outside tests, applies global theme to `UIWindow`, and handles `merian://explore/post/<id>`, `merian://scan/<id>`, and `merian://scans` deep links. |
 | App delegate bridge | `apps/ios/Merian/App/MerianApp.swift` | Owns background `URLSession` completion handoff and push token callbacks. |
+| Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`, `apps/ios/Merian/Configuration/Merian-Bridging-Header.h` | Converts launch-time SwiftData/Core Data Objective-C exceptions into Swift errors so store recovery can run. |
 | Dependency container | `apps/ios/Merian/Core/AppDIContainer.swift` | Injects hardware, AI, sync, network, analytics, security, settings, and profile dependencies through SwiftUI `@Environment`. |
 | Detached work helper | `apps/ios/Merian/Core/AppDIContainer.swift` | Small wrapper for intentional detached image, database, file-system, and bootstrap work. |
 
@@ -125,6 +126,7 @@ native iOS source tree.
 | Data/Database | `apps/ios/Merian/Core/Data/Database/` | `BackgroundDatabaseActor`, `FileIOActor`, `ScanRepository`, and `HistoricalDatabaseActor`. |
 | Data/Images | `apps/ios/Merian/Core/Data/Images/` | Archive rescue, photo-library access, thumbnails, local image loading, and RAM image cache. |
 | Offline sync | `apps/ios/Merian/Core/Data/OfflineSync/` | Queue state machine, upload URLSession handoff, background inference replay, audio queue helpers, and sync phase state. |
+| Store recovery | `apps/ios/Merian/Core/Data/StoreRecovery/` | Corruption-gated SwiftData store quarantine, safe-mode decision support, and sanitized recovery manifests. |
 | Hardware | `apps/ios/Merian/Core/Hardware/` | Camera, environment context, audio, spectrogram, haptics, thermal/battery orchestration, and push token management. |
 | Network | `apps/ios/Merian/Core/Network/` | Supabase auth/client facade, TLS-pinned network client, Explore DTOs, species dictionary/observation-stats DTOs, and Keychain manager. |
 | Security | `apps/ios/Merian/Core/Security/` | Circuit breaker, device identity, RevenueCat, and social guard. |

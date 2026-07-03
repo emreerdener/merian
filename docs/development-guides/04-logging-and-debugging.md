@@ -48,6 +48,13 @@ When in doubt, use `MerianLog.general`. Do not create new `Logger` instances out
 
 **Rule: use `.error` in any `catch` that could cause data loss or inconsistency.** Use `.debug` for anything that is part of normal flow. The previous codebase used `.debug` for SwiftData save failures — those were upgraded to `.error` during the concurrency audit.
 
+Startup store recovery is a production support path:
+
+- Log the initial persistent-store failure as `.error`.
+- Log a successful quarantine/retry as `.error` so it survives production log collection.
+- Log a failed quarantine/retry as `.fault` because the app is entering safe mode after a verified corruption attempt.
+- Never log full local store paths, tokens, user IDs, scan IDs, or profile data. The quarantine `recovery-manifest.json` is the support artifact for sanitized context.
+
 ---
 
 ## Privacy Specifiers

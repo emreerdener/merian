@@ -339,7 +339,7 @@ struct MerianApp: App {
     }
 
     private static func makeContainerCatchingObjectiveCExceptions(
-        _ buildContainer: () throws -> ModelContainer
+        _ buildContainer: @escaping () throws -> ModelContainer
     ) throws -> ModelContainer {
         var container: ModelContainer?
         var swiftError: Error?

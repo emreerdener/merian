@@ -128,6 +128,8 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
 
 ## 2026-07 Startup Store-Recovery Guardrails
 
+The full operating contract lives in `docs/backend-and-data/08-startup-store-recovery.md`.
+
 - SwiftData/Core Data can raise Objective-C `NSException`s during `ModelContainer` initialization, which Swift `do/catch` cannot catch directly. `MerianApp` wraps container creation with a tiny Objective-C bridge so those launch-time exceptions become Swift errors and can enter the existing recovery path.
 - Store quarantine is intentionally narrow and owned by `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`: Merian only moves `default.store`, `default.store-shm`, and `default.store-wal` when the failure matches a verified SQLite/Core Data corruption signature and those store artifacts exist. Generic container failures must boot safe mode without moving user data.
 - Quarantine directories include `recovery-manifest.json` with app/build/OS metadata, moved artifact names, and a sanitized error reason. This manifest is for support and debugging only; it must not include user IDs, paths outside the quarantine, access tokens, or profile data.

@@ -35,6 +35,7 @@ This directory is the technical master reference for the native iOS application,
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)** — JSON mapping contracts between the iOS client and Deno Edge functions, including `/identify-multimodal`, `/insight-chat`, `/update-public-avatar`, Community Identification endpoints, `/species-dictionary`, `/species-observation-stats`, Explore detail similar species, and internal cron workers such as Merian reference-image refresh.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)** — CI-first Supabase deployment path, required GitHub secrets, local emergency fallback, and post-deploy smoke checks.
 - **[`/backend-and-data/07-community-taxonomy-import-checklist.md`](./backend-and-data/07-community-taxonomy-import-checklist.md)** — Running checklist for bounded GBIF Community Taxonomy imports, completed Birds batches, next offsets, and operational follow-ups.
+- **[`/backend-and-data/08-startup-store-recovery.md`](./backend-and-data/08-startup-store-recovery.md)** — Launch-time SwiftData store recovery contract: exception bridge, corruption-gated quarantine, safe mode, auth isolation, manifest, telemetry, and verification.
 
 ### Features & Hardware
 

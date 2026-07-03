@@ -143,6 +143,14 @@ MerianTests/
     `testFullMigrationV40ToV41BackfillsCapturedMediaEntries()`, typed
     `StoredMediaReference` round-trips, and
     `testCapturedMediaSnapshotBuildsSharedDerivedViews()`. This is the
+    preferred place for schema-version migration fixtures and SwiftData checksum
+    regressions.
+- **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
+  damaged local stores. It verifies corruption-only quarantine, no quarantine
+  for generic startup failures, sanitized `recovery-manifest.json` output, and a
+  source-scan boundary that prevents store recovery from referencing
+  `KeychainManager`, `SupabaseManager`, sign-out flows, or current-user state.
+  The focused CI lane is `.github/workflows/ios-startup-safety.yml`.
     regression net for the ordered mixed-media timeline, typed storage metadata,
     and the V41 `CapturedMediaEntry` backfill.
   - Source-level migration guardrails fail the suite if `SchemaVersions.swift`

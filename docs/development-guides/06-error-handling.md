@@ -86,6 +86,8 @@ Both uploads and inference use the same background `URLSession` (`URLSessionConf
 | R2 upload failure (missing source file) | Scan tombstoned silently via `softDeleteQueuedScan`; user is not notified |
 | R2 upload — transient error × 3 consecutive failures | Scan tombstoned silently after `maxUploadRetries` exhausted; user is not notified |
 | SwiftData save failure during deletion | `.error` logged; file deletion aborted; DB state remains consistent (record still exists, deletion task not persisted) |
+| SwiftData store corruption at startup | Store artifacts are quarantined, a support manifest is written, persistent open is retried once, and the user sees "Library Repaired" if recovery succeeds |
+| Non-corruption `ModelContainer` startup failure | Local store files are not moved; app boots in in-memory safe mode with a startup notice |
 | JWT expiry (authenticated OAuth user) | `MerianError.invalidResponse` thrown; callers surface a re-auth prompt |
 
 ---
@@ -104,7 +106,8 @@ When `identify/index.ts` fires `runBackgroundIngestion()` and `insertScan()` fai
 
 - Apple Sign-In bootstrap failures are no longer fatal. Missing presentation anchors, missing callback nonces, and `SecRandomCopyBytes` failures now log and return control to the UI instead of terminating the app.
 - `presentationAnchor(for:)` must always return a best-effort anchor. If no active key window exists yet, the flow cancels gracefully rather than crashing the scene.
-- `ModelContainer` bootstrap failures now follow a recovery ladder: normal open → corruption detection → quarantine + retry → in-memory safe mode with startup notice.
+- `ModelContainer` bootstrap failures now follow a recovery ladder: normal open → Objective-C exception bridge → corruption detection → quarantine + retry → in-memory safe mode with startup notice.
+- Store recovery is local persistence repair only. It must not clear Keychain, Supabase sessions, device identity, profile state, or public Explore ownership. See `docs/backend-and-data/08-startup-store-recovery.md`.
 - Remote export/download flows must reject invalid or non-allowlisted URLs before any network call. Use `URLComponents`, require `https`, and allow only exact approved hosts.
 
 ---

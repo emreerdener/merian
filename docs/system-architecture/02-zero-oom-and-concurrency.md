@@ -890,7 +890,7 @@ This ensures:
 
 ## 2026-04 Hardening Updates
 
-- `MerianApp` no longer wipes the SwiftData store on every `ModelContainer` init failure. Recovery is now corruption-specific, quarantines `default.store` + WAL/SHM siblings first, and fails closed on non-corruption startup errors.
+- `MerianApp` no longer wipes the SwiftData store on every `ModelContainer` init failure. Recovery is now corruption-specific, owned by `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`, quarantines `default.store` + WAL/SHM siblings only after verified corruption signatures, writes a sanitized manifest, and fails closed on non-corruption startup errors.
 - `InferenceEngine` now guards background-write replay with a generation token. `prepareForNewScan()` and `cancelActiveRequest()` both clear pending closures and invalidate stale write tasks so cancelled work cannot mutate the next scan session.
 - `AudioCaptureManager` and `SpeechManager` now guarantee full teardown on startup cancellation and early failures: tap removal, engine stop, task cancellation, stream finishing, and session deactivation all happen on every exit path. `AudioSessionCoordinator` serializes activation/deactivation with lease tokens so stale teardown work cannot deactivate a newer session.
 - The spectrogram and SNR hot paths no longer use repeated `removeFirst()` array shifts. They now keep bounded circular buffers for visible spectrogram history and trailing noise-floor history.
@@ -899,7 +899,7 @@ This ensures:
 
 ## 2026-05 Stability Updates
 
-- **Non-fatal bootstrap boundaries**: auth presentation, Apple nonce generation, and `ModelContainer` startup are now recoverable paths. Startup retries corruption recovery once, quarantines the store when signatures match, and falls back to an in-memory safe mode with a user-facing notice instead of crashing.
+- **Non-fatal bootstrap boundaries**: auth presentation, Apple nonce generation, and `ModelContainer` startup are now recoverable paths. Startup routes SwiftData/Core Data Objective-C exceptions through the bridge, retries corruption recovery once, quarantines the store when signatures match, and falls back to an in-memory safe mode with a user-facing notice instead of crashing.
 - **Collection membership is scan-driven**: hot UI paths (`CollectionCard`, `CollectionsView`, `SelectMultipleScansView`, `CollectionDetailView`) and historical reconciliation no longer rely on `collection.scans` traversal. Membership snapshots are derived from `LocalScanRecord.collections` so SwiftData faults stay bounded.
 - **Offline file work is actor-owned**: queued-scan cleanup and image writes flow through `FileIOActor.deleteFiles(at:)` / `writeTemporaryImages(imageDatas:)`.
 - **File-backed restore uploads**: explore restore now re-uploads images with `upload(for:fromFile:)` and a small task-group concurrency window, eliminating duplicate in-memory image buffers during restores.
