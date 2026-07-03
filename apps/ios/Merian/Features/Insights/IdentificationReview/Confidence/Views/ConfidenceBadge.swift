@@ -64,7 +64,7 @@ struct ConfidenceBadge: View {
             
             Button(action: {
                 guard !isAnalyzing else { return }
-                HapticManager.shared.triggerSheetSpring()
+                HapticManager.shared.triggerHeavyImpact(intensity: 1.0)
                 activeDetent = .fraction(0.65)
                 allowedDetents = [.fraction(0.65), .large]
                 isShowingExplanation = true
