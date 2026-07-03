@@ -19,13 +19,31 @@ chooses to show.
   "field_notes": "Found at the shaded meadow edge after rain.",
   "species_common_name": "Black-Tailed Deer",
   "hashtags": ["deer", "urbanwildlife"],
-  "location_sharing": "obscured"
+  "location_sharing": "obscured",
+  "media_items": [
+    {
+      "kind": "video",
+      "source_media_id": "scan:uuid:video:0",
+      "order_index": 0
+    },
+    {
+      "kind": "image",
+      "source_media_id": "scan:uuid:image:0",
+      "order_index": 1
+    }
+  ]
 }
 ```
 
 `field_notes` and `species_common_name` may also be `null`. `location_sharing`
 may be `open`, `obscured`, or `private`; legacy `hidden` input is accepted as
 `private`.
+
+`media_items` is optional. New clients should submit `source_media_id` values
+returned by `get-explore-composer-media`; this allows owners to reorder, remove,
+or re-add eligible source scan media. Legacy clients may still reorder/remove
+the post's existing public image/video rows by URL. Arbitrary URLs are not
+accepted, and videos must resolve to an image-backed thumbnail.
 
 ## Response
 
@@ -53,6 +71,9 @@ may be `open`, `obscured`, or `private`; legacy `hidden` input is accepted as
   same normalization used by `share-scan-to-explore`.
 - `location_sharing`, when supplied, updates only this Explore post. It does not
   mutate `scans.geoprivacy` or `users.default_geoprivacy`.
+- `media_items`, when supplied, must contain at least one existing image/video
+  source row owned by this post's scan or one existing public post media URL.
+  Non-visual kinds and videos without thumbnails are rejected.
 - `open` can make the post eligible for Explore Map and non-owned Nearby when
   public coordinates are safe; `obscured` can keep a scrubbed public label but
   stays off spatial results; `private` clears public location fields.

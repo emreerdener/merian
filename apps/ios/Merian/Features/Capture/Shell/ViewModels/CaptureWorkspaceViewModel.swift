@@ -152,11 +152,13 @@ final class CaptureWorkspaceViewModel {
     // MARK: - Camera & Scanning State
     var isCapturing: Bool = false
     var isVideoRecording: Bool = false
+    var videoRecordingProgress: Double = 0
     var flashOpacity: Double = 0.0
     
     // MARK: - Asynchronous Jobs
     @ObservationIgnored var preFetchTask: Task<EnvironmentContext, Never>?
     @ObservationIgnored var videoRecordingTask: Task<Void, Never>?
+    @ObservationIgnored var videoRecordingProgressTask: Task<Void, Never>?
     @ObservationIgnored private var focusTask: Task<Void, Never>?
     /// Tracks the scanId of the most recently submitted scan. Used by the async telemetry
     /// Task in `submitActiveScan` to detect when a newer scan has superseded this one and
@@ -820,6 +822,9 @@ final class CaptureWorkspaceViewModel {
         if newPhase == .background && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
             audioCaptureManager.pauseRecording()
         }
+        if newPhase == .inactive || newPhase == .background, isVideoRecording {
+            stopVideoCapture()
+        }
     }
 
     func handleCaptureModeChange(
@@ -832,6 +837,9 @@ final class CaptureWorkspaceViewModel {
 
         if newMode != .audio && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
             audioCaptureManager.pauseRecording()
+        }
+        if newMode != .visual, isVideoRecording {
+            stopVideoCapture()
         }
 
         if newMode == .audio || newMode == .describe {

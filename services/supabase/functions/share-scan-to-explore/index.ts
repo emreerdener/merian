@@ -12,6 +12,7 @@ import {
   replaceExplorePostHashtags,
   upsertExplorePost,
 } from "./db.ts";
+import type { SelectedExplorePostMediaItem } from "./db.ts";
 
 function makeHttpError(
   status: number,
@@ -141,6 +142,76 @@ function normalizeLocationSharing(value: unknown): string | null {
   );
 }
 
+function normalizeMediaItems(
+  value: unknown,
+): SelectedExplorePostMediaItem[] | undefined {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) {
+    throw makeHttpError(400, "media_items must be an array.");
+  }
+  if (value.length === 0) {
+    throw makeHttpError(400, "media_items must include at least one item.");
+  }
+
+  return value.map((entry, index) => {
+    if (entry == null || typeof entry !== "object" || Array.isArray(entry)) {
+      throw makeHttpError(400, "media_items entries must be objects.");
+    }
+
+    const record = entry as Record<string, unknown>;
+    const kind = record.kind;
+    if (kind !== "image" && kind !== "video") {
+      throw makeHttpError(400, "media_items can only include image or video.");
+    }
+
+    const sourceMediaId = typeof record.source_media_id === "string"
+      ? record.source_media_id.trim()
+      : null;
+    const sourceIndex = sourceMediaId ? undefined : normalizeNonNegativeInteger(
+      record.source_index,
+      "media_items.source_index",
+    );
+    const orderIndex = Object.hasOwn(record, "order_index")
+      ? normalizeNonNegativeInteger(
+        record.order_index,
+        "media_items.order_index",
+      )
+      : index;
+
+    const normalized: SelectedExplorePostMediaItem = {
+      kind,
+      source_media_id: sourceMediaId || undefined,
+      source_index: sourceIndex,
+      order_index: orderIndex,
+    };
+
+    if (kind === "video" && Object.hasOwn(record, "thumbnail_source_index")) {
+      normalized.thumbnail_source_index = normalizeNonNegativeInteger(
+        record.thumbnail_source_index,
+        "media_items.thumbnail_source_index",
+      );
+    } else if (Object.hasOwn(record, "thumbnail_source_index")) {
+      throw makeHttpError(
+        400,
+        "Image media cannot include a video thumbnail source.",
+      );
+    }
+
+    return normalized;
+  });
+}
+
+function normalizeNonNegativeInteger(
+  value: unknown,
+  fieldName: string,
+): number {
+  if (!Number.isInteger(value) || (value as number) < 0) {
+    throw makeHttpError(400, `${fieldName} must be a non-negative integer.`);
+  }
+
+  return value as number;
+}
+
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
@@ -163,6 +234,7 @@ Deno.serve((req: Request) =>
     const requestedLocationSharing = normalizeLocationSharing(
       body.location_sharing,
     );
+    const mediaItems = normalizeMediaItems(body.media_items);
 
     const scan = await fetchShareEligibleScan(
       scanId,
@@ -178,11 +250,12 @@ Deno.serve((req: Request) =>
     const locationSharing = requestedLocationSharing ?? scan.geoprivacy;
     await syncPublicAuthorIdentity(user.id, supabaseAdmin);
     const post = await upsertExplorePost(
-      scanId,
+      scan,
       user.id,
       speciesCommonName,
       fieldNotes,
       locationSharing,
+      mediaItems,
       supabaseAdmin,
     );
     await replaceExplorePostHashtags(post.id, hashtags, supabaseAdmin);

@@ -25,6 +25,7 @@ struct InsightShareButton: View {
     var commonNameOptions: [String]
     var initialSelectedCommonName: String
     var heroImageUrl: String?
+    var mediaItems: [ExplorePostComposerMediaDraft] = []
     var publicLocationLabel: String?
     var fieldNotesPreview: String?
     var hashtagSuggestionContext: ExploreHashtagSuggestionContext
@@ -202,6 +203,7 @@ struct InsightShareButton: View {
                 initialFieldNotesArePublic: sharedExplorePostId == nil ? true : fieldNotesArePublicOnExplore,
                 initialHashtags: sharedExplorePostId == nil ? [] : sharedExploreHashtags,
                 initialLocationSharing: initialLocationSharing,
+                mediaItems: mediaItems,
                 hashtagSuggestionContext: hashtagSuggestionContext.updating(fieldNotes: fieldNotesPreview),
                 isSaving: sharedExplorePostId == nil ? isSharingToExplore : isUpdatingExplorePostContent,
                 onSubmit: { draft in

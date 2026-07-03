@@ -4,6 +4,7 @@ import {
   fetchShareEligibleScan,
   upsertExplorePost,
 } from "../share-scan-to-explore/db.ts";
+import type { ShareEligibleScanRow } from "../share-scan-to-explore/db.ts";
 
 export interface CommunityRequestRow {
   id: string;
@@ -65,7 +66,7 @@ async function fetchInitialTaxonNodeId(
 }
 
 async function upsertCommunityExplorePost(
-  scanId: string,
+  scan: ShareEligibleScanRow,
   userId: string,
   speciesCommonName: string | null,
   locationSharing: string,
@@ -74,7 +75,7 @@ async function upsertCommunityExplorePost(
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("explore_posts")
     .select("id,shared_at,unshared_at")
-    .eq("scan_id", scanId)
+    .eq("scan_id", scan.id)
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -84,11 +85,12 @@ async function upsertCommunityExplorePost(
 
   if (!existing) {
     return await upsertExplorePost(
-      scanId,
+      scan,
       userId,
       speciesCommonName,
       null,
       locationSharing,
+      undefined,
       supabaseAdmin,
     );
   }
@@ -169,7 +171,7 @@ export async function requestCommunityIdentification(
   }
 
   const post = await upsertCommunityExplorePost(
-    scanId,
+    scan,
     userId,
     speciesCommonName,
     locationSharing ?? scan.geoprivacy,

@@ -592,6 +592,7 @@ private struct ExploreFeedTabContent: View {
     @State private var isResolvingNearbyLocation = false
     @State private var editingPost: ExplorePost?
     @State private var editingPostDetail: ExplorePostDetail?
+    @State private var editingPostMediaItems: [ExplorePostComposerMediaDraft] = []
     @State private var editingPostLocalFieldNotes: String?
     @State private var isSavingEditedPost = false
     let onOpenPostDetail: (ExplorePost) -> Void
@@ -641,6 +642,7 @@ private struct ExploreFeedTabContent: View {
                 initialFieldNotesArePublic: editingPostDetail?.trimmedFieldNotes != nil,
                 initialHashtags: editingPostDetail?.hashtags ?? post.hashtags ?? [],
                 initialLocationSharing: editingPostDetail?.locationSharing ?? post.locationSharing ?? .obscured,
+                mediaItems: editingPostMediaItems,
                 isSaving: isSavingEditedPost,
                 onSubmit: { draft in
                     Task { await saveEditedPost(draft, for: post) }
@@ -806,8 +808,11 @@ private struct ExploreFeedTabContent: View {
 
         do {
             editingPostDetail = try await MerianNetworkClient.shared.getExplorePostDetail(postId: post.id)
+            let mediaPayload = try await MerianNetworkClient.shared.getExploreComposerMedia(postId: post.id)
+            editingPostMediaItems = ExplorePostComposerMediaDraft.sourceItems(from: mediaPayload.mediaItems)
         } catch {
             editingPostDetail = nil
+            editingPostMediaItems = ExplorePostComposerMediaDraft.existingPostItems(from: post.mediaItems ?? [])
             viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
             return
         }
@@ -830,7 +835,8 @@ private struct ExploreFeedTabContent: View {
                 speciesCommonName: draft.selectedCommonName,
                 fieldNotes: draft.publicFieldNotes,
                 hashtags: draft.hashtags,
-                locationSharing: draft.locationSharing
+                locationSharing: draft.locationSharing,
+                mediaItems: draft.mediaItems
             )
             updateLocalFieldNotes(draft.fieldNotes ?? "", for: post)
             editingPostDetail?.fieldNotes = response.fieldNotes
@@ -863,6 +869,7 @@ private struct ExploreFeedTabContent: View {
 
     private func clearPostEditor() {
         editingPostDetail = nil
+        editingPostMediaItems = []
         editingPostLocalFieldNotes = nil
     }
 

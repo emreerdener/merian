@@ -26,6 +26,7 @@ struct ExplorePostDetailView: View {
     @State private var showFieldNotesEditor = false
     @State private var showPostComposer = false
     @State private var isSavingPostContent = false
+    @State private var postComposerMediaItems: [ExplorePostComposerMediaDraft] = []
     @State private var localFieldNotes: String?
     @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
@@ -403,6 +404,7 @@ struct ExplorePostDetailView: View {
                     initialFieldNotesArePublic: fieldNotesArePublicOnExplore,
                     initialHashtags: detail?.hashtags ?? post.hashtags ?? [],
                     initialLocationSharing: detail?.locationSharing ?? post.locationSharing ?? .obscured,
+                    mediaItems: postComposerMediaItems,
                     isSaving: isSavingPostContent,
                     onSubmit: { draft in
                         Task { await savePostContent(draft, for: post) }
@@ -695,8 +697,20 @@ struct ExplorePostDetailView: View {
     private func openPostComposer(for post: ExplorePost) {
         guard isOwnedByCurrentUser(post) else { return }
         syncLocalFieldNotes(for: post)
-        HapticManager.shared.triggerSelectionPulse()
-        showPostComposer = true
+        postComposerMediaItems = ExplorePostComposerMediaDraft.existingPostItems(from: post.mediaItems ?? [])
+        Task {
+            do {
+                let payload = try await MerianNetworkClient.shared.getExploreComposerMedia(postId: post.id)
+                postComposerMediaItems = ExplorePostComposerMediaDraft.sourceItems(from: payload.mediaItems)
+            } catch {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+                }
+            }
+
+            HapticManager.shared.triggerSelectionPulse()
+            showPostComposer = true
+        }
     }
 
     private func savePostContent(_ draft: ExplorePostComposerDraft, for post: ExplorePost) async {
@@ -712,7 +726,8 @@ struct ExplorePostDetailView: View {
                 speciesCommonName: draft.selectedCommonName,
                 fieldNotes: draft.publicFieldNotes,
                 hashtags: draft.hashtags,
-                locationSharing: draft.locationSharing
+                locationSharing: draft.locationSharing,
+                mediaItems: draft.mediaItems
             )
             detail?.fieldNotes = response.fieldNotes
             detail?.locationSharing = response.locationSharing ?? draft.locationSharing

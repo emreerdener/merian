@@ -29,6 +29,50 @@ enum CaptureSubmissionMediaItem: Sendable, Equatable {
     }
 }
 
+enum IdentifyVisualMediaKind: String, Sendable {
+    case image
+    case videoFrame = "video_frame"
+}
+
+struct IdentifyVisualMediaItem: Sendable, Equatable {
+    let kind: IdentifyVisualMediaKind
+    let sourceIndex: Int?
+    let clipIndex: Int?
+    let frameIndex: Int?
+
+    static func image(sourceIndex: Int) -> IdentifyVisualMediaItem {
+        IdentifyVisualMediaItem(
+            kind: .image,
+            sourceIndex: sourceIndex,
+            clipIndex: nil,
+            frameIndex: nil
+        )
+    }
+
+    static func videoFrame(clipIndex: Int, frameIndex: Int) -> IdentifyVisualMediaItem {
+        IdentifyVisualMediaItem(
+            kind: .videoFrame,
+            sourceIndex: nil,
+            clipIndex: clipIndex,
+            frameIndex: frameIndex
+        )
+    }
+
+    var jsonObject: [String: Any] {
+        var object: [String: Any] = ["kind": kind.rawValue]
+        if let sourceIndex {
+            object["sourceIndex"] = sourceIndex
+        }
+        if let clipIndex {
+            object["clipIndex"] = clipIndex
+        }
+        if let frameIndex {
+            object["frameIndex"] = frameIndex
+        }
+        return object
+    }
+}
+
 extension Array where Element == CaptureSubmissionMediaItem {
     var audioFilePaths: [String] {
         compactMap { item in

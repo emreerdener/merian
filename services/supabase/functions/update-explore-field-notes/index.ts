@@ -2,6 +2,7 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import { normalizeExploreHashtag, requireUuid } from "../_shared/explore.ts";
 import { updateExploreFieldNotes } from "./db.ts";
+import type { ExistingExplorePostMediaSelection } from "./db.ts";
 
 function makeHttpError(
   status: number,
@@ -96,6 +97,70 @@ function normalizeLocationSharing(value: unknown): string | undefined {
   );
 }
 
+function normalizeMediaItems(
+  value: unknown,
+): ExistingExplorePostMediaSelection[] | undefined {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) {
+    throw makeHttpError(400, "media_items must be an array.");
+  }
+  if (value.length === 0) {
+    throw makeHttpError(400, "media_items must include at least one item.");
+  }
+
+  return value.map((entry, index) => {
+    if (entry == null || typeof entry !== "object" || Array.isArray(entry)) {
+      throw makeHttpError(400, "media_items entries must be objects.");
+    }
+
+    const record = entry as Record<string, unknown>;
+    const kind = record.kind;
+    if (kind !== "image" && kind !== "video") {
+      throw makeHttpError(400, "media_items can only include image or video.");
+    }
+    const sourceMediaId = typeof record.source_media_id === "string"
+      ? record.source_media_id.trim()
+      : null;
+    const url = typeof record.url === "string" ? record.url.trim() : null;
+    if (!sourceMediaId && !url) {
+      throw makeHttpError(400, "media_items requires source_media_id or url.");
+    }
+
+    const orderIndex = Object.hasOwn(record, "order_index")
+      ? normalizeNonNegativeInteger(
+        record.order_index,
+        "media_items.order_index",
+      )
+      : index;
+    const thumbnailUrl = typeof record.thumbnail_url === "string"
+      ? record.thumbnail_url.trim()
+      : null;
+
+    if (kind === "video" && !sourceMediaId && !thumbnailUrl) {
+      throw makeHttpError(400, "Selected video media requires a thumbnail.");
+    }
+
+    return {
+      kind,
+      source_media_id: sourceMediaId || undefined,
+      url: url || undefined,
+      thumbnail_url: thumbnailUrl,
+      order_index: orderIndex,
+    };
+  });
+}
+
+function normalizeNonNegativeInteger(
+  value: unknown,
+  fieldName: string,
+): number {
+  if (!Number.isInteger(value) || (value as number) < 0) {
+    throw makeHttpError(400, `${fieldName} must be a non-negative integer.`);
+  }
+
+  return value as number;
+}
+
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const parsedBody = await parseJsonBody(req);
@@ -114,6 +179,7 @@ Deno.serve((req: Request) =>
     const locationSharing = Object.hasOwn(body, "location_sharing")
       ? normalizeLocationSharing(body.location_sharing)
       : undefined;
+    const mediaItems = normalizeMediaItems(body.media_items);
     const row = await updateExploreFieldNotes(
       postId,
       user.id,
@@ -121,6 +187,7 @@ Deno.serve((req: Request) =>
       hashtags,
       speciesCommonName,
       locationSharing,
+      mediaItems,
       supabaseAdmin,
     );
 

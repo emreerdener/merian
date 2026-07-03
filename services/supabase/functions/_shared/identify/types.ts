@@ -128,6 +128,8 @@ export interface MultimodalPayload {
   audioR2ObjectKeys?: string[];
   videoR2ObjectKeys?: string[];
   videoFrameCount?: number;
+  visualMediaItems?: VisualMediaItemDTO[];
+  visual_media_items?: VisualMediaItemDTO[];
   observation_contexts?: ObservationContextDTO[];
   r2ObjectKeys?: string[];
 
@@ -167,6 +169,16 @@ export interface MultimodalPayload {
   estimated_size_cm?: number | null;
   isIpad?: boolean;
   // Trigger TS Language Server refresh - force Deno to read the updated camelCase types
+}
+
+export interface VisualMediaItemDTO {
+  kind?: "image" | "video_frame" | string;
+  sourceIndex?: number;
+  source_index?: number;
+  clipIndex?: number;
+  clip_index?: number;
+  frameIndex?: number;
+  frame_index?: number;
 }
 
 export interface ClientPayload extends MerianIdentification {

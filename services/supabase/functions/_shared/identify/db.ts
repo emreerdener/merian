@@ -22,16 +22,30 @@ import {
 } from "./types.ts";
 
 export type ScanGeoprivacy = "open" | "obscured" | "private";
+export type ScanEcologyType = "wild" | "urban" | "domesticated" | "unknown";
 
 const VALID_SCAN_GEOPRIVACY = new Set<ScanGeoprivacy>([
   "open",
   "obscured",
   "private",
 ]);
+const VALID_SCAN_ECOLOGY_TYPES = new Set<ScanEcologyType>([
+  "wild",
+  "urban",
+  "domesticated",
+  "unknown",
+]);
 
 export function isScanGeoprivacy(value: unknown): value is ScanGeoprivacy {
   return typeof value === "string" &&
     VALID_SCAN_GEOPRIVACY.has(value as ScanGeoprivacy);
+}
+
+export function normalizeScanEcologyType(value: unknown): ScanEcologyType {
+  return typeof value === "string" &&
+      VALID_SCAN_ECOLOGY_TYPES.has(value as ScanEcologyType)
+    ? value as ScanEcologyType
+    : "unknown";
 }
 
 export async function resolveScanGeoprivacy(
@@ -266,7 +280,7 @@ export interface ScanInsertRow {
   is_biological_subject: boolean;
   blur_score?: number;
   zoom_factor?: number | null;
-  ecology_type?: string;
+  ecology_type?: string | null;
   is_invasive?: boolean;
   invasive_status_region?: string | null;
   invasive_rationale?: string | null;
@@ -337,6 +351,7 @@ export async function insertScan(
   const scanRow = {
     ...row,
     geoprivacy,
+    ecology_type: normalizeScanEcologyType(row.ecology_type),
     public_location_label: geoprivacy === "private"
       ? null
       : row.public_location_label,

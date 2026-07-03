@@ -28,6 +28,9 @@ extension CaptureWorkspaceViewModel {
         var capturedMediaTimeline: [CaptureSubmissionMediaItem] = []
         var capturedDisplayImages: [StagedImage] = []
         var capturedInferenceImages: [StagedImage] = []
+        var capturedVisualMediaItems: [IdentifyVisualMediaItem] = []
+        var stillImageSourceIndex = 0
+        var videoClipIndex = 0
 
         for node in stagedNodes {
             switch node {
@@ -35,6 +38,8 @@ extension CaptureWorkspaceViewModel {
                 let imageIndex = capturedDisplayImages.count
                 capturedDisplayImages.append(stagedImage)
                 capturedInferenceImages.append(stagedImage)
+                capturedVisualMediaItems.append(.image(sourceIndex: stillImageSourceIndex))
+                stillImageSourceIndex += 1
                 capturedMediaTimeline.append(.image(index: imageIndex))
             case .video(_, let stagedVideo):
                 if let coverImage = stagedVideo.coverImage {
@@ -43,6 +48,10 @@ extension CaptureWorkspaceViewModel {
                     capturedMediaTimeline.append(.image(index: imageIndex))
                 }
                 capturedInferenceImages.append(contentsOf: stagedVideo.sampledImages)
+                for frameIndex in stagedVideo.sampledImages.indices {
+                    capturedVisualMediaItems.append(.videoFrame(clipIndex: videoClipIndex, frameIndex: frameIndex))
+                }
+                videoClipIndex += 1
                 capturedMediaTimeline.append(.video(stagedVideo.filePath))
             case .audio(_, let stagedAudio):
                 capturedMediaTimeline.append(.audio(stagedAudio.filePath))
@@ -159,6 +168,7 @@ extension CaptureWorkspaceViewModel {
                     telemetry: telemetry,
                     observationContexts: capturedObservationContexts,
                     mediaTimeline: capturedMediaTimeline,
+                    visualMediaItems: capturedVisualMediaItems,
                     modelContext: modelContext,
                     targetEradicationScanId: targetEradicationScanId
                 )

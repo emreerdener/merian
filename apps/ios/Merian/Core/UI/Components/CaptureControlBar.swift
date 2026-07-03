@@ -94,6 +94,7 @@ struct CaptureControlBar: View {
                     isInputActive: isInputActive,
                     isProVideoAvailable: viewModel.diContainer.revenueCatManager.isProActive,
                     isVideoRecording: viewModel.isVideoRecording,
+                    videoRecordingProgress: viewModel.videoRecordingProgress,
                     onAction: {
                         switch captureMode {
                         case .visual:
@@ -196,6 +197,7 @@ private struct CaptureButton: View {
     let isInputActive: Bool
     let isProVideoAvailable: Bool
     let isVideoRecording: Bool
+    let videoRecordingProgress: Double
     let onAction: () -> Void
     let onVisualLongPressStart: () -> Void
 
@@ -217,6 +219,11 @@ private struct CaptureButton: View {
     private var isPaused: Bool { captureMode == .audio && audioCaptureManager.isPaused }
     private var isAudioReview: Bool { captureMode == .audio && audioCaptureManager.pendingPlaybackPath != nil }
     private var shouldShowRecordingChrome: Bool { isRecording || (captureMode == .visual && isVideoRecording) }
+    private var recordingProgress: Double {
+        captureMode == .visual && isVideoRecording
+            ? videoRecordingProgress
+            : audioCaptureManager.recordingProgress
+    }
 
     private var innerFill: Color {
         switch captureMode {
@@ -252,11 +259,11 @@ private struct CaptureButton: View {
             // Hidden during review so the ring resets to a clean submit-button appearance.
             if !isAudioReview {
                 Circle()
-                    .trim(from: 0, to: isRecording ? audioCaptureManager.recordingProgress : 0)
+                    .trim(from: 0, to: shouldShowRecordingChrome ? recordingProgress : 0)
                     .stroke(Color.red, style: StrokeStyle(lineWidth: 1, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .frame(width: 80, height: 80)
-                    .animation(.linear(duration: 0.12), value: audioCaptureManager.recordingProgress)
+                    .animation(.linear(duration: 0.12), value: recordingProgress)
             }
 
             ZStack {
@@ -331,7 +338,6 @@ private struct CaptureButton: View {
         }
 
         if captureMode == .visual, isVideoRecording {
-            HapticManager.shared.triggerMediumPulse()
             onAction()
             return
         }

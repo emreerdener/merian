@@ -252,6 +252,7 @@ private enum InferencePayloadBuilder {
         imageBase64s: [String],
         audioBase64s: [String],
         videoFrameCount: Int? = nil,
+        visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         observationContextsJSON: [String],
         mimeType: String,
         telemetry: CaptureTelemetry,
@@ -285,6 +286,9 @@ private enum InferencePayloadBuilder {
         }
         if let videoFrameCount, videoFrameCount > 0 {
             payload["videoFrameCount"] = videoFrameCount
+        }
+        if let visualMediaItems, !visualMediaItems.isEmpty {
+            payload["visualMediaItems"] = visualMediaItems.map(\.jsonObject)
         }
 
         let observationContexts = observationContextObjects(from: observationContextsJSON)
@@ -802,6 +806,7 @@ final class MerianNetworkClient {
         base64ImageDatas: [String] = [],
         audioBase64s: [String] = [],
         videoFrameCount: Int? = nil,
+        visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         observationContextsJSON: [String] = [],
         userId: String,
         mimeType: String = "image/webp",
@@ -833,6 +838,7 @@ final class MerianNetworkClient {
             imageBase64s: base64ImageDatas,
             audioBase64s: audioBase64s,
             videoFrameCount: videoFrameCount,
+            visualMediaItems: visualMediaItems,
             observationContextsJSON: observationContextsJSON,
             mimeType: mimeType,
             telemetry: telemetry,
@@ -849,6 +855,7 @@ final class MerianNetworkClient {
         mimeType: String = "image/webp",
         audioFilePaths: [String] = [],
         videoFrameCount: Int? = nil,
+        visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         observationContextsJSON: [String] = [],
         telemetry: CaptureTelemetry,
         clientScanId: String
@@ -863,6 +870,7 @@ final class MerianNetworkClient {
         let capturedAudioR2ObjectKeys = audioR2ObjectKeys
         let capturedVideoR2ObjectKeys = videoR2ObjectKeys
         let capturedVideoFrameCount = videoFrameCount
+        let capturedVisualMediaItems = visualMediaItems
         let capturedContextsJSON = observationContextsJSON
         let capturedTelemetry = telemetry
         let capturedMimeType = mimeType
@@ -876,6 +884,7 @@ final class MerianNetworkClient {
                 base64ImageDatas: capturedBase64ImageDatas,
                 audioBase64s: audioBase64s,
                 videoFrameCount: capturedVideoFrameCount,
+                visualMediaItems: capturedVisualMediaItems,
                 observationContextsJSON: capturedContextsJSON,
                 userId: context.userId,
                 mimeType: capturedMimeType,
@@ -952,6 +961,7 @@ final class MerianNetworkClient {
         audioFilePaths: [String] = [],
         videoR2ObjectKeys: [String] = [],
         videoFrameCount: Int? = nil,
+        visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         observationContextsJSON: [String] = [],
         telemetry: CaptureTelemetry,
         clientScanId: String? = nil
@@ -963,6 +973,7 @@ final class MerianNetworkClient {
             mimeType: mimeType,
             audioFilePaths: audioFilePaths,
             videoFrameCount: videoFrameCount,
+            visualMediaItems: visualMediaItems,
             observationContextsJSON: observationContextsJSON,
             telemetry: telemetry,
             clientScanId: clientScanId ?? UUID().uuidString.lowercased()
@@ -1412,6 +1423,20 @@ final class MerianNetworkClient {
         let bodyData = try JSONSerialization.data(withJSONObject: ["post_id": postId])
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try makeExploreDecoder().decode(ExplorePostResponse.self, from: data).data
+    }
+
+    func getExploreComposerMedia(scanId: String? = nil, postId: String? = nil) async throws -> ExploreComposerMediaPayload {
+        let functionUrl = try endpointURL("get-explore-composer-media")
+        var payload: [String: Any] = [:]
+        if let scanId {
+            payload["scan_id"] = scanId
+        }
+        if let postId {
+            payload["post_id"] = postId
+        }
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        return try makeExploreDecoder().decode(ExploreComposerMediaResponse.self, from: data).data
     }
 
     func getExplorePostDetail(postId: String) async throws -> ExplorePostDetail {
@@ -1935,7 +1960,8 @@ final class MerianNetworkClient {
         speciesCommonName: String? = nil,
         fieldNotes: String? = nil,
         hashtags: [String] = [],
-        locationSharing: ExplorePostLocationSharing? = nil
+        locationSharing: ExplorePostLocationSharing? = nil,
+        mediaItems: [ExplorePostMediaSelection]? = nil
     ) async throws -> ExploreShareResponse {
         let functionUrl = try endpointURL("share-scan-to-explore")
         var payload: [String: Any] = [
@@ -1943,6 +1969,9 @@ final class MerianNetworkClient {
             "field_notes": fieldNotes ?? NSNull(),
             "hashtags": hashtags
         ]
+        if let mediaItems {
+            payload["media_items"] = mediaItems.map(\.jsonObject)
+        }
         if let locationSharing {
             payload["location_sharing"] = locationSharing.rawValue
         }
@@ -1964,7 +1993,8 @@ final class MerianNetworkClient {
         speciesCommonName: String? = nil,
         fieldNotes: String? = nil,
         hashtags: [String] = [],
-        locationSharing: ExplorePostLocationSharing? = nil
+        locationSharing: ExplorePostLocationSharing? = nil,
+        mediaItems: [ExplorePostMediaSelection]? = nil
     ) async throws -> ExploreShareResponse {
         let mediaSnapshot = ExploreShareMediaSnapshot(scan: scan, fallbackImageData: fallbackImageData)
         do {
@@ -1973,7 +2003,8 @@ final class MerianNetworkClient {
                 speciesCommonName: speciesCommonName,
                 fieldNotes: fieldNotes,
                 hashtags: hashtags,
-                locationSharing: locationSharing
+                locationSharing: locationSharing,
+                mediaItems: mediaItems
             )
         } catch {
             if shouldAttemptExploreCloudScanRestore(after: error) {
@@ -1992,7 +2023,8 @@ final class MerianNetworkClient {
                     speciesCommonName: speciesCommonName,
                     fieldNotes: fieldNotes,
                     hashtags: hashtags,
-                    locationSharing: locationSharing
+                    locationSharing: locationSharing,
+                    mediaItems: mediaItems
                 )
             }
 
@@ -2011,7 +2043,8 @@ final class MerianNetworkClient {
                 speciesCommonName: speciesCommonName,
                 fieldNotes: fieldNotes,
                 hashtags: hashtags,
-                locationSharing: locationSharing
+                locationSharing: locationSharing,
+                mediaItems: mediaItems
             )
         }
     }
@@ -2119,7 +2152,8 @@ final class MerianNetworkClient {
         speciesCommonName: String? = nil,
         fieldNotes: String?,
         hashtags: [String],
-        locationSharing: ExplorePostLocationSharing
+        locationSharing: ExplorePostLocationSharing,
+        mediaItems: [ExplorePostMediaSelection]? = nil
     ) async throws -> ExploreUpdateFieldNotesResponse {
         let functionUrl = try endpointURL("update-explore-field-notes")
         var payload: [String: Any] = [
@@ -2128,6 +2162,9 @@ final class MerianNetworkClient {
             "hashtags": hashtags,
             "location_sharing": locationSharing.rawValue
         ]
+        if let mediaItems {
+            payload["media_items"] = mediaItems.map(\.jsonObject)
+        }
         let trimmedCommonName = speciesCommonName?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let trimmedCommonName, !trimmedCommonName.isEmpty {
             payload["species_common_name"] = trimmedCommonName

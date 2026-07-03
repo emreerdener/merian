@@ -11,6 +11,7 @@ TestFlight, App Store, support, and QA.
 - Added clearer haptic feedback for video recording latch, stop, successful staging, and recording failures.
 - Added video scans to the Pro paywall comparison table.
 - Kept non-Pro long-presses photo-first so holding the shutter does not interrupt capture or open the paywall.
+- Fixed non-biological scan saving so captures that omit ecology metadata are saved with an unknown ecology fallback instead of failing in the backend.
 
 ### Explore
 - Added public video Explore posts: shared video scans can now appear in Explore and Ask the Community with muted playback in feed/detail and thumbnail play indicators on compact surfaces.

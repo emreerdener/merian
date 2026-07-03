@@ -16,6 +16,7 @@ struct InsightToolbarRecordSnapshot: Equatable {
     let timestamp: Date
     let confirmedSpeciesId: String?
     let imageCount: Int
+    let exploreMediaItems: [ExplorePostComposerMediaDraft]
     let isExploreShareEligible: Bool
     let isHumanSubject: Bool
 
@@ -35,6 +36,10 @@ struct InsightToolbarRecordSnapshot: Equatable {
         self.timestamp = record.timestamp
         self.confirmedSpeciesId = record.confirmedSpeciesId
         self.imageCount = record.capturedMediaSnapshot.imagePaths.count
+        self.exploreMediaItems = ExplorePostComposerMediaDraft.eligibleItems(
+            from: record.capturedMediaSnapshot,
+            scanId: record.id
+        )
         self.isExploreShareEligible = record.isExploreShareEligible
         self.isHumanSubject = record.isHumanSubject
     }

@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-03-non-biological-scan-saving",
+      "date": "2026-07-03",
+      "title": "Non-biological scan saving",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Non-biological captures that omit ecology metadata now save with an unknown ecology fallback instead of failing in the backend."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-03-explore-video-posts",
       "date": "2026-07-03",
       "title": "Explore video posts",

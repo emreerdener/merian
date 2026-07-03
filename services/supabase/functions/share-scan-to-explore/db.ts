@@ -1,5 +1,9 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getR2Config } from "../_shared/aws.ts";
+import {
+  cleanMediaUrls,
+  parseSourceMediaId,
+} from "../_shared/exploreComposerMedia.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
 
@@ -12,6 +16,14 @@ export interface ShareEligibleScanRow {
   is_tombstoned: boolean;
   species_id: string | null;
   confirmed_species_id: string | null;
+}
+
+export interface SelectedExplorePostMediaItem {
+  kind: "image" | "video";
+  source_media_id?: string;
+  source_index?: number;
+  thumbnail_source_index?: number;
+  order_index: number;
 }
 
 function makeHttpError(
@@ -148,18 +160,19 @@ export async function markResolvedCommunityRequestPublishedToExplore(
 }
 
 export async function upsertExplorePost(
-  scanId: string,
+  scan: ShareEligibleScanRow,
   userId: string,
   speciesCommonName: string | null,
   fieldNotes: string | null,
   locationSharing: string,
+  mediaItems: SelectedExplorePostMediaItem[] | undefined,
   supabaseAdmin: SupabaseClient,
 ): Promise<{ id: string; shared_at: string }> {
   const { data, error } = await supabaseAdmin
     .from("explore_posts")
     .upsert(
       {
-        scan_id: scanId,
+        scan_id: scan.id,
         user_id: userId,
         species_common_name: speciesCommonName,
         field_notes: fieldNotes,
@@ -181,9 +194,28 @@ export async function upsertExplorePost(
   }
 
   const post = data as { id: string; shared_at: string };
+  if (mediaItems !== undefined) {
+    await replaceExplorePostMediaFromScan(
+      post.id,
+      scan,
+      mediaItems,
+      supabaseAdmin,
+    );
+    return post;
+  }
+
+  await refreshExplorePostMedia(post.id, supabaseAdmin);
+
+  return post;
+}
+
+async function refreshExplorePostMedia(
+  postId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
   const { error: mediaError } = await supabaseAdmin.rpc(
     "refresh_explore_post_media",
-    { target_post_id: post.id },
+    { target_post_id: postId },
   );
 
   if (mediaError) {
@@ -194,8 +226,118 @@ export async function upsertExplorePost(
       : mediaError.message ?? "Unknown error";
     throw makeHttpError(409, message);
   }
+}
 
-  return post;
+async function replaceExplorePostMediaFromScan(
+  postId: string,
+  scan: ShareEligibleScanRow,
+  mediaItems: SelectedExplorePostMediaItem[],
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  if (mediaItems.length === 0) {
+    throw makeHttpError(400, "media_items must include at least one item.");
+  }
+
+  const imageUrls = cleanMediaUrls(scan.image_storage_urls);
+  const videoUrls = cleanMediaUrls(scan.video_storage_urls ?? []);
+  const rows = mediaItems
+    .slice()
+    .sort((lhs, rhs) => lhs.order_index - rhs.order_index)
+    .map((item, offset) => {
+      const source = sourceIndexForSelection(item, scan.id);
+      if (item.kind === "image") {
+        const url = imageUrls[source.index];
+        if (!url) {
+          throw makeHttpError(
+            400,
+            "Selected image media does not belong to this scan.",
+          );
+        }
+
+        return {
+          post_id: postId,
+          kind: "image",
+          url,
+          thumbnail_url: url,
+          order_index: offset,
+          duration_seconds: null,
+          has_audio: false,
+        };
+      }
+
+      const url = videoUrls[source.index];
+      if (!url) {
+        throw makeHttpError(
+          400,
+          "Selected video media does not belong to this scan.",
+        );
+      }
+
+      const thumbnailIndex = item.thumbnail_source_index ?? Math.min(
+        source.index,
+        imageUrls.length - 1,
+      );
+      const thumbnailUrl = imageUrls[thumbnailIndex];
+      if (!thumbnailUrl) {
+        throw makeHttpError(409, "Video thumbnail unavailable.");
+      }
+
+      return {
+        post_id: postId,
+        kind: "video",
+        url,
+        thumbnail_url: thumbnailUrl,
+        order_index: offset,
+        duration_seconds: null,
+        has_audio: true,
+      };
+    });
+
+  const { error: deleteError } = await supabaseAdmin
+    .from("explore_post_media")
+    .delete()
+    .eq("post_id", postId);
+
+  if (deleteError) {
+    throw new Error(
+      `Failed to clear Explore post media: ${deleteError.message}`,
+    );
+  }
+
+  const { error: insertError } = await supabaseAdmin
+    .from("explore_post_media")
+    .insert(rows);
+
+  if (insertError) {
+    throw new Error(
+      `Failed to save Explore post media: ${insertError.message}`,
+    );
+  }
+}
+
+function sourceIndexForSelection(
+  item: SelectedExplorePostMediaItem,
+  scanId: string,
+): { index: number } {
+  if (item.source_media_id) {
+    const parsed = parseSourceMediaId(item.source_media_id);
+    if (!parsed || parsed.scanId !== scanId.toLowerCase()) {
+      throw makeHttpError(400, "Selected media does not belong to this scan.");
+    }
+    if (parsed.kind !== item.kind) {
+      throw makeHttpError(
+        400,
+        "Selected media kind does not match its source.",
+      );
+    }
+    return { index: parsed.index };
+  }
+
+  if (item.source_index == null) {
+    throw makeHttpError(400, "Selected media requires a source.");
+  }
+
+  return { index: item.source_index };
 }
 
 export async function replaceExplorePostHashtags(

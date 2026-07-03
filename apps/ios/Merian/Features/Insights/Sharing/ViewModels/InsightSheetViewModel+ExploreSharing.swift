@@ -68,7 +68,8 @@ extension InsightSheetViewModel {
                 speciesCommonName: draft.selectedCommonName,
                 fieldNotes: draft.publicFieldNotes,
                 hashtags: draft.hashtags,
-                locationSharing: draft.locationSharing
+                locationSharing: draft.locationSharing,
+                mediaItems: draft.mediaItems
             )
             cacheSharedExplorePostId(response.postId, for: scanId)
             state.isExploreFeedVisible = true
@@ -142,7 +143,8 @@ extension InsightSheetViewModel {
                 speciesCommonName: draft.selectedCommonName,
                 fieldNotes: draft.publicFieldNotes,
                 hashtags: draft.hashtags,
-                locationSharing: draft.locationSharing
+                locationSharing: draft.locationSharing,
+                mediaItems: draft.mediaItems
             )
             state.sharedExploreHashtags = response.hashtags ?? draft.hashtags
             state.sharedExploreLocationSharing = response.locationSharing ?? draft.locationSharing

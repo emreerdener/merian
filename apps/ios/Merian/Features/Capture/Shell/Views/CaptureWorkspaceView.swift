@@ -360,6 +360,9 @@ struct CaptureWorkspaceView: View {
             AppDIContainer.shared.environmentContextManager.startLiveLocationTracking()
         }
         .onDisappear {
+            if viewModel.isVideoRecording {
+                viewModel.stopVideoCapture()
+            }
             cameraManager.stopSession()
             audioCaptureManager.reset()
             AppDIContainer.shared.environmentContextManager.stopLiveLocationTracking()

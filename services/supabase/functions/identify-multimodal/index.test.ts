@@ -181,17 +181,93 @@ function telemetryCount(value: unknown): number {
   return Math.trunc(value);
 }
 
+type VisualMediaDescriptor = {
+  kind: "image" | "video_frame";
+  sourceIndex?: number;
+  clipIndex?: number;
+  frameIndex?: number;
+};
+
+function optionalIndex(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return undefined;
+  }
+  return Math.trunc(value);
+}
+
+function normalizeVisualMediaItems(
+  rawItems: unknown,
+  resolvedImageCount: number,
+): VisualMediaDescriptor[] {
+  if (!Array.isArray(rawItems) || rawItems.length !== resolvedImageCount) {
+    return [];
+  }
+
+  const descriptors: VisualMediaDescriptor[] = [];
+  for (const rawItem of rawItems) {
+    if (!rawItem || typeof rawItem !== "object") {
+      return [];
+    }
+
+    const item = rawItem as Record<string, unknown>;
+    if (item.kind !== "image" && item.kind !== "video_frame") {
+      return [];
+    }
+
+    descriptors.push({
+      kind: item.kind,
+      sourceIndex: optionalIndex(item.sourceIndex ?? item.source_index),
+      clipIndex: optionalIndex(item.clipIndex ?? item.clip_index),
+      frameIndex: optionalIndex(item.frameIndex ?? item.frame_index),
+    });
+  }
+
+  return descriptors;
+}
+
 function resolveVisualMediaTelemetry(
   resolvedImageCount: number,
   videoFrameCount: unknown,
   videoClipCount: number,
+  visualMediaItems: VisualMediaDescriptor[] = [],
 ) {
+  if (visualMediaItems.length === resolvedImageCount) {
+    const videoInferenceFrameCount = visualMediaItems.filter((item) =>
+      item.kind === "video_frame"
+    ).length;
+    const imageCount = Math.max(
+      resolvedImageCount - videoInferenceFrameCount,
+      0,
+    );
+    const hasVideo = videoClipCount > 0 || videoInferenceFrameCount > 0;
+    const hasImage = imageCount > 0;
+    const mediaType = hasVideo && hasImage
+      ? "image_video"
+      : hasVideo
+      ? "video"
+      : hasImage
+      ? "image"
+      : "none";
+
+    return {
+      mediaType,
+      hasImage,
+      hasVideo,
+      imageCount,
+      videoClipCount,
+      declaredVideoFrameCount: videoInferenceFrameCount,
+      videoInferenceFrameCount,
+    };
+  }
+
   const declaredVideoFrameCount = telemetryCount(videoFrameCount);
   const hasVideo = videoClipCount > 0 || declaredVideoFrameCount > 0;
   const videoInferenceFrameCount = hasVideo
     ? Math.min(
       resolvedImageCount,
-      declaredVideoFrameCount > 0 ? declaredVideoFrameCount : resolvedImageCount,
+      declaredVideoFrameCount > 0
+        ? declaredVideoFrameCount
+        : resolvedImageCount,
     )
     : 0;
   const imageCount = Math.max(resolvedImageCount - videoInferenceFrameCount, 0);
@@ -213,6 +289,41 @@ function resolveVisualMediaTelemetry(
     declaredVideoFrameCount,
     videoInferenceFrameCount,
   };
+}
+
+function buildVisualMediaPrompt(
+  visualMediaItems: VisualMediaDescriptor[],
+  hasVideo: boolean,
+  resolvedImageCount: number,
+): string | null {
+  if (
+    visualMediaItems.length === resolvedImageCount &&
+    visualMediaItems.length > 0
+  ) {
+    const lines = visualMediaItems.map((item, index) => {
+      const inputNumber = index + 1;
+      if (item.kind === "video_frame") {
+        const clipNumber = (item.clipIndex ?? 0) + 1;
+        const frameNumber = (item.frameIndex ?? index) + 1;
+        return `- Visual input ${inputNumber}: sampled video frame ${frameNumber} from video clip ${clipNumber}.`;
+      }
+
+      const sourceNumber = (item.sourceIndex ?? index) + 1;
+      return `- Visual input ${inputNumber}: still photo ${sourceNumber}.`;
+    });
+
+    return [
+      "The following visual inputs are ordered and may mix still photos with sampled frames from short user-recorded video clips:",
+      ...lines,
+      "Treat sampled frames from the same video clip as one brief motion sequence, not as separate observations. Still photos are separate visual evidence from the same scan.",
+    ].join("\n");
+  }
+
+  if (hasVideo && resolvedImageCount > 0) {
+    return "The following images are ordered sampled frames from one short user-recorded video. Interpret them together as a brief motion sequence, not as separate observations.";
+  }
+
+  return null;
 }
 
 function sanitizeReasoning(text: string): string {
@@ -451,6 +562,36 @@ Deno.test("visual media telemetry preserves still image count for mixed image an
   assertEquals(telemetry.hasVideo, true);
   assertEquals(telemetry.imageCount, 2);
   assertEquals(telemetry.videoInferenceFrameCount, 3);
+});
+
+Deno.test("visual media telemetry uses explicit mixed image and video descriptors", () => {
+  const descriptors = normalizeVisualMediaItems([
+    { kind: "image", sourceIndex: 0 },
+    { kind: "video_frame", clipIndex: 0, frameIndex: 0 },
+    { kind: "video_frame", clipIndex: 0, frameIndex: 1 },
+  ], 3);
+  const telemetry = resolveVisualMediaTelemetry(3, 3, 1, descriptors);
+
+  assertEquals(telemetry.mediaType, "image_video");
+  assertEquals(telemetry.hasImage, true);
+  assertEquals(telemetry.hasVideo, true);
+  assertEquals(telemetry.imageCount, 1);
+  assertEquals(telemetry.videoInferenceFrameCount, 2);
+});
+
+Deno.test("visual media prompt labels still photos and sampled video frames", () => {
+  const descriptors = normalizeVisualMediaItems([
+    { kind: "image", sourceIndex: 0 },
+    { kind: "video_frame", clipIndex: 0, frameIndex: 0 },
+    { kind: "video_frame", clipIndex: 0, frameIndex: 1 },
+  ], 3);
+  const prompt = buildVisualMediaPrompt(descriptors, true, 3);
+
+  assert(prompt);
+  assert(prompt.includes("Visual input 1: still photo 1"));
+  assert(prompt.includes("Visual input 2: sampled video frame 1"));
+  assert(prompt.includes("Visual input 3: sampled video frame 2"));
+  assert(prompt.includes("same video clip as one brief motion sequence"));
 });
 
 // ---------------------------------------------------------------------------

@@ -574,6 +574,7 @@ private struct GBIFMedia: Decodable {
         telemetry: CaptureTelemetry,
         observationContexts: [ObservationContext] = [],
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
+        visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         modelContext: ModelContext? = nil,
         targetEradicationScanId: String? = nil
     ) {
@@ -690,7 +691,12 @@ private struct GBIFMedia: Decodable {
                 // Encode ObservationContext to JSON once: used for DB persistence (observationContextJSON)
                 // and already serialised to plain text for the Gemini prompt (description).
                 let observationContextsJSON = observationContextJSONStrings(from: resolvedObservationContexts)
-                let videoFrameCount = (videoFilePaths?.isEmpty == false) ? imageDatas.count : nil
+                let validVisualMediaItems = visualMediaItems?.count == validBase64Strings.count
+                    ? visualMediaItems
+                    : nil
+                let videoFrameCount = validVisualMediaItems?
+                    .filter { $0.kind == .videoFrame }
+                    .count ?? ((videoFilePaths?.isEmpty == false) ? imageDatas.count : nil)
                 let videoR2ObjectKeys: [String]
                 if let videoFilePaths, !videoFilePaths.isEmpty {
                     do {
@@ -712,6 +718,7 @@ private struct GBIFMedia: Decodable {
                     audioFilePaths: audioFilePaths ?? [],
                     videoR2ObjectKeys: videoR2ObjectKeys,
                     videoFrameCount: videoFrameCount,
+                    visualMediaItems: validVisualMediaItems,
                     observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
                     clientScanId: resolvedClientScanId

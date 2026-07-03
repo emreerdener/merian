@@ -10,6 +10,26 @@ struct ExplorePostResponse: Decodable {
     let data: ExplorePost
 }
 
+struct ExploreComposerMediaResponse: Decodable {
+    let data: ExploreComposerMediaPayload
+}
+
+struct ExploreComposerMediaPayload: Decodable, Equatable {
+    let scanId: String
+    let postId: String?
+    let mediaItems: [ExploreComposerMediaItem]
+}
+
+struct ExploreComposerMediaItem: Decodable, Equatable {
+    let sourceMediaId: String
+    let kind: ExploreMediaKind
+    let url: String
+    let thumbnailUrl: String
+    let orderIndex: Int
+    let isSelected: Bool?
+    let selectionOrderIndex: Int?
+}
+
 enum ExploreMediaKind: String, Decodable, Equatable {
     case image
     case video

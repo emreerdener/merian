@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum ExplorePostComposerMode {
     case create
@@ -79,12 +80,241 @@ enum ExplorePostLocationSharing: String, CaseIterable, Identifiable, Decodable, 
     }
 }
 
+enum ExplorePostComposerMediaKind: String, Equatable {
+    case image
+    case video
+}
+
+struct ExplorePostMediaSelection: Equatable {
+    let kind: ExplorePostComposerMediaKind
+    let sourceMediaId: String?
+    let sourceIndex: Int?
+    let thumbnailSourceIndex: Int?
+    let url: String?
+    let thumbnailUrl: String?
+    let orderIndex: Int
+
+    var jsonObject: [String: Any] {
+        var payload: [String: Any] = [
+            "kind": kind.rawValue,
+            "order_index": orderIndex
+        ]
+
+        if let sourceMediaId {
+            payload["source_media_id"] = sourceMediaId
+        }
+        if let sourceIndex {
+            payload["source_index"] = sourceIndex
+        }
+        if let thumbnailSourceIndex {
+            payload["thumbnail_source_index"] = thumbnailSourceIndex
+        }
+        if let url {
+            payload["url"] = url
+        }
+        if let thumbnailUrl {
+            payload["thumbnail_url"] = thumbnailUrl
+        }
+
+        return payload
+    }
+}
+
+struct ExplorePostComposerMediaDraft: Identifiable, Equatable {
+    let id: String
+    let kind: ExplorePostComposerMediaKind
+    let previewPath: String
+    let sourceMediaId: String?
+    let sourceIndex: Int?
+    let thumbnailSourceIndex: Int?
+    let url: String?
+    let thumbnailUrl: String?
+    var isIncluded: Bool
+
+    var isVideo: Bool {
+        kind == .video
+    }
+
+    func selection(orderIndex: Int) -> ExplorePostMediaSelection {
+        ExplorePostMediaSelection(
+            kind: kind,
+            sourceMediaId: sourceMediaId,
+            sourceIndex: sourceIndex,
+            thumbnailSourceIndex: thumbnailSourceIndex,
+            url: url,
+            thumbnailUrl: thumbnailUrl,
+            orderIndex: orderIndex
+        )
+    }
+
+    static func eligibleItems(from snapshot: CapturedMediaSnapshot, scanId: String? = nil) -> [ExplorePostComposerMediaDraft] {
+        var drafts: [ExplorePostComposerMediaDraft] = []
+        var imageIndex = 0
+        var videoIndex = 0
+        let items = snapshot.items
+
+        for index in items.indices {
+            switch items[index] {
+            case .image(let reference):
+                let isVideoPoster: Bool
+                if items.indices.contains(index + 1),
+                   case .video = items[index + 1] {
+                    isVideoPoster = true
+                } else {
+                    isVideoPoster = false
+                }
+
+                if !isVideoPoster {
+                    drafts.append(
+                        ExplorePostComposerMediaDraft(
+                            id: "image-\(imageIndex)-\(reference.serializedPath)",
+                            kind: .image,
+                            previewPath: reference.serializedPath,
+                            sourceMediaId: scanId.map { "scan:\($0):image:\(imageIndex)" },
+                            sourceIndex: imageIndex,
+                            thumbnailSourceIndex: nil,
+                            url: nil,
+                            thumbnailUrl: nil,
+                            isIncluded: true
+                        )
+                    )
+                }
+
+                imageIndex += 1
+
+            case .video(let reference):
+                let thumbnailIndex = previousImageIndex(before: index, in: items)
+                let previewPath = thumbnailIndex.flatMap { imagePath(at: $0, in: items) } ?? ""
+                guard let thumbnailIndex, !previewPath.isEmpty else {
+                    videoIndex += 1
+                    continue
+                }
+
+                drafts.append(
+                    ExplorePostComposerMediaDraft(
+                        id: "video-\(videoIndex)-\(reference.serializedPath)",
+                        kind: .video,
+                        previewPath: previewPath,
+                        sourceMediaId: scanId.map { "scan:\($0):video:\(videoIndex)" },
+                        sourceIndex: videoIndex,
+                        thumbnailSourceIndex: thumbnailIndex,
+                        url: nil,
+                        thumbnailUrl: nil,
+                        isIncluded: true
+                    )
+                )
+                videoIndex += 1
+
+            case .audio, .description:
+                continue
+            }
+        }
+
+        return drafts
+    }
+
+    static func existingPostItems(from mediaItems: [ExploreMediaItem]) -> [ExplorePostComposerMediaDraft] {
+        mediaItems
+            .sorted { $0.orderIndex < $1.orderIndex }
+            .enumerated()
+            .compactMap { offset, item in
+                let previewPath = (item.thumbnailUrl?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+                    ? item.thumbnailUrl!
+                    : item.url
+                let kind: ExplorePostComposerMediaKind
+                switch item.kind {
+                case .image:
+                    kind = .image
+                case .video:
+                    kind = .video
+                }
+
+                let trimmedUrl = item.url.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedUrl.isEmpty else { return nil }
+
+                return ExplorePostComposerMediaDraft(
+                    id: "existing-\(offset)-\(trimmedUrl)",
+                    kind: kind,
+                    previewPath: previewPath,
+                    sourceMediaId: nil,
+                    sourceIndex: nil,
+                    thumbnailSourceIndex: nil,
+                    url: trimmedUrl,
+                    thumbnailUrl: item.thumbnailUrl,
+                    isIncluded: true
+                )
+            }
+    }
+
+    static func sourceItems(from mediaItems: [ExploreComposerMediaItem]) -> [ExplorePostComposerMediaDraft] {
+        mediaItems
+            .sorted { lhs, rhs in
+                switch (lhs.selectionOrderIndex, rhs.selectionOrderIndex) {
+                case let (lhs?, rhs?):
+                    return lhs < rhs
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                case (nil, nil):
+                    return lhs.orderIndex < rhs.orderIndex
+                }
+            }
+            .map { item in
+                let kind: ExplorePostComposerMediaKind = item.kind == .video ? .video : .image
+                let previewPath = item.thumbnailUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? item.url
+                    : item.thumbnailUrl
+
+                return ExplorePostComposerMediaDraft(
+                    id: item.sourceMediaId,
+                    kind: kind,
+                    previewPath: previewPath,
+                    sourceMediaId: item.sourceMediaId,
+                    sourceIndex: nil,
+                    thumbnailSourceIndex: nil,
+                    url: nil,
+                    thumbnailUrl: item.thumbnailUrl,
+                    isIncluded: item.isSelected ?? true
+                )
+            }
+    }
+
+    private static func previousImageIndex(before itemIndex: Int, in items: [SerializedMediaItem]) -> Int? {
+        guard itemIndex > 0 else { return nil }
+        var imageIndex = 0
+        var mostRecentImageIndex: Int?
+
+        for index in 0..<itemIndex {
+            if case .image = items[index] {
+                mostRecentImageIndex = imageIndex
+                imageIndex += 1
+            }
+        }
+
+        return mostRecentImageIndex
+    }
+
+    private static func imagePath(at targetImageIndex: Int, in items: [SerializedMediaItem]) -> String? {
+        var imageIndex = 0
+        for item in items {
+            guard case .image(let reference) = item else { continue }
+            if imageIndex == targetImageIndex {
+                return reference.serializedPath
+            }
+            imageIndex += 1
+        }
+        return nil
+    }
+}
+
 struct ExplorePostComposerDraft {
     let selectedCommonName: String
     let fieldNotes: String?
     let fieldNotesArePublic: Bool
     let hashtags: [String]
     let locationSharing: ExplorePostLocationSharing
+    let mediaItems: [ExplorePostMediaSelection]?
 
     var publicFieldNotes: String? {
         fieldNotesArePublic ? fieldNotes : nil
@@ -111,6 +341,8 @@ struct ExplorePostComposerView: View {
     @State private var fieldNotesArePublic: Bool
     @State private var hashtagsText: String
     @State private var locationSharing: ExplorePostLocationSharing
+    @State private var mediaItems: [ExplorePostComposerMediaDraft]
+    @State private var draggedMediaItemId: String?
     @State private var loadedImage: UIImage?
     @State private var selectedCommonName: String
     @State private var isNamePickerPresented = false
@@ -127,6 +359,7 @@ struct ExplorePostComposerView: View {
         initialFieldNotesArePublic: Bool = true,
         initialHashtags: [String],
         initialLocationSharing: ExplorePostLocationSharing = .obscured,
+        mediaItems: [ExplorePostComposerMediaDraft] = [],
         hashtagSuggestionContext: ExploreHashtagSuggestionContext? = nil,
         isSaving: Bool,
         onSubmit: @escaping (ExplorePostComposerDraft) -> Void
@@ -156,6 +389,7 @@ struct ExplorePostComposerView: View {
         _fieldNotesArePublic = State(initialValue: initialFieldNotesArePublic)
         _hashtagsText = State(initialValue: initialHashtags.map { "#\($0)" }.joined(separator: " "))
         _locationSharing = State(initialValue: initialLocationSharing)
+        _mediaItems = State(initialValue: mediaItems)
         _selectedCommonName = State(initialValue: selectedName)
     }
 
@@ -164,6 +398,9 @@ struct ExplorePostComposerView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     discoveryPreview
+                    if mediaItems.count > 1 {
+                        mediaSelectionEditor
+                    }
                     fieldNotesEditor
                     locationSharingEditor
                     hashtagsEditor
@@ -216,6 +453,18 @@ struct ExplorePostComposerView: View {
         }
     }
 
+    private var activeHeroImageUrl: String? {
+        mediaItems.first(where: \.isIncluded)?.previewPath ?? heroImageUrl
+    }
+
+    private var selectedMediaCount: Int {
+        mediaItems.filter(\.isIncluded).count
+    }
+
+    private var canSubmit: Bool {
+        !isSaving && (mediaItems.isEmpty || selectedMediaCount > 0)
+    }
+
     private var discoveryPreview: some View {
         Button {
             guard commonNameOptions.count > 1 else { return }
@@ -265,9 +514,57 @@ struct ExplorePostComposerView: View {
         .accessibilityHint(commonNameOptions.count > 1 ? "Choose which common name appears on the Explore post" : "")
         .padding(12)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .task(id: heroImageUrl) {
-            guard let heroImageUrl else { return }
-            loadedImage = await LocalImageLoader.shared.loadImage(fromPath: heroImageUrl, fallbackUrl: nil, maxDimension: 124)
+        .task(id: activeHeroImageUrl) {
+            loadedImage = nil
+            guard let activeHeroImageUrl else { return }
+            loadedImage = await LocalImageLoader.shared.loadImage(fromPath: activeHeroImageUrl, fallbackUrl: nil, maxDimension: 124)
+        }
+    }
+
+    private var mediaSelectionEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Label("Media", systemImage: "photo.on.rectangle.angled")
+                    .font(.headline)
+
+                Spacer()
+
+                Text("\(selectedMediaCount) selected")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(mediaItems) { item in
+                        ExplorePostComposerMediaTile(
+                            item: item,
+                            isCover: item.id == mediaItems.first(where: \.isIncluded)?.id,
+                            canDeselect: selectedMediaCount > 1 || !item.isIncluded,
+                            onToggle: { toggleMediaItem(item.id) }
+                        )
+                        .onDrag {
+                            draggedMediaItemId = item.id
+                            HapticManager.shared.triggerSelectionPulse()
+                            return NSItemProvider(object: item.id as NSString)
+                        }
+                        .onDrop(
+                            of: [UTType.text],
+                            delegate: ExplorePostComposerMediaDropDelegate(
+                                targetItem: item,
+                                mediaItems: $mediaItems,
+                                draggedMediaItemId: $draggedMediaItemId
+                            )
+                        )
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+            .padding(.horizontal, -16)
+
+            Text("The first selected item is the cover.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -440,8 +737,8 @@ struct ExplorePostComposerView: View {
                 )
             }
             .buttonStyle(.plain)
-            .disabled(isSaving)
-            .opacity(isSaving ? 0.7 : 1.0)
+            .disabled(!canSubmit)
+            .opacity(canSubmit ? 1.0 : 0.7)
             .padding(.horizontal, 16)
             .padding(.top, 12)
             .padding(.bottom, 24)
@@ -496,20 +793,154 @@ struct ExplorePostComposerView: View {
     }
 
     private func submit() {
+        guard mediaItems.isEmpty || selectedMediaCount > 0 else {
+            HapticManager.shared.triggerErrorThump()
+            return
+        }
+
         let trimmedNotes = fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let selectedMediaItems: [ExplorePostMediaSelection]? = mediaItems.isEmpty
+            ? nil
+            : mediaItems
+                .filter(\.isIncluded)
+                .enumerated()
+                .map { orderIndex, item in item.selection(orderIndex: orderIndex) }
+
         onSubmit(
             ExplorePostComposerDraft(
                 selectedCommonName: selectedCommonName,
                 fieldNotes: trimmedNotes.isEmpty ? nil : trimmedNotes,
                 fieldNotesArePublic: fieldNotesArePublic,
                 hashtags: normalizedHashtags,
-                locationSharing: locationSharing
+                locationSharing: locationSharing,
+                mediaItems: selectedMediaItems
             )
         )
+    }
+
+    private func toggleMediaItem(_ id: String) {
+        guard let index = mediaItems.firstIndex(where: { $0.id == id }) else { return }
+        if mediaItems[index].isIncluded && selectedMediaCount <= 1 {
+            HapticManager.shared.triggerErrorThump()
+            return
+        }
+
+        mediaItems[index].isIncluded.toggle()
+        HapticManager.shared.triggerSelectionPulse()
     }
 
     private static func cleanedCommonName(_ value: String?) -> String? {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed?.isEmpty == false ? trimmed : nil
+    }
+}
+
+private struct ExplorePostComposerMediaTile: View {
+    let item: ExplorePostComposerMediaDraft
+    let isCover: Bool
+    let canDeselect: Bool
+    let onToggle: () -> Void
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        Button(action: onToggle) {
+            ZStack(alignment: .topTrailing) {
+                Group {
+                    if let image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Color(uiColor: .tertiarySystemFill)
+                            .overlay {
+                                Image(systemName: item.isVideo ? "play.rectangle.fill" : "photo")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                    }
+                }
+                .frame(width: 94, height: 94)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .opacity(item.isIncluded ? 1 : 0.38)
+
+                VStack(alignment: .trailing, spacing: 6) {
+                    Image(systemName: item.isIncluded ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20, weight: .bold))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(item.isIncluded ? Color.white : Color.secondary, item.isIncluded ? Color.accentColor : Color.clear)
+                        .shadow(color: .black.opacity(item.isIncluded ? 0.28 : 0), radius: 4, y: 1)
+
+                    if item.isVideo {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(6)
+                            .background(.black.opacity(0.58), in: Circle())
+                    }
+                }
+                .padding(6)
+
+                VStack {
+                    Spacer()
+                    HStack(spacing: 5) {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.system(size: 10, weight: .bold))
+                        Text(isCover ? "Cover" : item.kind.rawValue.capitalized)
+                            .font(.caption2.weight(.bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 5)
+                    .frame(maxWidth: .infinity)
+                    .background(.black.opacity(0.56))
+                }
+                .frame(width: 94, height: 94)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isCover ? Color.accentColor : Color.primary.opacity(0.08), lineWidth: isCover ? 2 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!canDeselect && item.isIncluded)
+        .accessibilityLabel(item.isVideo ? "Video media" : "Image media")
+        .accessibilityHint(isCover ? "Selected as the cover. Drag to reorder." : "Tap to include or exclude. Drag to reorder.")
+        .task(id: item.previewPath) {
+            image = await LocalImageLoader.shared.loadImage(fromPath: item.previewPath, fallbackUrl: nil, maxDimension: 188)
+        }
+    }
+}
+
+private struct ExplorePostComposerMediaDropDelegate: DropDelegate {
+    let targetItem: ExplorePostComposerMediaDraft
+    @Binding var mediaItems: [ExplorePostComposerMediaDraft]
+    @Binding var draggedMediaItemId: String?
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedMediaItemId,
+              draggedMediaItemId != targetItem.id,
+              let fromIndex = mediaItems.firstIndex(where: { $0.id == draggedMediaItemId }),
+              let toIndex = mediaItems.firstIndex(where: { $0.id == targetItem.id }) else {
+            return
+        }
+
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
+            mediaItems.move(
+                fromOffsets: IndexSet(integer: fromIndex),
+                toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex
+            )
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedMediaItemId = nil
+        HapticManager.shared.triggerSelectionPulse()
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
     }
 }

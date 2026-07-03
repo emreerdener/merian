@@ -8,6 +8,7 @@ private struct PreparedCameraCapture: Sendable {
 }
 
 extension CaptureWorkspaceViewModel {
+    static let videoMaxDuration: TimeInterval = 5
 
     nonisolated private static func prepareCameraCapture(
         captureData: Data,
@@ -221,14 +222,16 @@ extension CaptureWorkspaceViewModel {
 
         isCapturing = true
         isVideoRecording = true
-        AppDIContainer.shared.hapticManager.triggerMediumPulse()
+        videoRecordingProgress = 0
+        startVideoRecordingProgressTimer()
+        AppDIContainer.shared.hapticManager.triggerHeavyImpact(intensity: 0.9)
 
         videoRecordingTask?.cancel()
         videoRecordingTask = Task {
             do {
                 async let shutterLocation = diContainer.environmentContextManager.requestCurrentLocation()
                 let composingCenter = composingZoneVerticalCenter
-                let recording = try await diContainer.cameraManager.recordVideo(maxDuration: 5)
+                let recording = try await diContainer.cameraManager.recordVideo(maxDuration: Self.videoMaxDuration)
                 let resolvedShutterLocation = await shutterLocation
                 let instantLocation = resolvedShutterLocation ?? diContainer.environmentContextManager.lastKnownLocation
                 let preparedFrames = try await Self.prepareVideoFrames(
@@ -276,6 +279,7 @@ extension CaptureWorkspaceViewModel {
             }
 
             await MainActor.run {
+                self.stopVideoRecordingProgressTimer(reset: true)
                 self.isCapturing = false
                 self.isVideoRecording = false
             }
@@ -283,6 +287,37 @@ extension CaptureWorkspaceViewModel {
     }
 
     func stopVideoCapture() {
+        guard isVideoRecording else { return }
+        AppDIContainer.shared.hapticManager.triggerMediumPulse()
         diContainer.cameraManager.stopVideoRecording()
+    }
+
+    private func startVideoRecordingProgressTimer() {
+        videoRecordingProgressTask?.cancel()
+        videoRecordingProgressTask = Task { @MainActor in
+            let tickNanoseconds: UInt64 = 50_000_000
+            let tickDuration = 0.05
+            var elapsed: TimeInterval = 0
+
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: tickNanoseconds)
+                guard !Task.isCancelled else { return }
+                elapsed += tickDuration
+                videoRecordingProgress = min(1, elapsed / Self.videoMaxDuration)
+
+                if elapsed >= Self.videoMaxDuration {
+                    HapticManager.shared.triggerHeavyImpact(intensity: 1.0)
+                    return
+                }
+            }
+        }
+    }
+
+    private func stopVideoRecordingProgressTimer(reset: Bool) {
+        videoRecordingProgressTask?.cancel()
+        videoRecordingProgressTask = nil
+        if reset {
+            videoRecordingProgress = 0
+        }
     }
 }

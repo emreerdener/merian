@@ -5,6 +5,7 @@ import {
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   insertScan,
+  normalizeScanEcologyType,
   resolveScanGeoprivacy,
   speciesReferenceImageRowsFromCache,
 } from "./db.ts";
@@ -145,6 +146,20 @@ Deno.test("resolveScanGeoprivacy throws when the default lookup fails", async ()
   );
 });
 
+Deno.test("normalizeScanEcologyType preserves valid scan ecology values", () => {
+  assertEquals(normalizeScanEcologyType("wild"), "wild");
+  assertEquals(normalizeScanEcologyType("urban"), "urban");
+  assertEquals(normalizeScanEcologyType("domesticated"), "domesticated");
+  assertEquals(normalizeScanEcologyType("unknown"), "unknown");
+});
+
+Deno.test("normalizeScanEcologyType clamps missing or invalid values to unknown", () => {
+  assertEquals(normalizeScanEcologyType(undefined), "unknown");
+  assertEquals(normalizeScanEcologyType(null), "unknown");
+  assertEquals(normalizeScanEcologyType("terrestrial"), "unknown");
+  assertEquals(normalizeScanEcologyType(""), "unknown");
+});
+
 Deno.test("insertScan clears public location labels for private scans", async () => {
   let upsertedRow: Record<string, unknown> | null = null;
   const mock = {
@@ -193,4 +208,44 @@ Deno.test("insertScan clears public location labels for private scans", async ()
     "Flagged from the original AI location-aware assessment.",
   );
   assertEquals(row.invasive_confidence, 0.91);
+});
+
+Deno.test("insertScan writes unknown ecology for non-biological scans without ecology_type", async () => {
+  let upsertedRow: Record<string, unknown> | null = null;
+  const mock = {
+    from(table: string) {
+      assertEquals(table, "scans");
+      return {
+        upsert(row: Record<string, unknown>) {
+          upsertedRow = row;
+          return Promise.resolve({ error: null });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+
+  await insertScan(
+    {
+      id: "scan-2",
+      user_id: "user-1",
+      species_id: null,
+      geoprivacy: "open",
+      is_biological_subject: false,
+      extracted_visual_traits: ["self-illuminated screen"],
+      colors: [],
+      image_storage_urls: [
+        "https://media.merian.app/public_uploads/pro/u/1.webp",
+      ],
+      ecological_interactions: [],
+      inference_tier: "pro",
+      ecology_type: null,
+    },
+    mock,
+  );
+
+  if (upsertedRow === null) {
+    throw new Error("Expected scans upsert row");
+  }
+  const row = upsertedRow as Record<string, unknown>;
+  assertEquals(row.ecology_type, "unknown");
 });

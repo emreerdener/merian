@@ -12,13 +12,28 @@ separately from the backing scan's `geoprivacy`.
   "field_notes": "Found at the shaded meadow edge after rain.",
   "species_common_name": "Black-Tailed Deer",
   "hashtags": ["deer", "urbanwildlife"],
-  "location_sharing": "obscured"
+  "location_sharing": "obscured",
+  "media_items": [
+    { "kind": "image", "source_media_id": "scan:uuid:image:0", "order_index": 0 },
+    {
+      "kind": "video",
+      "source_media_id": "scan:uuid:video:0",
+      "order_index": 1
+    }
+  ]
 }
 ```
 
 `location_sharing` is optional for backward compatibility. When omitted, the new
 or reactivated post uses the scan's current `geoprivacy` as the initial
 post-owned value.
+
+`media_items` is optional for legacy clients. When present, it is the ordered
+public media selection for this post. New clients should submit
+`source_media_id` values returned by `get-explore-composer-media`. Legacy
+clients may still submit `source_index` and `thumbnail_source_index` values that
+point to the scan's promoted image/video URL arrays. Audio, Describe content,
+AI/reference images, and Dictionary media are not valid Explore post media.
 
 Valid location values:
 
@@ -51,6 +66,11 @@ Legacy `hidden` input is accepted as `private`.
 - Sharing snapshots public image/video URLs into `explore_post_media` for the
   post. Video posts require a public thumbnail image; otherwise the endpoint
   returns `Video thumbnail unavailable.`
+- When `media_items` is supplied, only the selected image/video rows are written
+  to `explore_post_media`, ordered by `order_index`; the first selected item's
+  image URL or video thumbnail becomes the computed `hero_image_url`.
+- Empty media selections, non-visual media kinds, invalid source indexes, and
+  videos without a thumbnail are rejected.
 - If the scan has a resolved Ask the Community request, publishing materializes
   any new GBIF-backed resolved species into `species_dictionary`, sets
   `scans.confirmed_species_id`, and stamps the request's `explore_published_at`
