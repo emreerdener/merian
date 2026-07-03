@@ -154,7 +154,7 @@ startRecording() → [recording] ───────────────�
                   [review] → discardPending() → [idle]
 ```
 
-`CaptureWorkspaceView.onChange(of: audioCaptureManager.audioFilePath)` fires only when the user explicitly confirms; this replaces the previous auto-submit that fired immediately when recording finished. If the user already has staged images or descriptions, if multi-capture mode is enabled, or if explicit confirmation is required, the confirmed clip is appended to `stagedCapture.audios` and shares the same 2-item total mixed-media cap as images and descriptions. Otherwise the audio-only path calls `submitAudio(...)` immediately.
+`CaptureWorkspaceView.onChange(of: audioCaptureManager.audioFilePath)` fires only when the user explicitly confirms; this replaces the previous auto-submit that fired immediately when recording finished. If the user already has staged images, videos, or descriptions, if multi-capture mode is enabled, or if explicit confirmation is required, the confirmed clip is appended to `stagedCapture.audios` and shares the same 2-item total mixed-media cap as images, videos, and descriptions. Otherwise the audio-only path calls `submitAudio(...)` immediately.
 
 ### File Format
 

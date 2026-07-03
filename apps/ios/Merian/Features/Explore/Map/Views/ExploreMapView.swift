@@ -316,6 +316,7 @@ struct ExploreMapView: View {
                     reloadGeneration: feedViewModel.mediaReloadGeneration,
                     isSelected: viewModel.selectedPostId == post.id,
                     isApproximate: post.coordinateVisibility == .obscured,
+                    hasVideo: post.hasVideoMedia,
                     showsThumbnail: effectiveShowsThumbnail,
                     zoomLevel: effectiveZoomLevel,
                     isNew: !postStore.containsFeedPost(id: post.id)
@@ -817,6 +818,7 @@ private struct ExploreMapWaypoint: View {
     let reloadGeneration: UInt64
     let isSelected: Bool
     let isApproximate: Bool
+    let hasVideo: Bool
     let showsThumbnail: Bool
     let zoomLevel: Double
     let isNew: Bool
@@ -876,6 +878,14 @@ private struct ExploreMapWaypoint: View {
             )
             .frame(width: imageSize, height: imageSize)
             .clipShape(Circle())
+            .overlay {
+                if hasVideo {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .shadow(radius: 2)
+                }
+            }
             .overlay {
                 Circle()
                     .stroke(isSelected ? Color.accentColor : Color.white, lineWidth: isSelected ? 3 : 2.5)
@@ -991,6 +1001,12 @@ private struct ExploreMapPreviewCard: View {
                             reloadGeneration: mediaReloadGeneration
                         )
                         .frame(width: 82, height: 82)
+                        .overlay(alignment: .topLeading) {
+                            if post.hasVideoMedia {
+                                ExploreMediaPlayIndicator()
+                                    .padding(6)
+                            }
+                        }
                         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     }
                     .buttonStyle(.plain)

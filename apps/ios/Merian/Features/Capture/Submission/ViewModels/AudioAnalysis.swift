@@ -34,6 +34,7 @@ extension CaptureWorkspaceViewModel {
     func submitNonVisualCapture(
         audioFileNames: [String],
         observationContexts: [ObservationContext],
+        videoFileNames: [String] = [],
         mediaTimeline: [CaptureSubmissionMediaItem],
         modelContext: ModelContext,
         targetEradicationScanId: String? = nil
@@ -43,9 +44,10 @@ extension CaptureWorkspaceViewModel {
         diContainer.cameraManager.resetZoom()
 
         let filteredAudioFileNames = audioFileNames.filter { !$0.isEmpty }
+        let filteredVideoFileNames = videoFileNames.filter { !$0.isEmpty }
         let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
         let isOnline = diContainer.offlineQueueManager.isOnline
-        let shouldEnqueueDurably = !filteredAudioFileNames.isEmpty || !isOnline
+        let shouldEnqueueDurably = !filteredAudioFileNames.isEmpty || !filteredVideoFileNames.isEmpty || !isOnline
 
         let capturedPreFetchTask = preFetchTask
         preFetchTask = nil
@@ -81,6 +83,7 @@ extension CaptureWorkspaceViewModel {
                     let enqueued = self.diContainer.offlineQueueManager.enqueueNonVisualCapture(
                         audioFileNames: filteredAudioFileNames,
                         observationContexts: filteredObservationContexts,
+                        videoFilePaths: filteredVideoFileNames,
                         mediaTimeline: mediaTimeline,
                         telemetry: telemetry,
                         scanId: scanId
@@ -103,6 +106,7 @@ extension CaptureWorkspaceViewModel {
                 self.diContainer.inferenceEngine.analyzeNonVisual(
                     scanId: scanId,
                     audioFilePaths: filteredAudioFileNames.isEmpty ? nil : filteredAudioFileNames,
+                    videoFilePaths: filteredVideoFileNames.isEmpty ? nil : filteredVideoFileNames,
                     observationContexts: filteredObservationContexts,
                     mediaTimeline: mediaTimeline,
                     telemetry: telemetry,

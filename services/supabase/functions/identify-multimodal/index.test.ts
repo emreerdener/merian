@@ -174,6 +174,47 @@ function sanitizeCount(v: unknown): number | undefined {
   return Math.min(Math.round(v), 99999);
 }
 
+function telemetryCount(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  return Math.trunc(value);
+}
+
+function resolveVisualMediaTelemetry(
+  resolvedImageCount: number,
+  videoFrameCount: unknown,
+  videoClipCount: number,
+) {
+  const declaredVideoFrameCount = telemetryCount(videoFrameCount);
+  const hasVideo = videoClipCount > 0 || declaredVideoFrameCount > 0;
+  const videoInferenceFrameCount = hasVideo
+    ? Math.min(
+      resolvedImageCount,
+      declaredVideoFrameCount > 0 ? declaredVideoFrameCount : resolvedImageCount,
+    )
+    : 0;
+  const imageCount = Math.max(resolvedImageCount - videoInferenceFrameCount, 0);
+  const hasImage = imageCount > 0;
+  const mediaType = hasVideo && hasImage
+    ? "image_video"
+    : hasVideo
+    ? "video"
+    : hasImage
+    ? "image"
+    : "none";
+
+  return {
+    mediaType,
+    hasImage,
+    hasVideo,
+    imageCount,
+    videoClipCount,
+    declaredVideoFrameCount,
+    videoInferenceFrameCount,
+  };
+}
+
 function sanitizeReasoning(text: string): string {
   return text.length > 2000 ? text.slice(0, 2000) : text;
 }
@@ -377,6 +418,39 @@ Deno.test("telemetry normalization still accepts legacy snake_case aliases", () 
   assertEquals(normalized.timeOfDay, "7:00 AM");
   assertEquals(normalized.depthScaleText, "0.7 meters");
   assertEquals(normalized.estimatedSizeCm, 4.2);
+});
+
+Deno.test("visual media telemetry marks image-only scans", () => {
+  const telemetry = resolveVisualMediaTelemetry(2, null, 0);
+
+  assertEquals(telemetry.mediaType, "image");
+  assertEquals(telemetry.hasImage, true);
+  assertEquals(telemetry.hasVideo, false);
+  assertEquals(telemetry.imageCount, 2);
+  assertEquals(telemetry.declaredVideoFrameCount, 0);
+  assertEquals(telemetry.videoInferenceFrameCount, 0);
+});
+
+Deno.test("visual media telemetry attributes sampled frames to video scans", () => {
+  const telemetry = resolveVisualMediaTelemetry(3, 3, 1);
+
+  assertEquals(telemetry.mediaType, "video");
+  assertEquals(telemetry.hasImage, false);
+  assertEquals(telemetry.hasVideo, true);
+  assertEquals(telemetry.imageCount, 0);
+  assertEquals(telemetry.videoClipCount, 1);
+  assertEquals(telemetry.declaredVideoFrameCount, 3);
+  assertEquals(telemetry.videoInferenceFrameCount, 3);
+});
+
+Deno.test("visual media telemetry preserves still image count for mixed image and video scans", () => {
+  const telemetry = resolveVisualMediaTelemetry(5, 3, 1);
+
+  assertEquals(telemetry.mediaType, "image_video");
+  assertEquals(telemetry.hasImage, true);
+  assertEquals(telemetry.hasVideo, true);
+  assertEquals(telemetry.imageCount, 2);
+  assertEquals(telemetry.videoInferenceFrameCount, 3);
 });
 
 // ---------------------------------------------------------------------------

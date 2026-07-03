@@ -86,6 +86,8 @@ struct ExploreImageWidgetView: View {
                     } else {
                         fallbackImage
                     }
+
+                    playIndicatorIfNeeded
                 }
                 
             case .systemMedium:
@@ -96,6 +98,8 @@ struct ExploreImageWidgetView: View {
                         } else {
                             fallbackImage
                         }
+
+                        playIndicatorIfNeeded
                     }
                     .aspectRatio(1, contentMode: .fit)
                     .frame(maxHeight: .infinity)
@@ -152,6 +156,8 @@ struct ExploreImageWidgetView: View {
                         } else {
                             fallbackImage
                         }
+
+                        playIndicatorIfNeeded
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     
@@ -195,6 +201,8 @@ struct ExploreImageWidgetView: View {
                     } else {
                         fallbackImage
                     }
+
+                    playIndicatorIfNeeded
                 }
             @unknown default:
                 fallbackImage
@@ -226,6 +234,24 @@ struct ExploreImageWidgetView: View {
             fullBleedImage(placeholder)
         } else {
             Color.black
+        }
+    }
+
+    @ViewBuilder
+    private var playIndicatorIfNeeded: some View {
+        if entry.item?.hasVideo == true {
+            VStack {
+                HStack {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Color.black.opacity(0.58), in: Circle())
+                    Spacer()
+                }
+                Spacer()
+            }
+            .padding(8)
         }
     }
 

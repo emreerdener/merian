@@ -19,6 +19,32 @@ interface ExplorePostLookupRow {
   author?: NestedRelation<{ is_shadowbanned?: boolean | null }>;
 }
 
+export type ExplorePostMediaKind = "image" | "video";
+
+export interface ExplorePostMediaItem {
+  kind: ExplorePostMediaKind;
+  url: string;
+  thumbnail_url?: string | null;
+  order_index: number;
+  duration_seconds?: number | null;
+  has_audio: boolean;
+}
+
+interface ExplorePostMediaProjection {
+  post_id: string;
+  media_items?: ExplorePostMediaItem[];
+}
+
+interface ExplorePostMediaRow {
+  post_id: string;
+  kind: ExplorePostMediaKind;
+  url: string;
+  thumbnail_url: string | null;
+  order_index: number;
+  duration_seconds: number | null;
+  has_audio: boolean;
+}
+
 function relationValue<T>(value: NestedRelation<T>): T | undefined {
   if (Array.isArray(value)) return value[0];
   return value ?? undefined;
@@ -397,6 +423,57 @@ export async function withExplorePostHashtags<
   }));
 }
 
+export async function withExplorePostMediaItems<
+  T extends ExplorePostMediaProjection,
+>(
+  rows: T[],
+  supabaseAdmin: SupabaseClient,
+): Promise<Array<T & { media_items: ExplorePostMediaItem[] }>> {
+  const postIds = Array.from(
+    new Set(
+      rows
+        .map((row) => row.post_id?.toLowerCase())
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+
+  if (postIds.length === 0) {
+    return rows.map((row) => ({ ...row, media_items: [] }));
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("explore_post_media")
+    .select("post_id,kind,url,thumbnail_url,order_index,duration_seconds,has_audio")
+    .in("post_id", postIds)
+    .order("order_index", { ascending: true });
+
+  if (error) {
+    throw new Error(
+      `Failed to fetch Explore post media: ${error.message}`,
+    );
+  }
+
+  const mediaByPostId = new Map<string, ExplorePostMediaItem[]>();
+  for (const row of (data ?? []) as ExplorePostMediaRow[]) {
+    const normalizedPostId = row.post_id.toLowerCase();
+    const items = mediaByPostId.get(normalizedPostId) ?? [];
+    items.push({
+      kind: row.kind,
+      url: row.url,
+      thumbnail_url: row.thumbnail_url,
+      order_index: row.order_index,
+      duration_seconds: row.duration_seconds,
+      has_audio: row.has_audio,
+    });
+    mediaByPostId.set(normalizedPostId, items);
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    media_items: mediaByPostId.get(row.post_id.toLowerCase()) ?? [],
+  }));
+}
+
 export async function withExploreAuthorProBadges<
   T extends ExploreAuthorProBadgeProjection,
 >(
@@ -492,7 +569,7 @@ export async function fetchInteractiveExplorePost(
       id,
       user_id,
       unshared_at,
-      scan:scans!inner(image_storage_urls,is_tombstoned),
+      scan:scans!inner(is_tombstoned),
       author:users!explore_posts_user_id_fkey!inner(is_shadowbanned)
     `)
     .eq("id", postId)
@@ -510,7 +587,6 @@ export async function fetchInteractiveExplorePost(
   const typedRow = data as ExplorePostLookupRow;
   const scan = relationValue(typedRow.scan);
   const author = relationValue(typedRow.author);
-  const imageUrls = scan?.image_storage_urls ?? [];
 
   if (typedRow.unshared_at != null) {
     throw makeHttpError(404, "Explore post is no longer shared.");
@@ -520,7 +596,18 @@ export async function fetchInteractiveExplorePost(
     throw makeHttpError(404, "Explore post is no longer available.");
   }
 
-  if ((imageUrls?.length ?? 0) == 0) {
+  const { count: mediaCount, error: mediaError } = await supabaseAdmin
+    .from("explore_post_media")
+    .select("id", { count: "exact", head: true })
+    .eq("post_id", postId);
+
+  if (mediaError) {
+    throw new Error(
+      `Failed to inspect Explore post media: ${mediaError.message}`,
+    );
+  }
+
+  if ((mediaCount ?? 0) == 0) {
     throw makeHttpError(404, "Explore post is no longer available.");
   }
 

@@ -49,10 +49,14 @@ Deno.serve((req: Request) =>
       );
     }
 
-    // 3. Delete images from Cloudflare R2 native
-    if (scan.image_storage_urls && Array.isArray(scan.image_storage_urls)) {
+    // 3. Delete scan media from Cloudflare R2 native
+    const mediaUrls = [
+      ...(Array.isArray(scan.image_storage_urls) ? scan.image_storage_urls : []),
+      ...(Array.isArray(scan.video_storage_urls) ? scan.video_storage_urls : []),
+    ];
+    if (mediaUrls.length > 0) {
       const r2Config = getR2Config();
-      await deleteScanMediaR2Objects(scan.image_storage_urls, r2Config);
+      await deleteScanMediaR2Objects(mediaUrls, r2Config);
     }
 
     // 4. Execute cascading scan database deletion

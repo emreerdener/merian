@@ -1,4 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import type { ExplorePostMediaItem } from "../_shared/explore.ts";
 import type { PetIdentification } from "../_shared/identify/types.ts";
 
 export interface ExploreHashtagPostRow {
@@ -26,6 +27,7 @@ export interface ExploreHashtagPostRow {
   viewer_has_liked: boolean;
   is_owned_by_viewer: boolean;
   ranking_value?: number | null;
+  media_items?: ExplorePostMediaItem[];
 }
 
 export async function fetchExploreHashtagPosts(

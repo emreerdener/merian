@@ -408,6 +408,11 @@ extension MerianSchemaV41 {
                 self.storageRaw = reference.storage.rawValue
                 self.mediaPath = reference.serializedPath
                 self.observationContextJSON = ""
+            case .video(let reference):
+                self.kindRaw = PersistedCapturedMediaKind.video.rawValue
+                self.storageRaw = reference.storage.rawValue
+                self.mediaPath = reference.serializedPath
+                self.observationContextJSON = ""
             case .description(let context):
                 self.kindRaw = PersistedCapturedMediaKind.description.rawValue
                 self.storageRaw = ""
@@ -753,6 +758,11 @@ extension MerianSchemaV42 {
                 self.storageRaw = reference.storage.rawValue
                 self.mediaPath = reference.serializedPath
                 self.observationContextJSON = ""
+            case .video(let reference):
+                self.kindRaw = PersistedCapturedMediaKind.video.rawValue
+                self.storageRaw = reference.storage.rawValue
+                self.mediaPath = reference.serializedPath
+                self.observationContextJSON = ""
             case .description(let context):
                 self.kindRaw = PersistedCapturedMediaKind.description.rawValue
                 self.storageRaw = ""
@@ -1081,6 +1091,16 @@ enum MerianSchemaV44: VersionedSchema {
 
 enum MerianSchemaV45: VersionedSchema {
     static var versionIdentifier = Schema.Version(45, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
+         ScanCollection.self, PendingCloudDeletionTask.self,
+         UserSpeciesPreference.self]
+    }
+}
+
+enum MerianSchemaV46: VersionedSchema {
+    static var versionIdentifier = Schema.Version(46, 0, 0)
 
     static var models: [any PersistentModel.Type] {
         [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
@@ -1649,7 +1669,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV42.self,
             MerianSchemaV43.self,
             MerianSchemaV44.self,
-            MerianSchemaV45.self
+            MerianSchemaV45.self,
+            MerianSchemaV46.self
         ]
     }
 
@@ -1698,9 +1719,15 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV41toV42,
             migrateV42toV43,
             migrateV43toV44,
-            migrateV44toV45
+            migrateV44toV45,
+            migrateV45toV46
         ]
     }
+
+    static let migrateV45toV46 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV45.self,
+        toVersion: MerianSchemaV46.self
+    )
 
     static let migrateV44toV45 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV44.self,

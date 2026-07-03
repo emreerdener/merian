@@ -24,14 +24,42 @@ extension CaptureWorkspaceViewModel {
     ///    `InferenceEngine.analyze`. The live path and background upload race —
     ///    whichever completes first wins.
     func submitStagedCapture(modelContext: ModelContext) {
-        let capturedMediaTimeline = stagedCapture.submissionMediaTimeline
+        let stagedNodes = stagedCapture.orderedNodes
+        var capturedMediaTimeline: [CaptureSubmissionMediaItem] = []
+        var capturedDisplayImages: [StagedImage] = []
+        var capturedInferenceImages: [StagedImage] = []
+
+        for node in stagedNodes {
+            switch node {
+            case .image(_, let stagedImage):
+                let imageIndex = capturedDisplayImages.count
+                capturedDisplayImages.append(stagedImage)
+                capturedInferenceImages.append(stagedImage)
+                capturedMediaTimeline.append(.image(index: imageIndex))
+            case .video(_, let stagedVideo):
+                if let coverImage = stagedVideo.coverImage {
+                    let imageIndex = capturedDisplayImages.count
+                    capturedDisplayImages.append(coverImage)
+                    capturedMediaTimeline.append(.image(index: imageIndex))
+                }
+                capturedInferenceImages.append(contentsOf: stagedVideo.sampledImages)
+                capturedMediaTimeline.append(.video(stagedVideo.filePath))
+            case .audio(_, let stagedAudio):
+                capturedMediaTimeline.append(.audio(stagedAudio.filePath))
+            case .description(_, let stagedObservationContext):
+                capturedMediaTimeline.append(.description(stagedObservationContext.context))
+            }
+        }
+
         let capturedAudioFilePaths = capturedMediaTimeline.audioFilePaths
+        let capturedVideoFilePaths = capturedMediaTimeline.videoFilePaths
         let capturedObservationContexts = capturedMediaTimeline.observationContexts
 
-        guard !stagedCapture.images.isEmpty else {
+        guard stagedCapture.hasVisualMedia else {
             submitNonVisualCapture(
                 audioFileNames: capturedAudioFilePaths,
                 observationContexts: capturedObservationContexts,
+                videoFileNames: capturedVideoFilePaths,
                 mediaTimeline: capturedMediaTimeline,
                 modelContext: modelContext,
                 targetEradicationScanId: baseRefinementContext?.scanId
@@ -51,12 +79,11 @@ extension CaptureWorkspaceViewModel {
         }
 
         // 2. Capture the context needed for inference before clearing the staging buffers.
-        let capturedImages             = stagedCapture.images
         let capturedPreFetchTask       = preFetchTask
         let targetEradicationScanId    = baseRefinementContext?.scanId
         let capturedZoomFactor         = diContainer.cameraManager.zoomFactor
         let defaultZoomFactor          = diContainer.cameraManager.nativeZoomFactor
-        let primaryImageIsGalleryPhoto = capturedImages.first?.original.isFromGallery == true
+        let primaryImageIsGalleryPhoto = capturedDisplayImages.first?.original.isFromGallery == true
 
         // 3. Clear the staging buffers immediately so the UI resets behind the overlay.
         clearStagedCaptureAndCropState()
@@ -90,8 +117,9 @@ extension CaptureWorkspaceViewModel {
             estimatedSizeCm: nil
         )
         diContainer.offlineQueueManager.enqueueCapture(
-            imageDatas: capturedImages.map(\.compressedData),
+            imageDatas: capturedInferenceImages.map(\.compressedData),
             audioFilePaths: capturedAudioFilePaths,
+            videoFilePaths: capturedVideoFilePaths,
             telemetry: immediateTelemetry,
             blurScore: nil,
             scanId: scanId,
@@ -112,9 +140,9 @@ extension CaptureWorkspaceViewModel {
 
             let telemetry = await CaptureTelemetry.resolveForActiveScan(
                 resolvedContext: resolvedContext,
-                historicalContext: capturedImages.first?.original.environmentContext,
+                historicalContext: capturedDisplayImages.first?.original.environmentContext,
                 isGalleryPhoto: primaryImageIsGalleryPhoto,
-                firstImageData: capturedImages.first?.compressedData,
+                firstImageData: capturedDisplayImages.first?.compressedData,
                 distanceMeters: diContainer.cameraManager.subjectDistanceInMeters,
                 zoomFactor: capturedZoomFactor,
                 defaultZoomFactor: defaultZoomFactor
@@ -124,9 +152,10 @@ extension CaptureWorkspaceViewModel {
                 guard self.pendingAnalyzeScanId == scanId else { return }
                 self.diContainer.inferenceEngine.analyze(
                     scanId: scanId,
-                    imageDatas: capturedImages.map(\.compressedData),
-                    displayDatas: capturedImages.map(\.displayData),
+                    imageDatas: capturedInferenceImages.map(\.compressedData),
+                    displayDatas: capturedDisplayImages.map(\.displayData),
                     audioFilePaths: capturedAudioFilePaths.isEmpty ? nil : capturedAudioFilePaths,
+                    videoFilePaths: capturedVideoFilePaths.isEmpty ? nil : capturedVideoFilePaths,
                     telemetry: telemetry,
                     observationContexts: capturedObservationContexts,
                     mediaTimeline: capturedMediaTimeline,

@@ -510,6 +510,12 @@ private struct CommunityIdentificationGridCard: View {
     var body: some View {
         image
             .aspectRatio(1, contentMode: .fit)
+            .overlay(alignment: .topLeading) {
+                if item.hasVideoMedia {
+                    ExploreMediaPlayIndicator()
+                        .padding(8)
+                }
+            }
             .overlay(alignment: .bottomTrailing) {
                 identificationCountBadge
                     .padding(8)
@@ -987,29 +993,17 @@ private struct CommunityDetailHero: View {
             let height = max(width, 320)
             let bleedBuffer: CGFloat = 48
 
-            if let url = URL(string: detail.heroImageUrl) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .failure:
-                        placeholder
-                    case .empty:
-                        Color(uiColor: .tertiarySystemFill)
-                    @unknown default:
-                        placeholder
-                    }
-                }
-                .frame(width: width, height: height + bleedBuffer)
-                .offset(y: -bleedBuffer)
-                .clipped()
-            } else {
-                placeholder
-                    .frame(width: width, height: height + bleedBuffer)
-                    .offset(y: -bleedBuffer)
-            }
+            ExplorePublicMediaView(
+                mediaItem: detail.resolvedMediaItems.first ?? .legacyImage(url: detail.heroImageUrl),
+                fallbackImageUrl: detail.heroImageUrl,
+                reloadGeneration: 0,
+                preloadedImage: nil,
+                autoplay: true,
+                showsVideoControls: true
+            )
+            .frame(width: width, height: height + bleedBuffer)
+            .offset(y: -bleedBuffer)
+            .clipped()
         }
         .frame(height: max(UIScreen.main.bounds.width, 320))
         .overlay(alignment: .top) {

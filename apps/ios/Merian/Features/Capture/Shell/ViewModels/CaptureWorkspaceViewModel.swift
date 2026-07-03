@@ -151,10 +151,12 @@ final class CaptureWorkspaceViewModel {
     var composingZoneVerticalCenter: CGFloat = 0.5
     // MARK: - Camera & Scanning State
     var isCapturing: Bool = false
+    var isVideoRecording: Bool = false
     var flashOpacity: Double = 0.0
     
     // MARK: - Asynchronous Jobs
     @ObservationIgnored var preFetchTask: Task<EnvironmentContext, Never>?
+    @ObservationIgnored var videoRecordingTask: Task<Void, Never>?
     @ObservationIgnored private var focusTask: Task<Void, Never>?
     /// Tracks the scanId of the most recently submitted scan. Used by the async telemetry
     /// Task in `submitActiveScan` to detect when a newer scan has superseded this one and
@@ -187,7 +189,7 @@ final class CaptureWorkspaceViewModel {
 
     var describePromptMediaContext: DescribePromptMediaContext {
         let activeMediaKinds = [
-            !stagedCapture.images.isEmpty,
+            stagedCapture.hasVisualMedia,
             !stagedCapture.audios.isEmpty,
             !stagedCapture.observationContexts.isEmpty
         ].filter { $0 }.count
@@ -195,7 +197,7 @@ final class CaptureWorkspaceViewModel {
         guard activeMediaKinds == 1 else {
             return activeMediaKinds == 0 ? .none : .mixed
         }
-        if !stagedCapture.images.isEmpty { return .photo }
+        if stagedCapture.hasVisualMedia { return .photo }
         if !stagedCapture.audios.isEmpty { return .audio }
         return .description
     }
@@ -527,7 +529,7 @@ final class CaptureWorkspaceViewModel {
         let hasOtherModalities = !stagedCapture.observationContexts.isEmpty || !stagedCapture.audios.isEmpty
         guard !hasOtherModalities else { return false }
 
-        return stagedCapture.images.count == 1 && !hasPendingRequiredGalleryCrop
+        return stagedCapture.images.count + stagedCapture.videos.count == 1 && !hasPendingRequiredGalleryCrop
     }
 
     func isRequiredGalleryCrop(_ imageID: UUID) -> Bool {

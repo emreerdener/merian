@@ -162,6 +162,12 @@ struct ProfilePublicScansPreview: View {
                     )
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
+                    .overlay(alignment: .topLeading) {
+                        if item.hasVideoMedia {
+                            ExploreMediaPlayIndicator()
+                                .padding(6)
+                        }
+                    }
                     .clipped()
                     .profilePublishedScanTileCorners(index: index, itemCount: items.count)
                 }
@@ -523,6 +529,12 @@ private struct ProfilePublishedScansLibraryView: View {
                     )
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
+                    .overlay(alignment: .topLeading) {
+                        if post.hasVideoMedia {
+                            ExploreMediaPlayIndicator()
+                                .padding(6)
+                        }
+                    }
                     .clipped()
                 }
                 .buttonStyle(.plain)
@@ -657,6 +669,10 @@ private struct ProfilePublicScanPreviewItem: Identifiable, Equatable {
     let imagePath: String?
     let fallbackUrl: String?
     let post: ExplorePost?
+
+    var hasVideoMedia: Bool {
+        post?.hasVideoMedia == true
+    }
 }
 
 private struct ProfilePublicScanImageView: View {

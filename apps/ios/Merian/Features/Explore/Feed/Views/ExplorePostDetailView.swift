@@ -110,6 +110,7 @@ struct ExplorePostDetailView: View {
 
                             ExploreDetailMediaView(
                                 imageUrl: post.heroImageUrl,
+                                mediaItems: post.resolvedMediaItems,
                                 reloadGeneration: viewModel.mediaReloadGeneration
                             )
 

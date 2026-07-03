@@ -6,14 +6,23 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Capture
+- Added Pro short video scans from the visual shutter: tap still takes a photo, while a 1-second hold latches into a 5-second video recording with saved playback and image-based thumbnails.
+- Added clearer haptic feedback for video recording latch, stop, successful staging, and recording failures.
+- Added video scans to the Pro paywall comparison table.
+- Kept non-Pro long-presses photo-first so holding the shutter does not interrupt capture or open the paywall.
+
 ### Explore
+- Added public video Explore posts: shared video scans can now appear in Explore and Ask the Community with muted playback in feed/detail and thumbnail play indicators on compact surfaces.
 - Added a View insight action to your own Explore post menus, including posts opened from an Insight sheet or your Profile's published scans.
 - Fixed notification-opened comment reply threads so parent comments and replies include the same emoji reaction controls as regular Explore comments.
 
 ### Scans
+- Added Image and Video media filters to the Scans filter sheet.
 - Restored the Explore posts scan filter so the Scans library can show scans that have already been shared to Explore.
 
 ### Insight Sheet
+- Added fullscreen playback for video scan media from the Insight carousel.
 - Fixed Overview interactions so longer ecological interaction notes wrap fully instead of truncating.
 - Improved Insight overviews with a compact, location-aware invasive status summary that can show the assessed region, confidence, and Merian's rationale when available.
 - Hid the upgrade plan card from the confidence details sheet for Pro users.

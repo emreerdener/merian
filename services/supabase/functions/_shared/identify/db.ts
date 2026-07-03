@@ -289,6 +289,7 @@ export interface ScanInsertRow {
   llm_cached_tokens?: number | null;
   llm_total_tokens?: number | null;
   image_storage_urls: string[];
+  video_storage_urls?: string[];
   life_stage?: string;
   reproductive_condition?: string;
   sex?: string | null;

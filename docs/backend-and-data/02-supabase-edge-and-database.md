@@ -78,10 +78,12 @@ Several utilities are shared across all Edge Functions via
 - **`posthog.ts`**: A headless telemetry ingestion pipeline executing
   asynchronous `node-fetch` style queries to log per-scan events to PostHog for
   behavioral analytics (conversion funnel, scan frequency, species discovery
-  rate). LLM token cost analytics are NOT owned by PostHog — they are owned by
-  Supabase SQL queries in `services/supabase/analytics/` (see below). Scan
-  inference cost queries read `scans`; Insight chat cost queries read assistant
-  rows in `insight_chat_messages`.
+  rate). PostHog receives token counters for funnel/debug slicing, including
+  video-attributed counters on video-backed multimodal scans, but authoritative
+  LLM token cost analytics are owned by Supabase SQL queries in
+  `services/supabase/analytics/` (see below). Scan inference cost queries read
+  `scans`; Insight chat cost queries read assistant rows in
+  `insight_chat_messages`.
 - **`tierCache.ts`**: Worker-level `_tierCache` Map storing tier resolutions
   with a 5-minute TTL to eliminate DB round-trips on warm isolate reuse.
   **Bounded at 1000 entries**: on overflow, expired entries are swept first
@@ -543,8 +545,10 @@ path today. It unifies the image, audio, and text-only request shapes into one
 pipeline while the legacy endpoints remain deployed for compatibility.
 
 1. **Payload Assembly**: It accepts `imageBase64s`, image `r2ObjectKeys`, inline
-   `audioBase64s`, staged `audioR2ObjectKeys`, and `observation_contexts`
-   arrays.
+   `audioBase64s`, staged `audioR2ObjectKeys`, staged `videoR2ObjectKeys`,
+   `videoFrameCount`, and `observation_contexts` arrays. Video scans send
+   ordered sampled frames through the normal image payload path for AI
+   inference; the raw `.mp4` is staged only for persistence after moderation.
 2. **WAV Preprocessing**: Audio data is preflighted before decode/fetch. The
    endpoint rejects oversized declared request `Content-Length` headers before
    body parsing, then uses `readRequestJsonWithinBudget` as the authoritative
@@ -562,12 +566,15 @@ pipeline while the legacy endpoints remain deployed for compatibility.
      `BIOACOUSTIC_SYSTEM_INSTRUCTION`, leveraging specific bioacoustic AI
      interpretation.
    - **Vision-only (`imageBase64s`)**: Follows the standard vision
-     identification path.
+     identification path. When a video is present, prompt context identifies
+     those images as ordered frames from one short clip.
    - **Text-only (`observation_contexts`)**: Follows the legacy sighting
      pipeline utilizing only the user's structured observation text.
 4. The current iOS client sends queued images via `r2ObjectKeys`, queued audio
-   via `audioR2ObjectKeys`, live foreground audio via inline `audioBase64s`, and
-   text via `observation_contexts`. Telemetry on this path is camelCase (`gpsLatitude`, `semanticLocation`,
+   via `audioR2ObjectKeys`, queued videos via `videoR2ObjectKeys`, live
+   foreground video uploads through the same staging contract, live foreground
+   audio via inline `audioBase64s`, and text via `observation_contexts`.
+   Telemetry on this path is camelCase (`gpsLatitude`, `semanticLocation`,
    `deviceTimeZone`, etc.); the server also accepts legacy snake_case aliases
    for backward compatibility during offline queue replay and staged endpoint
    migration.
@@ -576,10 +583,12 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    are stripped at `confidence_score >= diagnosticTrigger`, cached English
    common names are attached synchronously when available, and cache misses are
    enriched in the background so the next scan is warm.
-6. Persisted multimodal scan imagery still lands in `scans.image_storage_urls`.
-   Staged audio is an inference input, not a public media artifact;
-   `identify-multimodal` deletes `audioR2ObjectKeys` from staging after
-   successful background ingestion.
+6. Persisted multimodal scan imagery still lands in `scans.image_storage_urls`;
+   promoted clips land separately in `scans.video_storage_urls`. Staged audio
+   is an inference input, not a public media artifact; `identify-multimodal`
+   deletes `audioR2ObjectKeys` from staging after successful background
+   ingestion. Staged video keys are promoted only after the sampled frames pass
+   moderation and are otherwise deleted with the staged image keys.
 
 ## The Explore Social Surface
 
@@ -625,6 +634,16 @@ that snapshot when `species_common_name` is omitted. Read RPCs route through
 `public.explore_post_species_common_name(...)` so feed, detail, author, map, and
 hashtag views all prefer the stored snapshot and fall back to dictionary English
 names or the scientific name only for legacy posts without a snapshot.
+
+Explore post media is also a post-owned snapshot. Sharing copies safe public
+image and video URLs from the scan into `explore_post_media` and keeps
+`hero_image_url` as the backward-compatible universal thumbnail. Feed, detail,
+author, hashtag, map, and Community ID reads include ordered `media_items`
+JSON. Feed/detail surfaces may play muted videos conservatively, while maps,
+widgets, profile grids, and compact previews stay thumbnail-first with play
+indicators. Dictionary galleries and reference-image promotion remain
+image-only and read from the eligible scan image URLs rather than public video
+clips.
 
 Author profile reads are split the same way as feed/detail reads.
 `get-explore-author-profile` returns a privacy-scoped profile sheet payload only

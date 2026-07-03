@@ -57,6 +57,12 @@ enum ScanLocationFilter: String, CaseIterable, Identifiable, Hashable {
     var id: String { rawValue }
 }
 
+enum ScanMediaFilter: String, CaseIterable, Identifiable, Hashable {
+    case image = "Image"
+    case video = "Video"
+    var id: String { rawValue }
+}
+
 enum ScanEcologyFilter: String, CaseIterable, Identifiable, Hashable {
     case wild = "Wild"
     case captive = "Captive"
@@ -110,6 +116,7 @@ struct ScanLibraryFilters: Equatable {
     var customStartDate: Date?
     var customEndDate: Date?
     var locationFilters: Set<ScanLocationFilter> = []
+    var mediaFilters: Set<ScanMediaFilter> = []
     var customTags: Set<String> = []
     var isInvasive = false
     var hazardTypes: Set<String> = []
@@ -133,6 +140,7 @@ struct ScanLibraryFilters: Equatable {
     var activeAdvancedFilterCount: Int {
         dateFilters.count
             + locationFilters.count
+            + mediaFilters.count
             + customTags.count
             + (isInvasive ? 1 : 0)
             + hazardTypes.count
@@ -515,6 +523,7 @@ struct ScanLibraryFilters: Equatable {
         return scans.filter { scan in
             matchesDateFilters(scan, filters: activeFilters, calendar: calendar, now: now)
                 && matchesLocationFilters(scan, filters: activeFilters)
+                && matchesMediaFilters(scan, filters: activeFilters)
                 && matchesCustomTagFilters(scan, filters: activeFilters)
                 && matchesNaturalistFilters(scan, filters: activeFilters)
                 && matchesQualityFilters(scan, filters: activeFilters)
@@ -576,6 +585,23 @@ struct ScanLibraryFilters: Equatable {
                 return hasLocation
             case .noLocation:
                 return !hasLocation
+            }
+        }
+    }
+
+    private func matchesMediaFilters(_ scan: LocalScanRecord, filters: ScanLibraryFilters) -> Bool {
+        guard !filters.mediaFilters.isEmpty else { return true }
+        let mediaSummary = scan.capturedMediaSnapshot.summary
+        let hasLegacyCoverImage = scan.coverImagePath?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty == false
+        let hasImage = mediaSummary.hasImage || hasLegacyCoverImage
+        return filters.mediaFilters.contains { filter in
+            switch filter {
+            case .image:
+                return hasImage && !mediaSummary.hasVideo
+            case .video:
+                return mediaSummary.hasVideo
             }
         }
     }

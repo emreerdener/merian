@@ -12,6 +12,18 @@ private final class CameraCaptureStack: @unchecked Sendable {
     lazy var videoOutput = AVCaptureVideoDataOutput()
     lazy var depthOutput = AVCaptureDepthDataOutput()
     lazy var photoOutput = AVCapturePhotoOutput()
+    lazy var movieOutput = AVCaptureMovieFileOutput()
+}
+
+struct CameraVideoRecording: Sendable {
+    let fileURL: URL
+    let duration: TimeInterval
+}
+
+private struct CameraVideoRecordingCompletion {
+    let continuation: CheckedContinuation<CameraVideoRecording, Error>?
+    let startedAt: Date?
+    let fileURL: URL?
 }
 
 // MARK: - Camera Manager
@@ -19,7 +31,7 @@ private final class CameraCaptureStack: @unchecked Sendable {
 /// Manages the AVFoundation capture session, LiDAR depth mapping, photo capture,
 /// and live frame delivery for viewfinder intelligence.
 @MainActor
-@Observable final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureDepthDataOutputDelegate, AVCapturePhotoCaptureDelegate {
+@Observable final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureDepthDataOutputDelegate, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
 
     // MARK: - Singleton Architecture
     static let shared = CameraManager()
@@ -30,6 +42,7 @@ private final class CameraCaptureStack: @unchecked Sendable {
     @ObservationIgnored nonisolated private var videoOutput: AVCaptureVideoDataOutput { captureStack.videoOutput }
     @ObservationIgnored nonisolated private var depthOutput: AVCaptureDepthDataOutput { captureStack.depthOutput }
     @ObservationIgnored nonisolated private var photoOutput: AVCapturePhotoOutput { captureStack.photoOutput }
+    @ObservationIgnored nonisolated private var movieOutput: AVCaptureMovieFileOutput { captureStack.movieOutput }
 
     // MARK: - Threading
     @ObservationIgnored private let queue = DispatchQueue(label: "com.merian.camera")
@@ -49,6 +62,7 @@ private final class CameraCaptureStack: @unchecked Sendable {
     //     - Do NOT acquire `stateLock` while holding `requestsLock`.
     //   Violation = guaranteed deadlock between the camera queue and the @MainActor timeout path.
     @ObservationIgnored nonisolated let stateLock = OSAllocatedUnfairLock()
+    @ObservationIgnored nonisolated private let videoRecordingLock = OSAllocatedUnfairLock()
     /// Frame-delivery throttle timestamp — updated at most once per 300 ms from the depth delegate.
     @ObservationIgnored nonisolated(unsafe) private var lastDepthTime: CFAbsoluteTime = 0
     /// Frame-delivery throttle timestamp — updated at most once per 300 ms from the video delegate.
@@ -59,6 +73,9 @@ private final class CameraCaptureStack: @unchecked Sendable {
     @ObservationIgnored nonisolated(unsafe) private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     /// One-shot flag preventing `setupSession` from running twice on concurrent `startSession` calls.
     @ObservationIgnored nonisolated(unsafe) private var isSessionConfigured = false
+    @ObservationIgnored nonisolated(unsafe) private var activeVideoContinuation: CheckedContinuation<CameraVideoRecording, Error>?
+    @ObservationIgnored nonisolated(unsafe) private var activeVideoStartedAt: Date?
+    @ObservationIgnored nonisolated(unsafe) private var activeVideoURL: URL?
 
     // MARK: - State
     private(set) var activeThermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState
@@ -66,6 +83,7 @@ private final class CameraCaptureStack: @unchecked Sendable {
     var isSessionRunning = false
     var subjectDistanceInMeters: Float?
     var isFlashEnabled = false
+    private(set) var isRecordingVideo = false
 
     // MARK: - Zoom
     private(set) var zoomFactor: CGFloat = 1.0
@@ -810,6 +828,113 @@ private final class CameraCaptureStack: @unchecked Sendable {
         #endif
     }
 
+    // MARK: - Video Capture
+
+    func recordVideo(maxDuration: TimeInterval = 5) async throws -> CameraVideoRecording {
+        #if targetEnvironment(simulator)
+        throw NSError(
+            domain: "CameraManager",
+            code: -6,
+            userInfo: [NSLocalizedDescriptionKey: "Video capture is unavailable in the iOS Simulator."]
+        )
+        #else
+        let microphoneAllowed = await AVAudioApplication.requestRecordPermission()
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString)_video.mp4")
+
+        try await configureMovieRecording(includeAudio: microphoneAllowed, outputURL: outputURL)
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let startedAt = Date()
+                let existingContinuation = videoRecordingLock.withLock { () -> CheckedContinuation<CameraVideoRecording, Error>? in
+                    if let activeVideoContinuation {
+                        return activeVideoContinuation
+                    }
+                    activeVideoContinuation = continuation
+                    activeVideoStartedAt = startedAt
+                    activeVideoURL = outputURL
+                    return nil
+                }
+
+                if let existingContinuation {
+                    continuation.resume(throwing: NSError(
+                        domain: "CameraManager",
+                        code: -7,
+                        userInfo: [NSLocalizedDescriptionKey: "Video recording is already in progress."]
+                    ))
+                    _ = existingContinuation
+                    return
+                }
+
+                isRecordingVideo = true
+                queue.async {
+                    self.movieOutput.startRecording(to: outputURL, recordingDelegate: self)
+                }
+
+                Task { [weak self] in
+                    let durationNanos = UInt64(maxDuration * 1_000_000_000)
+                    try? await Task.sleep(nanoseconds: durationNanos)
+                    await self?.stopVideoRecording()
+                }
+            }
+        } onCancel: {
+            Task { [weak self] in
+                await self?.stopVideoRecording()
+            }
+        }
+        #endif
+    }
+
+    func stopVideoRecording() {
+        #if !targetEnvironment(simulator)
+        queue.async {
+            guard self.movieOutput.isRecording else { return }
+            self.movieOutput.stopRecording()
+        }
+        #endif
+    }
+
+    private func configureMovieRecording(includeAudio: Bool, outputURL: URL) async throws {
+        try? FileManager.default.removeItem(at: outputURL)
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            queue.async {
+                self.session.beginConfiguration()
+                defer { self.session.commitConfiguration() }
+
+                if !self.session.outputs.contains(self.movieOutput) {
+                    guard self.session.canAddOutput(self.movieOutput) else {
+                        continuation.resume(throwing: NSError(
+                            domain: "CameraManager",
+                            code: -8,
+                            userInfo: [NSLocalizedDescriptionKey: "Video recording is not supported by this camera session."]
+                        ))
+                        return
+                    }
+                    self.session.addOutput(self.movieOutput)
+                }
+
+                if includeAudio,
+                   !self.session.inputs.contains(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.audio) == true }),
+                   let audioDevice = AVCaptureDevice.default(for: .audio),
+                   let audioInput = try? AVCaptureDeviceInput(device: audioDevice),
+                   self.session.canAddInput(audioInput) {
+                    self.session.addInput(audioInput)
+                }
+
+                if let connection = self.movieOutput.connection(with: .video),
+                   let rotationAngle = self.stateLock.withLock({ self.rotationCoordinator?.videoRotationAngleForHorizonLevelCapture }),
+                   connection.isVideoRotationAngleSupported(rotationAngle) {
+                    connection.videoRotationAngle = rotationAngle
+                }
+
+                self.movieOutput.maxRecordedDuration = CMTime(seconds: 5, preferredTimescale: 600)
+                continuation.resume(returning: ())
+            }
+        }
+    }
+
     // MARK: - AVCapturePhotoCaptureDelegate
 
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
@@ -832,5 +957,39 @@ private final class CameraCaptureStack: @unchecked Sendable {
         } else {
             request.continuation.resume(throwing: NSError(domain: "CameraManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to generate file data representation"]))
         }
+    }
+
+    nonisolated func fileOutput(
+        _ output: AVCaptureFileOutput,
+        didFinishRecordingTo outputFileURL: URL,
+        from connections: [AVCaptureConnection],
+        error: Error?
+    ) {
+        let result = videoRecordingLock.withLock { () -> CameraVideoRecordingCompletion in
+            let captured = CameraVideoRecordingCompletion(
+                continuation: activeVideoContinuation,
+                startedAt: activeVideoStartedAt,
+                fileURL: activeVideoURL
+            )
+            activeVideoContinuation = nil
+            activeVideoStartedAt = nil
+            activeVideoURL = nil
+            return captured
+        }
+
+        Task { @MainActor in
+            self.isRecordingVideo = false
+        }
+
+        guard let continuation = result.continuation else { return }
+
+        if let error {
+            continuation.resume(throwing: error)
+            return
+        }
+
+        let fileURL = result.fileURL ?? outputFileURL
+        let duration = result.startedAt.map { Date().timeIntervalSince($0) } ?? 0
+        continuation.resume(returning: CameraVideoRecording(fileURL: fileURL, duration: duration))
     }
 }

@@ -13,7 +13,8 @@ Merian is a field-ready biological identification app built around zero-friction
 - LiDAR depth harvesting via `AVCaptureDepthDataOutput`, feeding absolute subject distance (up to ~5m) to the AI model to prevent scale hallucinations.
 - Tap-to-focus, tap-to-expose, pinch zoom, vertical swipe zoom, and direct drag on the zoom meter.
 - Native hardware button capture via `AVCaptureEventInteraction` (volume buttons, Action button, iPhone 16 Camera Control).
-- Mixed-media staging mode — queue up to 2 total images, audio clips, or descriptions before submitting to inference.
+- Mixed-media staging mode — queue up to 2 total photos, short Pro video clips, audio clips, or descriptions before submitting to inference.
+- Pro video scans let users hold the visual shutter for a short clip; Merian samples ordered frames for AI inference and saves the clip with an image-based thumbnail.
 - Audio Listen Mode records a 15-second WAV clip with live spectrogram and SNR feedback.
 - Describe Mode supports typed observations and live voice dictation through `SpeechManager`.
 - Real-time viewfinder intelligence hints (brightness, distance, motion blur) powered by on-device luma analysis at 3fps.
@@ -53,8 +54,9 @@ Merian is a field-ready biological identification app built around zero-friction
   common-name snapshot, browse hashtag post collections, like posts, comment,
   react to comments, follow authors, and receive Explore notifications.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
+- Explore posts support public image/video media snapshots; feed and detail can play muted videos while maps, widgets, and compact profile previews stay thumbnail-first.
 - Author profile sheets expose privacy-scoped public stats and non-opening public achievements.
-- Home Screen widget caches image-only Explore snapshots through the shared App Group.
+- Home Screen widget caches thumbnail-first Explore snapshots through the shared App Group, including play indicators for video posts.
 - Public Explore share pages render at `https://merian.earth/explore/post/{postId}` through the Next.js web app.
 
 ### Native Share Extensions
@@ -68,7 +70,7 @@ Merian is a field-ready biological identification app built around zero-friction
 
 ### Settings
 **Camera** — zoom slider visibility, left-side placement, invert zoom direction, live viewfinder hints.
-**Preferences** — theme (system/light/dark), multi-image scans, expedition mode, system haptics, save to camera roll.
+**Preferences** — theme (system/light/dark), multi-capture scans, expedition mode, system haptics, save to camera roll.
 **Geoprivacy** — open, obscured (~10km), or private; configurable per account and synced to Supabase.
 **Notifications** — species discovery alerts, achievement milestone alerts.
 **Changelog** — bundled feature notes, release notes, and selected in-progress work.
@@ -102,7 +104,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Anonymous IDFV-backed Ghost Sessions (zero-friction, no sign-up required at launch).
 - Sign in with Apple / Google OAuth merges Ghost identity via `linkIdentityWithIdToken` or the `/merge-ghost-profile` Edge RPC.
 - RevenueCat webhook drives `free` ↔ `pro` tier updates while leaving existing scan media in place.
-- Free tier: 1 scan/day. Pro: unlimited scans, Gemini 2.5 Pro model, offline queue.
+- Free tier: 1 scan/day. Pro: unlimited scans, Gemini 2.5 Pro model, video scans, AI chat, multi-capture, Apple Watch logging, expedition mode, and offline queue.
 - Pro follow-up chat is served by a Supabase Edge Function using Gemini 2.5 Flash against stored scan evidence only; the same function also generates short, scan-specific prompt chips from private text context.
 
 ### Evidence Retention

@@ -119,7 +119,22 @@ async function upsertCommunityExplorePost(
     );
   }
 
-  return data as { id: string; shared_at: string };
+  const post = data as { id: string; shared_at: string };
+  const { error: mediaError } = await supabaseAdmin.rpc(
+    "refresh_explore_post_media",
+    { target_post_id: post.id },
+  );
+
+  if (mediaError) {
+    const message = mediaError.message?.toLowerCase().includes(
+        "video thumbnail unavailable",
+      )
+      ? "Video thumbnail unavailable."
+      : mediaError.message ?? "Unknown error";
+    throw makeHttpError(409, message);
+  }
+
+  return post;
 }
 
 export async function requestCommunityIdentification(

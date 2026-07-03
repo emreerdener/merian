@@ -120,6 +120,7 @@ export async function evaluateAndProcessPayload(
   geminiFinishReason: string | undefined,
   safetyRatings: SafetyRating[] | undefined,
   userTier: string,
+  additionalStagedKeysToDeleteOnUnsafe: string[] = [],
 ): Promise<{ status: string; publicUrls?: string[] }> {
   try {
     // 1. Evaluate Gemini safety ratings
@@ -145,12 +146,13 @@ export async function evaluateAndProcessPayload(
     if (isUnsafe) {
       console.warn(`Unsafe media detected for user ${userId}.`);
 
-      if (
-        (!imageBase64s || imageBase64s.length === 0) && r2ObjectKeys &&
-        r2ObjectKeys.length > 0
-      ) {
+      const stagedKeysToDelete = [
+        ...((!imageBase64s || imageBase64s.length === 0) ? r2ObjectKeys ?? [] : []),
+        ...additionalStagedKeysToDeleteOnUnsafe,
+      ];
+      if (stagedKeysToDelete.length > 0) {
         await Promise.allSettled(
-          r2ObjectKeys.map((key) => deleteR2Object(key, r2Config)),
+          stagedKeysToDelete.map((key) => deleteR2Object(key, r2Config)),
         );
       }
 

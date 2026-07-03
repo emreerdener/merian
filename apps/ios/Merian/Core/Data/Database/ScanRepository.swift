@@ -14,7 +14,7 @@ final class ScanRepository {
     // MARK: - Singleton
 
     static let shared = ScanRepository()
-    private static let historicalScanSelectColumns = "id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, invasive_status_region, invasive_rationale, invasive_confidence, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, pet_identification, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
+    private static let historicalScanSelectColumns = "id, image_storage_urls, video_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, invasive_status_region, invasive_rationale, invasive_confidence, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, pet_identification, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
 
     // MARK: - Dependencies
 
@@ -345,6 +345,7 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let id: String
     let created_at: String?
     let image_storage_urls: [String]?
+    let video_storage_urls: [String]?
     let timestamp: String?
     let weather_condition: String?
     let weather_temperature_f: Double?
@@ -516,6 +517,9 @@ actor HistoricalDatabaseActor {
                 var newItems: [SerializedMediaItem] = []
                 if let rawR2Image { newItems.append(.image(.remoteURL(rawR2Image))) }
                 if let additionalUrls { newItems.append(contentsOf: additionalUrls.map { .image(.remoteURL($0)) }) }
+                if let videoUrls = res.video_storage_urls {
+                    newItems.append(contentsOf: videoUrls.map { .video(.remoteURL($0)) })
+                }
                 if !newItems.isEmpty {
                     let hasRemoteMedia = paths.contains { $0.starts(with: "http://") || $0.starts(with: "https://") }
                     let onlyLocalOrMissingMedia = paths.isEmpty || !hasRemoteMedia
@@ -665,6 +669,7 @@ actor HistoricalDatabaseActor {
 
             let rawR2Image = scan.image_storage_urls?.first
             let additionalUrls = scan.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
+            let videoUrls = scan.video_storage_urls ?? []
             let semanticPetTags = [scan.pet_identification?.label].compactMap {
                 $0?.trimmingCharacters(in: .whitespacesAndNewlines)
             }.filter { !$0.isEmpty }
@@ -735,8 +740,7 @@ actor HistoricalDatabaseActor {
             var newItems: [SerializedMediaItem] = []
             if let primary = rawR2Image { newItems.append(.image(.remoteURL(primary))) }
             if let urls = additionalUrls { newItems.append(contentsOf: urls.map { .image(.remoteURL($0)) }) }
-            // Note: Cloud dictionary might have audio file paths or observation contexts depending on the API mapping,
-            // but the original code did not pass them here, so we only handle images.
+            newItems.append(contentsOf: videoUrls.map { .video(.remoteURL($0)) })
             record.replaceCapturedMedia(with: newItems)
 
             modelContext.insert(record)

@@ -3,6 +3,7 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 export interface DBScanRow {
   id: string;
   image_storage_urls: string[];
+  video_storage_urls: string[];
 }
 
 /**
@@ -15,7 +16,7 @@ export async function fetchStaleNonBioScans(
 ): Promise<DBScanRow[]> {
   const { data: scans, error: fetchError } = await supabaseAdmin
     .from("scans")
-    .select("id, image_storage_urls")
+    .select("id, image_storage_urls, video_storage_urls")
     .eq("is_biological_subject", false)
     .lt("timestamp", timestampBoundary)
     .limit(500);

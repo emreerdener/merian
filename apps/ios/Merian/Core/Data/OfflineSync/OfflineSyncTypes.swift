@@ -21,9 +21,10 @@ struct PendingScanPayload: Sendable {
     let id: String
     let localImagePaths: [String]
     let localAudioPaths: [String]
+    let localVideoPaths: [String]
 
     var localUploadPaths: [String] {
-        localImagePaths + localAudioPaths
+        localImagePaths + localAudioPaths + localVideoPaths
     }
 }
 
@@ -32,6 +33,7 @@ struct PendingScanPayload: Sendable {
 enum StagedMediaKind: String, Codable, Sendable, Equatable {
     case image
     case audio
+    case video
 
     func contentType(for path: String) -> String {
         switch self {
@@ -39,6 +41,8 @@ enum StagedMediaKind: String, Codable, Sendable, Equatable {
             return "image/webp"
         case .audio:
             return path.lowercased().hasSuffix(".m4a") ? "audio/mp4" : "audio/wav"
+        case .video:
+            return "video/mp4"
         }
     }
 
@@ -48,6 +52,8 @@ enum StagedMediaKind: String, Codable, Sendable, Equatable {
             return MerianConfig.stagedImagePayloadMaxBytes
         case .audio:
             return MerianConfig.audioPayloadMaxBytes
+        case .video:
+            return MerianConfig.videoPayloadMaxBytes
         }
     }
 }
@@ -55,9 +61,10 @@ enum StagedMediaKind: String, Codable, Sendable, Equatable {
 struct StagedMediaObjectKeys: Sendable, Equatable {
     let imageR2ObjectKeys: [String]
     let audioR2ObjectKeys: [String]
+    let videoR2ObjectKeys: [String]
 
     var all: [String] {
-        imageR2ObjectKeys + audioR2ObjectKeys
+        imageR2ObjectKeys + audioR2ObjectKeys + videoR2ObjectKeys
     }
 }
 
@@ -129,6 +136,9 @@ enum MediaStagingContract {
         for path in scan.localAudioPaths {
             append(kind: .audio, localPath: path)
         }
+        for path in scan.localVideoPaths {
+            append(kind: .video, localPath: path)
+        }
 
         return items
     }
@@ -137,7 +147,8 @@ enum MediaStagingContract {
         let items = uploadItems(for: scan, userId: userId)
         return StagedMediaObjectKeys(
             imageR2ObjectKeys: items.filter { $0.mediaKind == .image }.map(\.objectKey),
-            audioR2ObjectKeys: items.filter { $0.mediaKind == .audio }.map(\.objectKey)
+            audioR2ObjectKeys: items.filter { $0.mediaKind == .audio }.map(\.objectKey),
+            videoR2ObjectKeys: items.filter { $0.mediaKind == .video }.map(\.objectKey)
         )
     }
 
@@ -146,14 +157,16 @@ enum MediaStagingContract {
         scanId: String,
         userId: String? = nil,
         localImagePaths: [String],
-        localAudioPaths: [String]
+        localAudioPaths: [String],
+        localVideoPaths: [String] = []
     ) -> StagedMediaObjectKeys {
         let keysToSplit: [String]
         if objectKeys.isEmpty, let userId {
             let payload = PendingScanPayload(
                 id: scanId,
                 localImagePaths: localImagePaths,
-                localAudioPaths: localAudioPaths
+                localAudioPaths: localAudioPaths,
+                localVideoPaths: localVideoPaths
             )
             keysToSplit = self.objectKeys(for: payload, userId: userId).all
         } else {
@@ -161,16 +174,23 @@ enum MediaStagingContract {
         }
 
         let audioFileNames = Set(localAudioPaths.map { stagingFileName(scanId: scanId, localPath: $0) })
+        let videoFileNames = Set(localVideoPaths.map { stagingFileName(scanId: scanId, localPath: $0) })
         let audioKeys = keysToSplit.filter { key in
             let fileName = key.split(separator: "/").last.map(String.init) ?? key
             return audioFileNames.contains(fileName) || localAudioPaths.contains { key.hasSuffix("_\($0)") }
         }
         let audioKeySet = Set(audioKeys)
-        let imageKeys = keysToSplit.filter { !audioKeySet.contains($0) }
+        let videoKeys = keysToSplit.filter { key in
+            let fileName = key.split(separator: "/").last.map(String.init) ?? key
+            return videoFileNames.contains(fileName) || localVideoPaths.contains { key.hasSuffix("_\($0)") }
+        }
+        let nonImageKeySet = audioKeySet.union(videoKeys)
+        let imageKeys = keysToSplit.filter { !nonImageKeySet.contains($0) }
 
         return StagedMediaObjectKeys(
             imageR2ObjectKeys: imageKeys,
-            audioR2ObjectKeys: audioKeys
+            audioR2ObjectKeys: audioKeys,
+            videoR2ObjectKeys: videoKeys
         )
     }
 
@@ -181,6 +201,7 @@ enum MediaStagingContract {
 
         var totalImageBytes = 0
         var audioItemCount = 0
+        var videoItemCount = 0
         for item in items {
             let size = try fileSize(at: item.fileURL)
             guard size <= item.mediaKind.maxStagedBytes else {
@@ -192,9 +213,14 @@ enum MediaStagingContract {
                 guard totalImageBytes <= MerianConfig.stagedImagePayloadMaxBytes else {
                     throw MerianError.payloadTooLarge
                 }
-            } else {
+            } else if item.mediaKind == .audio {
                 audioItemCount += 1
                 guard audioItemCount <= MerianConfig.mediaStagingMaxAudioFilesPerRequest else {
+                    throw MerianError.payloadTooLarge
+                }
+            } else {
+                videoItemCount += 1
+                guard videoItemCount <= MerianConfig.mediaStagingMaxVideoFilesPerRequest else {
                     throw MerianError.payloadTooLarge
                 }
             }
@@ -302,7 +328,7 @@ struct ExtractedScanData: Sendable {
     }
 
     var localUploadPaths: [String] {
-        localImagePaths + (audioFilePaths ?? [])
+        localImagePaths + (audioFilePaths ?? []) + (videoFilePaths ?? [])
     }
 
     /// Pre-serialized `ObservationContext` text for combined image+description scans.
@@ -321,6 +347,11 @@ struct ExtractedScanData: Sendable {
     /// `nil` for image and describe scans.
     var audioFilePaths: [String]? {
         let paths = capturedMediaSnapshot.audioPaths
+        return paths.isEmpty ? nil : paths
+    }
+
+    var videoFilePaths: [String]? {
+        let paths = capturedMediaSnapshot.videoPaths
         return paths.isEmpty ? nil : paths
     }
 

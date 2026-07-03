@@ -1,6 +1,11 @@
 # Explore Home Screen Widget
 
-Merian ships a small iOS Home Screen widget that behaves like an image carousel for Recent Explore posts. The widget is intentionally image-only: a full-bleed square photo with no labels, badges, controls, gradients, or text. Tapping the image opens the matching Explore post inside the main app.
+The Explore widget remains thumbnail-first. It caches still image thumbnails in
+the shared App Group and overlays a compact play indicator when the source
+Explore post contains video media; widgets do not load or play public videos
+inline.
+
+Merian ships a small iOS Home Screen widget that behaves like a thumbnail carousel for Recent Explore posts. The widget is intentionally static: a full-bleed square thumbnail with a compact play indicator when the post contains video, but no inline playback controls. Tapping the image opens the matching Explore post inside the main app.
 
 ## Product Contract
 

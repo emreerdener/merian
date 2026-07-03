@@ -369,10 +369,11 @@ triggering excessive SwiftUI view rebuilds.
 - Uses `BackgroundTaskWrapper.execute(name:operation:)` to wrap operations in
   `UIBackgroundTaskIdentifier` windows, preventing system suspension mid-flight.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
-  across images, audio clips, and descriptions. Images are still written to
-  `.documentsDirectory` via `FileIOActor`, while the queue/database layers
-  derive legacy arrays (`localImagePaths`, `audioFilePaths`,
-  `observationContextsJSON`) from that same timeline at the edges.
+  across images, videos, audio clips, and descriptions. Images and videos are
+  still written to `.documentsDirectory` via `FileIOActor`, while the
+  queue/database layers derive legacy arrays (`localImagePaths`,
+  `localVideoPaths`, `audioFilePaths`, `observationContextsJSON`) from that
+  same timeline at the edges.
 - **Recursive Queue Draining**: The `URLSession` delegate calls
   `syncPendingScans()` recursively when a completed batch detects
   `unsyncedItemsCount > 0`, draining the queue automatically without user

@@ -8,6 +8,7 @@ export interface ShareEligibleScanRow {
   user_id: string;
   geoprivacy: string;
   image_storage_urls: string[];
+  video_storage_urls?: string[];
   is_tombstoned: boolean;
   species_id: string | null;
   confirmed_species_id: string | null;
@@ -31,7 +32,7 @@ export async function fetchShareEligibleScan(
   const { data, error } = await supabaseAdmin
     .from("scans")
     .select(
-      "id,user_id,geoprivacy,image_storage_urls,is_tombstoned,species_id,confirmed_species_id",
+      "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,is_tombstoned,species_id,confirmed_species_id",
     )
     .eq("id", scanId)
     .eq("user_id", userId)
@@ -67,7 +68,7 @@ export async function fetchShareEligibleScan(
       .eq("id", scanId)
       .eq("user_id", userId)
       .select(
-        "id,user_id,geoprivacy,image_storage_urls,is_tombstoned,species_id,confirmed_species_id",
+        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,is_tombstoned,species_id,confirmed_species_id",
       )
       .single();
 
@@ -82,8 +83,11 @@ export async function fetchShareEligibleScan(
     row = updatedRow as ShareEligibleScanRow;
   }
 
-  if ((row.image_storage_urls?.length ?? 0) === 0) {
-    throw makeHttpError(409, "This scan no longer has shareable image media.");
+  if (
+    (row.image_storage_urls?.length ?? 0) === 0 &&
+    (row.video_storage_urls?.length ?? 0) === 0
+  ) {
+    throw makeHttpError(409, "This scan no longer has shareable media.");
   }
 
   if (row.confirmed_species_id == null && row.species_id == null) {
@@ -176,7 +180,22 @@ export async function upsertExplorePost(
     );
   }
 
-  return data as { id: string; shared_at: string };
+  const post = data as { id: string; shared_at: string };
+  const { error: mediaError } = await supabaseAdmin.rpc(
+    "refresh_explore_post_media",
+    { target_post_id: post.id },
+  );
+
+  if (mediaError) {
+    const message = mediaError.message?.toLowerCase().includes(
+        "video thumbnail unavailable",
+      )
+      ? "Video thumbnail unavailable."
+      : mediaError.message ?? "Unknown error";
+    throw makeHttpError(409, message);
+  }
+
+  return post;
 }
 
 export async function replaceExplorePostHashtags(

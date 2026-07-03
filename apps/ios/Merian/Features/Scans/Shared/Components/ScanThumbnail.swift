@@ -11,6 +11,7 @@ struct ScanThumbnailPresentation: Sendable, Equatable {
     let imagePath: String?
     let fallbackImageUrl: String?
     let audioPath: String?
+    let hasVideo: Bool
     let placeholderStyle: ScanThumbnailPlaceholderStyle
 }
 
@@ -41,6 +42,7 @@ extension LocalScanRecord {
                 imagePath: preferredVisualThumbnailPath,
                 fallbackImageUrl: fallbackUrl,
                 audioPath: nil,
+                hasVideo: capturedMediaSummary.hasVideo,
                 placeholderStyle: .archived
             )
         }
@@ -50,6 +52,7 @@ extension LocalScanRecord {
                 imagePath: nil,
                 fallbackImageUrl: fallbackUrl,
                 audioPath: audioPath,
+                hasVideo: false,
                 placeholderStyle: nonVisualPlaceholderStyle(fallbackUrl: fallbackUrl)
             )
         }
@@ -60,6 +63,7 @@ extension LocalScanRecord {
                 imagePath: nil,
                 fallbackImageUrl: fallbackUrl,
                 audioPath: nil,
+                hasVideo: capturedMediaSummary.hasVideo,
                 placeholderStyle: .pendingReference(mediaKind)
             )
         }
@@ -69,6 +73,7 @@ extension LocalScanRecord {
                 imagePath: nil,
                 fallbackImageUrl: nil,
                 audioPath: nil,
+                hasVideo: capturedMediaSummary.hasVideo,
                 placeholderStyle: .pendingReference(mediaKind)
             )
         }
@@ -78,6 +83,7 @@ extension LocalScanRecord {
                 imagePath: nil,
                 fallbackImageUrl: nil,
                 audioPath: nil,
+                hasVideo: capturedMediaSummary.hasVideo,
                 placeholderStyle: .unavailableReference(mediaKind)
             )
         }
@@ -86,6 +92,7 @@ extension LocalScanRecord {
             imagePath: preferredVisualThumbnailPath,
             fallbackImageUrl: fallbackUrl,
             audioPath: nil,
+            hasVideo: capturedMediaSummary.hasVideo,
             placeholderStyle: .archived
         )
     }
@@ -149,6 +156,7 @@ struct ScanThumbnail: View {
     let imagePath: String?
     let fallbackImageUrl: String?
     let audioPath: String?
+    let hasVideo: Bool
     let maxDimension: Int
     let placeholderStyle: ScanThumbnailPlaceholderStyle
 
@@ -160,12 +168,14 @@ struct ScanThumbnail: View {
         imagePath: String?,
         fallbackImageUrl: String? = nil,
         audioPath: String? = nil,
+        hasVideo: Bool = false,
         maxDimension: Int = 600,
         placeholderStyle: ScanThumbnailPlaceholderStyle = .archived
     ) {
         self.imagePath = imagePath
         self.fallbackImageUrl = fallbackImageUrl
         self.audioPath = audioPath
+        self.hasVideo = hasVideo
         self.maxDimension = maxDimension
         self.placeholderStyle = placeholderStyle
     }
@@ -176,6 +186,7 @@ struct ScanThumbnail: View {
             imagePath: presentation.imagePath,
             fallbackImageUrl: presentation.fallbackImageUrl,
             audioPath: presentation.audioPath,
+            hasVideo: presentation.hasVideo,
             maxDimension: maxDimension,
             placeholderStyle: presentation.placeholderStyle
         )
@@ -199,6 +210,17 @@ struct ScanThumbnail: View {
                 }
             )
             .clipped()
+            .overlay(alignment: .bottomTrailing) {
+                if hasVideo, thumbnail != nil {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 24, height: 24)
+                        .background(Color.black.opacity(0.62))
+                        .clipShape(Circle())
+                        .padding(8)
+                }
+            }
         .task(id: loadTaskID) {
             await MainActor.run {
                 thumbnail = nil
@@ -463,6 +485,8 @@ private extension CapturedMediaKind {
         switch self {
         case .audio:
             return "waveform"
+        case .video:
+            return "play.rectangle"
         case .describe:
             return "text.bubble"
         case .audioAndDescribe:

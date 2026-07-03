@@ -477,6 +477,12 @@ struct ExploreAuthorProfileSheet: View {
                          )
                          .aspectRatio(1, contentMode: .fill)
                          .clipped()
+                         .overlay(alignment: .topLeading) {
+                             if post.hasVideoMedia {
+                                 ExploreMediaPlayIndicator()
+                                     .padding(6)
+                             }
+                         }
                          .profilePublishedScanTileCorners(index: index, itemCount: posts.count)
                      } else {
                          ExploreHeroImageView(
@@ -486,6 +492,12 @@ struct ExploreAuthorProfileSheet: View {
                          )
                          .aspectRatio(1, contentMode: .fill)
                          .clipped()
+                         .overlay(alignment: .topLeading) {
+                             if post.hasVideoMedia {
+                                 ExploreMediaPlayIndicator()
+                                     .padding(6)
+                             }
+                         }
                      }
                  }
                  .buttonStyle(.plain)

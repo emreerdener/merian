@@ -629,14 +629,18 @@ task handles:
 5. **Group tags** — fires a background Flash call to populate
    `species_dictionary.group_tags` for first-time species
 
-**Media promotion**: Safe media is moved from `staging/{userId}/{filename}` to
-`public_uploads/{tier}/{userId}/{filename}` inside Cloudflare R2, and the CDN
-URL (`https://media.merian.app/public_uploads/...`) is stored in
+**Media promotion**: Safe image media is moved from
+`staging/{userId}/{filename}` to `public_uploads/{tier}/{userId}/{filename}`
+inside Cloudflare R2, and the CDN URL
+(`https://media.merian.app/public_uploads/...`) is stored in
 `scans.image_storage_urls`. For the `imageBase64s` path, the bytes are uploaded
-directly to the public destination without a staging step. Any promotion failure
-now aborts the entire batch and immediately rolls back any already-promoted
-public objects from that same batch before returning `ERROR`; scans are not
-inserted with partial image arrays.
+directly to the public destination without a staging step. Safe video media is
+moderated through sampled frames, then the staged `.mp4` is promoted separately
+and persisted in `scans.video_storage_urls`. Any image promotion failure aborts
+the entire batch and immediately rolls back any already-promoted public objects
+from that same batch before returning `ERROR`; scans are not inserted with
+partial image arrays. Video promotion failure leaves the sampled frame imagery
+usable while the failed staged video is cleaned up.
 
 **Moderation failure handling**: If Gemini's `finishReason === "SAFETY"` or any
 `safetyRating.probability` is `"MEDIUM"` or `"HIGH"`, the staging object is
@@ -1911,10 +1915,14 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
 ### `/share-scan-to-explore` and `/unshare-explore-post`
 
 - `share-scan-to-explore` creates or reactivates a manual-share Explore post for
-  an eligible biological scan with shareable image media. If a scan's public
+  an eligible biological scan with shareable public media. If a scan's public
   media URLs expired but the client can provide owner-scoped
-  `restored_object_keys`, the function promotes safe media back into
+  `restored_object_keys`, the function promotes safe image media back into
   `image_storage_urls` before sharing.
+- Sharing snapshots image and video URLs into `explore_post_media`, ordered for
+  the public carousel. `hero_image_url` remains the required thumbnail and
+  backward-compatible image field; video media without an image thumbnail is
+  rejected with `Video thumbnail unavailable.`
 - When the scan has an active Identify request, sharing to Explore is blocked
   until that request resolves. Publishing a resolved Identify request marks the
   request with `explore_published_at`, materializes any new GBIF-backed resolved
@@ -2636,6 +2644,10 @@ ordered compositions of images, audio, and descriptive context.
   "r2ObjectKeys": [
     "staging/A1B2C3D4.../uuid_image_1.webp"
   ],
+  "videoR2ObjectKeys": [
+    "staging/a1b2c3d4.../uuid_video_1.mp4"
+  ],
+  "videoFrameCount": 3,
   "audioR2ObjectKeys": [
     "staging/a1b2c3d4.../uuid_audio.wav"
   ],
@@ -2671,11 +2683,16 @@ ordered compositions of images, audio, and descriptive context.
 - Features dynamic `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` execution if audio
   and image evidence are both present, regardless of whether the audio arrived
   inline or from R2 staging.
+- Video scans send ordered sampled frames through the image payload path and
+  stage the raw `.mp4` in `videoR2ObjectKeys`. The prompt identifies the frames
+  as coming from one short video, while the raw clip is promoted only after
+  those frames pass moderation.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
-- Queued replay audio uses `audioR2ObjectKeys`; live foreground audio uses
-  size-preflighted inline `audioBase64s`. The edge rejects oversized declared
-  media JSON `Content-Length` before body parsing, then parses through
+- Queued replay audio uses `audioR2ObjectKeys`; queued and live video use
+  `videoR2ObjectKeys`; live foreground audio uses size-preflighted inline
+  `audioBase64s`. The edge rejects oversized declared media JSON
+  `Content-Length` before body parsing, then parses through
   `readRequestJsonWithinBudget` so missing-length/chunked bodies are still
   capped. Clip count, byte budgets, IDOR ownership, and path traversal are
   validated through `_shared/identify/media.ts` before decode/fetch.
@@ -3491,8 +3508,10 @@ Deletes a single scan from both Supabase PostgreSQL and Cloudflare R2.
    cleanly.
 4. Compares the fetched `scan.user_id === user.id`. A mismatch natively returns
    `403 Forbidden` as an explicit IDOR trap.
-5. Deletes all Cloudflare R2 objects referenced in `image_storage_urls` via the
-   `AwsClient`, avoiding 404 errors from namespace duplication.
+5. Deletes all Cloudflare R2 objects referenced in `image_storage_urls` and
+   `video_storage_urls` via the `AwsClient`, avoiding 404 errors from namespace
+   duplication. Public `explore_post_media` rows are hidden or removed with the
+   backing scan/post cleanup path.
 6. Deletes the Postgres row.
 
 ---
@@ -3965,7 +3984,8 @@ Manual service-role calls may also include:
 3. It unnests all non-empty `scans.image_storage_urls`, requires
    `image_quality_score >= 80` and `ai_confidence_score >= 0.95` by default
    unless `confirmed_species_id` is present, dedupes by
-   `(species_id, image_url)`, and promotes up to 8 images per species.
+   `(species_id, image_url)`, and promotes up to 8 images per species. Public
+   videos are intentionally excluded from Dictionary/reference galleries.
 4. Public rows use `source = "merian"`,
    `license = "Used with permission via Merian"`, and
    `attribution = users.public_author_name`. This intentionally preserves the
@@ -4071,10 +4091,10 @@ No JSON body is required. The cron trigger issues an empty POST request.
    `timestamp < 30 days ago`.
 2. Employs `.limit(500)` memory pagination barriers to prevent container timeout
    triggers.
-3. Aggregates all R2 `image_storage_urls` across the 500 scans and passes them
-   to `deleteScanMediaR2Objects([])`, which filters to
-   `public_uploads/free|pro/` before using the bounded R2 delete helper. Durable
-   `avatars/` profile images are skipped.
+3. Aggregates all R2 `image_storage_urls` and `video_storage_urls` across the
+   500 scans and passes them to `deleteScanMediaR2Objects([])`, which filters to
+   `public_uploads/free|pro/` before using the bounded R2 delete helper.
+   Durable `avatars/` profile images are skipped.
 4. Executes the discrete `.delete().in("id", [...])` cascade against PostgreSQL
    only after successfully purging the R2 remote hashes, preventing orphan
    binaries.

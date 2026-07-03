@@ -407,6 +407,7 @@ private enum ScansFilterGroup: Hashable {
     case sort
     case date
     case location
+    case media
     case tags
     case naturalist
     case ecology
@@ -506,6 +507,18 @@ private struct ScansFilterSheet: View {
                     multiSelectRows(
                         ScanLocationFilter.allCases,
                         keyPath: \.locationFilters,
+                        title: \.rawValue
+                    )
+                }
+
+                filterDisclosureGroup(
+                    .media,
+                    title: "Media",
+                    summary: selectedSummary(searchManager.filters.mediaFilters, title: \.rawValue)
+                ) {
+                    multiSelectRows(
+                        ScanMediaFilter.allCases,
+                        keyPath: \.mediaFilters,
                         title: \.rawValue
                     )
                 }

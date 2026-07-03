@@ -8,6 +8,9 @@ enum MediaItem: Equatable {
     /// An absolute URL referencing an active or locally stored audio recording.
     /// Audio path resolution (temp vs docs directory) MUST be handled by the caller creating this item.
     case audio(String)
+    /// A persisted historical capture video path resolving locally or remotely.
+    /// Video path resolution (temp vs docs directory) MUST be handled by the caller creating this item.
+    case video(String)
     /// A rich textual element carrying explicitly structured user description data or free-form context.
     case description(ObservationContext)
 }
@@ -63,6 +66,14 @@ struct ActiveScanMedia: Equatable {
         var paths: [String] = []
         for item in items {
             if case .image(let path) = item { paths.append(path) }
+        }
+        return paths
+    }
+
+    var videoPaths: [String] {
+        var paths: [String] = []
+        for item in items {
+            if case .video(let path) = item { paths.append(path) }
         }
         return paths
     }

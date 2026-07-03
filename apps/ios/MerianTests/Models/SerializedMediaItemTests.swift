@@ -37,4 +37,28 @@ struct SerializedMediaItemTests {
         #expect(scan.serializedCapturedMediaItems == jsonItems)
         #expect(scan.capturedMediaSnapshot.items == jsonItems)
     }
+
+    @Test func videoMediaRoundTripsThroughJSONRelationshipsAndActiveMedia() throws {
+        let items: [SerializedMediaItem] = [
+            .image(.documents("video-cover.webp")),
+            .video(.documents("clip.mp4")),
+            .audio(.documents("sound.wav")),
+            .description(ObservationContext(freeText: "Brief movement visible"))
+        ]
+
+        let json = try encodedJSON(for: items)
+        let decoded = try JSONDecoder().decode([SerializedMediaItem].self, from: Data(json.utf8))
+        let entries = CapturedMediaEntry.makeEntries(from: decoded)
+        let relationshipDecoded = CapturedMediaEntry.serializedItems(from: entries)
+        let snapshot = CapturedMediaSnapshot(items: relationshipDecoded)
+
+        #expect(decoded == items)
+        #expect(relationshipDecoded == items)
+        #expect(snapshot.videoPaths == ["clip.mp4"])
+        #expect(snapshot.summary.hasVideo)
+        #expect(snapshot.summary.preferredThumbnailKind == .video)
+
+        let activeMedia = snapshot.activeScanMedia
+        #expect(activeMedia.videoPaths == [URL.documentsDirectory.appendingPathComponent("clip.mp4").path])
+    }
 }

@@ -12,7 +12,7 @@ struct ViewfinderHints: View {
     var body: some View {
         Group {
             if showInitialPrompt {
-                Text(isRefining ? "Add another photo" : "Take a photo to identify")
+                Text(isRefining ? "Add another photo" : "Tap to identify. Hold to record video")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)

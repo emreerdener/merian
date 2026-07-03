@@ -1,3 +1,4 @@
+import AVKit
 import SwiftUI
 
 struct InsightFullscreenImageCarousel: View {
@@ -19,8 +20,14 @@ struct InsightFullscreenImageCarousel: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 0) {
                     ForEach(presentation.items) { item in
-                        ZoomableScrollView {
-                            galleryImage(for: item)
+                        Group {
+                            if item.source.isVideo {
+                                galleryContent(for: item)
+                            } else {
+                                ZoomableScrollView {
+                                    galleryContent(for: item)
+                                }
+                            }
                         }
                         .containerRelativeFrame(.horizontal)
                         .id(item.id)
@@ -81,7 +88,7 @@ struct InsightFullscreenImageCarousel: View {
     }
 
     @ViewBuilder
-    private func galleryImage(for item: InsightImageGalleryItem) -> some View {
+    private func galleryContent(for item: InsightImageGalleryItem) -> some View {
         switch item.source {
         case .liveImage(let data):
             FullscreenLiveImageView(data: data)
@@ -92,6 +99,8 @@ struct InsightFullscreenImageCarousel: View {
                 contentMode: .fit,
                 onImageLoadFailed: nil
             )
+        case .videoPath(let path):
+            FullscreenVideoView(path: path)
         case .referenceURL(let urlString):
             AsyncLocalImageView(
                 path: nil,
@@ -139,6 +148,88 @@ struct InsightFullscreenImageCarousel: View {
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedItem?.id)
             .padding(.bottom, 24)
         }
+    }
+}
+
+private extension InsightImageGalleryItem.Source {
+    var isVideo: Bool {
+        if case .videoPath = self { return true }
+        return false
+    }
+}
+
+private struct FullscreenVideoView: View {
+    let path: String
+
+    @State private var player: AVPlayer?
+    @State private var isPlaying = false
+
+    var body: some View {
+        ZStack {
+            Color.black
+
+            if let player {
+                VideoPlayer(player: player)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        togglePlayback()
+                    }
+            } else {
+                ProgressView()
+                    .tint(.white)
+            }
+
+            VStack {
+                Spacer()
+
+                HStack {
+                    Spacer()
+
+                    Button(action: togglePlayback) {
+                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 52, height: 52)
+                            .background(Circle().fill(.white.opacity(0.14)))
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isPlaying ? "Pause video" : "Play video")
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 78)
+            }
+        }
+        .task(id: path) {
+            player?.pause()
+            isPlaying = false
+            player = resolvedURL(path).map(AVPlayer.init(url:))
+        }
+        .onDisappear {
+            player?.pause()
+            isPlaying = false
+        }
+    }
+
+    private func togglePlayback() {
+        guard let player else { return }
+        if isPlaying {
+            player.pause()
+            HapticManager.shared.triggerLightImpact(intensity: 0.55)
+        } else {
+            player.play()
+            HapticManager.shared.triggerMediumPulse()
+        }
+        isPlaying.toggle()
+    }
+
+    private func resolvedURL(_ rawPath: String) -> URL? {
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let url = URL(string: trimmed), url.scheme == "http" || url.scheme == "https" || url.scheme == "file" {
+            return url
+        }
+        return URL(fileURLWithPath: trimmed)
     }
 }
 

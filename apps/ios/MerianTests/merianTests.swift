@@ -139,7 +139,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         for scan in scans {
             for item in scan.capturedMediaSnapshot.items {
                 switch item {
-                case .image(let reference), .audio(let reference):
+                case .image(let reference), .audio(let reference), .video(let reference):
                     if let targetURL = reference.resolvedURL {
                         try? FileManager.default.removeItem(at: targetURL)
                     }

@@ -422,6 +422,97 @@ struct MerianNetworkClientTests {
         #expect(response.data.similarSpeciesData == nil)
     }
 
+    @Test func testExplorePostDecodesVideoMediaItemsAndLegacyFallback() throws {
+        let videoData = """
+        {
+            "data": {
+                "post_id": "post-video-123",
+                "scan_id": "scan-video-123",
+                "hero_image_url": "https://example.com/thumb.jpg",
+                "shared_at": "2026-07-03T12:00:00.000Z",
+                "author_user_id": "author-video-123",
+                "author_name": "Video Author",
+                "author_username": "video_author",
+                "author_avatar_url": null,
+                "author_is_pro": true,
+                "hashtags": [],
+                "species_common_name": "Monarch Butterfly",
+                "species_scientific_name": "Danaus plexippus",
+                "pet_identification": null,
+                "public_location_label": "Austin, TX",
+                "location_sharing": "open",
+                "time_of_day": "afternoon",
+                "current_month": 7,
+                "weather_condition": "clear",
+                "weather_temperature_f": 82.0,
+                "like_count": 3,
+                "comment_count": 1,
+                "viewer_has_liked": false,
+                "is_owned_by_viewer": false,
+                "ranking_value": null,
+                "media_items": [
+                    {
+                        "kind": "video",
+                        "url": "https://example.com/video.mp4",
+                        "thumbnail_url": "https://example.com/thumb.jpg",
+                        "order_index": 0,
+                        "duration_seconds": 4.7,
+                        "has_audio": true
+                    }
+                ]
+            }
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let videoResponse = try decoder.decode(ExplorePostResponse.self, from: videoData)
+
+        #expect(videoResponse.data.hasVideoMedia)
+        #expect(videoResponse.data.resolvedMediaItems.count == 1)
+        #expect(videoResponse.data.resolvedMediaItems[0].kind == .video)
+        #expect(videoResponse.data.resolvedMediaItems[0].thumbnailUrl == "https://example.com/thumb.jpg")
+        #expect(videoResponse.data.resolvedMediaItems[0].hasAudio)
+
+        let legacyData = """
+        {
+            "data": {
+                "post_id": "post-image-123",
+                "scan_id": "scan-image-123",
+                "hero_image_url": "https://example.com/image.jpg",
+                "shared_at": "2026-07-03T12:00:00.000Z",
+                "author_user_id": "author-image-123",
+                "author_name": "Image Author",
+                "author_username": null,
+                "author_avatar_url": null,
+                "author_is_pro": null,
+                "hashtags": null,
+                "species_common_name": "Honey Bee",
+                "species_scientific_name": "Apis mellifera",
+                "pet_identification": null,
+                "public_location_label": null,
+                "location_sharing": null,
+                "time_of_day": null,
+                "current_month": null,
+                "weather_condition": null,
+                "weather_temperature_f": null,
+                "like_count": 0,
+                "comment_count": 0,
+                "viewer_has_liked": false,
+                "is_owned_by_viewer": false,
+                "ranking_value": null
+            }
+        }
+        """.data(using: .utf8)!
+
+        let legacyResponse = try decoder.decode(ExplorePostResponse.self, from: legacyData)
+
+        #expect(!legacyResponse.data.hasVideoMedia)
+        #expect(legacyResponse.data.resolvedMediaItems == [
+            .legacyImage(url: "https://example.com/image.jpg")
+        ])
+    }
+
     @Test func testGetExploreFeedTrendingConstructsPayloadAndParsesResponse() async throws {
         let testData = """
         {
@@ -1317,6 +1408,54 @@ struct MerianNetworkClientTests {
         #expect(payload["audioR2ObjectKeys"] as? [String] == ["staging/test-user/audio.wav"])
         #expect(payload["audioBase64s"] == nil)
         #expect(payload["client_scan_id"] as? String == "scan-audio-r2")
+    }
+
+    @Test func multimodalRequestBodyCarriesVideoKeysAndOrderedFrameCount() throws {
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: nil,
+            gpsLatitude: nil,
+            gpsLongitude: nil,
+            gpsElevation: nil,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil,
+            timeOfDay: nil,
+            timestamp: "2026-04-24T10:30:00.000Z",
+            zoomFactor: nil,
+            estimatedSizeCm: nil
+        )
+
+        let bodyData = try MerianNetworkClient.buildMultiModalRequestBody(
+            r2ObjectKeys: [
+                "staging/test-user/video-frame-1.webp",
+                "staging/test-user/video-frame-2.webp",
+                "staging/test-user/video-frame-3.webp"
+            ],
+            videoR2ObjectKeys: ["staging/test-user/clip.mp4"],
+            base64ImageDatas: [],
+            audioBase64s: [],
+            videoFrameCount: 3,
+            userId: "test-user",
+            telemetry: telemetry,
+            deviceLocale: "en",
+            deviceTimeZone: "America/Chicago",
+            deviceRegion: "US",
+            currentMonth: 4,
+            timeOfDay: "10:30 AM",
+            depthScaleText: nil,
+            clientScanId: "scan-video-r2"
+        )
+
+        let payload = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+
+        #expect(payload["r2ObjectKeys"] as? [String] == [
+            "staging/test-user/video-frame-1.webp",
+            "staging/test-user/video-frame-2.webp",
+            "staging/test-user/video-frame-3.webp"
+        ])
+        #expect(payload["videoR2ObjectKeys"] as? [String] == ["staging/test-user/clip.mp4"])
+        #expect(payload["videoFrameCount"] as? Int == 3)
+        #expect(payload["client_scan_id"] as? String == "scan-video-r2")
     }
 
     // MARK: - validateMultiModalPayloadBudget

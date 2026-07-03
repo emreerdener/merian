@@ -1,4 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import type { ExplorePostMediaItem } from "../_shared/explore.ts";
 
 export interface CommunityIdentificationFeedRow {
   request_id: string;
@@ -30,6 +31,7 @@ export interface CommunityIdentificationFeedRow {
   viewer_has_identified: boolean;
   public_location_label?: string | null;
   location_sharing: "open" | "obscured" | "private";
+  media_items?: ExplorePostMediaItem[];
 }
 
 export interface CommunityIdentificationCursor {

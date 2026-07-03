@@ -5,6 +5,8 @@
   "maxImageBytes": 5242880,
   "maxAudioBytes": 2700000,
   "maxAudioFiles": 2,
+  "maxVideoBytes": 12582912,
+  "maxVideoFiles": 1,
   "imageContentTypes": [
     "image/webp",
     "image/jpeg",
@@ -16,9 +18,13 @@
     "audio/wav",
     "audio/mp4"
   ],
+  "videoContentTypes": [
+    "video/mp4"
+  ],
   "canonicalQueuedImageContentType": "image/webp",
   "canonicalQueuedWavContentType": "audio/wav",
   "canonicalQueuedM4AContentType": "audio/mp4",
+  "canonicalQueuedVideoContentType": "video/mp4",
   "fileNameSafeCharacterPattern": "^[A-Za-z0-9_.-]+$",
   "legacyFileNamesAccepted": true
 }

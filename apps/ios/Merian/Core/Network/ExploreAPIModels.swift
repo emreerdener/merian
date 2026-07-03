@@ -10,6 +10,31 @@ struct ExplorePostResponse: Decodable {
     let data: ExplorePost
 }
 
+enum ExploreMediaKind: String, Decodable, Equatable {
+    case image
+    case video
+}
+
+struct ExploreMediaItem: Decodable, Equatable {
+    let kind: ExploreMediaKind
+    let url: String
+    let thumbnailUrl: String?
+    let orderIndex: Int
+    let durationSeconds: Double?
+    let hasAudio: Bool
+
+    static func legacyImage(url: String) -> Self {
+        ExploreMediaItem(
+            kind: .image,
+            url: url,
+            thumbnailUrl: url,
+            orderIndex: 0,
+            durationSeconds: nil,
+            hasAudio: false
+        )
+    }
+}
+
 struct ExploreAuthorProfileResponse: Decodable {
     let data: ExploreAuthorProfile
 }
@@ -55,8 +80,21 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     var viewerHasLiked: Bool
     let isOwnedByViewer: Bool
     let rankingValue: Int?
+    // swiftlint:disable:next implicit_optional_initialization
+    var mediaItems: [ExploreMediaItem]? = nil
 
     var id: String { postId }
+
+    var resolvedMediaItems: [ExploreMediaItem] {
+        guard let mediaItems, !mediaItems.isEmpty else {
+            return [.legacyImage(url: heroImageUrl)]
+        }
+        return mediaItems
+    }
+
+    var hasVideoMedia: Bool {
+        resolvedMediaItems.contains { $0.kind == .video }
+    }
 
     var publicDisplayLocationLabel: String? {
         ExploreLocationPrivacy.displayLabel(from: publicLocationLabel)
@@ -459,8 +497,21 @@ struct CommunityIdentificationFeedItem: Decodable, Identifiable, Equatable {
     let viewerHasIdentified: Bool
     let publicLocationLabel: String?
     let locationSharing: ExplorePostLocationSharing?
+    // swiftlint:disable:next implicit_optional_initialization
+    var mediaItems: [ExploreMediaItem]? = nil
 
     var id: String { requestId }
+
+    var resolvedMediaItems: [ExploreMediaItem] {
+        guard let mediaItems, !mediaItems.isEmpty else {
+            return [.legacyImage(url: heroImageUrl)]
+        }
+        return mediaItems
+    }
+
+    var hasVideoMedia: Bool {
+        resolvedMediaItems.contains { $0.kind == .video }
+    }
 
     var displayName: String {
         CommunityTaxonDisplay.name(commonName: currentCommonName, scientificName: currentScientificName)
@@ -510,8 +561,21 @@ struct CommunityIdentificationDetail: Decodable, Identifiable, Equatable {
     let inferenceTier: String?
     let suggestedTaxa: [CommunityTaxonSearchResult]?
     let identifications: [CommunityIdentification]
+    // swiftlint:disable:next implicit_optional_initialization
+    var mediaItems: [ExploreMediaItem]? = nil
 
     var id: String { requestId }
+
+    var resolvedMediaItems: [ExploreMediaItem] {
+        guard let mediaItems, !mediaItems.isEmpty else {
+            return [.legacyImage(url: heroImageUrl)]
+        }
+        return mediaItems
+    }
+
+    var hasVideoMedia: Bool {
+        resolvedMediaItems.contains { $0.kind == .video }
+    }
 
     var displayName: String {
         CommunityTaxonDisplay.name(commonName: currentCommonName, scientificName: currentScientificName)
@@ -963,8 +1027,21 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
     var commentCount: Int
     var viewerHasLiked: Bool
     let isOwnedByViewer: Bool
+    // swiftlint:disable:next implicit_optional_initialization
+    var mediaItems: [ExploreMediaItem]? = nil
 
     var id: String { postId }
+
+    var resolvedMediaItems: [ExploreMediaItem] {
+        guard let mediaItems, !mediaItems.isEmpty else {
+            return [.legacyImage(url: heroImageUrl)]
+        }
+        return mediaItems
+    }
+
+    var hasVideoMedia: Bool {
+        resolvedMediaItems.contains { $0.kind == .video }
+    }
 
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -999,7 +1076,8 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
             commentCount: commentCount,
             viewerHasLiked: viewerHasLiked,
             isOwnedByViewer: isOwnedByViewer,
-            rankingValue: nil
+            rankingValue: nil,
+            mediaItems: mediaItems
         )
     }
 }

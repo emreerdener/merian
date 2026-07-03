@@ -2,6 +2,7 @@ import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import {
   normalizeLimit,
   refreshExploreAuthorStateBestEffort,
+  withExplorePostMediaItems,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
 } from "../_shared/explore.ts";
@@ -124,15 +125,18 @@ Deno.serve((req: Request) =>
       "get-explore-map-points",
     );
 
-    const rows = await withExploreAuthorUsernames(
-      await withExploreAuthorProBadges(
-        await fetchExploreMapPosts(
-          user.id,
-          northLatitude,
-          southLatitude,
-          eastLongitude,
-          westLongitude,
-          limit,
+    const rows = await withExplorePostMediaItems(
+      await withExploreAuthorUsernames(
+        await withExploreAuthorProBadges(
+          await fetchExploreMapPosts(
+            user.id,
+            northLatitude,
+            southLatitude,
+            eastLongitude,
+            westLongitude,
+            limit,
+            supabaseAdmin,
+          ),
           supabaseAdmin,
         ),
         supabaseAdmin,

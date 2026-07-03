@@ -9,6 +9,7 @@ import {
   requireUuid,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
+  withExplorePostMediaItems,
   withExplorePostHashtags,
 } from "../_shared/explore.ts";
 import { fetchExplorePost } from "./db.ts";
@@ -41,8 +42,11 @@ Deno.serve((req: Request) =>
       );
       data = fetchedPost
         ? (await withExplorePostHashtags(
-          await withExploreAuthorUsernames(
-            await withExploreAuthorProBadges([fetchedPost], supabaseAdmin),
+          await withExplorePostMediaItems(
+            await withExploreAuthorUsernames(
+              await withExploreAuthorProBadges([fetchedPost], supabaseAdmin),
+              supabaseAdmin,
+            ),
             supabaseAdmin,
           ),
           supabaseAdmin,

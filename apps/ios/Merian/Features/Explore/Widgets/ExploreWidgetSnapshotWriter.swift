@@ -8,6 +8,7 @@ private struct ExploreWidgetSourcePost: Sendable, Equatable {
     let sharedAt: String
     let speciesCommonName: String
     let speciesScientificName: String
+    let hasVideo: Bool
 }
 
 enum ExploreWidgetSnapshotWriter {
@@ -22,7 +23,8 @@ enum ExploreWidgetSnapshotWriter {
                     heroImageUrl: post.heroImageUrl,
                     sharedAt: post.sharedAt,
                     speciesCommonName: post.speciesCommonName,
-                    speciesScientificName: post.speciesScientificName
+                    speciesScientificName: post.speciesScientificName,
+                    hasVideo: post.hasVideoMedia
                 )
             }
 
@@ -69,7 +71,8 @@ enum ExploreWidgetSnapshotWriter {
                         imageFilename: filename,
                         sharedAt: post.sharedAt,
                         speciesCommonName: post.speciesCommonName,
-                        speciesScientificName: post.speciesScientificName
+                        speciesScientificName: post.speciesScientificName,
+                        hasVideo: post.hasVideo
                     )
                 )
             } catch {

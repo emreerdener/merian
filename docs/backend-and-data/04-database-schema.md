@@ -717,8 +717,12 @@ The transaction log for every successful identification.
 - `llm_prompt_tokens`, `llm_candidate_tokens`, `llm_total_tokens` (Int): Token
   counts from `usageMetadata` per scan.
 - `current_month` (Int)
-- `image_storage_urls` (Text Array): Public Cloudflare links generated after
-  moderation.
+- `image_storage_urls` (Text Array): Public Cloudflare image links generated
+  after moderation. Video scans still keep image-based sampled frames and cover
+  thumbnails here.
+- `video_storage_urls` (Text Array): Public Cloudflare video links for promoted
+  short `.mp4` scan clips. The AI receives sampled frames, not these raw public
+  video URLs.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` for
@@ -1013,10 +1017,37 @@ Manual-share public feed wrapper around `scans`. Added in migration
 - `like_count` / `comment_count` (INT): Denormalized counters maintained by
   triggers.
 
-**Ephemeral-media rule**: V1 Explore reuses `scans.image_storage_urls` directly.
-If the scan is tombstoned or later loses all image URLs, the Explore post
-disappears from the public feed automatically. Scan geoprivacy no longer hides
-the post itself; post-level `location_sharing` controls public location output.
+**Post media rule**: Explore no longer reads media directly from
+`scans.image_storage_urls` at response time. Sharing snapshots safe public image
+and video URLs into `explore_post_media`, while `hero_image_url` remains the
+backward-compatible cover thumbnail on `explore_posts`. If the scan is
+tombstoned, unshared, auto-purged, moderated unsafe, or later loses public scan
+media, cleanup flows remove or hide the corresponding public post media. Scan
+geoprivacy no longer hides the post itself; post-level `location_sharing`
+controls public location output.
+
+### `explore_post_media`
+
+Post-owned public media snapshots for Explore and Community ID posts. Added in
+migration `20260703130000_add_explore_post_media.sql`.
+
+- `post_id` (UUID FK -> `explore_posts.id`, CASCADE DELETE): The owning public
+  post.
+- `kind` (TEXT): `image` or `video`.
+- `url` (TEXT): Public CDN URL for the image or video object.
+- `thumbnail_url` (TEXT, nullable): Public image thumbnail for video playback
+  and compact previews. Video posts require a thumbnail when shared.
+- `order_index` (INT): Stable carousel ordering within the post.
+- `duration_seconds` (DOUBLE PRECISION, nullable): Reserved for video playback
+  metadata.
+- `has_audio` (BOOLEAN): Whether the video may contain an audio track. Public
+  playback starts muted; audio requires explicit viewer action.
+- `created_at` / `updated_at` (TIMESTAMPTZ): Snapshot lifecycle timestamps.
+
+`public.explore_post_media_items(post_id)` returns ordered media JSON for feed,
+detail, author, hashtag, map, and Community ID read paths. Map, widget, profile
+grid, and compact surfaces should keep using `hero_image_url` thumbnails plus a
+play indicator when any returned media item is video.
 
 ### `explore_post_hashtags`
 
@@ -1339,7 +1370,7 @@ coordinates to the client contract.
   present, resolves species via `COALESCE(confirmed_species_id, species_id)`,
   dedupes by `(species_id, image_url)`, promotes up to 8 Merian images per
   species, and removes Merian public rows whose source content is no longer
-  visible.
+  visible. Public video clips are excluded from Dictionary/reference galleries.
 - `public.can_view_explore_author_profile(self_id UUID, target_author_user_id UUID)`:
   Returns whether the target author has a visible Explore profile for the
   requester. `set-user-follow` uses this before inserting follows so following

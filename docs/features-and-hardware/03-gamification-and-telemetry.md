@@ -154,6 +154,15 @@ Species dictionary telemetry must remain zero-PII. `entryPoint` may be
 IDs, scan IDs, Explore post IDs, user locations, field notes, comments, image
 URLs, or user review state.
 
+### Pro Paywall Feature Copy
+
+The Pro paywall comparison table is backed by
+`ProPlanValueProps.comparisons` in `PaywallView.swift`. Keep docs, release
+notes, and Profile plan-card summaries aligned with that source. Current
+high-level Pro benefits are unlimited field scans, Gemini Pro model access,
+video scans, AI chat, multi-capture, Apple Watch logging, group-event hosting,
+and expedition mode.
+
 ### `PostHogManager` & Edge Telemetry
 
 Tracks session lifecycle, feature interactions, and backend AI token usage,
@@ -186,6 +195,15 @@ linked anonymously.
   available `llm_thinking_tokens` / `llm_cached_tokens` to `user.id` to provide
   visibility into Flash vs Pro token usage across both primary vision routing
   and background classification tasks.
+- Multimodal scan completion events also attach media-shape properties:
+  `media_type` (`image`, `video`, `image_video`, or `none`), `media_kinds`,
+  `has_image`, `has_video`, `image_count`, `video_clip_count`,
+  `video_frame_count`, and `video_inference_frame_count`. For video-backed
+  scans, `video_llm_prompt_tokens`, `video_llm_candidate_tokens`,
+  `video_llm_thinking_tokens`, and `video_llm_total_tokens` mirror the full
+  Gemini request usage under `video_token_accounting = "full_multimodal_request"`
+  because Gemini does not split token usage by sampled frame versus text or
+  still-image inputs.
 - Plan telemetry is intentionally split from the raw database subscription
   value. Edge scan events include `tier` for backward-compatible dashboards,
   plus `effective_tier`, `plan`, `subscription_tier`, and `trial_active` from

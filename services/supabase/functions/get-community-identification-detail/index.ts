@@ -4,6 +4,7 @@ import {
   requireUuid,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
+  withExplorePostMediaItems,
 } from "../_shared/explore.ts";
 
 Deno.serve((req: Request) =>
@@ -36,7 +37,10 @@ Deno.serve((req: Request) =>
     }
 
     const [withBadges] = await withExploreAuthorUsernames(
-      await withExploreAuthorProBadges([row], supabaseAdmin),
+      await withExplorePostMediaItems(
+        await withExploreAuthorProBadges([row], supabaseAdmin),
+        supabaseAdmin,
+      ),
       supabaseAdmin,
     );
 

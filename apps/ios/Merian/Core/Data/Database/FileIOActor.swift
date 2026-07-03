@@ -82,6 +82,14 @@ public actor FileIOActor {
     /// - a bare filename that already lives in Documents
     /// - a bare filename that still lives in NSTemporaryDirectory
     public func persistAudioFile(tempPath: String) -> String? {
+        persistMediaFile(tempPath: tempPath, suffix: "audio", preferredExtension: "wav")
+    }
+
+    public func persistVideoFile(tempPath: String) -> String? {
+        persistMediaFile(tempPath: tempPath, suffix: "video", preferredExtension: "mp4")
+    }
+
+    private func persistMediaFile(tempPath: String, suffix: String, preferredExtension: String) -> String? {
         let fileManager = FileManager.default
         let docs = URL.documentsDirectory
         let bareFilename = URL(fileURLWithPath: tempPath).lastPathComponent
@@ -102,11 +110,13 @@ public actor FileIOActor {
         } else if fileManager.fileExists(atPath: temporarySourceURL.path) {
             sourceURL = temporarySourceURL
         } else {
-            MerianLog.data.error("FileIOActor: Cannot persist audio, file missing at \(tempPath, privacy: .public)")
+            MerianLog.data.error("FileIOActor: Cannot persist media, file missing at \(tempPath, privacy: .public)")
             return nil
         }
 
-        let filename = "\(UUID().uuidString)_audio.wav" // Canonical .wav extension
+        let originalExtension = URL(fileURLWithPath: bareFilename).pathExtension
+        let resolvedExtension = originalExtension.isEmpty ? preferredExtension : originalExtension
+        let filename = "\(UUID().uuidString)_\(suffix).\(resolvedExtension)"
         let destinationURL = docs.appendingPathComponent(filename)
 
         do {
@@ -115,7 +125,7 @@ public actor FileIOActor {
             try? fileManager.removeItem(at: sourceURL)
             return filename
         } catch {
-            MerianLog.data.error("FileIOActor: Failed persisting audio file: \(error, privacy: .private)")
+            MerianLog.data.error("FileIOActor: Failed persisting media file: \(error, privacy: .private)")
             return nil
         }
     }

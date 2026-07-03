@@ -1,4 +1,5 @@
 import type { PetIdentification } from "../_shared/identify/types.ts";
+import type { ExplorePostMediaItem } from "../_shared/explore.ts";
 
 export type ExploreCoordinateVisibility = "exact" | "obscured";
 export type ExploreMapSpeciesCategory =
@@ -41,6 +42,7 @@ export interface ExploreMapPostRow {
   comment_count: number;
   viewer_has_liked: boolean;
   is_owned_by_viewer: boolean;
+  media_items?: ExplorePostMediaItem[];
 }
 
 export interface ExploreMapCategoryCount {

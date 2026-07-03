@@ -248,8 +248,10 @@ private enum InferencePayloadBuilder {
     static func multimodalBody(
         r2ObjectKeys: [String],
         audioR2ObjectKeys: [String],
+        videoR2ObjectKeys: [String] = [],
         imageBase64s: [String],
         audioBase64s: [String],
+        videoFrameCount: Int? = nil,
         observationContextsJSON: [String],
         mimeType: String,
         telemetry: CaptureTelemetry,
@@ -272,11 +274,17 @@ private enum InferencePayloadBuilder {
         if !audioR2ObjectKeys.isEmpty {
             payload["audioR2ObjectKeys"] = audioR2ObjectKeys
         }
+        if !videoR2ObjectKeys.isEmpty {
+            payload["videoR2ObjectKeys"] = videoR2ObjectKeys
+        }
         if !imageBase64s.isEmpty {
             payload["imageBase64s"] = imageBase64s
         }
         if !audioBase64s.isEmpty {
             payload["audioBase64s"] = audioBase64s
+        }
+        if let videoFrameCount, videoFrameCount > 0 {
+            payload["videoFrameCount"] = videoFrameCount
         }
 
         let observationContexts = observationContextObjects(from: observationContextsJSON)
@@ -790,8 +798,10 @@ final class MerianNetworkClient {
     static func buildMultiModalRequestBody(
         r2ObjectKeys: [String] = [],
         audioR2ObjectKeys: [String] = [],
+        videoR2ObjectKeys: [String] = [],
         base64ImageDatas: [String] = [],
         audioBase64s: [String] = [],
+        videoFrameCount: Int? = nil,
         observationContextsJSON: [String] = [],
         userId: String,
         mimeType: String = "image/webp",
@@ -819,8 +829,10 @@ final class MerianNetworkClient {
         return try InferencePayloadBuilder.multimodalBody(
             r2ObjectKeys: r2ObjectKeys,
             audioR2ObjectKeys: audioR2ObjectKeys,
+            videoR2ObjectKeys: videoR2ObjectKeys,
             imageBase64s: base64ImageDatas,
             audioBase64s: audioBase64s,
+            videoFrameCount: videoFrameCount,
             observationContextsJSON: observationContextsJSON,
             mimeType: mimeType,
             telemetry: telemetry,
@@ -832,9 +844,11 @@ final class MerianNetworkClient {
     func buildMultiModalRequest(
         r2ObjectKeys: [String] = [],
         audioR2ObjectKeys: [String] = [],
+        videoR2ObjectKeys: [String] = [],
         base64ImageDatas: [String] = [],
         mimeType: String = "image/webp",
         audioFilePaths: [String] = [],
+        videoFrameCount: Int? = nil,
         observationContextsJSON: [String] = [],
         telemetry: CaptureTelemetry,
         clientScanId: String
@@ -847,6 +861,8 @@ final class MerianNetworkClient {
 
         let capturedAudioPaths = audioFilePaths
         let capturedAudioR2ObjectKeys = audioR2ObjectKeys
+        let capturedVideoR2ObjectKeys = videoR2ObjectKeys
+        let capturedVideoFrameCount = videoFrameCount
         let capturedContextsJSON = observationContextsJSON
         let capturedTelemetry = telemetry
         let capturedMimeType = mimeType
@@ -856,8 +872,10 @@ final class MerianNetworkClient {
             return try MerianNetworkClient.buildMultiModalRequestBody(
                 r2ObjectKeys: capturedR2ObjectKeys,
                 audioR2ObjectKeys: capturedAudioR2ObjectKeys,
+                videoR2ObjectKeys: capturedVideoR2ObjectKeys,
                 base64ImageDatas: capturedBase64ImageDatas,
                 audioBase64s: audioBase64s,
+                videoFrameCount: capturedVideoFrameCount,
                 observationContextsJSON: capturedContextsJSON,
                 userId: context.userId,
                 mimeType: capturedMimeType,
@@ -932,15 +950,19 @@ final class MerianNetworkClient {
         base64ImageDatas: [String] = [],
         mimeType: String = "image/webp",
         audioFilePaths: [String] = [],
+        videoR2ObjectKeys: [String] = [],
+        videoFrameCount: Int? = nil,
         observationContextsJSON: [String] = [],
         telemetry: CaptureTelemetry,
         clientScanId: String? = nil
     ) async throws -> Data {
         let request = try await buildMultiModalRequest(
             r2ObjectKeys: r2ObjectKeys,
+            videoR2ObjectKeys: videoR2ObjectKeys,
             base64ImageDatas: base64ImageDatas,
             mimeType: mimeType,
             audioFilePaths: audioFilePaths,
+            videoFrameCount: videoFrameCount,
             observationContextsJSON: observationContextsJSON,
             telemetry: telemetry,
             clientScanId: clientScanId ?? UUID().uuidString.lowercased()
@@ -1024,6 +1046,62 @@ final class MerianNetworkClient {
         let (responseData, response) = try await activeSession.upload(for: request, fromFile: fileURL)
         MerianLog.network.debug("R2 file upload completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - uploadStart), privacy: .public)s.")
         try validateR2UploadResponse(responseData: responseData, response: response)
+    }
+
+    func uploadStagedVideoFiles(videoFilePaths: [String], scanId: String) async throws -> [String] {
+        let videoFileURLs = videoFilePaths
+            .map { resolvedLocalMediaURL(for: $0) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+
+        guard !videoFileURLs.isEmpty else { return [] }
+
+        let uploadFiles = try videoFileURLs.map { fileURL in
+            let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+            let sizeBytes = (attributes[.size] as? NSNumber)?.intValue
+            return StagingUploadFile(
+                fileName: MediaStagingContract.stagingFileName(scanId: scanId, localPath: fileURL.lastPathComponent),
+                mediaKind: .video,
+                contentType: StagedMediaKind.video.contentType(for: fileURL.path),
+                sizeBytes: sizeBytes
+            )
+        }
+
+        guard uploadFiles.count <= MerianConfig.mediaStagingMaxVideoFilesPerRequest,
+              uploadFiles.count <= MerianConfig.mediaStagingMaxFilesPerRequest else {
+            throw MerianError.payloadTooLarge
+        }
+        for uploadFile in uploadFiles {
+            if let sizeBytes = uploadFile.sizeBytes,
+               sizeBytes > MerianConfig.videoPayloadMaxBytes {
+                throw MerianError.payloadTooLarge
+            }
+        }
+
+        let uploadURLs = try await generateUploadURLs(uploadFiles: uploadFiles)
+        guard uploadURLs.count == videoFileURLs.count else {
+            throw MerianError.invalidResponse
+        }
+
+        for (fileURL, uploadURL) in zip(videoFileURLs, uploadURLs) {
+            try await uploadToR2(
+                url: uploadURL.signedUrl,
+                fileURL: fileURL,
+                mimeType: StagedMediaKind.video.contentType(for: fileURL.path)
+            )
+        }
+
+        return uploadURLs.map(\.objectKey)
+    }
+
+    private func resolvedLocalMediaURL(for path: String) -> URL {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("file://"), let url = URL(string: trimmed), url.isFileURL {
+            return url
+        }
+        if trimmed.hasPrefix("/") {
+            return URL(fileURLWithPath: trimmed)
+        }
+        return URL.documentsDirectory.appendingPathComponent(trimmed)
     }
 
     private func validateR2UploadResponse(responseData: Data, response: URLResponse) throws {

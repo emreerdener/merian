@@ -76,7 +76,7 @@ struct CaptureControlBar: View {
                 //   • multi-capture mode (description is always staged, user submits via Identify)
                 //   • confirm-before-submit ON (every input must be staged first)
                 // Show "↑" only for immediate solo-describe when none of the above apply.
-                let willStageOnly = !viewModel.stagedCapture.images.isEmpty
+                let willStageOnly = viewModel.stagedCapture.hasVisualMedia
                     || !viewModel.stagedCapture.audios.isEmpty
                     || !viewModel.stagedCapture.observationContexts.isEmpty
                     || viewModel.baseRefinementContext != nil
@@ -92,10 +92,16 @@ struct CaptureControlBar: View {
                     captureMode: captureMode,
                     willStageOnly: willStageOnly,
                     isInputActive: isInputActive,
+                    isProVideoAvailable: viewModel.diContainer.revenueCatManager.isProActive,
+                    isVideoRecording: viewModel.isVideoRecording,
                     onAction: {
                         switch captureMode {
                         case .visual:
-                            viewModel.executeCapture()
+                            if viewModel.isVideoRecording {
+                                viewModel.stopVideoCapture()
+                            } else {
+                                viewModel.executeCapture()
+                            }
                         case .audio:
                             if audioCaptureManager.pendingPlaybackPath != nil {
                                 audioCaptureManager.confirmAndSubmit()
@@ -126,6 +132,9 @@ struct CaptureControlBar: View {
                                 observationContext = ObservationContext()
                             }
                         }
+                    },
+                    onVisualLongPressStart: {
+                        viewModel.startVideoCapture()
                     }
                 )
                 .animation(.easeInOut(duration: 0.2), value: captureMode)
@@ -170,6 +179,7 @@ struct CaptureControlBar: View {
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.videos.count)
         .opacity(isKeyboardVisible ? 0 : 1)
         .allowsHitTesting(!isKeyboardVisible)
     }
@@ -184,10 +194,16 @@ private struct CaptureButton: View {
     let captureMode: CaptureMode
     let willStageOnly: Bool
     let isInputActive: Bool
+    let isProVideoAvailable: Bool
+    let isVideoRecording: Bool
     let onAction: () -> Void
+    let onVisualLongPressStart: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
+    @State private var isPressActive = false
+    @State private var didTriggerVideoLongPress = false
+    @State private var videoLongPressTask: Task<Void, Never>?
 
     private var outerRingColor: Color {
         switch captureMode {
@@ -200,10 +216,11 @@ private struct CaptureButton: View {
     private var isRecording: Bool { captureMode == .audio && audioCaptureManager.isRecording }
     private var isPaused: Bool { captureMode == .audio && audioCaptureManager.isPaused }
     private var isAudioReview: Bool { captureMode == .audio && audioCaptureManager.pendingPlaybackPath != nil }
+    private var shouldShowRecordingChrome: Bool { isRecording || (captureMode == .visual && isVideoRecording) }
 
     private var innerFill: Color {
         switch captureMode {
-        case .visual:   return .white
+        case .visual:   return isVideoRecording ? .red : .white
         case .describe: return isInputActive ? Color.primary : Color.clear
         case .audio:
             // Red = "recording action available" (idle or paused → tap to record/resume).
@@ -227,9 +244,9 @@ private struct CaptureButton: View {
         ZStack {
             // Track ring — dims when recording to show the progress arc.
             Circle()
-                .stroke(outerRingColor.opacity(isRecording ? 0.25 : 1), lineWidth: 1)
+                .stroke(outerRingColor.opacity(shouldShowRecordingChrome ? 0.25 : 1), lineWidth: 1)
                 .frame(width: 80, height: 80)
-                .animation(.easeInOut(duration: 0.2), value: isRecording)
+                .animation(.easeInOut(duration: 0.2), value: shouldShowRecordingChrome)
 
             // Progress arc — sweeps red clockwise for the duration of the recording.
             // Hidden during review so the ring resets to a clean submit-button appearance.
@@ -250,7 +267,12 @@ private struct CaptureButton: View {
                     .animation(.easeInOut(duration: 0.2), value: isInputActive)
                     .animation(.easeInOut(duration: 0.2), value: isRecording && !isPaused)
 
-                if captureMode == .describe || isAudioReview {
+                if captureMode == .visual && isVideoRecording {
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                        .transition(.scale.combined(with: .opacity))
+                } else if captureMode == .describe || isAudioReview {
                     Image(systemName: willStageOnly ? "plus" : "arrow.up")
                         .font(.system(size: 32))
                         .foregroundStyle(iconColor)
@@ -267,10 +289,55 @@ private struct CaptureButton: View {
         .contentShape(Circle())
         .accessibilityIdentifier("CaptureShutter")
         .accessibilityAddTraits(.isButton)
-        .onTapGesture {
-            HapticManager.shared.triggerFocusSnap()
-            onAction()
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in handlePressBegan() }
+                .onEnded { _ in handlePressEnded() }
+        )
+        .onDisappear {
+            videoLongPressTask?.cancel()
+            videoLongPressTask = nil
         }
+    }
+
+    private func handlePressBegan() {
+        guard !isPressActive else { return }
+        isPressActive = true
+        didTriggerVideoLongPress = false
+
+        guard captureMode == .visual,
+              isProVideoAvailable,
+              !isVideoRecording else { return }
+
+        videoLongPressTask?.cancel()
+        videoLongPressTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            didTriggerVideoLongPress = true
+            onVisualLongPressStart()
+        }
+    }
+
+    private func handlePressEnded() {
+        videoLongPressTask?.cancel()
+        videoLongPressTask = nil
+        defer {
+            isPressActive = false
+            didTriggerVideoLongPress = false
+        }
+
+        if captureMode == .visual, didTriggerVideoLongPress {
+            return
+        }
+
+        if captureMode == .visual, isVideoRecording {
+            HapticManager.shared.triggerMediumPulse()
+            onAction()
+            return
+        }
+
+        HapticManager.shared.triggerFocusSnap()
+        onAction()
     }
 }
 

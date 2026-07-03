@@ -12,16 +12,19 @@ let stagedImageCapacity = stagedCaptureCapacity
 enum CaptureSubmissionMediaItem: Sendable, Equatable {
     case image(index: Int)
     case audio(String)
+    case video(String)
     case description(ObservationContext)
 
     static func defaultTimeline(
         imageCount: Int,
         observationContexts: [ObservationContext],
-        audioFilePaths: [String]
+        audioFilePaths: [String],
+        videoFilePaths: [String] = []
     ) -> [CaptureSubmissionMediaItem] {
         var items: [CaptureSubmissionMediaItem] = (0..<imageCount).map { .image(index: $0) }
         items.append(contentsOf: observationContexts.map(Self.description))
         items.append(contentsOf: audioFilePaths.map(Self.audio))
+        items.append(contentsOf: videoFilePaths.map(Self.video))
         return items
     }
 }
@@ -30,6 +33,13 @@ extension Array where Element == CaptureSubmissionMediaItem {
     var audioFilePaths: [String] {
         compactMap { item in
             guard case .audio(let path) = item else { return nil }
+            return path
+        }
+    }
+
+    var videoFilePaths: [String] {
+        compactMap { item in
+            guard case .video(let path) = item else { return nil }
             return path
         }
     }
@@ -45,6 +55,7 @@ extension Array where Element == CaptureSubmissionMediaItem {
 enum StagedCaptureNode {
     case image(index: Int, stagedImage: StagedImage)
     case audio(index: Int, stagedAudio: StagedAudio)
+    case video(index: Int, stagedVideo: StagedVideo)
     case description(index: Int, stagedObservationContext: StagedObservationContext)
 
     var addedAt: Date {
@@ -53,6 +64,8 @@ enum StagedCaptureNode {
             return stagedImage.addedAt
         case .audio(_, let stagedAudio):
             return stagedAudio.addedAt
+        case .video(_, let stagedVideo):
+            return stagedVideo.addedAt
         case .description(_, let stagedObservationContext):
             return stagedObservationContext.addedAt
         }
@@ -82,6 +95,9 @@ struct StagedCapture {
     /// File paths of staged audio recordings.
     var audios: [StagedAudio] = []
 
+    /// Staged short video recordings. Each video carries sampled frames for inference.
+    var videos: [StagedVideo] = []
+
     /// Staged observation contexts from the Describe tab before submission.
     var observationContexts: [StagedObservationContext] = []
     
@@ -91,16 +107,20 @@ struct StagedCapture {
     // MARK: - Derived State
 
     var isEmpty: Bool {
-        images.isEmpty && audios.isEmpty && observationContexts.isEmpty
+        images.isEmpty && audios.isEmpty && videos.isEmpty && observationContexts.isEmpty
     }
 
     var totalItemCount: Int {
-        images.count + audios.count + observationContexts.count
+        images.count + audios.count + videos.count + observationContexts.count
+    }
+
+    var hasVisualMedia: Bool {
+        !images.isEmpty || !videos.isEmpty
     }
 
     /// True when more than one modality carries content — drives routing to the combined endpoint.
     var isMultiModal: Bool {
-        [!images.isEmpty, !audios.isEmpty, !observationContexts.isEmpty]
+        [hasVisualMedia, !audios.isEmpty, !observationContexts.isEmpty]
             .filter { $0 }.count > 1
     }
 
@@ -123,6 +143,10 @@ struct StagedCapture {
             nodes.append(.audio(index: index, stagedAudio: audio))
         }
 
+        for (index, video) in videos.enumerated() {
+            nodes.append(.video(index: index, stagedVideo: video))
+        }
+
         for (index, context) in observationContexts.enumerated() {
             nodes.append(.description(index: index, stagedObservationContext: context))
         }
@@ -137,6 +161,8 @@ struct StagedCapture {
                 return .image(index: index)
             case .audio(_, let stagedAudio):
                 return .audio(stagedAudio.filePath)
+            case .video(_, let stagedVideo):
+                return .video(stagedVideo.filePath)
             case .description(_, let stagedObservationContext):
                 return .description(stagedObservationContext.context)
             }
@@ -149,6 +175,7 @@ struct StagedCapture {
     mutating func clearAll() {
         images.removeAll()
         audios.removeAll()
+        videos.removeAll()
         observationContexts.removeAll()
     }
 }
@@ -159,6 +186,17 @@ struct StagedCapture {
 struct StagedAudio {
     let filePath: String
     var addedAt: Date = Date()
+}
+
+/// A staged short video clip with sampled frame images used for AI inference.
+struct StagedVideo {
+    let filePath: String
+    let sampledImages: [StagedImage]
+    var addedAt: Date = Date()
+
+    var coverImage: StagedImage? {
+        sampledImages.first
+    }
 }
 
 /// A staged text observation context.

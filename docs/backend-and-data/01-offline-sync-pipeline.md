@@ -13,7 +13,7 @@ Live visual and live non-visual persistence both acquire `ScanFinalizationCoordi
 
 ### 2. Scan Submission & Immediate Durability (`submitActiveScan` → `enqueueCapture`)
 
-Every scan — regardless of network state or what the user does after pressing the shutter — is made durable **at the moment of submission**, not on a best-effort rescue later. The durable unit is now a single ordered mixed-media timeline that can contain up to 2 total user items across images, audio clips, and descriptions.
+Every scan — regardless of network state or what the user does after pressing the shutter — is made durable **at the moment of submission**, not on a best-effort rescue later. The durable unit is now a single ordered mixed-media timeline that can contain up to 2 total user items across photos, short Pro video clips, audio clips, and descriptions.
 
 When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
 
@@ -52,10 +52,11 @@ The manager guards against expedition mode, connectivity, and an in-flight sync 
 
 Batch sizing is governed by `MerianConfig`:
 - **`pendingScanFetchLimit`** (50): maximum `OfflineQueuedScan` records fetched per cycle via `BackgroundDatabaseActor.fetchPendingScans(limit:)`.
-- **`uploadBatchSize`** (5): maximum scans considered for R2 staging per cycle. The selected scan batch is additionally capped by `MediaStagingContract.maxUploadItemsPerRequest` / `MerianConfig.mediaStagingMaxFilesPerRequest` to the `generate-upload-urls` limit of 5 media files total, so a mixed scan with images + audio cannot overrun the pre-signed URL contract.
+- **`uploadBatchSize`** (5): maximum scans considered for R2 staging per cycle. The selected scan batch is additionally capped by `MediaStagingContract.maxUploadItemsPerRequest` / `MerianConfig.mediaStagingMaxFilesPerRequest` to the `generate-upload-urls` limit of 5 media files total, so a mixed scan with images + audio + video cannot overrun the pre-signed URL contract.
 - **`mediaStagingMaxAudioFilesPerRequest`** (2): maximum audio files in one upload-signing request, matching the Edge parser and the documented cross-language contract in `docs/contracts/media-staging-upload-manifest.json`.
+- **`mediaStagingMaxVideoFilesPerRequest`** (1): maximum video files in one upload-signing request, with `video/mp4` as the canonical queued content type.
 
-Before upload tasks are dispatched, `MediaStagingContract` builds the canonical staging manifest: sanitized filename, deterministic `staging/{userId}/{fileName}` object key, media kind, content type, byte size, file URL, and upload task description. It also validates the local media budget before any scan is promoted out of `.pending`: staged images must stay within the edge's 5 MB image fetch budget, staged audio must stay within the 2.7 MB raw audio budget, and a signing batch may include at most 2 audio files. Records that fail this preflight are tombstoned instead of being marked `.uploading`.
+Before upload tasks are dispatched, `MediaStagingContract` builds the canonical staging manifest: sanitized filename, deterministic `staging/{userId}/{fileName}` object key, media kind, content type, byte size, file URL, and upload task description. It also validates the local media budget before any scan is promoted out of `.pending`: staged images must stay within the edge's 5 MB image fetch budget, staged audio must stay within the 2.7 MB raw audio budget, staged video must stay within the strict video byte budget, and a signing batch may include at most 2 audio files and 1 video file. Records that fail this preflight are tombstoned instead of being marked `.uploading`.
 
 After that preflight, `BackgroundDatabaseActor.markScansAsUploading(scanIds:)` atomically transitions only the valid selected scans from `.pending` to `.uploading`, saves, and returns the set of scan IDs it actually claimed. `syncPendingScans` signs and dispatches only files belonging to those claimed IDs. If the actor fetch or save fails, it rolls back and returns an empty set, leaving the queue in `.pending` for a later retry rather than launching URLSession uploads whose state was never persisted. This means `fetchPendingScans` can never re-dispatch the same scans after an app restart — the persistent state machine eliminates the need for an in-memory `activeScanUploadIds` set that would be lost on process death. Each local media file is streamed directly from `URL.documentsDirectory` to `URLSession.uploadTask(with:fromFile:)`. Image uploads use `Content-Type: image/webp`; audio uploads use `audio/wav` or `audio/mp4` based on extension. These must match the Content-Type baked into the Cloudflare R2 pre-signed URL by the `generate-upload-urls` Edge function. The Edge function now consumes the full `files` manifest (`fileName`, `mediaKind`, `contentType`, `sizeBytes`) instead of inferring type from extensions, and validates the manifest before signing. The OS background session owns byte transmission from here, handling interruption and resume transparently.
 
@@ -74,7 +75,7 @@ After that preflight, `BackgroundDatabaseActor.markScansAsUploading(scanIds:)` a
 
 After the last media file for a scan receives HTTP 200, `BackgroundDatabaseActor.markScanAsStaged(scanId:r2Keys:)` atomically persists the confirmed R2 object keys into `stagedR2Keys: [String]?` and transitions to `.staged`. Storing the keys at upload time eliminates the auth-expiry 403 edge case that occurred when keys were reconstructed from the current session UUID at inference time — a session that may have expired hours later. `replayInferenceForUploadedScans()` queries for `.staged` scans and re-enters them via `dispatchInferenceDownloadTask` using the persisted keys.
 
-**Audio and non-visual scans**: `OfflineQueueManager.enqueueNonVisualCapture` enters audio-bearing records at `.pending` so their local audio file is uploaded through the same background R2 staging phase as images. Description-only records enter `.staged` directly because they carry no media bytes. `dispatchInferenceDownloadTask` splits persisted staging keys into image `r2ObjectKeys` and audio `audioR2ObjectKeys`, derives `observation_contexts` from the canonical media timeline, and routes replay through `MerianNetworkClient.buildMultiModalRequest(...)` without building a large inline audio body.
+**Audio, video, and non-visual scans**: `OfflineQueueManager.enqueueNonVisualCapture` enters audio-bearing records at `.pending` so their local audio file is uploaded through the same background R2 staging phase as images and videos. Description-only records enter `.staged` directly because they carry no media bytes. `dispatchInferenceDownloadTask` splits persisted staging keys into image `r2ObjectKeys`, audio `audioR2ObjectKeys`, and video `videoR2ObjectKeys`, derives `observation_contexts` from the canonical media timeline, passes video frame counts for telemetry/token accounting, and routes replay through `MerianNetworkClient.buildMultiModalRequest(...)` without building a large inline audio body.
 
 **Distributed lock (`tryClaimForInference`)**: Before any inference pipeline starts, `BackgroundDatabaseActor.tryClaimForInference(scanId:)` performs an atomic `.staged → .inferencing` transition. It returns `false` if the scan is already `.inferencing`, preventing two concurrent pipelines from racing for the same scan. This replaces the in-memory `activeScanUploadIds` set which was lost on process death.
 
@@ -233,8 +234,10 @@ All magic numbers governing the sync pipeline live in `MerianConfig.swift` (Core
 | `uploadBatchSize` | 5 | Scans dispatched per sync cycle |
 | `pendingScanFetchLimit` | 50 | `OfflineQueuedScan` records fetched per cycle |
 | `mediaStagingMaxFilesPerRequest` | 5 | Media files allowed by `generate-upload-urls` per request |
+| `mediaStagingMaxVideoFilesPerRequest` | 1 | Video files allowed by `generate-upload-urls` per request |
 | `stagedImagePayloadMaxBytes` | 5 MB | Maximum staged image bytes fetched by edge inference |
 | `audioPayloadMaxBytes` | 2.7 MB | Maximum inline or staged audio bytes accepted for inference |
+| `videoPayloadMaxBytes` | 12 MB | Maximum staged video bytes accepted for persistence |
 | `historicalSyncPageSize` | 200 | Records per page for scans rehydration |
 | `collectionsSyncPageSize` | 100 | Records per page for collections rehydration |
 | `ingestCheckpointInterval` | 50 | SwiftData save frequency during bulk ingest |

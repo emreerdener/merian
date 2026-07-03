@@ -2,6 +2,42 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-03-explore-video-posts",
+      "date": "2026-07-03",
+      "title": "Explore video posts",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Shared video scans can now appear in Explore and Ask the Community, with muted playback in feed/detail and thumbnail play indicators on compact surfaces."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-03-pro-video-scans",
+      "date": "2026-07-03",
+      "title": "Pro video scans",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Pro users can now hold the visual shutter for one second to record a short video scan, with saved playback and image-based thumbnails.",
+            "Video recording now gives clearer haptic feedback when recording latches, stops, stages successfully, or fails.",
+            "Video scan media now opens from the Insight carousel into fullscreen playback.",
+            "The Pro paywall comparison table now includes video scans.",
+            "Scans filters now include Image and Video media filters."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Non-Pro long-presses keep the normal photo-first shutter behavior and do not open the paywall."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-03-invasive-status-context",
       "date": "2026-07-03",
       "title": "Invasive status context",

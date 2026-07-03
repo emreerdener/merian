@@ -249,7 +249,7 @@ The `@google/genai@1.0.0` SDK exposes `thoughtsTokenCount` in `UsageMetadata`, m
 Token Usage [identify | <tier>]: Prompt: X | Candidates: Y | Thinking: Z | Total: W
 ```
 
-`llm_thinking_tokens` is also forwarded in the `ScanCompleted` PostHog event for cost analytics. The vision model call uses `_genAI.models.generateContent()` (not the deprecated `getGenerativeModel` pattern), with `thinkingConfig` passed inside the `config` object alongside `systemInstruction`, `temperature`, and `maxOutputTokens`.
+`llm_thinking_tokens` is also forwarded in scan-completion PostHog events for cost analytics. Multimodal video scans additionally forward `media_type`, image/video counts, and `video_llm_*_tokens`; those video token fields mirror the full Gemini request usage because the provider does not split token counts by sampled video frame. The vision model call uses `_genAI.models.generateContent()` (not the deprecated `getGenerativeModel` pattern), with `thinkingConfig` passed inside the `config` object alongside `systemInstruction`, `temperature`, and `maxOutputTokens`.
 
 ## 2026-04 Hardening Updates
 

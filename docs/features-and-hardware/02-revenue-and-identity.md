@@ -205,6 +205,12 @@ Enforces the paywall in frontend entry points.
   only the Pro reanalysis feature gate for that specific correction path; when
   the user submits the replacement scan it still follows normal free-tier
   inference settings and daily scan limits.
+- **Pro Paywall Entitlements**: The paywall comparison table is the source of
+  truth for high-level Pro feature copy. It lists unlimited daily scans,
+  Gemini Pro model access, video scans, AI chat, multi-capture, Apple Watch
+  logging, group-event hosting, and expedition mode as Pro benefits. Profile
+  plan-card summaries reuse the same `ProPlanValueProps` copy so those surfaces
+  do not drift.
 - **Refunds**: If an inference fails unrecoverably (task cancellation, JSON
   decoding failure, network error), `UsageManager.shared.refundScan()` restores
   the consumed token so the user is not penalized for a technical failure.

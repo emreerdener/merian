@@ -24,8 +24,11 @@ interface MediaStagingUploadManifestContract {
   maxImageBytes: number;
   maxAudioBytes: number;
   maxAudioFiles: number;
+  maxVideoBytes: number;
+  maxVideoFiles: number;
   imageContentTypes: string[];
   audioContentTypes: string[];
+  videoContentTypes: string[];
 }
 
 Deno.test("media budgets match the documented staging upload contract", () => {
@@ -35,8 +38,11 @@ Deno.test("media budgets match the documented staging upload contract", () => {
   assertEquals(MEDIA_BUDGETS.maxImageRawBytes, contract.maxImageBytes);
   assertEquals(MEDIA_BUDGETS.maxAudioRawBytes, contract.maxAudioBytes);
   assertEquals(MEDIA_BUDGETS.maxStagedAudioFiles, contract.maxAudioFiles);
+  assertEquals(MEDIA_BUDGETS.maxVideoRawBytes, contract.maxVideoBytes);
+  assertEquals(MEDIA_BUDGETS.maxStagedVideoFiles, contract.maxVideoFiles);
   assertEquals(STAGING_ALLOWED_CONTENT_TYPES.image, contract.imageContentTypes);
   assertEquals(STAGING_ALLOWED_CONTENT_TYPES.audio, contract.audioContentTypes);
+  assertEquals(STAGING_ALLOWED_CONTENT_TYPES.video, contract.videoContentTypes);
 });
 
 Deno.test("validateAudioClipCount rejects mixed clip sets above the cap", () => {

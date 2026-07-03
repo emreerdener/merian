@@ -94,7 +94,8 @@ actor BackgroundDatabaseActor {
             return PendingScanPayload(
                 id: scan.id,
                 localImagePaths: snapshot.imagePaths,
-                localAudioPaths: snapshot.audioPaths
+                localAudioPaths: snapshot.audioPaths,
+                localVideoPaths: snapshot.videoPaths
             )
         }
     }
@@ -152,7 +153,7 @@ actor BackgroundDatabaseActor {
             let mediaSnapshot = record.capturedMediaSnapshot
             return ScanErasurePayload(
                 id: record.id,
-                imagePaths: mediaSnapshot.imagePaths + mediaSnapshot.audioPaths
+                imagePaths: mediaSnapshot.imagePaths + mediaSnapshot.audioPaths + mediaSnapshot.videoPaths
             )
         }
 
@@ -769,15 +770,18 @@ actor BackgroundDatabaseActor {
         localImagePaths: [String]? = nil,
         observationContextsJSON: [String]? = nil,
         audioFilePaths: [String]? = nil,
+        videoFilePaths: [String]? = nil,
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil
     ) async -> String? {
         let resolvedLocalImagePaths = localImagePaths ?? []
         let resolvedObservationContexts = decodedObservationContexts(from: observationContextsJSON)
         let resolvedAudioFilePaths = audioFilePaths ?? []
+        let resolvedVideoFilePaths = videoFilePaths ?? []
         let resolvedMediaTimeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
             imageCount: resolvedLocalImagePaths.count,
             observationContexts: resolvedObservationContexts,
-            audioFilePaths: resolvedAudioFilePaths
+            audioFilePaths: resolvedAudioFilePaths,
+            videoFilePaths: resolvedVideoFilePaths
         )
 
         var mediaItems: [SerializedMediaItem] = []
@@ -794,6 +798,10 @@ actor BackgroundDatabaseActor {
                 if let persistedPath = await FileIOActor.shared.persistAudioFile(tempPath: sourcePath) {
                     mediaItems.append(.audio(.documents(persistedPath)))
                 }
+            case .video(let sourcePath):
+                if let persistedPath = await FileIOActor.shared.persistVideoFile(tempPath: sourcePath) {
+                    mediaItems.append(.video(.documents(persistedPath)))
+                }
             }
         }
 
@@ -809,6 +817,7 @@ actor BackgroundDatabaseActor {
         localImagePaths: [String],
         observationContextsJSON: [String]? = nil,
         audioFilePaths: [String]? = nil,
+        videoFilePaths: [String]? = nil,
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil
     ) async -> Bool {
         guard mappedData.confidenceScore > 0.0, !localImagePaths.isEmpty else {
@@ -823,6 +832,7 @@ actor BackgroundDatabaseActor {
             localImagePaths: localImagePaths,
             observationContextsJSON: observationContextsJSON,
             audioFilePaths: audioFilePaths,
+            videoFilePaths: videoFilePaths,
             mediaTimeline: mediaTimeline
         )
 
@@ -865,6 +875,7 @@ actor BackgroundDatabaseActor {
         mappedData: SpeciesData,
         observationContextsJSON: [String]? = nil,
         audioFilePaths: [String]? = nil,
+        videoFilePaths: [String]? = nil,
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil
     ) async -> Bool {
         guard mappedData.confidenceScore > 0.0 else { return false }
@@ -876,6 +887,7 @@ actor BackgroundDatabaseActor {
         let capturedMediaJSON = await buildCapturedMediaJSON(
             observationContextsJSON: observationContextsJSON,
             audioFilePaths: audioFilePaths,
+            videoFilePaths: videoFilePaths,
             mediaTimeline: mediaTimeline
         )
 

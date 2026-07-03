@@ -512,15 +512,18 @@ extension OfflineQueueManager {
         // All scans natively route through the unified /identify-multimodal endpoint,
         // securely supporting arrays over legacy properties.
         let audioPaths = extracted.audioFilePaths ?? []
+        let videoPaths = extracted.videoFilePaths ?? []
         let stagedKeys = MediaStagingContract.splitObjectKeys(
             extracted.r2Keys,
             scanId: scanId,
             localImagePaths: extracted.localImagePaths,
-            localAudioPaths: audioPaths
+            localAudioPaths: audioPaths,
+            localVideoPaths: videoPaths
         )
         let request = try await MerianNetworkClient.shared.buildMultiModalRequest(
             r2ObjectKeys: stagedKeys.imageR2ObjectKeys,
             audioR2ObjectKeys: stagedKeys.audioR2ObjectKeys,
+            videoR2ObjectKeys: stagedKeys.videoR2ObjectKeys,
             base64ImageDatas: [], // Uploads rely purely on references through R2 object keys.
             audioFilePaths: stagedKeys.audioR2ObjectKeys.isEmpty ? audioPaths : [],
             observationContextsJSON: extracted.observationContextsJSON ?? [],
@@ -528,7 +531,7 @@ extension OfflineQueueManager {
             clientScanId: scanId
         )
         MerianLog.data.debug(
-            "dispatchInferenceDownloadTask: built request scanId=\(scanId, privacy: .public) imageKeys=\(stagedKeys.imageR2ObjectKeys.count, privacy: .public) audioKeys=\(stagedKeys.audioR2ObjectKeys.count, privacy: .public)"
+            "dispatchInferenceDownloadTask: built request scanId=\(scanId, privacy: .public) imageKeys=\(stagedKeys.imageR2ObjectKeys.count, privacy: .public) audioKeys=\(stagedKeys.audioR2ObjectKeys.count, privacy: .public) videoKeys=\(stagedKeys.videoR2ObjectKeys.count, privacy: .public)"
         )
         return request
     }

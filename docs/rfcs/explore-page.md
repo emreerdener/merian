@@ -289,14 +289,24 @@ Imported historical photos and in-app captured photos should both be eligible.
 
 ## V1 Media Lifecycle
 
-V1 Explore is explicitly ephemeral.
+> Superseded: current Explore media is post-owned through
+> `explore_post_media`, with `hero_image_url` retained as the thumbnail
+> fallback and videos allowed for public posts/Community ID requests. See
+> `docs/backend-and-data/04-database-schema.md#explore_post_media` for the
+> current contract.
 
-- Explore posts reuse the underlying scan's existing `image_storage_urls`.
-- Explore does not create a dedicated durable media copy in V1.
-- If a shared scan's backing media is later purged or expires, the Explore post should disappear from the feed.
-- Explore payloads should only include posts whose scan still has at least one active image URL.
+Original V1 Explore was explicitly ephemeral. The historical assumptions below
+are no longer the current contract:
 
-This keeps the initial implementation smaller and allows us to defer the durable-media decision until later.
+- Posts read the underlying scan's existing image URL array.
+- Explore did not snapshot post-owned media.
+- If a shared scan's backing media was later purged or expired, the Explore post
+  disappeared from the feed.
+- Explore payloads only included posts whose scan still had at least one active
+  image URL.
+
+That initial implementation kept the first Explore surface smaller, but the
+current mixed-media design uses post-owned media snapshots.
 
 Implications:
 

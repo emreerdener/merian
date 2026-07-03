@@ -52,14 +52,16 @@ The strike counter is read and written via the Supabase service role in `_shared
 
 ## Media Promotion Pipeline
 
-For safe scans, `moderation.ts` promotes images from temporary staging storage to permanent public storage.
+For safe scans, `moderation.ts` promotes images from temporary staging storage to permanent public storage. Short video scans still moderate through the ordered sampled frames sent to Gemini; once those frames are safe, `identify-multimodal` promotes the staged `.mp4` separately into `video_storage_urls` for the scan record. When a user shares that scan, Explore snapshots post-owned public video media from the promoted video URL and requires an image thumbnail. Videos are not Dictionary/reference-media inputs in v1.
 
 ### R2 Bucket Layout
 
 | Purpose | Path Pattern |
 |---|---|
 | Temporary staging (pre-moderation) | `staging/{userId}/{filename}.webp` |
+| Temporary staged video (pre-moderation) | `staging/{userId}/{filename}.mp4` |
 | Permanent public storage (post-moderation) | `public_uploads/{tier}/{userId}/{filename}.webp` |
+| Permanent scan video storage (post-moderation) | `public_uploads/{tier}/{userId}/{filename}.mp4` |
 | Durable public profile avatars | `avatars/{userId}/{uuid}.webp|jpg` |
 | CDN base URL | `https://media.merian.app/` |
 
@@ -87,6 +89,8 @@ The filename is derived from `r2ObjectKeys[i].split("/").pop()` when available; 
 ### Upload Failure Handling
 
 If any image promotion step fails (non-OK direct upload, failed staging copy, or staging delete after copy), the shared moderation helper aborts the entire promotion batch and rolls back any already-promoted public objects from that batch before returning `ERROR`. The scan is not inserted with a partial `image_storage_urls` array.
+
+For video scans, unsafe moderation deletes any additional staged video keys passed by `identify-multimodal` along with staged image keys. Safe video promotion is best-effort after the moderation gate; if promotion fails, the scan can still persist with sampled image media while the failed staged video is cleaned up.
 
 ### R2 Rollback on Scan Insert Failure
 

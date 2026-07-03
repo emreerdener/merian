@@ -1108,6 +1108,12 @@ struct ExploreHashtagPostsView: View {
                         )
                         .aspectRatio(1, contentMode: .fill)
                         .clipped()
+                        .overlay(alignment: .topLeading) {
+                            if post.hasVideoMedia {
+                                ExploreMediaPlayIndicator()
+                                    .padding(6)
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(viewModel.resolvedSpeciesCommonName(for: post)), tagged #\(route.hashtag)")

@@ -66,7 +66,8 @@ struct VisualCaptureView: View {
 
             // 4. ViewfinderHints + ZoomSlider (scroll-dependent; stays in page)
             CameraControlsLayer(
-                activeScanImages: viewModel.stagedCapture.images.map(\.uiImage),
+                activeScanImages: viewModel.stagedCapture.images.map(\.uiImage)
+                    + viewModel.stagedCapture.videos.compactMap { $0.coverImage?.uiImage },
                 isRefining: viewModel.baseRefinementContext != nil
             )
         }

@@ -1,3 +1,4 @@
+import AVKit
 import SwiftUI
 
 struct CarouselPageBuilder {
@@ -36,6 +37,12 @@ struct CarouselPageBuilder {
                     id: "audio-\(resolvedPath)",
                     mediaKind: .audio,
                     view: AnyView(AudioPlaybackCarouselPage(filePath: resolvedPath))
+                ))
+            case .video(let resolvedPath):
+                pages.append(CarouselPageItem(
+                    id: "video-\(resolvedPath)",
+                    mediaKind: .video,
+                    view: AnyView(VideoPlaybackCarouselPage(path: resolvedPath))
                 ))
             }
         }
@@ -76,6 +83,7 @@ struct InsightImageGalleryItem: Identifiable, Equatable {
     enum Source: Equatable {
         case liveImage(Data)
         case imagePath(String)
+        case videoPath(String)
         case referenceURL(String)
     }
 
@@ -115,6 +123,12 @@ struct InsightImageGalleryBuilder {
                 items.append(InsightImageGalleryItem(
                     id: "image-\(path)",
                     source: .imagePath(path),
+                    referenceAttributionLabel: nil
+                ))
+            case .video(let path):
+                items.append(InsightImageGalleryItem(
+                    id: "video-\(path)",
+                    source: .videoPath(path),
                     referenceAttributionLabel: nil
                 ))
             case .audio, .description:
@@ -159,7 +173,43 @@ struct InsightImageGalleryBuilder {
 enum CarouselMediaKind {
     case visual
     case audio
+    case video
     case description
+}
+
+private struct VideoPlaybackCarouselPage: View {
+    let path: String
+
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        ZStack {
+            Color.black
+            if let player {
+                VideoPlayer(player: player)
+                    .ignoresSafeArea()
+            } else {
+                ProgressView()
+                    .tint(.white)
+            }
+        }
+        .task(id: path) {
+            player?.pause()
+            player = resolvedURL(path).map(AVPlayer.init(url:))
+        }
+        .onDisappear {
+            player?.pause()
+        }
+    }
+
+    private func resolvedURL(_ rawPath: String) -> URL? {
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let url = URL(string: trimmed), url.scheme == "http" || url.scheme == "https" || url.scheme == "file" {
+            return url
+        }
+        return URL(fileURLWithPath: trimmed)
+    }
 }
 
 // MARK: - Carousel Page Identity
@@ -239,8 +289,8 @@ struct ImagesCarousel: View {
     
     /// Triggers exclusively when tapping the interactive textual subcomponent.
     let onDescriptionTap: (() -> Void)?
-    /// Triggers when the currently selected carousel page is an image page that
-    /// can be represented in the full-screen visual gallery.
+    /// Triggers when the currently selected carousel page can be represented in
+    /// the full-screen visual gallery.
     let onVisualImageTap: ((InsightImageGalleryPresentation) -> Void)?
 
     // MARK: - State
@@ -341,7 +391,7 @@ private struct AnalyzingMediaOverlay: View {
                 tintLayer
 
                 switch kind {
-                case .visual:
+                case .visual, .video:
                     visualScan(in: geometry.size)
                 case .audio:
                     audioSweep(in: geometry.size)
@@ -360,7 +410,7 @@ private struct AnalyzingMediaOverlay: View {
     @ViewBuilder
     private var tintLayer: some View {
         switch kind {
-        case .visual:
+        case .visual, .video:
             Color.black.opacity(0.14)
         case .audio:
             Color.cyan.opacity(pulse ? 0.11 : 0.05)

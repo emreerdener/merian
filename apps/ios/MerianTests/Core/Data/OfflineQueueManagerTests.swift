@@ -99,7 +99,7 @@ struct OfflineQueueManagerTests {
     private func cleanupSerializedItems(_ items: [SerializedMediaItem]) {
         for item in items {
             switch item {
-            case .image(let reference), .audio(let reference):
+            case .image(let reference), .audio(let reference), .video(let reference):
                 try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(reference.serializedPath))
             case .description:
                 break

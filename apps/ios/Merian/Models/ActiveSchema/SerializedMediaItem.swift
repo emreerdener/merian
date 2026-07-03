@@ -120,6 +120,7 @@ extension StoredMediaReference {
 enum SerializedMediaItem: Codable, Equatable, Sendable {
     case image(StoredMediaReference)
     case audio(StoredMediaReference)
+    case video(StoredMediaReference)
     case description(ObservationContext)
 }
 
@@ -157,6 +158,13 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
         }
     }
 
+    var videoReferences: [StoredMediaReference] {
+        items.compactMap { item in
+            guard case .video(let reference) = item else { return nil }
+            return reference
+        }
+    }
+
     var observationContexts: [ObservationContext] {
         items.compactMap { item in
             guard case .description(let context) = item else { return nil }
@@ -170,6 +178,10 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
 
     var audioPaths: [String] {
         audioReferences.map(\.serializedPath)
+    }
+
+    var videoPaths: [String] {
+        videoReferences.map(\.serializedPath)
     }
 
     var observationContextsJSON: [String]? {
@@ -194,6 +206,7 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
     var summary: CapturedMediaSummary {
         var hasImage = false
         var hasAudio = false
+        var hasVideo = false
         var hasDescription = false
 
         for item in items {
@@ -202,6 +215,8 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
                 hasImage = true
             case .audio:
                 hasAudio = true
+            case .video:
+                hasVideo = true
             case .description:
                 hasDescription = true
             }
@@ -210,6 +225,7 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
         return CapturedMediaSummary(
             hasImage: hasImage,
             hasAudio: hasAudio,
+            hasVideo: hasVideo,
             hasDescription: hasDescription
         )
     }
@@ -221,6 +237,8 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
                 return .image(reference.serializedPath)
             case .audio(let reference):
                 return .audio(reference.resolvedLocalPath ?? reference.serializedPath)
+            case .video(let reference):
+                return .video(reference.resolvedLocalPath ?? reference.serializedPath)
             case .description(let context):
                 return .description(context)
             }
@@ -233,6 +251,7 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
 enum PersistedCapturedMediaKind: String, Codable, Sendable {
     case image
     case audio
+    case video
     case description
 }
 
@@ -264,6 +283,11 @@ public final class CapturedMediaEntry {
             self.storageRaw = reference.storage.rawValue
             self.mediaPath = reference.serializedPath
             self.observationContextJSON = ""
+        case .video(let reference):
+            self.kindRaw = PersistedCapturedMediaKind.video.rawValue
+            self.storageRaw = reference.storage.rawValue
+            self.mediaPath = reference.serializedPath
+            self.observationContextJSON = ""
         case .description(let context):
             self.kindRaw = PersistedCapturedMediaKind.description.rawValue
             self.storageRaw = ""
@@ -289,6 +313,11 @@ public final class CapturedMediaEntry {
                 return nil
             }
             return .audio(StoredMediaReference(storage: storage, path: mediaPath))
+        case .video:
+            guard let storage = MediaStorageLocation(rawValue: storageRaw), !mediaPath.isEmpty else {
+                return nil
+            }
+            return .video(StoredMediaReference(storage: storage, path: mediaPath))
         case .description:
             guard let contextData = observationContextJSON.data(using: .utf8),
                   let context = try? JSONDecoder().decode(ObservationContext.self, from: contextData) else {
@@ -322,6 +351,7 @@ extension CapturedMediaEntry {
 
 enum CapturedMediaKind: String, Sendable, Equatable {
     case audio
+    case video
     case describe
     case audioAndDescribe
     case other
@@ -330,9 +360,10 @@ enum CapturedMediaKind: String, Sendable, Equatable {
 struct CapturedMediaSummary: Sendable, Equatable {
     let hasImage: Bool
     let hasAudio: Bool
+    let hasVideo: Bool
     let hasDescription: Bool
 
-    static let empty = CapturedMediaSummary(hasImage: false, hasAudio: false, hasDescription: false)
+    static let empty = CapturedMediaSummary(hasImage: false, hasAudio: false, hasVideo: false, hasDescription: false)
 
     var hasNonVisualMedia: Bool {
         hasAudio || hasDescription
@@ -343,6 +374,8 @@ struct CapturedMediaSummary: Sendable, Equatable {
     }
 
     var preferredThumbnailKind: CapturedMediaKind? {
+        if hasVideo { return .video }
+
         switch (hasAudio, hasDescription) {
         case (true, true):
             return .audioAndDescribe
@@ -391,6 +424,14 @@ enum MediaJSONParser {
 
     static func audioReferences(jsonString: String) -> [StoredMediaReference] {
         CapturedMediaSnapshot(jsonString: jsonString).audioReferences
+    }
+
+    static func videoPaths(jsonString: String) -> [String] {
+        CapturedMediaSnapshot(jsonString: jsonString).videoPaths
+    }
+
+    static func videoReferences(jsonString: String) -> [StoredMediaReference] {
+        CapturedMediaSnapshot(jsonString: jsonString).videoReferences
     }
 
     static func observationContexts(jsonString: String) -> [ObservationContext] {

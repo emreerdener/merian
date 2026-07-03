@@ -31,10 +31,14 @@ enum MerianConfig {
     static let mediaStagingMaxFilesPerRequest = 5
     /// Maximum number of audio media objects accepted by `generate-upload-urls` per request.
     static let mediaStagingMaxAudioFilesPerRequest = 2
+    /// Maximum number of video media objects accepted by `generate-upload-urls` per request.
+    static let mediaStagingMaxVideoFilesPerRequest = 1
     /// Maximum compressed image bytes the edge can safely fetch from staging for one inference request.
     static let stagedImagePayloadMaxBytes = 5 * 1024 * 1024
     /// Maximum raw audio bytes accepted by live inline audio and queued staged-audio inference.
     static let audioPayloadMaxBytes = 2_700_000
+    /// Maximum compressed video bytes accepted for a saved Pro micro-clip.
+    static let videoPayloadMaxBytes = 12 * 1024 * 1024
 
     // MARK: - Historical Sync Pagination
 

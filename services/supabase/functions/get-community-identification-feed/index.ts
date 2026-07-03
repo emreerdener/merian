@@ -7,6 +7,7 @@ import {
   requireUuid,
   withExploreAuthorProBadges,
   withExploreAuthorUsernames,
+  withExplorePostMediaItems,
 } from "../_shared/explore.ts";
 import { makeHttpError } from "../_shared/communityIdentification.ts";
 import { fetchCommunityIdentificationFeed } from "./db.ts";
@@ -81,14 +82,17 @@ Deno.serve((req: Request) =>
     }
 
     const rows = await withExploreAuthorUsernames(
-      await withExploreAuthorProBadges(
-        await fetchCommunityIdentificationFeed(
-          user.id,
-          scope,
-          group,
-          limit,
-          { beforeRequestedAt, beforeRequestId },
-          { latitude, longitude },
+      await withExplorePostMediaItems(
+        await withExploreAuthorProBadges(
+          await fetchCommunityIdentificationFeed(
+            user.id,
+            scope,
+            group,
+            limit,
+            { beforeRequestedAt, beforeRequestId },
+            { latitude, longitude },
+            supabaseAdmin,
+          ),
           supabaseAdmin,
         ),
         supabaseAdmin,

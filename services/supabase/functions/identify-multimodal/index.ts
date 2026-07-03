@@ -42,7 +42,10 @@ import {
   resolveImagePayloads,
   validateImageR2ObjectKeys,
 } from "../_shared/identify/media.ts";
-import { evaluateAndProcessPayload } from "../_shared/identify/moderation.ts";
+import {
+  evaluateAndProcessPayload,
+  promoteSafeMedia,
+} from "../_shared/identify/moderation.ts";
 import {
   MEDIA_BUDGETS,
   readRequestJsonWithinBudget,
@@ -104,6 +107,47 @@ You are an expert encyclopedic field-guide biologist and taxonomist with special
 - **Reporting:** Your \`ai_reasoning\` MUST encompass BOTH modalities, explaining how they corroborate or contradict each other.
 - **Sex:** Report sex only when visual, described, or acoustic evidence is diagnostic for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use not_applicable for human subjects. Use cannot_determine when evidence is absent or non-diagnostic.`;
 
+const telemetryCount = (value: unknown): number => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  return Math.trunc(value);
+};
+
+function resolveVisualMediaTelemetry(
+  resolvedImageCount: number,
+  videoFrameCount: unknown,
+  videoClipCount: number,
+) {
+  const declaredVideoFrameCount = telemetryCount(videoFrameCount);
+  const hasVideo = videoClipCount > 0 || declaredVideoFrameCount > 0;
+  const videoInferenceFrameCount = hasVideo
+    ? Math.min(
+      resolvedImageCount,
+      declaredVideoFrameCount > 0 ? declaredVideoFrameCount : resolvedImageCount,
+    )
+    : 0;
+  const imageCount = Math.max(resolvedImageCount - videoInferenceFrameCount, 0);
+  const hasImage = imageCount > 0;
+  const mediaType = hasVideo && hasImage
+    ? "image_video"
+    : hasVideo
+    ? "video"
+    : hasImage
+    ? "image"
+    : "none";
+
+  return {
+    mediaType,
+    hasImage,
+    hasVideo,
+    imageCount,
+    videoClipCount,
+    declaredVideoFrameCount,
+    videoInferenceFrameCount,
+  };
+}
+
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
@@ -132,6 +176,8 @@ Deno.serve((req: Request) =>
       imageBase64s = [],
       audioBase64s = [],
       audioR2ObjectKeys = [],
+      videoR2ObjectKeys = [],
+      videoFrameCount = 0,
       observation_contexts = [],
       r2ObjectKeys = [],
       mimeType = "image/webp",
@@ -191,6 +237,18 @@ Deno.serve((req: Request) =>
     );
     if (keyValidationError) return keyValidationError;
 
+    const videoKeyValidationError = validateImageR2ObjectKeys(
+      videoR2ObjectKeys,
+      user.id,
+      {
+        enforceOwnership: true,
+        idorEvent: "multimodal/video_idor_attempt",
+        wrongUserMessage:
+          "Forbidden: videoR2ObjectKey does not belong to the requesting user.",
+      },
+    );
+    if (videoKeyValidationError) return videoKeyValidationError;
+
     const { base64Payloads, errorResponse } = await resolveImagePayloads(
       r2ObjectKeys,
       imageBase64s,
@@ -200,6 +258,11 @@ Deno.serve((req: Request) =>
     if (errorResponse) return errorResponse;
 
     const resolvedImageBase64s = base64Payloads || [];
+    const mediaTelemetry = resolveVisualMediaTelemetry(
+      resolvedImageBase64s.length,
+      videoFrameCount,
+      videoR2ObjectKeys.length,
+    );
 
     // 2. WAV Preprocessing Loop
     const processedAudios: string[] = [];
@@ -269,6 +332,14 @@ Deno.serve((req: Request) =>
           }`,
         });
       }
+    }
+
+    const hasVideoFrames = mediaTelemetry.hasVideo;
+    if (hasVideoFrames && resolvedImageBase64s.length > 0) {
+      partsArray.push({
+        text:
+          "The following images are ordered sampled frames from one short user-recorded video. Interpret them together as a brief motion sequence, not as separate observations.",
+      });
     }
 
     for (const b64 of resolvedImageBase64s) {
@@ -655,6 +726,7 @@ Deno.serve((req: Request) =>
             finishReason,
             safetyRatings,
             userTier,
+            videoR2ObjectKeys,
           );
           if (modResult.status === "ERROR") {
             console.error(
@@ -674,6 +746,32 @@ Deno.serve((req: Request) =>
         }
 
         let speciesId: string | null = null;
+        let videoStorageUrls: string[] = [];
+        if (videoR2ObjectKeys.length > 0) {
+          try {
+            videoStorageUrls = await promoteSafeMedia({
+              userId: user.id,
+              r2ObjectKeys: videoR2ObjectKeys,
+              imageBase64s: undefined,
+              userTier,
+              r2Config: getR2Config(),
+            });
+          } catch (err) {
+            logStructuredError("multimodal/video_promotion_failed", {
+              user_id: user.id,
+              error: String(err),
+            });
+            const r2Config = getR2Config();
+            Promise.allSettled(
+              videoR2ObjectKeys.map((key: string) =>
+                deleteR2Object(key, r2Config)
+              ),
+            ).catch((e) =>
+              console.error("multimodal: failed to cleanup staged video", e)
+            );
+          }
+        }
+
         const needsGroupTags = isIdentifiedBio &&
           !cachedSpecies?.group_tags?.length;
         const groupTagsPromise = needsGroupTags
@@ -754,6 +852,7 @@ Deno.serve((req: Request) =>
             llm_cached_tokens: null,
             llm_total_tokens: llmTotalTokens,
             image_storage_urls: modResult?.publicUrls ?? [],
+            video_storage_urls: videoStorageUrls,
             life_stage: parsedData.life_stage ?? "unknown",
             reproductive_condition: parsedData.reproductive_condition ??
               "not_applicable",
@@ -864,11 +963,42 @@ Deno.serve((req: Request) =>
           inference_tier: inferenceTier,
           tier: userTier,
           ...tierTelemetryProperties(tierResolution),
+          media_type: mediaTelemetry.mediaType,
+          media_kinds: [
+            mediaTelemetry.hasImage ? "image" : null,
+            mediaTelemetry.hasVideo ? "video" : null,
+            processedAudios.length > 0 ? "audio" : null,
+            hasObservationContextText ? "description" : null,
+          ].filter((kind): kind is string => kind != null),
+          has_image: mediaTelemetry.hasImage,
+          has_video: mediaTelemetry.hasVideo,
+          has_audio: processedAudios.length > 0,
+          has_description: hasObservationContextText,
+          image_count: mediaTelemetry.imageCount,
+          video_clip_count: mediaTelemetry.videoClipCount,
+          video_frame_count: mediaTelemetry.declaredVideoFrameCount,
+          video_inference_frame_count: mediaTelemetry.videoInferenceFrameCount,
+          audio_clip_count: processedAudios.length,
           llm_model: targetModel,
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,
           llm_thinking_tokens: llmThinkingTokens,
           llm_total_tokens: llmTotalTokens,
+          video_llm_prompt_tokens: mediaTelemetry.hasVideo
+            ? llmPromptTokens
+            : null,
+          video_llm_candidate_tokens: mediaTelemetry.hasVideo
+            ? llmCandidateTokens
+            : null,
+          video_llm_thinking_tokens: mediaTelemetry.hasVideo
+            ? llmThinkingTokens
+            : null,
+          video_llm_total_tokens: mediaTelemetry.hasVideo
+            ? llmTotalTokens
+            : null,
+          video_token_accounting: mediaTelemetry.hasVideo
+            ? "full_multimodal_request"
+            : null,
           is_identified: isIdentifiedBio,
           species_name: parsedData.scientific_name || null,
           gemini_latency_ms: Date.now() - geminiStart,

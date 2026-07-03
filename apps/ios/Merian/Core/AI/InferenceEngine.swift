@@ -311,6 +311,16 @@ private struct GBIFMedia: Decodable {
         return FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
     }
 
+    private func resolvedVideoPath(for videoFilePath: String) -> String {
+        let normalizedPath = videoFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedPath.hasPrefix("/") || normalizedPath.hasPrefix("http://") || normalizedPath.hasPrefix("https://") {
+            return normalizedPath
+        }
+        let docsPath = URL.documentsDirectory.appendingPathComponent(normalizedPath).path
+        let tempPath = FileManager.default.temporaryDirectory.appendingPathComponent(normalizedPath).path
+        return FileManager.default.fileExists(atPath: docsPath) ? docsPath : tempPath
+    }
+
     nonisolated static func normalizedReferenceURLs(from rawValue: String?) -> [String] {
         rawValue?
             .components(separatedBy: ",")
@@ -335,6 +345,8 @@ private struct GBIFMedia: Decodable {
                 }
             case .audio(let audioFilePath):
                 items.append(.audio(resolvedAudioPath(for: audioFilePath)))
+            case .video(let videoFilePath):
+                items.append(.video(resolvedVideoPath(for: videoFilePath)))
             case .description(let context):
                 guard !context.isEmpty else { continue }
                 items.append(.description(context))
@@ -558,6 +570,7 @@ private struct GBIFMedia: Decodable {
         imageDatas: [Data],
         displayDatas: [Data] = [],
         audioFilePaths: [String]? = nil,
+        videoFilePaths: [String]? = nil,
         telemetry: CaptureTelemetry,
         observationContexts: [ObservationContext] = [],
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
@@ -588,7 +601,8 @@ private struct GBIFMedia: Decodable {
         let resolvedMediaTimeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
             imageCount: datasToUse.count,
             observationContexts: resolvedObservationContexts,
-            audioFilePaths: audioFilePaths ?? []
+            audioFilePaths: audioFilePaths ?? [],
+            videoFilePaths: videoFilePaths ?? []
         )
         self.activeMedia.items = mediaItems(
             from: resolvedMediaTimeline,
@@ -615,6 +629,7 @@ private struct GBIFMedia: Decodable {
 
         // Capture before the Task so the defer can compare against the ID this Task owns.
         let ownedScanId = scanId
+        let resolvedClientScanId = scanId ?? UUID().uuidString.lowercased()
 
         self.inferenceTask = Task { [weak self] in
             guard let self = self else { return }
@@ -675,14 +690,31 @@ private struct GBIFMedia: Decodable {
                 // Encode ObservationContext to JSON once: used for DB persistence (observationContextJSON)
                 // and already serialised to plain text for the Gemini prompt (description).
                 let observationContextsJSON = observationContextJSONStrings(from: resolvedObservationContexts)
+                let videoFrameCount = (videoFilePaths?.isEmpty == false) ? imageDatas.count : nil
+                let videoR2ObjectKeys: [String]
+                if let videoFilePaths, !videoFilePaths.isEmpty {
+                    do {
+                        videoR2ObjectKeys = try await client.uploadStagedVideoFiles(
+                            videoFilePaths: videoFilePaths,
+                            scanId: resolvedClientScanId
+                        )
+                    } catch {
+                        videoR2ObjectKeys = []
+                        MerianLog.network.error("Video staging upload failed; continuing with sampled-frame inference: \(error, privacy: .private)")
+                    }
+                } else {
+                    videoR2ObjectKeys = []
+                }
                 let resultData = try await client.identifyMultiModal(
                     r2ObjectKeys: [targetObjectKey],
                     base64ImageDatas: validBase64Strings,
                     mimeType: imageMimeType,
                     audioFilePaths: audioFilePaths ?? [],
+                    videoR2ObjectKeys: videoR2ObjectKeys,
+                    videoFrameCount: videoFrameCount,
                     observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
-                    clientScanId: scanId
+                    clientScanId: resolvedClientScanId
                 )
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
 
@@ -697,6 +729,7 @@ private struct GBIFMedia: Decodable {
                     displayDatas: capturedDisplayDatas,
                     observationContextsJSON: observationContextsJSON,
                     audioFilePaths: audioFilePaths,
+                    videoFilePaths: videoFilePaths,
                     mediaTimeline: resolvedMediaTimeline
                 )
                 let finalMappedData = parseResult.mappedData
@@ -797,6 +830,7 @@ private struct GBIFMedia: Decodable {
     func analyzeNonVisual(
         scanId: String?,
         audioFilePaths: [String]? = nil,
+        videoFilePaths: [String]? = nil,
         observationContexts: [ObservationContext] = [],
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         telemetry: CaptureTelemetry,
@@ -808,7 +842,8 @@ private struct GBIFMedia: Decodable {
         let resolvedMediaTimeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
             imageCount: 0,
             observationContexts: filteredObservationContexts,
-            audioFilePaths: filteredAudioFilePaths
+            audioFilePaths: filteredAudioFilePaths,
+            videoFilePaths: videoFilePaths ?? []
         )
 
         guard !resolvedMediaTimeline.isEmpty else { return }
@@ -874,6 +909,7 @@ private struct GBIFMedia: Decodable {
                     skipImageRequirement: true,
                     observationContextsJSON: observationContextsJSON,
                     audioFilePaths: filteredAudioFilePaths.isEmpty ? nil : filteredAudioFilePaths,
+                    videoFilePaths: videoFilePaths,
                     mediaTimeline: resolvedMediaTimeline
                 )
                 let finalMappedData = parseResult.mappedData

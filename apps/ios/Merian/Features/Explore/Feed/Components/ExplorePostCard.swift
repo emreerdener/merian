@@ -1,3 +1,4 @@
+import AVKit
 import SwiftUI
 import UIKit
 
@@ -95,6 +96,7 @@ struct ExplorePostCard: View {
     private var mediaView: some View {
         ExploreFeedMediaView(
             imageUrl: post.heroImageUrl,
+            mediaItems: post.resolvedMediaItems,
             reloadGeneration: mediaReloadGeneration
         )
         .overlay(alignment: .topLeading) {
@@ -401,15 +403,18 @@ private struct ExploreSquareMediaView<Content: View>: View {
 
 struct ExploreFeedMediaView: View {
     let imageUrl: String
+    let mediaItems: [ExploreMediaItem]
     let reloadGeneration: UInt64
     let preloadedImage: UIImage?
 
     init(
         imageUrl: String,
+        mediaItems: [ExploreMediaItem]? = nil,
         reloadGeneration: UInt64,
         preloadedImage: UIImage? = nil
     ) {
         self.imageUrl = imageUrl
+        self.mediaItems = mediaItems?.isEmpty == false ? mediaItems! : [.legacyImage(url: imageUrl)]
         self.reloadGeneration = reloadGeneration
         self.preloadedImage = preloadedImage
     }
@@ -418,10 +423,13 @@ struct ExploreFeedMediaView: View {
         // The scrolling feed intentionally uses a plain image host instead of the zoom wrapper.
         // That keeps every card on a stable square layout proposal regardless of source aspect ratio.
         ExploreSquareMediaView {
-            ExploreHeroImageView(
-                imageUrl: imageUrl,
+            ExplorePublicMediaView(
+                mediaItem: mediaItems.first ?? .legacyImage(url: imageUrl),
+                fallbackImageUrl: imageUrl,
                 reloadGeneration: reloadGeneration,
-                preloadedImage: preloadedImage
+                preloadedImage: preloadedImage,
+                autoplay: true,
+                showsVideoControls: true
             )
         }
     }
@@ -429,17 +437,20 @@ struct ExploreFeedMediaView: View {
 
 struct ExploreDetailMediaView: View {
     let imageUrl: String
+    let mediaItems: [ExploreMediaItem]
     let reloadGeneration: UInt64
     let preloadedImage: UIImage?
     let allowsZoom: Bool
 
     init(
         imageUrl: String,
+        mediaItems: [ExploreMediaItem]? = nil,
         reloadGeneration: UInt64,
         preloadedImage: UIImage? = nil,
         allowsZoom: Bool = true
     ) {
         self.imageUrl = imageUrl
+        self.mediaItems = mediaItems?.isEmpty == false ? mediaItems! : [.legacyImage(url: imageUrl)]
         self.reloadGeneration = reloadGeneration
         self.preloadedImage = preloadedImage
         self.allowsZoom = allowsZoom
@@ -448,7 +459,7 @@ struct ExploreDetailMediaView: View {
     var body: some View {
         // Detail is the only path that opts into transient zoom behavior.
         ExploreSquareMediaView {
-            if allowsZoom {
+            if allowsZoom && primaryMediaItem.kind == .image {
                 ExploreDetailZoomView {
                     heroImage
                 }
@@ -465,12 +476,164 @@ struct ExploreDetailMediaView: View {
         .padding(.horizontal, 16)
     }
 
+    private var primaryMediaItem: ExploreMediaItem {
+        mediaItems.first ?? .legacyImage(url: imageUrl)
+    }
+
     private var heroImage: some View {
+        ExplorePublicMediaView(
+            mediaItem: primaryMediaItem,
+            fallbackImageUrl: imageUrl,
+            reloadGeneration: reloadGeneration,
+            preloadedImage: preloadedImage,
+            autoplay: true,
+            showsVideoControls: true
+        )
+    }
+}
+
+private enum ExploreVideoAutoplayCoordinator {
+    static let activePlayerDidChange = Notification.Name("MerianExploreActiveVideoPlayerDidChange")
+
+    static func activate(_ id: String) {
+        NotificationCenter.default.post(
+            name: activePlayerDidChange,
+            object: id
+        )
+    }
+}
+
+struct ExplorePublicMediaView: View {
+    let mediaItem: ExploreMediaItem
+    let fallbackImageUrl: String
+    let reloadGeneration: UInt64
+    let preloadedImage: UIImage?
+    let autoplay: Bool
+    let showsVideoControls: Bool
+
+    @State private var player: AVPlayer?
+    @State private var playerId = UUID().uuidString
+    @State private var configuredVideoURL: String?
+    @State private var playbackEndObserver: NSObjectProtocol?
+    @State private var isMuted = true
+
+    var body: some View {
+        ZStack {
+            posterImage
+
+            if mediaItem.kind == .video, let player {
+                VideoPlayer(player: player)
+                    .allowsHitTesting(false)
+                    .opacity(0.96)
+            }
+
+            if mediaItem.kind == .video {
+                videoOverlay
+            }
+        }
+        .task(id: "\(mediaItem.url)|\(reloadGeneration)") {
+            configurePlayer()
+            startAutoplayIfNeeded()
+        }
+        .onDisappear {
+            cleanupPlayer()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ExploreVideoAutoplayCoordinator.activePlayerDidChange)) { notification in
+            guard let activeId = notification.object as? String,
+                  activeId != playerId else { return }
+            player?.pause()
+        }
+    }
+
+    private var posterImage: some View {
         ExploreHeroImageView(
-            imageUrl: imageUrl,
+            imageUrl: mediaItem.thumbnailUrl ?? fallbackImageUrl,
             reloadGeneration: reloadGeneration,
             preloadedImage: preloadedImage
         )
+    }
+
+    @ViewBuilder
+    private var videoOverlay: some View {
+        VStack {
+            HStack {
+                ExploreMediaPlayIndicator()
+                Spacer()
+                if showsVideoControls {
+                    Button {
+                        isMuted.toggle()
+                        player?.isMuted = isMuted
+                        if player?.timeControlStatus != .playing {
+                            startAutoplayIfNeeded(force: true)
+                        }
+                    } label: {
+                        Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 34, height: 34)
+                            .background(.black.opacity(0.42), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isMuted ? "Unmute video" : "Mute video")
+                }
+            }
+            Spacer()
+        }
+        .padding(12)
+    }
+
+    private func configurePlayer() {
+        guard mediaItem.kind == .video,
+              let url = URL(string: mediaItem.url) else {
+            cleanupPlayer()
+            return
+        }
+        guard configuredVideoURL != mediaItem.url || player == nil else { return }
+
+        cleanupPlayer()
+        let player = AVPlayer(url: url)
+        player.isMuted = isMuted
+        player.actionAtItemEnd = .none
+        playbackEndObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: player.currentItem,
+            queue: .main
+        ) { [weak player] _ in
+            player?.seek(to: .zero)
+            player?.play()
+        }
+        configuredVideoURL = mediaItem.url
+        self.player = player
+    }
+
+    private func cleanupPlayer() {
+        player?.pause()
+        if let playbackEndObserver {
+            NotificationCenter.default.removeObserver(playbackEndObserver)
+            self.playbackEndObserver = nil
+        }
+        configuredVideoURL = nil
+        player = nil
+    }
+
+    private func startAutoplayIfNeeded(force: Bool = false) {
+        guard mediaItem.kind == .video,
+              let player,
+              autoplay || force,
+              force || !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
+        ExploreVideoAutoplayCoordinator.activate(playerId)
+        player.play()
+    }
+}
+
+struct ExploreMediaPlayIndicator: View {
+    var body: some View {
+        Image(systemName: "play.fill")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 32, height: 32)
+            .background(.black.opacity(0.42), in: Circle())
+            .accessibilityLabel("Video")
     }
 }
 

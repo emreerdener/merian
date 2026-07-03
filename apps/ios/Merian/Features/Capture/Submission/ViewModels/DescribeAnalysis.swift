@@ -43,7 +43,7 @@ extension CaptureWorkspaceViewModel {
             stagedCapture.observationContexts.append(StagedObservationContext(context: stagedContext))
             return true
         } else {
-            if !stagedCapture.images.isEmpty || !stagedCapture.audios.isEmpty || !stagedCapture.observationContexts.isEmpty {
+            if stagedCapture.hasVisualMedia || !stagedCapture.audios.isEmpty || !stagedCapture.observationContexts.isEmpty {
                 // Already-staged media composes through the toolbar.
                 // The ActiveScanToolbar's Identify button owns submission in this state.
                 stagedCapture.observationContexts = [StagedObservationContext(context: stagedContext)]

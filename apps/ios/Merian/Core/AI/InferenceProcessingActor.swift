@@ -52,6 +52,7 @@ actor InferenceProcessingActor {
         skipImageRequirement: Bool = false,
         observationContextsJSON: [String]? = nil,
         audioFilePaths: [String]? = nil,
+        videoFilePaths: [String]? = nil,
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil
     ) async throws -> ParseAndSaveResult {
         let parsedWrapper: EdgeResponseWrapper
@@ -92,6 +93,7 @@ actor InferenceProcessingActor {
                     localImagePaths: savedPaths,
                     observationContextsJSON: observationContextsJSON,
                     audioFilePaths: audioFilePaths,
+                    videoFilePaths: videoFilePaths,
                     mediaTimeline: mediaTimeline
                 )
             } else {
@@ -100,6 +102,7 @@ actor InferenceProcessingActor {
                     mappedData: mappedData,
                     observationContextsJSON: observationContextsJSON,
                     audioFilePaths: audioFilePaths,
+                    videoFilePaths: videoFilePaths,
                     mediaTimeline: mediaTimeline
                 )
             }

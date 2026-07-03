@@ -388,6 +388,13 @@ struct CaptureWorkspaceView: View {
             viewModel.submitStagedCapture(modelContext: modelContext)
             cameraManager.resetZoom()
         }
+        .onChange(of: viewModel.stagedCapture.videos.count) { _, count in
+            guard count == 1 else { return }
+            guard viewModel.shouldAutoSubmitStagedCapture else { return }
+
+            viewModel.submitStagedCapture(modelContext: modelContext)
+            cameraManager.resetZoom()
+        }
         .onChange(of: scenePhase) { _, newPhase in
             viewModel.handleScenePhaseChange(
                 newPhase,
@@ -465,7 +472,7 @@ struct CaptureWorkspaceView: View {
         .onChange(of: audioCaptureManager.audioFilePath) { _, fileName in
             guard let fileName else { return }
             
-            let willStageOnly = !viewModel.stagedCapture.images.isEmpty
+            let willStageOnly = viewModel.stagedCapture.hasVisualMedia
                 || appSettings.isMultiCaptureEnabled
                 || appSettings.requiresScanConfirmation
                 || !viewModel.stagedCapture.observationContexts.isEmpty

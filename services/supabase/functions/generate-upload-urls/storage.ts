@@ -12,6 +12,8 @@ export const MAX_STAGING_FILES = MEDIA_BUDGETS.maxStagingFiles;
 export const MAX_STAGED_IMAGE_BYTES = MEDIA_BUDGETS.maxImageRawBytes;
 export const MAX_STAGED_AUDIO_BYTES = MEDIA_BUDGETS.maxAudioRawBytes;
 export const MAX_STAGED_AUDIO_FILES = MEDIA_BUDGETS.maxStagedAudioFiles;
+export const MAX_STAGED_VIDEO_BYTES = MEDIA_BUDGETS.maxVideoRawBytes;
+export const MAX_STAGED_VIDEO_FILES = MEDIA_BUDGETS.maxStagedVideoFiles;
 
 export interface StagingUploadFile {
   fileName: string;
@@ -43,6 +45,7 @@ export function sanitizeStagingFileName(fileName: string): string {
 
 function legacyContentTypeForFileName(fileName: string): string {
   const lower = fileName.toLowerCase();
+  if (lower.endsWith(".mp4")) return "video/mp4";
   if (lower.endsWith(".wav")) return "audio/wav";
   if (lower.endsWith(".m4a")) return "audio/mp4";
   return "image/webp";
@@ -50,6 +53,7 @@ function legacyContentTypeForFileName(fileName: string): string {
 
 function legacyMediaKindForFileName(fileName: string): StagingMediaKind {
   const lower = fileName.toLowerCase();
+  if (lower.endsWith(".mp4")) return "video";
   return lower.endsWith(".wav") || lower.endsWith(".m4a") ? "audio" : "image";
 }
 
@@ -58,7 +62,9 @@ function allowedContentTypesForKind(kind: StagingMediaKind): Set<string> {
 }
 
 function maxBytesForKind(kind: StagingMediaKind): number {
-  return kind === "audio" ? MAX_STAGED_AUDIO_BYTES : MAX_STAGED_IMAGE_BYTES;
+  if (kind === "audio") return MAX_STAGED_AUDIO_BYTES;
+  if (kind === "video") return MAX_STAGED_VIDEO_BYTES;
+  return MAX_STAGED_IMAGE_BYTES;
 }
 
 function error(status: number, message: string): ParseStagingUploadFilesResult {
@@ -71,6 +77,7 @@ function validateStructuredUploadFiles(
   const files: StagingUploadFile[] = [];
   let totalImageBytes = 0;
   let audioFileCount = 0;
+  let videoFileCount = 0;
 
   for (const rawFile of rawFiles) {
     if (!isRecord(rawFile)) {
@@ -87,8 +94,11 @@ function validateStructuredUploadFiles(
       return error(400, "Bad Request: fileName must already be sanitized.");
     }
 
-    if (mediaKind !== "image" && mediaKind !== "audio") {
-      return error(400, "Bad Request: mediaKind must be 'image' or 'audio'.");
+    if (mediaKind !== "image" && mediaKind !== "audio" && mediaKind !== "video") {
+      return error(
+        400,
+        "Bad Request: mediaKind must be 'image', 'audio', or 'video'.",
+      );
     }
 
     if (
@@ -124,10 +134,15 @@ function validateStructuredUploadFiles(
           "Payload Too Large: staged images exceed the combined byte budget.",
         );
       }
-    } else {
+    } else if (mediaKind === "audio") {
       audioFileCount += 1;
       if (audioFileCount > MAX_STAGED_AUDIO_FILES) {
         return error(400, "Bad Request: too many staged audio files.");
+      }
+    } else {
+      videoFileCount += 1;
+      if (videoFileCount > MAX_STAGED_VIDEO_FILES) {
+        return error(400, "Bad Request: too many staged video files.");
       }
     }
 

@@ -17,8 +17,8 @@ struct PaywallFeatureComparison: Identifiable {
 }
 
 enum ProPlanValueProps {
-    static let activePlanSummary = "You have unlimited field scans, Pro AI vision, AI chat, multi-capture, Apple Watch logging, and expedition mode unlocked."
-    static let upgradePlanSummary = "You have 1 free scan daily. Upgrade for unlimited field scans, Pro AI vision, AI chat, multi-capture, Apple Watch logging, and expedition mode."
+    static let activePlanSummary = "You have unlimited field scans, Pro AI vision, video scans, AI chat, multi-capture, Apple Watch logging, and expedition mode unlocked."
+    static let upgradePlanSummary = "You have 1 free scan daily. Upgrade for unlimited field scans, Pro AI vision, video scans, AI chat, multi-capture, Apple Watch logging, and expedition mode."
 
     static let featuredSlides = [
         PaywallHeroSlide(
@@ -44,6 +44,7 @@ enum ProPlanValueProps {
     static let comparisons = [
         PaywallFeatureComparison(title: "Daily scans", freeValue: "1", proValue: "Unlimited"),
         PaywallFeatureComparison(title: "AI model", freeValue: "Flash", proValue: "Pro"),
+        PaywallFeatureComparison(title: "Video scans", freeValue: "-", proValue: "Included"),
         PaywallFeatureComparison(title: "AI chat", freeValue: "-", proValue: "Included"),
         PaywallFeatureComparison(title: "Multi-capture", freeValue: "-", proValue: "Included"),
         PaywallFeatureComparison(title: "Apple Watch logging", freeValue: "-", proValue: "Included"),

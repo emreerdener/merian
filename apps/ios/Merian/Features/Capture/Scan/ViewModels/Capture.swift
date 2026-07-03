@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 private struct PreparedCameraCapture: Sendable {
@@ -52,6 +53,66 @@ extension CaptureWorkspaceViewModel {
                     displayData: displaySafeData,
                     previewCGImage: SendableCGImage(image: safeCGImage)
                 )
+            }
+        }
+    }
+
+    nonisolated private static func prepareVideoFrames(
+        videoURL: URL,
+        duration: TimeInterval,
+        composingCenter: CGFloat,
+        isProActive: Bool
+    ) async throws -> [PreparedCameraCapture] {
+        try await DetachedWork.value(
+            priority: .userInitiated,
+            category: .imagePreparation
+        ) {
+            let asset = AVURLAsset(url: videoURL)
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(
+                width: MerianConfig.displayImageMaxSize,
+                height: MerianConfig.displayImageMaxSize
+            )
+
+            let resolvedDuration = max(duration, 0.1)
+            let sampleOffsets = [0.1, 0.5, 0.9].map { min(max(resolvedDuration * $0, 0.05), max(resolvedDuration - 0.05, 0.05)) }
+            let times = sampleOffsets.map { CMTime(seconds: $0, preferredTimescale: 600) }
+            let inferenceMaxSize = MerianConfig.inferenceImageMaxSize(isProActive: isProActive)
+
+            return times.compactMap { time -> PreparedCameraCapture? in
+                autoreleasepool {
+                    guard let frame = try? generator.copyCGImage(at: time, actualTime: nil) else {
+                        return nil
+                    }
+                    let displayFrame = ImageCropProcessor.squareCrop(
+                        frame,
+                        verticalCenterFraction: composingCenter
+                    ) ?? frame
+                    guard let displayData = ImageCropProcessor.encode(displayFrame),
+                          !displayData.isEmpty else {
+                        return nil
+                    }
+
+                    let inferenceFrame = ImageDownsampler.downsample(
+                        data: displayData,
+                        maxSize: inferenceMaxSize
+                    ) ?? displayFrame
+                    let inferenceCropped = ImageCropProcessor.squareCrop(
+                        inferenceFrame,
+                        verticalCenterFraction: composingCenter
+                    ) ?? inferenceFrame
+                    guard let inferenceData = ImageCropProcessor.encode(inferenceCropped),
+                          !inferenceData.isEmpty else {
+                        return nil
+                    }
+
+                    return PreparedCameraCapture(
+                        inferenceData: inferenceData,
+                        displayData: displayData,
+                        previewCGImage: SendableCGImage(image: displayFrame)
+                    )
+                }
             }
         }
     }
@@ -148,5 +209,80 @@ extension CaptureWorkspaceViewModel {
             self.activeSheet = .paywall
             self.isCapturing = false
         }
+    }
+
+    func startVideoCapture() {
+        guard activeSheet == nil,
+              !isCapturing,
+              !isVideoRecording,
+              hasAvailableStagedCaptureSlot,
+              imageToCrop == nil else { return }
+        guard diContainer.revenueCatManager.isProActive else { return }
+
+        isCapturing = true
+        isVideoRecording = true
+        AppDIContainer.shared.hapticManager.triggerMediumPulse()
+
+        videoRecordingTask?.cancel()
+        videoRecordingTask = Task {
+            do {
+                async let shutterLocation = diContainer.environmentContextManager.requestCurrentLocation()
+                let composingCenter = composingZoneVerticalCenter
+                let recording = try await diContainer.cameraManager.recordVideo(maxDuration: 5)
+                let resolvedShutterLocation = await shutterLocation
+                let instantLocation = resolvedShutterLocation ?? diContainer.environmentContextManager.lastKnownLocation
+                let preparedFrames = try await Self.prepareVideoFrames(
+                    videoURL: recording.fileURL,
+                    duration: recording.duration,
+                    composingCenter: composingCenter,
+                    isProActive: diContainer.revenueCatManager.isProActive
+                )
+                guard !preparedFrames.isEmpty else {
+                    throw NSError(
+                        domain: "CaptureWorkspaceViewModel",
+                        code: -20,
+                        userInfo: [NSLocalizedDescriptionKey: "Unable to sample frames from the recorded video."]
+                    )
+                }
+
+                let task = Task {
+                    await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
+                }
+
+                await MainActor.run {
+                    self.preFetchTask = task
+                    let stagedFrames = preparedFrames.map { frame in
+                        let previewImage = UIImage(cgImage: frame.previewCGImage.image, scale: 1.0, orientation: .up)
+                        return StagedImage(
+                            compressedData: frame.inferenceData,
+                            displayData: frame.displayData,
+                            uiImage: previewImage,
+                            original: IdentifiableImage(image: previewImage, environmentContext: nil, isFromGallery: false)
+                        )
+                    }
+                    self.stagedCapture.videos.append(StagedVideo(
+                        filePath: recording.fileURL.path,
+                        sampledImages: stagedFrames
+                    ))
+                    AppDIContainer.shared.hapticManager.triggerSuccessPulse()
+                }
+            } catch is CancellationError {
+                diContainer.cameraManager.stopVideoRecording()
+            } catch {
+                MerianLog.hardware.error("Video shutter failure: \(error, privacy: .private)")
+                await MainActor.run {
+                    AppDIContainer.shared.hapticManager.triggerErrorThump()
+                }
+            }
+
+            await MainActor.run {
+                self.isCapturing = false
+                self.isVideoRecording = false
+            }
+        }
+    }
+
+    func stopVideoCapture() {
+        diContainer.cameraManager.stopVideoRecording()
     }
 }

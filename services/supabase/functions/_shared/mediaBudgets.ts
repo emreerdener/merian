@@ -12,9 +12,11 @@ export const MEDIA_BUDGETS = {
   maxMultimodalJsonBodyBytes: 16 * 1024 * 1024,
   maxStagingFiles: 5,
   maxStagedAudioFiles: 2,
+  maxVideoRawBytes: 12 * 1024 * 1024,
+  maxStagedVideoFiles: 1,
 } as const;
 
-export type StagingMediaKind = "image" | "audio";
+export type StagingMediaKind = "image" | "audio" | "video";
 
 export const STAGING_ALLOWED_CONTENT_TYPES: Record<
   StagingMediaKind,
@@ -28,6 +30,7 @@ export const STAGING_ALLOWED_CONTENT_TYPES: Record<
     "image/heif",
   ],
   audio: ["audio/wav", "audio/mp4"],
+  video: ["video/mp4"],
 };
 
 export const MEDIA_BUDGET_ERRORS = {
@@ -41,6 +44,7 @@ export const MEDIA_BUDGET_ERRORS = {
   combinedImagesTooLarge:
     "Payload Too Large: Combined images exceed 5MB limit.",
   requestBodyTooLarge: "Payload Too Large: request body exceeds media budget.",
+  videoTooLarge: "Video payload too large.",
 } as const;
 
 export interface MediaBudgetError {

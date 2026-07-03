@@ -63,6 +63,9 @@ Deno.serve(async (req: Request) => {
       if (scan.image_storage_urls && Array.isArray(scan.image_storage_urls)) {
         mediaToWipe.push(...scan.image_storage_urls);
       }
+      if (scan.video_storage_urls && Array.isArray(scan.video_storage_urls)) {
+        mediaToWipe.push(...scan.video_storage_urls);
+      }
     }
 
     // 4. Delete all aggregated R2 images via Cloudflare AWS protocol natively

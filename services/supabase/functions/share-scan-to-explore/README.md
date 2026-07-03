@@ -48,6 +48,9 @@ Legacy `hidden` input is accepted as `private`.
 - `scan_id` must belong to the current user.
 - Tombstoned scans, media-less scans, and scans without a resolved species are
   not share-eligible.
+- Sharing snapshots public image/video URLs into `explore_post_media` for the
+  post. Video posts require a public thumbnail image; otherwise the endpoint
+  returns `Video thumbnail unavailable.`
 - If the scan has a resolved Ask the Community request, publishing materializes
   any new GBIF-backed resolved species into `species_dictionary`, sets
   `scans.confirmed_species_id`, and stamps the request's `explore_published_at`
