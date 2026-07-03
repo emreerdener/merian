@@ -324,7 +324,7 @@ struct ExtractedScanData: Sendable {
 
     /// Filenames of local images relative to the Documents directory.
     var localImagePaths: [String] {
-        capturedMediaSnapshot.imagePaths
+        capturedMediaSnapshot.thumbnailImagePaths
     }
 
     var localUploadPaths: [String] {

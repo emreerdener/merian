@@ -9,6 +9,7 @@ TestFlight, App Store, support, and QA.
 ### Capture
 - Added Pro short video scans from the visual shutter: tap still takes a photo, while a 1-second hold latches into a 5-second video recording with saved playback and image-based thumbnails.
 - Added clearer haptic feedback for video recording latch, stop, successful staging, and recording failures.
+- Updated video scan analysis so sampled frames are labeled as ordered frames from one short clip instead of generic still images.
 - Added video scans to the Pro paywall comparison table.
 - Kept non-Pro long-presses photo-first so holding the shutter does not interrupt capture or open the paywall.
 - Fixed non-biological scan saving so captures that omit ecology metadata are saved with an unknown ecology fallback instead of failing in the backend.
@@ -25,6 +26,8 @@ TestFlight, App Store, support, and QA.
 
 ### Insight Sheet
 - Added fullscreen playback for video scan media from the Insight carousel.
+- Updated video scans so Insight opens the saved clip as the primary media item while scan tiles and previews keep using the poster thumbnail.
+- Fixed pending video scans so playback can resolve the saved local clip immediately after submission.
 - Fixed Overview interactions so longer ecological interaction notes wrap fully instead of truncating.
 - Improved Insight overviews with a compact, location-aware invasive status summary that can show the assessed region, confidence, and Merian's rationale when available.
 - Hid the upgrade plan card from the confidence details sheet for Pro users.

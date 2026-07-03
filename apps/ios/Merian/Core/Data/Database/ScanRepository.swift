@@ -518,7 +518,9 @@ actor HistoricalDatabaseActor {
                 if let rawR2Image { newItems.append(.image(.remoteURL(rawR2Image))) }
                 if let additionalUrls { newItems.append(contentsOf: additionalUrls.map { .image(.remoteURL($0)) }) }
                 if let videoUrls = res.video_storage_urls {
-                    newItems.append(contentsOf: videoUrls.map { .video(.remoteURL($0)) })
+                    newItems.append(contentsOf: videoUrls.map {
+                        .video(StoredVideoMediaReference(.remoteURL($0), thumbnail: rawR2Image.map(StoredMediaReference.remoteURL)))
+                    })
                 }
                 if !newItems.isEmpty {
                     let hasRemoteMedia = paths.contains { $0.starts(with: "http://") || $0.starts(with: "https://") }
@@ -740,7 +742,9 @@ actor HistoricalDatabaseActor {
             var newItems: [SerializedMediaItem] = []
             if let primary = rawR2Image { newItems.append(.image(.remoteURL(primary))) }
             if let urls = additionalUrls { newItems.append(contentsOf: urls.map { .image(.remoteURL($0)) }) }
-            newItems.append(contentsOf: videoUrls.map { .video(.remoteURL($0)) })
+            newItems.append(contentsOf: videoUrls.map {
+                .video(StoredVideoMediaReference(.remoteURL($0), thumbnail: rawR2Image.map(StoredMediaReference.remoteURL)))
+            })
             record.replaceCapturedMedia(with: newItems)
 
             modelContext.insert(record)

@@ -93,7 +93,7 @@ actor BackgroundDatabaseActor {
             let snapshot = scan.capturedMediaSnapshot
             return PendingScanPayload(
                 id: scan.id,
-                localImagePaths: snapshot.imagePaths,
+                localImagePaths: snapshot.thumbnailImagePaths,
                 localAudioPaths: snapshot.audioPaths,
                 localVideoPaths: snapshot.videoPaths
             )
@@ -153,7 +153,7 @@ actor BackgroundDatabaseActor {
             let mediaSnapshot = record.capturedMediaSnapshot
             return ScanErasurePayload(
                 id: record.id,
-                imagePaths: mediaSnapshot.imagePaths + mediaSnapshot.audioPaths + mediaSnapshot.videoPaths
+                imagePaths: mediaSnapshot.thumbnailImagePaths + mediaSnapshot.audioPaths + mediaSnapshot.videoPaths
             )
         }
 
@@ -798,9 +798,13 @@ actor BackgroundDatabaseActor {
                 if let persistedPath = await FileIOActor.shared.persistAudioFile(tempPath: sourcePath) {
                     mediaItems.append(.audio(.documents(persistedPath)))
                 }
-            case .video(let sourcePath):
+            case .video(let sourcePath, let posterImageIndex):
                 if let persistedPath = await FileIOActor.shared.persistVideoFile(tempPath: sourcePath) {
-                    mediaItems.append(.video(.documents(persistedPath)))
+                    let thumbnail = posterImageIndex.flatMap { index -> StoredMediaReference? in
+                        guard resolvedLocalImagePaths.indices.contains(index) else { return nil }
+                        return StoredMediaReference(legacyPath: resolvedLocalImagePaths[index])
+                    }
+                    mediaItems.append(.video(StoredVideoMediaReference(video: .documents(persistedPath), thumbnail: thumbnail)))
                 }
             }
         }

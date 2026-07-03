@@ -50,7 +50,9 @@
           "items": [
             "Pro users can now hold the visual shutter for one second to record a short video scan, with saved playback and image-based thumbnails.",
             "Video recording now gives clearer haptic feedback when recording latches, stops, stages successfully, or fails.",
+            "Video scan analysis now treats sampled frames as ordered frames from one short clip.",
             "Video scan media now opens from the Insight carousel into fullscreen playback.",
+            "Video scans now open as the saved clip in Insight while scan tiles and previews keep using the poster thumbnail.",
             "The Pro paywall comparison table now includes video scans.",
             "Scans filters now include Image and Video media filters."
           ]
@@ -58,7 +60,8 @@
         {
           "title": "Fixed",
           "items": [
-            "Non-Pro long-presses keep the normal photo-first shutter behavior and do not open the paywall."
+            "Non-Pro long-presses keep the normal photo-first shutter behavior and do not open the paywall.",
+            "Pending video scans can now resolve the saved local clip immediately after submission."
           ]
         }
       ]

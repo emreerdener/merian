@@ -52,7 +52,7 @@ struct ActiveScanMedia: Equatable {
     }
 
     var hasUserImage: Bool {
-        liveImageData != nil || !imagePathsForUpload.isEmpty
+        liveImageData != nil || !imagePathsForUpload.isEmpty || !videoPaths.isEmpty
     }
 
     var liveImageData: Data? {

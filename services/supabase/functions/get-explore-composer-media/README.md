@@ -58,6 +58,9 @@ or:
   post.
 - `scan_id` must belong to the current user and must not be tombstoned.
 - Returns only public image/video URLs that can be selected for Explore posts.
+- Video rows include their playable public `.mp4` URL plus the required public
+  poster image URL. The poster is selection metadata for the video row, not a
+  separate image item unless the scan also contains that image as user media.
 - Audio, Describe content, observation context, AI/reference images, and
   Dictionary media are not returned.
 - For first-share `scan_id` requests, all eligible media is selected by default.

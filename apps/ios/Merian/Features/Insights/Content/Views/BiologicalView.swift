@@ -22,7 +22,7 @@ struct BiologicalView: View {
             guard let record = try? modelContext.fetch(descriptor).first else { return }
             
             let mediaSnapshot = record.capturedMediaSnapshot
-            let imagePaths = mediaSnapshot.imagePaths
+            let imagePaths = mediaSnapshot.thumbnailImagePaths
             let hasCloudImage = mediaSnapshot.hasCloudImage
             let imageCount = imagePaths.count
             guard !hasCloudImage, imageCount <= 1 else { return }

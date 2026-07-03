@@ -178,7 +178,7 @@ struct NonBiologicalScansView: View {
         isClearingAll = true
         let payloads = nonBioRecords.map { scan in
             let snapshot = scan.capturedMediaSnapshot
-            let paths = snapshot.imagePaths + snapshot.audioPaths + snapshot.videoPaths
+            let paths = snapshot.thumbnailImagePaths + snapshot.audioPaths + snapshot.videoPaths
             return BackgroundDatabaseActor.ScanErasurePayload(id: scan.id, imagePaths: paths)
         }
         let container = modelContext.container

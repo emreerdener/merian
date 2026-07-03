@@ -12,7 +12,7 @@ let stagedImageCapacity = stagedCaptureCapacity
 enum CaptureSubmissionMediaItem: Sendable, Equatable {
     case image(index: Int)
     case audio(String)
-    case video(String)
+    case video(String, posterImageIndex: Int? = nil)
     case description(ObservationContext)
 
     static func defaultTimeline(
@@ -24,7 +24,7 @@ enum CaptureSubmissionMediaItem: Sendable, Equatable {
         var items: [CaptureSubmissionMediaItem] = (0..<imageCount).map { .image(index: $0) }
         items.append(contentsOf: observationContexts.map(Self.description))
         items.append(contentsOf: audioFilePaths.map(Self.audio))
-        items.append(contentsOf: videoFilePaths.map(Self.video))
+        items.append(contentsOf: videoFilePaths.map { .video($0) })
         return items
     }
 }
@@ -83,7 +83,7 @@ extension Array where Element == CaptureSubmissionMediaItem {
 
     var videoFilePaths: [String] {
         compactMap { item in
-            guard case .video(let path) = item else { return nil }
+            guard case .video(let path, _) = item else { return nil }
             return path
         }
     }

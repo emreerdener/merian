@@ -1923,6 +1923,12 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   the public carousel. `hero_image_url` remains the required thumbnail and
   backward-compatible image field; video media without an image thumbnail is
   rejected with `Video thumbnail unavailable.`
+- New clients may pass ordered `media_items` using owner-scoped
+  `source_media_id` values from `/get-explore-composer-media`; legacy
+  `source_index` and `thumbnail_source_index` are accepted only when they map to
+  eligible scan image/video URLs. Empty selections, non-visual media kinds,
+  Describe/observation context, AI/reference images, and Dictionary media are
+  rejected or ignored before the public post snapshot is written.
 - When the scan has an active Identify request, sharing to Explore is blocked
   until that request resolves. Publishing a resolved Identify request marks the
   request with `explore_published_at`, materializes any new GBIF-backed resolved
@@ -2648,6 +2654,12 @@ ordered compositions of images, audio, and descriptive context.
     "staging/a1b2c3d4.../uuid_video_1.mp4"
   ],
   "videoFrameCount": 3,
+  "visualMediaItems": [
+    { "kind": "image", "sourceIndex": 0 },
+    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 0 },
+    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 1 },
+    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 2 }
+  ],
   "audioR2ObjectKeys": [
     "staging/a1b2c3d4.../uuid_audio.wav"
   ],
@@ -2684,9 +2696,13 @@ ordered compositions of images, audio, and descriptive context.
   and image evidence are both present, regardless of whether the audio arrived
   inline or from R2 staging.
 - Video scans send ordered sampled frames through the image payload path and
-  stage the raw `.mp4` in `videoR2ObjectKeys`. The prompt identifies the frames
-  as coming from one short video, while the raw clip is promoted only after
-  those frames pass moderation.
+  stage the raw `.mp4` in `videoR2ObjectKeys`. New clients send
+  `visualMediaItems` (or snake-case `visual_media_items`) with one entry per
+  resolved visual input so the prompt can distinguish still photos from ordered
+  `video_frame` samples by `clipIndex` and `frameIndex`. If the metadata count
+  does not match the resolved image count, the edge ignores it and falls back to
+  the legacy `videoFrameCount` hint. The raw clip is promoted only after those
+  frames pass moderation.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use

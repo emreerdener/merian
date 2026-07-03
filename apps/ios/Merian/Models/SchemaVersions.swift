@@ -410,7 +410,7 @@ extension MerianSchemaV41 {
                 self.observationContextJSON = ""
             case .video(let reference):
                 self.kindRaw = PersistedCapturedMediaKind.video.rawValue
-                self.storageRaw = reference.storage.rawValue
+                self.storageRaw = reference.video.storage.rawValue
                 self.mediaPath = reference.serializedPath
                 self.observationContextJSON = ""
             case .description(let context):
@@ -760,7 +760,7 @@ extension MerianSchemaV42 {
                 self.observationContextJSON = ""
             case .video(let reference):
                 self.kindRaw = PersistedCapturedMediaKind.video.rawValue
-                self.storageRaw = reference.storage.rawValue
+                self.storageRaw = reference.video.storage.rawValue
                 self.mediaPath = reference.serializedPath
                 self.observationContextJSON = ""
             case .description(let context):
@@ -1585,12 +1585,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     }
 
     private static func migrationFirstImagePath(in items: [SerializedMediaItem]) -> String? {
-        for item in items {
-            if case .image(let reference) = item {
-                return reference.serializedPath
-            }
-        }
-        return nil
+        CapturedMediaSnapshot(items: items).primaryImagePath
     }
 
     private static func replaceMigratedCapturedMedia(

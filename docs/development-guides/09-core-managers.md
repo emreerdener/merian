@@ -355,7 +355,11 @@ triggering excessive SwiftUI view rebuilds.
   `CapturedMediaSnapshot`. Persistence writes both the scalar
   `capturedMediaJSON` and the V41 `capturedMediaEntries` relationship; snapshot
   reads prefer the JSON mirror first so insight-sheet layout does not fault
-  relationship rows on the main actor.
+  relationship rows on the main actor. Video entries are serialized as
+  `StoredVideoMediaReference(video:, thumbnail:)`, keeping the playable `.mp4`
+  and poster thumbnail together. The relationship mirror remains a fallback for
+  older data and may only preserve the video path; the scalar JSON carries the
+  richer poster metadata used by current UI and Explore sharing.
 - `InferenceEdgeDTOs.swift` — contains `APIError`, `EdgeResponseWrapper`,
   `EdgeResponse`, and nested types (`Taxonomy`, `Insight`, `Diagnostic`). These
   were previously nested inside `InferenceEngine`.
@@ -369,11 +373,14 @@ triggering excessive SwiftUI view rebuilds.
 - Uses `BackgroundTaskWrapper.execute(name:operation:)` to wrap operations in
   `UIBackgroundTaskIdentifier` windows, preventing system suspension mid-flight.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
-  across images, videos, audio clips, and descriptions. Images and videos are
-  still written to `.documentsDirectory` via `FileIOActor`, while the
-  queue/database layers derive legacy arrays (`localImagePaths`,
-  `localVideoPaths`, `audioFilePaths`, `observationContextsJSON`) from that
-  same timeline at the edges.
+  across images, videos, audio clips, and descriptions. Images, video clips, and
+  video poster thumbnails are written to `.documentsDirectory` via
+  `FileIOActor`, while the queue/database layers derive legacy arrays
+  (`localImagePaths`, `localVideoPaths`, `audioFilePaths`,
+  `observationContextsJSON`) from that same timeline at the edges. For video,
+  `thumbnailImagePaths` includes the poster for thumbnails and upload previews,
+  while `activeScanMedia` emits the video page itself so Insight does not show a
+  duplicate image before the clip.
 - **Recursive Queue Draining**: The `URLSession` delegate calls
   `syncPendingScans()` recursively when a completed batch detects
   `unsyncedItemsCount > 0`, draining the queue automatically without user

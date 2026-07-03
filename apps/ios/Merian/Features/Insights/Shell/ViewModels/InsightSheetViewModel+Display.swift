@@ -9,7 +9,7 @@ enum InsightShareRecommendation: Equatable {
 
 extension InsightSheetViewModel {
     var hasUserPhotos: Bool {
-        !activeMedia.imagePathsForUpload.isEmpty || activeMedia.liveImageData != nil
+        activeMedia.hasUserImage
     }
 
     var activeRecordTimestamp: Date? {
@@ -22,7 +22,7 @@ extension InsightSheetViewModel {
 
     var activeImageCount: Int {
         toolbarRecordSnapshot?.imageCount
-            ?? activeMedia.imagePathsForUpload.count + (activeMedia.liveImageData == nil ? 0 : 1)
+            ?? activeMedia.imagePathsForUpload.count + activeMedia.videoPaths.count + (activeMedia.liveImageData == nil ? 0 : 1)
     }
 
     // MARK: - Processing State

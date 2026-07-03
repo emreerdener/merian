@@ -74,7 +74,10 @@ Recent schema milestones:
 - V40 introduced `capturedMediaJSON` and `coverImagePath` as scalar mixed-media
   durability mirrors.
 - V41 introduced `CapturedMediaEntry` and relationship mirrors for queued and
-  completed scans.
+  completed scans. Current video entries store `StoredVideoMediaReference`
+  (`video` plus poster `thumbnail`) in `capturedMediaJSON`; relationship rows
+  are compatibility mirrors and should not be treated as the richer source of
+  truth.
 - V42 added first-class `fieldNotes` columns to `LocalScanRecord` and
   `OfflineQueuedScan`, while preserving the legacy UserDefaults bridge through
   `FieldNotesRepository`.

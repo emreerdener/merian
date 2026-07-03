@@ -546,9 +546,13 @@ pipeline while the legacy endpoints remain deployed for compatibility.
 
 1. **Payload Assembly**: It accepts `imageBase64s`, image `r2ObjectKeys`, inline
    `audioBase64s`, staged `audioR2ObjectKeys`, staged `videoR2ObjectKeys`,
-   `videoFrameCount`, and `observation_contexts` arrays. Video scans send
-   ordered sampled frames through the normal image payload path for AI
-   inference; the raw `.mp4` is staged only for persistence after moderation.
+   `visualMediaItems` / `visual_media_items`, `videoFrameCount`, and
+   `observation_contexts` arrays. Video scans send ordered sampled frames
+   through the normal image payload path for AI inference; the raw `.mp4` is
+   staged only for persistence after moderation. `visualMediaItems` is the
+   preferred contract for telling the prompt which image inputs are still photos
+   and which are ordered frames from one or more short clips; `videoFrameCount`
+   remains a legacy fallback when older clients omit explicit media metadata.
 2. **WAV Preprocessing**: Audio data is preflighted before decode/fetch. The
    endpoint rejects oversized declared request `Content-Length` headers before
    body parsing, then uses `readRequestJsonWithinBudget` as the authoritative
@@ -574,6 +578,8 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    via `audioR2ObjectKeys`, queued videos via `videoR2ObjectKeys`, live
    foreground video uploads through the same staging contract, live foreground
    audio via inline `audioBase64s`, and text via `observation_contexts`.
+   Raw videos are never sent to Gemini as public or inference media; only
+   sampled frames and optional budgeted audio enter the prompt.
    Telemetry on this path is camelCase (`gpsLatitude`, `semanticLocation`,
    `deviceTimeZone`, etc.); the server also accepts legacy snake_case aliases
    for backward compatibility during offline queue replay and staged endpoint

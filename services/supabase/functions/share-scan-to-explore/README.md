@@ -32,8 +32,10 @@ post-owned value.
 public media selection for this post. New clients should submit
 `source_media_id` values returned by `get-explore-composer-media`. Legacy
 clients may still submit `source_index` and `thumbnail_source_index` values that
-point to the scan's promoted image/video URL arrays. Audio, Describe content,
-AI/reference images, and Dictionary media are not valid Explore post media.
+point to the scan's promoted image/video URL arrays; for videos,
+`thumbnail_source_index` must resolve to the scan's promoted poster image.
+Audio, Describe content, AI/reference images, and Dictionary media are not valid
+Explore post media.
 
 Valid location values:
 
@@ -66,6 +68,9 @@ Legacy `hidden` input is accepted as `private`.
 - Sharing snapshots public image/video URLs into `explore_post_media` for the
   post. Video posts require a public thumbnail image; otherwise the endpoint
   returns `Video thumbnail unavailable.`
+- Describe/observation context is private scan context. It is never copied into
+  `field_notes`, hashtags, captions, media metadata, or the public media
+  snapshot unless the user manually writes that text into the composer.
 - When `media_items` is supplied, only the selected image/video rows are written
   to `explore_post_media`, ordered by `order_index`; the first selected item's
   image URL or video thumbnail becomes the computed `hero_image_url`.

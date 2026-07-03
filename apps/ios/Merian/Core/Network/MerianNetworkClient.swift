@@ -65,7 +65,7 @@ private struct ExploreShareMediaSnapshot {
 
     init(scan: LocalScanRecord, fallbackImageData: Data? = nil) {
         self.scanId = scan.id
-        self.imagePaths = scan.capturedMediaSnapshot.imagePaths
+        self.imagePaths = scan.capturedMediaSnapshot.thumbnailImagePaths
         self.coverImagePath = scan.coverImagePath
         self.fallbackImageData = fallbackImageData
         self.scientificName = scan.scientificName

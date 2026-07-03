@@ -115,12 +115,59 @@ extension StoredMediaReference {
     }
 }
 
+struct StoredVideoMediaReference: Codable, Equatable, Sendable {
+    let video: StoredMediaReference
+    let thumbnail: StoredMediaReference?
+
+    init(video: StoredMediaReference, thumbnail: StoredMediaReference? = nil) {
+        self.video = video
+        self.thumbnail = thumbnail
+    }
+
+    init(_ legacyReference: StoredMediaReference, thumbnail: StoredMediaReference? = nil) {
+        self.init(video: legacyReference, thumbnail: thumbnail)
+    }
+
+    var serializedPath: String {
+        video.serializedPath
+    }
+
+    var resolvedLocalPath: String? {
+        video.resolvedLocalPath
+    }
+
+    var thumbnailPath: String? {
+        thumbnail?.serializedPath
+    }
+
+    var resolvedThumbnailPath: String? {
+        thumbnail?.resolvedLocalPath ?? thumbnail?.serializedPath
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case video
+        case thumbnail
+    }
+
+    init(from decoder: Decoder) throws {
+        if let legacyReference = try? StoredMediaReference(from: decoder) {
+            self.init(legacyReference)
+            return
+        }
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let video = try container.decode(StoredMediaReference.self, forKey: .video)
+        let thumbnail = try container.decodeIfPresent(StoredMediaReference.self, forKey: .thumbnail)
+        self.init(video: video, thumbnail: thumbnail)
+    }
+}
+
 /// A serializable representation of captured media elements, preserving chronological order
 /// across image, audio, and textual modalities for persistent storage.
 enum SerializedMediaItem: Codable, Equatable, Sendable {
     case image(StoredMediaReference)
     case audio(StoredMediaReference)
-    case video(StoredMediaReference)
+    case video(StoredVideoMediaReference)
     case description(ObservationContext)
 }
 
@@ -161,8 +208,19 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
     var videoReferences: [StoredMediaReference] {
         items.compactMap { item in
             guard case .video(let reference) = item else { return nil }
+            return reference.video
+        }
+    }
+
+    var videoMediaReferences: [StoredVideoMediaReference] {
+        items.compactMap { item in
+            guard case .video(let reference) = item else { return nil }
             return reference
         }
+    }
+
+    var videoThumbnailReferences: [StoredMediaReference] {
+        videoMediaReferences.compactMap(\.thumbnail)
     }
 
     var observationContexts: [ObservationContext] {
@@ -174,6 +232,14 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
 
     var imagePaths: [String] {
         imageReferences.map(\.serializedPath)
+    }
+
+    var thumbnailImagePaths: [String] {
+        var paths = imagePaths
+        for thumbnailPath in videoThumbnailReferences.map(\.serializedPath) where !paths.contains(thumbnailPath) {
+            paths.append(thumbnailPath)
+        }
+        return paths
     }
 
     var audioPaths: [String] {
@@ -192,11 +258,11 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
     }
 
     var primaryImagePath: String? {
-        imagePaths.first
+        thumbnailImagePaths.first
     }
 
     var hasCloudImage: Bool {
-        imageReferences.contains { $0.isRemote }
+        imageReferences.contains { $0.isRemote } || videoThumbnailReferences.contains { $0.isRemote }
     }
 
     var descriptionText: String? {
@@ -285,7 +351,7 @@ public final class CapturedMediaEntry {
             self.observationContextJSON = ""
         case .video(let reference):
             self.kindRaw = PersistedCapturedMediaKind.video.rawValue
-            self.storageRaw = reference.storage.rawValue
+            self.storageRaw = reference.video.storage.rawValue
             self.mediaPath = reference.serializedPath
             self.observationContextJSON = ""
         case .description(let context):
@@ -317,7 +383,7 @@ public final class CapturedMediaEntry {
             guard let storage = MediaStorageLocation(rawValue: storageRaw), !mediaPath.isEmpty else {
                 return nil
             }
-            return .video(StoredMediaReference(storage: storage, path: mediaPath))
+            return .video(StoredVideoMediaReference(StoredMediaReference(storage: storage, path: mediaPath)))
         case .description:
             guard let contextData = observationContextJSON.data(using: .utf8),
                   let context = try? JSONDecoder().decode(ObservationContext.self, from: contextData) else {
@@ -455,13 +521,8 @@ enum MediaJSONParser {
     }
 }
 
-private func firstImagePath(in items: [SerializedMediaItem]) -> String? {
-    for item in items {
-        if case .image(let reference) = item {
-            return reference.serializedPath
-        }
-    }
-    return nil
+private func firstThumbnailImagePath(in items: [SerializedMediaItem]) -> String? {
+    CapturedMediaSnapshot(items: items).primaryImagePath
 }
 
 private func replaceCapturedMediaEntries(
@@ -526,7 +587,7 @@ extension LocalScanRecord {
 
     func replaceCapturedMedia(with items: [SerializedMediaItem]) {
         capturedMediaJSON = MediaJSONParser.jsonString(from: items)
-        coverImagePath = firstImagePath(in: items)
+        coverImagePath = firstThumbnailImagePath(in: items)
         replaceCapturedMediaEntries(on: self, items: items)
     }
 }
@@ -545,7 +606,7 @@ extension OfflineQueuedScan {
 
     func replaceCapturedMedia(with items: [SerializedMediaItem]) {
         capturedMediaJSON = MediaJSONParser.jsonString(from: items)
-        coverImagePath = firstImagePath(in: items)
+        coverImagePath = firstThumbnailImagePath(in: items)
         replaceCapturedMediaEntries(on: self, items: items)
     }
 }

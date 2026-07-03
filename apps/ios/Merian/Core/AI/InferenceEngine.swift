@@ -304,6 +304,14 @@ private struct GBIFMedia: Decodable {
     private func resolvedAudioPath(for audioFilePath: String) -> String {
         let normalizedPath = audioFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
         if normalizedPath.hasPrefix("/") {
+            if FileManager.default.fileExists(atPath: normalizedPath) {
+                return normalizedPath
+            }
+            let filename = URL(fileURLWithPath: normalizedPath).lastPathComponent
+            let documentsPath = URL.documentsDirectory.appendingPathComponent(filename).path
+            if FileManager.default.fileExists(atPath: documentsPath) {
+                return documentsPath
+            }
             return normalizedPath
         }
         let docsPath = URL.documentsDirectory.appendingPathComponent(normalizedPath).path
@@ -313,7 +321,18 @@ private struct GBIFMedia: Decodable {
 
     private func resolvedVideoPath(for videoFilePath: String) -> String {
         let normalizedPath = videoFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
-        if normalizedPath.hasPrefix("/") || normalizedPath.hasPrefix("http://") || normalizedPath.hasPrefix("https://") {
+        if normalizedPath.hasPrefix("http://") || normalizedPath.hasPrefix("https://") {
+            return normalizedPath
+        }
+        if normalizedPath.hasPrefix("/") {
+            if FileManager.default.fileExists(atPath: normalizedPath) {
+                return normalizedPath
+            }
+            let filename = URL(fileURLWithPath: normalizedPath).lastPathComponent
+            let documentsPath = URL.documentsDirectory.appendingPathComponent(filename).path
+            if FileManager.default.fileExists(atPath: documentsPath) {
+                return documentsPath
+            }
             return normalizedPath
         }
         let docsPath = URL.documentsDirectory.appendingPathComponent(normalizedPath).path
@@ -335,17 +354,21 @@ private struct GBIFMedia: Decodable {
     ) -> [MediaItem] {
         var items: [MediaItem] = []
 
-        for item in mediaTimeline {
+        for (timelineIndex, item) in mediaTimeline.enumerated() {
             switch item {
-            case .image(let index):
-                if let liveImageDatas, liveImageDatas.indices.contains(index) {
-                    items.append(.liveImage(liveImageDatas[index]))
-                } else if let persistedImagePaths, persistedImagePaths.indices.contains(index) {
-                    items.append(.image(persistedImagePaths[index]))
+            case .image(let imageIndex):
+                if mediaTimeline.indices.contains(timelineIndex + 1),
+                   case .video = mediaTimeline[timelineIndex + 1] {
+                    continue
+                }
+                if let liveImageDatas, liveImageDatas.indices.contains(imageIndex) {
+                    items.append(.liveImage(liveImageDatas[imageIndex]))
+                } else if let persistedImagePaths, persistedImagePaths.indices.contains(imageIndex) {
+                    items.append(.image(persistedImagePaths[imageIndex]))
                 }
             case .audio(let audioFilePath):
                 items.append(.audio(resolvedAudioPath(for: audioFilePath)))
-            case .video(let videoFilePath):
+            case .video(let videoFilePath, _):
                 items.append(.video(resolvedVideoPath(for: videoFilePath)))
             case .description(let context):
                 guard !context.isEmpty else { continue }

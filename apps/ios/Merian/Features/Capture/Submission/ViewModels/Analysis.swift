@@ -42,17 +42,18 @@ extension CaptureWorkspaceViewModel {
                 stillImageSourceIndex += 1
                 capturedMediaTimeline.append(.image(index: imageIndex))
             case .video(_, let stagedVideo):
+                var posterImageIndex: Int?
                 if let coverImage = stagedVideo.coverImage {
                     let imageIndex = capturedDisplayImages.count
                     capturedDisplayImages.append(coverImage)
-                    capturedMediaTimeline.append(.image(index: imageIndex))
+                    posterImageIndex = imageIndex
                 }
                 capturedInferenceImages.append(contentsOf: stagedVideo.sampledImages)
                 for frameIndex in stagedVideo.sampledImages.indices {
                     capturedVisualMediaItems.append(.videoFrame(clipIndex: videoClipIndex, frameIndex: frameIndex))
                 }
                 videoClipIndex += 1
-                capturedMediaTimeline.append(.video(stagedVideo.filePath))
+                capturedMediaTimeline.append(.video(stagedVideo.filePath, posterImageIndex: posterImageIndex))
             case .audio(_, let stagedAudio):
                 capturedMediaTimeline.append(.audio(stagedAudio.filePath))
             case .description(_, let stagedObservationContext):

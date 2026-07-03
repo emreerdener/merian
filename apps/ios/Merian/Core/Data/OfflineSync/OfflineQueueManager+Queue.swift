@@ -159,7 +159,7 @@ extension OfflineQueueManager {
                     pathsToDelete.append(targetURL.path)
                 }
             case .video(let reference):
-                if let targetURL = reference.resolvedURL, !reference.isRemote {
+                if let targetURL = reference.video.resolvedURL, !reference.video.isRemote {
                     pathsToDelete.append(targetURL.path)
                 } else {
                     pathsToDelete.append(reference.serializedPath)
@@ -200,8 +200,14 @@ extension OfflineQueueManager {
             for scan in failedScans {
                 for item in scan.capturedMediaSnapshot.items {
                     switch item {
-                    case .image(let reference), .audio(let reference), .video(let reference):
+                    case .image(let reference), .audio(let reference):
                         if let targetURL = reference.resolvedURL, !reference.isRemote {
+                            pathsToDelete.append(targetURL.path)
+                        } else {
+                            pathsToDelete.append(reference.serializedPath)
+                        }
+                    case .video(let reference):
+                        if let targetURL = reference.video.resolvedURL, !reference.video.isRemote {
                             pathsToDelete.append(targetURL.path)
                         } else {
                             pathsToDelete.append(reference.serializedPath)
@@ -790,11 +796,15 @@ extension OfflineQueueManager {
                     ?? URL(fileURLWithPath: sourcePath).lastPathComponent
                 guard !persistedName.isEmpty else { continue }
                 serializedItems.append(.audio(.documents(persistedName)))
-            case .video(let sourcePath):
+            case .video(let sourcePath, let posterImageIndex):
                 let persistedName = persistedVideoNamesBySourcePath[sourcePath]
                     ?? URL(fileURLWithPath: sourcePath).lastPathComponent
                 guard !persistedName.isEmpty else { continue }
-                serializedItems.append(.video(.documents(persistedName)))
+                let thumbnail = posterImageIndex.flatMap { index -> StoredMediaReference? in
+                    guard imageFileNames.indices.contains(index) else { return nil }
+                    return .documents(imageFileNames[index])
+                }
+                serializedItems.append(.video(StoredVideoMediaReference(video: .documents(persistedName), thumbnail: thumbnail)))
             case .description(let context):
                 guard !context.isEmpty else { continue }
                 serializedItems.append(.description(context))

@@ -86,7 +86,7 @@ struct OverviewCard: View {
                 return capitalizeFirstLetter(trimmed)
             }()
             
-            let hasOriginalImage = inferenceEngine.activeMedia.liveImageData != nil || !inferenceEngine.activeMedia.imagePathsForUpload.isEmpty
+            let hasOriginalImage = inferenceEngine.activeMedia.hasUserImage
             
             let colors: String? = {
                 guard hasOriginalImage, let raw = data.colors, !raw.isEmpty else { return nil }

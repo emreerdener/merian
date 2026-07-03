@@ -183,9 +183,13 @@ struct ExplorePostComposerMediaDraft: Identifiable, Equatable {
                 imageIndex += 1
 
             case .video(let reference):
-                let thumbnailIndex = previousImageIndex(before: index, in: items)
-                let previewPath = thumbnailIndex.flatMap { imagePath(at: $0, in: items) } ?? ""
-                guard let thumbnailIndex, !previewPath.isEmpty else {
+                let thumbnailPaths = snapshot.thumbnailImagePaths
+                let legacyThumbnailIndex = previousImageIndex(before: index, in: items)
+                let previewPath = reference.thumbnailPath
+                    ?? legacyThumbnailIndex.flatMap { imagePath(at: $0, in: items) }
+                    ?? ""
+                let thumbnailSourceIndex = thumbnailPaths.firstIndex(of: previewPath) ?? legacyThumbnailIndex
+                guard let thumbnailSourceIndex, !previewPath.isEmpty else {
                     videoIndex += 1
                     continue
                 }
@@ -197,7 +201,7 @@ struct ExplorePostComposerMediaDraft: Identifiable, Equatable {
                         previewPath: previewPath,
                         sourceMediaId: scanId.map { "scan:\($0):video:\(videoIndex)" },
                         sourceIndex: videoIndex,
-                        thumbnailSourceIndex: thumbnailIndex,
+                        thumbnailSourceIndex: thumbnailSourceIndex,
                         url: nil,
                         thumbnailUrl: nil,
                         isIncluded: true

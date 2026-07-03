@@ -35,7 +35,7 @@ struct InsightToolbarRecordSnapshot: Equatable {
         self.captureDate = record.captureDate
         self.timestamp = record.timestamp
         self.confirmedSpeciesId = record.confirmedSpeciesId
-        self.imageCount = record.capturedMediaSnapshot.imagePaths.count
+        self.imageCount = record.capturedMediaSnapshot.thumbnailImagePaths.count
         self.exploreMediaItems = ExplorePostComposerMediaDraft.eligibleItems(
             from: record.capturedMediaSnapshot,
             scanId: record.id
