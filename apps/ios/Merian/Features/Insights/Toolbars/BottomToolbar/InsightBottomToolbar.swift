@@ -109,8 +109,6 @@ struct InsightBottomToolbar: ToolbarContent {
 }
 
 private struct InsightChatToolbarButton: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     let action: () -> Void
 
     var body: some View {
@@ -124,32 +122,15 @@ private struct InsightChatToolbarButton: View {
             .fixedSize()
         }
         .background {
-            FieldChatGlowAccent(reduceMotion: reduceMotion)
-                .frame(width: 156, height: 54)
+            FieldChatGlowAccent()
+                .frame(width: 140, height: 42)
         }
         .accessibilityLabel("Open Field chat")
     }
 }
 
 private struct FieldChatGlowAccent: View {
-    let reduceMotion: Bool
-
     var body: some View {
-        if reduceMotion {
-            glow
-                .opacity(0.18)
-        } else {
-            TimelineView(.animation) { context in
-                let phase = context.date.timeIntervalSinceReferenceDate
-                    .truncatingRemainder(dividingBy: 8) / 8
-                glow
-                    .hueRotation(.degrees(phase * 34))
-                    .opacity(0.22)
-            }
-        }
-    }
-
-    private var glow: some View {
         Capsule(style: .continuous)
             .fill(
                 AngularGradient(
@@ -164,7 +145,8 @@ private struct FieldChatGlowAccent: View {
                     center: .center
                 )
             )
-            .blur(radius: 12)
+            .blur(radius: 7)
+            .opacity(0.32)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }

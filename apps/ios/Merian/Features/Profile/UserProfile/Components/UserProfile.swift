@@ -320,9 +320,9 @@ struct UserProfile: View {
                 summaryCountPlaceholder(label: "Following")
                     .frame(maxWidth: .infinity)
             } else {
-                summaryCountView(value: "--", label: "Followers")
+                summaryCountView(value: "0", label: "Followers")
                     .frame(maxWidth: .infinity)
-                summaryCountView(value: "--", label: "Following")
+                summaryCountView(value: "0", label: "Following")
                     .frame(maxWidth: .infinity)
             }
         }
