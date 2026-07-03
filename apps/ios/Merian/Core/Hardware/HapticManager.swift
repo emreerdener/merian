@@ -81,6 +81,12 @@ final class HapticManager {
     func triggerHeavyImpact(intensity: CGFloat? = nil) {
         guard shouldFire else { return }
         if let intensity { heavy.impactOccurred(intensity: intensity) } else { heavy.impactOccurred() }
+        heavy.prepare()
+    }
+
+    func prepareHeavyImpact() {
+        guard shouldFire else { return }
+        heavy.prepare()
     }
 
     // MARK: - Private
