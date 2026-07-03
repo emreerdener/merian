@@ -6,6 +6,9 @@ export interface MerianIdentification {
   confidence_score: number;
   blur_score?: number;
   is_invasive?: boolean;
+  invasive_status_region?: string | null;
+  invasive_rationale?: string | null;
+  invasive_confidence?: number | null;
   ai_reasoning: string;
   extracted_visual_traits: string[];
   common_name?: string;

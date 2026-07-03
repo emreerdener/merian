@@ -18,6 +18,9 @@ public final class LocalScanRecord {
     public var isBiological: Bool
     public var isLiveCapture: Bool
     public var isInvasive: Bool
+    @Attribute public var invasiveStatusRegion: String?
+    @Attribute public var invasiveRationale: String?
+    @Attribute public var invasiveConfidence: Double?
     public var ecologyType: String
     public var wikipediaUrl: String?
     /// Wikipedia summary paragraph for this species. Cached from the Wikipedia REST API.
@@ -133,6 +136,9 @@ public final class LocalScanRecord {
         isBiological: Bool = true,
         isLiveCapture: Bool = true,
         isInvasive: Bool = false,
+        invasiveStatusRegion: String? = nil,
+        invasiveRationale: String? = nil,
+        invasiveConfidence: Double? = nil,
         ecologyType: String = "unknown",
         wikipediaUrl: String? = nil,
         wikipediaOverview: String? = nil,
@@ -195,6 +201,9 @@ public final class LocalScanRecord {
         self.isBiological = isBiological
         self.isLiveCapture = isLiveCapture
         self.isInvasive = isInvasive
+        self.invasiveStatusRegion = invasiveStatusRegion
+        self.invasiveRationale = invasiveRationale
+        self.invasiveConfidence = invasiveConfidence
         self.ecologyType = ecologyType
         self.wikipediaUrl = wikipediaUrl
         self.wikipediaOverview = wikipediaOverview

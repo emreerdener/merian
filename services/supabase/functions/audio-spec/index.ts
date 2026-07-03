@@ -61,6 +61,7 @@ Listen to the provided audio recording and identify the primary biological sound
 - confidence_score: 0.0–1.0. Use below 0.70 when the recording is ambiguous, noisy, or the call is partially obscured.
 - ai_reasoning: concise acoustic diagnosis citing observable call characteristics (frequency, tempo, pattern, note duration, harmonic structure). Be specific.
 - ecology_type: "wild" for natural habitat, "urban" for urban/suburban, "domesticated" for pets or livestock.
+- is_invasive, invasive_status_region, invasive_rationale, invasive_confidence: produce one location-aware invasive assessment from the supplied GPS/coarse location, species identity, and ecological context. invasive_status_region is the region label used, not the status. If location context is missing, return is_invasive=false, invasive_status_region="Unavailable", explain the limitation in invasive_rationale, and use low or null invasive_confidence. Omit these fields for non-biological sounds.
 - sex: use female, male, mixed, hermaphrodite, cannot_determine, or not_applicable. Only report female/male/mixed when the recording contains explicit species-specific acoustic evidence that distinguishes sex; otherwise use cannot_determine. Never infer or report human sex/gender.
 - sex_confidence: 0.0–1.0 confidence in the sex annotation from direct acoustic evidence only. Omit when sex is cannot_determine or not_applicable.
 - sex_evidence: short acoustic cue supporting sex, such as sex-specific song, call type, or duet role. Omit when unsupported.
@@ -81,6 +82,9 @@ const audioSchema: Record<string, unknown> = {
       enum: ["wild", "urban", "domesticated", "unknown"],
     },
     is_invasive: { type: Type.BOOLEAN },
+    invasive_status_region: { type: Type.STRING },
+    invasive_rationale: { type: Type.STRING },
+    invasive_confidence: { type: Type.NUMBER },
     sex: {
       type: Type.STRING,
       enum: [
@@ -361,7 +365,22 @@ Deno.serve((req: Request) =>
     parsedData.sex_evidence = sanitizeObservationEvidence(
       parsedData.sex_evidence,
     );
+    parsedData.invasive_status_region = sanitizeObservationEvidence(
+      parsedData.invasive_status_region,
+      160,
+    );
+    parsedData.invasive_rationale = sanitizeObservationEvidence(
+      parsedData.invasive_rationale,
+      500,
+    );
+    parsedData.invasive_confidence = sanitizeObservationConfidence(
+      parsedData.invasive_confidence,
+    );
     if (!parsedData.is_biological_subject) {
+      parsedData.is_invasive = undefined;
+      parsedData.invasive_status_region = undefined;
+      parsedData.invasive_rationale = undefined;
+      parsedData.invasive_confidence = undefined;
       parsedData.sex = undefined;
       parsedData.sex_confidence = undefined;
       parsedData.sex_evidence = undefined;
@@ -372,6 +391,17 @@ Deno.serve((req: Request) =>
     ) {
       parsedData.sex_confidence = undefined;
       parsedData.sex_evidence = undefined;
+    }
+    const hasInvasiveLocationContext =
+      (safeGpsLat != null && safeGpsLon != null) ||
+      (typeof semantic_location === "string" &&
+        semantic_location.trim().length > 0);
+    if (parsedData.is_biological_subject && !hasInvasiveLocationContext) {
+      parsedData.is_invasive = false;
+      parsedData.invasive_status_region ??= "Unavailable";
+      parsedData.invasive_rationale ??=
+        "Location context was unavailable, so Merian could not make a region-specific invasive assessment.";
+      parsedData.invasive_confidence = undefined;
     }
 
     const generatedScanId =
@@ -398,6 +428,9 @@ Deno.serve((req: Request) =>
       confidence_score: parsedData.confidence_score,
       ecology_type: parsedData.ecology_type,
       is_invasive: parsedData.is_invasive,
+      invasive_status_region: parsedData.invasive_status_region,
+      invasive_rationale: parsedData.invasive_rationale,
+      invasive_confidence: parsedData.invasive_confidence,
       life_stage: "unknown",
       sex: parsedData.sex,
       sex_confidence: parsedData.sex_confidence,
@@ -556,6 +589,9 @@ Deno.serve((req: Request) =>
             blur_score: null,
             ecology_type: parsedData.ecology_type,
             is_invasive: parsedData.is_invasive,
+            invasive_status_region: parsedData.invasive_status_region ?? null,
+            invasive_rationale: parsedData.invasive_rationale ?? null,
+            invasive_confidence: parsedData.invasive_confidence ?? null,
             weather_condition: weather_condition ?? undefined,
             weather_temperature_f: weather_temperature_f ?? undefined,
             semantic_location: semantic_location ?? undefined,

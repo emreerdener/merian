@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-03-invasive-status-context",
+      "date": "2026-07-03",
+      "title": "Invasive status context",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Insight overviews now present invasive status as a compact, location-aware summary with the assessed region, confidence, and Merian's rationale when available."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-03-confidence-sheet-plan-card",
       "date": "2026-07-03",
       "title": "Confidence sheet polish",

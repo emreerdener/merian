@@ -159,6 +159,9 @@ export interface AudioScanInsertRow {
   blur_score: null;
   ecology_type?: string;
   is_invasive?: boolean;
+  invasive_status_region?: string | null;
+  invasive_rationale?: string | null;
+  invasive_confidence?: number | null;
   weather_condition?: string;
   weather_temperature_f?: number;
   semantic_location?: string;

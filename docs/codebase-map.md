@@ -53,10 +53,10 @@ Web runtime config:
 The active schema is:
 
 ```swift
-typealias CurrentSchema = MerianSchemaV44
+typealias CurrentSchema = MerianSchemaV45
 ```
 
-`MerianSchemaV44` is declared in `apps/ios/Merian/Models/SchemaVersions.swift` and points
+`MerianSchemaV45` is declared in `apps/ios/Merian/Models/SchemaVersions.swift` and points
 at the global active model classes in `apps/ios/Merian/Models/ActiveSchema/`.
 
 Active persistent models:

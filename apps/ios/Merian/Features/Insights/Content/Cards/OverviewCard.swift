@@ -10,6 +10,17 @@ struct OverviewCard: View {
         guard let first = string.first else { return "" }
         return String(first).uppercased() + string.dropFirst()
     }
+
+    func nonEmpty(_ string: String?) -> String? {
+        let trimmed = string?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+    }
+
+    func invasiveRegionLabel(_ region: String?, hasInvasiveContext: Bool) -> String? {
+        guard hasInvasiveContext else { return nil }
+        guard let trimmed = nonEmpty(region) else { return "Region unavailable" }
+        return trimmed.caseInsensitiveCompare("Unavailable") == .orderedSame ? "Region unavailable" : trimmed
+    }
     
     private var iucnStatus: (text: String, isGood: Bool?)? {
         guard let rawStatus = inferenceEngine.speciesData?.iucnRedListStatus?.lowercased() else { return nil }
@@ -36,6 +47,20 @@ struct OverviewCard: View {
             
             let size = data.estimatedSizeCm.map { String(format: "%.1f cm", $0) }
             let invasive = data.isInvasive ? "Invasive" : "Not invasive"
+            let invasiveRationale = nonEmpty(data.invasiveRationale)
+            let invasiveConfidence = data.invasiveConfidence.flatMap { confidence -> String? in
+                guard confidence.isFinite, (0...1).contains(confidence) else { return nil }
+                return "\(Int((confidence * 100).rounded()))% confidence"
+            }
+            let hasInvasiveContext = nonEmpty(data.invasiveStatusRegion) != nil || invasiveConfidence != nil || invasiveRationale != nil
+            let invasiveRegion = invasiveRegionLabel(data.invasiveStatusRegion, hasInvasiveContext: hasInvasiveContext)
+            let invasiveRegionDetail = invasiveRegion.map { region in
+                region == "Region unavailable" ? region : "Assessed for \(region)"
+            }
+            let invasiveDetail = nonEmpty([
+                invasiveRegionDetail,
+                invasiveConfidence
+            ].compactMap { $0 }.joined(separator: " · "))
             let ecology = data.ecologyType == "unknown" ? nil : capitalizeFirstLetter(data.ecologyType)
             let lifeStage = data.lifeStage.flatMap { $0 == "unknown" ? nil : capitalizeFirstLetter($0) }
             let reproduction = data.reproductiveCondition.flatMap { $0 == "not_applicable" ? nil : capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }
@@ -73,7 +98,7 @@ struct OverviewCard: View {
                 return raw.map { capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }.joined(separator: ", ")
             }()
             
-            let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || sex != nil || sexEvidence != nil || interactions != nil || data.isInvasive || iucnStatus != nil
+            let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || sex != nil || sexEvidence != nil || interactions != nil || data.isInvasive || invasiveDetail != nil || invasiveRationale != nil || iucnStatus != nil
             
             if hasAnyMetadata {
                 VStack(alignment: .leading, spacing: 16) {
@@ -99,11 +124,11 @@ struct OverviewCard: View {
                         if let val = ecology {
                             KeyValueRow(title: "ECOLOGY", value: val)
                         }
-                        KeyValueRow(
-                            title: "NATIVE STATUS", 
-                            value: invasive, 
-                            valueIcon: data.isInvasive ? "exclamationmark.triangle.fill" : "checkmark.circle.fill",
-                            valueIconColor: data.isInvasive ? .yellow : .green
+                        InvasiveStatusSummary(
+                            status: invasive,
+                            detail: invasiveDetail,
+                            rationale: invasiveRationale,
+                            isInvasive: data.isInvasive
                         )
                         if let status = iucnStatus {
                             let iconName: String? = {
@@ -172,5 +197,74 @@ struct OverviewCard: View {
                 .card()
             }
         }
+    }
+}
+
+private struct InvasiveStatusSummary: View {
+    let status: String
+    let detail: String?
+    let rationale: String?
+    let isInvasive: Bool
+
+    private var statusIcon: String {
+        isInvasive ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
+    }
+
+    private var statusColor: Color {
+        isInvasive ? .yellow : .green
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                Text("INVASIVE STATUS")
+                    .font(.system(.caption, design: .monospaced))
+                    .fontWeight(.bold)
+                    .tracking(1)
+                    .foregroundColor(.secondary)
+
+                Spacer(minLength: 12)
+
+                VStack(alignment: .trailing, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Image(systemName: statusIcon)
+                            .foregroundColor(statusColor)
+                        Text(status)
+                    }
+                    .font(.system(.subheadline))
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+
+                    if let detail {
+                        Text(detail)
+                            .font(.system(.caption))
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            if let rationale {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("WHY MERIAN THINKS THIS")
+                        .font(.system(.caption, design: .monospaced))
+                        .fontWeight(.bold)
+                        .tracking(1)
+                        .foregroundColor(.secondary)
+
+                    Text(rationale)
+                        .font(.system(.subheadline))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

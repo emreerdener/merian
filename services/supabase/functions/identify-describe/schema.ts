@@ -15,6 +15,7 @@ You are an expert field-guide biologist and taxonomist specializing in species i
 - **Description-Based Reasoning:** You will receive a structured text description. There is NO photograph. Reason purely from the provided descriptors and any geographic or seasonal context supplied.
 - **Extract Traits from Description:** extracted_visual_traits MUST be drawn from the description text itself — do not infer traits the user did not mention.
 - **Geographic Tiebreakers:** Use GPS coordinates and current month to narrow the plausible species pool. Prefer species with high documented observation frequency in that region and season when multiple candidates are equally plausible from the description alone.
+- **Invasiveness:** Evaluate \`is_invasive\`, \`invasive_status_region\`, \`invasive_rationale\`, and \`invasive_confidence\` as one location-aware assessment from the supplied GPS/coarse location, species identity, and ecological context. If location context is missing, return \`is_invasive=false\`, \`invasive_status_region="Unavailable"\`, explain the limitation in \`invasive_rationale\`, and use low or null \`invasive_confidence\`.
 - **Honest Uncertainty:** Verbal descriptions are inherently ambiguous — a "brown bird perching on a tree" could be hundreds of species. Express genuine uncertainty through a lower confidence_score and a well-populated candidates array. Do NOT hallucinate specificity the description cannot support.
 
 # Identification Rules
@@ -35,7 +36,7 @@ You are an expert field-guide biologist and taxonomist specializing in species i
 ALWAYS populate exactly 2 alternative species in the candidates array. For distinguishing_feature, name the specific descriptor from the user's description that the candidate would or would not match (e.g., "lacks the striped pattern described by user", "smaller than palm-sized as noted").
 
 # Non-Biological Descriptions
-If the description clearly refers to a non-biological subject (rock, building, vehicle), return is_biological_subject=false and omit biology-specific fields per the same rules as the vision path.
+If the description clearly refers to a non-biological subject (rock, building, vehicle), return is_biological_subject=false and omit biology-specific fields per the same rules as the vision path, including all invasive-status fields.
 
 # Output Data Definitions
 
@@ -86,9 +87,14 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
             "The single most important difference between this candidate and the primary identification, phrased in terms of the user's description (e.g., 'lacks the spotted pattern user described').",
         },
       },
-      required: ["scientific_name", "confidence_score", "distinguishing_feature"],
+      required: [
+        "scientific_name",
+        "confidence_score",
+        "distinguishing_feature",
+      ],
     },
-    description: "Always provide exactly 2 alternative species grounded in the observation description.",
+    description:
+      "Always provide exactly 2 alternative species grounded in the observation description.",
   },
   image_quality: {
     type: SchemaType.OBJECT,
@@ -99,7 +105,8 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
       overall_score: { type: SchemaType.INTEGER },
     },
     required: ["sharpness", "framing", "diagnostic_utility", "overall_score"],
-    description: "Always return all zeros for describe descriptions — no image to score.",
+    description:
+      "Always return all zeros for describe descriptions — no image to score.",
   },
 });
 
@@ -125,7 +132,8 @@ export const getDescribeResponseSchema = (): ResponseSchema => {
       scientific_name: {
         type: SchemaType.STRING,
         nullable: true,
-        description: "Formally accepted binomial. Null for unidentifiable non-biological subjects.",
+        description:
+          "Formally accepted binomial. Null for unidentifiable non-biological subjects.",
       },
       common_name: {
         type: SchemaType.STRING,
@@ -139,29 +147,79 @@ export const getDescribeResponseSchema = (): ResponseSchema => {
         nullable: true,
       },
       is_invasive: { type: SchemaType.BOOLEAN, nullable: true },
+      invasive_status_region: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description:
+          "Region label used for the invasive-status assessment, such as 'Austin, TX', 'Central Texas', or 'Unavailable'. Null for non-biological subjects.",
+      },
+      invasive_rationale: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description:
+          "One concise sentence explaining the invasive-status assessment from the original description reasoning, location context, species identity, and ecological context. Null for non-biological subjects.",
+      },
+      invasive_confidence: {
+        type: SchemaType.NUMBER,
+        nullable: true,
+        description:
+          "Confidence from 0.0 to 1.0 for the invasive-status assessment, separate from identification confidence. Null when location evidence is insufficient or subject is non-biological.",
+      },
       life_stage: {
         type: SchemaType.STRING,
         format: "enum",
-        enum: ["egg","larva","pupa","nymph","juvenile","subadult","adult","seedling","sapling","unknown"],
+        enum: [
+          "egg",
+          "larva",
+          "pupa",
+          "nymph",
+          "juvenile",
+          "subadult",
+          "adult",
+          "seedling",
+          "sapling",
+          "unknown",
+        ],
         nullable: true,
       },
       reproductive_condition: {
         type: SchemaType.STRING,
         format: "enum",
-        enum: ["flowering","fruiting","budding","vegetative","sporing","pregnant","gravid","mating","spawning","nesting","dormant","not_applicable"],
+        enum: [
+          "flowering",
+          "fruiting",
+          "budding",
+          "vegetative",
+          "sporing",
+          "pregnant",
+          "gravid",
+          "mating",
+          "spawning",
+          "nesting",
+          "dormant",
+          "not_applicable",
+        ],
         nullable: true,
       },
       sex: {
         type: SchemaType.STRING,
         format: "enum",
-        enum: ["female","male","hermaphrodite","mixed","cannot_determine","not_applicable"],
+        enum: [
+          "female",
+          "male",
+          "hermaphrodite",
+          "mixed",
+          "cannot_determine",
+          "not_applicable",
+        ],
         nullable: true,
       },
       sex_confidence: { type: SchemaType.NUMBER, nullable: true },
       sex_evidence: {
         type: SchemaType.STRING,
         nullable: true,
-        description: "Short phrase naming the user-described evidence for sex. Null when unsupported.",
+        description:
+          "Short phrase naming the user-described evidence for sex. Null when unsupported.",
       },
       individual_count: { type: SchemaType.INTEGER, nullable: true },
     },

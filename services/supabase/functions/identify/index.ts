@@ -540,7 +540,22 @@ Deno.serve((req: Request) =>
     parsedData.sex_evidence = sanitizeObservationEvidence(
       parsedData.sex_evidence,
     );
+    parsedData.invasive_status_region = sanitizeObservationEvidence(
+      parsedData.invasive_status_region,
+      160,
+    );
+    parsedData.invasive_rationale = sanitizeObservationEvidence(
+      parsedData.invasive_rationale,
+      500,
+    );
+    parsedData.invasive_confidence = sanitizeObservationConfidence(
+      parsedData.invasive_confidence,
+    );
     if (!parsedData.is_biological_subject) {
+      parsedData.is_invasive = undefined;
+      parsedData.invasive_status_region = undefined;
+      parsedData.invasive_rationale = undefined;
+      parsedData.invasive_confidence = undefined;
       parsedData.sex = undefined;
       parsedData.sex_confidence = undefined;
       parsedData.sex_evidence = undefined;
@@ -551,6 +566,17 @@ Deno.serve((req: Request) =>
     ) {
       parsedData.sex_confidence = undefined;
       parsedData.sex_evidence = undefined;
+    }
+    const hasInvasiveLocationContext =
+      (safeGpsLat != null && safeGpsLon != null) ||
+      (typeof semanticLocation === "string" &&
+        semanticLocation.trim().length > 0);
+    if (parsedData.is_biological_subject && !hasInvasiveLocationContext) {
+      parsedData.is_invasive = false;
+      parsedData.invasive_status_region ??= "Unavailable";
+      parsedData.invasive_rationale ??=
+        "Location context was unavailable, so Merian could not make a region-specific invasive assessment.";
+      parsedData.invasive_confidence = undefined;
     }
 
     // Derive blur_score from sharpness (1-10) for latency savings
@@ -827,6 +853,12 @@ Deno.serve((req: Request) =>
               : null,
             ecology_type: payloadReadyForClient.ecology_type,
             is_invasive: payloadReadyForClient.is_invasive,
+            invasive_status_region:
+              payloadReadyForClient.invasive_status_region ?? null,
+            invasive_rationale: payloadReadyForClient.invasive_rationale ??
+              null,
+            invasive_confidence: payloadReadyForClient.invasive_confidence ??
+              null,
             weather_condition: weatherCondition,
             weather_temperature_f: weatherTemperatureF,
             semantic_location: semanticLocation,

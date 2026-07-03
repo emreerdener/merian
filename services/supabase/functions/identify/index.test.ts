@@ -79,6 +79,10 @@ Deno.test("Identify Schema Structure validates all Data-as-a-Service properties"
     confidence_score: 0.98,
     blur_score: 0.05,
     is_invasive: false,
+    invasive_status_region: "Central Texas",
+    invasive_rationale:
+      "Not flagged as invasive in Central Texas based on the original location context.",
+    invasive_confidence: 0.78,
     colors: ["orange", "black", "white"],
     life_stage: "adult",
     reproductive_condition: "not_applicable",
@@ -128,6 +132,21 @@ Deno.test("Identify Schema Structure validates all Data-as-a-Service properties"
     typeof parsedData.individual_count,
     "number",
     "individual_count should parse as number",
+  );
+  assertEquals(
+    parsedData.invasive_status_region,
+    "Central Texas",
+    "invasive_status_region should parse as a region label",
+  );
+  assertEquals(
+    typeof parsedData.invasive_rationale,
+    "string",
+    "invasive_rationale should parse as string",
+  );
+  assertEquals(
+    parsedData.invasive_confidence,
+    0.78,
+    "invasive_confidence should parse as number",
   );
 
   assert(

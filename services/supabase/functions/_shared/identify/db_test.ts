@@ -172,6 +172,11 @@ Deno.test("insertScan clears public location labels for private scans", async ()
       ecological_interactions: [],
       inference_tier: "free",
       public_location_label: "Austin, Texas",
+      is_invasive: true,
+      invasive_status_region: "Austin, TX",
+      invasive_rationale:
+        "Flagged from the original AI location-aware assessment.",
+      invasive_confidence: 0.91,
     },
     mock,
   );
@@ -182,4 +187,10 @@ Deno.test("insertScan clears public location labels for private scans", async ()
   const row = upsertedRow as Record<string, unknown>;
   assertEquals(row.geoprivacy, "private");
   assertEquals(row.public_location_label, null);
+  assertEquals(row.invasive_status_region, "Austin, TX");
+  assertEquals(
+    row.invasive_rationale,
+    "Flagged from the original AI location-aware assessment.",
+  );
+  assertEquals(row.invasive_confidence, 0.91);
 });

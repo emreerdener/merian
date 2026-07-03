@@ -21,7 +21,7 @@ Merian is a field-ready biological identification app built around zero-friction
 
 ### Identification
 - Powered by **Google Gemini 2.5 Flash** (free tier) and **Gemini 2.5 Pro** (Pro tier), routed via Deno Edge Functions on Supabase. Private provider secrets never touch the client binary.
-- Structured JSON output schema enforced server-side: common name, scientific name, full Linnaean taxonomy, ecology type, IUCN Red List status, invasiveness flag, confidence score, dominant colors, categorical group tags, and a lookalike diagnostic comparison.
+- Structured JSON output schema enforced server-side: common name, scientific name, full Linnaean taxonomy, ecology type, IUCN Red List status, location-aware invasiveness flag with region/rationale/confidence, confidence score, dominant colors, categorical group tags, and a lookalike diagnostic comparison.
 - Dog and cat scans keep species-grade taxonomy (`Canis lupus familiaris` / `Felis catus`) while optionally carrying a separate pet label for confident breed, mix, coat-pattern, or body-type display.
 - Concurrent on-device `VNClassifyImageRequest` drives the scanning overlay's status phrases while the network round-trip runs.
 - Environmental telemetry attached to every inference call: GPS coordinates, elevation, LiDAR depth scale, weather condition and temperature, semantic location, zoom factor, time of day, month, and device locale.
@@ -130,7 +130,7 @@ Merian is a field-ready biological identification app built around zero-friction
 | Email Services | Resend |
 
 **Minimum deployment target**: iOS 17.2
-**Current schema**: MerianSchemaV44
+**Current schema**: MerianSchemaV45
 
 ---
 

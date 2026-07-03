@@ -34,6 +34,9 @@ struct InferenceEngineTests {
                 "is_live_capture": true,
                 "ecology_type": "Terrestrial",
                 "is_invasive": false,
+                "invasive_status_region": "North America",
+                "invasive_rationale": "Native in the region supplied by the scan context.",
+                "invasive_confidence": 0.81,
                 "scientific_name": "Procyon lotor",
                 "common_name": "Raccoon",
                 "confidence_score": 0.96,
@@ -72,6 +75,9 @@ struct InferenceEngineTests {
         #expect(edgeResponse.is_biological_subject == true)
         #expect(edgeResponse.ecology_type == "Terrestrial")
         #expect(edgeResponse.is_invasive == false)
+        #expect(edgeResponse.invasive_status_region == "North America")
+        #expect(edgeResponse.invasive_rationale == "Native in the region supplied by the scan context.")
+        #expect(edgeResponse.invasive_confidence == 0.81)
         
         #expect(edgeResponse.taxonomy?.family == "Procyonidae")
         #expect(edgeResponse.insight_data?.hazard_type == "none")

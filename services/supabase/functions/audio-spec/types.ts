@@ -37,6 +37,9 @@ export interface AudioIdentification {
   ai_reasoning: string;
   ecology_type?: "wild" | "urban" | "domesticated" | "unknown";
   is_invasive?: boolean;
+  invasive_status_region?: string | null;
+  invasive_rationale?: string | null;
+  invasive_confidence?: number | null;
   sex?:
     | "female"
     | "male"
@@ -71,6 +74,9 @@ export interface AudioClientPayload {
   confidence_score: number;
   ecology_type?: string;
   is_invasive?: boolean;
+  invasive_status_region?: string | null;
+  invasive_rationale?: string | null;
+  invasive_confidence?: number | null;
   life_stage?: string;
   sex?: string;
   sex_confidence?: number;

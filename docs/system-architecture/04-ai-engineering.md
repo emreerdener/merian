@@ -424,9 +424,10 @@ or audio attached:
 - **Flat Object Schema (Non-Biological Bounds)**: `getMerianResponseSchema()` in
   `services/supabase/functions/_shared/identify/schema.ts` returns a single flat
   `OBJECT` schema — not a top-level `anyOf` with discriminated branches. All
-  biology-specific fields (`ecology_type`, `is_invasive`, `life_stage`,
-  `reproductive_condition`, `sex`, `sex_confidence`, `sex_evidence`,
-  `individual_count`, `ecological_interactions`) are declared with
+  biology-specific fields (`ecology_type`, `is_invasive`,
+  `invasive_status_region`, `invasive_rationale`, `invasive_confidence`,
+  `life_stage`, `reproductive_condition`, `sex`, `sex_confidence`,
+  `sex_evidence`, `individual_count`, `ecological_interactions`) are declared with
   `nullable: true` and are absent from the `required` array. `scientific_name`
   and `common_name` are likewise `nullable: true` to support identifiable
   geological subjects (rocks, minerals) while permitting omission for generic
@@ -446,10 +447,10 @@ or audio attached:
      attempting classification. This ordering is strictly guaranteed by
      anchoring `extracted_visual_traits` and `ai_reasoning` at the top of the V8
      JSON Schema object, preventing the model from committing a classification
-     until textual evidence is written. The `is_invasive` check also securely
-     remains here because outputting a boolean costs exactly 1 token (~10ms
-     latency), pulling natively from the user's GPS; forcing this to a secondary
-     text payload would incur a sequential ~500ms network penalty. Heavy
+     until textual evidence is written. The invasive-status assessment
+     (`is_invasive` plus region, rationale, and confidence) also securely
+     remains here, pulling natively from the user's GPS/coarse location; forcing
+     this to a secondary text payload would incur a sequential ~500ms network penalty. Heavy
      structure-agnostic generation fields (`hazard_type`, `colors`,
      `blur_score`) were explicitly **stripped** from the Vision schema
      properties and prompt omissions to boost inference speed.

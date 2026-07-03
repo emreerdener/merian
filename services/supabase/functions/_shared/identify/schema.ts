@@ -17,14 +17,14 @@ You are an expert encyclopedic field-guide biologist and taxonomist. Your task i
 - **Biological Subjects:** Fossils, pressed/preserved/dried specimens are \`is_biological_subject=true\` with \`is_live_capture=false\` — identify these to the species level.
 - **Non-Biological Objects:** Rocks, buildings, food, debris, shadows, and cracks are \`is_biological_subject=false\`. 
 - **Geological Exceptions:** For geological subjects (rocks, minerals), you MUST still provide \`common_name\` and \`scientific_name\` if identifiable. Omit these for generic debris.
-- **Conditional Formatting:** If \`is_biological_subject=false\`, you MUST omit: \`is_invasive\`, \`ecology_type\`, \`life_stage\`, \`reproductive_condition\`, \`sex\`, \`sex_confidence\`, \`sex_evidence\`, \`individual_count\`, and \`ecological_interactions\`.
+- **Conditional Formatting:** If \`is_biological_subject=false\`, you MUST omit: \`is_invasive\`, \`invasive_status_region\`, \`invasive_rationale\`, \`invasive_confidence\`, \`ecology_type\`, \`life_stage\`, \`reproductive_condition\`, \`sex\`, \`sex_confidence\`, \`sex_evidence\`, \`individual_count\`, and \`ecological_interactions\`.
 
 # Identification Rules
 1. **Nomenclature:** \`common_name\` must be maximally specific in Title Case.
 2. **Scientific Name:** \`scientific_name\` MUST be the currently accepted binomial recognized by GBIF, ITIS, or Catalogue of Life. 
    - Never return author citations (e.g., omit "(Linnaeus, 1758)"), hybrid markers (×), or infraspecific ranks unless it is the minimal determinate rank (e.g., *Brassica oleracea var. italica*). 
    - Return a genus-level name alone (without "sp.") ONLY when species determination is impossible. Never fabricate names.
-3. **Invasiveness:** Evaluate \`is_invasive\` based on the provided GPS coordinates.
+3. **Invasiveness:** Evaluate \`is_invasive\`, \`invasive_status_region\`, \`invasive_rationale\`, and \`invasive_confidence\` as one location-aware assessment based on the provided GPS coordinates, coarse location label, species identity, and ecological context. \`invasive_status_region\` is the region label used for the assessment, not the status itself. If location context is missing, return \`is_invasive=false\`, \`invasive_status_region="Unavailable"\`, explain the limitation in \`invasive_rationale\`, and use low or null \`invasive_confidence\`.
 4. **Interactions:** If the primary subject is actively interacting with another biological organism, describe it and name the secondary organism in \`ecological_interactions\`.
 5. **Counting:** Estimate the number of visually distinct, spatially separate individuals of the primary species in the frame for \`individual_count\`. Estimate for edges. Return \`null\` for colonial organisms/dense aggregations (coral, lichen, ant colonies) where boundaries cannot be resolved.
 6. **Sex:** Report \`sex\` only for biological subjects when visible, described, or behavioral evidence supports it for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use \`not_applicable\` for human subjects. Use \`sex_confidence\` for evidence strength (0.0–1.0) and \`sex_evidence\` for a short phrase naming the exact visible cue. If the evidence is not diagnostic, return \`cannot_determine\`.
@@ -266,6 +266,24 @@ export const getMerianResponseSchema = (
         nullable: true,
         description:
           "Biological subjects only. Null for non-biological subjects.",
+      },
+      invasive_status_region: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description:
+          "Biological subjects only. Region label used for the invasive-status assessment, such as 'Austin, TX', 'Central Texas', or 'Unavailable'. Null for non-biological subjects.",
+      },
+      invasive_rationale: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description:
+          "Biological subjects only. One concise sentence explaining the invasive-status assessment from the original identification reasoning, location context, species identity, and ecological context. Null for non-biological subjects.",
+      },
+      invasive_confidence: {
+        type: SchemaType.NUMBER,
+        nullable: true,
+        description:
+          "Biological subjects only. Confidence from 0.0 to 1.0 for the invasive-status assessment, separate from identification confidence. Null when location evidence is insufficient or subject is non-biological.",
       },
       life_stage: {
         type: SchemaType.STRING,

@@ -187,6 +187,13 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     `Ecology Type: ${trimText(scan.ecology_type, 80) ?? "Unavailable"}`,
     `Hazard Type: ${trimText(species?.hazard_type, 80) ?? "none"}`,
     `Merian Invasive Flag: ${formatBooleanFlag(scan.is_invasive)}`,
+    `Invasive Status Region: ${
+      trimText(scan.invasive_status_region, 160) ?? "Unavailable"
+    }`,
+    `Invasive Rationale: ${
+      trimText(scan.invasive_rationale, 500) ?? "Unavailable"
+    }`,
+    `Invasive Confidence: ${formatNumber(scan.invasive_confidence)}`,
     `Ecological Interactions: ${
       formatArray(scan.ecological_interactions) ?? "Unavailable"
     }`,

@@ -8,7 +8,7 @@ This directory is the technical master reference for the native iOS application,
 - **Web frontend**: Next.js + Mantine app in `apps/web/`, initially serving public Explore share pages on `merian.earth`.
 - **Deployment target**: iOS 17.2 for the app and widget; watchOS 10.0 for the companion target.
 - **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is committed for convenience and should be regenerated after project-structure changes.
-- **Active SwiftData schema**: `MerianSchemaV44` via `typealias CurrentSchema = MerianSchemaV44` in `apps/ios/Merian/Models/Aliases.swift`.
+- **Active SwiftData schema**: `MerianSchemaV45` via `typealias CurrentSchema = MerianSchemaV45` in `apps/ios/Merian/Models/Aliases.swift`.
 - **Primary inference endpoint**: `/identify-multimodal` for visual, audio, describe, and mixed-media submissions. `/identify` remains documented for legacy/image-specific compatibility and shared backend primitives.
 
 ## Directory Structure

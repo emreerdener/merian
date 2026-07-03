@@ -1519,7 +1519,7 @@ historical schema must also be schema-scoped snapshots; V41 owns
 without SwiftData casting V41 records to active `LocalScanRecord` or
 `OfflineQueuedScan`.
 
-The current active schema is `MerianSchemaV44`. Recent milestones:
+The current active schema is `MerianSchemaV45`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -1544,6 +1544,10 @@ The current active schema is `MerianSchemaV44`. Recent milestones:
   the sanitized dog/cat `PetIdentification` object from `public.scans` so
   Insight, library search, sharing, and Explore can show a confident pet label
   without rewriting species taxonomy or preferred-name data.
+- V45 added optional invasive-status context (`invasiveStatusRegion`,
+  `invasiveRationale`, `invasiveConfidence`) to completed local scans, matching
+  the cloud `scans` columns introduced by migration
+  `20260703120000_add_invasive_context_to_scans.sql`.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): Declares
 `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and
@@ -1749,6 +1753,12 @@ Tracks locally synchronized species scans for the Scans library.
 - `isBiological`: Bool (from Edge)
 - `isLiveCapture`: Bool (from Edge)
 - `isInvasive`: Bool (from Edge)
+- `invasiveStatusRegion`: String? (from Edge; region label used by the
+  original AI invasive-status assessment)
+- `invasiveRationale`: String? (from Edge; concise explanation for the
+  original AI invasive-status assessment)
+- `invasiveConfidence`: Double? (from Edge; 0.0–1.0 confidence for the
+  invasive-status assessment, separate from identification confidence)
 - `ecologyType`: String (from Edge)
 - `semanticTags`: [String] (AI-generated contextual tags powering local offline
   semantic search).

@@ -17,6 +17,9 @@ struct EdgeResponse: Codable {
     let is_live_capture: Bool?
     let ecology_type: String?
     let is_invasive: Bool?
+    let invasive_status_region: String?
+    let invasive_rationale: String?
+    let invasive_confidence: Double?
     let scientific_name: String?
     let common_name: String?
     let confidence_score: Double?

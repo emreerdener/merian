@@ -15,6 +15,7 @@ TestFlight, App Store, support, and QA.
 
 ### Insight Sheet
 - Fixed Overview interactions so longer ecological interaction notes wrap fully instead of truncating.
+- Improved Insight overviews with a compact, location-aware invasive status summary that can show the assessed region, confidence, and Merian's rationale when available.
 - Hid the upgrade plan card from the confidence details sheet for Pro users.
 
 ### Insight Chat

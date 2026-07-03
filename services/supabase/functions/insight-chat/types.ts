@@ -126,6 +126,9 @@ export interface ChatScanContext {
   sex_confidence: number | null;
   sex_evidence: string | null;
   is_invasive: boolean | null;
+  invasive_status_region: string | null;
+  invasive_rationale: string | null;
+  invasive_confidence: number | null;
   is_biological_subject: boolean | null;
   user_identification_override: string | null;
   user_confirmed_identification: boolean | null;

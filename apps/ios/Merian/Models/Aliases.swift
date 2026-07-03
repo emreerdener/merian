@@ -1,4 +1,4 @@
 import SwiftData
 
 // MARK: - Active Schema Aliases
-typealias CurrentSchema = MerianSchemaV44
+typealias CurrentSchema = MerianSchemaV45

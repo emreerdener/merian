@@ -147,6 +147,9 @@ struct SpeciesData {
     let isBiological: Bool
     let isLiveCapture: Bool
     let isInvasive: Bool
+    let invasiveStatusRegion: String?
+    let invasiveRationale: String?
+    let invasiveConfidence: Double?
     let ecologyType: String
     var taxonomy: TaxonomyData?
     var isNewDiscovery: Bool = false
@@ -291,6 +294,9 @@ extension SpeciesData {
         self.isBiological = edgeRes.is_biological_subject ?? true
         self.isLiveCapture = edgeRes.is_live_capture ?? true
         self.isInvasive = edgeRes.is_invasive ?? false
+        self.invasiveStatusRegion = edgeRes.invasive_status_region
+        self.invasiveRationale = edgeRes.invasive_rationale
+        self.invasiveConfidence = edgeRes.invasive_confidence
         self.ecologyType = edgeRes.ecology_type ?? "unknown"
         self.taxonomy = taxonomyData
         self.locationName = locationName
@@ -351,6 +357,9 @@ extension SpeciesData {
         isBiological: Bool = true,
         isLiveCapture: Bool = true,
         isInvasive: Bool = false,
+        invasiveStatusRegion: String? = nil,
+        invasiveRationale: String? = nil,
+        invasiveConfidence: Double? = nil,
         ecologyType: String = "unknown",
         taxonomy: TaxonomyData? = nil,
         locationName: String? = nil,
@@ -399,6 +408,9 @@ extension SpeciesData {
         self.isBiological = isBiological
         self.isLiveCapture = isLiveCapture
         self.isInvasive = isInvasive
+        self.invasiveStatusRegion = invasiveStatusRegion
+        self.invasiveRationale = invasiveRationale
+        self.invasiveConfidence = invasiveConfidence
         self.ecologyType = ecologyType
         self.taxonomy = taxonomy
         self.locationName = locationName

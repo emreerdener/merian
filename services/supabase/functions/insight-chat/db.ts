@@ -18,7 +18,8 @@ const SCAN_CONTEXT_SELECT = `
   ai_confidence_score,ai_reasoning,candidates,image_quality_score,blur_score,zoom_factor,
   ecology_type,colors,life_stage,reproductive_condition,estimated_size_cm,individual_count,
   ecological_interactions,sex,sex_confidence,sex_evidence,
-  is_invasive,is_biological_subject,user_identification_override,user_confirmed_identification,user_review_state,
+  is_invasive,invasive_status_region,invasive_rationale,invasive_confidence,
+  is_biological_subject,user_identification_override,user_confirmed_identification,user_review_state,
   user_observation_context,confirmed_species_id,species_id,
   species_dictionary:species_id(
     id,scientific_name,common_names,wikipedia_overview,habitat_description,hazard_type,

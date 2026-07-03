@@ -511,6 +511,9 @@ constraint in the Deno schema.
   "confidence_score": 0.98,
   "blur_score": 0.1,
   "is_invasive": false,
+  "invasive_status_region": "Central Texas",
+  "invasive_rationale": "The original AI assessment did not flag this species as invasive for the scan region.",
+  "invasive_confidence": 0.78,
   "colors": ["orange", "black", "white"],
   "estimated_size_cm": 15.2,
   "life_stage": "adult",
@@ -3073,9 +3076,10 @@ of that user's Insight chats. Effective Pro includes active trial users.
 
 The server builds chat context from stored text data only: species names,
 taxonomy, hazard type, confidence, candidates/lookalikes, habitat/Wikipedia
-overview, invasive flag, identification provenance, user review state, observed
-traits, ecological annotations, species group tags, `ai_reasoning`, field notes,
-capture date/month, location label, weather, elevation, and image/capture-quality
+overview, invasive flag plus its original AI region/rationale/confidence,
+identification provenance, user review state, observed traits, ecological
+annotations, species group tags, `ai_reasoning`, field notes, capture
+date/month, location label, weather, elevation, and image/capture-quality
 metadata. It does not include raw image bytes, R2 object keys, cloud image URLs,
 internal scan IDs, exact GPS coordinates, Explore comments, public post
 metadata, or Darwin Core export payloads.

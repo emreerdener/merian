@@ -51,6 +51,9 @@ private struct ExploreShareMediaSnapshot {
     let isBiological: Bool
     let isLiveCapture: Bool
     let isInvasive: Bool
+    let invasiveStatusRegion: String?
+    let invasiveRationale: String?
+    let invasiveConfidence: Double?
     let ecologyType: String
     let aiReasoning: String?
     let inferenceTier: String?
@@ -79,6 +82,9 @@ private struct ExploreShareMediaSnapshot {
         self.isBiological = scan.isBiological
         self.isLiveCapture = scan.isLiveCapture
         self.isInvasive = scan.isInvasive
+        self.invasiveStatusRegion = scan.invasiveStatusRegion
+        self.invasiveRationale = scan.invasiveRationale
+        self.invasiveConfidence = scan.invasiveConfidence
         self.ecologyType = scan.ecologyType
         self.aiReasoning = scan.aiReasoning
         self.inferenceTier = scan.inferenceTier
@@ -108,6 +114,9 @@ private struct ExploreCloudScanInsertPayload: Encodable {
     let aiConfidenceScore: Double
     let ecologyType: String
     let isInvasive: Bool
+    let invasiveStatusRegion: String?
+    let invasiveRationale: String?
+    let invasiveConfidence: Double?
     let isLiveCapture: Bool
     let isBiologicalSubject: Bool
     let aiReasoning: String?
@@ -137,6 +146,9 @@ private struct ExploreCloudScanInsertPayload: Encodable {
         case aiConfidenceScore = "ai_confidence_score"
         case ecologyType = "ecology_type"
         case isInvasive = "is_invasive"
+        case invasiveStatusRegion = "invasive_status_region"
+        case invasiveRationale = "invasive_rationale"
+        case invasiveConfidence = "invasive_confidence"
         case isLiveCapture = "is_live_capture"
         case isBiologicalSubject = "is_biological_subject"
         case aiReasoning = "ai_reasoning"
@@ -2358,6 +2370,9 @@ final class MerianNetworkClient {
             aiConfidenceScore: normalizedExploreConfidence(scan.confidenceScore),
             ecologyType: normalizedExploreEcologyType(scan.ecologyType),
             isInvasive: scan.isInvasive,
+            invasiveStatusRegion: scan.invasiveStatusRegion?.nilIfEmpty,
+            invasiveRationale: scan.invasiveRationale?.nilIfEmpty,
+            invasiveConfidence: scan.invasiveConfidence,
             isLiveCapture: scan.isLiveCapture,
             isBiologicalSubject: scan.isBiological,
             aiReasoning: scan.aiReasoning?.nilIfEmpty,

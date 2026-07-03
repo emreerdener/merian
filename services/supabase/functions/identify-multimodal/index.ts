@@ -463,7 +463,22 @@ Deno.serve((req: Request) =>
     parsedData.sex_evidence = sanitizeObservationEvidence(
       parsedData.sex_evidence,
     );
+    parsedData.invasive_status_region = sanitizeObservationEvidence(
+      parsedData.invasive_status_region,
+      160,
+    );
+    parsedData.invasive_rationale = sanitizeObservationEvidence(
+      parsedData.invasive_rationale,
+      500,
+    );
+    parsedData.invasive_confidence = sanitizeObservationConfidence(
+      parsedData.invasive_confidence,
+    );
     if (!parsedData.is_biological_subject) {
+      parsedData.is_invasive = undefined;
+      parsedData.invasive_status_region = undefined;
+      parsedData.invasive_rationale = undefined;
+      parsedData.invasive_confidence = undefined;
       parsedData.sex = undefined;
       parsedData.sex_confidence = undefined;
       parsedData.sex_evidence = undefined;
@@ -474,6 +489,17 @@ Deno.serve((req: Request) =>
     ) {
       parsedData.sex_confidence = undefined;
       parsedData.sex_evidence = undefined;
+    }
+    const hasInvasiveLocationContext =
+      (safeGpsLat != null && safeGpsLon != null) ||
+      (typeof semanticLocation === "string" &&
+        semanticLocation.trim().length > 0);
+    if (parsedData.is_biological_subject && !hasInvasiveLocationContext) {
+      parsedData.is_invasive = false;
+      parsedData.invasive_status_region ??= "Unavailable";
+      parsedData.invasive_rationale ??=
+        "Location context was unavailable, so Merian could not make a region-specific invasive assessment.";
+      parsedData.invasive_confidence = undefined;
     }
 
     parsedData.blur_score = Math.max(
@@ -504,6 +530,9 @@ Deno.serve((req: Request) =>
       blur_score: parsedData.blur_score,
       ecology_type: parsedData.ecology_type,
       is_invasive: parsedData.is_invasive,
+      invasive_status_region: parsedData.invasive_status_region,
+      invasive_rationale: parsedData.invasive_rationale,
+      invasive_confidence: parsedData.invasive_confidence,
       life_stage: parsedData.life_stage ?? "unknown",
       sex: parsedData.sex,
       sex_confidence: parsedData.sex_confidence,
@@ -703,6 +732,9 @@ Deno.serve((req: Request) =>
             blur_score: parsedData.blur_score,
             ecology_type: parsedData.ecology_type,
             is_invasive: parsedData.is_invasive,
+            invasive_status_region: parsedData.invasive_status_region ?? null,
+            invasive_rationale: parsedData.invasive_rationale ?? null,
+            invasive_confidence: parsedData.invasive_confidence ?? null,
             weather_condition: weatherCondition ?? undefined,
             weather_temperature_f: weatherTemperatureF ?? undefined,
             semantic_location: semanticLocation ?? undefined,

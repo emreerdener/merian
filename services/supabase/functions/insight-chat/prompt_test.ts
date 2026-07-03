@@ -40,6 +40,10 @@ const scan: ChatScanContext = {
   sex_confidence: null,
   sex_evidence: null,
   is_invasive: true,
+  invasive_status_region: "Central Texas",
+  invasive_rationale:
+    "The original assessment flagged this species as invasive in Central Texas based on the scan location.",
+  invasive_confidence: 0.82,
   is_biological_subject: true,
   user_identification_override: null,
   user_confirmed_identification: false,
@@ -90,6 +94,12 @@ Deno.test("scan context uses text evidence and excludes image URLs", () => {
   assertStringIncludes(block, "[ECOLOGY]");
   assertStringIncludes(block, "Ecology Type: wild");
   assertStringIncludes(block, "Merian Invasive Flag: Yes");
+  assertStringIncludes(block, "Invasive Status Region: Central Texas");
+  assertStringIncludes(
+    block,
+    "Invasive Rationale: The original assessment flagged this species as invasive in Central Texas based on the scan location.",
+  );
+  assertStringIncludes(block, "Invasive Confidence: 0.82");
   assertStringIncludes(
     block,
     "Ecological Interactions: nectaring on milkweed",

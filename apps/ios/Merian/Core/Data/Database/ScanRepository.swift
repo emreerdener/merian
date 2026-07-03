@@ -14,7 +14,7 @@ final class ScanRepository {
     // MARK: - Singleton
 
     static let shared = ScanRepository()
-    private static let historicalScanSelectColumns = "id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, pet_identification, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
+    private static let historicalScanSelectColumns = "id, image_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, invasive_status_region, invasive_rationale, invasive_confidence, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, pet_identification, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
 
     // MARK: - Dependencies
 
@@ -351,6 +351,9 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let ai_confidence_score: Double?
     let ecology_type: String?
     let is_invasive: Bool?
+    let invasive_status_region: String?
+    let invasive_rationale: String?
+    let invasive_confidence: Double?
     let is_live_capture: Bool?
     let colors: [String]?
     let semantic_location: String?
@@ -687,6 +690,9 @@ actor HistoricalDatabaseActor {
                 isBiological: true,
                 isLiveCapture: scan.is_live_capture ?? true,
                 isInvasive: scan.is_invasive ?? false,
+                invasiveStatusRegion: scan.invasive_status_region,
+                invasiveRationale: scan.invasive_rationale,
+                invasiveConfidence: scan.invasive_confidence,
                 ecologyType: scan.ecology_type ?? "unknown",
                 wikipediaUrl: dict?.wikipedia_url,
                 wikipediaOverview: wikiExtract,
