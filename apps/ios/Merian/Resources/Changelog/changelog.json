@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-03-confidence-sheet-plan-card",
+      "date": "2026-07-03",
+      "title": "Confidence sheet polish",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "The confidence details sheet now hides the upgrade plan card for Pro users."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-03-insight-chat-readability",
+      "date": "2026-07-03",
+      "title": "Field chat readability",
+      "sections": [
+        {
+          "title": "Changed",
+          "items": [
+            "Field chat message text is now larger so questions and answers are easier to read."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-02-explore-view-insight",
       "date": "2026-07-02",
       "title": "Explore post actions",

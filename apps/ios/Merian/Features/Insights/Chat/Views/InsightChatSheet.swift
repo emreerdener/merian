@@ -533,7 +533,7 @@ private struct InsightChatBubble: View {
                 Spacer(minLength: 44)
 
                 Text(formattedText)
-                    .font(.subheadline)
+                    .font(.body)
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 9)
@@ -553,7 +553,7 @@ private struct InsightChatBubble: View {
                 }
 
                 Text(formattedText)
-                    .font(.subheadline)
+                    .font(.body)
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
@@ -598,7 +598,7 @@ private struct InsightChatPendingUserBubble: View {
 
             VStack(alignment: .trailing, spacing: 6) {
                 Text(formattedText)
-                    .font(.subheadline)
+                    .font(.body)
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 9)
@@ -1021,7 +1021,7 @@ private enum InsightChatMessageFormatter {
     private static func applyMonospacedStyle(to text: inout AttributedString, matching scientificName: String) {
         var searchRange = text.startIndex..<text.endIndex
         while let range = text[searchRange].range(of: scientificName, options: .caseInsensitive) {
-            text[range].font = .system(.subheadline, design: .monospaced)
+            text[range].font = .system(.body, design: .monospaced)
             searchRange = range.upperBound..<text.endIndex
         }
     }

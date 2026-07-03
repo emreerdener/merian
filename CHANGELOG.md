@@ -15,6 +15,7 @@ TestFlight, App Store, support, and QA.
 
 ### Insight Sheet
 - Fixed Overview interactions so longer ecological interaction notes wrap fully instead of truncating.
+- Hid the upgrade plan card from the confidence details sheet for Pro users.
 
 ### Insight Chat
 - Added Field chat as a bottom-sheet experience from biological Insight toolbars, with one saved conversation per scan, prompt chips, typed follow-ups, safety guardrails, and server-side token tracking.
@@ -28,6 +29,7 @@ TestFlight, App Store, support, and QA.
 - Field chat sheet feedback is now saved privately with the scan instead of being telemetry-only.
 - Field chat quick prompts now refresh with AI-generated, scan-specific follow-up ideas based on the saved observation and recent chat.
 - Field chat now checks scan availability before opening so scans owned by another signed-in account are hidden with a clear unavailable toast instead of launching into a 403 error.
+- Increased Field chat message text size so questions and answers are easier to read.
 
 ### Image Viewer & Reference Gallery
 - Added a full-screen Insight image viewer so tapping a scan image opens a fit-centered, swipeable carousel with zoom and reference attribution.

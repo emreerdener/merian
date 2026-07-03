@@ -13,6 +13,7 @@ struct ConfidenceExplanationSheet: View {
 
     @Environment(EnvironmentContextManager.self) private var environmentContext
     @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(RevenueCatManager.self) private var revenueCatManager
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -38,7 +39,7 @@ struct ConfidenceExplanationSheet: View {
         guard imageCount <= 1 else { return nil }
         
         return {
-            if RevenueCatManager.shared.isProActive {
+            if revenueCatManager.isProActive {
                 HapticManager.shared.triggerSelectionPulse()
                 AppEventPublisher.shared.send(.triggerRefinement(
                     scanId: record.id,
@@ -158,8 +159,10 @@ struct ConfidenceExplanationSheet: View {
                     ConfidenceSpectrum(inferenceTier: inferenceTier)
                 }
 
-                PlanCard(showPaywall: $showPaywall)
-                    .padding(.horizontal, 16)
+                if !revenueCatManager.isProActive {
+                    PlanCard(showPaywall: $showPaywall)
+                        .padding(.horizontal, 16)
+                }
 
                 ProTips(showLocationPrompt: showLocationPrompt)
             }
