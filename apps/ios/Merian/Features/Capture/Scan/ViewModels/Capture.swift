@@ -117,6 +117,37 @@ private actor AssetExportSessionFinisher {
 extension CaptureWorkspaceViewModel {
     static let videoMaxDuration: TimeInterval = 5
     nonisolated private static let videoInferenceFrameSampleCount = 5
+    nonisolated private static let videoFramePreparationTimeout: TimeInterval = 8
+    nonisolated private static let videoAudioExtractionTimeout: TimeInterval = 5
+    nonisolated private static let videoPlaybackPreparationTimeout: TimeInterval = 10
+    nonisolated private static let videoStagingFailureMessage = "Video couldn't be staged. Please try recording again."
+
+    nonisolated private static func withTimeout<T: Sendable>(
+        seconds: TimeInterval,
+        message: String,
+        operation: @Sendable @escaping () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            defer { group.cancelAll() }
+
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(max(seconds, 0.1) * 1_000_000_000))
+                throw NSError(
+                    domain: "CaptureWorkspaceViewModel",
+                    code: -29,
+                    userInfo: [NSLocalizedDescriptionKey: message]
+                )
+            }
+
+            guard let result = try await group.next() else {
+                throw CancellationError()
+            }
+            return result
+        }
+    }
 
     nonisolated private static func prepareCameraCapture(
         captureData: Data,
@@ -199,10 +230,16 @@ extension CaptureWorkspaceViewModel {
             let times = sampleOffsets.map { CMTime(seconds: $0, preferredTimescale: 600) }
             let inferenceMaxSize = MerianConfig.inferenceImageMaxSize(isProActive: isProActive)
 
-            return times.compactMap { time -> PreparedCameraCapture? in
+            var preparedFrames: [PreparedCameraCapture] = []
+            preparedFrames.reserveCapacity(times.count)
+
+            for time in times {
                 autoreleasepool {
                     guard let frame = try? generator.copyCGImage(at: time, actualTime: nil) else {
-                        return nil
+                        MerianLog.hardware.warning(
+                            "Video frame sampling skipped frame at \(time.seconds, privacy: .public)s."
+                        )
+                        return
                     }
                     let displayFrame = ImageCropProcessor.squareCrop(
                         frame,
@@ -210,7 +247,10 @@ extension CaptureWorkspaceViewModel {
                     ) ?? frame
                     guard let displayData = ImageCropProcessor.encode(displayFrame),
                           !displayData.isEmpty else {
-                        return nil
+                        MerianLog.hardware.warning(
+                            "Video frame sampling skipped frame because display encoding failed."
+                        )
+                        return
                     }
 
                     let inferenceFrame = ImageDownsampler.downsample(
@@ -223,16 +263,24 @@ extension CaptureWorkspaceViewModel {
                     ) ?? inferenceFrame
                     guard let inferenceData = ImageCropProcessor.encode(inferenceCropped),
                           !inferenceData.isEmpty else {
-                        return nil
+                        MerianLog.hardware.warning(
+                            "Video frame sampling skipped frame because inference encoding failed."
+                        )
+                        return
                     }
 
-                    return PreparedCameraCapture(
+                    preparedFrames.append(PreparedCameraCapture(
                         inferenceData: inferenceData,
                         displayData: displayData,
                         previewCGImage: SendableCGImage(image: displayFrame)
-                    )
+                    ))
                 }
             }
+
+            MerianLog.hardware.debug(
+                "Video frame sampling prepared \(preparedFrames.count, privacy: .public)/\(times.count, privacy: .public) frames."
+            )
+            return preparedFrames
         }
     }
 
@@ -526,7 +574,13 @@ extension CaptureWorkspaceViewModel {
         videoRecordingProgress = 0
 
         videoRecordingTask?.cancel()
-        videoRecordingTask = Task {
+        videoRecordingTask = Task { [weak self] in
+            guard let self else { return }
+            var recordedFileURL: URL?
+            defer {
+                self.finishVideoCaptureUI(resetProgress: true)
+            }
+
             do {
                 async let shutterLocation = diContainer.environmentContextManager.requestCurrentLocation()
                 let composingCenter = composingZoneVerticalCenter
@@ -543,6 +597,7 @@ extension CaptureWorkspaceViewModel {
                         self.startVideoRecordingProgressTimer()
                     }
                 )
+                recordedFileURL = recording.fileURL
                 guard !Task.isCancelled else {
                     try? FileManager.default.removeItem(at: recording.fileURL)
                     throw CancellationError()
@@ -555,12 +610,18 @@ extension CaptureWorkspaceViewModel {
                 }
                 let resolvedShutterLocation = await shutterLocation
                 let instantLocation = resolvedShutterLocation ?? diContainer.environmentContextManager.lastKnownLocation
-                let preparedFrames = try await Self.prepareVideoFrames(
-                    videoURL: recording.fileURL,
-                    duration: recording.duration,
-                    composingCenter: composingCenter,
-                    isProActive: diContainer.revenueCatManager.isProActive
-                )
+                let isProActive = diContainer.revenueCatManager.isProActive
+                let preparedFrames = try await Self.withTimeout(
+                    seconds: Self.videoFramePreparationTimeout,
+                    message: "Preparing video frames timed out."
+                ) {
+                    try await Self.prepareVideoFrames(
+                        videoURL: recording.fileURL,
+                        duration: recording.duration,
+                        composingCenter: composingCenter,
+                        isProActive: isProActive
+                    )
+                }
                 guard !preparedFrames.isEmpty else {
                     throw NSError(
                         domain: "CaptureWorkspaceViewModel",
@@ -568,8 +629,18 @@ extension CaptureWorkspaceViewModel {
                         userInfo: [NSLocalizedDescriptionKey: "Unable to sample frames from the recorded video."]
                     )
                 }
-                let extractedAudioFilePath = await Self.extractVideoAudioTrack(videoURL: recording.fileURL)
-                let playbackClip = try await Self.prepareVideoPlaybackClip(videoURL: recording.fileURL)
+                let extractedAudioFilePath = try? await Self.withTimeout(
+                    seconds: Self.videoAudioExtractionTimeout,
+                    message: "Extracting video audio timed out."
+                ) {
+                    await Self.extractVideoAudioTrack(videoURL: recording.fileURL)
+                }
+                let playbackClip = try await Self.withTimeout(
+                    seconds: Self.videoPlaybackPreparationTimeout,
+                    message: "Preparing video playback timed out."
+                ) {
+                    try await Self.prepareVideoPlaybackClip(videoURL: recording.fileURL)
+                }
 
                 let task = Task {
                     await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
@@ -591,24 +662,25 @@ extension CaptureWorkspaceViewModel {
                         sampledImages: stagedFrames,
                         audioFilePath: extractedAudioFilePath
                     ))
+                    MerianLog.hardware.debug(
+                        "Video staged: frames=\(stagedFrames.count, privacy: .public), file=\(playbackClip.fileURL.lastPathComponent, privacy: .public)."
+                    )
                     AppDIContainer.shared.hapticManager.triggerSuccessPulse()
                 }
                 if playbackClip.isCompressed {
                     try? FileManager.default.removeItem(at: recording.fileURL)
                 }
             } catch is CancellationError {
-                diContainer.cameraManager.stopVideoRecording()
+                if let recordedFileURL {
+                    try? FileManager.default.removeItem(at: recordedFileURL)
+                }
+                diContainer.cameraManager.cancelVideoRecording()
             } catch {
                 MerianLog.hardware.error("Video shutter failure: \(error, privacy: .private)")
                 await MainActor.run {
+                    self.offlineToastMessage = Self.videoStagingFailureMessage
                     AppDIContainer.shared.hapticManager.triggerErrorThump()
                 }
-            }
-
-            await MainActor.run {
-                self.stopVideoRecordingProgressTimer(reset: true)
-                self.isCapturing = false
-                self.isVideoRecording = false
             }
         }
     }
@@ -619,9 +691,11 @@ extension CaptureWorkspaceViewModel {
     }
 
     func cancelVideoCapture() {
-        guard isVideoRecording else { return }
+        guard isVideoRecording || isCapturing else { return }
         videoRecordingTask?.cancel()
-        diContainer.cameraManager.stopVideoRecording()
+        videoRecordingTask = nil
+        diContainer.cameraManager.cancelVideoRecording()
+        finishVideoCaptureUI(resetProgress: true)
     }
 
     private func startVideoRecordingProgressTimer() {
@@ -650,5 +724,12 @@ extension CaptureWorkspaceViewModel {
         if reset {
             videoRecordingProgress = 0
         }
+    }
+
+    private func finishVideoCaptureUI(resetProgress: Bool) {
+        stopVideoRecordingProgressTimer(reset: resetProgress)
+        isCapturing = false
+        isVideoRecording = false
+        videoRecordingTask = nil
     }
 }

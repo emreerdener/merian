@@ -9,6 +9,7 @@ struct LibraryView: View {
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.startupStoreState) private var startupStoreState
 
     // MARK: - App State Context
     let isSearchFocused: Bool
@@ -51,6 +52,12 @@ struct LibraryView: View {
             let completedScanIds = Set(searchManager.allScans.map(\.id))
             let visibleQueuedScans = queuedScans.filter { !completedScanIds.contains($0.id) }
             let hasContent = !searchManager.filteredScans.isEmpty || !visibleQueuedScans.isEmpty
+            let emptyStateCopy = ScanLibraryEmptyStateCopy.make(
+                startupStoreState: startupStoreState,
+                hasLibraryContent: !searchManager.allScans.isEmpty || !visibleQueuedScans.isEmpty,
+                searchQuery: searchManager.searchQuery,
+                hasActiveFilters: searchManager.hasActiveFilters
+            )
             GeometryReader { proxy in
                 ZStack(alignment: .bottom) {
                     ScrollView {
@@ -92,38 +99,33 @@ struct LibraryView: View {
                         } else {
                             EmptyStateView(
                                 imageName: "fireflies",
-                                title: "No scans found",
-                                message: {
-                                    if !searchManager.searchQuery.isEmpty {
-                                        return "No results for \"\(searchManager.searchQuery)\""
-                                    } else if searchManager.hasActiveFilters {
-                                        return "No scans match the current filters"
-                                    } else {
-                                        return "Start exploring and capture your first scan!"
-                                    }
-                                }()
+                                title: emptyStateCopy.title,
+                                message: emptyStateCopy.message
                             ) {
-                                if searchManager.hasActiveFilters {
+                                switch emptyStateCopy.action {
+                                case .clearFilters:
                                     Button {
                                         HapticManager.shared.triggerMediumPulse()
                                         searchManager.clearFilters()
                                     } label: {
-                                        Text("Clear filters")
+                                        Text(emptyStateCopy.actionTitle ?? "Clear filters")
                                             .font(.subheadline)
                                             .fontWeight(.semibold)
                                     }
                                     .buttonStyle(.borderedProminent)
                                     .controlSize(.regular)
-                                } else if searchManager.searchQuery.isEmpty {
+                                case .dismiss:
                                     Button {
                                         dismiss()
                                     } label: {
-                                        Text("Start scanning")
+                                        Text(emptyStateCopy.actionTitle ?? "Start scanning")
                                             .font(.subheadline)
                                             .fontWeight(.semibold)
                                     }
                                     .buttonStyle(.borderedProminent)
                                     .controlSize(.regular)
+                                case .none:
+                                    EmptyView()
                                 }
                             }
                             .frame(maxWidth: .infinity, minHeight: proxy.size.height)
@@ -236,5 +238,59 @@ struct LibraryView: View {
         descriptor.fetchLimit = 1
         guard let scan = (try? readContext.fetch(descriptor))?.first else { return nil }
         return QueuedScanContext(from: scan)
+    }
+}
+
+enum ScanLibraryEmptyStateAction: Equatable {
+    case clearFilters
+    case dismiss
+    case none
+}
+
+struct ScanLibraryEmptyStateCopy: Equatable {
+    let title: String
+    let message: String
+    let actionTitle: String?
+    let action: ScanLibraryEmptyStateAction
+
+    static func make(
+        startupStoreState: StartupStoreState,
+        hasLibraryContent: Bool,
+        searchQuery: String,
+        hasActiveFilters: Bool
+    ) -> ScanLibraryEmptyStateCopy {
+        if startupStoreState == .safeMode && !hasLibraryContent {
+            return ScanLibraryEmptyStateCopy(
+                title: "Local library unavailable",
+                message: "Merian is running in safe mode because the local database did not open. Your saved scans have not loaded in this session, and new local changes are temporary. Restart Merian to try reopening the library.",
+                actionTitle: "Back to camera",
+                action: .dismiss
+            )
+        }
+
+        if !searchQuery.isEmpty {
+            return ScanLibraryEmptyStateCopy(
+                title: "No scans found",
+                message: "No results for \"\(searchQuery)\"",
+                actionTitle: nil,
+                action: .none
+            )
+        }
+
+        if hasActiveFilters {
+            return ScanLibraryEmptyStateCopy(
+                title: "No scans found",
+                message: "No scans match the current filters",
+                actionTitle: "Clear filters",
+                action: .clearFilters
+            )
+        }
+
+        return ScanLibraryEmptyStateCopy(
+            title: "No scans found",
+            message: "Start exploring and capture your first scan!",
+            actionTitle: "Start scanning",
+            action: .dismiss
+        )
     }
 }

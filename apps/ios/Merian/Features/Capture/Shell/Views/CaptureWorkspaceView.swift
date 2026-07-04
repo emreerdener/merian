@@ -681,6 +681,10 @@ private struct StagedVideoPreviewModal: View {
             .padding(.top, 12)
             .environment(\.colorScheme, .dark)
         }
+        .onAppear {
+            player.seek(to: .zero)
+            player.play()
+        }
         .onDisappear {
             player.pause()
         }

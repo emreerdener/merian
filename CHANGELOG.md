@@ -21,6 +21,7 @@ TestFlight, App Store, support, and QA.
 - Fixed the Pro paywall purchase button so it stays anchored to the bottom of the sheet.
 - Kept non-Pro long-presses photo-first so holding the shutter does not interrupt capture or open the paywall.
 - Fixed non-biological scan saving so captures that omit ecology metadata are saved with an unknown ecology fallback instead of failing in the backend.
+- Hid live viewfinder hint pills once single-scan content is staged or multi-scan staging is full.
 
 ### Explore
 - Added public video Explore posts: shared video scans can now appear in Explore and Ask the Community with muted playback in feed/detail and thumbnail play indicators on compact surfaces.
@@ -127,6 +128,7 @@ TestFlight, App Store, support, and QA.
 - Fixed Explore map count text so exactly one visible item says "1 discovery in view."
 
 ### Collections
+- Moved built-in collection tiles below the main Collections content so first-collection guidance appears before Favorites and Non-biological.
 - Added a little more top spacing to Collections so the first cards sit more comfortably below the Scans toolbar.
 - Added a Scans-style Collections filter sheet with sorting plus User-created, Smart suggestions, and Built-in collection type filters.
 - Added a taller full-width Featured scans collection at the top of Collections with a daily rotating set of up to 24 scans from your library.

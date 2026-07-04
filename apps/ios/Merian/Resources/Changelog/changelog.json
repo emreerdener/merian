@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-04-collections-default-tile-placement",
+      "date": "2026-07-04",
+      "title": "Collections layout",
+      "sections": [
+        {
+          "title": "Changed",
+          "items": [
+            "Built-in collection tiles now appear below the main Collections content so first-collection guidance appears before Favorites and Non-biological."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-04-capture-viewfinder-hints-at-capacity",
+      "date": "2026-07-04",
+      "title": "Capture viewfinder hints",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Live viewfinder hint pills now hide once single-scan content is staged or multi-scan staging is full."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-04-pro-paywall-purchase-button",
       "date": "2026-07-04",
       "title": "Pro paywall button",

@@ -70,7 +70,8 @@ struct VisualCaptureView: View {
                     + viewModel.stagedCapture.videos.compactMap { $0.coverImage?.uiImage },
                 isRefining: viewModel.baseRefinementContext != nil,
                 isVideoRecording: viewModel.isVideoRecording,
-                videoRecordingProgress: viewModel.videoRecordingProgress
+                videoRecordingProgress: viewModel.videoRecordingProgress,
+                showsViewfinderHints: viewModel.shouldShowViewfinderHints
             )
         }
     }
@@ -82,13 +83,15 @@ private struct CameraControlsLayer: View {
     var isRefining: Bool = false
     var isVideoRecording: Bool = false
     var videoRecordingProgress: Double = 0
+    var showsViewfinderHints: Bool = true
 
     var body: some View {
         MainOverlayView(
             activeScanImages: activeScanImages,
             isRefining: isRefining,
             isVideoRecording: isVideoRecording,
-            videoRecordingProgress: videoRecordingProgress
+            videoRecordingProgress: videoRecordingProgress,
+            showsViewfinderHints: showsViewfinderHints
         )
     }
 }

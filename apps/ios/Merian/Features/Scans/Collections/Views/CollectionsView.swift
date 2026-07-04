@@ -181,6 +181,18 @@ struct CollectionsView: View {
                     }
                 }
 
+                if !isSearching &&
+                    !filters.hasActiveFilters &&
+                    visibleFeaturedCollection == nil &&
+                    userCollections.isEmpty &&
+                    visibleSmartCollections.isEmpty {
+                    EmptyStateView(
+                        imageName: "fireflies",
+                        title: "Collections",
+                        message: "Create your first collection to start organizing your scans."
+                    )
+                }
+
                 if hasRowCollections {
                     LazyVGrid(
                         columns: Array(
@@ -224,18 +236,6 @@ struct CollectionsView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, hasTopCollectionCards ? 0 : 16)
-                }
-
-                if !isSearching &&
-                    !filters.hasActiveFilters &&
-                    visibleFeaturedCollection == nil &&
-                    userCollections.isEmpty &&
-                    visibleSmartCollections.isEmpty {
-                    EmptyStateView(
-                        imageName: "fireflies",
-                        title: "Collections",
-                        message: "Create your first collection to start organizing your scans."
-                    )
                 }
             }
             .padding(.top, isSearchHeaderVisible ? 0 : 16)

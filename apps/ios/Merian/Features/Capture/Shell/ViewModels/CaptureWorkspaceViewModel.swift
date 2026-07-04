@@ -182,6 +182,10 @@ final class CaptureWorkspaceViewModel {
         hasAvailableStagedCaptureSlot || baseRefinementContext != nil
     }
 
+    var shouldShowViewfinderHints: Bool {
+        hasAvailableStagedCaptureSlot
+    }
+
     var describePromptFlow: DescribePromptFlow {
         if baseRefinementContext != nil {
             return .reanalysis(subjectId: refinementSubjectId)

@@ -2,6 +2,23 @@ import GoogleSignIn
 import SwiftData
 import SwiftUI
 
+enum StartupStoreState: Equatable {
+    case normal
+    case recovered
+    case safeMode
+}
+
+private struct StartupStoreStateKey: EnvironmentKey {
+    static let defaultValue: StartupStoreState = .normal
+}
+
+extension EnvironmentValues {
+    var startupStoreState: StartupStoreState {
+        get { self[StartupStoreStateKey.self] }
+        set { self[StartupStoreStateKey.self] = newValue }
+    }
+}
+
 // MARK: - Core Application Delegation
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
@@ -268,6 +285,7 @@ struct StartupRecoveryTelemetryEvent {
 
 struct ModelContainerBootstrapOutcome {
     let container: ModelContainer?
+    let startupStoreState: StartupStoreState
     let startupNotice: StartupRecoveryNotice?
     let telemetryEvent: StartupRecoveryTelemetryEvent?
 }
@@ -309,6 +327,7 @@ struct MerianApp: App {
     
     // MARK: - SwiftData Container
     let container: ModelContainer?
+    let startupStoreState: StartupStoreState
     let startupRecoveryNotice: StartupRecoveryNotice?
     
     // MARK: - Lifecycle Bootstrapping
@@ -323,6 +342,7 @@ struct MerianApp: App {
 
         let bootstrapOutcome = Self.bootstrapModelContainer()
         container = bootstrapOutcome.container
+        startupStoreState = bootstrapOutcome.startupStoreState
         startupRecoveryNotice = Self.combinedStartupNotice(storeNotice: bootstrapOutcome.startupNotice)
         if let container {
             let mainContext = container.mainContext
@@ -413,6 +433,7 @@ struct MerianApp: App {
         do {
             return ModelContainerBootstrapOutcome(
                 container: try makePersistentContainer(),
+                startupStoreState: .normal,
                 startupNotice: nil,
                 telemetryEvent: nil
             )
@@ -432,6 +453,7 @@ struct MerianApp: App {
                     )
                     return ModelContainerBootstrapOutcome(
                         container: recoveredContainer,
+                        startupStoreState: .recovered,
                         startupNotice: StartupRecoveryNotice(
                             title: "Library Repaired",
                             message: "Merian recovered from a corrupted local store and rebuilt the library safely."
@@ -458,10 +480,14 @@ struct MerianApp: App {
         }
     }
 
-    private static func fallbackInMemoryBootstrap(reason: String) -> ModelContainerBootstrapOutcome {
+    static func fallbackInMemoryBootstrap(
+        reason: String,
+        makeInMemoryContainer: () throws -> ModelContainer = makeInMemoryContainer
+    ) -> ModelContainerBootstrapOutcome {
         do {
             return ModelContainerBootstrapOutcome(
                 container: try makeInMemoryContainer(),
+                startupStoreState: .safeMode,
                 startupNotice: StartupRecoveryNotice(
                     title: "Safe Mode Enabled",
                     message: reason
@@ -475,6 +501,7 @@ struct MerianApp: App {
             MerianLog.general.fault("In-memory ModelContainer bootstrap failed: \(error.localizedDescription, privacy: .private)")
             return ModelContainerBootstrapOutcome(
                 container: nil,
+                startupStoreState: .safeMode,
                 startupNotice: StartupRecoveryNotice(
                     title: "Startup Blocked",
                     message: "Merian could not open either the persistent library or the safe-mode in-memory store. Restart the app after freeing storage or reinstalling if the issue persists."
@@ -520,6 +547,7 @@ struct MerianApp: App {
                     }
                     .modelContainer(container)
                     .injectAppDependencies(container: diContainer)
+                    .environment(\.startupStoreState, startupStoreState)
                     .overlay(alignment: .top) {
                         if let startupRecoveryNotice {
                             StartupRecoveryNoticeView(notice: startupRecoveryNotice)

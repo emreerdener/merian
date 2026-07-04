@@ -1,8 +1,31 @@
 import CoreData
 @testable import Merian
+import SwiftData
 import XCTest
 
 final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
+    func testFallbackInMemoryBootstrapMarksSafeMode() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: LocalScanRecord.self,
+            ScanCollection.self,
+            OfflineQueuedScan.self,
+            configurations: configuration
+        )
+
+        let outcome = MerianApp.fallbackInMemoryBootstrap(
+            reason: "Unit safe mode",
+            makeInMemoryContainer: { container }
+        )
+
+        XCTAssertNotNil(outcome.container)
+        XCTAssertEqual(outcome.startupStoreState, .safeMode)
+        XCTAssertEqual(outcome.startupNotice?.title, "Safe Mode Enabled")
+        XCTAssertEqual(outcome.startupNotice?.message, "Unit safe mode")
+        XCTAssertEqual(outcome.telemetryEvent?.outcome, "safe_mode")
+        XCTAssertEqual(outcome.telemetryEvent?.reason, "persistent_store_unavailable")
+    }
+
     func testRejectsNonCorruptionFailures() {
         let migrationError = NSError(
             domain: NSCocoaErrorDomain,

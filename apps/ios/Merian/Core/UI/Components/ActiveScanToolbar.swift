@@ -137,7 +137,10 @@ extension ActiveScanToolbar {
     
     // MARK: - Buttons
     private var cancelButton: some View {
-        Button(action: onCancel) {
+        Button {
+            HapticManager.shared.triggerMediumPulse(source: "capture.staged.cancel")
+            onCancel()
+        } label: {
             Image(systemName: "xmark")
                 .font(.system(size: 24, weight: .regular))
                 .foregroundColor(.white)

@@ -20,11 +20,28 @@ struct ImageCropProcessor {
         }
     }
 
-    /// Attempts WebP first; falls back to JPEG when WebP codec is unavailable.
-    /// Both destinations write to the same buffer because the first call writes nothing on failure.
+    private static let supportedDestinationTypes: Set<String> = {
+        let identifiers = CGImageDestinationCopyTypeIdentifiers() as? [String] ?? []
+        return Set(identifiers)
+    }()
+
+    private static let destinationTypePreferences: [String] = {
+        var types: [String] = []
+        if supportedDestinationTypes.contains(UTType.webP.identifier) {
+            types.append(UTType.webP.identifier)
+        }
+        types.append(UTType.jpeg.identifier)
+        return types
+    }()
+
+    /// Attempts WebP only when ImageIO advertises a writer for it; otherwise uses JPEG.
     private static func makeImageDestination(_ renderData: NSMutableData) -> CGImageDestination? {
-        CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.webP.identifier as CFString, 1, nil) ??
-        CGImageDestinationCreateWithData(renderData as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
+        for type in destinationTypePreferences {
+            if let destination = CGImageDestinationCreateWithData(renderData as CFMutableData, type as CFString, 1, nil) {
+                return destination
+            }
+        }
+        return nil
     }
 
     /// Encodes a `CGImage` to WebP (JPEG fallback) inside an `autoreleasepool`, returning the

@@ -30,6 +30,51 @@ final class ScansManagerTests: XCTestCase {
         container = nil
         sharedExplorePostLookup = nil
     }
+
+    func testEmptyLibraryCopyExplainsSafeModeUnavailable() {
+        let copy = ScanLibraryEmptyStateCopy.make(
+            startupStoreState: .safeMode,
+            hasLibraryContent: false,
+            searchQuery: "",
+            hasActiveFilters: false
+        )
+
+        XCTAssertEqual(copy.title, "Local library unavailable")
+        XCTAssertEqual(
+            copy.message,
+            "Merian is running in safe mode because the local database did not open. Your saved scans have not loaded in this session, and new local changes are temporary. Restart Merian to try reopening the library."
+        )
+        XCTAssertEqual(copy.actionTitle, "Back to camera")
+        XCTAssertEqual(copy.action, .dismiss)
+    }
+
+    func testEmptyLibraryCopyPreservesNormalFirstScanMessage() {
+        let copy = ScanLibraryEmptyStateCopy.make(
+            startupStoreState: .normal,
+            hasLibraryContent: false,
+            searchQuery: "",
+            hasActiveFilters: false
+        )
+
+        XCTAssertEqual(copy.title, "No scans found")
+        XCTAssertEqual(copy.message, "Start exploring and capture your first scan!")
+        XCTAssertEqual(copy.actionTitle, "Start scanning")
+        XCTAssertEqual(copy.action, .dismiss)
+    }
+
+    func testSafeModeCopyDoesNotOverrideTemporarySessionContentSearch() {
+        let copy = ScanLibraryEmptyStateCopy.make(
+            startupStoreState: .safeMode,
+            hasLibraryContent: true,
+            searchQuery: "lichen",
+            hasActiveFilters: false
+        )
+
+        XCTAssertEqual(copy.title, "No scans found")
+        XCTAssertEqual(copy.message, "No results for \"lichen\"")
+        XCTAssertNil(copy.actionTitle)
+        XCTAssertEqual(copy.action, .none)
+    }
     
     func createTestScan(
         commonName: String,

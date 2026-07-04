@@ -7,6 +7,7 @@ struct MainOverlayView: View {
     var isRefining: Bool = false
     var isVideoRecording: Bool = false
     var videoRecordingProgress: Double = 0
+    var showsViewfinderHints: Bool = true
 
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.controlBarHeight) private var controlBarHeight
@@ -17,7 +18,7 @@ struct MainOverlayView: View {
             Spacer()
 
             // MARK: - Dynamic Intelligence
-            if activeScanImages.count < stagedImageCapacity {
+            if showsViewfinderHints {
                 ViewfinderHints(
                     isRefining: isRefining,
                     isVideoRecording: isVideoRecording,

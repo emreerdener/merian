@@ -307,6 +307,55 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertFalse(viewModel.shouldShowMediaModeToggle)
     }
 
+    func testViewfinderHintsHideAfterSingleScanContentIsStaged() {
+        let diContainer = AppDIContainer.preview
+        diContainer.appSettings.isMultiCaptureEnabled = false
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: diContainer,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        let uiImage = makeUIImage()
+
+        viewModel.stagedCapture.images = [
+            StagedImage(
+                compressedData: makePNGData(),
+                displayData: makePNGData(color: .systemBlue),
+                uiImage: uiImage,
+                original: IdentifiableImage(image: uiImage)
+            )
+        ]
+
+        XCTAssertFalse(viewModel.hasAvailableStagedCaptureSlot)
+        XCTAssertFalse(viewModel.shouldShowViewfinderHints)
+    }
+
+    func testViewfinderHintsHideWhenMultiScanStagingIsFull() {
+        let diContainer = AppDIContainer.preview
+        diContainer.appSettings.isMultiCaptureEnabled = true
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: diContainer,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        let uiImage = makeUIImage()
+
+        viewModel.stagedCapture.images = [
+            StagedImage(
+                compressedData: makePNGData(),
+                displayData: makePNGData(color: .systemBlue),
+                uiImage: uiImage,
+                original: IdentifiableImage(image: uiImage)
+            )
+        ]
+        viewModel.stagedCapture.observationContexts = [
+            StagedObservationContext(context: ObservationContext(freeText: "Second staged note"))
+        ]
+
+        XCTAssertFalse(viewModel.hasAvailableStagedCaptureSlot)
+        XCTAssertFalse(viewModel.shouldShowViewfinderHints)
+    }
+
     func testActiveToolbarSubmissionStagesPendingDescribeDraft() {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
