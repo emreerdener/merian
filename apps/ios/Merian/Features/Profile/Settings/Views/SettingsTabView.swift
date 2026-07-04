@@ -23,7 +23,7 @@ struct SettingsTabView: View {
     @State private var showPaywall = false
     @State private var showFeedbackSurvey = false
     @State private var toastMessage: String?
-    @State private var achievementToastPresenter = AchievementToastPresenter.shared
+    @State private var milestoneToastPresenter = MilestoneToastPresenter.shared
     @State private var selectedAchievementToastAward: AwardPayload?
 
     var body: some View {
@@ -136,14 +136,14 @@ struct SettingsTabView: View {
                 .zIndex(100)
             }
 
-            if let item = achievementToastPresenter.activeUnlock {
-                AchievementToastBanner(
+            if let item = milestoneToastPresenter.activeItem {
+                MilestoneToastBanner(
                     item: item,
                     onDismiss: {
-                        achievementToastPresenter.dismissActiveUnlock(id: item.id)
+                        milestoneToastPresenter.dismissActiveItem(id: item.id)
                     },
-                    onOpen: {
-                        selectedAchievementToastAward = item.award
+                    onOpenAchievement: { award in
+                        selectedAchievementToastAward = award
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

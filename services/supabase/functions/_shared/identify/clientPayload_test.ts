@@ -1,6 +1,9 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 
-import { hydratePayloadFromCachedSpecies } from "./clientPayload.ts";
+import {
+  hydratePayloadFromCachedSpecies,
+  isNewToMerianDictionary,
+} from "./clientPayload.ts";
 import { CachedSpeciesRow, ClientPayload } from "./types.ts";
 
 Deno.test("hydratePayloadFromCachedSpecies injects cached taxonomy and habitat fields", () => {
@@ -44,7 +47,10 @@ Deno.test("hydratePayloadFromCachedSpecies injects cached taxonomy and habitat f
 
   assertEquals(hydrated.common_name, "Monarch Butterfly");
   assertEquals(hydrated.alternative_common_names, ["Milkweed Butterfly"]);
-  assertEquals(hydrated.reference_image_url, "https://example.com/reference.webp");
+  assertEquals(
+    hydrated.reference_image_url,
+    "https://example.com/reference.webp",
+  );
   assertEquals(hydrated.wikipedia_url, "https://example.com/wiki");
   assertEquals(hydrated.wikipedia_overview, "A migratory milkweed butterfly.");
   assertEquals(hydrated.taxonomy?.genus, "Danaus");
@@ -107,4 +113,30 @@ Deno.test("hydratePayloadFromCachedSpecies falls back safely when optional cache
   assertEquals(hydrated.species_insights, undefined);
   assertEquals(hydrated.group_tags, undefined);
   assertEquals(hydrated.gbif_taxon_key, undefined);
+});
+
+Deno.test("isNewToMerianDictionary is true only for biological dictionary misses", () => {
+  const cachedSpecies: CachedSpeciesRow = {
+    id: "species-existing",
+    common_names: null,
+    alternative_common_names: null,
+    kingdom: null,
+    phylum: null,
+    class: null,
+    order: null,
+    family: null,
+    genus: null,
+    wikipedia_overview: null,
+    hazard_type: null,
+    reference_image_url: null,
+    wikipedia_url: null,
+    iucn_red_list_status: null,
+    habitat_description: null,
+    gbif_taxon_key: null,
+    group_tags: null,
+  };
+
+  assertEquals(isNewToMerianDictionary(true, null), true);
+  assertEquals(isNewToMerianDictionary(true, cachedSpecies), false);
+  assertEquals(isNewToMerianDictionary(false, null), false);
 });

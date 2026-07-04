@@ -21,11 +21,9 @@ extension InsightSheetViewModel {
             UIAccessibility.post(notification: .announcement, argument: announcement)
         }
 
-        if let data = inferenceEngine.speciesData, data.isNewDiscovery {
-            let lowerName = data.commonName.lowercased()
-            if data.isBiological && lowerName != "not applicable" && lowerName != "unknown subject" && lowerName != "inanimate object" {
-                state.showCelebration = true
-            }
+        if shouldPresentNewToMerianMilestone(for: inferenceEngine.speciesData) {
+            state.hasPresentedNewToMerianMilestone = true
+            MilestoneToastPresenter.shared.enqueueNewToMerianMilestone()
         }
     }
 
@@ -38,12 +36,7 @@ extension InsightSheetViewModel {
         // Re-evaluate celebration and VoiceOver now that data has arrived.
         evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
         if let data = inferenceEngine.speciesData {
-            let lowerName = data.commonName.lowercased()
-            let isValidCelebration = data.isNewDiscovery && data.isBiological
-                && lowerName != "not applicable"
-                && lowerName != "unknown subject"
-                && lowerName != "inanimate object"
-            if !isValidCelebration {
+            if !isValidNewToMerianMilestone(data) {
                 HapticManager.shared.triggerSheetSpring()
             }
             
@@ -70,5 +63,19 @@ extension InsightSheetViewModel {
                 }
             }
         }
+    }
+
+    private func shouldPresentNewToMerianMilestone(for data: SpeciesData?) -> Bool {
+        guard !state.hasPresentedNewToMerianMilestone, let data else { return false }
+        return isValidNewToMerianMilestone(data)
+    }
+
+    private func isValidNewToMerianMilestone(_ data: SpeciesData) -> Bool {
+        let lowerName = data.commonName.lowercased()
+        return data.isNewToMerianDictionary
+            && data.isBiological
+            && lowerName != "not applicable"
+            && lowerName != "unknown subject"
+            && lowerName != "inanimate object"
     }
 }

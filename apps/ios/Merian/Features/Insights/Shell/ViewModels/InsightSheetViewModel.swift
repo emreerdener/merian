@@ -52,7 +52,7 @@ final class InsightSheetViewModel {
 
     // MARK: - Interface State
     struct UIState: Equatable {
-        var showCelebration = false
+        var hasPresentedNewToMerianMilestone = false
         var showBottomBarTools = false
         var isCommonNameScrolledPast = false
         var isFieldNotesSheetPresented = false

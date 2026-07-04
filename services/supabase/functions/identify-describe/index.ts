@@ -47,6 +47,7 @@ import {
   upsertGhostUserIfMissing,
   upsertSpeciesDictionary,
 } from "./db.ts";
+import { isNewToMerianDictionary } from "../_shared/identify/clientPayload.ts";
 
 // Text-only model configs — no image parts, so thinking budgets are smaller.
 // Flash text calls for describes are less ambiguous than vision (the user already
@@ -402,6 +403,8 @@ Deno.serve((req: Request) =>
 
     if (isIdentifiedBio) {
       cachedSpecies = fetchedCachedSpecies;
+      payloadReadyForClient.is_new_to_merian_dictionary =
+        isNewToMerianDictionary(isIdentifiedBio, cachedSpecies);
       let staticData: StaticSpeciesData = { hazard_type: "none" };
 
       if (cachedSpecies?.kingdom) {

@@ -17,45 +17,70 @@ struct AchievementToastPresenterTests {
     @Test func previewAchievementUnlockPresentsWithoutPersistingUnlock() {
         UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
 
-        AchievementToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticCat))
+        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticCat))
 
-        #expect(AchievementToastPresenter.shared.activeUnlock?.award.type == .domesticCat)
-        #expect(AchievementToastPresenter.shared.activeUnlock?.source == .preview)
+        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticCat)
+        #expect(MilestoneToastPresenter.shared.activeItem?.source == .preview)
         #expect(GamificationManager.shared.unlockedAchievements.isEmpty)
         #expect(UserDefaults.standard.stringArray(forKey: unlockedAchievementsKey) == nil)
     }
 
     @Test func queuedAchievementUnlocksPresentFIFO() {
-        AchievementToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticCat))
-        AchievementToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticDog))
-        AchievementToastPresenter.shared.previewAchievementUnlock(completedAward(.nocturnal))
+        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticCat))
+        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticDog))
+        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.nocturnal))
 
-        #expect(AchievementToastPresenter.shared.activeUnlock?.award.type == .domesticCat)
-        #expect(AchievementToastPresenter.shared.queuedUnlockCount == 2)
+        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticCat)
+        #expect(MilestoneToastPresenter.shared.queuedItemCount == 2)
 
-        let firstID = AchievementToastPresenter.shared.activeUnlock?.id
-        AchievementToastPresenter.shared.dismissActiveUnlock(id: firstID)
+        let firstID = MilestoneToastPresenter.shared.activeItem?.id
+        MilestoneToastPresenter.shared.dismissActiveItem(id: firstID)
 
-        #expect(AchievementToastPresenter.shared.activeUnlock?.award.type == .domesticDog)
-        #expect(AchievementToastPresenter.shared.queuedUnlockCount == 1)
+        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticDog)
+        #expect(MilestoneToastPresenter.shared.queuedItemCount == 1)
 
-        let secondID = AchievementToastPresenter.shared.activeUnlock?.id
-        AchievementToastPresenter.shared.dismissActiveUnlock(id: secondID)
+        let secondID = MilestoneToastPresenter.shared.activeItem?.id
+        MilestoneToastPresenter.shared.dismissActiveItem(id: secondID)
 
-        #expect(AchievementToastPresenter.shared.activeUnlock?.award.type == .nocturnal)
-        #expect(AchievementToastPresenter.shared.queuedUnlockCount == 0)
+        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .nocturnal)
+        #expect(MilestoneToastPresenter.shared.queuedItemCount == 0)
 
-        let thirdID = AchievementToastPresenter.shared.activeUnlock?.id
-        AchievementToastPresenter.shared.dismissActiveUnlock(id: thirdID)
+        let thirdID = MilestoneToastPresenter.shared.activeItem?.id
+        MilestoneToastPresenter.shared.dismissActiveItem(id: thirdID)
 
-        #expect(AchievementToastPresenter.shared.activeUnlock == nil)
+        #expect(MilestoneToastPresenter.shared.activeItem == nil)
+    }
+
+    @Test func mixedMilestoneQueuePresentsFIFO() {
+        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticCat))
+        MilestoneToastPresenter.shared.previewNewToMerianMilestone()
+        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticDog))
+
+        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticCat)
+        #expect(MilestoneToastPresenter.shared.queuedItemCount == 2)
+
+        let firstID = MilestoneToastPresenter.shared.activeItem?.id
+        MilestoneToastPresenter.shared.dismissActiveItem(id: firstID)
+
+        guard case .dictionary(let milestone) = MilestoneToastPresenter.shared.activeItem?.payload else {
+            Issue.record("Expected New to Merian milestone to present second")
+            return
+        }
+
+        #expect(milestone == .newToMerian)
+        #expect(MilestoneToastPresenter.shared.queuedItemCount == 1)
+
+        let secondID = MilestoneToastPresenter.shared.activeItem?.id
+        MilestoneToastPresenter.shared.dismissActiveItem(id: secondID)
+
+        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticDog)
     }
 
     @Test func completedAchievementUnlockEnqueuesToastWhenAchievementNotificationsAreEnabled() {
         GamificationManager.shared.evaluateAchievementsForNotifications(awards: [completedAward(.domesticDog)])
 
-        #expect(AchievementToastPresenter.shared.activeUnlock?.award.type == .domesticDog)
-        #expect(AchievementToastPresenter.shared.activeUnlock?.source == .unlock)
+        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticDog)
+        #expect(MilestoneToastPresenter.shared.activeItem?.source == .unlock)
         #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticDog))
     }
 
@@ -64,8 +89,24 @@ struct AchievementToastPresenterTests {
 
         GamificationManager.shared.evaluateAchievementsForNotifications(awards: [completedAward(.domesticCat)])
 
-        #expect(AchievementToastPresenter.shared.activeUnlock == nil)
+        #expect(MilestoneToastPresenter.shared.activeItem == nil)
         #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticCat))
+    }
+
+    @Test func previewNewToMerianMilestonePresentsWithoutPersistingUnlock() {
+        UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
+
+        MilestoneToastPresenter.shared.previewNewToMerianMilestone()
+
+        guard case .dictionary(let milestone) = MilestoneToastPresenter.shared.activeItem?.payload else {
+            Issue.record("Expected New to Merian milestone")
+            return
+        }
+
+        #expect(milestone == .newToMerian)
+        #expect(MilestoneToastPresenter.shared.activeItem?.source == .preview)
+        #expect(GamificationManager.shared.unlockedAchievements.isEmpty)
+        #expect(UserDefaults.standard.stringArray(forKey: unlockedAchievementsKey) == nil)
     }
 
     private func completedAward(_ type: AchievementType) -> AwardPayload {

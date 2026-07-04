@@ -332,9 +332,7 @@ private extension InsightSheetView {
             .merianSystemFeedback(
                 toastMessage: $viewModel.state.toastMessage,
                 toastActionTitle: $viewModel.toastActionTitle,
-                toastAction: toastActionBinding,
-                showCelebration: $viewModel.state.showCelebration,
-                commonNameForCelebration: inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
+                toastAction: toastActionBinding
             )
             .ignoresSafeArea(edges: .top)
     }

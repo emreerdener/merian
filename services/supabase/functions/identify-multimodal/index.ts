@@ -29,7 +29,10 @@ import {
   MultimodalPayload,
   VisualMediaItemDTO,
 } from "../_shared/identify/types.ts";
-import { hydratePayloadFromCachedSpecies } from "../_shared/identify/clientPayload.ts";
+import {
+  hydratePayloadFromCachedSpecies,
+  isNewToMerianDictionary,
+} from "../_shared/identify/clientPayload.ts";
 import {
   fetchCachedSpecies,
   fetchCandidateCommonNames,
@@ -862,6 +865,8 @@ Deno.serve((req: Request) =>
 
     if (isIdentifiedBio) {
       cachedSpecies = fetchedCachedSpecies;
+      payloadReadyForClient.is_new_to_merian_dictionary =
+        isNewToMerianDictionary(isIdentifiedBio, cachedSpecies);
 
       if (cachedSpecies && normalizeTaxonomyValue(cachedSpecies.kingdom)) {
         payloadReadyForClient = hydratePayloadFromCachedSpecies(

@@ -9,21 +9,22 @@ Powers the interactive `.riv` Rive model rendered by `Terrarium`.
 
 - Logs species discoveries into `$unlockedSpeciesCount`, persistently updating
   `.set(unlocked, forKey:)`.
-- Evaluates novel biological insertions by intercepting `LocalScanRecord`
+- Evaluates local biological insertions by intercepting `LocalScanRecord`
   writes; if a species has never been cached locally, routes an
-  `isNewDiscovery = true` payload to `InsightSheetView`.
-- **Non-Biological Suppression**: Even when `isNewDiscovery = true` is passed
-  downstream, the UI layer filters out non-biological results (e.g.,
-  `not applicable`, `unknown subject`, `inanimate object`) and requires
-  `isBiological == true`. This prevents the app from triggering a discovery
-  celebration for scans of gravel, car tires, or blurry floors.
-- Drives `CelebrationBanner`
-  (`Features/Insights/Shared/Banners/CelebrationBanner.swift`) — when a
-  biologically validated new discovery arrives,
-  `InsightSheetViewModel.evaluateVoiceOverAndCelebration` checks
-  `isNewDiscovery && isBiological` and sets `showCelebration = true`, triggering
-  the confetti overlay. VoiceOver users receive an accessibility announcement
-  instead.
+  `isNewDiscovery = true` payload for local stats, persona, firefly progress,
+  and achievement recalculation.
+- **Local vs. global discovery split**: `isNewDiscovery` means "new to this
+  user" and is intentionally not the user-facing celebration signal.
+  `is_new_to_merian_dictionary` comes from the identify Edge payload when a
+  biological scan adds a species that was not already in Merian's shared
+  `species_dictionary`.
+- Drives the shared `MilestoneToastPresenter` for in-app milestone UX.
+  Achievement unlocks enter from
+  `GamificationManager.evaluateAchievementsForNotifications(awards:)`.
+  `New to Merian` dictionary milestones enter from
+  `InsightSheetViewModel.evaluateVoiceOverAndCelebration` only when
+  `SpeciesData.isNewToMerianDictionary == true` for a valid biological subject.
+  The old local `CelebrationBanner` confetti overlay has been removed.
 - Triggers `HapticManager.shared.triggerSelectionPulse()` when an achievement
   (`hasFireflyBadge`) activates after 5 taxonomic finds.
 - Consumed via `AppDIContainer.shared.gamificationManager` inside
@@ -58,6 +59,10 @@ conditions, and citizen science impact:
   - **The Conservationist**: Documenting species protected by the IUCN Red List.
   - **The Perfect Lens**: Capturing imagery with a `0.98+` Vision Confidence
     Score.
+  - **The Feline Friend**: First domestic cat scan, including accepted
+    scientific-name aliases.
+  - **The Canine Companion**: First domestic dog scan, including accepted
+    scientific-name aliases.
 
 ### Why Achievements are NOT Tracked in the Database
 

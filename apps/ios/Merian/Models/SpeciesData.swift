@@ -153,6 +153,7 @@ struct SpeciesData {
     let ecologyType: String
     var taxonomy: TaxonomyData?
     var isNewDiscovery: Bool = false
+    var isNewToMerianDictionary: Bool = false
 
     // Context metadata from the scan session.
     var locationName: String?
@@ -184,8 +185,8 @@ struct SpeciesData {
 
     /// All known English vernacular synonyms beyond `commonName`.
     /// Sourced from GBIF vernacular names on first enrichment; served from the
-    /// species_dictionary cache on subsequent cache hits. Nil on the first-ever
-    /// scan of a new species (enrichment hasn't completed yet).
+    /// species_dictionary cache on subsequent cache hits. Do not use absence as a
+    /// novelty signal; use `isNewToMerianDictionary`.
     var alternativeCommonNames: [String]?
     var petIdentification: PetIdentification?
 
@@ -299,6 +300,7 @@ extension SpeciesData {
         self.invasiveConfidence = edgeRes.invasive_confidence
         self.ecologyType = edgeRes.ecology_type ?? "unknown"
         self.taxonomy = taxonomyData
+        self.isNewToMerianDictionary = edgeRes.is_new_to_merian_dictionary ?? false
         self.locationName = locationName
         self.weatherCondition = weatherCondition
         self.weatherTemperatureF = weatherTemperatureF
@@ -362,6 +364,7 @@ extension SpeciesData {
         invasiveConfidence: Double? = nil,
         ecologyType: String = "unknown",
         taxonomy: TaxonomyData? = nil,
+        isNewToMerianDictionary: Bool = false,
         locationName: String? = nil,
         weatherCondition: String? = nil,
         weatherTemperatureF: Double? = nil,
@@ -413,6 +416,7 @@ extension SpeciesData {
         self.invasiveConfidence = invasiveConfidence
         self.ecologyType = ecologyType
         self.taxonomy = taxonomy
+        self.isNewToMerianDictionary = isNewToMerianDictionary
         self.locationName = locationName
         self.weatherCondition = weatherCondition
         self.weatherTemperatureF = weatherTemperatureF

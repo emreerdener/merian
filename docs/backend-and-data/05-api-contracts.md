@@ -494,6 +494,17 @@ labels prefer visible coat pattern or body type unless a true breed is visually
 supported. Clients can use the label for Insight, search, sharing, and Explore
 display, while `common_name` and `scientific_name` remain authoritative.
 
+**`is_new_to_merian_dictionary` source**: The biological identify routes
+(`/identify`, `/identify-multimodal`, `/identify-describe`, and `/audio-spec`)
+return this boolean in the client payload. It is `true` only when the scan is a
+biological subject and the initial `species_dictionary` lookup found no existing
+row for the normalized scientific name. iOS decodes the field as
+`SpeciesData.isNewToMerianDictionary` and uses it to show the top in-app
+`New to Merian` milestone notification. Do not infer global dictionary novelty
+from missing enrichment fields such as `alternative_common_names`; cache gaps,
+GBIF gaps, and partial rows are not milestone signals. Existing dictionary rows
+with incomplete taxonomy/enrichment are still treated as not new to Merian.
+
 **Critical Edge Limitation (Gemini 2.5):** The model returns `400 Bad Request`
 when enum fields include descriptive strings. `ecology_type` must be formatted
 as a structural JSON `enum: ["wild", "urban", "domesticated", "unknown"]`
@@ -504,6 +515,7 @@ constraint in the Deno schema.
   "scan_id": "Generated via crypto.randomUUID() on Deno Edge",
   "is_biological_subject": true,
   "is_live_capture": true,
+  "is_new_to_merian_dictionary": false,
   "ecology_type": "wild",
   "scientific_name": "Danaus plexippus",
   "common_name": "Monarch Butterfly",
@@ -635,12 +647,12 @@ inside Cloudflare R2, and the CDN URL
 (`https://media.merian.app/public_uploads/...`) is stored in
 `scans.image_storage_urls`. For the `imageBase64s` path, the bytes are uploaded
 directly to the public destination without a staging step. Safe video media is
-moderated through sampled frames, then the staged `.mp4` is promoted separately
-and persisted in `scans.video_storage_urls`. Any image promotion failure aborts
+moderated through sampled frames, then the staged compressed playback `.mp4` is
+promoted separately and persisted in `scans.video_storage_urls`. Any image promotion failure aborts
 the entire batch and immediately rolls back any already-promoted public objects
 from that same batch before returning `ERROR`; scans are not inserted with
 partial image arrays. Video promotion failure leaves the sampled frame imagery
-usable while the failed staged video is cleaned up.
+usable while the failed staged playback video is cleaned up.
 
 **Moderation failure handling**: If Gemini's `finishReason === "SAFETY"` or any
 `safetyRating.probability` is `"MEDIUM"` or `"HIGH"`, the staging object is
@@ -2700,7 +2712,7 @@ ordered compositions of images, audio, and descriptive context.
   inline, from R2 staging, or as extracted audio from a video scan.
 - Video scans send ordered sampled frames through the image payload path,
   extracted accompanying audio through the audio payload path when available,
-  and stage the raw `.mp4` in `videoR2ObjectKeys`. New clients send
+  and stage the compressed playback `.mp4` in `videoR2ObjectKeys`. New clients send
   `visualMediaItems` (or snake-case `visual_media_items`) with one entry per
   resolved visual input so the prompt can distinguish still photos from ordered
   `video_frame` samples by `clipIndex` and `frameIndex`; `audioMediaItems` (or
@@ -2708,8 +2720,9 @@ ordered compositions of images, audio, and descriptive context.
   `clipIndex`. If the visual metadata count does not match the resolved image
   count, the edge ignores it and falls back to the legacy `videoFrameCount` hint;
   if the audio metadata count does not match the resolved audio buffer count,
-  the prompt treats the audio as ordinary standalone audio. The raw clip is
-  promoted only after those frames pass moderation.
+  the prompt treats the audio as ordinary standalone audio. The playback clip is
+  promoted only after those frames pass moderation and is not used as Gemini
+  inference or reference-media input.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use

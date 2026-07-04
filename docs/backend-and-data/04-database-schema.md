@@ -721,8 +721,8 @@ The transaction log for every successful identification.
   after moderation. Video scans still keep image-based sampled frames and cover
   thumbnails here.
 - `video_storage_urls` (Text Array): Public Cloudflare video links for promoted
-  short `.mp4` scan clips. The AI receives sampled frames and optional extracted
-  accompanying audio, not these raw public video URLs.
+  compressed playback `.mp4` scan clips. The AI receives sampled frames and
+  optional extracted accompanying audio, not these public playback URLs.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` for
@@ -1034,7 +1034,7 @@ migration `20260703130000_add_explore_post_media.sql`.
 - `post_id` (UUID FK -> `explore_posts.id`, CASCADE DELETE): The owning public
   post.
 - `kind` (TEXT): `image` or `video`.
-- `url` (TEXT): Public CDN URL for the image or video object.
+- `url` (TEXT): Public CDN URL for the image or compressed playback video object.
 - `thumbnail_url` (TEXT, nullable): Public image thumbnail for video playback
   and compact previews. Video posts require a thumbnail when shared.
 - `order_index` (INT): Stable carousel ordering within the post.

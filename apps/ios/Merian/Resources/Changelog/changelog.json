@@ -2,6 +2,45 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-04-new-to-merian-milestone",
+      "date": "2026-07-04",
+      "title": "New to Merian milestones",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Insight now uses a richer milestone banner when a scan adds a species to Merian's shared species dictionary."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-04-video-recording-stop-crash",
+      "date": "2026-07-04",
+      "title": "Video recording reliability",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Fixed a crash that could happen after tapping stop on a Pro video recording while Merian extracted the clip's audio."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-04-video-playback-compression",
+      "date": "2026-07-04",
+      "title": "Video storage efficiency",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Saved Pro video clips are now compressed for lighter scan-library playback, Explore sharing, and cloud storage while AI analysis still samples frames from the original recording."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-04-audio-recording-auto-submit",
       "date": "2026-07-04",
       "title": "Audio recording submission",
@@ -74,7 +113,7 @@
         {
           "title": "Improved",
           "items": [
-            "Photo captures and video recording starts now use a stronger, prewarmed haptic cue, and video recording begins faster after a shorter sustained hold."
+            "Photo captures and video recording starts now use a stronger, prewarmed haptic cue, and video recording begins almost immediately after a brief hold."
           ]
         }
       ]
@@ -139,7 +178,7 @@
         {
           "title": "Added",
           "items": [
-            "Pro users can now hold the visual shutter for 0.75 seconds to record a short video scan, with saved playback and image-based thumbnails.",
+            "Pro users can now briefly hold the visual shutter to record a short video scan, with saved playback and image-based thumbnails.",
             "Video recording now gives clearer haptic feedback when recording starts, finishes, stages successfully, or fails.",
             "Video scan analysis treats sampled frames and accompanying audio as evidence from the same video.",
             "Video scan media now opens from the Insight carousel into fullscreen playback.",

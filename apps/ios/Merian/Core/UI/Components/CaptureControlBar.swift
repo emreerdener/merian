@@ -141,11 +141,6 @@ struct CaptureControlBar: View {
                             }
                         }
                     },
-                    onVisualPressBegan: {
-                        Task {
-                            await viewModel.prepareVideoCapture()
-                        }
-                    },
                     onVisualLongPressStart: {
                         viewModel.startVideoCapture()
                     }
@@ -211,7 +206,6 @@ private struct CaptureButton: View {
     let isVideoRecording: Bool
     let videoRecordingProgress: Double
     let onAction: () -> Void
-    let onVisualPressBegan: () -> Void
     let onVisualLongPressStart: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -220,8 +214,7 @@ private struct CaptureButton: View {
     @State private var didTriggerVideoLongPress = false
     @State private var videoLongPressTask: Task<Void, Never>?
 
-    private let videoPreflightDelayNanoseconds: UInt64 = 100_000_000
-    private let videoLatchDelayAfterPreflightNanoseconds: UInt64 = 650_000_000
+    private let videoHoldStartDelayNanoseconds: UInt64 = 180_000_000
 
     private var outerRingColor: Color {
         switch captureMode {
@@ -335,10 +328,7 @@ private struct CaptureButton: View {
 
         videoLongPressTask?.cancel()
         videoLongPressTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: videoPreflightDelayNanoseconds)
-            guard !Task.isCancelled else { return }
-            onVisualPressBegan()
-            try? await Task.sleep(nanoseconds: videoLatchDelayAfterPreflightNanoseconds)
+            try? await Task.sleep(nanoseconds: videoHoldStartDelayNanoseconds)
             guard !Task.isCancelled else { return }
             didTriggerVideoLongPress = true
             onVisualLongPressStart()

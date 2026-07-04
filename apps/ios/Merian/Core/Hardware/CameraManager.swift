@@ -841,16 +841,6 @@ private struct CameraVideoRecordingStartHandler: Sendable {
 
     // MARK: - Video Capture
 
-    func prepareVideoRecording() async {
-        #if !targetEnvironment(simulator)
-        do {
-            _ = try await preparedVideoRecordingAudioAllowed()
-        } catch {
-            MerianLog.hardware.error("Video recording preparation failed: \(error, privacy: .private)")
-        }
-        #endif
-    }
-
     func recordVideo(
         maxDuration: TimeInterval = 5,
         onStarted: (@MainActor @Sendable () -> Void)? = nil

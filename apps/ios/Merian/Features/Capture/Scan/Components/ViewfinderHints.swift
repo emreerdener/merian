@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ViewfinderHints: View {
     @Environment(ViewfinderIntelligence.self) var vui
+    @Environment(RevenueCatManager.self) private var revenueCatManager
     var isRefining: Bool = false
     var isVideoRecording: Bool = false
     var videoRecordingProgress: Double = 0
@@ -20,7 +21,7 @@ struct ViewfinderHints: View {
                     accessibilityPrefix: "Video recording time remaining"
                 )
             } else if showInitialPrompt {
-                Text(isRefining ? "Add another photo" : "Tap to identify. Hold to record video")
+                Text(isRefining ? "Add another" : (revenueCatManager.isProActive ? "Hold to record video" : "Tap to identify"))
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)

@@ -254,7 +254,10 @@ triggering excessive SwiftUI view rebuilds.
   on `onAppear` and clears it on `onDisappear`, so the flag precisely tracks
   insight sheet visibility. When `true`, inference notifications are delivered
   silently via `completionHandler([])` because the user can already see the
-  result. Achievement notifications bypass this flag and are always displayed.
+  result. Native achievement notifications bypass this flag and are always
+  displayed. Foreground in-app milestone banners are separate SwiftUI
+  presentation (`MilestoneToastPresenter` / `MilestoneToastBanner`), not OS
+  notifications, and are not controlled by this delegate path.
   **Both notification call sites (`InferenceEngine` and
   `OfflineQueueManager+URLSession`) schedule notifications unconditionally —
   without any `applicationState != .active` guard.** Foreground suppression is
@@ -375,8 +378,13 @@ triggering excessive SwiftUI view rebuilds.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
   across images, videos, audio clips, and descriptions. Images, video clips, and
   video poster thumbnails are written to `.documentsDirectory` via
-  `FileIOActor`; extracted video-audio WAVs are attached to the video media
-  reference for inference replay rather than displayed as separate audio pages.
+  `FileIOActor`. Pro video captures sample inference frames and extract
+  video-audio WAVs from the original temporary recording, then stage a compressed
+  network-optimized 720p playback `.mp4` for local review, scan-library playback,
+  Explore sharing, and cloud storage. Extracted video-audio WAVs are exported into
+  Documents with `AVAssetReader` + `AVAssetWriter` and attached to the video
+  media reference for inference replay rather than displayed as separate audio
+  pages.
   The queue/database layers derive legacy arrays (`localImagePaths`,
   `localVideoPaths`, `audioFilePaths`, `observationContextsJSON`) from that same
   timeline at the edges. For video, `thumbnailImagePaths` includes the poster for
@@ -1090,10 +1098,29 @@ and `KeychainManager` migration logic. Do not inline
   persisted across sessions.
 - `evaluateAchievementsForNotifications(awards:)` — called after
   `ProfileDatabaseActor.calculateAwards()` completes after every inference.
-  Checks for newly completed awards and queues local push notifications via
-  `PushNotificationManager`.
+  Checks for newly completed awards, persists `unlockedAchievements`, enqueues
+  the shared in-app achievement milestone toast, and queues native local push
+  notifications via `PushNotificationManager` when the achievement notification
+  setting allows it.
 - Full architecture documented in
   [06-profile-and-gamification.md](../features-and-hardware/06-profile-and-gamification.md).
+
+### `MilestoneToastPresenter`
+
+- Lives at `Core/UI/Feedback/AchievementToastPresenter.swift` and is kept under
+  the legacy filename for Xcode/project continuity. It is an
+  `@MainActor @Observable` singleton that owns a FIFO in-app milestone queue.
+- Supports `.achievement(AwardPayload)` for achievement unlocks and
+  `.dictionary(.newToMerian)` for species-dictionary contribution milestones.
+- Production achievement unlocks enter through
+  `GamificationManager.evaluateAchievementsForNotifications(awards:)`.
+  `New to Merian` enters through `InsightSheetViewModel` when
+  `SpeciesData.isNewToMerianDictionary == true`.
+- The presenter controls only in-app banner presentation. It does not mutate
+  achievement progress, dictionary state, analytics, or native notification
+  authorization. DEBUG Settings preview entry points enqueue representative
+  payloads through the same queue while bypassing persistence and OS
+  notifications.
 
 ### `PostHogManager`
 

@@ -216,6 +216,13 @@ struct Preferences: View {
             } label: {
                 Label("Preview long achievement toast", systemImage: "moon.stars.fill")
             }
+
+            Button {
+                MilestoneToastPresenter.shared.previewNewToMerianMilestone()
+            } label: {
+                Label("Preview New to Merian notification", systemImage: "sparkles")
+            }
+            .accessibilityIdentifier("Settings_PreviewNewToMerianNotification")
             
             Button {
                 showPaywall = true

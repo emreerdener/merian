@@ -1,5 +1,12 @@
 import { CachedSpeciesRow, ClientPayload } from "./types.ts";
 
+export function isNewToMerianDictionary(
+  isIdentifiedBiologicalSubject: boolean,
+  cachedSpecies: CachedSpeciesRow | null,
+): boolean {
+  return isIdentifiedBiologicalSubject && cachedSpecies === null;
+}
+
 function filterAlternativeCommonNames(
   primaryName: string | undefined,
   alternativeCommonNames: string[] | null,
@@ -39,8 +46,8 @@ export function hydratePayloadFromCachedSpecies(
     family: cachedSpecies.family ?? "Unknown",
     genus: cachedSpecies.genus ?? "Unknown",
   };
-  hydrated.iucn_red_list_status =
-    cachedSpecies.iucn_red_list_status ?? "not_evaluated";
+  hydrated.iucn_red_list_status = cachedSpecies.iucn_red_list_status ??
+    "not_evaluated";
   const aiReasoning = hydrated.insight_data?.ai_reasoning ??
     hydrated.ai_reasoning ?? "Reasoning omitted.";
   hydrated.insight_data = {

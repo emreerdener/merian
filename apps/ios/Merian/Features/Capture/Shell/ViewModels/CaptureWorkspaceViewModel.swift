@@ -574,7 +574,10 @@ final class CaptureWorkspaceViewModel {
         let removedVideo = stagedCapture.videos.remove(at: index)
         try? FileManager.default.removeItem(at: URL(fileURLWithPath: removedVideo.filePath))
         if let audioFilePath = removedVideo.audioFilePath {
-            try? FileManager.default.removeItem(at: URL(fileURLWithPath: audioFilePath))
+            let audioURL = audioFilePath.hasPrefix("/")
+                ? URL(fileURLWithPath: audioFilePath)
+                : URL.documentsDirectory.appendingPathComponent(audioFilePath)
+            try? FileManager.default.removeItem(at: audioURL)
         }
     }
 

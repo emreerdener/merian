@@ -28,6 +28,7 @@ import {
   sanitizeObservationEvidence,
   sanitizeSex,
 } from "../_shared/identify/context.ts";
+import { isNewToMerianDictionary } from "../_shared/identify/clientPayload.ts";
 import {
   MEDIA_BUDGETS,
   readRequestJsonWithinBudget,
@@ -40,6 +41,7 @@ import {
   AudioIdentification,
 } from "./types.ts";
 import {
+  CachedSpeciesRow,
   fetchCachedSpecies,
   insertScan,
   updateGroupTags,
@@ -411,6 +413,9 @@ Deno.serve((req: Request) =>
 
     const isIdentifiedBio =
       !!(parsedData.is_biological_subject && parsedData.scientific_name);
+    const cachedSpecies: CachedSpeciesRow | null = isIdentifiedBio
+      ? await fetchCachedSpecies(parsedData.scientific_name!, supabaseAdmin)
+      : null;
 
     // Strip candidates when confidence meets the diagnostic trigger threshold
     const forwardCandidates =
@@ -436,6 +441,10 @@ Deno.serve((req: Request) =>
       sex_confidence: parsedData.sex_confidence,
       sex_evidence: parsedData.sex_evidence,
       inference_tier: userTier === "pro" ? "pro" : "flash",
+      is_new_to_merian_dictionary: isNewToMerianDictionary(
+        isIdentifiedBio,
+        cachedSpecies,
+      ),
       candidates: forwardCandidates,
     };
 
@@ -453,16 +462,9 @@ Deno.serve((req: Request) =>
         await upsertGhostUserIfMissing(user.id, supabaseAdmin);
 
         let speciesId: string | null = null;
-        let cachedSpecies = null;
-
         const needsGroupTags = isIdentifiedBio;
 
         if (isIdentifiedBio) {
-          cachedSpecies = await fetchCachedSpecies(
-            parsedData.scientific_name!,
-            supabaseAdmin,
-          );
-
           if (cachedSpecies?.kingdom) {
             // Cache hit: serve taxonomy and species metadata
             speciesId = cachedSpecies.id;

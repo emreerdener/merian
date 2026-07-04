@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import Merian
+import Testing
 
 struct SpeciesDataTests {
 
@@ -75,6 +75,72 @@ struct SpeciesDataTests {
 
         // Assert
         #expect(species.isNewDiscovery == true, "isNewDiscovery should be fully mutable explicitly bridging state payloads")
+    }
+
+    @Test func edgeResponseMapsNewToMerianDictionaryFlag() throws {
+        let json = Data("""
+        {
+          "success": true,
+          "data": {
+            "scan_id": "scan_new_dictionary",
+            "is_biological_subject": true,
+            "is_live_capture": true,
+            "scientific_name": "Danaus plexippus",
+            "common_name": "Monarch Butterfly",
+            "confidence_score": 0.97,
+            "ecology_type": "wild",
+            "is_new_to_merian_dictionary": true,
+            "insight_data": {
+              "ai_reasoning": "Orange wings with black veins.",
+              "hazard_type": "none"
+            }
+          }
+        }
+        """.utf8)
+
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: json)
+        let species = SpeciesData(
+            fromEdgeResponse: wrapper.data,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil
+        )
+
+        #expect(species.isNewToMerianDictionary == true)
+        #expect(species.isNewDiscovery == false)
+    }
+
+    @Test func edgeResponseDefaultsNewToMerianDictionaryFlagToFalse() throws {
+        let json = Data("""
+        {
+          "success": true,
+          "data": {
+            "scan_id": "scan_cached_dictionary",
+            "is_biological_subject": true,
+            "is_live_capture": true,
+            "scientific_name": "Danaus plexippus",
+            "common_name": "Monarch Butterfly",
+            "confidence_score": 0.97,
+            "ecology_type": "wild",
+            "alternative_common_names": null,
+            "insight_data": {
+              "ai_reasoning": "Orange wings with black veins.",
+              "hazard_type": "none"
+            }
+          }
+        }
+        """.utf8)
+
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: json)
+        let species = SpeciesData(
+            fromEdgeResponse: wrapper.data,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil
+        )
+
+        #expect(species.isNewToMerianDictionary == false)
+        #expect(species.alternativeCommonNames == nil)
     }
 
     // MARK: - Premium Insights: default nil state
@@ -346,7 +412,7 @@ struct SpeciesDataTests {
     }
 
     @Test func testSimilarSpeciesEntryDecodesLegacyBlobWithoutRelationMetadata() throws {
-        let data = """
+        let data = Data("""
         [
             {
                 "scientificName": "Bassariscus astutus",
@@ -355,7 +421,7 @@ struct SpeciesDataTests {
                 "iucnRedListStatus": null
             }
         ]
-        """.data(using: .utf8)!
+        """.utf8)
 
         let decoded = try JSONDecoder().decode([SimilarSpeciesEntry].self, from: data)
 

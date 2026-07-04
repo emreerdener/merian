@@ -197,6 +197,7 @@ export interface ClientPayload extends MerianIdentification {
   wikipedia_url?: string | null;
   wikipedia_overview?: string | null;
   group_tags?: string[] | null;
+  is_new_to_merian_dictionary?: boolean;
   gbif_taxon_key?: number | null;
   taxonomy?: Record<string, string>;
   iucn_red_list_status?: string;
@@ -211,7 +212,7 @@ export interface ClientPayload extends MerianIdentification {
   /// All known English vernacular synonyms for this species beyond the primary canonical name.
   /// Sourced from GBIF vernacular names on first enrichment; served from species_dictionary cache on
   /// subsequent hits. The primary common_name is always excluded from this array.
-  /// Nil on first-ever scan of a new species (enrichment hasn't completed yet).
+  /// Do not use absence as a novelty signal; use `is_new_to_merian_dictionary`.
   alternative_common_names?: string[] | null;
 }
 

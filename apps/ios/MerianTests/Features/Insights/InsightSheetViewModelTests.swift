@@ -99,6 +99,55 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.headerSubtitle == "Domestic Dog • Canis lupus familiaris")
     }
 
+    @Test func localNewDiscoveryDoesNotShowNewToMerianMilestone() {
+        MilestoneToastPresenter.shared.resetForTesting()
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        var species = milestoneTestSpecies()
+        species.isNewDiscovery = true
+        species.isNewToMerianDictionary = false
+        engine.speciesData = species
+
+        viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: engine)
+
+        #expect(MilestoneToastPresenter.shared.activeItem == nil)
+        #expect(viewModel.state.hasPresentedNewToMerianMilestone == false)
+    }
+
+    @Test func globalDictionaryContributionShowsNewToMerianMilestone() {
+        MilestoneToastPresenter.shared.resetForTesting()
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        var species = milestoneTestSpecies()
+        species.isNewDiscovery = false
+        species.isNewToMerianDictionary = true
+        engine.speciesData = species
+
+        viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: engine)
+
+        guard case .dictionary(let milestone) = MilestoneToastPresenter.shared.activeItem?.payload else {
+            Issue.record("Expected New to Merian milestone")
+            return
+        }
+
+        #expect(milestone == .newToMerian)
+        #expect(viewModel.state.hasPresentedNewToMerianMilestone == true)
+    }
+
+    @Test func invalidDictionaryContributionDoesNotShowNewToMerianMilestone() {
+        MilestoneToastPresenter.shared.resetForTesting()
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        var species = milestoneTestSpecies(commonName: "Unknown Subject", isBiological: true)
+        species.isNewToMerianDictionary = true
+        engine.speciesData = species
+
+        viewModel.evaluateVoiceOverAndCelebration(inferenceEngine: engine)
+
+        #expect(MilestoneToastPresenter.shared.activeItem == nil)
+        #expect(viewModel.state.hasPresentedNewToMerianMilestone == false)
+    }
+
     @Test func testNonBiologicalHeaderTitleUsesFriendlyDisplayName() {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()
@@ -116,6 +165,23 @@ struct InsightSheetViewModelTests {
         viewModel.inferenceEngine = engine
 
         #expect(viewModel.resolvedHeaderTitle == "Non-biological")
+    }
+
+    private func milestoneTestSpecies(
+        commonName: String = "Monarch Butterfly",
+        isBiological: Bool = true
+    ) -> SpeciesData {
+        SpeciesData(
+            scanId: "milestone_scan",
+            commonName: commonName,
+            scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "Orange wings with black veins.", hazardType: "none"),
+            confidenceScore: 0.97,
+            isBiological: isBiological,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
     }
 
     @Test func testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates() {

@@ -39,6 +39,12 @@ enum MerianConfig {
     static let audioPayloadMaxBytes = 2_700_000
     /// Maximum compressed video bytes accepted for a saved Pro micro-clip.
     static let videoPayloadMaxBytes = 12 * 1024 * 1024
+    /// Target long edge for saved Pro micro-clip playback videos. 1280 px yields
+    /// a standard 720p frame after preserving the camera track orientation.
+    static let videoPlaybackLongEdgeMaxPixels = 1280
+    /// Client-side storage target for compressed Pro micro-clips. The existing
+    /// `videoPayloadMaxBytes` remains the hard upload compatibility ceiling.
+    static let videoPlaybackExpectedMaxBytes = 3 * 1024 * 1024
 
     // MARK: - Historical Sync Pagination
 

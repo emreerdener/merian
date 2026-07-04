@@ -6,12 +6,10 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
     @Binding var toastMessage: String?
     @Binding var toastActionTitle: String?
     @Binding var toastAction: (() -> Void)?
-    @Binding var showCelebration: Bool
-    var commonNameForCelebration: String
     var toastAlignment: SwiftUI.Alignment
     var showsAchievementToasts: Bool
 
-    @State private var achievementToastPresenter = AchievementToastPresenter.shared
+    @State private var milestoneToastPresenter = MilestoneToastPresenter.shared
     @State private var selectedAchievementToastAward: AwardPayload?
 
     func body(content: Content) -> some SwiftUI.View {
@@ -70,19 +68,14 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
                 }
             }
 
-            CelebrationBanner(
-                commonName: commonNameForCelebration,
-                showCelebration: $showCelebration
-            )
-
-            if showsAchievementToasts, let item = achievementToastPresenter.activeUnlock {
-                AchievementToastBanner(
+            if showsAchievementToasts, let item = milestoneToastPresenter.activeItem {
+                MilestoneToastBanner(
                     item: item,
                     onDismiss: {
-                        achievementToastPresenter.dismissActiveUnlock(id: item.id)
+                        milestoneToastPresenter.dismissActiveItem(id: item.id)
                     },
-                    onOpen: {
-                        selectedAchievementToastAward = item.award
+                    onOpenAchievement: { award in
+                        selectedAchievementToastAward = award
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -102,8 +95,6 @@ extension View {
         toastMessage: Binding<String?>,
         toastActionTitle: Binding<String?> = .constant(nil),
         toastAction: Binding<(() -> Void)?> = .constant(nil),
-        showCelebration: Binding<Bool> = .constant(false),
-        commonNameForCelebration: String = "",
         toastAlignment: Alignment = .bottom,
         showsAchievementToasts: Bool = true
     ) -> some View {
@@ -111,8 +102,6 @@ extension View {
             toastMessage: toastMessage,
             toastActionTitle: toastActionTitle,
             toastAction: toastAction,
-            showCelebration: showCelebration,
-            commonNameForCelebration: commonNameForCelebration,
             toastAlignment: toastAlignment,
             showsAchievementToasts: showsAchievementToasts
         ))

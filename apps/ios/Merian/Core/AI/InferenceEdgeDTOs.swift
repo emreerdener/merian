@@ -26,6 +26,7 @@ struct EdgeResponse: Codable {
     let blur_score: Double?
     let colors: [String]?
     let group_tags: [String]?
+    let is_new_to_merian_dictionary: Bool?
     
     // Extended Ecological Telemetry
     let estimated_size_cm: Double?
@@ -72,7 +73,7 @@ struct EdgeResponse: Codable {
     let inference_tier: String?
     /// All known English vernacular synonyms beyond the primary canonical common name.
     /// Sourced from GBIF vernacular names endpoint during background enrichment.
-    /// Present on cache hit only; nil on first-ever scan of a new species.
+    /// Do not use absence as a "new to Merian" signal; use `is_new_to_merian_dictionary`.
     /// The primary common_name value is always excluded from this array.
     let alternative_common_names: [String]?
 

@@ -9,9 +9,11 @@ TestFlight, App Store, support, and QA.
 ### Capture
 - Added automatic audio submission when a recording reaches the full time limit and confirm-before-submit is turned off.
 - Added video recording controls so Pro video scans show remaining time, can be canceled before staging, and can be reviewed or removed after staging.
-- Added Pro short video scans from the visual shutter: tap still takes a photo, while a 0.75-second hold latches into a 5-second video recording with saved playback and image-based thumbnails.
+- Added Pro short video scans from the visual shutter: tap still takes a photo, while a brief hold latches into a 5-second video recording with saved playback and image-based thumbnails.
 - Added clearer haptic feedback for video recording start, finish, successful staging, and recording failures.
-- Improved camera shutter feedback so photo captures and video recording start with a stronger, prewarmed haptic cue, and video recording begins faster after a shorter sustained hold.
+- Fixed a crash that could happen after tapping stop on a Pro video recording while Merian extracted the clip's audio.
+- Compressed saved Pro video clips for lighter scan-library playback, Explore sharing, and cloud storage while keeping AI analysis frames sampled from the original recording.
+- Improved camera shutter feedback so photo captures and video recording start with a stronger, prewarmed haptic cue, and video recording begins almost immediately after a brief hold.
 - Updated video scan analysis so sampled frames and accompanying audio are treated as evidence from the same video, and video scans are no longer described as images.
 - Added a Pro paywall carousel slide for video scans and improved feature text wrapping.
 - Added video scans to the Pro paywall comparison table.
@@ -31,6 +33,7 @@ TestFlight, App Store, support, and QA.
 ### Insight Sheet
 - Added fullscreen playback for video scan media from the Insight carousel.
 - Added a Non-biological pill and retention notice to non-biological Insight results so users know the scan lives in the Non-biological collection and will be deleted after 30 days.
+- Replaced the local New discovery pill with a richer New to Merian milestone banner for scans that add a species to the shared species dictionary.
 - Updated video scans so Insight opens the saved clip as the primary media item while scan tiles and previews keep using the poster thumbnail.
 - Fixed pending video scans so playback can resolve the saved local clip immediately after submission.
 - Fixed Overview interactions so longer ecological interaction notes wrap fully instead of truncating.

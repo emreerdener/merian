@@ -7,6 +7,113 @@ private struct PreparedCameraCapture: Sendable {
     let previewCGImage: SendableCGImage
 }
 
+private struct PreparedVideoPlaybackClip: Sendable {
+    let fileURL: URL
+    let isCompressed: Bool
+}
+
+private actor AssetWriterFinisher {
+    private let writer: AVAssetWriter
+
+    init(_ writer: AVAssetWriter) {
+        self.writer = writer
+    }
+
+    func finish() async throws {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                writer.finishWriting { [weak self] in
+                    guard let self else {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
+                    Task {
+                        await self.resolveFinish(continuation: continuation)
+                    }
+                }
+            }
+        } onCancel: {
+            Task {
+                await self.cancel()
+            }
+        }
+    }
+
+    private func resolveFinish(continuation: CheckedContinuation<Void, Error>) {
+        switch writer.status {
+        case .completed:
+            continuation.resume()
+        case .cancelled:
+            continuation.resume(throwing: CancellationError())
+        default:
+            continuation.resume(throwing: writer.error ?? NSError(
+                domain: "CaptureWorkspaceViewModel",
+                code: -21,
+                userInfo: [NSLocalizedDescriptionKey: "Unable to finish writing media."]
+            ))
+        }
+    }
+
+    private func cancel() {
+        writer.cancelWriting()
+    }
+}
+
+private actor AssetExportSessionFinisher {
+    private let session: AVAssetExportSession
+
+    init(_ session: AVAssetExportSession) {
+        self.session = session
+    }
+
+    func export(to outputURL: URL) async throws {
+        if #available(iOS 18.0, *) {
+            try await session.export(to: outputURL, as: .mp4)
+        } else {
+            try await exportLegacy()
+        }
+    }
+
+    private func exportLegacy() async throws {
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                session.exportAsynchronously { [weak self] in
+                    guard let self else {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
+                    Task {
+                        await self.resolveExport(continuation: continuation)
+                    }
+                }
+            }
+        } onCancel: {
+            Task {
+                await self.cancel()
+            }
+        }
+    }
+
+    private func resolveExport(continuation: CheckedContinuation<Void, Error>) {
+        switch session.status {
+        case .completed:
+            continuation.resume()
+        case .cancelled:
+            continuation.resume(throwing: CancellationError())
+        default:
+            continuation.resume(throwing: session.error ?? NSError(
+                domain: "CaptureWorkspaceViewModel",
+                code: -27,
+                userInfo: [NSLocalizedDescriptionKey: "Unable to export compressed video."]
+            ))
+        }
+    }
+
+    private func cancel() {
+        session.cancelExport()
+    }
+}
+
 extension CaptureWorkspaceViewModel {
     static let videoMaxDuration: TimeInterval = 5
 
@@ -118,6 +225,75 @@ extension CaptureWorkspaceViewModel {
         }
     }
 
+    nonisolated private static func prepareVideoPlaybackClip(
+        videoURL: URL
+    ) async throws -> PreparedVideoPlaybackClip {
+        do {
+            let compressedURL = try await compressVideoForPlayback(videoURL: videoURL)
+            let compressedSize = try fileSize(at: compressedURL)
+            guard compressedSize > 0, compressedSize <= MerianConfig.videoPayloadMaxBytes else {
+                try? FileManager.default.removeItem(at: compressedURL)
+                throw NSError(
+                    domain: "CaptureWorkspaceViewModel",
+                    code: -26,
+                    userInfo: [NSLocalizedDescriptionKey: "Compressed video exceeds the upload budget."]
+                )
+            }
+            return PreparedVideoPlaybackClip(fileURL: compressedURL, isCompressed: true)
+        } catch {
+            MerianLog.hardware.error("Video compression failed: \(error, privacy: .private)")
+            let originalSize = try fileSize(at: videoURL)
+            guard originalSize <= MerianConfig.videoPayloadMaxBytes else {
+                throw error
+            }
+            return PreparedVideoPlaybackClip(fileURL: videoURL, isCompressed: false)
+        }
+    }
+
+    nonisolated private static func compressVideoForPlayback(videoURL: URL) async throws -> URL {
+        let asset = AVURLAsset(url: videoURL)
+        guard try await !asset.loadTracks(withMediaType: .video).isEmpty else {
+            throw NSError(
+                domain: "CaptureWorkspaceViewModel",
+                code: -27,
+                userInfo: [NSLocalizedDescriptionKey: "Recorded video has no video track."]
+            )
+        }
+
+        let presetName = MerianConfig.videoPlaybackLongEdgeMaxPixels <= 1280
+            ? AVAssetExportPreset1280x720
+            : AVAssetExportPresetHighestQuality
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: presetName) else {
+            throw NSError(
+                domain: "CaptureWorkspaceViewModel",
+                code: -28,
+                userInfo: [NSLocalizedDescriptionKey: "Unable to prepare compressed video export."]
+            )
+        }
+
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString.lowercased())_video_playback.mp4")
+        try? FileManager.default.removeItem(at: outputURL)
+
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mp4
+        exportSession.shouldOptimizeForNetworkUse = true
+        exportSession.fileLengthLimit = Int64(MerianConfig.videoPlaybackExpectedMaxBytes)
+
+        do {
+            try await AssetExportSessionFinisher(exportSession).export(to: outputURL)
+            return outputURL
+        } catch {
+            try? FileManager.default.removeItem(at: outputURL)
+            throw error
+        }
+    }
+
+    nonisolated private static func fileSize(at url: URL) throws -> Int {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        return (attributes[.size] as? NSNumber)?.intValue ?? 0
+    }
+
     nonisolated private static func extractVideoAudioTrack(videoURL: URL) async -> String? {
         do {
             return try await DetachedWork.value(
@@ -137,78 +313,80 @@ extension CaptureWorkspaceViewModel {
                         try FileManager.default.removeItem(at: outputURL)
                     }
 
-                    let reader = try AVAssetReader(asset: asset)
-                    let outputFormat = AVAudioFormat(
-                        commonFormat: .pcmFormatInt16,
-                        sampleRate: 44_100,
-                        channels: 1,
-                        interleaved: true
-                    )
-                    guard let outputFormat else { return nil }
-
-                    let outputSettings: [String: Any] = [
+                    let audioSettings: [String: Any] = [
                         AVFormatIDKey: kAudioFormatLinearPCM,
-                        AVSampleRateKey: outputFormat.sampleRate,
-                        AVNumberOfChannelsKey: Int(outputFormat.channelCount),
+                        AVSampleRateKey: 44_100,
+                        AVNumberOfChannelsKey: 1,
                         AVLinearPCMBitDepthKey: 16,
                         AVLinearPCMIsFloatKey: false,
                         AVLinearPCMIsBigEndianKey: false,
                         AVLinearPCMIsNonInterleaved: false
                     ]
+                    let reader = try AVAssetReader(asset: asset)
                     let trackOutput = AVAssetReaderTrackOutput(
                         track: audioTrack,
-                        outputSettings: outputSettings
+                        outputSettings: audioSettings
                     )
-                    trackOutput.alwaysCopiesSampleData = false
+                    trackOutput.alwaysCopiesSampleData = true
                     guard reader.canAdd(trackOutput) else { return nil }
                     reader.add(trackOutput)
 
-                    let audioFile = try AVAudioFile(forWriting: outputURL, settings: outputFormat.settings)
-                    guard reader.startReading() else { return nil }
+                    let writer = try AVAssetWriter(outputURL: outputURL, fileType: .wav)
+                    let writerInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
+                    writerInput.expectsMediaDataInRealTime = false
+                    guard writer.canAdd(writerInput) else { return nil }
+                    writer.add(writerInput)
 
-                    while reader.status == .reading, let sampleBuffer = trackOutput.copyNextSampleBuffer() {
-                        let sampleCount = CMSampleBufferGetNumSamples(sampleBuffer)
-                        guard sampleCount > 0 else { continue }
-
-                        var blockBuffer: CMBlockBuffer?
-                        var audioBufferList = AudioBufferList(
-                            mNumberBuffers: 1,
-                            mBuffers: AudioBuffer(
-                                mNumberChannels: outputFormat.channelCount,
-                                mDataByteSize: 0,
-                                mData: nil
-                            )
+                    guard reader.startReading() else {
+                        throw reader.error ?? NSError(
+                            domain: "CaptureWorkspaceViewModel",
+                            code: -22,
+                            userInfo: [NSLocalizedDescriptionKey: "Unable to read video audio."]
                         )
-                        let status = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
-                            sampleBuffer,
-                            bufferListSizeNeededOut: nil,
-                            bufferListOut: &audioBufferList,
-                            bufferListSize: MemoryLayout<AudioBufferList>.size,
-                            blockBufferAllocator: nil,
-                            blockBufferMemoryAllocator: nil,
-                            flags: kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment,
-                            blockBufferOut: &blockBuffer
-                        )
-                        guard status == noErr else { continue }
-
-                        try withUnsafeMutablePointer(to: &audioBufferList) { bufferListPointer in
-                            guard let pcmBuffer = AVAudioPCMBuffer(
-                                pcmFormat: outputFormat,
-                                bufferListNoCopy: bufferListPointer,
-                                deallocator: nil
-                            ) else {
-                                return
-                            }
-                            pcmBuffer.frameLength = AVAudioFrameCount(sampleCount)
-                            try audioFile.write(from: pcmBuffer)
-                        }
-                        _ = blockBuffer
                     }
+                    guard writer.startWriting() else {
+                        throw writer.error ?? NSError(
+                            domain: "CaptureWorkspaceViewModel",
+                            code: -23,
+                            userInfo: [NSLocalizedDescriptionKey: "Unable to write video audio."]
+                        )
+                    }
+                    writer.startSession(atSourceTime: .zero)
+
+                    while reader.status == .reading {
+                        if Task.isCancelled {
+                            reader.cancelReading()
+                            writer.cancelWriting()
+                            throw CancellationError()
+                        }
+                        guard writerInput.isReadyForMoreMediaData else {
+                            try await Task.sleep(for: .milliseconds(5))
+                            continue
+                        }
+                        guard let sampleBuffer = trackOutput.copyNextSampleBuffer() else {
+                            break
+                        }
+                        guard writerInput.append(sampleBuffer) else {
+                            reader.cancelReading()
+                            throw writer.error ?? NSError(
+                                domain: "CaptureWorkspaceViewModel",
+                                code: -24,
+                                userInfo: [NSLocalizedDescriptionKey: "Unable to append video audio."]
+                            )
+                        }
+                    }
+                    writerInput.markAsFinished()
 
                     guard reader.status == .completed else {
-                        try? FileManager.default.removeItem(at: outputURL)
-                        return nil
+                        writer.cancelWriting()
+                        throw reader.error ?? NSError(
+                            domain: "CaptureWorkspaceViewModel",
+                            code: -25,
+                            userInfo: [NSLocalizedDescriptionKey: "Unable to finish reading video audio."]
+                        )
                     }
+
+                    try await AssetWriterFinisher(writer).finish()
 
                     let attributes = try FileManager.default.attributesOfItem(atPath: outputURL.path)
                     guard (attributes[.size] as? NSNumber)?.intValue ?? 0 > 0 else {
@@ -323,17 +501,6 @@ extension CaptureWorkspaceViewModel {
         }
     }
 
-    func prepareVideoCapture() async {
-        guard activeSheet == nil,
-              !isCapturing,
-              !isVideoRecording,
-              hasAvailableStagedCaptureSlot,
-              imageToCrop == nil,
-              diContainer.revenueCatManager.isProActive else { return }
-
-        await diContainer.cameraManager.prepareVideoRecording()
-    }
-
     func startVideoCapture() {
         guard activeSheet == nil,
               !isCapturing,
@@ -383,6 +550,7 @@ extension CaptureWorkspaceViewModel {
                     )
                 }
                 let extractedAudioFilePath = await Self.extractVideoAudioTrack(videoURL: recording.fileURL)
+                let playbackClip = try await Self.prepareVideoPlaybackClip(videoURL: recording.fileURL)
 
                 let task = Task {
                     await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
@@ -400,11 +568,14 @@ extension CaptureWorkspaceViewModel {
                         )
                     }
                     self.stagedCapture.videos.append(StagedVideo(
-                        filePath: recording.fileURL.path,
+                        filePath: playbackClip.fileURL.path,
                         sampledImages: stagedFrames,
                         audioFilePath: extractedAudioFilePath
                     ))
                     AppDIContainer.shared.hapticManager.triggerSuccessPulse()
+                }
+                if playbackClip.isCompressed {
+                    try? FileManager.default.removeItem(at: recording.fileURL)
                 }
             } catch is CancellationError {
                 diContainer.cameraManager.stopVideoRecording()

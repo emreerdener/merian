@@ -1,65 +1,110 @@
 import Foundation
 import Observation
 
-enum AchievementToastSource: Sendable, Equatable {
+enum MilestoneToastSource: Sendable, Equatable {
     case unlock
     case preview
 }
 
-struct AchievementToastItem: Identifiable, Sendable {
+struct DictionaryMilestonePayload: Sendable, Equatable {
+    let title: String
+    let subtitle: String
+    let imageName: String
+
+    static let newToMerian = DictionaryMilestonePayload(
+        title: "New to Merian",
+        subtitle: "Added to the species dictionary",
+        imageName: "star"
+    )
+}
+
+enum MilestoneToastPayload: Sendable {
+    case achievement(AwardPayload)
+    case dictionary(DictionaryMilestonePayload)
+}
+
+struct MilestoneToastItem: Identifiable, Sendable {
     let id: UUID
-    let award: AwardPayload
-    let source: AchievementToastSource
+    let payload: MilestoneToastPayload
+    let source: MilestoneToastSource
+
+    var award: AwardPayload? {
+        guard case let .achievement(award) = payload else { return nil }
+        return award
+    }
 }
 
 @MainActor
-@Observable final class AchievementToastPresenter {
-    static let shared = AchievementToastPresenter()
+@Observable final class MilestoneToastPresenter {
+    static let shared = MilestoneToastPresenter()
 
-    private(set) var activeUnlock: AchievementToastItem?
-    @ObservationIgnored private var queuedUnlocks: [AchievementToastItem] = []
+    private(set) var activeItem: MilestoneToastItem?
+    @ObservationIgnored private var queuedItems: [MilestoneToastItem] = []
+
+    var queuedItemCount: Int {
+        queuedItems.count
+    }
+
+    var activeUnlock: MilestoneToastItem? {
+        activeItem
+    }
 
     var queuedUnlockCount: Int {
-        queuedUnlocks.count
+        queuedItemCount
     }
 
     init() {}
 
     func enqueueAchievementUnlock(_ award: AwardPayload) {
-        enqueue(award, source: .unlock)
+        enqueue(.achievement(award), source: .unlock)
+    }
+
+    func enqueueNewToMerianMilestone() {
+        enqueue(.dictionary(.newToMerian), source: .unlock)
     }
 
     #if DEBUG
     func previewAchievementUnlock(_ award: AwardPayload) {
-        enqueue(award, source: .preview)
+        enqueue(.achievement(award), source: .preview)
+    }
+
+    func previewNewToMerianMilestone() {
+        enqueue(.dictionary(.newToMerian), source: .preview)
     }
 
     func resetForTesting() {
-        activeUnlock = nil
-        queuedUnlocks.removeAll()
+        activeItem = nil
+        queuedItems.removeAll()
     }
     #endif
 
-    func dismissActiveUnlock(id: UUID? = nil) {
-        if let id, activeUnlock?.id != id { return }
+    func dismissActiveItem(id: UUID? = nil) {
+        if let id, activeItem?.id != id { return }
 
-        activeUnlock = nil
-        presentNextUnlockIfNeeded()
+        activeItem = nil
+        presentNextItemIfNeeded()
     }
 
-    private func enqueue(_ award: AwardPayload, source: AchievementToastSource) {
-        let item = AchievementToastItem(id: UUID(), award: award, source: source)
+    func dismissActiveUnlock(id: UUID? = nil) {
+        dismissActiveItem(id: id)
+    }
 
-        if activeUnlock == nil {
-            activeUnlock = item
+    private func enqueue(_ payload: MilestoneToastPayload, source: MilestoneToastSource) {
+        let item = MilestoneToastItem(id: UUID(), payload: payload, source: source)
+
+        if activeItem == nil {
+            activeItem = item
         } else {
-            queuedUnlocks.append(item)
+            queuedItems.append(item)
         }
     }
 
-    private func presentNextUnlockIfNeeded() {
-        guard activeUnlock == nil, !queuedUnlocks.isEmpty else { return }
+    private func presentNextItemIfNeeded() {
+        guard activeItem == nil, !queuedItems.isEmpty else { return }
 
-        activeUnlock = queuedUnlocks.removeFirst()
+        activeItem = queuedItems.removeFirst()
     }
 }
+
+typealias AchievementToastPresenter = MilestoneToastPresenter
+typealias AchievementToastItem = MilestoneToastItem

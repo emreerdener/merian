@@ -88,6 +88,7 @@ export interface AudioClientPayload {
   wikipedia_url?: string | null;
   wikipedia_overview?: string | null;
   group_tags?: string[] | null;
+  is_new_to_merian_dictionary?: boolean;
   gbif_taxon_key?: number | null;
   alternative_common_names?: string[] | null;
   insight_data?: {
