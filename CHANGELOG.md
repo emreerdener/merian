@@ -8,7 +8,7 @@ TestFlight, App Store, support, and QA.
 
 ### Capture
 - Added automatic audio submission when a recording reaches the full time limit and confirm-before-submit is turned off.
-- Added video recording controls so Pro video scans show remaining time, can be canceled before staging, and can be reviewed or removed after staging.
+- Added video recording controls so Pro video scans show remaining time, can be canceled before staging, and open staged clips in a full-screen preview where they can be removed before identifying.
 - Added Pro short video scans from the visual shutter: tap still takes a photo, while a brief hold latches into a 5-second video recording with saved playback and image-based thumbnails.
 - Added clearer haptic feedback for video recording start, finish, successful staging, and recording failures.
 - Fixed a crash that could happen after tapping stop on a Pro video recording while Merian extracted the clip's audio.

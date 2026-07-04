@@ -97,6 +97,9 @@ struct CaptureControlBar: View {
                     captureMode: captureMode,
                     willStageOnly: willStageOnly,
                     isInputActive: isInputActive,
+                    isVisualCaptureAllowed: viewModel.diContainer.usageManager.canPerformScan(
+                        isProActive: viewModel.diContainer.revenueCatManager.isProActive
+                    ),
                     isProVideoAvailable: viewModel.diContainer.revenueCatManager.isProActive,
                     isVideoRecording: viewModel.isVideoRecording,
                     videoRecordingProgress: viewModel.videoRecordingProgress,
@@ -106,7 +109,7 @@ struct CaptureControlBar: View {
                             if viewModel.isVideoRecording {
                                 viewModel.stopVideoCapture()
                             } else {
-                                viewModel.executeCapture()
+                                viewModel.executeCapture(emitHaptic: false)
                             }
                         case .audio:
                             if audioCaptureManager.pendingPlaybackPath != nil {
@@ -202,6 +205,7 @@ private struct CaptureButton: View {
     let captureMode: CaptureMode
     let willStageOnly: Bool
     let isInputActive: Bool
+    let isVisualCaptureAllowed: Bool
     let isProVideoAvailable: Bool
     let isVideoRecording: Bool
     let videoRecordingProgress: Double
@@ -254,6 +258,22 @@ private struct CaptureButton: View {
         default:
             Color(UIColor.systemBackground)
         }
+    }
+
+    private var releaseHapticFeedback: CaptureButtonHapticFeedback {
+        CaptureButtonHapticFeedback.releaseFeedback(
+            captureMode: captureMode,
+            isVideoRecording: isVideoRecording,
+            isVisualCaptureAllowed: isVisualCaptureAllowed,
+            audioState: audioHapticState,
+            isDescribeInputActive: isInputActive
+        )
+    }
+
+    private var audioHapticState: CaptureButtonAudioState {
+        if isAudioReview { return .review }
+        if isRecording { return isPaused ? .paused : .recording }
+        return .idle
     }
 
     var body: some View {
@@ -352,11 +372,53 @@ private struct CaptureButton: View {
             return
         }
 
-        if captureMode != .visual {
-            HapticManager.shared.triggerFocusSnap()
-        }
+        releaseHapticFeedback.trigger()
         onAction()
     }
+}
+
+enum CaptureButtonHapticFeedback: Equatable {
+    case none
+    case heavyImpact
+    case mediumPulse
+
+    static func releaseFeedback(
+        captureMode: CaptureMode,
+        isVideoRecording: Bool,
+        isVisualCaptureAllowed: Bool,
+        audioState: CaptureButtonAudioState,
+        isDescribeInputActive: Bool
+    ) -> CaptureButtonHapticFeedback {
+        switch captureMode {
+        case .visual:
+            return !isVideoRecording && isVisualCaptureAllowed ? .heavyImpact : .none
+        case .audio:
+            switch audioState {
+            case .idle, .recording, .paused, .review:
+                return .mediumPulse
+            }
+        case .describe:
+            return isDescribeInputActive ? .mediumPulse : .none
+        }
+    }
+
+    func trigger() {
+        switch self {
+        case .none:
+            break
+        case .heavyImpact:
+            HapticManager.shared.triggerHeavyImpact(intensity: 1.0)
+        case .mediumPulse:
+            HapticManager.shared.triggerMediumPulse()
+        }
+    }
+}
+
+enum CaptureButtonAudioState: Equatable {
+    case idle
+    case recording
+    case paused
+    case review
 }
 
 // MARK: - Dictation Button

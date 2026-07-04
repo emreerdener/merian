@@ -423,7 +423,7 @@ extension CaptureWorkspaceViewModel {
     
     // MARK: - Shutter Pipeline
     
-    func executeCapture() {
+    func executeCapture(emitHaptic: Bool = true) {
         // 1. Concurrency Guards
         // Prevent accidental hardware captures while a modal, sheet, or crop view is actively presented
         guard activeSheet == nil,
@@ -435,8 +435,10 @@ extension CaptureWorkspaceViewModel {
               
         // 2. Authorization Hooks
         if diContainer.usageManager.canPerformScan(isProActive: diContainer.revenueCatManager.isProActive) {
-            // Instant tactile UI response mirroring the Apple Camera app
-            diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0)
+            if emitHaptic {
+                // Instant tactile UI response mirroring the Apple Camera app.
+                diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0)
+            }
             
             triggerFlash()
             

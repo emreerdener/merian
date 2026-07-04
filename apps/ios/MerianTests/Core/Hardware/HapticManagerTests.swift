@@ -54,4 +54,96 @@ final class HapticManagerTests: XCTestCase {
         hapticManager.triggerSelectionPulse()
         hapticManager.triggerSuccessPulse()
     }
+
+    func testCaptureButtonReleaseHapticRoutesVisualPhotoToHeavyImpact() {
+        let feedback = CaptureButtonHapticFeedback.releaseFeedback(
+            captureMode: .visual,
+            isVideoRecording: false,
+            isVisualCaptureAllowed: true,
+            audioState: .idle,
+            isDescribeInputActive: true
+        )
+
+        XCTAssertEqual(feedback, .heavyImpact)
+    }
+
+    func testCaptureButtonReleaseHapticLeavesVideoStartToRecordingTransition() {
+        let feedback = CaptureButtonHapticFeedback.releaseFeedback(
+            captureMode: .visual,
+            isVideoRecording: true,
+            isVisualCaptureAllowed: true,
+            audioState: .idle,
+            isDescribeInputActive: true
+        )
+
+        XCTAssertEqual(feedback, .none)
+    }
+
+    func testCaptureButtonReleaseHapticSkipsRejectedVisualCapture() {
+        let feedback = CaptureButtonHapticFeedback.releaseFeedback(
+            captureMode: .visual,
+            isVideoRecording: false,
+            isVisualCaptureAllowed: false,
+            audioState: .idle,
+            isDescribeInputActive: true
+        )
+
+        XCTAssertEqual(feedback, .none)
+    }
+
+    func testCaptureButtonReleaseHapticRoutesAudioStatesToMediumPulse() {
+        let idleFeedback = CaptureButtonHapticFeedback.releaseFeedback(
+            captureMode: .audio,
+            isVideoRecording: false,
+            isVisualCaptureAllowed: false,
+            audioState: .idle,
+            isDescribeInputActive: true
+        )
+        let pauseFeedback = CaptureButtonHapticFeedback.releaseFeedback(
+            captureMode: .audio,
+            isVideoRecording: false,
+            isVisualCaptureAllowed: false,
+            audioState: .recording,
+            isDescribeInputActive: true
+        )
+        let resumeFeedback = CaptureButtonHapticFeedback.releaseFeedback(
+            captureMode: .audio,
+            isVideoRecording: false,
+            isVisualCaptureAllowed: false,
+            audioState: .paused,
+            isDescribeInputActive: true
+        )
+        let reviewFeedback = CaptureButtonHapticFeedback.releaseFeedback(
+            captureMode: .audio,
+            isVideoRecording: false,
+            isVisualCaptureAllowed: false,
+            audioState: .review,
+            isDescribeInputActive: true
+        )
+
+        XCTAssertEqual(idleFeedback, .mediumPulse)
+        XCTAssertEqual(pauseFeedback, .mediumPulse)
+        XCTAssertEqual(resumeFeedback, .mediumPulse)
+        XCTAssertEqual(reviewFeedback, .mediumPulse)
+    }
+
+    func testCaptureButtonReleaseHapticRoutesDescribeOnlyWhenInputIsActive() {
+        let activeFeedback = CaptureButtonHapticFeedback.releaseFeedback(
+            captureMode: .describe,
+            isVideoRecording: false,
+            isVisualCaptureAllowed: false,
+            audioState: .idle,
+            isDescribeInputActive: true
+        )
+        let emptyFeedback = CaptureButtonHapticFeedback.releaseFeedback(
+            captureMode: .describe,
+            isVideoRecording: false,
+            isVisualCaptureAllowed: false,
+            audioState: .idle,
+            isDescribeInputActive: false
+        )
+
+        XCTAssertEqual(activeFeedback, .mediumPulse)
+        XCTAssertEqual(emptyFeedback, .none)
+    }
 }

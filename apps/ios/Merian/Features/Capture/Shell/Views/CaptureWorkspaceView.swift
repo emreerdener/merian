@@ -329,7 +329,7 @@ struct CaptureWorkspaceView: View {
                 }
             )
         }
-        .sheet(
+        .fullScreenCover(
             isPresented: Binding(
                 get: { stagedVideoReviewIndex != nil },
                 set: { if !$0 { stagedVideoReviewIndex = nil } }
@@ -337,7 +337,7 @@ struct CaptureWorkspaceView: View {
         ) {
             if let selectedIndex = stagedVideoReviewIndex,
                viewModel.stagedCapture.videos.indices.contains(selectedIndex) {
-                StagedVideoReviewSheet(
+                StagedVideoPreviewModal(
                     video: viewModel.stagedCapture.videos[selectedIndex],
                     onRemove: {
                         viewModel.removeStagedVideo(at: selectedIndex)
@@ -623,7 +623,7 @@ struct CaptureWorkspaceView: View {
     }
 }
 
-private struct StagedVideoReviewSheet: View {
+private struct StagedVideoPreviewModal: View {
     let video: StagedVideo
     let onRemove: () -> Void
 
@@ -637,49 +637,46 @@ private struct StagedVideoReviewSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color(UIColor.secondarySystemGroupedBackground))
+        ZStack {
+            Color.black.ignoresSafeArea()
 
-                    VideoPlayer(player: player)
-                        .aspectRatio(9.0 / 16.0, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            VideoPlayer(player: player)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
+        }
+        .overlay(alignment: .top) {
+            HStack(spacing: 12) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
                 }
-                .frame(maxWidth: .infinity)
-                .background(Color.black, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .accessibilityLabel("Close video preview")
+
+                Spacer()
 
                 Button(role: .destructive) {
                     player.pause()
                     onRemove()
                     dismiss()
                 } label: {
-                    Label("Remove video", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                    Label("Remove", systemImage: "trash")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 14)
+                        .frame(height: 44)
+                        .background(.ultraThinMaterial, in: Capsule())
                 }
-                .buttonStyle(.bordered)
-                .tint(.red)
-
-                Spacer(minLength: 0)
+                .accessibilityLabel("Remove video")
             }
-            .padding(16)
-            .frame(maxHeight: .infinity, alignment: .top)
-            .background(Color(UIColor.systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("Video")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                }
-            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .environment(\.colorScheme, .dark)
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
         .onDisappear {
             player.pause()
         }
