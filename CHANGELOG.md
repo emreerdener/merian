@@ -18,6 +18,7 @@ TestFlight, App Store, support, and QA.
 - Updated video scan analysis so Pro video scans sample five ordered frames, treat accompanying audio as evidence from the same video, and are no longer described as images.
 - Added a Pro paywall carousel slide for video scans and improved feature text wrapping.
 - Added video scans to the Pro paywall comparison table.
+- Fixed the Pro paywall purchase button so it stays anchored to the bottom of the sheet.
 - Kept non-Pro long-presses photo-first so holding the shutter does not interrupt capture or open the paywall.
 - Fixed non-biological scan saving so captures that omit ecology metadata are saved with an unknown ecology fallback instead of failing in the backend.
 

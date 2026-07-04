@@ -56,8 +56,14 @@ struct BackgroundDatabaseActorTests {
     private func cleanupSerializedItems(_ items: [SerializedMediaItem]) {
         for item in items {
             switch item {
-            case .image(let reference), .audio(let reference), .video(let reference):
+            case .image(let reference), .audio(let reference):
                 try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(reference.serializedPath))
+            case .video(let reference):
+                for mediaReference in [reference.video, reference.thumbnail, reference.audio].compactMap({ $0 }) {
+                    try? FileManager.default.removeItem(
+                        at: URL.documentsDirectory.appendingPathComponent(mediaReference.serializedPath)
+                    )
+                }
             case .description:
                 break
             }

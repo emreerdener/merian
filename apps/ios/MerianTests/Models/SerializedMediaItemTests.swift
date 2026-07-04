@@ -41,7 +41,7 @@ struct SerializedMediaItemTests {
     @Test func videoMediaRoundTripsThroughJSONRelationshipsAndActiveMedia() throws {
         let items: [SerializedMediaItem] = [
             .image(.documents("video-cover.webp")),
-            .video(.documents("clip.mp4")),
+            .video(StoredVideoMediaReference(.documents("clip.mp4"))),
             .audio(.documents("sound.wav")),
             .description(ObservationContext(freeText: "Brief movement visible"))
         ]

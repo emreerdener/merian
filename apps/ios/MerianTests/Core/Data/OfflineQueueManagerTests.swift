@@ -99,8 +99,14 @@ struct OfflineQueueManagerTests {
     private func cleanupSerializedItems(_ items: [SerializedMediaItem]) {
         for item in items {
             switch item {
-            case .image(let reference), .audio(let reference), .video(let reference):
+            case .image(let reference), .audio(let reference):
                 try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(reference.serializedPath))
+            case .video(let reference):
+                for mediaReference in [reference.video, reference.thumbnail, reference.audio].compactMap({ $0 }) {
+                    try? FileManager.default.removeItem(
+                        at: URL.documentsDirectory.appendingPathComponent(mediaReference.serializedPath)
+                    )
+                }
             case .description:
                 break
             }
@@ -143,18 +149,19 @@ struct OfflineQueueManagerTests {
         let payload = PendingScanPayload(
             id: "scan_with_symbols",
             localImagePaths: ["image one.webp"],
-            localAudioPaths: ["field/audio one.wav"]
+            localAudioPaths: ["field/audio one.wav"],
+            localVideoPaths: []
         )
 
         let items = MediaStagingContract.uploadItems(for: payload, userId: "USER/ABC")
         #expect(items.count == 2)
 
-        #expect(items[0].mediaKind == .image)
+        #expect(items[0].mediaKind == StagedMediaKind.image)
         #expect(items[0].fileName == "scan_with_symbols_image_one.webp")
         #expect(items[0].contentType == "image/webp")
         #expect(items[0].objectKey == "staging/user_abc/scan_with_symbols_image_one.webp")
 
-        #expect(items[1].mediaKind == .audio)
+        #expect(items[1].mediaKind == StagedMediaKind.audio)
         #expect(items[1].fileName == "scan_with_symbols_field_audio_one.wav")
         #expect(items[1].contentType == "audio/wav")
         #expect(items[1].objectKey == "staging/user_abc/scan_with_symbols_field_audio_one.wav")
@@ -191,7 +198,12 @@ struct OfflineQueueManagerTests {
         try handle.truncate(atOffset: UInt64(MerianConfig.audioPayloadMaxBytes + 1))
         try handle.close()
 
-        let payload = PendingScanPayload(id: "scan-audio-budget", localImagePaths: [], localAudioPaths: [audioName])
+        let payload = PendingScanPayload(
+            id: "scan-audio-budget",
+            localImagePaths: [],
+            localAudioPaths: [audioName],
+            localVideoPaths: []
+        )
         let items = MediaStagingContract.uploadItems(
             for: payload,
             userId: "user-a",
@@ -213,7 +225,12 @@ struct OfflineQueueManagerTests {
             try Data(repeating: 0x21, count: 64).write(to: directory.appendingPathComponent(audioName))
         }
 
-        let payload = PendingScanPayload(id: "scan-too-many-audio", localImagePaths: [], localAudioPaths: audioNames)
+        let payload = PendingScanPayload(
+            id: "scan-too-many-audio",
+            localImagePaths: [],
+            localAudioPaths: audioNames,
+            localVideoPaths: []
+        )
         let items = MediaStagingContract.uploadItems(
             for: payload,
             userId: "user-a",
@@ -332,6 +349,12 @@ struct OfflineQueueManagerTests {
                 try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(reference.serializedPath))
             case .audio(let reference):
                 try? FileManager.default.removeItem(at: URL.documentsDirectory.appendingPathComponent(reference.serializedPath))
+            case .video(let reference):
+                for mediaReference in [reference.video, reference.thumbnail, reference.audio].compactMap({ $0 }) {
+                    try? FileManager.default.removeItem(
+                        at: URL.documentsDirectory.appendingPathComponent(mediaReference.serializedPath)
+                    )
+                }
             case .description:
                 break
             }

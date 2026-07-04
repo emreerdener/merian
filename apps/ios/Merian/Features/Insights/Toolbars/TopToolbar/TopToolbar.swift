@@ -226,7 +226,7 @@ struct TopToolbar: ToolbarContent {
 
         if allowsFieldNotes {
             Button(action: onFieldNotes) {
-                Label(hasFieldNotes ? "Update field notes" : "Add field notes", systemImage: "square.and.pencil")
+                Label(hasFieldNotes ? "Edit field notes" : "Add field notes", systemImage: "square.and.pencil")
             }
         }
 

@@ -813,7 +813,12 @@ struct MigrationPlanTests {
         #expect(snapshot.audioPaths == ["recording.wav"])
         #expect(snapshot.primaryImagePath == "https://example.com/r2.webp")
         #expect(snapshot.hasCloudImage)
-        #expect(snapshot.summary == CapturedMediaSummary(hasImage: true, hasAudio: true, hasDescription: true))
+        #expect(snapshot.summary == CapturedMediaSummary(
+            hasImage: true,
+            hasAudio: true,
+            hasVideo: false,
+            hasDescription: true
+        ))
         #expect(snapshot.descriptionText == context.serialized())
         #expect(snapshot.observationContexts == [context])
         #expect(snapshot.observationContextsJSON?.count == 1)

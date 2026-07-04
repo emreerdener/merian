@@ -107,6 +107,7 @@ struct CaptureControlBar: View {
                         switch captureMode {
                         case .visual:
                             if viewModel.isVideoRecording {
+                                HapticManager.shared.triggerMediumPulse(source: CaptureButtonHapticSource.videoStop.rawValue)
                                 viewModel.stopVideoCapture()
                             } else {
                                 viewModel.executeCapture(emitHaptic: false)
@@ -266,7 +267,8 @@ private struct CaptureButton: View {
             isVideoRecording: isVideoRecording,
             isVisualCaptureAllowed: isVisualCaptureAllowed,
             audioState: audioHapticState,
-            isDescribeInputActive: isInputActive
+            isDescribeInputActive: isInputActive,
+            willStageDescribeOnly: willStageOnly
         )
     }
 
@@ -379,26 +381,34 @@ private struct CaptureButton: View {
 
 enum CaptureButtonHapticFeedback: Equatable {
     case none
-    case heavyImpact
-    case mediumPulse
+    case heavyImpact(CaptureButtonHapticSource)
+    case mediumPulse(CaptureButtonHapticSource)
 
     static func releaseFeedback(
         captureMode: CaptureMode,
         isVideoRecording: Bool,
         isVisualCaptureAllowed: Bool,
         audioState: CaptureButtonAudioState,
-        isDescribeInputActive: Bool
+        isDescribeInputActive: Bool,
+        willStageDescribeOnly: Bool
     ) -> CaptureButtonHapticFeedback {
         switch captureMode {
         case .visual:
-            return !isVideoRecording && isVisualCaptureAllowed ? .heavyImpact : .none
+            return !isVideoRecording && isVisualCaptureAllowed ? .heavyImpact(.visualPhoto) : .none
         case .audio:
             switch audioState {
-            case .idle, .recording, .paused, .review:
-                return .mediumPulse
+            case .idle:
+                return .mediumPulse(.audioStart)
+            case .recording:
+                return .mediumPulse(.audioPause)
+            case .paused:
+                return .mediumPulse(.audioResume)
+            case .review:
+                return .mediumPulse(.audioConfirm)
             }
         case .describe:
-            return isDescribeInputActive ? .mediumPulse : .none
+            guard isDescribeInputActive else { return .none }
+            return .mediumPulse(willStageDescribeOnly ? .describeAdd : .describeSubmit)
         }
     }
 
@@ -407,12 +417,29 @@ enum CaptureButtonHapticFeedback: Equatable {
         switch self {
         case .none:
             break
-        case .heavyImpact:
-            HapticManager.shared.triggerHeavyImpact(intensity: 1.0)
-        case .mediumPulse:
-            HapticManager.shared.triggerMediumPulse()
+        case .heavyImpact(let source):
+            HapticManager.shared.triggerHeavyImpact(intensity: 1.0, source: source.rawValue)
+        case .mediumPulse(let source):
+            HapticManager.shared.triggerMediumPulse(source: source.rawValue)
         }
     }
+}
+
+enum CaptureButtonHapticSource: String, Equatable {
+    case visualPhoto = "capture.photo"
+    case videoStart = "capture.video.start"
+    case videoStop = "capture.video.stop"
+    case videoCancel = "capture.video.cancel"
+    case audioStart = "capture.audio.start"
+    case audioPause = "capture.audio.pause"
+    case audioResume = "capture.audio.resume"
+    case audioConfirm = "capture.audio.confirm"
+    case audioCancel = "capture.audio.cancel"
+    case audioDone = "capture.audio.done"
+    case describeAdd = "capture.describe.add"
+    case describeSubmit = "capture.describe.submit"
+    case describeDictation = "capture.describe.dictation"
+    case describeTableOfContents = "capture.describe.tableOfContents"
 }
 
 enum CaptureButtonAudioState: Equatable {
@@ -434,7 +461,7 @@ private struct DictationButton: View {
 
     var body: some View {
         Button(action: {
-            HapticManager.shared.triggerMediumPulse()
+            HapticManager.shared.triggerMediumPulse(source: CaptureButtonHapticSource.describeDictation.rawValue)
             onToggleDictation()
         }) {
             ZStack {
@@ -473,7 +500,7 @@ private struct VideoCancelButton: View {
 
     var body: some View {
         Button(action: {
-            HapticManager.shared.triggerMediumPulse()
+            HapticManager.shared.triggerMediumPulse(source: CaptureButtonHapticSource.videoCancel.rawValue)
             onTap()
         }) {
             Image(systemName: "xmark")
@@ -495,7 +522,7 @@ private struct TableOfContentsButton: View {
 
     var body: some View {
         Button(action: {
-            HapticManager.shared.triggerMediumPulse()
+            HapticManager.shared.triggerMediumPulse(source: CaptureButtonHapticSource.describeTableOfContents.rawValue)
             onTap()
         }) {
             Image(systemName: "list.bullet")
@@ -517,7 +544,7 @@ private struct AudioDeleteButton: View {
 
     var body: some View {
         Button(action: {
-            HapticManager.shared.triggerMediumPulse()
+            HapticManager.shared.triggerMediumPulse(source: CaptureButtonHapticSource.audioCancel.rawValue)
             onTap()
         }) {
             Image(systemName: isRecording ? "xmark" : "trash")
@@ -539,7 +566,7 @@ private struct AudioDoneButton: View {
 
     var body: some View {
         Button(action: {
-            HapticManager.shared.triggerFocusSnap()
+            HapticManager.shared.triggerFocusSnap(source: CaptureButtonHapticSource.audioDone.rawValue)
             onTap()
         }) {
             Image(systemName: "checkmark")
@@ -560,7 +587,7 @@ private struct AudioReviewPlayButton: View {
 
     var body: some View {
         Button(action: {
-            HapticManager.shared.triggerMediumPulse()
+            HapticManager.shared.triggerMediumPulse(source: CaptureButtonHapticSource.audioConfirm.rawValue)
             if audioCaptureManager.isPlaying {
                 audioCaptureManager.stopPlayback()
             } else {

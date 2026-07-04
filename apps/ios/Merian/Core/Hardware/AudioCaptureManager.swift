@@ -25,6 +25,7 @@ actor AudioSessionCoordinator {
         switch configuration {
         case .recordMeasurement(let preferredSampleRate):
             try session.setCategory(.record, mode: .measurement, options: .duckOthers)
+            try session.setAllowHapticsAndSystemSoundsDuringRecording(true)
             if let preferredSampleRate {
                 try? session.setPreferredSampleRate(preferredSampleRate)
             }

@@ -448,7 +448,7 @@ extension CaptureWorkspaceViewModel {
         if diContainer.usageManager.canPerformScan(isProActive: diContainer.revenueCatManager.isProActive) {
             if emitHaptic {
                 // Instant tactile UI response mirroring the Apple Camera app.
-                diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0)
+                diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0, source: "capture.photo.hardware")
             }
             
             triggerFlash()
@@ -536,7 +536,10 @@ extension CaptureWorkspaceViewModel {
                         guard let self, self.isCapturing else { return }
                         self.isVideoRecording = true
                         self.videoRecordingProgress = 0
-                        self.diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0)
+                        self.diContainer.hapticManager.triggerHeavyImpact(
+                            intensity: 1.0,
+                            source: CaptureButtonHapticSource.videoStart.rawValue
+                        )
                         self.startVideoRecordingProgressTimer()
                     }
                 )
@@ -545,7 +548,10 @@ extension CaptureWorkspaceViewModel {
                     throw CancellationError()
                 }
                 await MainActor.run {
-                    self.diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0)
+                    self.diContainer.hapticManager.triggerHeavyImpact(
+                        intensity: 1.0,
+                        source: "capture.video.completed"
+                    )
                 }
                 let resolvedShutterLocation = await shutterLocation
                 let instantLocation = resolvedShutterLocation ?? diContainer.environmentContextManager.lastKnownLocation
@@ -609,7 +615,6 @@ extension CaptureWorkspaceViewModel {
 
     func stopVideoCapture() {
         guard isVideoRecording else { return }
-        AppDIContainer.shared.hapticManager.triggerMediumPulse()
         diContainer.cameraManager.stopVideoRecording()
     }
 

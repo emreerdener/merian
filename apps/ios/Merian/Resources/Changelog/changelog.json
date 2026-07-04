@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-04-pro-paywall-purchase-button",
+      "date": "2026-07-04",
+      "title": "Pro paywall button",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "The Pro paywall purchase button now stays anchored to the bottom of the sheet."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-04-pet-insight-scientific-subtitle",
       "date": "2026-07-04",
       "title": "Pet insight names",

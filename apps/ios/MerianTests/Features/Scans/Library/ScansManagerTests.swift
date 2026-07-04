@@ -12,7 +12,7 @@ final class ScansManagerTests: XCTestCase {
     var searchManager: ScansManager!
     var container: ModelContainer!
     var context: ModelContext!
-    var sharedExplorePostLookup: SharedExplorePostLookup!
+    private var sharedExplorePostLookup: SharedExplorePostLookup!
     
     override func setUp() async throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -557,7 +557,7 @@ final class ScansManagerTests: XCTestCase {
         )
         videoScan.replaceCapturedMedia(with: [
             .image(.documents("video-cover.webp")),
-            .video(.documents("video-clip.mp4"))
+            .video(StoredVideoMediaReference(.documents("video-clip.mp4")))
         ])
         videoScan.timestamp = Date(timeIntervalSince1970: 200)
         try context.save()

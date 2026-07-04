@@ -144,20 +144,15 @@ struct PaywallView: View {
 
                             paywallActionLinks
                                 .padding(.bottom, 16)
-
-                            if isCompact {
-                                purchaseBar(isCompact: true)
-                                    .padding(.bottom, 8)
-                            }
                         }
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 24)
+                        .padding(.bottom, packages.isEmpty ? 24 : purchaseBarScrollClearance(isCompact: isCompact))
                     }
-                    .safeAreaInset(edge: .bottom) {
-                        if !isCompact {
-                            purchaseBar(isCompact: false)
-                        }
-                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    purchaseBar(isCompact: isCompact)
                 }
             }
             .navigationTitle("Merian Pro")
@@ -412,6 +407,10 @@ struct PaywallView: View {
             .padding(.top, isCompact ? 8 : 14)
             .padding(.bottom, isCompact ? 8 : 12)
         }
+    }
+
+    private func purchaseBarScrollClearance(isCompact: Bool) -> CGFloat {
+        isCompact ? 104 : 118
     }
 
     private var paywallActionLinks: some View {

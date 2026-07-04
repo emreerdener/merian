@@ -16,6 +16,7 @@ struct Preferences: View {
     @Binding var captureModeOrderSettingsActive: Bool
     @Binding var showPaywall: Bool
     @Binding var showTestExploreOnboarding: Bool
+    @State private var hapticDiagnosticSummary: String?
 
     var body: some View {
         @Bindable var hwOrchestrator = hardwareOrchestrator
@@ -70,6 +71,26 @@ struct Preferences: View {
                 icon: "waveform",
                 iconColor: .purple
             )
+
+            Button {
+                runHapticDiagnostic()
+            } label: {
+                SettingsNavigationRow(
+                    title: "Test haptics",
+                    description: "Plays a short sample pattern using the current haptics setting.",
+                    icon: "waveform.path.ecg",
+                    iconColor: .purple
+                )
+            }
+
+            if let hapticDiagnosticSummary {
+                Text(hapticDiagnosticSummary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .textSelection(.enabled)
+                    .padding(.leading, 36)
+                    .padding(.vertical, 4)
+            }
 
             // MARK: - Geoprivacy
             NavigationLink {
@@ -245,7 +266,25 @@ struct Preferences: View {
             )
         )
     }
+
 #endif
+
+    private func runHapticDiagnostic() {
+        let manager = HapticManager.shared
+        let snapshot = manager.triggerDiagnosticPattern(source: "settings")
+        hapticDiagnosticSummary = [
+            snapshot.displaySummary,
+            "Last attempt: running"
+        ].joined(separator: "\n")
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 750_000_000)
+            hapticDiagnosticSummary = [
+                snapshot.displaySummary,
+                manager.lastAttempt?.displaySummary ?? "Last attempt: unavailable"
+            ].joined(separator: "\n")
+        }
+    }
 }
 
 #if DEBUG
