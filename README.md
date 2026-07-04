@@ -37,7 +37,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Pending queued captures render above completed scans with state-aware upload/inference affordances.
 
 ### Insight Sheet
-- Species header with common name, scientific name, and AI confidence spectrum (3-band visual scale). Confident dog/cat pet labels can headline the sheet while the domestic species and scientific name remain visible as taxonomy context.
+- Species header with common name, scientific name, and AI confidence spectrum (3-band visual scale). Confident dog/cat pet labels can headline the sheet while the scientific name remains visible as taxonomy context.
 - Full Linnaean taxonomy (kingdom → genus).
 - Ecological description, Wikipedia extract, and in-app Safari link.
 - Image carousel combining live captures, additional staged images, and GBIF/Wikipedia reference images.

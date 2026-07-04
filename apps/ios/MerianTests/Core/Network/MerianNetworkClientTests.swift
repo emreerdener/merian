@@ -850,8 +850,10 @@ struct MerianNetworkClientTests {
         #expect(profile.viewerIsFollowing == true)
         #expect(profile.profileHeatmapData.totalCaptures == 17)
         #expect(profile.profileHeatmapData.weeks.count == 1)
-        #expect(profile.awardPayloads.first?.type == .explorer)
-        #expect(profile.awardPayloads.first?.isCompleted == true)
+        #expect(profile.awardPayloads.count == AchievementType.allCases.count)
+        #expect(profile.awardPayloads.first { $0.type == .explorer }?.isCompleted == true)
+        #expect(profile.awardPayloads.first { $0.type == .domesticCat }?.currentCount == 0)
+        #expect(profile.awardPayloads.first { $0.type == .domesticDog }?.currentCount == 0)
         #expect(profile.previewPosts.first?.id == "post-profile-123")
     }
 

@@ -1615,8 +1615,8 @@ Function response, update both the TypeScript schema and the corresponding Swift
 `label`, `labelType`, `confidenceScore`, and `evidence`.
 `SpeciesData.petIdentification` is optional and display-only. It can make the
 Insight headline read like "Australian Cattle Dog mix" while the subtitle still
-shows `Domestic Dog • Canis lupus familiaris`. It must not be stored as a
-species preferred common name.
+shows the underlying scientific name, such as `Canis lupus familiaris`. It must
+not be stored as a species preferred common name.
 
 **`SpeciesData` override fields** (`apps/ios/Merian/Models/SpeciesData.swift`):
 `SpeciesData` carries four identification-review fields that are never part of

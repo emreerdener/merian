@@ -189,6 +189,8 @@ struct TopToolbar: ToolbarContent {
                     toolbarIcon("ellipsis")
                         .imageOverlayToolbarIconChrome(isFallbackActive: shouldUseContainedToolbarChrome)
                 }
+                .accessibilityIdentifier("InsightTopMenu")
+                .accessibilityLabel("Scan actions")
                 .imageOverlayToolbarButtonChrome(isFallbackActive: shouldUseContainedToolbarChrome)
             }
         }

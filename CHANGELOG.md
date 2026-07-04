@@ -36,6 +36,7 @@ TestFlight, App Store, support, and QA.
 - Added fullscreen playback for video scan media from the Insight carousel.
 - Added field-note visibility controls to the Field notes edit sheet, with Published and Private badges on shared Insight and Explore note cards.
 - Added a Non-biological pill and retention notice to non-biological Insight results, and hid biological-only field notes, tags, and collection actions from those scans.
+- Simplified dog and cat Insight subtitles so pet-label scans show only the scientific name in the taxonomy line.
 - Replaced the local New discovery pill with a richer bottom milestone banner for achievements and scans that add a species to the shared species dictionary, while preventing foreground iOS achievement notifications from stacking over it.
 - Seeded legacy domestic cat and dog achievement completions silently so older qualifying scans do not trigger surprise retroactive unlock banners.
 - Updated video scans so Insight opens the saved clip as the primary media item while scan tiles and previews keep using the poster thumbnail.
@@ -90,6 +91,8 @@ TestFlight, App Store, support, and QA.
 ### Profile & Guest Account Polish
 - Added an Invite a friend card on Profile and a matching Settings resource so sharing Merian is ready for a future referral link.
 - Added cat and dog scan achievements that unlock when you document your first domestic cat or dog.
+- Added the cat and dog achievements to public Explore author profile sheets.
+- Fixed achievements so deleting the qualifying scan from an achievement detail sheet refreshes the root Profile achievement card immediately.
 - Matched Profile signed-out spacing below the sign-in buttons to the gap between the stat cards.
 - Fixed Profile published-scan grids so partial rows keep rounded outer image corners instead of exposing sharp edges.
 - Updated Pro plan card copy to match the current paywall value props for unlimited field scans, Pro AI vision, AI chat, multi-capture, Apple Watch logging, and expedition mode.

@@ -115,7 +115,22 @@ struct OverviewCard: View {
                             KeyValueRow(title: "SEX", value: val)
                         }
                         if let val = sexEvidence {
-                            KeyValueRow(title: "SEX CUE", value: val)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("SEX CUE")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .fontWeight(.bold)
+                                    .tracking(1)
+                                    .foregroundColor(.secondary)
+
+                                Text(val)
+                                    .font(.system(.subheadline))
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.leading)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(.top, 4)
                         }
                         if let val = ecology {
                             KeyValueRow(title: "ECOLOGY", value: val)
@@ -256,6 +271,19 @@ private struct InvasiveStatusSummary: View {
         return output
     }
 
+    private var formattedExplanation: AttributedString? {
+        var output = formattedRationale ?? AttributedString()
+
+        if let confidenceLabel {
+            if rationale != nil {
+                output += regularRationaleRun(" · ")
+            }
+            output += regularRationaleRun(confidenceLabel)
+        }
+
+        return output.characters.isEmpty ? nil : output
+    }
+
     private func regularRationaleRun(_ text: String) -> AttributedString {
         var run = AttributedString(text)
         run.font = .system(.subheadline)
@@ -278,6 +306,9 @@ private struct InvasiveStatusSummary: View {
                         Image(systemName: statusIcon)
                             .foregroundColor(statusColor)
                         Text(status)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .font(.system(.subheadline))
                     .fontWeight(.medium)
@@ -327,27 +358,13 @@ private struct InvasiveStatusSummary: View {
 
                     if isExplanationExpanded {
                         VStack(alignment: .leading, spacing: 8) {
-                            if let formattedRationale {
-                                Text(formattedRationale)
+                            if let formattedExplanation {
+                                Text(formattedExplanation)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.leading)
                                     .lineLimit(nil)
                                     .fixedSize(horizontal: false, vertical: true)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-
-                            if let confidenceLabel {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("CONFIDENCE")
-                                        .font(.system(.caption, design: .monospaced))
-                                        .fontWeight(.bold)
-                                        .tracking(1)
-                                        .foregroundColor(.secondary)
-
-                                    Text(confidenceLabel)
-                                        .font(.system(.subheadline))
-                                        .foregroundColor(.secondary)
-                                }
                             }
                         }
                         .padding(.top, 4)

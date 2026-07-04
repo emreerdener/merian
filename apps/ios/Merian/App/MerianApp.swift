@@ -22,6 +22,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 }
 
 enum UITestSeedCoordinator {
+    private static let achievementDeletionRefreshArgument = "-seedAchievementDeletionRefreshFlow"
     private static let queuedAudioHandoffArgument = "-seedQueuedAudioHandoffFlow"
     private static let queuedAudioHandoffScanId = "ui_test_queued_audio_handoff"
     private static let queuedAudioHandoffAudioFilename = "ui_test_queued_audio_handoff.wav"
@@ -36,7 +37,9 @@ enum UITestSeedCoordinator {
     static func prepareIfNeeded(container: ModelContainer) {
         guard isEnabled else { return }
         let arguments = ProcessInfo.processInfo.arguments
-        guard arguments.contains("-seedAchievementDetailFlow") || arguments.contains(queuedAudioHandoffArgument) else { return }
+        guard arguments.contains("-seedAchievementDetailFlow") ||
+                arguments.contains(achievementDeletionRefreshArgument) ||
+                arguments.contains(queuedAudioHandoffArgument) else { return }
 
         let context = container.mainContext
 
@@ -52,6 +55,10 @@ enum UITestSeedCoordinator {
                 }
                 OfflineQueueManager.shared.unsyncedItemsCount = 0
                 MerianLog.general.debug("UITestSeedCoordinator seeded achievement detail flow records.")
+            } else if arguments.contains(achievementDeletionRefreshArgument) {
+                context.insert(achievementDeletionRefreshRecord())
+                OfflineQueueManager.shared.unsyncedItemsCount = 0
+                MerianLog.general.debug("UITestSeedCoordinator seeded achievement deletion refresh record.")
             } else if arguments.contains(queuedAudioHandoffArgument) {
                 context.insert(queuedAudioHandoffScan())
                 OfflineQueueManager.shared.unsyncedItemsCount = 1
@@ -157,6 +164,27 @@ enum UITestSeedCoordinator {
                 confirmedSpeciesId: "fungi_boletus"
             )
         ]
+    }
+
+    private static func achievementDeletionRefreshRecord() -> LocalScanRecord {
+        let calendar = Calendar(identifier: .gregorian)
+        let dogDate = calendar.date(from: DateComponents(year: 2026, month: 6, day: 30, hour: 11, minute: 20)) ?? Date()
+
+        return LocalScanRecord(
+            id: "achievement_domestic_dog_refresh",
+            speciesId: "dog_canis_lupus_familiaris",
+            scientificName: "Canis lupus familiaris",
+            commonName: "Domestic Dog",
+            timestamp: dogDate,
+            hazardType: "none",
+            isInvasive: false,
+            ecologyType: "domesticated",
+            confidenceScore: 0.995,
+            isLocallyArchived: true,
+            taxonomyKingdom: "Animalia",
+            locationName: "Home",
+            confirmedSpeciesId: "dog_canis_lupus_familiaris_confirmed"
+        )
     }
 
     private static func queuedAudioHandoffCapturedMediaJSON() -> String? {

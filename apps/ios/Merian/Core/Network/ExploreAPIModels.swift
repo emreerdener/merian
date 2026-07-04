@@ -836,7 +836,14 @@ struct ExploreAuthorProfile: Decodable, Equatable {
     }
 
     var awardPayloads: [AwardPayload] {
-        awards.compactMap(\.awardPayload)
+        let payloadsByType = awards.reduce(into: [AchievementType: AwardPayload]()) { partialResult, award in
+            guard let payload = award.awardPayload else { return }
+            partialResult[payload.type] = payload
+        }
+
+        return AchievementType.allCases.map { type in
+            payloadsByType[type] ?? AwardPayload(type: type, currentCount: 0, lastInteractionDate: nil)
+        }
     }
 }
 

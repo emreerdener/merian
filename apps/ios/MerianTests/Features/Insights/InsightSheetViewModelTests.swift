@@ -76,7 +76,7 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.headerParagraphs.first == "A test object.")
     }
 
-    @Test func testPetIdentificationDrivesHeaderTitleWithoutReplacingTaxonomySubtitle() {
+    @Test func testPetIdentificationDrivesHeaderTitleWithoutReplacingScientificSubtitle() {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
@@ -96,7 +96,25 @@ struct InsightSheetViewModelTests {
         viewModel.inferenceEngine = engine
 
         #expect(viewModel.resolvedHeaderTitle == "Australian Cattle Dog")
-        #expect(viewModel.headerSubtitle == "Domestic Dog • Canis lupus familiaris")
+        #expect(viewModel.headerSubtitle == "Canis lupus familiaris")
+
+        engine.speciesData = SpeciesData(
+            scanId: "cat_header",
+            commonName: "Domestic Cat",
+            scientificName: "Felis catus",
+            insightData: InsightData(aiReasoning: "A domestic cat.", hazardType: "none"),
+            confidenceScore: 0.94,
+            petIdentification: PetIdentification(
+                speciesGroup: "cat",
+                label: "Tuxedo Cat",
+                labelType: "coat_pattern",
+                confidenceScore: 0.91,
+                evidence: ["black and white coat"]
+            )
+        )
+
+        #expect(viewModel.resolvedHeaderTitle == "Tuxedo Cat")
+        #expect(viewModel.headerSubtitle == "Felis catus")
     }
 
     @Test func localNewDiscoveryDoesNotShowNewToMerianMilestone() {

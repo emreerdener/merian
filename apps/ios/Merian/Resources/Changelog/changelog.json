@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-04-pet-insight-scientific-subtitle",
+      "date": "2026-07-04",
+      "title": "Pet insight names",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Dog and cat Insight headers now keep the taxonomy subtitle focused on the scientific name when a breed, mix, coat, or body-type label is shown as the headline."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-04-field-notes-visibility-editing",
       "date": "2026-07-04",
       "title": "Field note visibility",
@@ -129,7 +142,14 @@
         {
           "title": "Added",
           "items": [
-            "Profile now has cat and dog scan achievements that unlock when you document your first domestic cat or dog."
+            "Profile now has cat and dog scan achievements that unlock when you document your first domestic cat or dog.",
+            "Public Explore author profile sheets now include the cat and dog achievements too."
+          ]
+        },
+        {
+          "title": "Fixed",
+          "items": [
+            "Achievement cards now refresh immediately when the scan that completed them is deleted from the achievement detail flow."
           ]
         }
       ]

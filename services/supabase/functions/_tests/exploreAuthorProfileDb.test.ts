@@ -40,8 +40,10 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
       const authorId = crypto.randomUUID();
       const publicSpeciesId = crypto.randomUUID();
       const privateSpeciesId = crypto.randomUUID();
+      const dogSpeciesId = crypto.randomUUID();
       const publicScanId = crypto.randomUUID();
       const privateScanId = crypto.randomUUID();
+      const dogScanId = crypto.randomUUID();
       const publicPostId = crypto.randomUUID();
       const otherFollowerId = crypto.randomUUID();
       const authorFolloweeId = crypto.randomUUID();
@@ -52,6 +54,7 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
       await insertUser(client, authorFolloweeId, "Author Followee");
       await insertSpecies(client, publicSpeciesId, "Rosa publica");
       await insertSpecies(client, privateSpeciesId, "Rosa privata");
+      await insertSpecies(client, dogSpeciesId, "Canis lupus familiaris");
 
       await client.queryArray(
         `
@@ -101,6 +104,23 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
         [privateScanId],
       );
 
+      await insertScan(client, {
+        id: dogScanId,
+        userId: authorId,
+        speciesId: dogSpeciesId,
+        latitude: 30.3,
+        longitude: -97.6,
+        geoprivacy: "private",
+      });
+      await client.queryArray(
+        `
+        UPDATE public.scans
+        SET timestamp = NOW() - INTERVAL '2 days', device_time_zone = 'UTC'
+        WHERE id = $1
+      `,
+        [dogScanId],
+      );
+
       const result = await client.queryObject<ExploreAuthorProfileRow>(
         `
         SELECT *
@@ -112,9 +132,9 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
       const row = result.rows[0];
       assertExists(row);
       assertEquals(row.author_user_id, authorId);
-      assertEquals(row.species_count, 2);
-      assertEquals(row.current_streak, 2);
-      assertEquals(row.heatmap.total_captures, 2);
+      assertEquals(row.species_count, 3);
+      assertEquals(row.current_streak, 3);
+      assertEquals(row.heatmap.total_captures, 3);
       assertEquals(row.published_post_count, 1);
       assertEquals(row.follower_count, 2);
       assertEquals(row.following_count, 1);
@@ -124,7 +144,17 @@ Deno.test("Explore author profile DB - private scans contribute to aggregates bu
       ]);
       assertEquals(
         row.awards.find((award) => award.type === "explorer")?.current_count,
-        2,
+        3,
+      );
+      assertEquals(
+        row.awards.find((award) => award.type === "domestic_dog")
+          ?.current_count,
+        1,
+      );
+      assertEquals(
+        row.awards.find((award) => award.type === "domestic_cat")
+          ?.current_count,
+        0,
       );
     },
   );

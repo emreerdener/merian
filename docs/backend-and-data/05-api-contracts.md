@@ -1533,6 +1533,8 @@ Validation and availability rules:
   author.
 - Species count and achievement progress use biological species-backed scans via
   `COALESCE(confirmed_species_id, species_id)`.
+- Public achievement progress includes the full current app achievement catalog,
+  including domestic cat and dog scan achievements.
 - Preview posts use the same Explore visibility rules as feed/library posts and
   never include private, unshared, tombstoned, media-less, or non-species-backed
   posts.

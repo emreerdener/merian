@@ -39,12 +39,6 @@ struct ModelInfoSection: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .lineSpacing(2)
-
-                    if isPro {
-                        Text("Powered by Gemini 2.5 Pro")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -291,13 +291,6 @@ extension InsightSheetViewModel {
         guard let species = inferenceEngine?.speciesData else {
             return "Awaiting taxonomy"
         }
-        if species.petIdentification?.isDisplayable == true {
-            let common = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let scientific = species.scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !common.isEmpty && !scientific.isEmpty {
-                return "\(common.capitalized) • \(scientific)"
-            }
-        }
         return species.scientificName
     }
 

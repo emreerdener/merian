@@ -77,6 +77,68 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testAchievementRootRefreshesAfterDeletingQualifyingScan() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedAchievementDeletionRefreshFlow"])
+
+        let profileButton = app.buttons["MainTabBar_Profile"]
+        XCTAssertTrue(profileButton.waitForExistence(timeout: 8.0), "Main profile tab button failed to appear")
+        profileButton.tap()
+
+        let dogCard = app.buttons["AchievementCard_domestic_dog"]
+        XCTAssertTrue(dogCard.waitForExistence(timeout: 8.0), "Dog achievement card failed to load in the profile sheet")
+        XCTAssertTrue(dogCard.label.contains("Completed achievement"), "Seeded dog achievement should start completed")
+        tapWhenHittable(dogCard, in: app)
+
+        let detailSheet = app.otherElements["AchievementDetailSheet_domestic_dog"]
+        XCTAssertTrue(detailSheet.waitForExistence(timeout: 8.0), "Dog achievement detail sheet did not present")
+
+        let contributionRow = app.buttons["AchievementContribution_achievement_domestic_dog_refresh"]
+        XCTAssertTrue(contributionRow.waitForExistence(timeout: 8.0), "Expected dog qualifying scan row was not rendered")
+        contributionRow.tap()
+
+        let insightSheet = app.otherElements["InsightSheetView"]
+        XCTAssertTrue(insightSheet.waitForExistence(timeout: 8.0), "Insight sheet failed to present from the dog qualifying scan row")
+
+        let topMenu = app.buttons["InsightTopMenu"]
+        XCTAssertTrue(topMenu.waitForExistence(timeout: 8.0), "Insight action menu did not appear")
+        topMenu.tap()
+
+        let deleteMenuItem = app.buttons["Delete scan"]
+        XCTAssertTrue(deleteMenuItem.waitForExistence(timeout: 8.0), "Delete scan action did not appear")
+        deleteMenuItem.tap()
+
+        let deleteConfirmation = app.alerts["Delete scan?"].buttons["Delete scan permanently"]
+        XCTAssertTrue(deleteConfirmation.waitForExistence(timeout: 8.0), "Delete confirmation did not appear")
+        deleteConfirmation.tap()
+
+        XCTAssertTrue(detailSheet.waitForExistence(timeout: 8.0), "Achievement detail sheet should remain visible after deleting the nested scan")
+        XCTAssertTrue(app.staticTexts["0/1"].waitForExistence(timeout: 8.0), "Dog detail progress did not refresh after deleting the qualifying scan")
+
+        app.buttons["AchievementDetailSheet_Close"].tap()
+
+        let refreshedDogCard = app.buttons["AchievementCard_domestic_dog"]
+        XCTAssertTrue(refreshedDogCard.waitForExistence(timeout: 8.0), "Dog achievement card did not return after closing detail")
+        let refreshedLabel = NSPredicate(format: "label CONTAINS %@", "Progress 0 of 1")
+        expectation(for: refreshedLabel, evaluatedWith: refreshedDogCard)
+        waitForExpectations(timeout: 8.0)
+    }
+
+    @MainActor
+    private func tapWhenHittable(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for _ in 0..<6 where !element.isHittable {
+            app.swipeUp()
+        }
+
+        XCTAssertTrue(element.isHittable, "Expected element to become tappable", file: file, line: line)
+        element.tap()
+    }
+
+    @MainActor
     func testQueuedAudioScanRetainsAudioAcrossCompletionHandoff() throws {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedQueuedAudioHandoffFlow"])
 

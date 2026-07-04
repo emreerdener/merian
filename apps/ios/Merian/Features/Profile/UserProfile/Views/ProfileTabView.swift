@@ -20,6 +20,7 @@ struct ProfileTabView: View {
     @State private var exploreViewModel = ExploreFeedViewModel()
     @State private var selectedPostRoute: ExplorePostRoute?
     @State private var selectedInsightRoute: ScanInsightRoute?
+    @State private var profileRefreshToken = UUID()
     
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -121,26 +122,32 @@ struct ProfileTabView: View {
                     showsCloseButton: false
                 )
             }
-            // MARK: - Off-Thread SQLite Data Generation
-            .task {
-                // Decouples massive SwiftData queries explicitly into a `ModelActor` to completely 
-                // prevent dropping frames on the physical UI Thread during millions of array computations.
-                let container = modelContext.container
-                let actor = ProfileDatabaseActor(modelContainer: container)
-                let stats = await actor.calculateAll()
-                await MainActor.run {
-                    self.uniqueSpeciesCount = stats.speciesCount
-                    self.currentStreak = stats.streak
-                    self.totalCaptures = stats.heatmap.totalCaptures
-                    self.heatmapData = stats.heatmap
-                    self.awards = stats.awards
-                }
+            .task(id: profileRefreshToken) {
+                await refreshProfileStats()
+            }
+            .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+                profileRefreshToken = UUID()
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
         // Explicitly binds this list to exactly 100% of the screen width securely, 
         // creating a perfect 1-to-1 swipeable "Page" geometry identical to SettingsTabView!
         .containerRelativeFrame(.horizontal)
+    }
+
+    @MainActor
+    private func refreshProfileStats() async {
+        // Decouples massive SwiftData queries explicitly into a `ModelActor` to completely
+        // prevent dropping frames on the physical UI Thread during millions of array computations.
+        let actor = ProfileDatabaseActor(modelContainer: modelContext.container)
+        let stats = await actor.calculateAll()
+        guard !Task.isCancelled else { return }
+
+        uniqueSpeciesCount = stats.speciesCount
+        currentStreak = stats.streak
+        totalCaptures = stats.heatmap.totalCaptures
+        heatmapData = stats.heatmap
+        awards = stats.awards
     }
 
     private func openPublicScanPreview(_ post: ExplorePost) {
