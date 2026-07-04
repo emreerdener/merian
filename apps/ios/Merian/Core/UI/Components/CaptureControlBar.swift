@@ -43,8 +43,12 @@ struct CaptureControlBar: View {
                         latestThumbnail: photoLibraryManager.latestThumbnail,
                         maxSelectionCount: appSettings.isMultiCaptureEnabled ? max(1, viewModel.stagedCapture.availableSlots(limit: capacityLimit)) : 1
                     )
-                    .opacity(captureMode == .visual ? (isAtCapacity ? 0.5 : 1) : 0)
-                    .allowsHitTesting(captureMode == .visual && !isAtCapacity)
+                    .opacity(captureMode == .visual && !viewModel.isVideoRecording ? (isAtCapacity ? 0.5 : 1) : 0)
+                    .allowsHitTesting(captureMode == .visual && !isAtCapacity && !viewModel.isVideoRecording)
+
+                    VideoCancelButton(onTap: { viewModel.cancelVideoCapture() })
+                        .opacity(captureMode == .visual && viewModel.isVideoRecording ? 1 : 0)
+                        .allowsHitTesting(captureMode == .visual && viewModel.isVideoRecording)
 
                     TableOfContentsButton(
                         onTap: { coordinator.tocRequestID = UUID() }
@@ -66,6 +70,7 @@ struct CaptureControlBar: View {
                     .allowsHitTesting(captureMode == .audio && (audioCaptureManager.isRecording || audioCaptureManager.pendingPlaybackPath != nil))
                 }
                 .animation(.easeInOut(duration: 0.2), value: captureMode)
+                .animation(.easeInOut(duration: 0.2), value: viewModel.isVideoRecording)
                 .animation(.easeInOut(duration: 0.2), value: audioCaptureManager.isRecording)
                 .animation(.easeInOut(duration: 0.2), value: audioCaptureManager.pendingPlaybackPath == nil)
 
@@ -115,7 +120,9 @@ struct CaptureControlBar: View {
                             } else {
                                 Task {
                                     do {
-                                        try await audioCaptureManager.startRecording()
+                                        try await audioCaptureManager.startRecording(
+                                            autoSubmitOnMaxDuration: !appSettings.requiresScanConfirmation
+                                        )
                                     } catch {
                                         await MainActor.run {
                                             viewModel.offlineToastMessage = error.localizedDescription
@@ -402,6 +409,27 @@ private struct DictationButton: View {
         }
         .buttonStyle(.plain)
         .padding(.trailing, 32)
+    }
+}
+
+// MARK: - Video Cancel Button
+
+/// Cancels the active video recording without staging the clip.
+private struct VideoCancelButton: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: {
+            HapticManager.shared.triggerMediumPulse()
+            onTap()
+        }) {
+            Image(systemName: "xmark")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(.red)
+                .circularMaterialControl(colorScheme: .dark)
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 32)
     }
 }
 

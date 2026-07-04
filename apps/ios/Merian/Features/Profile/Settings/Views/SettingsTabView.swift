@@ -23,6 +23,8 @@ struct SettingsTabView: View {
     @State private var showPaywall = false
     @State private var showFeedbackSurvey = false
     @State private var toastMessage: String?
+    @State private var achievementToastPresenter = AchievementToastPresenter.shared
+    @State private var selectedAchievementToastAward: AwardPayload?
 
     var body: some View {
         ZStack {
@@ -133,6 +135,25 @@ struct SettingsTabView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(100)
             }
+
+            if let item = achievementToastPresenter.activeUnlock {
+                AchievementToastBanner(
+                    item: item,
+                    onDismiss: {
+                        achievementToastPresenter.dismissActiveUnlock(id: item.id)
+                    },
+                    onOpen: {
+                        selectedAchievementToastAward = item.award
+                    }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.top, 16)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .zIndex(110)
+            }
+        }
+        .sheet(item: $selectedAchievementToastAward) { award in
+            AchievementDetailSheet(award: award, modelContainer: modelContext.container)
         }
     }
 

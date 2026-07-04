@@ -1,12 +1,18 @@
+import SwiftData
 import SwiftUI
 
 struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
+    @Environment(\.modelContext) private var modelContext
     @Binding var toastMessage: String?
     @Binding var toastActionTitle: String?
     @Binding var toastAction: (() -> Void)?
     @Binding var showCelebration: Bool
     var commonNameForCelebration: String
     var toastAlignment: SwiftUI.Alignment
+    var showsAchievementToasts: Bool
+
+    @State private var achievementToastPresenter = AchievementToastPresenter.shared
+    @State private var selectedAchievementToastAward: AwardPayload?
 
     func body(content: Content) -> some SwiftUI.View {
         ZStack(alignment: .top) {
@@ -68,6 +74,25 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
                 commonName: commonNameForCelebration,
                 showCelebration: $showCelebration
             )
+
+            if showsAchievementToasts, let item = achievementToastPresenter.activeUnlock {
+                AchievementToastBanner(
+                    item: item,
+                    onDismiss: {
+                        achievementToastPresenter.dismissActiveUnlock(id: item.id)
+                    },
+                    onOpen: {
+                        selectedAchievementToastAward = item.award
+                    }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.top, 16)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .zIndex(110)
+            }
+        }
+        .sheet(item: $selectedAchievementToastAward) { award in
+            AchievementDetailSheet(award: award, modelContainer: modelContext.container)
         }
     }
 }
@@ -79,7 +104,8 @@ extension View {
         toastAction: Binding<(() -> Void)?> = .constant(nil),
         showCelebration: Binding<Bool> = .constant(false),
         commonNameForCelebration: String = "",
-        toastAlignment: Alignment = .bottom
+        toastAlignment: Alignment = .bottom,
+        showsAchievementToasts: Bool = true
     ) -> some View {
         self.modifier(MerianSystemFeedbackModifier(
             toastMessage: toastMessage,
@@ -87,7 +113,8 @@ extension View {
             toastAction: toastAction,
             showCelebration: showCelebration,
             commonNameForCelebration: commonNameForCelebration,
-            toastAlignment: toastAlignment
+            toastAlignment: toastAlignment,
+            showsAchievementToasts: showsAchievementToasts
         ))
     }
 }

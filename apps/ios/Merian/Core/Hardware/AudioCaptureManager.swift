@@ -69,7 +69,7 @@ final class AudioCaptureManager {
     private(set) var recordingProgress: Double = 0
     private(set) var spectrogramColumns: [SpectrogramColumn] = []
     private(set) var snrLevel: SNRLevel = .clear
-    /// Non-nil only after the user explicitly confirms in the review UI.
+    /// Non-nil after the user confirms in review, or after a max-duration recording auto-submits.
     /// Setting this triggers `onChange(of: audioFilePath)` in CaptureWorkspaceView → submitAudio.
     private(set) var audioFilePath: String?
     /// Non-nil after recording finishes, before the user confirms or discards.
@@ -100,6 +100,7 @@ final class AudioCaptureManager {
     private var snrHoldTicks: Int = 0
     private var isStartingRecording: Bool = false
     private var audioSessionLease: AudioSessionCoordinator.Lease?
+    private var autoSubmitOnMaxDuration: Bool = false
 
     #if targetEnvironment(simulator)
     private static let preferredRecordSampleRate: Double? = 48_000
@@ -132,16 +133,23 @@ final class AudioCaptureManager {
 
     // MARK: - Recording
 
-    func startRecording() async throws {
+    func startRecording(autoSubmitOnMaxDuration: Bool = false) async throws {
         guard !isRecording, !isStartingRecording else { return }
         isStartingRecording = true
+        self.autoSubmitOnMaxDuration = autoSubmitOnMaxDuration
         defer { isStartingRecording = false }
         // Clear any leftover review state before a fresh recording session.
         discardPending()
 
         let granted = await AVAudioApplication.requestRecordPermission()
-        guard granted else { throw AudioCaptureError.microphonePermissionDenied }
-        if Task.isCancelled { return }
+        guard granted else {
+            self.autoSubmitOnMaxDuration = false
+            throw AudioCaptureError.microphonePermissionDenied
+        }
+        if Task.isCancelled {
+            self.autoSubmitOnMaxDuration = false
+            return
+        }
 
         teardownEngine()
 
@@ -254,7 +262,7 @@ final class AudioCaptureManager {
             }
             await MainActor.run { 
                 HapticManager.shared.triggerHeavyImpact()
-                self?.finishRecording() 
+                self?.finishRecording(reachedMaxDuration: true)
             }
         }
     }
@@ -264,7 +272,7 @@ final class AudioCaptureManager {
         guard isRecording else { return }
         recordingTask?.cancel()
         recordingTask = nil
-        finishRecording()
+        finishRecording(reachedMaxDuration: false)
     }
 
     /// Pauses an active recording without discarding audio. Engine tap stays installed.
@@ -295,7 +303,10 @@ final class AudioCaptureManager {
             }
             isPaused = false
             let startTick = Int((recordingProgress * 100).rounded())
-            guard startTick < 100 else { finishRecording(); return }
+            guard startTick < 100 else {
+                finishRecording(reachedMaxDuration: true)
+                return
+            }
             recordingTask = Task { [weak self] in
                 for i in (startTick + 1)...100 {
                     try? await Task.sleep(nanoseconds: 150_000_000)
@@ -304,7 +315,7 @@ final class AudioCaptureManager {
                 }
                 await MainActor.run { 
                     HapticManager.shared.triggerHeavyImpact()
-                    self?.finishRecording() 
+                    self?.finishRecording(reachedMaxDuration: true)
                 }
             }
         }
@@ -319,6 +330,7 @@ final class AudioCaptureManager {
         isRecording = false
         isPaused = false
         recordingProgress = 0
+        autoSubmitOnMaxDuration = false
         discardPending()
     }
 
@@ -342,6 +354,7 @@ final class AudioCaptureManager {
         audioFilePath = nil
         pendingPlaybackPath = nil
         pendingFileName = nil
+        autoSubmitOnMaxDuration = false
         Task { await spectrogram.reset() }
     }
 
@@ -458,15 +471,19 @@ final class AudioCaptureManager {
 
     // MARK: - Private
 
-    private func finishRecording() {
+    private func finishRecording(reachedMaxDuration: Bool) {
         teardownEngine()
-        // Route through the review state instead of firing submission directly.
-        // The user must explicitly confirm via the review UI before audioFilePath is set.
-        pendingPlaybackPath = pendingFileName
+        if reachedMaxDuration, autoSubmitOnMaxDuration {
+            audioFilePath = pendingFileName
+        } else {
+            // Route through the review state instead of firing submission directly.
+            pendingPlaybackPath = pendingFileName
+        }
         pendingFileName = nil
         isRecording = false
         isPaused = false
         recordingTask = nil
+        autoSubmitOnMaxDuration = false
     }
 
     private func teardownEngine() {
@@ -502,6 +519,7 @@ final class AudioCaptureManager {
         isRecording = false
         isPaused = false
         recordingProgress = 0
+        autoSubmitOnMaxDuration = false
         resetSpectrogramState()
     }
 
@@ -525,5 +543,15 @@ final class AudioCaptureManager {
 
     var debugHasDSPTask: Bool { dspTask != nil }
     var debugPendingFileName: String? { pendingFileName }
+
+    func debugStageRecordingForFinish(fileName: String, autoSubmitOnMaxDuration: Bool) {
+        pendingFileName = fileName
+        isRecording = true
+        self.autoSubmitOnMaxDuration = autoSubmitOnMaxDuration
+    }
+
+    func debugFinishRecording(reachedMaxDuration: Bool) {
+        finishRecording(reachedMaxDuration: reachedMaxDuration)
+    }
 #endif
 }

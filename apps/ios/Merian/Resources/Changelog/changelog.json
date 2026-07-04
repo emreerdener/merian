@@ -2,6 +2,45 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-04-audio-recording-auto-submit",
+      "date": "2026-07-04",
+      "title": "Audio recording submission",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Audio recordings now submit automatically when they reach the full time limit and confirm-before-submit is turned off."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-04-video-scan-paywall-carousel",
+      "date": "2026-07-04",
+      "title": "Video scan paywall",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "The Pro paywall now features video scans in the carousel and gives feature descriptions more room to wrap cleanly."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-04-video-recording-controls",
+      "date": "2026-07-04",
+      "title": "Video recording controls",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Pro video scans now show a countdown while recording, include an X cancel control before staging, and let you review or remove staged clips before identifying."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-04-cat-dog-achievements",
       "date": "2026-07-04",
       "title": "Cat and dog achievements",

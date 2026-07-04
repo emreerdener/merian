@@ -29,15 +29,27 @@ enum ProPlanValueProps {
         ),
         PaywallHeroSlide(
             imageName: "hawk",
-            title: "Pro AI vision",
+            title: "Advanced AI analysis",
             subtitle: "Use Merian's most capable model for deeper analysis.",
             glowColor: .orange
         ),
         PaywallHeroSlide(
+            imageName: "camera-lens",
+            title: "Video scans",
+            subtitle: "Record video clips for richer identification context.",
+            glowColor: .purple
+        ),
+        PaywallHeroSlide(
             imageName: "blue-bird",
-            title: "Listen, compare, record",
-            subtitle: "Unlock multi-capture context, expedition modes, and richer insight cards.",
+            title: "Multi-capture analysis",
+            subtitle: "Add multiple scans to a single analysis.",
             glowColor: .cyan
+        ),
+        PaywallHeroSlide(
+            imageName: "bee",
+            title: "Expedition mode",
+            subtitle: "Maximize battery life and performance out in the field.",
+            glowColor: .green
         )
     ]
 
@@ -176,7 +188,7 @@ struct PaywallView: View {
     }
 
     private func heroCarousel(availableHeight: CGFloat, isCompact: Bool) -> some View {
-        let carouselHeight = isCompact ? min(320, availableHeight * 0.45) : 388
+        let carouselHeight = isCompact ? min(340, availableHeight * 0.5) : 420
         return TabView(selection: $selectedHeroIndex) {
             ForEach(Array(ProPlanValueProps.featuredSlides.enumerated()), id: \.element.id) { index, slide in
                 PaywallHeroSlideView(slide: slide, isCompact: isCompact, availableHeight: availableHeight)
@@ -615,14 +627,17 @@ private struct PaywallHeroSlideView: View {
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.86)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(slide.subtitle)
                     .font(.system(size: isCompact ? 14 : 17, weight: .medium))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(2)
-                    .padding(.horizontal, 10)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: isCompact ? 300 : 360)
+            .padding(.horizontal, isCompact ? 28 : 36)
         }
         .padding(.bottom, isCompact ? 12 : 26)
     }

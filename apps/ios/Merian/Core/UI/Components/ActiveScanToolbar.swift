@@ -18,6 +18,7 @@ struct ActiveScanToolbar: View {
     let onCancel: () -> Void
     let onSubmit: () -> Void
     let onDescriptionTap: (Int) -> Void
+    let onVideoTap: (Int) -> Void
 
     // MARK: - Body Layout
     var body: some View {
@@ -50,8 +51,8 @@ struct ActiveScanToolbar: View {
                         }
                         .buttonStyle(.plain)
 
-                    case .video(let uiImage, _, _):
-                        Button(action: {}) {
+                    case .video(let uiImage, let index, _):
+                        Button(action: { onVideoTap(index) }) {
                             ZStack(alignment: .bottomTrailing) {
                                 Image(uiImage: uiImage)
                                     .resizable()

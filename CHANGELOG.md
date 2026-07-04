@@ -7,10 +7,13 @@ TestFlight, App Store, support, and QA.
 ## Unreleased
 
 ### Capture
+- Added automatic audio submission when a recording reaches the full time limit and confirm-before-submit is turned off.
+- Added video recording controls so Pro video scans show remaining time, can be canceled before staging, and can be reviewed or removed after staging.
 - Added Pro short video scans from the visual shutter: tap still takes a photo, while a 0.75-second hold latches into a 5-second video recording with saved playback and image-based thumbnails.
 - Added clearer haptic feedback for video recording start, finish, successful staging, and recording failures.
 - Improved camera shutter feedback so photo captures and video recording start with a stronger, prewarmed haptic cue, and video recording begins faster after a shorter sustained hold.
 - Updated video scan analysis so sampled frames and accompanying audio are treated as evidence from the same video, and video scans are no longer described as images.
+- Added a Pro paywall carousel slide for video scans and improved feature text wrapping.
 - Added video scans to the Pro paywall comparison table.
 - Kept non-Pro long-presses photo-first so holding the shutter does not interrupt capture or open the paywall.
 - Fixed non-biological scan saving so captures that omit ecology metadata are saved with an unknown ecology fallback instead of failing in the backend.

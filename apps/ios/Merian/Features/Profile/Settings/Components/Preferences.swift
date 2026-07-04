@@ -197,6 +197,25 @@ struct Preferences: View {
             } label: {
                 Label("Test Explore Onboarding", systemImage: "safari")
             }
+
+            Button {
+                previewAchievementToast(.domesticCat)
+            } label: {
+                Label("Preview achievement toast", systemImage: "trophy.fill")
+            }
+            .accessibilityIdentifier("Settings_PreviewAchievementToast")
+
+            Button {
+                previewAchievementToast(.domesticDog)
+            } label: {
+                Label("Preview dog achievement toast", systemImage: "pawprint")
+            }
+
+            Button {
+                previewAchievementToast(.nocturnal)
+            } label: {
+                Label("Preview long achievement toast", systemImage: "moon.stars.fill")
+            }
             
             Button {
                 showPaywall = true
@@ -209,6 +228,17 @@ struct Preferences: View {
         #endif
     }
 
+#if DEBUG
+    private func previewAchievementToast(_ type: AchievementType) {
+        AchievementToastPresenter.shared.previewAchievementUnlock(
+            AwardPayload(
+                type: type,
+                currentCount: type.definition.targetCount,
+                lastInteractionDate: Date()
+            )
+        )
+    }
+#endif
 }
 
 #if DEBUG

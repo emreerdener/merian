@@ -163,6 +163,42 @@ struct AudioCaptureManagerLifecycleTests {
         #expect(manager.debugHasDSPTask == false, "Cancelled recording startup must cancel and clear the DSP task")
         #expect(manager.debugPendingFileName == nil, "Cancelled recording startup must clear pending file bookkeeping")
     }
+
+    @Test func testMaxDurationRecordingAutoSubmitsWhenEnabled() {
+        let manager = AudioCaptureManager()
+        let fileName = "\(UUID().uuidString).wav"
+
+        manager.debugStageRecordingForFinish(fileName: fileName, autoSubmitOnMaxDuration: true)
+        manager.debugFinishRecording(reachedMaxDuration: true)
+
+        #expect(manager.audioFilePath == fileName, "Max-duration audio should move directly to submission when auto-submit is enabled")
+        #expect(manager.pendingPlaybackPath == nil, "Auto-submitted audio should not pause in review")
+        #expect(manager.isRecording == false)
+    }
+
+    @Test func testMaxDurationRecordingStaysInReviewWhenAutoSubmitDisabled() {
+        let manager = AudioCaptureManager()
+        let fileName = "\(UUID().uuidString).wav"
+
+        manager.debugStageRecordingForFinish(fileName: fileName, autoSubmitOnMaxDuration: false)
+        manager.debugFinishRecording(reachedMaxDuration: true)
+
+        #expect(manager.audioFilePath == nil, "Confirmation-enabled audio should not submit automatically")
+        #expect(manager.pendingPlaybackPath == fileName)
+        #expect(manager.isRecording == false)
+    }
+
+    @Test func testEarlyStoppedRecordingStaysInReviewEvenWhenAutoSubmitEnabled() {
+        let manager = AudioCaptureManager()
+        let fileName = "\(UUID().uuidString).wav"
+
+        manager.debugStageRecordingForFinish(fileName: fileName, autoSubmitOnMaxDuration: true)
+        manager.debugFinishRecording(reachedMaxDuration: false)
+
+        #expect(manager.audioFilePath == nil, "Manual early stops should still let the user review the shorter clip")
+        #expect(manager.pendingPlaybackPath == fileName)
+        #expect(manager.isRecording == false)
+    }
 }
 
 @MainActor

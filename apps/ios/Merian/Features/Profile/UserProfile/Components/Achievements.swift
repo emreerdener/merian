@@ -19,6 +19,14 @@ struct Achievements: View {
     @State private var sortOption: AwardSortOption = .smartSort
     @State private var selectedAward: AwardPayload?
 
+    init(
+        awards: [AwardPayload],
+        allowsDetailPresentation: Bool = true
+    ) {
+        self.awards = awards
+        self.allowsDetailPresentation = allowsDetailPresentation
+    }
+
     private var sortedAwards: [AwardPayload] {
         switch sortOption {
         case .smartSort:
@@ -161,7 +169,7 @@ struct Achievements: View {
     }
 }
 
-private struct AchievementDetailSheet: View {
+struct AchievementDetailSheet: View {
     let award: AwardPayload
     let modelContainer: ModelContainer
 

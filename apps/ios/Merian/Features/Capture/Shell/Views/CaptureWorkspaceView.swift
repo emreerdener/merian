@@ -37,6 +37,7 @@ struct CaptureWorkspaceView: View {
 
     // MARK: - Staged Description Sheet
     @State private var stagedDescriptionEditIndex: Int?
+    @State private var stagedVideoReviewIndex: Int?
     @State private var showFeedbackSurvey = false
     @State private var hasEvaluatedFeedbackSurveyPrompt = false
     @State private var feedbackSurveyPromptPending = false
@@ -260,7 +261,8 @@ struct CaptureWorkspaceView: View {
                             onSubmit: { 
                                 submitActiveStagedCapture()
                             },
-                            onDescriptionTap: { index in stagedDescriptionEditIndex = index }
+                            onDescriptionTap: { index in stagedDescriptionEditIndex = index },
+                            onVideoTap: { index in stagedVideoReviewIndex = index }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -326,6 +328,23 @@ struct CaptureWorkspaceView: View {
                     stagedDescriptionEditIndex = nil
                 }
             )
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { stagedVideoReviewIndex != nil },
+                set: { if !$0 { stagedVideoReviewIndex = nil } }
+            )
+        ) {
+            if let selectedIndex = stagedVideoReviewIndex,
+               viewModel.stagedCapture.videos.indices.contains(selectedIndex) {
+                StagedVideoReviewSheet(
+                    video: viewModel.stagedCapture.videos[selectedIndex],
+                    onRemove: {
+                        viewModel.removeStagedVideo(at: selectedIndex)
+                        stagedVideoReviewIndex = nil
+                    }
+                )
+            }
         }
         .sheet(isPresented: $showFeedbackSurvey, onDismiss: {
             guard feedbackSurveyPresentedProactively else { return }
@@ -601,6 +620,69 @@ struct CaptureWorkspaceView: View {
         feedbackSurveyPromptPending = false
         feedbackSurveyPresentedProactively = true
         showFeedbackSurvey = true
+    }
+}
+
+private struct StagedVideoReviewSheet: View {
+    let video: StagedVideo
+    let onRemove: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var player: AVPlayer
+
+    init(video: StagedVideo, onRemove: @escaping () -> Void) {
+        self.video = video
+        self.onRemove = onRemove
+        _player = State(initialValue: AVPlayer(url: URL(fileURLWithPath: video.filePath)))
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(UIColor.secondarySystemGroupedBackground))
+
+                    VideoPlayer(player: player)
+                        .aspectRatio(9.0 / 16.0, contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .frame(maxWidth: .infinity)
+                .background(Color.black, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                Button(role: .destructive) {
+                    player.pause()
+                    onRemove()
+                    dismiss()
+                } label: {
+                    Label("Remove video", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
+
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(Color(UIColor.systemGroupedBackground).ignoresSafeArea())
+            .navigationTitle("Video")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .onDisappear {
+            player.pause()
+        }
     }
 }
 

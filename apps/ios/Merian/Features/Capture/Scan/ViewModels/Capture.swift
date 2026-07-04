@@ -125,7 +125,7 @@ extension CaptureWorkspaceViewModel {
                 category: .backgroundDatabaseMutation
             ) {
                 let asset = AVURLAsset(url: videoURL)
-                guard let audioTrack = asset.tracks(withMediaType: .audio).first else {
+                guard let audioTrack = try await asset.loadTracks(withMediaType: .audio).first else {
                     return nil
                 }
 
@@ -360,6 +360,10 @@ extension CaptureWorkspaceViewModel {
                         self.startVideoRecordingProgressTimer()
                     }
                 )
+                guard !Task.isCancelled else {
+                    try? FileManager.default.removeItem(at: recording.fileURL)
+                    throw CancellationError()
+                }
                 await MainActor.run {
                     self.diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0)
                 }
@@ -422,6 +426,12 @@ extension CaptureWorkspaceViewModel {
     func stopVideoCapture() {
         guard isVideoRecording else { return }
         AppDIContainer.shared.hapticManager.triggerMediumPulse()
+        diContainer.cameraManager.stopVideoRecording()
+    }
+
+    func cancelVideoCapture() {
+        guard isVideoRecording else { return }
+        videoRecordingTask?.cancel()
         diContainer.cameraManager.stopVideoRecording()
     }
 

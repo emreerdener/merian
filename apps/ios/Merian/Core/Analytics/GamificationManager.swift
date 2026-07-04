@@ -56,8 +56,12 @@ import os
             let achievementsEnabled = defaults.object(forKey: UserDefaultsKeys.isAchievementNotificationsEnabled) as? Bool ?? true
             let systemPushEnabled = defaults.bool(forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
 
-            if achievementsEnabled && systemPushEnabled {
-                PushNotificationManager.shared.sendAchievementUnlockedNotification(achievementTitle: award.title)
+            if achievementsEnabled {
+                AchievementToastPresenter.shared.enqueueAchievementUnlock(award)
+
+                if systemPushEnabled {
+                    PushNotificationManager.shared.sendAchievementUnlockedNotification(achievementTitle: award.title)
+                }
             }
         }
     }

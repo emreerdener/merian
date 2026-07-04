@@ -569,6 +569,15 @@ final class CaptureWorkspaceViewModel {
         imageToCrop = nil
     }
 
+    func removeStagedVideo(at index: Int) {
+        guard stagedCapture.videos.indices.contains(index) else { return }
+        let removedVideo = stagedCapture.videos.remove(at: index)
+        try? FileManager.default.removeItem(at: URL(fileURLWithPath: removedVideo.filePath))
+        if let audioFilePath = removedVideo.audioFilePath {
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: audioFilePath))
+        }
+    }
+
     func presentCrop(for index: Int) {
         guard index < stagedCapture.images.count else { return }
         self.editingCropIndex = index
