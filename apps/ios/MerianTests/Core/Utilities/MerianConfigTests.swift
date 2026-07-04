@@ -38,6 +38,69 @@ struct MerianConfigTests {
     }
 }
 
+@Suite("Explore Error Formatter Tests")
+struct ExploreErrorFormatterTests {
+
+    @Test func duplicateScanPrimaryKeyErrorsUseShareRecoveryCopy() {
+        let message = ExploreErrorFormatter.message(for: MerianError.httpError(
+            statusCode: 409,
+            message: "duplicate key value violates unique constraint \"scans_pkey\""
+        ))
+
+        #expect(message == "This scan is already saved. Try sharing again.")
+    }
+
+    @Test func jsonWrappedDuplicateScanErrorsAreSanitized() {
+        let rawMessage = #"{"error":"duplicate key value violates unique constraint \"scans_pkey\""}"#
+
+        let message = ExploreErrorFormatter.message(for: MerianError.httpError(
+            statusCode: 409,
+            message: rawMessage
+        ))
+
+        #expect(message == "This scan is already saved. Try sharing again.")
+    }
+
+    @Test func friendlyApiErrorsPassThrough() {
+        let message = ExploreErrorFormatter.message(for: MerianError.httpError(
+            statusCode: 409,
+            message: "Only biological scans can be shared to Explore."
+        ))
+
+        #expect(message == "Only biological scans can be shared to Explore.")
+    }
+
+    @Test func technicalPersistenceErrorsUseGenericPersistenceCopy() {
+        let message = ExploreErrorFormatter.message(for: MerianError.httpError(
+            statusCode: 400,
+            message: "null value in column \"species_id\" violates not-null constraint"
+        ))
+
+        #expect(message == "We couldn’t finish that. Please try again.")
+    }
+
+    @Test func emptyHttpErrorsUseGenericCopy() {
+        let message = ExploreErrorFormatter.message(for: MerianError.httpError(
+            statusCode: 400,
+            message: "   "
+        ))
+
+        #expect(message == "Something went wrong. Please try again.")
+    }
+
+    @Test func titledMessagesPreserveSanitizedBody() {
+        let message = ExploreErrorFormatter.titledMessage(
+            "Couldn’t share to Explore",
+            for: MerianError.httpError(
+                statusCode: 409,
+                message: "duplicate key value violates unique constraint \"scans_pkey\""
+            )
+        )
+
+        #expect(message == "Couldn’t share to Explore\nThis scan is already saved. Try sharing again.")
+    }
+}
+
 @Suite("Merian Environment Tests")
 struct MerianEnvironmentTests {
 

@@ -77,7 +77,8 @@ struct AchievementsCalculator {
             award: AwardPayload(
                 type: .firstScan,
                 currentCount: oldestRecord == nil ? 0 : 1,
-                lastInteractionDate: oldestRecord?.timestamp
+                lastInteractionDate: oldestRecord?.timestamp,
+                unlockedAt: oldestRecord?.timestamp
             ),
             contributions: oldestRecord.map {
                 [makeContribution(for: $0, reasonText: reasonText)]
@@ -138,6 +139,7 @@ private struct AchievementAccumulator {
         
         let targetCount = type.definition.targetCount
         let cappedContributions = Array(oldestFirst.prefix(targetCount))
+        let unlockedAt = cappedContributions.count >= targetCount ? cappedContributions.last?.timestamp : nil
         
         // Show every qualifying unique contribution up to targetCount
         let displayContributions = cappedContributions.sorted { lhs, rhs in
@@ -151,7 +153,8 @@ private struct AchievementAccumulator {
             award: AwardPayload(
                 type: type,
                 currentCount: min(contributionsBySpeciesKey.count, targetCount),
-                lastInteractionDate: lastInteractionDate
+                lastInteractionDate: lastInteractionDate,
+                unlockedAt: unlockedAt
             ),
             contributions: displayContributions
         )

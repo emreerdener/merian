@@ -300,6 +300,63 @@ struct InsightSheetViewModelTests {
         #expect(resolved.shareRecommendation == .publishToExplore)
     }
 
+    @Test func testTopMenuStateShowsExplorePostActionsForPublishedPost() {
+        let state = InsightTopMenuState(
+            sharedExplorePostId: "post_123",
+            sharedCommunityIdentificationRequestId: nil,
+            canEditExplorePost: true,
+            canViewExplorePost: true,
+            canAskCommunity: true,
+            canViewCommunityRequest: false
+        )
+
+        #expect(state.showsExplorePostSection == true)
+        #expect(state.communityAction == .askCommunity)
+    }
+
+    @Test func testTopMenuStateHidesExplorePostActionsWithoutPublishedPost() {
+        let state = InsightTopMenuState(
+            sharedExplorePostId: nil,
+            sharedCommunityIdentificationRequestId: nil,
+            canEditExplorePost: true,
+            canViewExplorePost: true,
+            canAskCommunity: true,
+            canViewCommunityRequest: false
+        )
+
+        #expect(state.showsExplorePostSection == false)
+        #expect(state.communityAction == .askCommunity)
+    }
+
+    @Test func testTopMenuStateUsesViewCommunityRequestWhenRequestExists() {
+        let state = InsightTopMenuState(
+            sharedExplorePostId: "post_123",
+            sharedCommunityIdentificationRequestId: "request_123",
+            canEditExplorePost: true,
+            canViewExplorePost: true,
+            canAskCommunity: true,
+            canViewCommunityRequest: true
+        )
+
+        #expect(state.showsExplorePostSection == true)
+        #expect(state.communityAction == .viewCommunityRequest)
+        #expect(state.communityAction?.title == "View community request")
+    }
+
+    @Test func testTopMenuStateUsesAskCommunityWhenNoRequestExists() {
+        let state = InsightTopMenuState(
+            sharedExplorePostId: "post_123",
+            sharedCommunityIdentificationRequestId: nil,
+            canEditExplorePost: true,
+            canViewExplorePost: true,
+            canAskCommunity: true,
+            canViewCommunityRequest: true
+        )
+
+        #expect(state.communityAction == .askCommunity)
+        #expect(state.communityAction?.title == "Ask the community")
+    }
+
     @Test func testFetchLocalRecord() async throws {
         // Validation that the viewmodel gracefully pulls state and assigns local memory
         let ctx = try createIsolatedContext()

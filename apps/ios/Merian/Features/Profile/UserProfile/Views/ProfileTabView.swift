@@ -72,6 +72,9 @@ struct ProfileTabView: View {
                 if !awards.isEmpty {
                     Achievements(awards: awards)
                 }
+
+                // MARK: - Refer a Friend
+                ReferFriendCard()
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)

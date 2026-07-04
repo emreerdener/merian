@@ -37,13 +37,14 @@ extension InsightSheetViewModel {
                 state.toastMessage = "Shared to Explore"
                 toastActionTitle = "View"
                 toastAction = { [weak self] in
+                    self?.state.explorePresentationTarget = .post
                     self?.state.showExploreSheet = true
                 }
             }
         } catch {
             HapticManager.shared.triggerErrorThump()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = ExploreErrorFormatter.message(for: error)
+                state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error)
             }
         }
     }
@@ -82,13 +83,14 @@ extension InsightSheetViewModel {
                 state.toastMessage = "Shared to Explore"
                 toastActionTitle = "View"
                 toastAction = { [weak self] in
+                    self?.state.explorePresentationTarget = .post
                     self?.state.showExploreSheet = true
                 }
             }
         } catch {
             HapticManager.shared.triggerErrorThump()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = ExploreErrorFormatter.message(for: error)
+                state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error)
             }
         }
     }
@@ -97,11 +99,38 @@ extension InsightSheetViewModel {
         isPublic: Bool,
         modelContext: ModelContext
     ) async -> FieldNotesVisibilityUpdateFeedback {
+        await syncExploreFieldNotesVisibility(
+            isPublic: isPublic,
+            fieldNotesForPost: shareableFieldNotes,
+            modelContext: modelContext
+        )
+    }
+
+    func saveFieldNotesAndExploreVisibility(
+        _ text: String,
+        isPublic: Bool,
+        modelContext: ModelContext
+    ) async -> FieldNotesVisibilityUpdateFeedback {
+        updateFieldNotes(text, modelContext: modelContext)
+
+        let fieldNotesForPost = FieldNotesRepository.trimmedNonEmptyText(text)
+        return await syncExploreFieldNotesVisibility(
+            isPublic: isPublic && fieldNotesForPost != nil,
+            fieldNotesForPost: fieldNotesForPost,
+            modelContext: modelContext
+        )
+    }
+
+    private func syncExploreFieldNotesVisibility(
+        isPublic: Bool,
+        fieldNotesForPost: String?,
+        modelContext: ModelContext
+    ) async -> FieldNotesVisibilityUpdateFeedback {
         guard let postId = state.sharedExplorePostId, !state.isUpdatingExploreFieldNotes else {
             return .failure("Field notes visibility is already updating")
         }
 
-        guard !isPublic || shareableFieldNotes != nil else {
+        guard !isPublic || fieldNotesForPost != nil else {
             return .failure("Add field notes before publishing them")
         }
 
@@ -109,13 +138,13 @@ extension InsightSheetViewModel {
         defer { state.isUpdatingExploreFieldNotes = false }
 
         do {
-            if !isPublic, let shareableFieldNotes {
-                preserveLocalFieldNotesIfNeeded(shareableFieldNotes, modelContext: modelContext)
+            if !isPublic, let fieldNotesForPost {
+                preserveLocalFieldNotesIfNeeded(fieldNotesForPost, modelContext: modelContext)
             }
 
             let response = try await MerianNetworkClient.shared.updateExplorePostFieldNotes(
                 postId: postId,
-                fieldNotes: isPublic ? shareableFieldNotes : nil
+                fieldNotes: isPublic ? fieldNotesForPost : nil
             )
             let publicNotes = response.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             state.exploreFieldNotesArePublic = publicNotes
@@ -161,7 +190,7 @@ extension InsightSheetViewModel {
         } catch {
             HapticManager.shared.triggerErrorThump()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = ExploreErrorFormatter.message(for: error)
+                state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t update Explore post", for: error)
             }
         }
     }
@@ -199,13 +228,14 @@ extension InsightSheetViewModel {
                 state.toastMessage = "Asked the community"
                 toastActionTitle = "View"
                 toastAction = { [weak self] in
+                    self?.state.explorePresentationTarget = .communityRequest
                     self?.state.showExploreSheet = true
                 }
             }
         } catch {
             HapticManager.shared.triggerErrorThump()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = ExploreErrorFormatter.message(for: error)
+                state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t ask the community", for: error)
             }
         }
     }
@@ -233,13 +263,14 @@ extension InsightSheetViewModel {
                 state.toastMessage = "Request updated"
                 toastActionTitle = "View"
                 toastAction = { [weak self] in
+                    self?.state.explorePresentationTarget = .communityRequest
                     self?.state.showExploreSheet = true
                 }
             }
         } catch {
             HapticManager.shared.triggerErrorThump()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = ExploreErrorFormatter.message(for: error)
+                state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t update request", for: error)
             }
         }
     }

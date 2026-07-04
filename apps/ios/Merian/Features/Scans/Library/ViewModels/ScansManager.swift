@@ -893,7 +893,7 @@ struct ScanLibraryFilters: Equatable {
             showToast(message: "Shared to Explore")
         } catch {
             HapticManager.shared.triggerErrorThump()
-            showToast(message: ExploreErrorFormatter.message(for: error))
+            showToast(message: ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error))
         }
     }
     

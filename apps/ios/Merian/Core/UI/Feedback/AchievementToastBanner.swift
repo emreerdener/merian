@@ -43,7 +43,7 @@ struct MilestoneToastBanner: View {
         .gesture(
             DragGesture(minimumDistance: 10, coordinateSpace: .local)
                 .onEnded { value in
-                    if value.translation.height < -18 {
+                    if value.translation.height > 18 {
                         dismissManually()
                     }
                 }

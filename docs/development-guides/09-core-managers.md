@@ -254,10 +254,10 @@ triggering excessive SwiftUI view rebuilds.
   on `onAppear` and clears it on `onDisappear`, so the flag precisely tracks
   insight sheet visibility. When `true`, inference notifications are delivered
   silently via `completionHandler([])` because the user can already see the
-  result. Native achievement notifications bypass this flag and are always
-  displayed. Foreground in-app milestone banners are separate SwiftUI
-  presentation (`MilestoneToastPresenter` / `MilestoneToastBanner`), not OS
-  notifications, and are not controlled by this delegate path.
+  result. Native achievement notifications are also foreground-suppressed via
+  `completionHandler([])` so the SwiftUI milestone banner owns active in-app
+  unlock UX without stacking under an iOS banner. Background delivery bypasses
+  the delegate and remains native.
   **Both notification call sites (`InferenceEngine` and
   `OfflineQueueManager+URLSession`) schedule notifications unconditionally —
   without any `applicationState != .active` guard.** Foreground suppression is
@@ -378,8 +378,8 @@ triggering excessive SwiftUI view rebuilds.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
   across images, videos, audio clips, and descriptions. Images, video clips, and
   video poster thumbnails are written to `.documentsDirectory` via
-  `FileIOActor`. Pro video captures sample inference frames and extract
-  video-audio WAVs from the original temporary recording, then stage a compressed
+  `FileIOActor`. Pro video capture samples five inference frames and extracts
+  video-audio WAVs from the original temporary recording, then stages a compressed
   network-optimized 720p playback `.mp4` for local review, scan-library playback,
   Explore sharing, and cloud storage. Extracted video-audio WAVs are exported into
   Documents with `AVAssetReader` + `AVAssetWriter` and attached to the video
@@ -389,7 +389,10 @@ triggering excessive SwiftUI view rebuilds.
   `localVideoPaths`, `audioFilePaths`, `observationContextsJSON`) from that same
   timeline at the edges. For video, `thumbnailImagePaths` includes the poster for
   thumbnails and upload previews, while `activeScanMedia` emits the video page
-  itself so Insight does not show a duplicate image before the clip.
+  itself so Insight does not show a duplicate image before the clip. Cloud-backed
+  scan refreshes prefer `scans.captured_media`; older rows with video URLs are
+  normalized into playback video items so sampled inference frames do not appear
+  as standalone carousel media.
 - **Recursive Queue Draining**: The `URLSession` delegate calls
   `syncPendingScans()` recursively when a completed batch detects
   `unsyncedItemsCount > 0`, draining the queue automatically without user
@@ -1101,7 +1104,9 @@ and `KeychainManager` migration logic. Do not inline
   Checks for newly completed awards, persists `unlockedAchievements`, enqueues
   the shared in-app achievement milestone toast, and queues native local push
   notifications via `PushNotificationManager` when the achievement notification
-  setting allows it.
+  setting allows it. Cat and dog achievements use a July 4, 2026 notification
+  cutoff so historical qualifying scans are seeded silently instead of showing
+  retroactive unlock banners.
 - Full architecture documented in
   [06-profile-and-gamification.md](../features-and-hardware/06-profile-and-gamification.md).
 
@@ -1109,7 +1114,8 @@ and `KeychainManager` migration logic. Do not inline
 
 - Lives at `Core/UI/Feedback/AchievementToastPresenter.swift` and is kept under
   the legacy filename for Xcode/project continuity. It is an
-  `@MainActor @Observable` singleton that owns a FIFO in-app milestone queue.
+  `@MainActor @Observable` singleton that owns a FIFO bottom in-app milestone
+  queue.
 - Supports `.achievement(AwardPayload)` for achievement unlocks and
   `.dictionary(.newToMerian)` for species-dictionary contribution milestones.
 - Production achievement unlocks enter through

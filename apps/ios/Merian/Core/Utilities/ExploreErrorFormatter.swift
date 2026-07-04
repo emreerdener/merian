@@ -1,6 +1,10 @@
 import Foundation
 
 enum ExploreErrorFormatter {
+    private static let genericMessage = "Something went wrong. Please try again."
+    private static let persistenceFallbackMessage = "We couldn’t finish that. Please try again."
+    private static let duplicateScanMessage = "This scan is already saved. Try sharing again."
+
     private struct ErrorEnvelope: Decodable {
         let error: String?
         let message: String?
@@ -10,17 +14,30 @@ enum ExploreErrorFormatter {
         if let merianError = error as? MerianError {
             switch merianError {
             case .httpError(let statusCode, let rawMessage):
-                if statusCode >= 500 {
-                    return "Something went wrong. Please try again."
+                if let parsed = parsedMessage(from: rawMessage) {
+                    return sanitizedMessage(from: parsed) ?? parsed
                 }
-                return parsedMessage(from: rawMessage) ?? fallbackMessage(from: rawMessage)
+                if let sanitized = sanitizedMessage(from: rawMessage) {
+                    return sanitized
+                }
+                if statusCode >= 500 {
+                    return genericMessage
+                }
+                return fallbackMessage(from: rawMessage)
             default:
                 break
             }
         }
 
         let localized = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        return parsedMessage(from: localized) ?? fallbackMessage(from: localized)
+        if let parsed = parsedMessage(from: localized) {
+            return sanitizedMessage(from: parsed) ?? parsed
+        }
+        return fallbackMessage(from: localized)
+    }
+
+    static func titledMessage(_ title: String, for error: Error) -> String {
+        "\(title)\n\(message(for: error))"
     }
 
     private static func parsedMessage(from raw: String) -> String? {
@@ -47,8 +64,42 @@ enum ExploreErrorFormatter {
     private static func fallbackMessage(from raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            return "Something went wrong. Please try again."
+            return genericMessage
+        }
+        if let sanitized = sanitizedMessage(from: trimmed) {
+            return sanitized
         }
         return trimmed
+    }
+
+    private static func sanitizedMessage(from raw: String) -> String? {
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        guard !normalized.isEmpty else { return nil }
+
+        if normalized.contains("scans_pkey")
+            || (normalized.contains("duplicate key") && normalized.contains("scans")) {
+            return duplicateScanMessage
+        }
+
+        let technicalMarkers = [
+            "duplicate key value",
+            "violates unique constraint",
+            "violates foreign key constraint",
+            "null value in column",
+            "row-level security",
+            "permission denied for table",
+            "postgrest",
+            "sqlstate",
+            "pgrst"
+        ]
+
+        if technicalMarkers.contains(where: normalized.contains) {
+            return persistenceFallbackMessage
+        }
+
+        return nil
     }
 }

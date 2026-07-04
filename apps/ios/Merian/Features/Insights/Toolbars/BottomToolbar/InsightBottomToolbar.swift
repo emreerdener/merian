@@ -15,7 +15,6 @@ struct InsightBottomToolbar: ToolbarContent {
     let onEditCommunityRequest: (() -> Void)?
     let isSharingToExplore: Bool
     let isUpdatingExplorePostContent: Bool
-    let isUpdatingExploreFieldNotes: Bool
     var displaySpeciesName: String
     var commonNameOptions: [String]
     var fieldNotesPreview: String?
@@ -26,7 +25,6 @@ struct InsightBottomToolbar: ToolbarContent {
     var fieldNotesArePublicOnExplore: Bool
     var onViewInExplore: (() -> Void)?
     var onViewCommunityRequest: (() -> Void)?
-    var onUpdateFieldNotesVisibility: ((Bool) async -> FieldNotesVisibilityUpdateFeedback)?
     
     var body: some ToolbarContent {
         if showBottomBarTools, let speciesData = inferenceEngine.speciesData, speciesData.isBiological && speciesData.commonName.lowercased() != "not applicable" {
@@ -43,7 +41,6 @@ struct InsightBottomToolbar: ToolbarContent {
                         onEditCommunityRequest: onEditCommunityRequest,
                         isSharingToExplore: isSharingToExplore,
                         isUpdatingExplorePostContent: isUpdatingExplorePostContent,
-                        isUpdatingExploreFieldNotes: isUpdatingExploreFieldNotes,
                         speciesName: displaySpeciesName,
                         scientificName: speciesData.scientificName,
                         commonNameOptions: commonNameOptions,
@@ -79,8 +76,7 @@ struct InsightBottomToolbar: ToolbarContent {
                         initialLocationSharing: sharedExploreLocationSharing ?? defaultLocationSharing,
                         fieldNotesArePublicOnExplore: fieldNotesArePublicOnExplore,
                         onViewInExplore: onViewInExplore,
-                        onViewCommunityRequest: onViewCommunityRequest,
-                        onUpdateFieldNotesVisibility: onUpdateFieldNotesVisibility
+                        onViewCommunityRequest: onViewCommunityRequest
                     )
                 }
 

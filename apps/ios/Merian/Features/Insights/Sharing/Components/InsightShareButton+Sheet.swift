@@ -2,72 +2,54 @@ import SwiftUI
 
 extension InsightShareButton {
     var shareOptionsSheet: some View {
-        ZStack(alignment: .bottom) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 20) {
-                    // EXPLORE FEATURE PANEL
-                    exploreFeaturePanel
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 20) {
+                // EXPLORE FEATURE PANEL
+                exploreFeaturePanel
 
-                    // SHARE TO EXTERNAL APPS
-                    VStack(alignment: .leading, spacing: 10) {
-                        Button {
-                            pendingAction = .externalShare
-                            showingOptions = false
-                        } label: {
-                            HStack(spacing: 14) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("More ways to share")
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
-                                        .multilineTextAlignment(.leading)
-                                        .lineLimit(2)
+                // SHARE TO EXTERNAL APPS
+                VStack(alignment: .leading, spacing: 10) {
+                    Button {
+                        pendingAction = .externalShare
+                        showingOptions = false
+                    } label: {
+                        HStack(spacing: 14) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("More ways to share")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                    .multilineTextAlignment(.leading)
+                                    .lineLimit(2)
 
-                                    Text("Send via Messages, social media, or copy the link.")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.leading)
-                                        .lineLimit(2)
-                                }
-
-                                Spacer(minLength: 12)
-
-                               Image(systemName: "square.and.arrow.up")
-                                    .font(.system(size: 18, weight: .semibold))
+                                Text("Send via Messages, social media, or copy the link.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.leading)
+                                    .lineLimit(2)
                             }
-                            .padding(16)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .fill(Color(uiColor: .secondarySystemBackground))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 32)
-                .padding(.bottom, 96)
-            }
 
-            if let fieldNotesVisibilityFeedback {
-                ToastBanner(onDismiss: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        self.fieldNotesVisibilityFeedback = nil
+                            Spacer(minLength: 12)
+
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 18, weight: .semibold))
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .fill(Color(uiColor: .secondarySystemBackground))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                        )
                     }
-                }) {
-                    Text(fieldNotesVisibilityFeedback.message)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.primary)
+                    .buttonStyle(.plain)
                 }
-                .padding(.bottom, 24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(2)
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 32)
+            .padding(.bottom, 96)
         }
     }
 
@@ -109,43 +91,6 @@ extension InsightShareButton {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            if sharedExplorePostId != nil, hasFieldNotesToShare {
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle(
-                        isOn: Binding(
-                            get: { fieldNotesArePublicOnExplore },
-                            set: { updateFieldNotesVisibility(isPublic: $0) }
-                        )
-                    ) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Show field notes on Explore")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
-
-                            Text(fieldNotesArePublicOnExplore ? "Visible on the published post." : "Private to this scan.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .toggleStyle(.switch)
-                    .disabled(isUpdatingExploreFieldNotes)
-
-                    if fieldNotesArePublicOnExplore, let fieldNotesExcerpt {
-                        Text(fieldNotesExcerpt)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(4)
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(Color.primary.opacity(0.04))
-                            )
-                    }
                 }
             }
 
@@ -394,15 +339,4 @@ extension InsightShareButton {
         return systemImage == "eye" ? .white : primaryBlue
     }
 
-    private func updateFieldNotesVisibility(isPublic: Bool) {
-        guard let onUpdateFieldNotesVisibility else { return }
-
-        fieldNotesVisibilityFeedback = nil
-        Task {
-            let feedback = await onUpdateFieldNotesVisibility(isPublic)
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                fieldNotesVisibilityFeedback = feedback
-            }
-        }
-    }
 }

@@ -41,6 +41,7 @@ struct ToastBanner<Content: View>: View {
         .padding(.vertical, 16)
         .padding(.leading, 20)
         .padding(.trailing, onDismiss != nil ? 16 : 20)
+        .frame(maxWidth: 560, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .fill(.ultraThinMaterial)

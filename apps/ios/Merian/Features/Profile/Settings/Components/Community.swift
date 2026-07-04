@@ -19,6 +19,9 @@ struct Community: View {
             Button("Give us feedback") {
                 showFeedbackSurvey = true
             }
+            Button("Invite a friend") {
+                ReferralShareContent.presentShareSheet()
+            }
             Button("Changelog") {
                 changelogActive = true
             }

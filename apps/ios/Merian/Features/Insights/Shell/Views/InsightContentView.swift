@@ -4,6 +4,7 @@ import SwiftUI
 struct InsightContentView: View {
     // MARK: - Dependencies
     @Environment(InferenceEngine.self) var inferenceEngine
+    @Environment(ProfileViewModel.self) private var profileViewModel
     @Environment(\.modelContext) var modelContext
 
     @Bindable var viewModel: InsightSheetViewModel
@@ -130,6 +131,15 @@ struct InsightContentView: View {
                 )
             }
         }
+        .sheet(isPresented: Binding(
+            get: {
+                viewModel.state.sharedExplorePostId != nil &&
+                    viewModel.state.isExplorePostComposerPresented
+            },
+            set: { viewModel.state.isExplorePostComposerPresented = $0 }
+        )) {
+            explorePostComposerSheet
+        }
         .sheet(isPresented: $viewModel.state.isCandidateSwipePresented) {
             let candidates = viewModel.reviewAlternativeCandidates
             if let speciesData = inferenceEngine.speciesData, !candidates.isEmpty {
@@ -159,7 +169,17 @@ struct InsightContentView: View {
                     get: { viewModel.fieldNotesText },
                     set: { viewModel.updateFieldNotes($0, modelContext: modelContext) }
                 ),
-                promptContext: viewModel.fieldNotesPromptContext
+                promptContext: viewModel.fieldNotesPromptContext,
+                visibilityConfiguration: viewModel.state.sharedExplorePostId == nil ? nil : FieldNotesVisibilityConfiguration(
+                    initialIsPublic: viewModel.state.exploreFieldNotesArePublic,
+                    onSave: { text, isPublic in
+                        await viewModel.saveFieldNotesAndExploreVisibility(
+                            text,
+                            isPublic: isPublic,
+                            modelContext: modelContext
+                        )
+                    }
+                )
             )
         }
         .sheet(isPresented: $isObservationSheetPresented) {
@@ -175,6 +195,78 @@ struct InsightContentView: View {
 
 // MARK: - Subcomponents
 private extension InsightContentView {
+
+    @ViewBuilder
+    var explorePostComposerSheet: some View {
+        if let speciesData = inferenceEngine.speciesData {
+            ExplorePostComposerView(
+                mode: .edit,
+                speciesName: viewModel.resolvedHeaderTitle,
+                scientificName: speciesData.scientificName,
+                heroImageUrl: viewModel.toolbarRecordSnapshot?.coverImagePath ??
+                    inferenceEngine.activeMedia.imagePathsForUpload.first,
+                publicLocationLabel: visiblePublicLocationLabel(from: speciesData.locationName),
+                commonNameOptions: viewModel.allNamesForPicker,
+                initialSelectedCommonName: viewModel.resolvedHeaderTitle,
+                initialFieldNotes: viewModel.shareableFieldNotes,
+                initialFieldNotesArePublic: viewModel.state.exploreFieldNotesArePublic,
+                initialHashtags: viewModel.state.sharedExploreHashtags,
+                initialLocationSharing: viewModel.state.sharedExploreLocationSharing ?? defaultLocationSharing,
+                mediaItems: viewModel.toolbarRecordSnapshot?.exploreMediaItems ?? [],
+                hashtagSuggestionContext: exploreHashtagSuggestionContext(for: speciesData),
+                isSaving: viewModel.state.isUpdatingExplorePostContent,
+                onSubmit: { draft in
+                    Task {
+                        await viewModel.updateExplorePostContent(
+                            draft,
+                            modelContext: modelContext
+                        )
+                    }
+                    viewModel.state.isExplorePostComposerPresented = false
+                }
+            )
+        }
+    }
+
+    private func exploreHashtagSuggestionContext(for speciesData: SpeciesData) -> ExploreHashtagSuggestionContext {
+        ExploreHashtagSuggestionContext(
+            speciesName: viewModel.resolvedHeaderTitle,
+            scientificName: speciesData.scientificName,
+            publicLocationLabel: visiblePublicLocationLabel(from: speciesData.locationName),
+            fieldNotes: viewModel.shareableFieldNotes,
+            ecologyType: speciesData.ecologyType,
+            taxonomyKingdom: speciesData.taxonomy?.kingdom ?? viewModel.toolbarRecordSnapshot?.taxonomyKingdom,
+            taxonomyClass: speciesData.taxonomy?.className ?? viewModel.toolbarRecordSnapshot?.taxonomyClass,
+            taxonomyOrder: speciesData.taxonomy?.order ?? viewModel.toolbarRecordSnapshot?.taxonomyOrder,
+            taxonomyFamily: speciesData.taxonomy?.family ?? viewModel.toolbarRecordSnapshot?.taxonomyFamily,
+            habitatDescription: speciesData.habitatDescription ?? viewModel.toolbarRecordSnapshot?.habitatDescription,
+            weatherCondition: speciesData.weatherCondition ?? viewModel.toolbarRecordSnapshot?.weatherCondition,
+            colors: speciesData.colors ?? [],
+            groupTags: speciesData.groupTags ?? [],
+            semanticTags: viewModel.toolbarRecordSnapshot?.semanticTags ?? [],
+            isInvasive: speciesData.isInvasive,
+            imageQualityScore: speciesData.imageQualityScore ?? viewModel.toolbarRecordSnapshot?.imageQualityScore,
+            lifeStage: speciesData.lifeStage,
+            reproductiveCondition: speciesData.reproductiveCondition,
+            ecologicalInteractions: speciesData.ecologicalInteractions ?? []
+        )
+        .updating(fieldNotes: viewModel.shareableFieldNotes)
+    }
+
+    private func visiblePublicLocationLabel(from locationName: String?) -> String? {
+        ExploreLocationPrivacy.displayLabel(from: locationName)
+    }
+
+    private var defaultLocationSharing: ExplorePostLocationSharing {
+        switch profileViewModel.defaultGeoprivacy {
+        case "open":
+            return .open
+        case "private":
+            return .privateLocation
+        default:
+            return .obscured
+        }
+    }
 
     /// The rounded white background encapsulating the structural content cards smoothly.
     @ViewBuilder

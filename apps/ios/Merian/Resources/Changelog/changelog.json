@@ -2,6 +2,45 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-04-field-notes-visibility-editing",
+      "date": "2026-07-04",
+      "title": "Field note visibility",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Shared field notes now show Published or Private badges, and their Explore visibility can be changed directly from the Field notes edit sheet."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-04-insight-explore-post-menu",
+      "date": "2026-07-04",
+      "title": "Insight Explore post menu",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Published scans now show Explore post actions in the Insight top menu, with quick access to edit or view the post and any existing community request."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-04-invite-a-friend",
+      "date": "2026-07-04",
+      "title": "Invite a friend",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Profile and Settings now include an Invite a friend action so sharing Merian is ready for a future referral link."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-04-new-to-merian-milestone",
       "date": "2026-07-04",
       "title": "New to Merian milestones",
@@ -9,7 +48,9 @@
         {
           "title": "Improved",
           "items": [
-            "Insight now uses a richer milestone banner when a scan adds a species to Merian's shared species dictionary."
+            "Insight now uses a richer bottom milestone banner when a scan adds a species to Merian's shared species dictionary.",
+            "Achievement unlock banners now avoid stacking with foreground iOS notifications.",
+            "Older domestic cat and dog scans can unlock the new achievements silently without showing surprise retroactive banners."
           ]
         }
       ]
@@ -35,7 +76,8 @@
         {
           "title": "Improved",
           "items": [
-            "Saved Pro video clips are now compressed for lighter scan-library playback, Explore sharing, and cloud storage while AI analysis still samples frames from the original recording."
+            "Saved Pro video clips are now compressed for lighter scan-library playback, Explore sharing, and cloud storage while AI analysis still samples frames from the original recording.",
+            "Cloud-hydrated video scans now keep sampled analysis frames hidden behind the playable video instead of showing them as standalone Insight carousel images."
           ]
         }
       ]
@@ -100,7 +142,7 @@
         {
           "title": "Improved",
           "items": [
-            "Video scan analysis now treats sampled frames and accompanying audio as evidence from the same video, and no longer describes video scans as images."
+            "Video scan analysis now samples five ordered frames, treats accompanying audio as evidence from the same video, and no longer describes video scans as images."
           ]
         }
       ]
@@ -126,7 +168,7 @@
         {
           "title": "Added",
           "items": [
-            "Non-biological Insight results now show a clear pill plus a notice explaining that the scan lives in the Non-biological collection and is deleted after 30 days."
+            "Non-biological Insight results now show a clear pill plus a notice explaining their 30-day retention, while hiding biological-only field notes, tags, and collection actions."
           ]
         }
       ]
@@ -180,7 +222,7 @@
           "items": [
             "Pro users can now briefly hold the visual shutter to record a short video scan, with saved playback and image-based thumbnails.",
             "Video recording now gives clearer haptic feedback when recording starts, finishes, stages successfully, or fails.",
-            "Video scan analysis treats sampled frames and accompanying audio as evidence from the same video.",
+            "Video scan analysis treats five sampled frames and accompanying audio as evidence from the same video.",
             "Video scan media now opens from the Insight carousel into fullscreen playback.",
             "Video scans now open as the saved clip in Insight while scan tiles and previews keep using the poster thumbnail.",
             "The Pro paywall comparison table now includes video scans.",

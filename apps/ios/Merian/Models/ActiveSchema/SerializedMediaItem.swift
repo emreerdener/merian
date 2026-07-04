@@ -339,6 +339,46 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
 
         return ActiveScanMedia(items: resolvedItems)
     }
+
+    static func cloudHydratedItems(
+        capturedMediaItems: [SerializedMediaItem]?,
+        imageStorageURLs: [String]?,
+        videoStorageURLs: [String]?
+    ) -> [SerializedMediaItem] {
+        if let capturedMediaItems, !capturedMediaItems.isEmpty {
+            return capturedMediaItems
+        }
+
+        let imageURLs = (imageStorageURLs ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let videoURLs = (videoStorageURLs ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !videoURLs.isEmpty else {
+            return imageURLs.map { .image(.remoteURL($0)) }
+        }
+
+        let expectedVideoFrameCount = videoURLs.count * 5
+        let standaloneImageCount = max(imageURLs.count - expectedVideoFrameCount, 0)
+        let standaloneImages = imageURLs.prefix(standaloneImageCount).map { SerializedMediaItem.image(.remoteURL($0)) }
+        let videoFrameURLs = Array(imageURLs.dropFirst(standaloneImageCount))
+        let fallbackThumbnailURL = videoFrameURLs.first ?? imageURLs.first
+
+        let videos = videoURLs.enumerated().map { index, videoURL in
+            let thumbnailIndex = index * 5
+            let thumbnailURL = videoFrameURLs.indices.contains(thumbnailIndex)
+                ? videoFrameURLs[thumbnailIndex]
+                : fallbackThumbnailURL
+            return SerializedMediaItem.video(StoredVideoMediaReference(
+                .remoteURL(videoURL),
+                thumbnail: thumbnailURL.map(StoredMediaReference.remoteURL)
+            ))
+        }
+
+        return standaloneImages + videos
+    }
 }
 
 enum PersistedCapturedMediaKind: String, Codable, Sendable {

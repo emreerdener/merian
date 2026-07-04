@@ -37,6 +37,7 @@ final class AppLifecycleManager {
         // Force cross-process settings reconciliation. UserDefaults updates made by
         // background delegates while suspended are not always observed by SwiftUI on resume.
         container.appSettings.refreshFromDefaults()
+        container.hardwareOrchestrator.evaluateConstraints()
 
         Task {
             await container.supabaseManager.initializeGhostSession()

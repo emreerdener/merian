@@ -249,3 +249,62 @@ Deno.test("insertScan writes unknown ecology for non-biological scans without ec
   const row = upsertedRow as Record<string, unknown>;
   assertEquals(row.ecology_type, "unknown");
 });
+
+Deno.test("insertScan preserves structured captured media manifest", async () => {
+  let upsertedRow: Record<string, unknown> | null = null;
+  const mock = {
+    from(table: string) {
+      assertEquals(table, "scans");
+      return {
+        upsert(row: Record<string, unknown>) {
+          upsertedRow = row;
+          return Promise.resolve({ error: null });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+  const capturedMedia = [
+    {
+      video: {
+        _0: {
+          video: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/public_uploads/pro/u/clip.mp4",
+          },
+          thumbnail: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/public_uploads/pro/u/frame.webp",
+          },
+        },
+      },
+    },
+  ];
+
+  await insertScan(
+    {
+      id: "scan-3",
+      user_id: "user-1",
+      species_id: null,
+      geoprivacy: "open",
+      is_biological_subject: false,
+      extracted_visual_traits: ["moving screen"],
+      colors: [],
+      image_storage_urls: [
+        "https://media.merian.app/public_uploads/pro/u/frame.webp",
+      ],
+      video_storage_urls: [
+        "https://media.merian.app/public_uploads/pro/u/clip.mp4",
+      ],
+      captured_media: capturedMedia,
+      ecological_interactions: [],
+      inference_tier: "pro",
+    },
+    mock,
+  );
+
+  if (upsertedRow === null) {
+    throw new Error("Expected scans upsert row");
+  }
+  const row = upsertedRow as Record<string, unknown>;
+  assertEquals(row.captured_media, capturedMedia);
+});

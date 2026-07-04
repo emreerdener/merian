@@ -112,7 +112,9 @@ struct BiologicalView: View {
                     FieldNotesCard(
                         previewText: viewModel.fieldNotesText,
                         promptContext: viewModel.fieldNotesPromptContext,
-                        isPublished: viewModel.state.exploreFieldNotesArePublic,
+                        visibility: viewModel.state.sharedExplorePostId == nil
+                            ? nil
+                            : (viewModel.state.exploreFieldNotesArePublic ? .published : .privateNotes),
                         onDismiss: {
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                                 viewModel.dismissFieldNotesCard()

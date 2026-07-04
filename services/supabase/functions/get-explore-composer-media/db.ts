@@ -20,6 +20,7 @@ interface ComposerScanRow {
   user_id: string;
   image_storage_urls: string[] | null;
   video_storage_urls: string[] | null;
+  captured_media: unknown[] | null;
   is_tombstoned: boolean;
 }
 
@@ -126,7 +127,9 @@ async function fetchOwnedScan(
 ): Promise<ComposerScanRow> {
   const { data, error } = await supabaseAdmin
     .from("scans")
-    .select("id,user_id,image_storage_urls,video_storage_urls,is_tombstoned")
+    .select(
+      "id,user_id,image_storage_urls,video_storage_urls,captured_media,is_tombstoned",
+    )
     .eq("id", scanId)
     .eq("user_id", userId)
     .maybeSingle();

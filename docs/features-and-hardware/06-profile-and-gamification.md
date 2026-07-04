@@ -238,9 +238,11 @@ The public SQL projection must return progress only. Do not add qualifying scan 
 
 `evaluateAchievementsForNotifications(awards:)` is called after `calculateAwards()` completes. It iterates `[AwardPayload]`, checks if any award's type is newly absent from `unlockedAchievements` but now `isCompleted`, adds it to the set, persists the set, enqueues the shared in-app achievement milestone toast through `MilestoneToastPresenter`, and queues a native local push notification via `PushNotificationManager.shared.sendAchievementUnlockedNotification` if the `isAchievementNotificationsEnabled` `UserDefaults` flag is set.
 
+Achievements introduced after users already have local scan history can define a notification cutoff in `GamificationManager`. The domestic cat and dog achievements use the July 4, 2026 rollout cutoff so qualifying legacy scans are persisted as unlocked without showing a retroactive toast, while fresh qualifying scans still notify normally.
+
 ## Milestone Toasts
 
-`MilestoneToastPresenter` owns the shared in-app milestone notification queue used by achievement unlocks and the Insight `New to Merian` dictionary-contribution banner. Achievement payloads enter from `GamificationManager`; dictionary milestones enter from `InsightSheetViewModel` when `SpeciesData.isNewToMerianDictionary` is true. The presenter controls only visual presentation, haptics, timeout, swipe/close dismissal, VoiceOver announcements, and achievement detail routing. It does not mutate achievement progress, analytics, scan data, dictionary state, or native iOS notification authorization.
+`MilestoneToastPresenter` owns the shared bottom in-app milestone notification queue used by achievement unlocks and the Insight `New to Merian` dictionary-contribution banner. Achievement payloads enter from `GamificationManager`; dictionary milestones enter from `InsightSheetViewModel` when `SpeciesData.isNewToMerianDictionary` is true. The presenter controls only visual presentation, haptics, timeout, swipe/close dismissal, VoiceOver announcements, and achievement detail routing. It does not mutate achievement progress, analytics, scan data, dictionary state, or native iOS notification authorization.
 
 DEBUG Settings includes preview controls for achievement toasts and `Preview New to Merian notification` (`Settings_PreviewNewToMerianNotification`). These controls enqueue representative payloads through the same presenter path so styling can be tested without completing a scan or unlocking an award.
 

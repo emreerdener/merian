@@ -1,0 +1,60 @@
+import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
+import { buildComposerMediaSources } from "./exploreComposerMedia.ts";
+
+Deno.test("buildComposerMediaSources prefers captured media manifest for video scans", () => {
+  const media = buildComposerMediaSources({
+    id: "00000000-0000-0000-0000-000000000001",
+    image_storage_urls: [
+      "https://media.merian.app/frame-1.webp",
+      "https://media.merian.app/frame-2.webp",
+    ],
+    video_storage_urls: ["https://media.merian.app/clip.mp4"],
+    captured_media: [
+      {
+        video: {
+          _0: {
+            video: {
+              storage: "remoteURL",
+              path: "https://media.merian.app/clip.mp4",
+            },
+            thumbnail: {
+              storage: "remoteURL",
+              path: "https://media.merian.app/poster.webp",
+            },
+          },
+        },
+      },
+    ],
+  });
+
+  assertEquals(media, [
+    {
+      source_media_id: "scan:00000000-0000-0000-0000-000000000001:video:0",
+      kind: "video",
+      url: "https://media.merian.app/clip.mp4",
+      thumbnail_url: "https://media.merian.app/poster.webp",
+      order_index: 0,
+      is_selected: false,
+      selection_order_index: null,
+    },
+  ]);
+});
+
+Deno.test("buildComposerMediaSources collapses legacy video frame URLs", () => {
+  const media = buildComposerMediaSources({
+    id: "00000000-0000-0000-0000-000000000002",
+    image_storage_urls: [
+      "https://media.merian.app/frame-1.webp",
+      "https://media.merian.app/frame-2.webp",
+      "https://media.merian.app/frame-3.webp",
+      "https://media.merian.app/frame-4.webp",
+      "https://media.merian.app/frame-5.webp",
+    ],
+    video_storage_urls: ["https://media.merian.app/clip.mp4"],
+  });
+
+  assertEquals(media.length, 1);
+  assertEquals(media[0].kind, "video");
+  assertEquals(media[0].url, "https://media.merian.app/clip.mp4");
+  assertEquals(media[0].thumbnail_url, "https://media.merian.app/frame-1.webp");
+});

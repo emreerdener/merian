@@ -548,7 +548,7 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    `audioBase64s`, staged `audioR2ObjectKeys`, staged `videoR2ObjectKeys`,
    `visualMediaItems` / `visual_media_items`, `audioMediaItems` /
    `audio_media_items`, `videoFrameCount`, and `observation_contexts` arrays.
-   Video scans send ordered sampled frames through the normal image payload path
+   Video scans send five ordered sampled frames through the normal image payload path
    for AI inference and, when available, send an extracted accompanying Int16 PCM
    WAV audio track through the normal audio path. The compressed playback `.mp4`
    is staged only for persistence after moderation. `visualMediaItems` is the preferred contract for
@@ -582,7 +582,7 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    foreground video uploads through the same staging contract, live foreground
    audio via inline `audioBase64s`, and text via `observation_contexts`.
    Playback videos are never sent to Gemini as public or inference media; only
-   sampled frames and optional accompanying audio enter the prompt.
+   five sampled frames and optional accompanying audio enter the prompt.
    Telemetry on this path is camelCase (`gpsLatitude`, `semanticLocation`,
    `deviceTimeZone`, etc.); the server also accepts legacy snake_case aliases
    for backward compatibility during offline queue replay and staged endpoint
@@ -597,7 +597,7 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    including extracted video audio, is an inference input, not a public media
    artifact; `identify-multimodal` deletes `audioR2ObjectKeys` from staging
    after successful background ingestion. Staged video keys are promoted only
-   after the sampled frames pass moderation and are otherwise deleted with the
+   after the five sampled frames pass moderation and are otherwise deleted with the
    staged image keys.
 
 ## The Explore Social Surface

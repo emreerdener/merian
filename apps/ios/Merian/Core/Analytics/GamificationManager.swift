@@ -20,6 +20,12 @@ import os
     private let speciesCountKey        = "Merian_UnlockedSpeciesCount"
     private let fireflyBadgeKey        = "Merian_HasFireflyBadge"
     private let unlockedAchievementsKey = "Merian_UnlockedAchievements"
+    // 2026-07-04 00:00:00 UTC: cat/dog achievements shipped after users already
+    // had scan history, so legacy completions should be seeded without a toast.
+    private let retroactiveAchievementNotificationCutoffs: [AchievementType: Date] = [
+        .domesticCat: Date(timeIntervalSince1970: 1_783_123_200),
+        .domesticDog: Date(timeIntervalSince1970: 1_783_123_200)
+    ]
 
     private init() {
         unlockedSpeciesCount = defaults.integer(forKey: speciesCountKey)
@@ -56,7 +62,7 @@ import os
             let achievementsEnabled = defaults.object(forKey: UserDefaultsKeys.isAchievementNotificationsEnabled) as? Bool ?? true
             let systemPushEnabled = defaults.bool(forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
 
-            if achievementsEnabled {
+            if achievementsEnabled && shouldNotifyUnlock(for: award) {
                 AchievementToastPresenter.shared.enqueueAchievementUnlock(award)
 
                 if systemPushEnabled {
@@ -67,6 +73,15 @@ import os
     }
 
     // MARK: - Private
+
+    private func shouldNotifyUnlock(for award: AwardPayload) -> Bool {
+        guard let cutoff = retroactiveAchievementNotificationCutoffs[award.type],
+              let unlockedAt = award.unlockedAt ?? award.lastInteractionDate else {
+            return true
+        }
+
+        return unlockedAt >= cutoff
+    }
 
     private func unlockFireflyBadge() {
         hasFireflyBadge = true

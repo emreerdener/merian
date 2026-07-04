@@ -57,10 +57,6 @@ struct OverviewCard: View {
             let invasiveRegionDetail = invasiveRegion.map { region in
                 region == "Region unavailable" ? region : "Assessed for \(region)"
             }
-            let invasiveDetail = nonEmpty([
-                invasiveRegionDetail,
-                invasiveConfidence
-            ].compactMap { $0 }.joined(separator: " · "))
             let ecology = data.ecologyType == "unknown" ? nil : capitalizeFirstLetter(data.ecologyType)
             let lifeStage = data.lifeStage.flatMap { $0 == "unknown" ? nil : capitalizeFirstLetter($0) }
             let reproduction = data.reproductiveCondition.flatMap { $0 == "not_applicable" ? nil : capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }
@@ -98,7 +94,7 @@ struct OverviewCard: View {
                 return raw.map { capitalizeFirstLetter($0.replacingOccurrences(of: "_", with: " ")) }.joined(separator: ", ")
             }()
             
-            let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || sex != nil || sexEvidence != nil || interactions != nil || data.isInvasive || invasiveDetail != nil || invasiveRationale != nil || iucnStatus != nil
+            let hasAnyMetadata = colors != nil || size != nil || ecology != nil || lifeStage != nil || reproduction != nil || sex != nil || sexEvidence != nil || interactions != nil || data.isInvasive || invasiveRegionDetail != nil || invasiveConfidence != nil || invasiveRationale != nil || iucnStatus != nil
             
             if hasAnyMetadata {
                 VStack(alignment: .leading, spacing: 16) {
@@ -126,8 +122,10 @@ struct OverviewCard: View {
                         }
                         InvasiveStatusSummary(
                             status: invasive,
-                            detail: invasiveDetail,
+                            assessmentDetail: invasiveRegionDetail,
                             rationale: invasiveRationale,
+                            confidenceLabel: invasiveConfidence,
+                            scientificName: data.scientificName,
                             isInvasive: data.isInvasive
                         )
                         if let status = iucnStatus {
@@ -202,9 +200,13 @@ struct OverviewCard: View {
 
 private struct InvasiveStatusSummary: View {
     let status: String
-    let detail: String?
+    let assessmentDetail: String?
     let rationale: String?
+    let confidenceLabel: String?
+    let scientificName: String?
     let isInvasive: Bool
+
+    @State private var isExplanationExpanded = false
 
     private var statusIcon: String {
         isInvasive ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
@@ -212,6 +214,52 @@ private struct InvasiveStatusSummary: View {
 
     private var statusColor: Color {
         isInvasive ? .yellow : .green
+    }
+
+    private var hasExplanation: Bool {
+        rationale != nil || confidenceLabel != nil
+    }
+
+    private var explanationButtonTitle: String {
+        isExplanationExpanded ? "Show less" : "Learn more"
+    }
+
+    private var formattedRationale: AttributedString? {
+        guard let rationale else { return nil }
+        guard let scientificName = scientificName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !scientificName.isEmpty else {
+            return regularRationaleRun(rationale)
+        }
+
+        var remaining = rationale[...]
+        var output = AttributedString()
+
+        while let match = remaining.range(of: scientificName, options: [.caseInsensitive, .diacriticInsensitive]) {
+            let hasLeadingMarker = match.lowerBound > remaining.startIndex
+                && remaining[remaining.index(before: match.lowerBound)] == "*"
+            let hasTrailingMarker = match.upperBound < remaining.endIndex
+                && remaining[match.upperBound] == "*"
+            let usesMarkdownMarkers = hasLeadingMarker && hasTrailingMarker
+            let prefixEnd = usesMarkdownMarkers ? remaining.index(before: match.lowerBound) : match.lowerBound
+            let nextStart = usesMarkdownMarkers ? remaining.index(after: match.upperBound) : match.upperBound
+
+            output += regularRationaleRun(String(remaining[..<prefixEnd]))
+
+            var scientificNameRun = AttributedString(String(remaining[match]))
+            scientificNameRun.font = .system(.subheadline, design: .monospaced)
+            output += scientificNameRun
+
+            remaining = remaining[nextStart...]
+        }
+
+        output += regularRationaleRun(String(remaining))
+        return output
+    }
+
+    private func regularRationaleRun(_ text: String) -> AttributedString {
+        var run = AttributedString(text)
+        run.font = .system(.subheadline)
+        return run
     }
 
     var body: some View {
@@ -234,35 +282,78 @@ private struct InvasiveStatusSummary: View {
                     .font(.system(.subheadline))
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
-
-                    if let detail {
-                        Text(detail)
-                            .font(.system(.caption))
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.trailing)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
                 }
             }
 
-            if let rationale {
+            if assessmentDetail != nil || hasExplanation {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("WHY MERIAN THINKS THIS")
-                        .font(.system(.caption, design: .monospaced))
-                        .fontWeight(.bold)
-                        .tracking(1)
-                        .foregroundColor(.secondary)
+                    if let assessmentDetail {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text(assessmentDetail)
+                                .font(.system(.caption))
+                                .multilineTextAlignment(.leading)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .layoutPriority(1)
 
-                    Text(rationale)
-                        .font(.system(.subheadline))
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
+                            if hasExplanation {
+                                Button {
+                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                                        isExplanationExpanded.toggle()
+                                    }
+                                } label: {
+                                    Text(explanationButtonTitle)
+                                        .font(.system(.caption))
+                                        .foregroundColor(.accentColor)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(isExplanationExpanded ? "Hide invasive status explanation" : "Learn more about invasive status")
+                            }
+                        }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if hasExplanation {
+                        Button {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                                isExplanationExpanded.toggle()
+                            }
+                        } label: {
+                            Text(explanationButtonTitle)
+                                .font(.system(.caption))
+                                .foregroundColor(.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isExplanationExpanded ? "Hide invasive status explanation" : "Learn more about invasive status")
+                    }
+
+                    if isExplanationExpanded {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let formattedRationale {
+                                Text(formattedRationale)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.leading)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+
+                            if let confidenceLabel {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("CONFIDENCE")
+                                        .font(.system(.caption, design: .monospaced))
+                                        .fontWeight(.bold)
+                                        .tracking(1)
+                                        .foregroundColor(.secondary)
+
+                                    Text(confidenceLabel)
+                                        .font(.system(.subheadline))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.top, 4)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
-                .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

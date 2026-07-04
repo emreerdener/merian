@@ -61,4 +61,42 @@ struct SerializedMediaItemTests {
         let activeMedia = snapshot.activeScanMedia
         #expect(activeMedia.videoPaths == [URL.documentsDirectory.appendingPathComponent("clip.mp4").path])
     }
+
+    @Test func cloudHydrationPrefersCapturedMediaManifestForVideoScans() throws {
+        let manifestItems: [SerializedMediaItem] = [
+            .video(StoredVideoMediaReference(
+                .remoteURL("https://cdn.example.com/clip.mp4"),
+                thumbnail: .remoteURL("https://cdn.example.com/poster.webp")
+            ))
+        ]
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: manifestItems,
+            imageStorageURLs: [
+                "https://cdn.example.com/frame-1.webp",
+                "https://cdn.example.com/frame-2.webp"
+            ],
+            videoStorageURLs: ["https://cdn.example.com/clip.mp4"]
+        )
+
+        #expect(hydrated == manifestItems)
+        #expect(CapturedMediaSnapshot(items: hydrated).activeScanMedia.videoPaths == ["https://cdn.example.com/clip.mp4"])
+        #expect(CapturedMediaSnapshot(items: hydrated).imagePaths.isEmpty)
+    }
+
+    @Test func cloudHydrationCollapsesLegacyVideoFramesIntoPlayableVideo() throws {
+        let frameURLs = (1...5).map { "https://cdn.example.com/frame-\($0).webp" }
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: nil,
+            imageStorageURLs: frameURLs,
+            videoStorageURLs: ["https://cdn.example.com/clip.mp4"]
+        )
+        let snapshot = CapturedMediaSnapshot(items: hydrated)
+
+        #expect(snapshot.items.count == 1)
+        #expect(snapshot.imagePaths.isEmpty)
+        #expect(snapshot.thumbnailImagePaths == ["https://cdn.example.com/frame-1.webp"])
+        #expect(snapshot.videoPaths == ["https://cdn.example.com/clip.mp4"])
+    }
 }

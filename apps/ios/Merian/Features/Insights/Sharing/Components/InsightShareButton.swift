@@ -19,7 +19,6 @@ struct InsightShareButton: View {
     let onEditCommunityRequest: (() -> Void)?
     let isSharingToExplore: Bool
     let isUpdatingExplorePostContent: Bool
-    let isUpdatingExploreFieldNotes: Bool
     let speciesName: String
     let scientificName: String
     var commonNameOptions: [String]
@@ -36,14 +35,12 @@ struct InsightShareButton: View {
     var fieldNotesArePublicOnExplore: Bool
     var onViewInExplore: (() -> Void)?
     var onViewCommunityRequest: (() -> Void)?
-    var onUpdateFieldNotesVisibility: ((Bool) async -> FieldNotesVisibilityUpdateFeedback)?
-    
+
     @Environment(\.colorScheme) var colorScheme
     @State var showingOptions = false
     @State var showingExploreComposer = false
     @State var showingExplorePublishConfirmation = false
     @State var pendingAction: PendingAction?
-    @State var fieldNotesVisibilityFeedback: FieldNotesVisibilityUpdateFeedback?
 
     private var showsExploreAction: Bool {
         onShareToExplore != nil
@@ -52,23 +49,6 @@ struct InsightShareButton: View {
             || onEditCommunityRequest != nil
             || onViewCommunityRequest != nil
             || onViewInExplore != nil
-    }
-
-    var hasFieldNotesToShare: Bool {
-        fieldNotesPreview?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-    }
-
-    var fieldNotesExcerpt: String? {
-        guard let preview = fieldNotesPreview?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !preview.isEmpty else {
-            return nil
-        }
-
-        if preview.count <= 160 {
-            return preview
-        }
-
-        return String(preview.prefix(157)) + "..."
     }
 
     var exploreHeadline: String {
@@ -215,14 +195,6 @@ struct InsightShareButton: View {
                     showingExploreComposer = false
                 }
             )
-        }
-        .task(id: fieldNotesVisibilityFeedback?.message) {
-            guard fieldNotesVisibilityFeedback != nil else { return }
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                fieldNotesVisibilityFeedback = nil
-            }
         }
     }
 

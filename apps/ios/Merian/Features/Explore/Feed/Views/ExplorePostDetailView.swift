@@ -22,7 +22,6 @@ struct ExplorePostDetailView: View {
     @State private var isLoadingDetail = false
     @State private var detailErrorMessage: String?
     @State private var isUpdatingFieldNotesVisibility = false
-    @State private var showHideFieldNotesConfirmation = false
     @State private var showFieldNotesEditor = false
     @State private var showPostComposer = false
     @State private var isSavingPostContent = false
@@ -329,19 +328,6 @@ struct ExplorePostDetailView: View {
                 break
             }
         }
-        .overlay {
-            if showHideFieldNotesConfirmation {
-                ExploreFieldNotesVisibilityOverlay(
-                    fieldNotesArePublic: fieldNotesArePublicOnExplore,
-                    isUpdating: isUpdatingFieldNotesVisibility,
-                    onCancel: hideFieldNotesVisibilityConfirmation,
-                    onConfirm: { nextVisibility in
-                        hideFieldNotesVisibilityConfirmation()
-                        Task { await updateFieldNotesVisibility(isPublic: nextVisibility) }
-                    }
-                )
-            }
-        }
         .sheet(item: $selectedInsightRoute, onDismiss: {
             isRefreshingAfterInsightDismiss = true
             Task {
@@ -376,19 +362,28 @@ struct ExplorePostDetailView: View {
         .sheet(isPresented: $showFieldNotesEditor, onDismiss: {
             Task {
                 if let post = currentPost {
-                    await reconcileFieldNotesAfterInsightDismiss(for: post)
+                    syncLocalFieldNotes(for: post)
+                    await loadPostDetail()
                 } else {
                     await loadPostDetail()
                 }
             }
         }) {
-            FieldNotesSheet(
-                text: Binding(
-                    get: { localFieldNotes ?? detail?.trimmedFieldNotes ?? "" },
-                    set: { updateLocalFieldNotes($0) }
-                ),
-                promptContext: .resolved(subjectId: nil)
-            )
+            if let post = currentPost {
+                FieldNotesSheet(
+                    text: Binding(
+                        get: { localFieldNotes ?? detail?.trimmedFieldNotes ?? "" },
+                        set: { updateLocalFieldNotes($0) }
+                    ),
+                    promptContext: .resolved(subjectId: nil),
+                    visibilityConfiguration: FieldNotesVisibilityConfiguration(
+                        initialIsPublic: fieldNotesArePublicOnExplore,
+                        onSave: { text, isPublic in
+                            await saveFieldNotesDraft(text, isPublic: isPublic, for: post)
+                        }
+                    )
+                )
+            }
         }
         .sheet(isPresented: $showPostComposer) {
             if let post = currentPost {
@@ -451,15 +446,18 @@ struct ExplorePostDetailView: View {
 
     @ViewBuilder
     private func fieldNotesSection(for post: ExplorePost) -> some View {
-        if !isRefreshingAfterInsightDismiss, let fieldNotes = detail?.trimmedFieldNotes {
+        let isOwner = isOwnedByCurrentUser(post)
+        let fieldNotes = detail?.trimmedFieldNotes
+            ?? (isOwner ? FieldNotesRepository.trimmedNonEmptyText(localFieldNotes) : nil)
+
+        if !isRefreshingAfterInsightDismiss, let fieldNotes {
             ExploreFieldNotesCard(
                 fieldNotes: fieldNotes,
-                fieldNotesArePublic: true,
-                canToggleVisibility: isOwnedByCurrentUser(post),
-                canEdit: isOwnedByCurrentUser(post),
-                isUpdating: isUpdatingFieldNotesVisibility,
-                onEdit: { openFieldNotesEditor(for: post) },
-                onToggleVisibility: showFieldNotesVisibilityConfirmation
+                visibility: isOwner
+                    ? (fieldNotesArePublicOnExplore ? .published : .privateNotes)
+                    : nil,
+                canEdit: isOwner,
+                onEdit: { openFieldNotesEditor(for: post) }
             )
         }
     }
@@ -613,47 +611,43 @@ struct ExplorePostDetailView: View {
         }
     }
 
-    private func showFieldNotesVisibilityConfirmation() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            showHideFieldNotesConfirmation = true
+    private func saveFieldNotesDraft(
+        _ notes: String,
+        isPublic: Bool,
+        for post: ExplorePost
+    ) async -> FieldNotesVisibilityUpdateFeedback {
+        guard currentPost?.id == post.id, isOwnedByCurrentUser(post) else {
+            return .failure("This post is no longer available")
         }
-    }
-
-    private func hideFieldNotesVisibilityConfirmation() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            showHideFieldNotesConfirmation = false
+        guard !isUpdatingFieldNotesVisibility else {
+            return .failure("Field notes visibility is already updating")
         }
-    }
 
-    private func updateFieldNotesVisibility(isPublic: Bool) async {
-        guard let post = currentPost, isOwnedByCurrentUser(post) else { return }
-        guard !isUpdatingFieldNotesVisibility else { return }
+        updateLocalFieldNotes(notes)
 
-        let notesToPublish = (localFieldNotes ?? detail?.trimmedFieldNotes)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !isPublic || notesToPublish?.isEmpty == false else {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                viewModel.toastMessage = "Add field notes before publishing them"
-            }
-            return
+        let notesToPublish = FieldNotesRepository.trimmedNonEmptyText(notes)
+        let shouldPublish = isPublic && notesToPublish != nil
+
+        guard !isPublic || notesToPublish != nil else {
+            return .failure("Add field notes before publishing them")
         }
 
         isUpdatingFieldNotesVisibility = true
         defer { isUpdatingFieldNotesVisibility = false }
 
         do {
-            if !isPublic, let notesToPublish {
+            if !shouldPublish, let notesToPublish {
                 preserveLocalFieldNotes(notesToPublish, for: post)
             }
 
             let response = try await MerianNetworkClient.shared.updateExplorePostFieldNotes(
                 postId: post.id,
-                fieldNotes: isPublic ? notesToPublish : nil
+                fieldNotes: shouldPublish ? notesToPublish : nil
             )
             if response.postId == post.id {
                 detail?.fieldNotes = response.fieldNotes
             } else {
-                detail?.fieldNotes = isPublic ? notesToPublish : nil
+                detail?.fieldNotes = shouldPublish ? notesToPublish : nil
             }
             HapticManager.shared.triggerSuccessPulse()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -661,11 +655,10 @@ struct ExplorePostDetailView: View {
                     ? "Field notes are now private"
                     : "Field notes are now public on Explore"
             }
+            return .success(isPublic: detail?.trimmedFieldNotes != nil)
         } catch {
             HapticManager.shared.triggerErrorThump()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
-            }
+            return .failure(ExploreErrorFormatter.message(for: error))
         }
     }
 

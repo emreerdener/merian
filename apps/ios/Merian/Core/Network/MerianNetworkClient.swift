@@ -2532,7 +2532,7 @@ final class MerianNetworkClient {
         do {
             try await SupabaseManager.shared.client
                 .from("scans")
-                .insert(payload)
+                .upsert(payload, onConflict: "id", ignoreDuplicates: true)
                 .execute()
         } catch {
             if (try? await checkScanStatus(scanId: scan.scanId)) == "found" {

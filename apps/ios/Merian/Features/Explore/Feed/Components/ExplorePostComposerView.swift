@@ -426,13 +426,6 @@ struct ExplorePostComposerView: View {
                     .disabled(isSaving)
                 }
 
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        isNotesFocused = false
-                    }
-                    .fontWeight(.semibold)
-                }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 submitFooter
@@ -577,6 +570,31 @@ struct ExplorePostComposerView: View {
             Label("Field notes", systemImage: "square.and.pencil")
                 .font(.headline)
 
+            if mode == .edit {
+                Toggle(isOn: $fieldNotesArePublic) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Show on Explore")
+                            .font(.subheadline.weight(.semibold))
+
+                        Text(fieldNotesArePublic
+                            ? "Field notes appear on this post."
+                            : "Keep these field notes off this post.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(12)
+                .background(
+                    Color(uiColor: .secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+            }
+
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
@@ -610,31 +628,6 @@ struct ExplorePostComposerView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .trailing)
-
-            if mode == .edit {
-                Toggle(isOn: $fieldNotesArePublic) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Show on Explore")
-                            .font(.subheadline.weight(.semibold))
-
-                        Text(fieldNotesArePublic
-                            ? "Field notes appear on this post."
-                            : "Keep these field notes off this post.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .padding(12)
-                .background(
-                    Color(uiColor: .secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
-            }
         }
     }
 
@@ -847,6 +840,9 @@ private struct ExplorePostComposerMediaTile: View {
 
     @State private var image: UIImage?
 
+    private let tileSize: CGFloat = 128
+    private let cornerRadius: CGFloat = 10
+
     var body: some View {
         Button(action: onToggle) {
             ZStack(alignment: .topTrailing) {
@@ -859,51 +855,51 @@ private struct ExplorePostComposerMediaTile: View {
                         Color(uiColor: .tertiarySystemFill)
                             .overlay {
                                 Image(systemName: item.isVideo ? "play.rectangle.fill" : "photo")
-                                    .font(.system(size: 20, weight: .semibold))
+                                    .font(.system(size: 24, weight: .semibold))
                                     .foregroundStyle(.secondary)
                             }
                     }
                 }
-                .frame(width: 94, height: 94)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(width: tileSize, height: tileSize)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 .opacity(item.isIncluded ? 1 : 0.38)
 
                 VStack(alignment: .trailing, spacing: 6) {
                     Image(systemName: item.isIncluded ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 24, weight: .bold))
                         .symbolRenderingMode(.palette)
                         .foregroundStyle(item.isIncluded ? Color.white : Color.secondary, item.isIncluded ? Color.accentColor : Color.clear)
                         .shadow(color: .black.opacity(item.isIncluded ? 0.28 : 0), radius: 4, y: 1)
 
                     if item.isVideo {
                         Image(systemName: "play.fill")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white)
-                            .padding(6)
+                            .padding(7)
                             .background(.black.opacity(0.58), in: Circle())
                     }
                 }
-                .padding(6)
+                .padding(8)
 
                 VStack {
                     Spacer()
-                    HStack(spacing: 5) {
+                    HStack(spacing: 6) {
                         Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 12, weight: .bold))
                         Text(isCover ? "Cover" : item.kind.rawValue.capitalized)
-                            .font(.caption2.weight(.bold))
+                            .font(.caption.weight(.bold))
                     }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 7)
                     .frame(maxWidth: .infinity)
                     .background(.black.opacity(0.56))
                 }
-                .frame(width: 94, height: 94)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(width: tileSize, height: tileSize)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             }
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(isCover ? Color.accentColor : Color.primary.opacity(0.08), lineWidth: isCover ? 2 : 1)
             )
         }
@@ -912,7 +908,7 @@ private struct ExplorePostComposerMediaTile: View {
         .accessibilityLabel(item.isVideo ? "Video media" : "Image media")
         .accessibilityHint(isCover ? "Selected as the cover. Drag to reorder." : "Tap to include or exclude. Drag to reorder.")
         .task(id: item.previewPath) {
-            image = await LocalImageLoader.shared.loadImage(fromPath: item.previewPath, fallbackUrl: nil, maxDimension: 188)
+            image = await LocalImageLoader.shared.loadImage(fromPath: item.previewPath, fallbackUrl: nil, maxDimension: Int(tileSize * 2))
         }
     }
 }

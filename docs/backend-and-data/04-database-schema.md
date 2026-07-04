@@ -718,11 +718,16 @@ The transaction log for every successful identification.
   counts from `usageMetadata` per scan.
 - `current_month` (Int)
 - `image_storage_urls` (Text Array): Public Cloudflare image links generated
-  after moderation. Video scans still keep image-based sampled frames and cover
-  thumbnails here.
+  after moderation. For video scans, this remains a compatibility/storage surface
+  for moderated sampled frames; the app-facing media timeline comes from
+  `captured_media`.
 - `video_storage_urls` (Text Array): Public Cloudflare video links for promoted
-  compressed playback `.mp4` scan clips. The AI receives sampled frames and
+  compressed playback `.mp4` scan clips. The AI receives five sampled frames and
   optional extracted accompanying audio, not these public playback URLs.
+- `captured_media` (JSONB): Canonical captured-media timeline using the iOS
+  `SerializedMediaItem` shape. Video entries attach the playback clip and poster
+  thumbnail together so sampled inference frames do not hydrate as standalone
+  Insight carousel images.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` for

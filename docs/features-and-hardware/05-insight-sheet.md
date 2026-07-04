@@ -37,7 +37,7 @@ The Insight Sheet is the primary post-scan result screen, surfacing AI taxonomy,
 | `SpeciesObservationChartsCard` | Reusable Swift Charts card rendered after Habitat & Distribution for known biological species. `SpeciesObservationStatsViewModel` coordinates loading, `SpeciesObservationStatsDatabaseActor` fetches local SwiftData projections off the main actor, and `SpeciesObservationStatsReducer` computes on-device aggregates before combining them with cached global public iNaturalist stats from `/species-observation-stats`. Tabs are Seasonality, History, and Life Stage; per-scan sex is shown in `OverviewCard` instead. |
 | `ToxicityBanner` | Glassmorphic hazard warning banner shown when `insightData.hazardType != "none"`. Implements a premium liquid-glass design using `.regularMaterial` and dynamic tinting (`.red` for severe threats like venomous/poisonous, `.yellow` for allergens/irritants), explicitly constrained using `maxWidth: .infinity` full-bleed bounds. Displays hazard-specific copy. |
 | `ConservationBanner` | IUCN Red List status banner |
-| `MilestoneToastBanner` / `MilestoneToastPresenter` | Shared top in-app milestone notification. Insight enqueues `New to Merian` only when the edge response marks the scan as a global species-dictionary contribution. Achievement unlocks reuse the same queue and banner styling from Profile/Settings. |
+| `MilestoneToastBanner` / `MilestoneToastPresenter` | Shared bottom in-app milestone notification. Insight enqueues `New to Merian` only when the edge response marks the scan as a global species-dictionary contribution. Achievement unlocks reuse the same queue and banner styling from Profile/Settings. |
 
 ---
 
@@ -265,12 +265,12 @@ Both notification call sites (`InferenceEngine` live path, `OfflineQueueManager`
 The carousel now renders a unified mixed-media page model rather than stitching together separate image-only arrays.
 
 1. **Live captures** (`viewModel.activeMedia.liveImageData`) — display-quality `Data` for the current session's live frame when analysis is still in flight.
-2. **Persisted user media** (`viewModel.activeMedia.items`) — the ordered user timeline rebuilt from `CapturedMediaSnapshot`. This can contain image pages, video playback pages, standalone audio playback pages, and description pages in one stable sequence. Video poster thumbnails stay attached to the video item for grid/list preview purposes and are not duplicated as separate carousel pages; extracted video audio is kept as inference metadata on the video item, not a visible media page.
+2. **Persisted user media** (`viewModel.activeMedia.items`) — the ordered user timeline rebuilt from `CapturedMediaSnapshot`. This can contain image pages, video playback pages, standalone audio playback pages, and description pages in one stable sequence. Video poster thumbnails stay attached to the video item for grid/list preview purposes and are not duplicated as separate carousel pages; extracted video audio is kept as inference metadata on the video item, not a visible media page. Cloud hydration prefers `scans.captured_media` when present; legacy rows with `video_storage_urls` collapse sampled frame URLs into the video thumbnail instead of rendering those frames as standalone pages.
 3. **Reference images** (`speciesData.referenceImageUrl`) — comma-separated verified field observations (e.g. iNaturalist) and Wikimedia images populated natively via GBIF occurrence hydration. **Suppressed for human subjects**: `viewModel.refUrls` returns `[]` when `speciesData.isHumanSubject` is true, preventing third-party photos of people from appearing in the carousel regardless of what the server populates.
 
 **Seamless user-media handoff**: On a live scan, the saved on-disk media is rebuilt into `ActiveScanMedia` before `speciesData` is assigned and before the transient live image is cleared. On queued scans, `InsightSheetViewModel` seeds `cachedActiveMedia` directly from `queuedContext.capturedMediaSnapshot.activeScanMedia`. On completed records, `fetchLocalRecord` hydrates the same structure from `record.capturedMediaSnapshot.activeScanMedia`. That shared read path is what keeps the playback video clip, standalone audio clip, or mixed-media order intact while the sheet transitions from queued/analyzing state to results. Pending video paths may move from temporary capture storage into Documents during queue persistence, so the resolver falls back by filename before declaring video unavailable.
 
-**Video presentation rule**: Scan tiles, widgets, map/profile previews, and share previews remain thumbnail-first by reading `coverImagePath`, `primaryImagePath`, or `thumbnailImagePaths`. Once the Insight sheet is open, `ActiveScanMedia` renders `.video` pages as playback surfaces, and tapping a video opens the fullscreen modal carousel on that video item. The poster image is therefore a preview asset, not a user-visible duplicate of the clip inside Insight.
+**Video presentation rule**: Scan tiles, widgets, map/profile previews, and share previews remain thumbnail-first by reading `coverImagePath`, `primaryImagePath`, or `thumbnailImagePaths`. Once the Insight sheet is open, `ActiveScanMedia` renders `.video` pages as playback surfaces, and tapping a video opens the fullscreen modal carousel on that video item. The poster image is therefore a preview asset, not a user-visible duplicate of the clip inside Insight. Non-biological video scans use the same media timeline, so their result body changes but the video remains playable media rather than a strip of sampled inference frames.
 
 **SwiftData fault safety**: `CapturedMediaSnapshot` for `LocalScanRecord` and `OfflineQueuedScan` intentionally decodes `capturedMediaJSON` before touching the `capturedMediaEntries` relationship. This keeps insight-sheet body evaluation, `BiologicalView`, and carousel hydration on scalar SwiftData reads whenever the JSON mirror is valid, avoiding child-row faults during layout. `capturedMediaEntries` remains a fallback mirror, not the preferred hot read path.
 
@@ -575,8 +575,8 @@ if data.isNewToMerianDictionary && data.isBiological
 ```
 
 The old local `CelebrationBanner` pill is removed. The shared
-`MilestoneToastBanner` appears at the top of the app with the same queue,
-haptics, swipe-up dismiss, close button, timeout, and VoiceOver announcement as
+`MilestoneToastBanner` appears at the bottom of the app with the same queue,
+haptics, swipe-down dismiss, close button, timeout, and VoiceOver announcement as
 achievement unlocks. Tapping the `New to Merian` body dismisses the banner in
 v1 because the user is already viewing the scan Insight; achievement milestone
 taps still open their achievement detail sheet directly.

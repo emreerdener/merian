@@ -1,22 +1,38 @@
 import SwiftUI
 
+struct FieldNotesVisibilityConfiguration {
+    let initialIsPublic: Bool
+    let onSave: (String, Bool) async -> FieldNotesVisibilityUpdateFeedback
+}
+
 /// Editable field-notes sheet presented from the insight flow.
 struct FieldNotesSheet: View {
     @Binding var text: String
     let promptContext: FieldNotesPromptContext
+    let visibilityConfiguration: FieldNotesVisibilityConfiguration?
 
     @Environment(SpeechManager.self) private var speechManager
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isTextFieldFocused: Bool
     @State private var draftText: String
+    @State private var draftIsPublic: Bool
+    @State private var isSaving = false
     @State private var showDeleteConfirmation = false
     @State private var dictationTask: Task<Void, Never>?
     @State private var dictationErrorMessage: String?
+    @State private var saveErrorMessage: String?
+    @State private var didSaveBeforeDismiss = false
 
-    init(text: Binding<String>, promptContext: FieldNotesPromptContext) {
+    init(
+        text: Binding<String>,
+        promptContext: FieldNotesPromptContext,
+        visibilityConfiguration: FieldNotesVisibilityConfiguration? = nil
+    ) {
         self._text = text
         self.promptContext = promptContext
+        self.visibilityConfiguration = visibilityConfiguration
         self._draftText = State(initialValue: text.wrappedValue)
+        self._draftIsPublic = State(initialValue: visibilityConfiguration?.initialIsPublic ?? false)
     }
 
     private var isDictating: Bool {
@@ -47,7 +63,7 @@ struct FieldNotesSheet: View {
                             .scrollContentBackground(.hidden)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
 
                         if draftText.isEmpty {
                             Text("Write down what you noticed...")
@@ -58,16 +74,26 @@ struct FieldNotesSheet: View {
                                 .allowsHitTesting(false)
                         }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, minHeight: 320, alignment: .topLeading)
+                    .layoutPriority(1)
                     .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .onTapGesture {
                         isTextFieldFocused = true
                     }
 
+                    visibilityToggle
+
                     dictationButton
 
                     if let dictationErrorMessage {
                         Text(dictationErrorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    if let saveErrorMessage {
+                        Text(saveErrorMessage)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -79,8 +105,19 @@ struct FieldNotesSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
+                        Button(action: {
+                            Task { await saveDraftAndClose() }
+                        }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .bold))
+                        }
+                        .disabled(isSaving)
+                        .accessibilityLabel("Close field notes")
+                    }
+
+                    ToolbarItem(placement: .topBarTrailing) {
                         Button(role: .destructive, action: {
-                            guard hasNotes else { return }
+                            guard hasNotes, !isSaving else { return }
                             withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
                                 showDeleteConfirmation = true
                             }
@@ -91,21 +128,9 @@ struct FieldNotesSheet: View {
                         .buttonStyle(.borderedProminent)
                         .buttonBorderShape(.circle)
                         .tint(.red)
-                        .disabled(!hasNotes)
+                        .disabled(!hasNotes || isSaving)
                         .opacity(hasNotes ? 1 : 0.35)
-                    }
-
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(action: {
-                            commitDraft()
-                            dismiss()
-                        }) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 16, weight: .bold))
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .buttonBorderShape(.circle)
-                        .tint(.blue)
+                        .accessibilityLabel("Clear field notes")
                     }
                     ToolbarItemGroup(placement: .keyboard) {
                         Spacer()
@@ -122,9 +147,13 @@ struct FieldNotesSheet: View {
                     dictationTask = nil
                 }
             }
+            .onChange(of: draftText) { _, newValue in
+                if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    draftIsPublic = false
+                }
+            }
             .onDisappear {
-                stopDictation()
-                commitDraft()
+                saveDraftOnDisappearIfNeeded()
             }
 
             if showDeleteConfirmation {
@@ -134,6 +163,50 @@ struct FieldNotesSheet: View {
         .presentationDragIndicator(.visible)
         .presentationDetents([.large])
         .presentationContentInteraction(.resizes)
+        .interactiveDismissDisabled(isSaving)
+    }
+
+    @ViewBuilder
+    private var visibilityToggle: some View {
+        if visibilityConfiguration != nil {
+            Toggle(
+                isOn: Binding(
+                    get: { hasNotes && draftIsPublic },
+                    set: { draftIsPublic = $0 && hasNotes }
+                )
+            ) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Show on Explore")
+                        .font(.subheadline.weight(.semibold))
+
+                    Text(visibilityDetailText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .toggleStyle(.switch)
+            .disabled(!hasNotes || isSaving)
+            .padding(12)
+            .background(
+                Color.primary.opacity(0.06),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        }
+    }
+
+    private var visibilityDetailText: String {
+        if !hasNotes {
+            return "Add field notes before showing them on Explore."
+        }
+
+        return draftIsPublic
+            ? "Field notes appear on this post."
+            : "Keep these field notes off this post."
     }
 
     private var dictationButton: some View {
@@ -179,7 +252,7 @@ struct FieldNotesSheet: View {
             )
         }
         .buttonStyle(.plain)
-        .disabled(speechManager.isStarting)
+        .disabled(speechManager.isStarting || isSaving)
         .animation(.easeInOut(duration: 0.2), value: isDictating)
     }
 
@@ -224,7 +297,7 @@ struct FieldNotesSheet: View {
                     )
 
                     Button(role: .destructive) {
-                        clearFieldNotes()
+                        Task { await clearFieldNotes() }
                     } label: {
                         Text("Clear")
                             .font(.headline)
@@ -252,13 +325,59 @@ struct FieldNotesSheet: View {
         .zIndex(10)
     }
 
-    private func clearFieldNotes() {
+    private func clearFieldNotes() async {
         stopDictation()
         isTextFieldFocused = false
         draftText = ""
-        commitDraft()
+        draftIsPublic = false
         showDeleteConfirmation = false
-        dismiss()
+        await saveDraftAndClose()
+    }
+
+    private func saveDraftAndClose() async {
+        guard !isSaving else { return }
+
+        stopDictation()
+        isTextFieldFocused = false
+        saveErrorMessage = nil
+
+        let shouldPublish = hasNotes && draftIsPublic
+        commitDraft()
+
+        guard let visibilityConfiguration else {
+            didSaveBeforeDismiss = true
+            dismiss()
+            return
+        }
+
+        isSaving = true
+        let feedback = await visibilityConfiguration.onSave(draftText, shouldPublish)
+        isSaving = false
+
+        switch feedback {
+        case .success(let isPublic):
+            draftIsPublic = isPublic
+            didSaveBeforeDismiss = true
+            dismiss()
+        case .failure(let message):
+            saveErrorMessage = message
+        }
+    }
+
+    private func saveDraftOnDisappearIfNeeded() {
+        stopDictation()
+
+        guard !didSaveBeforeDismiss else { return }
+
+        let textToSave = draftText
+        let shouldPublish = hasNotes && draftIsPublic
+        commitDraft()
+
+        guard let visibilityConfiguration else { return }
+
+        Task {
+            _ = await visibilityConfiguration.onSave(textToSave, shouldPublish)
+        }
     }
 
     private func startDictation() {

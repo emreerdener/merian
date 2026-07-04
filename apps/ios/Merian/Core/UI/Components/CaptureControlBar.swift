@@ -402,6 +402,7 @@ enum CaptureButtonHapticFeedback: Equatable {
         }
     }
 
+    @MainActor
     func trigger() {
         switch self {
         case .none:

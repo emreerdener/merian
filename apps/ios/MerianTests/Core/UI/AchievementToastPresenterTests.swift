@@ -84,6 +84,40 @@ struct AchievementToastPresenterTests {
         #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticDog))
     }
 
+    @Test func legacyDomesticPetAchievementCompletionIsPersistedWithoutToast() {
+        GamificationManager.shared.evaluateAchievementsForNotifications(awards: [
+            completedAward(.domesticCat, lastInteractionDate: legacyDomesticPetScanDate)
+        ])
+
+        #expect(MilestoneToastPresenter.shared.activeItem == nil)
+        #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticCat))
+    }
+
+    @Test func legacyCatAndFreshDogOnlyToastFreshDog() {
+        GamificationManager.shared.evaluateAchievementsForNotifications(awards: [
+            completedAward(.domesticCat, lastInteractionDate: legacyDomesticPetScanDate),
+            completedAward(.domesticDog, lastInteractionDate: freshDomesticPetScanDate)
+        ])
+
+        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticDog)
+        #expect(MilestoneToastPresenter.shared.queuedItemCount == 0)
+        #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticCat))
+        #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticDog))
+    }
+
+    @Test func legacyUnlockWithFreshRepeatScanIsPersistedWithoutToast() {
+        GamificationManager.shared.evaluateAchievementsForNotifications(awards: [
+            completedAward(
+                .domesticDog,
+                lastInteractionDate: freshDomesticPetScanDate,
+                unlockedAt: legacyDomesticPetScanDate
+            )
+        ])
+
+        #expect(MilestoneToastPresenter.shared.activeItem == nil)
+        #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticDog))
+    }
+
     @Test func completedAchievementUnlockDoesNotEnqueueToastWhenAchievementNotificationsAreDisabled() {
         UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
 
@@ -109,11 +143,24 @@ struct AchievementToastPresenterTests {
         #expect(UserDefaults.standard.stringArray(forKey: unlockedAchievementsKey) == nil)
     }
 
-    private func completedAward(_ type: AchievementType) -> AwardPayload {
+    private var legacyDomesticPetScanDate: Date {
+        Date(timeIntervalSince1970: 1_783_119_600)
+    }
+
+    private var freshDomesticPetScanDate: Date {
+        Date(timeIntervalSince1970: 1_783_126_800)
+    }
+
+    private func completedAward(
+        _ type: AchievementType,
+        lastInteractionDate: Date = Date(),
+        unlockedAt: Date? = nil
+    ) -> AwardPayload {
         AwardPayload(
             type: type,
             currentCount: type.definition.targetCount,
-            lastInteractionDate: Date()
+            lastInteractionDate: lastInteractionDate,
+            unlockedAt: unlockedAt ?? lastInteractionDate
         )
     }
 }

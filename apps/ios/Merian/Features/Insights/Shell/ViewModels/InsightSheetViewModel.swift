@@ -2,6 +2,12 @@ import SafariServices
 import SwiftData
 import SwiftUI
 
+enum InsightExplorePresentationTarget: Equatable {
+    case automatic
+    case post
+    case communityRequest
+}
+
 /// Defines the unified local state graph and primary business logic orchestrating the `InsightSheetView` presentation and data actions.
 @MainActor
 @Observable
@@ -74,6 +80,7 @@ final class InsightSheetViewModel {
         var isUpdatingExplorePostContent = false
         var isUpdatingExploreFieldNotes = false
         var isRequestingCommunityIdentification = false
+        var isExplorePostComposerPresented = false
         var isCommunityRequestSheetPresented = false
         var showExploreOnboarding = false
         var sharedExplorePostId: String?
@@ -84,6 +91,7 @@ final class InsightSheetViewModel {
         var sharedExploreLocationSharing: ExplorePostLocationSharing?
         var exploreFieldNotesArePublic = false
         var showExploreSheet = false
+        var explorePresentationTarget: InsightExplorePresentationTarget = .automatic
         var fieldNotesText = ""
         var dismissedFieldNotesCardScanId: String?
     }

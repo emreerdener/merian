@@ -116,6 +116,7 @@ private actor AssetExportSessionFinisher {
 
 extension CaptureWorkspaceViewModel {
     static let videoMaxDuration: TimeInterval = 5
+    nonisolated private static let videoInferenceFrameSampleCount = 5
 
     nonisolated private static func prepareCameraCapture(
         captureData: Data,
@@ -171,7 +172,8 @@ extension CaptureWorkspaceViewModel {
         composingCenter: CGFloat,
         isProActive: Bool
     ) async throws -> [PreparedCameraCapture] {
-        try await DetachedWork.value(
+        let frameSampleCount = Self.videoInferenceFrameSampleCount
+        return try await DetachedWork.value(
             priority: .userInitiated,
             category: .imagePreparation
         ) {
@@ -184,7 +186,16 @@ extension CaptureWorkspaceViewModel {
             )
 
             let resolvedDuration = max(duration, 0.1)
-            let sampleOffsets = [0.1, 0.5, 0.9].map { min(max(resolvedDuration * $0, 0.05), max(resolvedDuration - 0.05, 0.05)) }
+            let normalizedSamplePositions: [Double]
+            if frameSampleCount <= 1 {
+                normalizedSamplePositions = [0.5]
+            } else {
+                let step = 0.8 / Double(frameSampleCount - 1)
+                normalizedSamplePositions = (0..<frameSampleCount).map { 0.1 + Double($0) * step }
+            }
+            let sampleOffsets = normalizedSamplePositions.map {
+                min(max(resolvedDuration * $0, 0.05), max(resolvedDuration - 0.05, 0.05))
+            }
             let times = sampleOffsets.map { CMTime(seconds: $0, preferredTimescale: 600) }
             let inferenceMaxSize = MerianConfig.inferenceImageMaxSize(isProActive: isProActive)
 

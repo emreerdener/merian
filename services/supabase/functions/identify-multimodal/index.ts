@@ -133,6 +133,22 @@ type AudioMediaDescriptor = {
   clipIndex?: number;
 };
 
+type StoredMediaReferenceDTO = {
+  storage: "remoteURL";
+  path: string;
+};
+
+type SerializedMediaItemDTO =
+  | { image: { _0: StoredMediaReferenceDTO } }
+  | {
+    video: {
+      _0: {
+        video: StoredMediaReferenceDTO;
+        thumbnail?: StoredMediaReferenceDTO;
+      };
+    };
+  };
+
 const optionalIndex = (value: unknown): number | undefined => {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
     return undefined;
@@ -325,6 +341,85 @@ function buildVisualMediaPrompt(
   }
 
   return null;
+}
+
+function remoteMediaReference(url: string): StoredMediaReferenceDTO {
+  return { storage: "remoteURL", path: url };
+}
+
+function buildCapturedMediaManifest(
+  imageStorageUrls: string[],
+  videoStorageUrls: string[],
+  visualMediaItems: VisualMediaDescriptor[],
+): SerializedMediaItemDTO[] | null {
+  const sanitizedImageUrls = imageStorageUrls
+    .map((url) => url.trim())
+    .filter((url) => url.length > 0);
+  const sanitizedVideoUrls = videoStorageUrls
+    .map((url) => url.trim())
+    .filter((url) => url.length > 0);
+
+  if (sanitizedImageUrls.length === 0 && sanitizedVideoUrls.length === 0) {
+    return null;
+  }
+
+  const items: SerializedMediaItemDTO[] = [];
+  const emittedVideoClipIndexes = new Set<number>();
+
+  if (visualMediaItems.length === sanitizedImageUrls.length) {
+    for (const [inputIndex, descriptor] of visualMediaItems.entries()) {
+      const imageUrl = sanitizedImageUrls[inputIndex];
+      if (!imageUrl) continue;
+
+      if (descriptor.kind === "image") {
+        items.push({ image: { _0: remoteMediaReference(imageUrl) } });
+        continue;
+      }
+
+      const clipIndex = descriptor.clipIndex ?? 0;
+      if (emittedVideoClipIndexes.has(clipIndex)) continue;
+
+      const videoUrl = sanitizedVideoUrls[clipIndex];
+      if (!videoUrl) continue;
+
+      emittedVideoClipIndexes.add(clipIndex);
+      items.push({
+        video: {
+          _0: {
+            video: remoteMediaReference(videoUrl),
+            thumbnail: remoteMediaReference(imageUrl),
+          },
+        },
+      });
+    }
+  }
+
+  if (items.length > 0) {
+    return items;
+  }
+
+  if (sanitizedVideoUrls.length > 0) {
+    return sanitizedVideoUrls.map((videoUrl, index) => {
+      const thumbnailUrl = sanitizedImageUrls[index] ?? sanitizedImageUrls[0];
+      const video: SerializedMediaItemDTO = {
+        video: {
+          _0: {
+            video: remoteMediaReference(videoUrl),
+          },
+        },
+      };
+
+      if (thumbnailUrl) {
+        video.video._0.thumbnail = remoteMediaReference(thumbnailUrl);
+      }
+
+      return video;
+    });
+  }
+
+  return sanitizedImageUrls.map((imageUrl) => ({
+    image: { _0: remoteMediaReference(imageUrl) },
+  }));
 }
 
 Deno.serve((req: Request) =>
@@ -1015,6 +1110,12 @@ Deno.serve((req: Request) =>
           }
         }
 
+        const capturedMedia = buildCapturedMediaManifest(
+          modResult?.publicUrls ?? [],
+          videoStorageUrls,
+          normalizedVisualMediaItems,
+        );
+
         await insertScan(
           {
             id: generatedScanId,
@@ -1052,6 +1153,7 @@ Deno.serve((req: Request) =>
             llm_total_tokens: llmTotalTokens,
             image_storage_urls: modResult?.publicUrls ?? [],
             video_storage_urls: videoStorageUrls,
+            captured_media: capturedMedia,
             life_stage: parsedData.life_stage ?? "unknown",
             reproductive_condition: parsedData.reproductive_condition ??
               "not_applicable",

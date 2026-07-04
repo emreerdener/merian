@@ -95,53 +95,36 @@ struct ExploreObservationContextRow: Identifiable {
 
 struct ExploreFieldNotesCard: View {
     let fieldNotes: String
-    let fieldNotesArePublic: Bool
-    let canToggleVisibility: Bool
+    let visibility: FieldNotesVisibilityBadge.Visibility?
     let canEdit: Bool
-    let isUpdating: Bool
     let onEdit: () -> Void
-    let onToggleVisibility: () -> Void
-
-    private var visibilityActionIconName: String {
-        fieldNotesArePublic ? "eye.slash" : "eye"
-    }
-
-    private var visibilityActionAccessibilityLabel: String {
-        fieldNotesArePublic ? "Hide field notes" : "Show field notes"
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            InsightCardHeader(systemImage: "square.and.pencil", title: "Field notes") {
-                Spacer()
+            HStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.and.pencil")
+                        .foregroundColor(.secondary)
+                    Text("Field notes")
+                        .font(.system(.headline))
+                        .foregroundColor(.primary)
+
+                    if let visibility {
+                        FieldNotesVisibilityBadge(visibility: visibility)
+                    }
+                }
+
+                Spacer(minLength: 8)
 
                 if canEdit {
                     Button(action: onEdit) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 15, weight: .semibold))
-                            .frame(width: 28, height: 28)
+                        Label("Edit", systemImage: "pencil")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: 28)
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.primary)
                     .accessibilityLabel("Edit field notes")
-                }
-
-                if canToggleVisibility {
-                    Button(action: onToggleVisibility) {
-                        if isUpdating {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                                .frame(width: 28, height: 28)
-                        } else {
-                            Image(systemName: visibilityActionIconName)
-                                .font(.system(size: 15, weight: .semibold))
-                                .frame(width: 28, height: 28)
-                        }
-                    }
-                    .disabled(isUpdating)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.primary)
-                    .accessibilityLabel(visibilityActionAccessibilityLabel)
                 }
             }
 

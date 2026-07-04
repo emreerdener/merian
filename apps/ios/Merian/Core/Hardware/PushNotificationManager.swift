@@ -318,7 +318,9 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
         
         if type == "explore_activity" {
             completionHandler([.banner, .sound, .list])
-        } else if type != "achievement", UserDefaults.standard.bool(forKey: UserDefaultsKeys.suppressInferenceBanners) {
+        } else if type == "achievement" {
+            completionHandler([])
+        } else if UserDefaults.standard.bool(forKey: UserDefaultsKeys.suppressInferenceBanners) {
             completionHandler([])
         } else {
             completionHandler([.banner, .sound, .list])

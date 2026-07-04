@@ -157,10 +157,11 @@ struct InsightSheetView: View {
             Task {
                 await viewModel.refreshSharedExploreStateFromServer(modelContext: modelContext)
             }
+            viewModel.state.explorePresentationTarget = .automatic
         }) {
             ExploreView(
-                initialPostId: viewModel.state.sharedExplorePostId,
-                initialCommunityRequestId: viewModel.state.sharedCommunityIdentificationRequestId,
+                initialPostId: exploreSheetInitialPostId,
+                initialCommunityRequestId: exploreSheetInitialCommunityRequestId,
                 allowsInsightPresentation: false,
                 onOpenOwnedPostInsight: { scanId in
                     viewModel.bindPresentedScan(
@@ -175,6 +176,26 @@ struct InsightSheetView: View {
 }
 
 private extension InsightSheetView {
+    @MainActor
+    var exploreSheetInitialPostId: String? {
+        switch viewModel.state.explorePresentationTarget {
+        case .automatic, .post:
+            return viewModel.state.sharedExplorePostId
+        case .communityRequest:
+            return nil
+        }
+    }
+
+    @MainActor
+    var exploreSheetInitialCommunityRequestId: String? {
+        switch viewModel.state.explorePresentationTarget {
+        case .automatic, .communityRequest:
+            return viewModel.state.sharedCommunityIdentificationRequestId
+        case .post:
+            return nil
+        }
+    }
+
     func appendInsightChatTextToFieldNotes(
         _ text: String,
         kind _: InsightChatFieldNotesAppendKind

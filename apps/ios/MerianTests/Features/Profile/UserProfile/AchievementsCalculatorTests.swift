@@ -132,6 +132,24 @@ final class AchievementsCalculatorTests: XCTestCase {
         XCTAssertEqual(awards.first { $0.type == .fungi }?.currentCount, 1, "Badges must be strictly deduplicated by canonical species identity.")
     }
 
+    func testUnlockedAtTracksUnlockingContributionNotLatestRepeatScan() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let scans = [
+            mockScan(scientificName: "Species A", timestamp: base.addingTimeInterval(1)),
+            mockScan(scientificName: "Species B", timestamp: base.addingTimeInterval(2)),
+            mockScan(scientificName: "Species C", timestamp: base.addingTimeInterval(3)),
+            mockScan(scientificName: "Species D", timestamp: base.addingTimeInterval(4)),
+            mockScan(scientificName: "Species E", timestamp: base.addingTimeInterval(5)),
+            mockScan(scientificName: "Species A", timestamp: base.addingTimeInterval(500))
+        ]
+
+        let awards = AchievementsCalculator.calculate(from: scans)
+        let explorerAward = awards.first { $0.type == .explorer }
+
+        XCTAssertEqual(explorerAward?.unlockedAt, base.addingTimeInterval(5))
+        XCTAssertEqual(explorerAward?.lastInteractionDate, base.addingTimeInterval(500))
+    }
+
     // MARK: - Appended Coverage
 
     func testFirstScanAndExplorer() {

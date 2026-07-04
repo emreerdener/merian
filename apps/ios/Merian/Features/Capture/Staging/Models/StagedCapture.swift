@@ -183,7 +183,7 @@ struct StagedCapture {
     /// File paths of staged audio recordings.
     var audios: [StagedAudio] = []
 
-    /// Staged short video recordings. Each video carries sampled frames for inference.
+    /// Staged short video recordings. Each video carries five sampled frames for inference.
     var videos: [StagedVideo] = []
 
     /// Staged observation contexts from the Describe tab before submission.
@@ -276,7 +276,7 @@ struct StagedAudio {
     var addedAt: Date = Date()
 }
 
-/// A staged short video clip with sampled frame images used for AI inference.
+/// A staged short video clip with five sampled frame images used for AI inference.
 struct StagedVideo {
     let filePath: String
     let sampledImages: [StagedImage]

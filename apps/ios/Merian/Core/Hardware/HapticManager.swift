@@ -101,6 +101,6 @@ final class HapticManager {
     /// modifying the user's haptics preference.
     private var shouldFire: Bool {
         appSettings.isHapticsEnabled &&
-        !hardwareOrchestrator.isExpeditionModeActive
+        !appSettings.isExpeditionModeActive
     }
 }

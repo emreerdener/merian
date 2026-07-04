@@ -14,7 +14,7 @@ final class ScanRepository {
     // MARK: - Singleton
 
     static let shared = ScanRepository()
-    private static let historicalScanSelectColumns = "id, image_storage_urls, video_storage_urls, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, invasive_status_region, invasive_rationale, invasive_confidence, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, pet_identification, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
+    private static let historicalScanSelectColumns = "id, image_storage_urls, video_storage_urls, captured_media, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, invasive_status_region, invasive_rationale, invasive_confidence, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, pet_identification, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
 
     // MARK: - Dependencies
 
@@ -346,6 +346,7 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let created_at: String?
     let image_storage_urls: [String]?
     let video_storage_urls: [String]?
+    let captured_media: [SerializedMediaItem]?
     let timestamp: String?
     let weather_condition: String?
     let weather_temperature_f: Double?
@@ -501,8 +502,6 @@ actor HistoricalDatabaseActor {
             for id in chunkIds {
                 guard let existing = chunkLookup[id], let res = responseLookup[id] else { continue }
 
-                let rawR2Image = res.image_storage_urls?.first
-                let additionalUrls = res.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
                 let dictRefImage = res.species_dictionary?.reference_image_url
 
                 var paths: [String] = []
@@ -514,14 +513,11 @@ actor HistoricalDatabaseActor {
                         return reference.serializedPath
                     }
                 }
-                var newItems: [SerializedMediaItem] = []
-                if let rawR2Image { newItems.append(.image(.remoteURL(rawR2Image))) }
-                if let additionalUrls { newItems.append(contentsOf: additionalUrls.map { .image(.remoteURL($0)) }) }
-                if let videoUrls = res.video_storage_urls {
-                    newItems.append(contentsOf: videoUrls.map {
-                        .video(StoredVideoMediaReference(.remoteURL($0), thumbnail: rawR2Image.map(StoredMediaReference.remoteURL)))
-                    })
-                }
+                let newItems = CapturedMediaSnapshot.cloudHydratedItems(
+                    capturedMediaItems: res.captured_media,
+                    imageStorageURLs: res.image_storage_urls,
+                    videoStorageURLs: res.video_storage_urls
+                )
                 if !newItems.isEmpty {
                     let hasRemoteMedia = paths.contains { $0.starts(with: "http://") || $0.starts(with: "https://") }
                     let onlyLocalOrMissingMedia = paths.isEmpty || !hasRemoteMedia
@@ -669,9 +665,6 @@ actor HistoricalDatabaseActor {
             }()
             let wikiExtract = dict?.wikipedia_overview
 
-            let rawR2Image = scan.image_storage_urls?.first
-            let additionalUrls = scan.image_storage_urls.flatMap { urls in urls.count > 1 ? Array(urls.dropFirst()) : nil }
-            let videoUrls = scan.video_storage_urls ?? []
             let semanticPetTags = [scan.pet_identification?.label].compactMap {
                 $0?.trimmingCharacters(in: .whitespacesAndNewlines)
             }.filter { !$0.isEmpty }
@@ -739,12 +732,11 @@ actor HistoricalDatabaseActor {
                 petIdentificationData: petIdentificationData
             )
             
-            var newItems: [SerializedMediaItem] = []
-            if let primary = rawR2Image { newItems.append(.image(.remoteURL(primary))) }
-            if let urls = additionalUrls { newItems.append(contentsOf: urls.map { .image(.remoteURL($0)) }) }
-            newItems.append(contentsOf: videoUrls.map {
-                .video(StoredVideoMediaReference(.remoteURL($0), thumbnail: rawR2Image.map(StoredMediaReference.remoteURL)))
-            })
+            let newItems = CapturedMediaSnapshot.cloudHydratedItems(
+                capturedMediaItems: scan.captured_media,
+                imageStorageURLs: scan.image_storage_urls,
+                videoStorageURLs: scan.video_storage_urls
+            )
             record.replaceCapturedMedia(with: newItems)
 
             modelContext.insert(record)

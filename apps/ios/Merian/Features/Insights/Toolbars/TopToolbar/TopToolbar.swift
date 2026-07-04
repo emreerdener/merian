@@ -1,5 +1,57 @@
 import SwiftUI
 
+enum InsightTopMenuCommunityAction: Equatable {
+    case askCommunity
+    case viewCommunityRequest
+
+    var title: String {
+        switch self {
+        case .askCommunity:
+            return "Ask the community"
+        case .viewCommunityRequest:
+            return "View community request"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .askCommunity:
+            return "person.crop.badge.magnifyingglass"
+        case .viewCommunityRequest:
+            return "person.crop.circle.badge.questionmark"
+        }
+    }
+}
+
+struct InsightTopMenuState: Equatable {
+    let showsExplorePostSection: Bool
+    let communityAction: InsightTopMenuCommunityAction?
+
+    init(
+        sharedExplorePostId: String?,
+        sharedCommunityIdentificationRequestId: String?,
+        canEditExplorePost: Bool,
+        canViewExplorePost: Bool,
+        canAskCommunity: Bool,
+        canViewCommunityRequest: Bool
+    ) {
+        let hasPublishedPost = sharedExplorePostId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        let hasCommunityRequest = sharedCommunityIdentificationRequestId?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty == false
+
+        showsExplorePostSection = hasPublishedPost && (canEditExplorePost || canViewExplorePost)
+
+        if hasCommunityRequest, canViewCommunityRequest {
+            communityAction = .viewCommunityRequest
+        } else if canAskCommunity {
+            communityAction = .askCommunity
+        } else {
+            communityAction = nil
+        }
+    }
+}
+
 struct TopToolbar: ToolbarContent {
     enum LeadingControl {
         case close
@@ -33,8 +85,10 @@ struct TopToolbar: ToolbarContent {
     let hasUserPhotos: Bool
     var leadingControl: LeadingControl = .close
     let onSavePhotos: () -> Void
+    let allowsFieldNotes: Bool
     let hasFieldNotes: Bool
     let onFieldNotes: () -> Void
+    let allowsCollectionActions: Bool
     let collections: [ScanCollection]
     let selectedCollectionIds: Set<String>
     let toggleScanInCollection: (ScanCollection) -> Void
@@ -44,6 +98,11 @@ struct TopToolbar: ToolbarContent {
     var onReviewAlternatives: (() -> Void)?
     var onConfirmIdentification: (() -> Void)?
     var onAskCommunity: (() -> Void)?
+    var sharedExplorePostId: String?
+    var sharedCommunityIdentificationRequestId: String?
+    var onEditExplorePost: (() -> Void)?
+    var onViewExplorePost: (() -> Void)?
+    var onViewCommunityRequest: (() -> Void)?
     let isAnalyzing: Bool
     let isProActive: Bool
 
@@ -55,8 +114,10 @@ struct TopToolbar: ToolbarContent {
         hasUserPhotos: Bool,
         leadingControl: LeadingControl = .close,
         onSavePhotos: @escaping () -> Void,
+        allowsFieldNotes: Bool = true,
         hasFieldNotes: Bool,
         onFieldNotes: @escaping () -> Void,
+        allowsCollectionActions: Bool = true,
         collections: [ScanCollection],
         selectedCollectionIds: Set<String>,
         toggleScanInCollection: @escaping (ScanCollection) -> Void,
@@ -66,6 +127,11 @@ struct TopToolbar: ToolbarContent {
         onReviewAlternatives: (() -> Void)? = nil,
         onConfirmIdentification: (() -> Void)? = nil,
         onAskCommunity: (() -> Void)? = nil,
+        sharedExplorePostId: String? = nil,
+        sharedCommunityIdentificationRequestId: String? = nil,
+        onEditExplorePost: (() -> Void)? = nil,
+        onViewExplorePost: (() -> Void)? = nil,
+        onViewCommunityRequest: (() -> Void)? = nil,
         isAnalyzing: Bool,
         isProActive: Bool
     ) {
@@ -76,8 +142,10 @@ struct TopToolbar: ToolbarContent {
         self.hasUserPhotos = hasUserPhotos
         self.leadingControl = leadingControl
         self.onSavePhotos = onSavePhotos
+        self.allowsFieldNotes = allowsFieldNotes
         self.hasFieldNotes = hasFieldNotes
         self.onFieldNotes = onFieldNotes
+        self.allowsCollectionActions = allowsCollectionActions
         self.collections = collections
         self.selectedCollectionIds = selectedCollectionIds
         self.toggleScanInCollection = toggleScanInCollection
@@ -87,6 +155,11 @@ struct TopToolbar: ToolbarContent {
         self.onReviewAlternatives = onReviewAlternatives
         self.onConfirmIdentification = onConfirmIdentification
         self.onAskCommunity = onAskCommunity
+        self.sharedExplorePostId = sharedExplorePostId
+        self.sharedCommunityIdentificationRequestId = sharedCommunityIdentificationRequestId
+        self.onEditExplorePost = onEditExplorePost
+        self.onViewExplorePost = onViewExplorePost
+        self.onViewCommunityRequest = onViewCommunityRequest
         self.isAnalyzing = isAnalyzing
         self.isProActive = isProActive
     }
@@ -130,6 +203,17 @@ struct TopToolbar: ToolbarContent {
             .font(.system(size: 16, weight: .bold))
     }
 
+    private var menuState: InsightTopMenuState {
+        InsightTopMenuState(
+            sharedExplorePostId: sharedExplorePostId,
+            sharedCommunityIdentificationRequestId: sharedCommunityIdentificationRequestId,
+            canEditExplorePost: onEditExplorePost != nil,
+            canViewExplorePost: onViewExplorePost != nil,
+            canAskCommunity: onAskCommunity != nil,
+            canViewCommunityRequest: onViewCommunityRequest != nil
+        )
+    }
+
     @ViewBuilder
     private var actionMenuContent: some View {
         if hasUserPhotos {
@@ -138,20 +222,40 @@ struct TopToolbar: ToolbarContent {
             }
         }
 
-        Button(action: onFieldNotes) {
-            Label(hasFieldNotes ? "Update field notes" : "Add field notes", systemImage: "square.and.pencil")
+        if allowsFieldNotes {
+            Button(action: onFieldNotes) {
+                Label(hasFieldNotes ? "Update field notes" : "Add field notes", systemImage: "square.and.pencil")
+            }
         }
 
-        AddCollectionTopMenu(
-            collections: collections,
-            selectedCollectionIds: selectedCollectionIds,
-            toggleScanInCollection: toggleScanInCollection,
-            showNewCollectionAlert: $showNewCollectionAlert,
-            hasScanId: hasCollectionScanId
-        )
+        if allowsCollectionActions {
+            AddCollectionTopMenu(
+                collections: collections,
+                selectedCollectionIds: selectedCollectionIds,
+                toggleScanInCollection: toggleScanInCollection,
+                showNewCollectionAlert: $showNewCollectionAlert,
+                hasScanId: hasCollectionScanId
+            )
+        }
 
         Button(role: .destructive, action: { showDeleteConfirmation = true }) {
             Label("Delete scan", systemImage: "trash")
+        }
+
+        if menuState.showsExplorePostSection {
+            Section("Explore post") {
+                if let onEditExplorePost {
+                    Button(action: onEditExplorePost) {
+                        Label("Edit post", systemImage: "square.and.pencil")
+                    }
+                }
+
+                if let onViewExplorePost {
+                    Button(action: onViewExplorePost) {
+                        Label("View post", systemImage: "eye")
+                    }
+                }
+            }
         }
         
         Section("Identification") {
@@ -174,9 +278,16 @@ struct TopToolbar: ToolbarContent {
                     }
                 }
             }
-            if let onAskCommunity = onAskCommunity {
-                Button(action: onAskCommunity) {
-                    Label("Ask the community", systemImage: "person.crop.badge.magnifyingglass")
+            if let communityAction = menuState.communityAction {
+                Button(action: {
+                    switch communityAction {
+                    case .askCommunity:
+                        onAskCommunity?()
+                    case .viewCommunityRequest:
+                        onViewCommunityRequest?()
+                    }
+                }) {
+                    Label(communityAction.title, systemImage: communityAction.systemImage)
                 }
             }
         }

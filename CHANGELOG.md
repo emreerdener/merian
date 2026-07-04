@@ -13,8 +13,9 @@ TestFlight, App Store, support, and QA.
 - Added clearer haptic feedback for video recording start, finish, successful staging, and recording failures.
 - Fixed a crash that could happen after tapping stop on a Pro video recording while Merian extracted the clip's audio.
 - Compressed saved Pro video clips for lighter scan-library playback, Explore sharing, and cloud storage while keeping AI analysis frames sampled from the original recording.
+- Fixed cloud-hydrated video scans so sampled analysis frames stay hidden behind the playable video instead of appearing as standalone Insight carousel images.
 - Improved camera shutter feedback so photo captures and video recording start with a stronger, prewarmed haptic cue, and video recording begins almost immediately after a brief hold.
-- Updated video scan analysis so sampled frames and accompanying audio are treated as evidence from the same video, and video scans are no longer described as images.
+- Updated video scan analysis so Pro video scans sample five ordered frames, treat accompanying audio as evidence from the same video, and are no longer described as images.
 - Added a Pro paywall carousel slide for video scans and improved feature text wrapping.
 - Added video scans to the Pro paywall comparison table.
 - Kept non-Pro long-presses photo-first so holding the shutter does not interrupt capture or open the paywall.
@@ -22,6 +23,7 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 - Added public video Explore posts: shared video scans can now appear in Explore and Ask the Community with muted playback in feed/detail and thumbnail play indicators on compact surfaces.
+- Added Explore post management actions to the Insight top menu so published scans can be edited or opened without returning to the Share sheet.
 - Added a View insight action to your own Explore post menus, including posts opened from an Insight sheet or your Profile's published scans.
 - Fixed notification-opened comment reply threads so parent comments and replies include the same emoji reaction controls as regular Explore comments.
 
@@ -32,8 +34,10 @@ TestFlight, App Store, support, and QA.
 
 ### Insight Sheet
 - Added fullscreen playback for video scan media from the Insight carousel.
-- Added a Non-biological pill and retention notice to non-biological Insight results so users know the scan lives in the Non-biological collection and will be deleted after 30 days.
-- Replaced the local New discovery pill with a richer New to Merian milestone banner for scans that add a species to the shared species dictionary.
+- Added field-note visibility controls to the Field notes edit sheet, with Published and Private badges on shared Insight and Explore note cards.
+- Added a Non-biological pill and retention notice to non-biological Insight results, and hid biological-only field notes, tags, and collection actions from those scans.
+- Replaced the local New discovery pill with a richer bottom milestone banner for achievements and scans that add a species to the shared species dictionary, while preventing foreground iOS achievement notifications from stacking over it.
+- Seeded legacy domestic cat and dog achievement completions silently so older qualifying scans do not trigger surprise retroactive unlock banners.
 - Updated video scans so Insight opens the saved clip as the primary media item while scan tiles and previews keep using the poster thumbnail.
 - Fixed pending video scans so playback can resolve the saved local clip immediately after submission.
 - Fixed Overview interactions so longer ecological interaction notes wrap fully instead of truncating.
@@ -84,6 +88,7 @@ TestFlight, App Store, support, and QA.
 - Kept internal Community identification consensus labels out of the public identification timeline.
 
 ### Profile & Guest Account Polish
+- Added an Invite a friend card on Profile and a matching Settings resource so sharing Merian is ready for a future referral link.
 - Added cat and dog scan achievements that unlock when you document your first domestic cat or dog.
 - Matched Profile signed-out spacing below the sign-in buttons to the gap between the stat cards.
 - Fixed Profile published-scan grids so partial rows keep rounded outer image corners instead of exposing sharp edges.

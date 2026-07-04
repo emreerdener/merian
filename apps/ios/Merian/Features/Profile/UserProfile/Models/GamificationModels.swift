@@ -402,8 +402,21 @@ struct AwardPayload: Sendable, Identifiable {
     let type: AchievementType
     let currentCount: Int
     let lastInteractionDate: Date?
+    let unlockedAt: Date?
 
     var id: String { type.id }
+
+    init(
+        type: AchievementType,
+        currentCount: Int,
+        lastInteractionDate: Date?,
+        unlockedAt: Date? = nil
+    ) {
+        self.type = type
+        self.currentCount = currentCount
+        self.lastInteractionDate = lastInteractionDate
+        self.unlockedAt = unlockedAt
+    }
 }
 
 struct AchievementContribution: Sendable, Identifiable, Equatable {

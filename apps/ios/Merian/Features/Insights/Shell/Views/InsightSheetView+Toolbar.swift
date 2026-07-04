@@ -31,10 +31,12 @@ extension InsightSheetView {
             hasUserPhotos: viewModel.hasUserPhotos,
             leadingControl: presentationStyle.isEmbedded ? .back : .close,
             onSavePhotos: { viewModel.saveUserPhotos(inferenceEngine: inferenceEngine) },
+            allowsFieldNotes: viewModel.contentMode != .nonBiological,
             hasFieldNotes: viewModel.hasFieldNotes,
             onFieldNotes: {
                 viewModel.state.isFieldNotesSheetPresented = true
             },
+            allowsCollectionActions: viewModel.contentMode != .nonBiological,
             collections: collections,
             selectedCollectionIds: viewModel.toolbarRecordSnapshot?.collectionIds ?? [],
             toggleScanInCollection: { collection in
@@ -64,6 +66,19 @@ extension InsightSheetView {
             } : nil,
             onAskCommunity: viewModel.canRequestCommunityIdentification ? {
                 viewModel.state.isCommunityRequestSheetPresented = true
+            } : nil,
+            sharedExplorePostId: viewModel.state.sharedExplorePostId,
+            sharedCommunityIdentificationRequestId: viewModel.state.sharedCommunityIdentificationRequestId,
+            onEditExplorePost: viewModel.state.sharedExplorePostId != nil ? {
+                viewModel.state.isExplorePostComposerPresented = true
+            } : nil,
+            onViewExplorePost: allowsExplorePresentation && viewModel.state.sharedExplorePostId != nil ? {
+                viewModel.state.explorePresentationTarget = .post
+                viewModel.state.showExploreSheet = true
+            } : nil,
+            onViewCommunityRequest: allowsExplorePresentation && viewModel.state.sharedCommunityIdentificationRequestId != nil ? {
+                viewModel.state.explorePresentationTarget = .communityRequest
+                viewModel.state.showExploreSheet = true
             } : nil,
             isAnalyzing: viewModel.isProcessing,
             isProActive: RevenueCatManager.shared.isProActive
@@ -116,7 +131,6 @@ extension InsightSheetView {
             } : nil,
             isSharingToExplore: viewModel.state.isSharingToExplore,
             isUpdatingExplorePostContent: viewModel.state.isUpdatingExplorePostContent,
-            isUpdatingExploreFieldNotes: viewModel.state.isUpdatingExploreFieldNotes,
             displaySpeciesName: viewModel.resolvedHeaderTitle,
             commonNameOptions: viewModel.allNamesForPicker,
             fieldNotesPreview: viewModel.shareableFieldNotes,
@@ -126,17 +140,13 @@ extension InsightSheetView {
             sharedExploreLocationSharing: viewModel.state.sharedExploreLocationSharing,
             fieldNotesArePublicOnExplore: viewModel.state.exploreFieldNotesArePublic,
             onViewInExplore: allowsExplorePresentation ? {
+                viewModel.state.explorePresentationTarget = .post
                 viewModel.state.showExploreSheet = true
             } : nil,
             onViewCommunityRequest: allowsExplorePresentation && viewModel.state.sharedCommunityIdentificationRequestId != nil ? {
+                viewModel.state.explorePresentationTarget = .communityRequest
                 viewModel.state.showExploreSheet = true
-            } : nil,
-            onUpdateFieldNotesVisibility: { isPublic in
-                await viewModel.updateExploreFieldNotesVisibility(
-                    isPublic: isPublic,
-                    modelContext: modelContext
-                )
-            }
+            } : nil
         )
     }
 

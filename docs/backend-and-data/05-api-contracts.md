@@ -499,7 +499,7 @@ display, while `common_name` and `scientific_name` remain authoritative.
 return this boolean in the client payload. It is `true` only when the scan is a
 biological subject and the initial `species_dictionary` lookup found no existing
 row for the normalized scientific name. iOS decodes the field as
-`SpeciesData.isNewToMerianDictionary` and uses it to show the top in-app
+`SpeciesData.isNewToMerianDictionary` and uses it to show the bottom in-app
 `New to Merian` milestone notification. Do not infer global dictionary novelty
 from missing enrichment fields such as `alternative_common_names`; cache gaps,
 GBIF gaps, and partial rows are not milestone signals. Existing dictionary rows
@@ -647,12 +647,16 @@ inside Cloudflare R2, and the CDN URL
 (`https://media.merian.app/public_uploads/...`) is stored in
 `scans.image_storage_urls`. For the `imageBase64s` path, the bytes are uploaded
 directly to the public destination without a staging step. Safe video media is
-moderated through sampled frames, then the staged compressed playback `.mp4` is
-promoted separately and persisted in `scans.video_storage_urls`. Any image promotion failure aborts
-the entire batch and immediately rolls back any already-promoted public objects
-from that same batch before returning `ERROR`; scans are not inserted with
-partial image arrays. Video promotion failure leaves the sampled frame imagery
-usable while the failed staged playback video is cleaned up.
+moderated through five sampled frames, then the staged compressed playback `.mp4`
+is promoted separately and persisted in `scans.video_storage_urls`. Multimodal
+inserts also write `scans.captured_media`, a canonical ordered media timeline
+that attaches video playback URLs and poster thumbnails together; this prevents
+sampled video inference frames from hydrating as standalone Insight carousel
+images. Any image promotion failure aborts the entire batch and immediately rolls
+back any already-promoted public objects from that same batch before returning
+`ERROR`; scans are not inserted with partial image arrays. Video promotion failure
+leaves the sampled frame imagery usable while the failed staged playback video is
+cleaned up.
 
 **Moderation failure handling**: If Gemini's `finishReason === "SAFETY"` or any
 `safetyRating.probability` is `"MEDIUM"` or `"HIGH"`, the staging object is
@@ -2665,12 +2669,14 @@ ordered compositions of images, audio, and descriptive context.
   "videoR2ObjectKeys": [
     "staging/a1b2c3d4.../uuid_video_1.mp4"
   ],
-  "videoFrameCount": 3,
+  "videoFrameCount": 5,
   "visualMediaItems": [
     { "kind": "image", "sourceIndex": 0 },
     { "kind": "video_frame", "clipIndex": 0, "frameIndex": 0 },
     { "kind": "video_frame", "clipIndex": 0, "frameIndex": 1 },
-    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 2 }
+    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 2 },
+    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 3 },
+    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 4 }
   ],
   "audioMediaItems": [
     { "kind": "video_audio", "clipIndex": 0 }
@@ -2710,7 +2716,7 @@ ordered compositions of images, audio, and descriptive context.
 - Features dynamic `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` execution if audio
   and visual evidence are both present, regardless of whether the audio arrived
   inline, from R2 staging, or as extracted audio from a video scan.
-- Video scans send ordered sampled frames through the image payload path,
+- Video scans send five ordered sampled frames through the image payload path,
   extracted accompanying audio through the audio payload path when available,
   and stage the compressed playback `.mp4` in `videoR2ObjectKeys`. New clients send
   `visualMediaItems` (or snake-case `visual_media_items`) with one entry per
@@ -2723,6 +2729,10 @@ ordered compositions of images, audio, and descriptive context.
   the prompt treats the audio as ordinary standalone audio. The playback clip is
   promoted only after those frames pass moderation and is not used as Gemini
   inference or reference-media input.
+- The edge writes `captured_media` for new multimodal scan rows. That JSON keeps
+  still photos as image items but collapses ordered `video_frame` samples into a
+  single video media item with a thumbnail reference, preserving playback-first
+  Insight hydration for biological and non-biological video scans.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use
