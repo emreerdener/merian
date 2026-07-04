@@ -3,6 +3,8 @@ import SwiftUI
 struct ViewfinderHints: View {
     @Environment(ViewfinderIntelligence.self) var vui
     var isRefining: Bool = false
+    var isVideoRecording: Bool = false
+    var videoRecordingProgress: Double = 0
     @State private var showInitialPrompt: Bool = true
     /// Stays false until the initial prompt has fully faded out, preventing the VUI hint
     /// from cross-fading in while the welcome text is still visible on screen.
@@ -11,7 +13,13 @@ struct ViewfinderHints: View {
 
     var body: some View {
         Group {
-            if showInitialPrompt {
+            if isVideoRecording {
+                RecordingCountdownBadge(
+                    progress: videoRecordingProgress,
+                    duration: CaptureWorkspaceViewModel.videoMaxDuration,
+                    accessibilityPrefix: "Video recording time remaining"
+                )
+            } else if showInitialPrompt {
                 Text(isRefining ? "Add another photo" : "Tap to identify. Hold to record video")
                     .font(.subheadline)
                     .fontWeight(.semibold)
@@ -36,6 +44,7 @@ struct ViewfinderHints: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showInitialPrompt)
+        .animation(.easeInOut(duration: 0.3), value: isVideoRecording)
         .animation(.easeInOut(duration: 0.3), value: vui.isOptimal)
         .onAppear {
             schedulePromptDismissal()

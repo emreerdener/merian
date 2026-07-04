@@ -7,9 +7,10 @@ TestFlight, App Store, support, and QA.
 ## Unreleased
 
 ### Capture
-- Added Pro short video scans from the visual shutter: tap still takes a photo, while a 1-second hold latches into a 5-second video recording with saved playback and image-based thumbnails.
-- Added clearer haptic feedback for video recording latch, stop, successful staging, and recording failures.
-- Updated video scan analysis so sampled frames are labeled as ordered frames from one short clip instead of generic still images.
+- Added Pro short video scans from the visual shutter: tap still takes a photo, while a 0.75-second hold latches into a 5-second video recording with saved playback and image-based thumbnails.
+- Added clearer haptic feedback for video recording start, finish, successful staging, and recording failures.
+- Improved camera shutter feedback so photo captures and video recording start with a stronger, prewarmed haptic cue, and video recording begins faster after a shorter sustained hold.
+- Updated video scan analysis so sampled frames and accompanying audio are treated as evidence from the same video, and video scans are no longer described as images.
 - Added video scans to the Pro paywall comparison table.
 - Kept non-Pro long-presses photo-first so holding the shutter does not interrupt capture or open the paywall.
 - Fixed non-biological scan saving so captures that omit ecology metadata are saved with an unknown ecology fallback instead of failing in the backend.
@@ -26,6 +27,7 @@ TestFlight, App Store, support, and QA.
 
 ### Insight Sheet
 - Added fullscreen playback for video scan media from the Insight carousel.
+- Added a Non-biological pill and retention notice to non-biological Insight results so users know the scan lives in the Non-biological collection and will be deleted after 30 days.
 - Updated video scans so Insight opens the saved clip as the primary media item while scan tiles and previews keep using the poster thumbnail.
 - Fixed pending video scans so playback can resolve the saved local clip immediately after submission.
 - Fixed Overview interactions so longer ecological interaction notes wrap fully instead of truncating.
@@ -76,6 +78,7 @@ TestFlight, App Store, support, and QA.
 - Kept internal Community identification consensus labels out of the public identification timeline.
 
 ### Profile & Guest Account Polish
+- Added cat and dog scan achievements that unlock when you document your first domestic cat or dog.
 - Matched Profile signed-out spacing below the sign-in buttons to the gap between the stat cards.
 - Fixed Profile published-scan grids so partial rows keep rounded outer image corners instead of exposing sharp edges.
 - Updated Pro plan card copy to match the current paywall value props for unlimited field scans, Pro AI vision, AI chat, multi-capture, Apple Watch logging, and expedition mode.

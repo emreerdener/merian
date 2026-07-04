@@ -188,6 +188,12 @@ type VisualMediaDescriptor = {
   frameIndex?: number;
 };
 
+type AudioMediaDescriptor = {
+  kind: "audio" | "video_audio";
+  sourceIndex?: number;
+  clipIndex?: number;
+};
+
 function optionalIndex(value: unknown): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
     return undefined;
@@ -219,6 +225,35 @@ function normalizeVisualMediaItems(
       sourceIndex: optionalIndex(item.sourceIndex ?? item.source_index),
       clipIndex: optionalIndex(item.clipIndex ?? item.clip_index),
       frameIndex: optionalIndex(item.frameIndex ?? item.frame_index),
+    });
+  }
+
+  return descriptors;
+}
+
+function normalizeAudioMediaItems(
+  rawItems: unknown,
+  resolvedAudioCount: number,
+): AudioMediaDescriptor[] {
+  if (!Array.isArray(rawItems) || rawItems.length !== resolvedAudioCount) {
+    return [];
+  }
+
+  const descriptors: AudioMediaDescriptor[] = [];
+  for (const rawItem of rawItems) {
+    if (!rawItem || typeof rawItem !== "object") {
+      return [];
+    }
+
+    const item = rawItem as Record<string, unknown>;
+    if (item.kind !== "audio" && item.kind !== "video_audio") {
+      return [];
+    }
+
+    descriptors.push({
+      kind: item.kind,
+      sourceIndex: optionalIndex(item.sourceIndex ?? item.source_index),
+      clipIndex: optionalIndex(item.clipIndex ?? item.clip_index),
     });
   }
 
@@ -295,11 +330,15 @@ function buildVisualMediaPrompt(
   visualMediaItems: VisualMediaDescriptor[],
   hasVideo: boolean,
   resolvedImageCount: number,
+  hasVideoAudio = false,
 ): string | null {
   if (
     visualMediaItems.length === resolvedImageCount &&
     visualMediaItems.length > 0
   ) {
+    const includesVideo = visualMediaItems.some((item) =>
+      item.kind === "video_frame"
+    );
     const lines = visualMediaItems.map((item, index) => {
       const inputNumber = index + 1;
       if (item.kind === "video_frame") {
@@ -312,15 +351,38 @@ function buildVisualMediaPrompt(
       return `- Visual input ${inputNumber}: still photo ${sourceNumber}.`;
     });
 
-    return [
-      "The following visual inputs are ordered and may mix still photos with sampled frames from short user-recorded video clips:",
+    const promptLines = includesVideo
+      ? [
+        "This scan includes a short user-recorded video. The visual evidence comes from ordered sampled frames from that video, with any listed still photos treated as separate evidence from the same scan.",
+      ]
+      : [
+        "The following visual inputs are ordered still photos from the same scan:",
+      ];
+
+    promptLines.push(
       ...lines,
-      "Treat sampled frames from the same video clip as one brief motion sequence, not as separate observations. Still photos are separate visual evidence from the same scan.",
-    ].join("\n");
+    );
+
+    if (includesVideo) {
+      promptLines.push(
+        hasVideoAudio
+          ? "Analyze the sampled visual frames and accompanying audio as evidence from that video."
+          : "Analyze the sampled visual frames as evidence from that video.",
+        "When writing user-facing reasoning for this video scan, do not describe the video-derived evidence as images, photos, or an image set.",
+      );
+    }
+
+    return promptLines.join("\n");
   }
 
   if (hasVideo && resolvedImageCount > 0) {
-    return "The following images are ordered sampled frames from one short user-recorded video. Interpret them together as a brief motion sequence, not as separate observations.";
+    return [
+      "This scan includes a short user-recorded video. The visual evidence comes from ordered sampled frames from that video.",
+      hasVideoAudio
+        ? "Analyze the sampled visual frames and accompanying audio as evidence from that video."
+        : "Analyze the sampled visual frames as evidence from that video.",
+      "When writing user-facing reasoning for this video scan, do not describe the video-derived evidence as images, photos, or an image set.",
+    ].join("\n");
   }
 
   return null;
@@ -591,7 +653,41 @@ Deno.test("visual media prompt labels still photos and sampled video frames", ()
   assert(prompt.includes("Visual input 1: still photo 1"));
   assert(prompt.includes("Visual input 2: sampled video frame 1"));
   assert(prompt.includes("Visual input 3: sampled video frame 2"));
-  assert(prompt.includes("same video clip as one brief motion sequence"));
+  assert(prompt.includes("This scan includes a short user-recorded video"));
+  assert(!prompt.includes("The following images"));
+  assert(!prompt.includes("images provided"));
+});
+
+Deno.test("visual media prompt describes video audio as accompanying audio", () => {
+  const descriptors = normalizeVisualMediaItems([
+    { kind: "video_frame", clipIndex: 0, frameIndex: 0 },
+    { kind: "video_frame", clipIndex: 0, frameIndex: 1 },
+  ], 2);
+  const audioDescriptors = normalizeAudioMediaItems([
+    { kind: "video_audio", clipIndex: 0 },
+  ], 1);
+  const hasVideoAudio = audioDescriptors.some((item) =>
+    item.kind === "video_audio"
+  );
+  const prompt = buildVisualMediaPrompt(descriptors, true, 2, hasVideoAudio);
+
+  assert(prompt);
+  assert(prompt.includes("sampled visual frames and accompanying audio"));
+  assert(prompt.includes("evidence from that video"));
+  assert(!prompt.includes("The following images"));
+});
+
+Deno.test("visual media prompt keeps still-photo language for still photos", () => {
+  const descriptors = normalizeVisualMediaItems([
+    { kind: "image", sourceIndex: 0 },
+    { kind: "image", sourceIndex: 1 },
+  ], 2);
+  const prompt = buildVisualMediaPrompt(descriptors, false, 2);
+
+  assert(prompt);
+  assert(prompt.includes("ordered still photos"));
+  assert(prompt.includes("Visual input 1: still photo 1"));
+  assert(!prompt.includes("video scan"));
 });
 
 // ---------------------------------------------------------------------------

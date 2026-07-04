@@ -355,6 +355,29 @@ struct ExtractedScanData: Sendable {
         return paths.isEmpty ? nil : paths
     }
 
+    var audioMediaItems: [IdentifyAudioMediaItem]? {
+        var items: [IdentifyAudioMediaItem] = []
+        var standaloneAudioIndex = 0
+        var videoClipIndex = 0
+
+        for item in capturedMediaItems {
+            switch item {
+            case .audio:
+                items.append(.audio(sourceIndex: standaloneAudioIndex))
+                standaloneAudioIndex += 1
+            case .video(let reference):
+                if reference.audio != nil {
+                    items.append(.videoAudio(clipIndex: videoClipIndex))
+                }
+                videoClipIndex += 1
+            case .image, .description:
+                continue
+            }
+        }
+
+        return items.isEmpty ? nil : items
+    }
+
     var capturedMediaJSON: String? {
         capturedMediaSnapshot.jsonString
     }

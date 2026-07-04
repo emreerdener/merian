@@ -5,6 +5,8 @@ struct MainOverlayView: View {
     // MARK: - Dependencies
     let activeScanImages: [UIImage]
     var isRefining: Bool = false
+    var isVideoRecording: Bool = false
+    var videoRecordingProgress: Double = 0
 
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.controlBarHeight) private var controlBarHeight
@@ -16,7 +18,11 @@ struct MainOverlayView: View {
 
             // MARK: - Dynamic Intelligence
             if activeScanImages.count < stagedImageCapacity {
-                ViewfinderHints(isRefining: isRefining)
+                ViewfinderHints(
+                    isRefining: isRefining,
+                    isVideoRecording: isVideoRecording,
+                    videoRecordingProgress: videoRecordingProgress
+                )
                     // Padding keeps hints consistently above the dynamic capture-bar + tab-bar overlay.
                     .padding(.bottom, controlBarHeight + 16)
                     .transition(.opacity)

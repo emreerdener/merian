@@ -2660,6 +2660,9 @@ ordered compositions of images, audio, and descriptive context.
     { "kind": "video_frame", "clipIndex": 0, "frameIndex": 1 },
     { "kind": "video_frame", "clipIndex": 0, "frameIndex": 2 }
   ],
+  "audioMediaItems": [
+    { "kind": "video_audio", "clipIndex": 0 }
+  ],
   "audioR2ObjectKeys": [
     "staging/a1b2c3d4.../uuid_audio.wav"
   ],
@@ -2693,16 +2696,20 @@ ordered compositions of images, audio, and descriptive context.
 ```
 
 - Features dynamic `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` execution if audio
-  and image evidence are both present, regardless of whether the audio arrived
-  inline or from R2 staging.
-- Video scans send ordered sampled frames through the image payload path and
-  stage the raw `.mp4` in `videoR2ObjectKeys`. New clients send
+  and visual evidence are both present, regardless of whether the audio arrived
+  inline, from R2 staging, or as extracted audio from a video scan.
+- Video scans send ordered sampled frames through the image payload path,
+  extracted accompanying audio through the audio payload path when available,
+  and stage the raw `.mp4` in `videoR2ObjectKeys`. New clients send
   `visualMediaItems` (or snake-case `visual_media_items`) with one entry per
   resolved visual input so the prompt can distinguish still photos from ordered
-  `video_frame` samples by `clipIndex` and `frameIndex`. If the metadata count
-  does not match the resolved image count, the edge ignores it and falls back to
-  the legacy `videoFrameCount` hint. The raw clip is promoted only after those
-  frames pass moderation.
+  `video_frame` samples by `clipIndex` and `frameIndex`; `audioMediaItems` (or
+  `audio_media_items`) identifies standalone audio versus `video_audio` by
+  `clipIndex`. If the visual metadata count does not match the resolved image
+  count, the edge ignores it and falls back to the legacy `videoFrameCount` hint;
+  if the audio metadata count does not match the resolved audio buffer count,
+  the prompt treats the audio as ordinary standalone audio. The raw clip is
+  promoted only after those frames pass moderation.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use

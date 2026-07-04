@@ -134,6 +134,11 @@ struct CaptureControlBar: View {
                             }
                         }
                     },
+                    onVisualPressBegan: {
+                        Task {
+                            await viewModel.prepareVideoCapture()
+                        }
+                    },
                     onVisualLongPressStart: {
                         viewModel.startVideoCapture()
                     }
@@ -199,6 +204,7 @@ private struct CaptureButton: View {
     let isVideoRecording: Bool
     let videoRecordingProgress: Double
     let onAction: () -> Void
+    let onVisualPressBegan: () -> Void
     let onVisualLongPressStart: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -206,6 +212,9 @@ private struct CaptureButton: View {
     @State private var isPressActive = false
     @State private var didTriggerVideoLongPress = false
     @State private var videoLongPressTask: Task<Void, Never>?
+
+    private let videoPreflightDelayNanoseconds: UInt64 = 100_000_000
+    private let videoLatchDelayAfterPreflightNanoseconds: UInt64 = 650_000_000
 
     private var outerRingColor: Color {
         switch captureMode {
@@ -311,15 +320,18 @@ private struct CaptureButton: View {
         guard !isPressActive else { return }
         isPressActive = true
         didTriggerVideoLongPress = false
+        HapticManager.shared.prepareHeavyImpact()
 
         guard captureMode == .visual,
               isProVideoAvailable,
               !isVideoRecording else { return }
 
-        HapticManager.shared.prepareHeavyImpact()
         videoLongPressTask?.cancel()
         videoLongPressTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            try? await Task.sleep(nanoseconds: videoPreflightDelayNanoseconds)
+            guard !Task.isCancelled else { return }
+            onVisualPressBegan()
+            try? await Task.sleep(nanoseconds: videoLatchDelayAfterPreflightNanoseconds)
             guard !Task.isCancelled else { return }
             didTriggerVideoLongPress = true
             onVisualLongPressStart()
@@ -343,7 +355,9 @@ private struct CaptureButton: View {
             return
         }
 
-        HapticManager.shared.triggerFocusSnap()
+        if captureMode != .visual {
+            HapticManager.shared.triggerFocusSnap()
+        }
         onAction()
     }
 }

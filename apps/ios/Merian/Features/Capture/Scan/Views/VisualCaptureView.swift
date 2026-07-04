@@ -68,7 +68,9 @@ struct VisualCaptureView: View {
             CameraControlsLayer(
                 activeScanImages: viewModel.stagedCapture.images.map(\.uiImage)
                     + viewModel.stagedCapture.videos.compactMap { $0.coverImage?.uiImage },
-                isRefining: viewModel.baseRefinementContext != nil
+                isRefining: viewModel.baseRefinementContext != nil,
+                isVideoRecording: viewModel.isVideoRecording,
+                videoRecordingProgress: viewModel.videoRecordingProgress
             )
         }
     }
@@ -78,9 +80,16 @@ struct VisualCaptureView: View {
 private struct CameraControlsLayer: View {
     let activeScanImages: [UIImage]
     var isRefining: Bool = false
+    var isVideoRecording: Bool = false
+    var videoRecordingProgress: Double = 0
 
     var body: some View {
-        MainOverlayView(activeScanImages: activeScanImages, isRefining: isRefining)
+        MainOverlayView(
+            activeScanImages: activeScanImages,
+            isRefining: isRefining,
+            isVideoRecording: isVideoRecording,
+            videoRecordingProgress: videoRecordingProgress
+        )
     }
 }
 

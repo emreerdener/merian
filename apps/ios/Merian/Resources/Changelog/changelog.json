@@ -2,6 +2,58 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-04-cat-dog-achievements",
+      "date": "2026-07-04",
+      "title": "Cat and dog achievements",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Profile now has cat and dog scan achievements that unlock when you document your first domestic cat or dog."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-04-video-scan-analysis-audio",
+      "date": "2026-07-04",
+      "title": "Video scan analysis",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Video scan analysis now treats sampled frames and accompanying audio as evidence from the same video, and no longer describes video scans as images."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-04-capture-shutter-feedback",
+      "date": "2026-07-04",
+      "title": "Camera shutter feedback",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Photo captures and video recording starts now use a stronger, prewarmed haptic cue, and video recording begins faster after a shorter sustained hold."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-04-non-biological-insight-notice",
+      "date": "2026-07-04",
+      "title": "Non-biological scan notice",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Non-biological Insight results now show a clear pill plus a notice explaining that the scan lives in the Non-biological collection and is deleted after 30 days."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-03-startup-library-recovery",
       "date": "2026-07-03",
       "title": "Startup library recovery",
@@ -48,9 +100,9 @@
         {
           "title": "Added",
           "items": [
-            "Pro users can now hold the visual shutter for one second to record a short video scan, with saved playback and image-based thumbnails.",
-            "Video recording now gives clearer haptic feedback when recording latches, stops, stages successfully, or fails.",
-            "Video scan analysis now treats sampled frames as ordered frames from one short clip.",
+            "Pro users can now hold the visual shutter for 0.75 seconds to record a short video scan, with saved playback and image-based thumbnails.",
+            "Video recording now gives clearer haptic feedback when recording starts, finishes, stages successfully, or fails.",
+            "Video scan analysis treats sampled frames and accompanying audio as evidence from the same video.",
             "Video scan media now opens from the Insight carousel into fullscreen playback.",
             "Video scans now open as the saved clip in Insight while scan tiles and previews keep using the poster thumbnail.",
             "The Pro paywall comparison table now includes video scans.",

@@ -52,7 +52,7 @@ The strike counter is read and written via the Supabase service role in `_shared
 
 ## Media Promotion Pipeline
 
-For safe scans, `moderation.ts` promotes images from temporary staging storage to permanent public storage. Short video scans still moderate through the ordered sampled frames sent to Gemini; once those frames are safe, `identify-multimodal` promotes the staged `.mp4` separately into `video_storage_urls` for the scan record. The raw video is never used for AI inference or reference-media promotion. When a user shares that scan, Explore snapshots post-owned public video media from the promoted video URL and requires an image-backed poster thumbnail. Videos are not Dictionary/reference-media inputs in v1.
+For safe scans, `moderation.ts` promotes images from temporary staging storage to permanent public storage. Short video scans still moderate through the ordered sampled frames sent to Gemini; when available, extracted accompanying audio can also inform identification but is not reference media. Once the frames are safe, `identify-multimodal` promotes the staged `.mp4` separately into `video_storage_urls` for the scan record. The raw video is never used for AI inference or reference-media promotion. When a user shares that scan, Explore snapshots post-owned public video media from the promoted video URL and requires an image-backed poster thumbnail. Videos are not Dictionary/reference-media inputs in v1.
 
 ### R2 Bucket Layout
 

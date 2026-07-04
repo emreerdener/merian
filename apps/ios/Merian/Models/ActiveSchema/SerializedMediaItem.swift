@@ -118,14 +118,24 @@ extension StoredMediaReference {
 struct StoredVideoMediaReference: Codable, Equatable, Sendable {
     let video: StoredMediaReference
     let thumbnail: StoredMediaReference?
+    let audio: StoredMediaReference?
 
-    init(video: StoredMediaReference, thumbnail: StoredMediaReference? = nil) {
+    init(
+        video: StoredMediaReference,
+        thumbnail: StoredMediaReference? = nil,
+        audio: StoredMediaReference? = nil
+    ) {
         self.video = video
         self.thumbnail = thumbnail
+        self.audio = audio
     }
 
-    init(_ legacyReference: StoredMediaReference, thumbnail: StoredMediaReference? = nil) {
-        self.init(video: legacyReference, thumbnail: thumbnail)
+    init(
+        _ legacyReference: StoredMediaReference,
+        thumbnail: StoredMediaReference? = nil,
+        audio: StoredMediaReference? = nil
+    ) {
+        self.init(video: legacyReference, thumbnail: thumbnail, audio: audio)
     }
 
     var serializedPath: String {
@@ -144,9 +154,18 @@ struct StoredVideoMediaReference: Codable, Equatable, Sendable {
         thumbnail?.resolvedLocalPath ?? thumbnail?.serializedPath
     }
 
+    var audioPath: String? {
+        audio?.serializedPath
+    }
+
+    var resolvedAudioPath: String? {
+        audio?.resolvedLocalPath ?? audio?.serializedPath
+    }
+
     private enum CodingKeys: String, CodingKey {
         case video
         case thumbnail
+        case audio
     }
 
     init(from decoder: Decoder) throws {
@@ -158,7 +177,8 @@ struct StoredVideoMediaReference: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let video = try container.decode(StoredMediaReference.self, forKey: .video)
         let thumbnail = try container.decodeIfPresent(StoredMediaReference.self, forKey: .thumbnail)
-        self.init(video: video, thumbnail: thumbnail)
+        let audio = try container.decodeIfPresent(StoredMediaReference.self, forKey: .audio)
+        self.init(video: video, thumbnail: thumbnail, audio: audio)
     }
 }
 
@@ -205,6 +225,10 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
         }
     }
 
+    var videoAudioReferences: [StoredMediaReference] {
+        videoMediaReferences.compactMap(\.audio)
+    }
+
     var videoReferences: [StoredMediaReference] {
         items.compactMap { item in
             guard case .video(let reference) = item else { return nil }
@@ -243,7 +267,7 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
     }
 
     var audioPaths: [String] {
-        audioReferences.map(\.serializedPath)
+        audioReferences.map(\.serializedPath) + videoAudioReferences.map(\.serializedPath)
     }
 
     var videoPaths: [String] {
@@ -281,8 +305,11 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
                 hasImage = true
             case .audio:
                 hasAudio = true
-            case .video:
+            case .video(let reference):
                 hasVideo = true
+                if reference.audio != nil {
+                    hasAudio = true
+                }
             case .description:
                 hasDescription = true
             }

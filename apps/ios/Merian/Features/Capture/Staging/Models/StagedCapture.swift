@@ -12,7 +12,7 @@ let stagedImageCapacity = stagedCaptureCapacity
 enum CaptureSubmissionMediaItem: Sendable, Equatable {
     case image(index: Int)
     case audio(String)
-    case video(String, posterImageIndex: Int? = nil)
+    case video(String, posterImageIndex: Int? = nil, audioFilePath: String? = nil)
     case description(ObservationContext)
 
     static func defaultTimeline(
@@ -73,17 +73,61 @@ struct IdentifyVisualMediaItem: Sendable, Equatable {
     }
 }
 
+enum IdentifyAudioMediaKind: String, Sendable {
+    case audio
+    case videoAudio = "video_audio"
+}
+
+struct IdentifyAudioMediaItem: Sendable, Equatable {
+    let kind: IdentifyAudioMediaKind
+    let sourceIndex: Int?
+    let clipIndex: Int?
+
+    static func audio(sourceIndex: Int) -> IdentifyAudioMediaItem {
+        IdentifyAudioMediaItem(
+            kind: .audio,
+            sourceIndex: sourceIndex,
+            clipIndex: nil
+        )
+    }
+
+    static func videoAudio(clipIndex: Int) -> IdentifyAudioMediaItem {
+        IdentifyAudioMediaItem(
+            kind: .videoAudio,
+            sourceIndex: nil,
+            clipIndex: clipIndex
+        )
+    }
+
+    var jsonObject: [String: Any] {
+        var object: [String: Any] = ["kind": kind.rawValue]
+        if let sourceIndex {
+            object["sourceIndex"] = sourceIndex
+        }
+        if let clipIndex {
+            object["clipIndex"] = clipIndex
+        }
+        return object
+    }
+}
+
 extension Array where Element == CaptureSubmissionMediaItem {
     var audioFilePaths: [String] {
         compactMap { item in
-            guard case .audio(let path) = item else { return nil }
-            return path
+            switch item {
+            case .audio(let path):
+                return path
+            case .video(_, _, let audioFilePath):
+                return audioFilePath
+            case .image, .description:
+                return nil
+            }
         }
     }
 
     var videoFilePaths: [String] {
         compactMap { item in
-            guard case .video(let path, _) = item else { return nil }
+            guard case .video(let path, _, _) = item else { return nil }
             return path
         }
     }
@@ -206,7 +250,7 @@ struct StagedCapture {
             case .audio(_, let stagedAudio):
                 return .audio(stagedAudio.filePath)
             case .video(_, let stagedVideo):
-                return .video(stagedVideo.filePath)
+                return .video(stagedVideo.filePath, audioFilePath: stagedVideo.audioFilePath)
             case .description(_, let stagedObservationContext):
                 return .description(stagedObservationContext.context)
             }
@@ -236,7 +280,20 @@ struct StagedAudio {
 struct StagedVideo {
     let filePath: String
     let sampledImages: [StagedImage]
+    let audioFilePath: String?
     var addedAt: Date = Date()
+
+    init(
+        filePath: String,
+        sampledImages: [StagedImage],
+        audioFilePath: String? = nil,
+        addedAt: Date = Date()
+    ) {
+        self.filePath = filePath
+        self.sampledImages = sampledImages
+        self.audioFilePath = audioFilePath
+        self.addedAt = addedAt
+    }
 
     var coverImage: StagedImage? {
         sampledImages.first

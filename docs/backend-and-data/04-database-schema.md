@@ -721,8 +721,8 @@ The transaction log for every successful identification.
   after moderation. Video scans still keep image-based sampled frames and cover
   thumbnails here.
 - `video_storage_urls` (Text Array): Public Cloudflare video links for promoted
-  short `.mp4` scan clips. The AI receives sampled frames, not these raw public
-  video URLs.
+  short `.mp4` scan clips. The AI receives sampled frames and optional extracted
+  accompanying audio, not these raw public video URLs.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` for

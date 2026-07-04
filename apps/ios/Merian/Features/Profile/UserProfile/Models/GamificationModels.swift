@@ -8,6 +8,8 @@ enum AchievementType: String, CaseIterable, Sendable, Identifiable {
     case insecta = "insecta"
     case fungi = "fungi"
     case urban = "urban"
+    case domesticCat = "domestic_cat"
+    case domesticDog = "domestic_dog"
     case frostWalker = "frost_walker"
     case alpine = "alpine"
     case nocturnal = "nocturnal"
@@ -106,6 +108,34 @@ enum AchievementType: String, CaseIterable, Sendable, Identifiable {
                     let ecology = record.ecologyType.trimmedLowercased
                     guard ecology == "urban" || ecology == "domesticated" else { return nil }
                     return "Urban or domesticated environment"
+                }
+            )
+        case .domesticCat:
+            return AchievementDefinition(
+                title: "The Feline Friend",
+                targetCount: 1,
+                descriptionText: "Scan a domestic cat",
+                detailProgressDescription: "Your first domestic cat scan unlocks this achievement.",
+                qualifyingScansTitle: "Unlocking scan",
+                imageName: "cat",
+                tintToken: .mauve,
+                difficultyLevel: 0,
+                contributionKind: .uniqueSpecies { record in
+                    DomesticPetAchievementMatcher.catReason(for: record)
+                }
+            )
+        case .domesticDog:
+            return AchievementDefinition(
+                title: "The Canine Companion",
+                targetCount: 1,
+                descriptionText: "Scan a domestic dog",
+                detailProgressDescription: "Your first domestic dog scan unlocks this achievement.",
+                qualifyingScansTitle: "Unlocking scan",
+                imageName: "dog",
+                tintToken: .ochre,
+                difficultyLevel: 0,
+                contributionKind: .uniqueSpecies { record in
+                    DomesticPetAchievementMatcher.dogReason(for: record)
                 }
             )
         case .frostWalker:
@@ -301,6 +331,36 @@ struct AchievementDefinition: Sendable {
 enum AchievementContributionKind: Sendable {
     case firstScan(reasonText: String)
     case uniqueSpecies(qualifyingReason: @Sendable (any AchievementRecordRepresentable) -> String?)
+}
+
+private enum DomesticPetAchievementMatcher {
+    private static let domesticCatScientificNames: Set<String> = [
+        "felis catus",
+        "felis silvestris catus",
+        "felis domesticus",
+        "felis catus domesticus",
+        "felis silvestris domesticus"
+    ]
+
+    private static let domesticDogScientificNames: Set<String> = [
+        "canis lupus familiaris",
+        "canis familiaris",
+        "canis familiaris domesticus"
+    ]
+
+    static func catReason(for record: any AchievementRecordRepresentable) -> String? {
+        guard domesticCatScientificNames.contains(record.displayScientificName.normalizedScientificName) else {
+            return nil
+        }
+        return "Domestic cat"
+    }
+
+    static func dogReason(for record: any AchievementRecordRepresentable) -> String? {
+        guard domesticDogScientificNames.contains(record.displayScientificName.normalizedScientificName) else {
+            return nil
+        }
+        return "Domestic dog"
+    }
 }
 
 enum AchievementTintToken: Sendable {
@@ -534,5 +594,11 @@ private extension String {
 
     var trimmedUppercased: String {
         trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    }
+
+    var normalizedScientificName: String {
+        trimmedLowercased
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
     }
 }

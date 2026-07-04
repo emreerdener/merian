@@ -375,12 +375,13 @@ triggering excessive SwiftUI view rebuilds.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
   across images, videos, audio clips, and descriptions. Images, video clips, and
   video poster thumbnails are written to `.documentsDirectory` via
-  `FileIOActor`, while the queue/database layers derive legacy arrays
-  (`localImagePaths`, `localVideoPaths`, `audioFilePaths`,
-  `observationContextsJSON`) from that same timeline at the edges. For video,
-  `thumbnailImagePaths` includes the poster for thumbnails and upload previews,
-  while `activeScanMedia` emits the video page itself so Insight does not show a
-  duplicate image before the clip.
+  `FileIOActor`; extracted video-audio WAVs are attached to the video media
+  reference for inference replay rather than displayed as separate audio pages.
+  The queue/database layers derive legacy arrays (`localImagePaths`,
+  `localVideoPaths`, `audioFilePaths`, `observationContextsJSON`) from that same
+  timeline at the edges. For video, `thumbnailImagePaths` includes the poster for
+  thumbnails and upload previews, while `activeScanMedia` emits the video page
+  itself so Insight does not show a duplicate image before the clip.
 - **Recursive Queue Draining**: The `URLSession` delegate calls
   `syncPendingScans()` recursively when a completed batch detects
   `unsyncedItemsCount > 0`, draining the queue automatically without user

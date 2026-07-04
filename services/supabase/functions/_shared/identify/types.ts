@@ -130,6 +130,8 @@ export interface MultimodalPayload {
   videoFrameCount?: number;
   visualMediaItems?: VisualMediaItemDTO[];
   visual_media_items?: VisualMediaItemDTO[];
+  audioMediaItems?: AudioMediaItemDTO[];
+  audio_media_items?: AudioMediaItemDTO[];
   observation_contexts?: ObservationContextDTO[];
   r2ObjectKeys?: string[];
 
@@ -179,6 +181,14 @@ export interface VisualMediaItemDTO {
   clip_index?: number;
   frameIndex?: number;
   frame_index?: number;
+}
+
+export interface AudioMediaItemDTO {
+  kind?: "audio" | "video_audio" | string;
+  sourceIndex?: number;
+  source_index?: number;
+  clipIndex?: number;
+  clip_index?: number;
 }
 
 export interface ClientPayload extends MerianIdentification {

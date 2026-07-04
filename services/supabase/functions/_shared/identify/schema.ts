@@ -9,7 +9,7 @@ export const getSystemInstruction = (_diagnosticTrigger: number) =>
 You are an expert encyclopedic field-guide biologist and taxonomist. Your task is to identify biological subjects precision and structure the output according to strict taxonomic and ecological standards.
 
 # Core Directives
-- **Holistic Evaluation:** CRITICAL: Evaluate all provided images together as a single observation.
+- **Holistic Evaluation:** CRITICAL: Evaluate all provided visual inputs together as a single observation.
 - **Primary Subject:** If multiple species are present, identify ONE primary biological subject.
 - **Micro-CoT & Pareidolia Avoidance:** Actively reject optical illusions, pareidolia, and inanimate objects mimicking biology (e.g., cracks looking like snakes). Aggressively return \`is_biological_subject=false\` for ambiguous debris. You MUST extract 3 structural observations in \`extracted_visual_traits\` BEFORE determining \`is_biological_subject\` or \`scientific_name\`.
 
@@ -33,7 +33,7 @@ You are an expert encyclopedic field-guide biologist and taxonomist. Your task i
 # Disambiguation & Confidence Calibration
 - **Tiebreakers:** When multiple species are visually equally plausible, use GPS location and current month as a tiebreaker. Prefer the species with higher documented observation frequency in that region/season.
 - **Handling Uncertainty:** Express genuine uncertainty through a lower \`confidence_score\` and populated \`candidates\` array rather than hallucinating or alternating primary identifications.
-- **Confidence Scoring:** \`confidence_score\` must be derived *solely* from morphological features visible in the image. Local abundance or seasonal expectation does NOT raise confidence. Most field photographs warrant a score of 0.70–0.88. Reserve ≥0.90 ONLY when the image displays unambiguous diagnostic features that visibly exclude all similar species.
+- **Confidence Scoring:** \`confidence_score\` must be derived *solely* from morphological features visible in the visual evidence. Local abundance or seasonal expectation does NOT raise confidence. Most field photographs warrant a score of 0.70–0.88. Reserve ≥0.90 ONLY when the visual evidence displays unambiguous diagnostic features that visibly exclude all similar species.
 
 # Output Data Definitions
 
@@ -108,12 +108,12 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
     type: SchemaType.ARRAY,
     items: { type: SchemaType.STRING },
     description:
-      "Extract exactly 3 distinct physical or structural traits observed in the image (e.g. 'smooth texture', 'embedded in concrete', 'green leaves').",
+      "Extract exactly 3 distinct physical or structural traits observed in the visual evidence (e.g. 'smooth texture', 'embedded in concrete', 'green leaves').",
   },
   ai_reasoning: {
     type: SchemaType.STRING,
     description:
-      "A 1-3 sentence intelligence analysis breaking down the exact reasoning behind this identification. Detail the specific physical attributes, structural nuances, and visual evidence extracted from the image that substantiate this classification.",
+      "A 1-3 sentence intelligence analysis breaking down the exact reasoning behind this identification. Detail the specific physical attributes, structural nuances, and visual evidence that substantiate this classification.",
   },
   is_biological_subject: { type: SchemaType.BOOLEAN },
   is_live_capture: { type: SchemaType.BOOLEAN },
@@ -122,11 +122,11 @@ const sharedProperties = (): Record<string, ResponseSchema> => ({
     description:
       "Calibrated confidence in the primary identification (0.0–1.0). " +
       "ANCHORS: " +
-      "≥0.95 = key diagnostic features are unambiguously visible in the image AND no visually confusable species shares those exact features in the same region and season; " +
-      "0.80–0.94 = confident but one or more similar species cannot be definitively ruled out from this image alone; " +
+      "≥0.95 = key diagnostic features are unambiguously visible in the visual evidence AND no visually confusable species shares those exact features in the same region and season; " +
+      "0.80–0.94 = confident but one or more similar species cannot be definitively ruled out from the visual evidence alone; " +
       "0.60–0.79 = probable identification, multiple visually similar species remain plausible; " +
-      "<0.60 = uncertain, image lacks sufficient diagnostic detail for reliable species-level identification. " +
-      "CRITICAL: base confidence ONLY on morphological features visible in the image. " +
+      "<0.60 = uncertain, visual evidence lacks sufficient diagnostic detail for reliable species-level identification. " +
+      "CRITICAL: base confidence ONLY on morphological features visible in the visual evidence. " +
       "NEVER inflate it because a species is locally common, seasonally expected, or habitat-appropriate — those factors resolve the primary identification but do not raise confidence. " +
       "Most field photographs of common species warrant a score of 0.70–0.88.",
   },

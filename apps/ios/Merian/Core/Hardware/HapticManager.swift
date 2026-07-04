@@ -42,6 +42,7 @@ final class HapticManager {
     func triggerFocusSnap() {
         guard shouldFire else { return }
         heavy.impactOccurred()
+        heavy.prepare()
     }
 
     func triggerSheetSpring() {
@@ -52,6 +53,7 @@ final class HapticManager {
     func triggerMediumPulse() {
         guard shouldFire else { return }
         medium.impactOccurred()
+        medium.prepare()
     }
 
     func triggerErrorThump() {
@@ -66,16 +68,19 @@ final class HapticManager {
     func triggerSelectionPulse() {
         guard shouldFire else { return }
         selection.selectionChanged()
+        selection.prepare()
     }
 
     func triggerSuccessPulse() {
         guard shouldFire else { return }
         success.notificationOccurred(.success)
+        success.prepare()
     }
 
     func triggerLightImpact(intensity: CGFloat? = nil) {
         guard shouldFire else { return }
         if let intensity { light.impactOccurred(intensity: intensity) } else { light.impactOccurred() }
+        light.prepare()
     }
 
     func triggerHeavyImpact(intensity: CGFloat? = nil) {

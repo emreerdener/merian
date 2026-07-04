@@ -368,7 +368,7 @@ private struct GBIFMedia: Decodable {
                 }
             case .audio(let audioFilePath):
                 items.append(.audio(resolvedAudioPath(for: audioFilePath)))
-            case .video(let videoFilePath, _):
+            case .video(let videoFilePath, _, _):
                 items.append(.video(resolvedVideoPath(for: videoFilePath)))
             case .description(let context):
                 guard !context.isEmpty else { continue }
@@ -598,6 +598,7 @@ private struct GBIFMedia: Decodable {
         observationContexts: [ObservationContext] = [],
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         visualMediaItems: [IdentifyVisualMediaItem]? = nil,
+        audioMediaItems: [IdentifyAudioMediaItem]? = nil,
         modelContext: ModelContext? = nil,
         targetEradicationScanId: String? = nil
     ) {
@@ -717,6 +718,9 @@ private struct GBIFMedia: Decodable {
                 let validVisualMediaItems = visualMediaItems?.count == validBase64Strings.count
                     ? visualMediaItems
                     : nil
+                let validAudioMediaItems = audioMediaItems?.count == (audioFilePaths ?? []).count
+                    ? audioMediaItems
+                    : nil
                 let videoFrameCount = validVisualMediaItems?
                     .filter { $0.kind == .videoFrame }
                     .count ?? ((videoFilePaths?.isEmpty == false) ? imageDatas.count : nil)
@@ -742,6 +746,7 @@ private struct GBIFMedia: Decodable {
                     videoR2ObjectKeys: videoR2ObjectKeys,
                     videoFrameCount: videoFrameCount,
                     visualMediaItems: validVisualMediaItems,
+                    audioMediaItems: validAudioMediaItems,
                     observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
                     clientScanId: resolvedClientScanId

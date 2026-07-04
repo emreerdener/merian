@@ -22,6 +22,7 @@ import {
 } from "../_shared/taxonomy.ts";
 
 import {
+  AudioMediaItemDTO,
   CachedSpeciesRow,
   ClientPayload,
   MerianIdentification,
@@ -103,9 +104,10 @@ const MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION = `# Role
 You are an expert encyclopedic field-guide biologist and taxonomist with specialized expertise in cross-modal taxonomy.
 
 # Core Directives
-- **Holistic Evaluation:** Evaluate the provided audio spectrograms AND visual images sequentially before formulating a combined taxonomic confidence score.
+- **Holistic Evaluation:** Evaluate all visual evidence and audio evidence sequentially before formulating a combined taxonomic confidence score. Visual evidence may include still photos or sampled frames from a short user-recorded video.
 - **Modality Synthesis:** Weigh BOTH visual and acoustic evidence. Prioritize the bio-acoustic trace unless it clearly contradicts the vision context or the vision context is overwhelmingly diagnostic.
 - **Reporting:** Your \`ai_reasoning\` MUST encompass BOTH modalities, explaining how they corroborate or contradict each other.
+- **Video Language:** When the scan includes video, refer to the evidence as video, a video scan, or sampled frames/audio from the video. Do not describe video scans as images, photos, or a set of provided images in user-facing reasoning.
 - **Sex:** Report sex only when visual, described, or acoustic evidence is diagnostic for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use not_applicable for human subjects. Use cannot_determine when evidence is absent or non-diagnostic.`;
 
 const telemetryCount = (value: unknown): number => {
@@ -120,6 +122,12 @@ type VisualMediaDescriptor = {
   sourceIndex?: number;
   clipIndex?: number;
   frameIndex?: number;
+};
+
+type AudioMediaDescriptor = {
+  kind: "audio" | "video_audio";
+  sourceIndex?: number;
+  clipIndex?: number;
 };
 
 const optionalIndex = (value: unknown): number | undefined => {
@@ -153,6 +161,35 @@ function normalizeVisualMediaItems(
       sourceIndex: optionalIndex(item.sourceIndex ?? item.source_index),
       clipIndex: optionalIndex(item.clipIndex ?? item.clip_index),
       frameIndex: optionalIndex(item.frameIndex ?? item.frame_index),
+    });
+  }
+
+  return descriptors;
+}
+
+function normalizeAudioMediaItems(
+  rawItems: unknown,
+  resolvedAudioCount: number,
+): AudioMediaDescriptor[] {
+  if (!Array.isArray(rawItems) || rawItems.length !== resolvedAudioCount) {
+    return [];
+  }
+
+  const descriptors: AudioMediaDescriptor[] = [];
+  for (const rawItem of rawItems) {
+    if (!rawItem || typeof rawItem !== "object") {
+      return [];
+    }
+
+    const item = rawItem as AudioMediaItemDTO;
+    if (item.kind !== "audio" && item.kind !== "video_audio") {
+      return [];
+    }
+
+    descriptors.push({
+      kind: item.kind,
+      sourceIndex: optionalIndex(item.sourceIndex ?? item.source_index),
+      clipIndex: optionalIndex(item.clipIndex ?? item.clip_index),
     });
   }
 
@@ -229,11 +266,15 @@ function buildVisualMediaPrompt(
   visualMediaItems: VisualMediaDescriptor[],
   hasVideo: boolean,
   resolvedImageCount: number,
+  hasVideoAudio = false,
 ): string | null {
   if (
     visualMediaItems.length === resolvedImageCount &&
     visualMediaItems.length > 0
   ) {
+    const includesVideo = visualMediaItems.some((item) =>
+      item.kind === "video_frame"
+    );
     const lines = visualMediaItems.map((item, index) => {
       const inputNumber = index + 1;
       if (item.kind === "video_frame") {
@@ -246,15 +287,38 @@ function buildVisualMediaPrompt(
       return `- Visual input ${inputNumber}: still photo ${sourceNumber}.`;
     });
 
-    return [
-      "The following visual inputs are ordered and may mix still photos with sampled frames from short user-recorded video clips:",
+    const promptLines = includesVideo
+      ? [
+        "This scan includes a short user-recorded video. The visual evidence comes from ordered sampled frames from that video, with any listed still photos treated as separate evidence from the same scan.",
+      ]
+      : [
+        "The following visual inputs are ordered still photos from the same scan:",
+      ];
+
+    promptLines.push(
       ...lines,
-      "Treat sampled frames from the same video clip as one brief motion sequence, not as separate observations. Still photos are separate visual evidence from the same scan.",
-    ].join("\n");
+    );
+
+    if (includesVideo) {
+      promptLines.push(
+        hasVideoAudio
+          ? "Analyze the sampled visual frames and accompanying audio as evidence from that video."
+          : "Analyze the sampled visual frames as evidence from that video.",
+        "When writing user-facing reasoning for this video scan, do not describe the video-derived evidence as images, photos, or an image set.",
+      );
+    }
+
+    return promptLines.join("\n");
   }
 
   if (hasVideo && resolvedImageCount > 0) {
-    return "The following images are ordered sampled frames from one short user-recorded video. Interpret them together as a brief motion sequence, not as separate observations.";
+    return [
+      "This scan includes a short user-recorded video. The visual evidence comes from ordered sampled frames from that video.",
+      hasVideoAudio
+        ? "Analyze the sampled visual frames and accompanying audio as evidence from that video."
+        : "Analyze the sampled visual frames as evidence from that video.",
+      "When writing user-facing reasoning for this video scan, do not describe the video-derived evidence as images, photos, or an image set.",
+    ].join("\n");
   }
 
   return null;
@@ -292,6 +356,8 @@ Deno.serve((req: Request) =>
       videoFrameCount = 0,
       visualMediaItems,
       visual_media_items,
+      audioMediaItems,
+      audio_media_items,
       observation_contexts = [],
       r2ObjectKeys = [],
       mimeType = "image/webp",
@@ -407,6 +473,13 @@ Deno.serve((req: Request) =>
         return jsonResponse({ error: "Invalid audio file format." }, 400);
       }
     }
+    const normalizedAudioMediaItems = normalizeAudioMediaItems(
+      audioMediaItems ?? audio_media_items,
+      processedAudios.length,
+    );
+    const hasVideoAudio = normalizedAudioMediaItems.some((item) =>
+      item.kind === "video_audio"
+    ) || (mediaTelemetry.hasVideo && processedAudios.length > 0);
 
     // 2. Dispatch Rule
     const tierResolution = await resolveTierForUser(user.id, supabaseAdmin);
@@ -457,6 +530,7 @@ Deno.serve((req: Request) =>
       normalizedVisualMediaItems,
       mediaTelemetry.hasVideo,
       resolvedImageBase64s.length,
+      hasVideoAudio,
     );
     if (visualMediaPrompt) {
       partsArray.push({ text: visualMediaPrompt });

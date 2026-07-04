@@ -796,7 +796,7 @@ extension OfflineQueueManager {
                     ?? URL(fileURLWithPath: sourcePath).lastPathComponent
                 guard !persistedName.isEmpty else { continue }
                 serializedItems.append(.audio(.documents(persistedName)))
-            case .video(let sourcePath, let posterImageIndex):
+            case .video(let sourcePath, let posterImageIndex, let audioFilePath):
                 let persistedName = persistedVideoNamesBySourcePath[sourcePath]
                     ?? URL(fileURLWithPath: sourcePath).lastPathComponent
                 guard !persistedName.isEmpty else { continue }
@@ -804,7 +804,17 @@ extension OfflineQueueManager {
                     guard imageFileNames.indices.contains(index) else { return nil }
                     return .documents(imageFileNames[index])
                 }
-                serializedItems.append(.video(StoredVideoMediaReference(video: .documents(persistedName), thumbnail: thumbnail)))
+                let audio = audioFilePath.flatMap { sourcePath -> StoredMediaReference? in
+                    let persistedAudioName = persistedAudioNamesBySourcePath[sourcePath]
+                        ?? URL(fileURLWithPath: sourcePath).lastPathComponent
+                    guard !persistedAudioName.isEmpty else { return nil }
+                    return .documents(persistedAudioName)
+                }
+                serializedItems.append(.video(StoredVideoMediaReference(
+                    video: .documents(persistedName),
+                    thumbnail: thumbnail,
+                    audio: audio
+                )))
             case .description(let context):
                 guard !context.isEmpty else { continue }
                 serializedItems.append(.description(context))

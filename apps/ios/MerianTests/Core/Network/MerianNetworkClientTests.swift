@@ -1477,6 +1477,62 @@ struct MerianNetworkClientTests {
         #expect(payload["client_scan_id"] as? String == "scan-video-r2")
     }
 
+    @Test func multimodalRequestBodyCarriesVideoAudioMetadata() throws {
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: nil,
+            gpsLatitude: nil,
+            gpsLongitude: nil,
+            gpsElevation: nil,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil,
+            timeOfDay: nil,
+            timestamp: "2026-04-24T10:30:00.000Z",
+            zoomFactor: nil,
+            estimatedSizeCm: nil
+        )
+
+        let bodyData = try MerianNetworkClient.buildMultiModalRequestBody(
+            r2ObjectKeys: [
+                "staging/test-user/video-frame-1.webp",
+                "staging/test-user/video-frame-2.webp"
+            ],
+            audioR2ObjectKeys: ["staging/test-user/video-audio.wav"],
+            videoR2ObjectKeys: ["staging/test-user/clip.mp4"],
+            base64ImageDatas: [],
+            audioBase64s: [],
+            videoFrameCount: 2,
+            visualMediaItems: [
+                .videoFrame(clipIndex: 0, frameIndex: 0),
+                .videoFrame(clipIndex: 0, frameIndex: 1)
+            ],
+            audioMediaItems: [
+                .videoAudio(clipIndex: 0)
+            ],
+            userId: "test-user",
+            telemetry: telemetry,
+            deviceLocale: "en",
+            deviceTimeZone: "America/Chicago",
+            deviceRegion: "US",
+            currentMonth: 4,
+            timeOfDay: "10:30 AM",
+            depthScaleText: nil,
+            clientScanId: "scan-video-audio"
+        )
+
+        let payload = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+        let visualMediaItems = try #require(payload["visualMediaItems"] as? [[String: Any]])
+        let audioMediaItems = try #require(payload["audioMediaItems"] as? [[String: Any]])
+
+        #expect(visualMediaItems.count == 2)
+        #expect(visualMediaItems[0]["kind"] as? String == "video_frame")
+        #expect(visualMediaItems[0]["clipIndex"] as? Int == 0)
+        #expect(audioMediaItems.count == 1)
+        #expect(audioMediaItems[0]["kind"] as? String == "video_audio")
+        #expect(audioMediaItems[0]["clipIndex"] as? Int == 0)
+        #expect(payload["audioR2ObjectKeys"] as? [String] == ["staging/test-user/video-audio.wav"])
+    }
+
     // MARK: - validateMultiModalPayloadBudget
 
     @Test func budgetValidationPassesWhenUnderLimit() throws {

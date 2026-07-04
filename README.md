@@ -14,7 +14,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Tap-to-focus, tap-to-expose, pinch zoom, vertical swipe zoom, and direct drag on the zoom meter.
 - Native hardware button capture via `AVCaptureEventInteraction` (volume buttons, Action button, iPhone 16 Camera Control).
 - Mixed-media staging mode — queue up to 2 total photos, short Pro video clips, audio clips, or descriptions before submitting to inference.
-- Pro video scans let users hold the visual shutter for a short clip; Merian samples ordered frames for AI inference and saves the clip with an image-based thumbnail.
+- Pro video scans let users hold the visual shutter for a short clip; Merian analyzes sampled frames plus accompanying audio when available, and saves the clip with an image-based thumbnail.
 - Audio Listen Mode records a 15-second WAV clip with live spectrogram and SNR feedback.
 - Describe Mode supports typed observations and live voice dictation through `SpeechManager`.
 - Real-time viewfinder intelligence hints (brightness, distance, motion blur) powered by on-device luma analysis at 3fps.

@@ -526,6 +526,7 @@ extension OfflineQueueManager {
             videoR2ObjectKeys: stagedKeys.videoR2ObjectKeys,
             base64ImageDatas: [], // Uploads rely purely on references through R2 object keys.
             audioFilePaths: stagedKeys.audioR2ObjectKeys.isEmpty ? audioPaths : [],
+            audioMediaItems: extracted.audioMediaItems,
             observationContextsJSON: extracted.observationContextsJSON ?? [],
             telemetry: finalTelemetry,
             clientScanId: scanId

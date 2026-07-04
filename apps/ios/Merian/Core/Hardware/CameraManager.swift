@@ -26,6 +26,10 @@ private struct CameraVideoRecordingCompletion {
     let fileURL: URL?
 }
 
+private struct CameraVideoRecordingStartHandler: Sendable {
+    let action: @MainActor @Sendable () -> Void
+}
+
 // MARK: - Camera Manager
 
 /// Manages the AVFoundation capture session, LiDAR depth mapping, photo capture,
@@ -76,6 +80,8 @@ private struct CameraVideoRecordingCompletion {
     @ObservationIgnored nonisolated(unsafe) private var activeVideoContinuation: CheckedContinuation<CameraVideoRecording, Error>?
     @ObservationIgnored nonisolated(unsafe) private var activeVideoStartedAt: Date?
     @ObservationIgnored nonisolated(unsafe) private var activeVideoURL: URL?
+    @ObservationIgnored nonisolated(unsafe) private var activeVideoStartHandler: CameraVideoRecordingStartHandler?
+    @ObservationIgnored private var movieRecordingPreparationTask: Task<Bool, Error>?
 
     // MARK: - State
     private(set) var activeThermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState
@@ -227,6 +233,11 @@ private struct CameraVideoRecordingCompletion {
             if hasLiDAR, photoOutput.isDepthDataDeliverySupported {
                 photoOutput.isDepthDataDeliveryEnabled = true
             }
+        }
+
+        if session.canAddOutput(movieOutput) {
+            session.addOutput(movieOutput)
+            configureMovieOutputConnection()
         }
 
         session.commitConfiguration()
@@ -830,7 +841,20 @@ private struct CameraVideoRecordingCompletion {
 
     // MARK: - Video Capture
 
-    func recordVideo(maxDuration: TimeInterval = 5) async throws -> CameraVideoRecording {
+    func prepareVideoRecording() async {
+        #if !targetEnvironment(simulator)
+        do {
+            _ = try await preparedVideoRecordingAudioAllowed()
+        } catch {
+            MerianLog.hardware.error("Video recording preparation failed: \(error, privacy: .private)")
+        }
+        #endif
+    }
+
+    func recordVideo(
+        maxDuration: TimeInterval = 5,
+        onStarted: (@MainActor @Sendable () -> Void)? = nil
+    ) async throws -> CameraVideoRecording {
         #if targetEnvironment(simulator)
         throw NSError(
             domain: "CameraManager",
@@ -838,22 +862,22 @@ private struct CameraVideoRecordingCompletion {
             userInfo: [NSLocalizedDescriptionKey: "Video capture is unavailable in the iOS Simulator."]
         )
         #else
-        let microphoneAllowed = await AVAudioApplication.requestRecordPermission()
+        _ = try await preparedVideoRecordingAudioAllowed()
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(UUID().uuidString)_video.mp4")
 
-        try await configureMovieRecording(includeAudio: microphoneAllowed, outputURL: outputURL)
+        try? FileManager.default.removeItem(at: outputURL)
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                let startedAt = Date()
                 let existingContinuation = videoRecordingLock.withLock { () -> CheckedContinuation<CameraVideoRecording, Error>? in
                     if let activeVideoContinuation {
                         return activeVideoContinuation
                     }
                     activeVideoContinuation = continuation
-                    activeVideoStartedAt = startedAt
+                    activeVideoStartedAt = nil
                     activeVideoURL = outputURL
+                    activeVideoStartHandler = onStarted.map { CameraVideoRecordingStartHandler(action: $0) }
                     return nil
                 }
 
@@ -867,7 +891,6 @@ private struct CameraVideoRecordingCompletion {
                     return
                 }
 
-                isRecordingVideo = true
                 queue.async {
                     self.movieOutput.startRecording(to: outputURL, recordingDelegate: self)
                 }
@@ -895,9 +918,27 @@ private struct CameraVideoRecordingCompletion {
         #endif
     }
 
-    private func configureMovieRecording(includeAudio: Bool, outputURL: URL) async throws {
-        try? FileManager.default.removeItem(at: outputURL)
+    private func preparedVideoRecordingAudioAllowed() async throws -> Bool {
+        if let movieRecordingPreparationTask {
+            return try await movieRecordingPreparationTask.value
+        }
 
+        let task = Task<Bool, Error> {
+            let microphoneAllowed = await AVAudioApplication.requestRecordPermission()
+            try await self.configureMovieRecording(includeAudio: microphoneAllowed)
+            return microphoneAllowed
+        }
+        movieRecordingPreparationTask = task
+
+        do {
+            return try await task.value
+        } catch {
+            movieRecordingPreparationTask = nil
+            throw error
+        }
+    }
+
+    private func configureMovieRecording(includeAudio: Bool) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             queue.async {
                 self.session.beginConfiguration()
@@ -915,6 +956,8 @@ private struct CameraVideoRecordingCompletion {
                     self.session.addOutput(self.movieOutput)
                 }
 
+                self.configureMovieOutputConnection()
+
                 if includeAudio,
                    !self.session.inputs.contains(where: { ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.audio) == true }),
                    let audioDevice = AVCaptureDevice.default(for: .audio),
@@ -923,15 +966,17 @@ private struct CameraVideoRecordingCompletion {
                     self.session.addInput(audioInput)
                 }
 
-                if let connection = self.movieOutput.connection(with: .video),
-                   let rotationAngle = self.stateLock.withLock({ self.rotationCoordinator?.videoRotationAngleForHorizonLevelCapture }),
-                   connection.isVideoRotationAngleSupported(rotationAngle) {
-                    connection.videoRotationAngle = rotationAngle
-                }
-
-                self.movieOutput.maxRecordedDuration = CMTime(seconds: 5, preferredTimescale: 600)
                 continuation.resume(returning: ())
             }
+        }
+    }
+
+    nonisolated private func configureMovieOutputConnection() {
+        movieOutput.maxRecordedDuration = CMTime(seconds: 5, preferredTimescale: 600)
+        if let connection = movieOutput.connection(with: .video),
+           let rotationAngle = stateLock.withLock({ rotationCoordinator?.videoRotationAngleForHorizonLevelCapture }),
+           connection.isVideoRotationAngleSupported(rotationAngle) {
+            connection.videoRotationAngle = rotationAngle
         }
     }
 
@@ -961,6 +1006,24 @@ private struct CameraVideoRecordingCompletion {
 
     nonisolated func fileOutput(
         _ output: AVCaptureFileOutput,
+        didStartRecordingTo fileURL: URL,
+        from connections: [AVCaptureConnection]
+    ) {
+        let handler = videoRecordingLock.withLock { () -> CameraVideoRecordingStartHandler? in
+            activeVideoStartedAt = Date()
+            let handler = activeVideoStartHandler
+            activeVideoStartHandler = nil
+            return handler
+        }
+
+        Task { @MainActor in
+            self.isRecordingVideo = true
+            handler?.action()
+        }
+    }
+
+    nonisolated func fileOutput(
+        _ output: AVCaptureFileOutput,
         didFinishRecordingTo outputFileURL: URL,
         from connections: [AVCaptureConnection],
         error: Error?
@@ -974,6 +1037,7 @@ private struct CameraVideoRecordingCompletion {
             activeVideoContinuation = nil
             activeVideoStartedAt = nil
             activeVideoURL = nil
+            activeVideoStartHandler = nil
             return captured
         }
 

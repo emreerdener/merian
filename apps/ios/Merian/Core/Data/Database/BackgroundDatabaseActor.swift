@@ -798,13 +798,24 @@ actor BackgroundDatabaseActor {
                 if let persistedPath = await FileIOActor.shared.persistAudioFile(tempPath: sourcePath) {
                     mediaItems.append(.audio(.documents(persistedPath)))
                 }
-            case .video(let sourcePath, let posterImageIndex):
+            case .video(let sourcePath, let posterImageIndex, let audioFilePath):
                 if let persistedPath = await FileIOActor.shared.persistVideoFile(tempPath: sourcePath) {
                     let thumbnail = posterImageIndex.flatMap { index -> StoredMediaReference? in
                         guard resolvedLocalImagePaths.indices.contains(index) else { return nil }
                         return StoredMediaReference(legacyPath: resolvedLocalImagePaths[index])
                     }
-                    mediaItems.append(.video(StoredVideoMediaReference(video: .documents(persistedPath), thumbnail: thumbnail)))
+                    let audio: StoredMediaReference?
+                    if let audioFilePath,
+                       let persistedAudioPath = await FileIOActor.shared.persistAudioFile(tempPath: audioFilePath) {
+                        audio = .documents(persistedAudioPath)
+                    } else {
+                        audio = nil
+                    }
+                    mediaItems.append(.video(StoredVideoMediaReference(
+                        video: .documents(persistedPath),
+                        thumbnail: thumbnail,
+                        audio: audio
+                    )))
                 }
             }
         }

@@ -546,13 +546,16 @@ pipeline while the legacy endpoints remain deployed for compatibility.
 
 1. **Payload Assembly**: It accepts `imageBase64s`, image `r2ObjectKeys`, inline
    `audioBase64s`, staged `audioR2ObjectKeys`, staged `videoR2ObjectKeys`,
-   `visualMediaItems` / `visual_media_items`, `videoFrameCount`, and
-   `observation_contexts` arrays. Video scans send ordered sampled frames
-   through the normal image payload path for AI inference; the raw `.mp4` is
-   staged only for persistence after moderation. `visualMediaItems` is the
-   preferred contract for telling the prompt which image inputs are still photos
-   and which are ordered frames from one or more short clips; `videoFrameCount`
-   remains a legacy fallback when older clients omit explicit media metadata.
+   `visualMediaItems` / `visual_media_items`, `audioMediaItems` /
+   `audio_media_items`, `videoFrameCount`, and `observation_contexts` arrays.
+   Video scans send ordered sampled frames through the normal image payload path
+   for AI inference and, when available, send an extracted accompanying WAV audio
+   track through the normal audio path. The raw `.mp4` is staged only for
+   persistence after moderation. `visualMediaItems` is the preferred contract for
+   telling the prompt which visual inputs are still photos and which are ordered
+   frames from one or more short clips; `audioMediaItems` identifies standalone
+   audio versus audio extracted from a video clip. `videoFrameCount` remains a
+   legacy fallback when older clients omit explicit media metadata.
 2. **WAV Preprocessing**: Audio data is preflighted before decode/fetch. The
    endpoint rejects oversized declared request `Content-Length` headers before
    body parsing, then uses `readRequestJsonWithinBudget` as the authoritative
@@ -571,7 +574,7 @@ pipeline while the legacy endpoints remain deployed for compatibility.
      interpretation.
    - **Vision-only (`imageBase64s`)**: Follows the standard vision
      identification path. When a video is present, prompt context identifies
-     those images as ordered frames from one short clip.
+     those visual inputs as ordered frames from one short clip.
    - **Text-only (`observation_contexts`)**: Follows the legacy sighting
      pipeline utilizing only the user's structured observation text.
 4. The current iOS client sends queued images via `r2ObjectKeys`, queued audio
@@ -579,7 +582,7 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    foreground video uploads through the same staging contract, live foreground
    audio via inline `audioBase64s`, and text via `observation_contexts`.
    Raw videos are never sent to Gemini as public or inference media; only
-   sampled frames and optional budgeted audio enter the prompt.
+   sampled frames and optional accompanying audio enter the prompt.
    Telemetry on this path is camelCase (`gpsLatitude`, `semanticLocation`,
    `deviceTimeZone`, etc.); the server also accepts legacy snake_case aliases
    for backward compatibility during offline queue replay and staged endpoint
@@ -590,11 +593,12 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    common names are attached synchronously when available, and cache misses are
    enriched in the background so the next scan is warm.
 6. Persisted multimodal scan imagery still lands in `scans.image_storage_urls`;
-   promoted clips land separately in `scans.video_storage_urls`. Staged audio
-   is an inference input, not a public media artifact; `identify-multimodal`
-   deletes `audioR2ObjectKeys` from staging after successful background
-   ingestion. Staged video keys are promoted only after the sampled frames pass
-   moderation and are otherwise deleted with the staged image keys.
+   promoted clips land separately in `scans.video_storage_urls`. Staged audio,
+   including extracted video audio, is an inference input, not a public media
+   artifact; `identify-multimodal` deletes `audioR2ObjectKeys` from staging
+   after successful background ingestion. Staged video keys are promoted only
+   after the sampled frames pass moderation and are otherwise deleted with the
+   staged image keys.
 
 ## The Explore Social Surface
 

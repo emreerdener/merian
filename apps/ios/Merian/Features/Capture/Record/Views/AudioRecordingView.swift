@@ -1,5 +1,31 @@
 import SwiftUI
 
+struct RecordingCountdownBadge: View {
+    let progress: Double
+    let duration: TimeInterval
+    let accessibilityPrefix: String
+
+    private var timeString: String {
+        let clampedProgress = min(max(progress, 0), 1)
+        let remainingSeconds = max(0, Int(ceil((1.0 - clampedProgress) * max(duration, 0))))
+        return "0:\(String(format: "%02d", remainingSeconds))"
+    }
+
+    var body: some View {
+        Text(timeString)
+            .font(.subheadline.monospacedDigit())
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial)
+            .environment(\.colorScheme, .dark)
+            .clipShape(Capsule())
+            .transition(.opacity)
+            .accessibilityLabel("\(accessibilityPrefix) \(timeString)")
+    }
+}
+
 // MARK: - Audio Recording View
 
 /// Full-screen content view for the audio capture mode.
@@ -58,20 +84,14 @@ struct AudioRecordingView: View {
         let progress = audioCaptureManager.isRecording
             ? audioCaptureManager.recordingProgress
             : audioCaptureManager.playbackProgress
-        
-        let remainingSeconds = max(0, Int(ceil((1.0 - progress) * AudioCaptureManager.maxDuration)))
-        let timeString = "0:\(String(format: "%02d", remainingSeconds))"
 
-        return Text(timeString)
-            .font(.subheadline.monospacedDigit())
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(.ultraThinMaterial)
-            .environment(\.colorScheme, .dark)
-            .clipShape(Capsule())
-            .transition(.opacity)
+        return RecordingCountdownBadge(
+            progress: progress,
+            duration: AudioCaptureManager.maxDuration,
+            accessibilityPrefix: audioCaptureManager.isRecording
+                ? "Audio recording time remaining"
+                : "Audio playback time remaining"
+        )
     }
 
     // MARK: - Idle

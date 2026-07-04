@@ -117,6 +117,117 @@ extension CaptureWorkspaceViewModel {
             }
         }
     }
+
+    nonisolated private static func extractVideoAudioTrack(videoURL: URL) async -> String? {
+        do {
+            return try await DetachedWork.value(
+                priority: .utility,
+                category: .backgroundDatabaseMutation
+            ) {
+                let asset = AVURLAsset(url: videoURL)
+                guard let audioTrack = asset.tracks(withMediaType: .audio).first else {
+                    return nil
+                }
+
+                let outputName = "\(UUID().uuidString.lowercased())-video-audio.wav"
+                let outputURL = URL.documentsDirectory.appendingPathComponent(outputName)
+
+                do {
+                    if FileManager.default.fileExists(atPath: outputURL.path) {
+                        try FileManager.default.removeItem(at: outputURL)
+                    }
+
+                    let reader = try AVAssetReader(asset: asset)
+                    let outputFormat = AVAudioFormat(
+                        commonFormat: .pcmFormatInt16,
+                        sampleRate: 44_100,
+                        channels: 1,
+                        interleaved: true
+                    )
+                    guard let outputFormat else { return nil }
+
+                    let outputSettings: [String: Any] = [
+                        AVFormatIDKey: kAudioFormatLinearPCM,
+                        AVSampleRateKey: outputFormat.sampleRate,
+                        AVNumberOfChannelsKey: Int(outputFormat.channelCount),
+                        AVLinearPCMBitDepthKey: 16,
+                        AVLinearPCMIsFloatKey: false,
+                        AVLinearPCMIsBigEndianKey: false,
+                        AVLinearPCMIsNonInterleaved: false
+                    ]
+                    let trackOutput = AVAssetReaderTrackOutput(
+                        track: audioTrack,
+                        outputSettings: outputSettings
+                    )
+                    trackOutput.alwaysCopiesSampleData = false
+                    guard reader.canAdd(trackOutput) else { return nil }
+                    reader.add(trackOutput)
+
+                    let audioFile = try AVAudioFile(forWriting: outputURL, settings: outputFormat.settings)
+                    guard reader.startReading() else { return nil }
+
+                    while reader.status == .reading, let sampleBuffer = trackOutput.copyNextSampleBuffer() {
+                        let sampleCount = CMSampleBufferGetNumSamples(sampleBuffer)
+                        guard sampleCount > 0 else { continue }
+
+                        var blockBuffer: CMBlockBuffer?
+                        var audioBufferList = AudioBufferList(
+                            mNumberBuffers: 1,
+                            mBuffers: AudioBuffer(
+                                mNumberChannels: outputFormat.channelCount,
+                                mDataByteSize: 0,
+                                mData: nil
+                            )
+                        )
+                        let status = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+                            sampleBuffer,
+                            bufferListSizeNeededOut: nil,
+                            bufferListOut: &audioBufferList,
+                            bufferListSize: MemoryLayout<AudioBufferList>.size,
+                            blockBufferAllocator: nil,
+                            blockBufferMemoryAllocator: nil,
+                            flags: kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment,
+                            blockBufferOut: &blockBuffer
+                        )
+                        guard status == noErr else { continue }
+
+                        try withUnsafeMutablePointer(to: &audioBufferList) { bufferListPointer in
+                            guard let pcmBuffer = AVAudioPCMBuffer(
+                                pcmFormat: outputFormat,
+                                bufferListNoCopy: bufferListPointer,
+                                deallocator: nil
+                            ) else {
+                                return
+                            }
+                            pcmBuffer.frameLength = AVAudioFrameCount(sampleCount)
+                            try audioFile.write(from: pcmBuffer)
+                        }
+                        _ = blockBuffer
+                    }
+
+                    guard reader.status == .completed else {
+                        try? FileManager.default.removeItem(at: outputURL)
+                        return nil
+                    }
+
+                    let attributes = try FileManager.default.attributesOfItem(atPath: outputURL.path)
+                    guard (attributes[.size] as? NSNumber)?.intValue ?? 0 > 0 else {
+                        try? FileManager.default.removeItem(at: outputURL)
+                        return nil
+                    }
+
+                    return outputName
+                } catch {
+                    try? FileManager.default.removeItem(at: outputURL)
+                    MerianLog.hardware.error("Video audio extraction failed: \(error, privacy: .private)")
+                    return nil
+                }
+            }
+        } catch {
+            MerianLog.hardware.error("Video audio extraction task failed: \(error, privacy: .private)")
+            return nil
+        }
+    }
     
     // MARK: - UI Coordination
     
@@ -147,7 +258,7 @@ extension CaptureWorkspaceViewModel {
         // 2. Authorization Hooks
         if diContainer.usageManager.canPerformScan(isProActive: diContainer.revenueCatManager.isProActive) {
             // Instant tactile UI response mirroring the Apple Camera app
-            AppDIContainer.shared.hapticManager.triggerMediumPulse()
+            diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0)
             
             triggerFlash()
             
@@ -212,6 +323,17 @@ extension CaptureWorkspaceViewModel {
         }
     }
 
+    func prepareVideoCapture() async {
+        guard activeSheet == nil,
+              !isCapturing,
+              !isVideoRecording,
+              hasAvailableStagedCaptureSlot,
+              imageToCrop == nil,
+              diContainer.revenueCatManager.isProActive else { return }
+
+        await diContainer.cameraManager.prepareVideoRecording()
+    }
+
     func startVideoCapture() {
         guard activeSheet == nil,
               !isCapturing,
@@ -221,17 +343,26 @@ extension CaptureWorkspaceViewModel {
         guard diContainer.revenueCatManager.isProActive else { return }
 
         isCapturing = true
-        isVideoRecording = true
         videoRecordingProgress = 0
-        diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0)
-        startVideoRecordingProgressTimer()
 
         videoRecordingTask?.cancel()
         videoRecordingTask = Task {
             do {
                 async let shutterLocation = diContainer.environmentContextManager.requestCurrentLocation()
                 let composingCenter = composingZoneVerticalCenter
-                let recording = try await diContainer.cameraManager.recordVideo(maxDuration: Self.videoMaxDuration)
+                let recording = try await diContainer.cameraManager.recordVideo(
+                    maxDuration: Self.videoMaxDuration,
+                    onStarted: { [weak self] in
+                        guard let self, self.isCapturing else { return }
+                        self.isVideoRecording = true
+                        self.videoRecordingProgress = 0
+                        self.diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0)
+                        self.startVideoRecordingProgressTimer()
+                    }
+                )
+                await MainActor.run {
+                    self.diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0)
+                }
                 let resolvedShutterLocation = await shutterLocation
                 let instantLocation = resolvedShutterLocation ?? diContainer.environmentContextManager.lastKnownLocation
                 let preparedFrames = try await Self.prepareVideoFrames(
@@ -247,6 +378,7 @@ extension CaptureWorkspaceViewModel {
                         userInfo: [NSLocalizedDescriptionKey: "Unable to sample frames from the recorded video."]
                     )
                 }
+                let extractedAudioFilePath = await Self.extractVideoAudioTrack(videoURL: recording.fileURL)
 
                 let task = Task {
                     await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
@@ -265,7 +397,8 @@ extension CaptureWorkspaceViewModel {
                     }
                     self.stagedCapture.videos.append(StagedVideo(
                         filePath: recording.fileURL.path,
-                        sampledImages: stagedFrames
+                        sampledImages: stagedFrames,
+                        audioFilePath: extractedAudioFilePath
                     ))
                     AppDIContainer.shared.hapticManager.triggerSuccessPulse()
                 }
@@ -306,7 +439,6 @@ extension CaptureWorkspaceViewModel {
                 videoRecordingProgress = min(1, elapsed / Self.videoMaxDuration)
 
                 if elapsed >= Self.videoMaxDuration {
-                    HapticManager.shared.triggerHeavyImpact(intensity: 1.0)
                     return
                 }
             }

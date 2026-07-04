@@ -1,5 +1,5 @@
-import XCTest
 @testable import Merian
+import XCTest
 
 final class AchievementsCalculatorTests: XCTestCase {
 
@@ -155,6 +155,56 @@ final class AchievementsCalculatorTests: XCTestCase {
         let awards = AchievementsCalculator.calculate(from: scans)
 
         XCTAssertEqual(awards.first { $0.type == .urban }?.currentCount, 2, "Both urban and domesticated ecologies count toward Urban Ecologist")
+    }
+
+    func testDomesticPetAchievementsMatchCanonicalSpecies() {
+        let scans = [
+            mockScan(id: "cat", scientificName: "Felis catus"),
+            mockScan(id: "dog", scientificName: "Canis lupus familiaris")
+        ]
+
+        let awards = AchievementsCalculator.calculate(from: scans)
+        let catDetail = AchievementsCalculator.detail(for: .domesticCat, from: scans)
+        let dogDetail = AchievementsCalculator.detail(for: .domesticDog, from: scans)
+
+        XCTAssertEqual(awards.first { $0.type == .domesticCat }?.currentCount, 1, "Canonical domestic cat scans should unlock the cat achievement.")
+        XCTAssertEqual(awards.first { $0.type == .domesticDog }?.currentCount, 1, "Canonical domestic dog scans should unlock the dog achievement.")
+        XCTAssertEqual(catDetail?.contributions.first?.reasonText, "Domestic cat")
+        XCTAssertEqual(dogDetail?.contributions.first?.reasonText, "Domestic dog")
+    }
+
+    func testDomesticPetAchievementsAcceptAliases() {
+        let catAliases = [
+            "Felis silvestris catus",
+            "Felis domesticus",
+            "Felis catus domesticus",
+            "Felis silvestris domesticus"
+        ]
+        let dogAliases = [
+            "Canis familiaris",
+            "Canis familiaris domesticus"
+        ]
+
+        for alias in catAliases {
+            let awards = AchievementsCalculator.calculate(from: [mockScan(scientificName: alias)])
+            XCTAssertEqual(awards.first { $0.type == .domesticCat }?.currentCount, 1, "\(alias) should unlock the cat achievement.")
+        }
+
+        for alias in dogAliases {
+            let awards = AchievementsCalculator.calculate(from: [mockScan(scientificName: alias)])
+            XCTAssertEqual(awards.first { $0.type == .domesticDog }?.currentCount, 1, "\(alias) should unlock the dog achievement.")
+        }
+    }
+
+    func testDomesticPetAchievementsRejectWildRelatives() {
+        let scans = [
+            mockScan(scientificName: "Felis silvestris"),
+            mockScan(scientificName: "Canis lupus")
+        ]
+        let awards = AchievementsCalculator.calculate(from: scans)
+
+        XCTAssertEqual(awards.first { $0.type == .domesticCat }?.currentCount, 0, "Wild cat relatives should not unlock the domestic cat achievement.")
+        XCTAssertEqual(awards.first { $0.type == .domesticDog }?.currentCount, 0, "Wild dog relatives should not unlock the domestic dog achievement.")
     }
 
     func testNocturnalObserver() {
