@@ -22,8 +22,9 @@ The workflow performs the following steps:
 6. Links the Supabase project.
 7. Pushes database migrations.
 8. Deploys all Edge Function directories with `supabase functions deploy`.
-9. Smoke-tests the Community Taxonomy status endpoint and a dry-run bounded GBIF
-   import with the production service-role credential.
+9. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
+   endpoint, and a dry-run bounded GBIF import with the production service-role
+   credential.
 
 Actual GBIF taxonomy imports are intentionally separated into
 `.github/workflows/import-community-taxonomy.yml`. The deploy workflow only
@@ -144,6 +145,7 @@ deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/update-public-avatar/index.ts \
   services/supabase/functions/update-public-display-name/index.ts \
   services/supabase/functions/insight-chat/index.ts \
+  services/supabase/functions/scan-media-health/index.ts \
   services/supabase/functions/auto-purge-nonbio/index.ts \
   services/supabase/functions/delete-scan/index.ts
 
@@ -153,7 +155,8 @@ deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/update-public-avatar/avatar_test.ts \
   services/supabase/functions/_tests/updatePublicDisplayName.test.ts \
   services/supabase/functions/insight-chat/guards_test.ts \
-  services/supabase/functions/insight-chat/prompt_test.ts
+  services/supabase/functions/insight-chat/prompt_test.ts \
+  services/supabase/functions/scan-media-health/health_test.ts
 
 make validate-supabase-migrations
 make db-push
@@ -188,6 +191,8 @@ After deployment:
   authorization from Supabase Vault/pg_net.
 - Confirm `community-taxonomy-status` accepts a service-role request with
   `view = coverage` and returns the Birds coverage target quickly.
+- Confirm `scan-media-health` accepts a service-role request and returns
+  `success = true` with a status of `ok`, `warning`, or `critical`.
 - Confirm `sync-community-taxonomy-index` accepts a tiny `dry_run = true` Birds
   request without advancing `taxonomy_coverage_targets.next_import_offset`.
 - Smoke-test `/insight-chat` with `action: "load"` and `action:

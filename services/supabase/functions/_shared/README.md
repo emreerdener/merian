@@ -40,6 +40,8 @@ multiple functions need the same behavior and the ownership boundary is clear.
   The `reconcile-scan-media-assets` worker owns stale staged-row repair and
   abandonment cleanup. Composer and status paths prefer ready display/playback
   asset rows before falling back to `captured_media` and legacy arrays.
+  `scan-media-health` reads the same lifecycle state for deploy smoke checks and
+  operational drift alerts, but does not mutate media rows.
 - **`scanIngestionJobs.ts`**: Durable scan-ingestion job helpers. The active
   multimodal path claims a job row after media validation, updates server-side
   stages through inference/finalization/failure, and `/check-scan-status`

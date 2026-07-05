@@ -423,6 +423,9 @@ verify_jwt = false
 [functions.reconcile-scan-media-assets]
 verify_jwt = false
 
+[functions.scan-media-health]
+verify_jwt = false
+
 [functions.block-user]
 verify_jwt = false
 

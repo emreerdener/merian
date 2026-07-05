@@ -135,6 +135,67 @@ queue retry path.
 
 ---
 
+## Deno `/scan-media-health` Internal Status
+
+Read-only service-role endpoint for media durability observability. Supabase
+gateway JWT verification is disabled for automation reachability, and the
+function validates `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` or an
+equivalent service-role `apikey` before querying.
+
+Optional request payload:
+
+```json
+{
+  "limit": 25,
+  "stuckAfterMinutes": 20,
+  "staleAssetAfterMinutes": 15,
+  "recentScanLimit": 250
+}
+```
+
+Response payload:
+
+```json
+{
+  "success": true,
+  "generated_at": "2026-07-05T15:00:00.000Z",
+  "status": "warning",
+  "thresholds": {
+    "stuck_after_minutes": 20,
+    "stale_asset_after_minutes": 15
+  },
+  "counts": {
+    "ingestion_jobs_checked": 3,
+    "stale_capture_upload_assets": 1,
+    "failed_assets": 0,
+    "recent_scans_checked": 250,
+    "ready_video_assets_checked": 2,
+    "explore_video_rows_checked": 10,
+    "reconciliation_runs_checked": 5,
+    "issues": 1,
+    "critical_issues": 0,
+    "warning_issues": 1
+  },
+  "issues": [
+    {
+      "code": "stale_capture_upload_assets",
+      "severity": "warning",
+      "message": "Capture-upload media assets remain staged past the reconciliation window.",
+      "count": 1,
+      "sample": []
+    }
+  ]
+}
+```
+
+The status can be `ok`, `warning`, or `critical`. Critical issues indicate a
+durability invariant is already broken or a server-owned ingestion job is stuck
+past its lease. Warning issues indicate retry/repair work may still complete but
+should be monitored. The endpoint does not repair media; writers remain
+`identify-multimodal`, `reconcile-scan-media-assets`, and the iOS offline queue.
+
+---
+
 ## Deno `/update-public-avatar` Edge Node
 
 Promotes one user-owned staged R2 image into the durable public avatar prefix.

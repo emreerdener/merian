@@ -181,6 +181,21 @@ marked `failed` for audit. The worker does not replay AI inference; the iOS
 offline queue remains responsible for retrying scans that never reached
 `identify-multimodal`.
 
+## Scan Media Health (`scan-media-health`)
+
+The `scan-media-health` Edge Function is an internal service-role read path for
+media durability observability. It reports stuck scan-ingestion jobs, stale
+capture-upload asset rows, failed media assets, recent video scans whose
+`video_storage_urls`, `captured_media`, and ready playback `scan_media_assets`
+disagree, Explore video rows missing poster thumbnails, and the latest scan
+media reconciliation run status.
+
+The endpoint is intentionally read-only. It does not promote R2 objects, mutate
+scan rows, replay inference, or delete staged media. Repairs stay owned by
+`identify-multimodal`, `reconcile-scan-media-assets`, and the iOS offline queue.
+Deploy smoke tests call it with a small sample to prove the service-role status
+surface is reachable after migrations and function deployment.
+
 ## The Public Avatar Promotion Node (`update-public-avatar`)
 
 The `/update-public-avatar` Edge Function promotes a staged, user-owned image

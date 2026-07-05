@@ -50,7 +50,8 @@ jobs:
             supabase/functions/_shared/concurrency.ts \
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
-            supabase/functions/insight-chat
+            supabase/functions/insight-chat \
+            supabase/functions/scan-media-health
 
       - name: Validate Edge Function lint
         run: |
@@ -61,7 +62,8 @@ jobs:
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/delete-scan/index.ts \
-            supabase/functions/insight-chat
+            supabase/functions/insight-chat \
+            supabase/functions/scan-media-health
 
       - name: Validate shared Edge runtime checks
         run: |
@@ -72,7 +74,8 @@ jobs:
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/delete-scan/index.ts \
-            supabase/functions/insight-chat/index.ts
+            supabase/functions/insight-chat/index.ts \
+            supabase/functions/scan-media-health/index.ts
 
       - name: Test shared Edge helpers
         run: |
@@ -80,7 +83,8 @@ jobs:
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/insight-chat/guards_test.ts \
-            supabase/functions/insight-chat/prompt_test.ts
+            supabase/functions/insight-chat/prompt_test.ts \
+            supabase/functions/scan-media-health/health_test.ts
 
       - name: Validate Supabase migration contracts
         run: |
@@ -154,3 +158,14 @@ jobs:
               --data '{"target":"birds","limit":5,"page_count":1,"dry_run":true}'
           )"
           echo "$dry_run_response" | jq -e '.success == true and .dry_run == true and .normalized_count > 0'
+
+          media_health_response="$(
+            curl -fsS \
+              -X POST "${supabase_url}/functions/v1/scan-media-health" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Content-Type: application/json" \
+              --data '{"limit":10,"recent_scan_limit":100}'
+          )"
+          echo "$media_health_response" | jq -e '.success == true and (.status == "ok" or .status == "warning" or .status == "critical")'
+          echo "$media_health_response" | jq '{status, counts}'
