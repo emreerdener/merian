@@ -178,9 +178,9 @@ from `staging/` into `public_uploads/` before the scan's video URL array and
 captured-media manifest are repaired. If no scan row exists after the
 abandonment TTL, remaining staging objects are deleted and the asset row is
 marked `failed` for audit. The worker does not replay AI inference; the iOS
-offline queue remains responsible for retrying scans that never reached
-`identify-multimodal`, using persisted V48 `OfflineJobRecord` retry windows
-rather than process-local counters.
+offline queue remains responsible for inline/redacted scans, while
+`replay-scan-ingestion` retries resumable staged scans that never reached
+completion.
 
 The worker now reads `scan_ingestion_jobs` before deciding whether stale media is
 truly abandoned. Active `processing` / `finalizing` leases and future
@@ -188,6 +188,21 @@ truly abandoned. Active `processing` / `finalizing` leases and future
 job `complete` once the required video count and captured-media manifest match;
 media abandoned after the TTL marks the job `failed_terminal` so status polling
 and health checks have one server-authoritative reason.
+
+## The Scan Ingestion Replay Worker (`replay-scan-ingestion`)
+
+The `replay-scan-ingestion` Edge Function is an internal service-role worker
+scheduled every five minutes by pg_cron. It claims retryable or lease-expired
+`scan_ingestion_jobs` rows whose paired `scan_ingestion_intents` are resumable,
+reconstructs the sanitized staged-media request, and invokes
+`identify-multimodal` with the same `client_scan_id`.
+
+This worker is deliberately a dispatcher, not a second inference pipeline.
+`identify-multimodal` remains the only owner of Gemini calls, moderation,
+playback-video promotion, scan insertion, `captured_media`, and asset
+finalization. Existing complete scan rows are marked complete without replay;
+existing incomplete video rows are left retryable for media reconciliation or
+local-video repair.
 
 ## Scan Media Health (`scan-media-health`)
 
@@ -200,7 +215,8 @@ media reconciliation run status.
 
 The endpoint is intentionally read-only. It does not promote R2 objects, mutate
 scan rows, replay inference, or delete staged media. Repairs stay owned by
-`identify-multimodal`, `reconcile-scan-media-assets`, and the iOS offline queue.
+`identify-multimodal`, `replay-scan-ingestion`,
+`reconcile-scan-media-assets`, and the iOS offline queue.
 Deploy smoke tests call it with a small sample to prove the service-role status
 surface is reachable after migrations and function deployment.
 The scheduled **Scan Media Health Monitor** GitHub workflow calls the same

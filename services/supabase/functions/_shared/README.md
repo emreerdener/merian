@@ -48,14 +48,14 @@ multiple functions need the same behavior and the ownership boundary is clear.
   stages through inference/finalization/failure, and `/check-scan-status`
   exposes the owner-safe job state when the scan row is not complete yet.
   Claims include expected media counts, staged object keys, recovered
-  upload-session ids, and a normalized manifest checksum so retries and repair
-  work can detect accidental media-shape drift.
+  upload-session ids, and a normalized manifest checksum so retries, server
+  replay, and repair work can detect accidental media-shape drift.
 - **`scanIngestionIntents.ts`**: Sanitized scan-ingestion replay intent helpers.
   `identify-multimodal` records telemetry, observation context, media
   descriptors, staged object keys, upload-session ids, and payload checksums into
   `scan_ingestion_intents` without raw base64 media bytes or local device paths.
-  Inline-media requests are marked non-resumable so server replay and health
-  checks know they still depend on the client queue.
+  Inline-media requests are marked non-resumable so `replay-scan-ingestion` and
+  health checks know they still depend on the client queue.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
   by `audio-spec` and `identify-multimodal`.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,

@@ -48,6 +48,7 @@
             "Video scan processing now records server-side progress so retry and recovery paths can tell whether a scan is processing, finalizing, or needs another attempt.",
             "Server recovery now verifies the exact media manifest for a scan before completing repair or abandoning staged uploads.",
             "Server recovery now keeps a sanitized replay intent for staged scan uploads without storing raw media bytes.",
+            "Server recovery can now retry resumable staged scan uploads automatically when the app exits or a transient backend failure interrupts finalization.",
             "Queued video scans now wait for server finalization instead of retrying too early when the app resumes mid-save."
           ]
         }

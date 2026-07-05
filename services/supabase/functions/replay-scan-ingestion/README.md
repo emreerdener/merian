@@ -1,0 +1,67 @@
+# replay-scan-ingestion
+
+Service-role-only dispatcher for server-side scan ingestion replay.
+
+## Purpose
+
+`identify-multimodal` records two durable rows for accepted scan requests:
+
+- `scan_ingestion_jobs`: mutable state, stage, leases, retry timing, and media
+  manifest checksums.
+- `scan_ingestion_intents`: sanitized replay payloads for staged-media requests.
+
+This worker turns those rows into real recovery. It claims retryable or
+lease-expired jobs whose paired intent is `resumable = true`, reconstructs the
+staged-media request, and invokes `/identify-multimodal` with the same
+`client_scan_id`.
+
+Inline foreground media is never replayed by the server because raw base64 media
+bytes are intentionally redacted from `scan_ingestion_intents`.
+
+## Invocation
+
+The worker is scheduled every five minutes by
+`20260705150000_schedule_scan_ingestion_replay.sql` through `pg_cron` /
+`pg_net`.
+
+It uses `verify_jwt = false` at the gateway, then requires service-role
+authorization inside the function.
+
+Optional POST body:
+
+```json
+{
+  "limit": 5,
+  "leaseSeconds": 300,
+  "retryAfterMinutes": 5,
+  "awaitInvocations": false
+}
+```
+
+`awaitInvocations` is mainly for local verification and tests. Production cron
+dispatches replay attempts through `EdgeRuntime.waitUntil` so the scheduler
+returns quickly while the existing multimodal endpoint owns inference,
+moderation, promotion, insert idempotency, and video durability gates.
+
+## Rules
+
+- Only staged-media or description-only intents marked `resumable = true` are
+  eligible.
+- Completed and terminal jobs are never replayed.
+- A cloud scan row that already has all required video media is marked complete
+  without replaying AI.
+- A cloud scan row that exists but lacks required video media is left retryable
+  for reconciliation/repair instead of re-running AI against an already-inserted
+  scan.
+- Video scans keep the same strict contract: replay is successful only when the
+  playback `.mp4`, `video_storage_urls`, and `captured_media` video item are
+  complete.
+
+## Local Verification
+
+```sh
+deno check --config services/supabase/functions/deno.json services/supabase/functions/replay-scan-ingestion/index.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/replay-scan-ingestion/worker_test.ts
+```
+
+Database integration requires a running local Supabase Postgres instance.

@@ -21,6 +21,7 @@ TestFlight, App Store, support, and QA.
 - Added server-side scan ingestion job tracking so accepted video and mixed-media scans expose processing, finalizing, retryable failure, and completion state for recovery.
 - Hardened server scan recovery so ingestion jobs record the exact media manifest and reconciliation only abandons staged media after active leases and retry windows have expired.
 - Added a sanitized server replay intent for staged scan ingestion so retry and repair tooling can recover accepted media requests without storing raw media bytes.
+- Added scheduled server replay for resumable staged scan ingestion so image, video, audio, and description scans can recover after app exits or transient backend failures.
 - Updated iOS offline recovery so queued scans respect server ingestion job state instead of resubmitting while video/media finalization is still in progress.
 - Fixed cloud-hydrated video scans so sampled analysis frames stay hidden behind the playable video instead of appearing as standalone Insight carousel images.
 - Improved camera shutter feedback so photo captures and video recording start with a stronger, prewarmed haptic cue, and video recording begins almost immediately after a brief hold.

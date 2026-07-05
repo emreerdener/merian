@@ -940,9 +940,11 @@ user-facing path by recreating a minimal owned `public.scans` row from the local
 record before retrying media restore, but ops replay is still the authoritative
 way to backfill every ingestion-derived column.
 
-**Ops workflow**: Query by `user_id` and `failed_at` to identify affected users;
-replay by re-invoking the `identify` function with the same `client_scan_id`.
-The `ignoreDuplicates: true` guard in `insertScan` makes replay safe. Row Level
+**Ops workflow**: Query by `user_id` and `failed_at` to identify affected users.
+For current staged multimodal rows, prefer `scan_ingestion_jobs` plus
+`scan_ingestion_intents` and let `replay-scan-ingestion` re-invoke
+`identify-multimodal` with the same `client_scan_id`. The
+`ignoreDuplicates: true` guard in `insertScan` makes replay safe. Row Level
 Security is enabled; the table is never read by the client SDK — only the edge
 function (service role) writes to it and ops queries it via the Supabase
 dashboard.
@@ -1023,13 +1025,21 @@ attempts. Added in migration
 - `inline_media_redacted` / `redacted_media_counts` (BOOLEAN / JSONB): Records
   that inline media existed and how many inline image/audio payloads were
   omitted.
-- `last_replayed_at`, `replay_attempt_count`, `last_replay_error`: Reserved
-  control-plane fields for the server replay worker.
+- `last_replayed_at`, `replay_attempt_count`, `last_replay_error`: Control
+  fields maintained by `replay-scan-ingestion` when it claims and dispatches a
+  resumable staged-media retry.
 
 The table has RLS enabled with no client read policy; only service-role Edge
 code and operators should read the sanitized intent. The
 `public.record_scan_ingestion_intent(...)` RPC is executable only by
 `service_role` and upserts by `(user_id, scan_id)`.
+
+`20260705150000_schedule_scan_ingestion_replay.sql` adds
+`public.claim_replayable_scan_ingestion_jobs(...)`, also service-role-only. The
+RPC atomically claims due retryable or lease-expired jobs whose paired intent is
+resumable and not inline-redacted, moves the job to
+`stage = 'server_replay_claimed'`, increments the intent replay counter, and
+returns the sanitized request payload to the scheduled replay dispatcher.
 
 ### `user_blocks`
 

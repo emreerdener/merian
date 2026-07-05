@@ -9,8 +9,8 @@ Service-role health endpoint for scan media durability.
   can inspect the job's `manifest_checksum` and `upload_session_ids` to match
   the stuck attempt back to staged scan media.
 - Reports in-flight/retryable ingestion jobs that are missing
-  `scan_ingestion_intents` rows or whose intents are non-resumable because inline
-  media bytes were intentionally redacted.
+  `scan_ingestion_intents` rows or whose intents are non-resumable because
+  inline media bytes were intentionally redacted.
 - Reports stale `scan_media_assets` capture-upload rows, failed media assets,
   and recent video scans whose durable media surfaces disagree.
 - Detects recent video-specific drift such as `video_storage_urls` without a
@@ -21,8 +21,8 @@ Service-role health endpoint for scan media durability.
   the repair worker is healthy.
 
 The endpoint is read-only. It does not repair media or replay inference. Repairs
-stay owned by `identify-multimodal`, the iOS offline queue, and
-`reconcile-scan-media-assets`.
+stay owned by `identify-multimodal`, `replay-scan-ingestion`, the iOS offline
+queue, and `reconcile-scan-media-assets`.
 
 ## Invocation
 

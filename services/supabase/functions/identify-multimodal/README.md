@@ -77,6 +77,8 @@ the payload contains only server-owned object keys and metadata.
 
 - `/check-scan-status` is the owner-safe polling endpoint. It reports completed
   scan rows and, when requested, server-side ingestion job state.
+- `/replay-scan-ingestion` claims due resumable staged intents and dispatches
+  them back through this endpoint with the same `client_scan_id`.
 - `/reconcile-scan-media-assets` repairs or abandons staged media lifecycle
   drift but does not replay AI inference.
 - `/scan-media-health` reports stuck jobs, stale media assets, missing replay

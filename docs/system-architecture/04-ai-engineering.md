@@ -783,7 +783,10 @@ or audio attached:
   states to `/check-scan-status` and the media reconciliation worker. The same
   request records `scan_ingestion_intents`, a service-role-only sanitized replay
   payload with a `payload_checksum`; raw inline media bytes are redacted and mark
-  the intent non-resumable. On failure, a JSON-structured log line is emitted via
+  the intent non-resumable. The scheduled `replay-scan-ingestion` worker claims
+  due resumable intents and dispatches them back through `identify-multimodal`
+  with the same `client_scan_id`; inline-media rows remain client retry only.
+  On failure, a JSON-structured log line is emitted via
   `console.error` including `event`, `user_id`, `scan_id`, `error`, and `ts`
   fields. This replaces the previous silent swallow of background errors and
   makes failures observable in Supabase Edge Function logs without exposing

@@ -125,9 +125,9 @@ service-role endpoint. Start triage from the issue code:
   `lock_expires_at`, `retry_after`, `manifest_checksum`, `upload_session_ids`,
   and `last_error`, then check the matching `scan_ingestion_intents` row for
   `resumable`, `inline_media_redacted`, and `payload_checksum`. Retryable rows
-  with resumable intents are eligible for server replay; rows with redacted
-  inline media still require client retry. If the stuck job still has staged
-  `scan_media_assets`, `reconcile-scan-media-assets` will keep those rows
+  with resumable intents are claimed by `replay-scan-ingestion`; rows with
+  redacted inline media still require client retry. If the stuck job still has
+  staged `scan_media_assets`, `reconcile-scan-media-assets` will keep those rows
   pending while the lease or retry window is active, mark the job complete after
   a successful media repair, or mark it `failed_terminal` after the abandonment
   TTL.
@@ -136,6 +136,13 @@ service-role endpoint. Start triage from the issue code:
   accepted job predates the durable outbox or the intent write failed; non-
   resumable intents intentionally redacted inline media bytes and depend on the
   iOS queue to retry with durable staged media.
+- `retryable_ingestion_jobs_past_due`: confirm the
+  `replay_scan_ingestion_every_five_minutes` cron job is scheduled, then inspect
+  `/functions/v1/replay-scan-ingestion` logs for dispatch failures. Rows that
+  remain past due with `inline_media_redacted = true` are expected to wait for
+  the iOS queue. For a manual service-role retry, POST
+  `{ "limit": 5, "awaitInvocations": true }` to
+  `/functions/v1/replay-scan-ingestion`.
 - `video_scan_missing_captured_media_video`: inspect the scan's
   `video_storage_urls`, `captured_media`, and ready playback
   `scan_media_assets`; repair should go through `reconcile-scan-media-assets`
@@ -197,7 +204,8 @@ deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/insight-chat/index.ts \
   services/supabase/functions/scan-media-health/index.ts \
   services/supabase/functions/auto-purge-nonbio/index.ts \
-  services/supabase/functions/delete-scan/index.ts
+  services/supabase/functions/delete-scan/index.ts \
+  services/supabase/functions/replay-scan-ingestion/index.ts
 
 deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/aws_test.ts \
@@ -207,7 +215,8 @@ deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/_tests/updatePublicDisplayName.test.ts \
   services/supabase/functions/insight-chat/guards_test.ts \
   services/supabase/functions/insight-chat/prompt_test.ts \
-  services/supabase/functions/scan-media-health/health_test.ts
+  services/supabase/functions/scan-media-health/health_test.ts \
+  services/supabase/functions/replay-scan-ingestion/worker_test.ts
 
 make validate-supabase-migrations
 make db-push

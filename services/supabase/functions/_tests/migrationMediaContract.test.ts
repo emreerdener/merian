@@ -237,3 +237,40 @@ Deno.test("scan_ingestion_intents migration declares the replay intent contract"
     assertStringIncludes(sql, fragment);
   }
 });
+
+Deno.test("scan ingestion replay migration claims resumable jobs and schedules the worker", async () => {
+  const sql = normalized(
+    await migrationSql("20260705150000_schedule_scan_ingestion_replay.sql"),
+  );
+
+  assertBefore(
+    sql,
+    "PERFORM cron.unschedule('replay_scan_ingestion_every_five_minutes')",
+    "SELECT cron.schedule( 'replay_scan_ingestion_every_five_minutes'",
+    "replay cron schedule must unschedule the old job before re-scheduling",
+  );
+
+  for (
+    const fragment of [
+      "CREATE INDEX IF NOT EXISTS idx_scan_ingestion_jobs_replay_claim",
+      "CREATE OR REPLACE FUNCTION public.claim_replayable_scan_ingestion_jobs",
+      "j.status IN ('processing', 'finalizing', 'retrying', 'failed_retryable')",
+      "i.resumable = TRUE",
+      "i.inline_media_redacted = FALSE",
+      "FOR UPDATE OF j SKIP LOCKED",
+      "status = 'retrying'",
+      "stage = 'server_replay_claimed'",
+      "replay_attempt_count = i.replay_attempt_count + 1",
+      "REVOKE ALL ON FUNCTION public.claim_replayable_scan_ingestion_jobs",
+      "GRANT EXECUTE ON FUNCTION public.claim_replayable_scan_ingestion_jobs",
+      "CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog",
+      "CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA public",
+      "edge_endpoint := project_url || '/functions/v1/replay-scan-ingestion'",
+      "'Authorization', 'Bearer ' || service_role_key",
+      "'leaseSeconds', 300",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});

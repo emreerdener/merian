@@ -138,10 +138,57 @@ matching `scan_ingestion_jobs` row: active leases and future retry windows keep
 the media pending, repaired scans mark the job complete when required video
 media is present, and TTL-abandoned media marks the job `failed_terminal`.
 Sanitized `scan_ingestion_intents` rows preserve staged-media replay metadata for
-operations and future tooling, but this worker does not replay AI inference for
-scans that never created a cloud scan row; those remain the responsibility of
-the iOS offline queue retry path unless a dedicated server replay worker is
-added later.
+operations and `replay-scan-ingestion`, but this worker does not replay AI
+inference for scans that never created a cloud scan row.
+
+---
+
+## Deno `/replay-scan-ingestion` Internal Worker
+
+This endpoint is not called by iOS. It is invoked every five minutes by pg_cron
+with `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`. Supabase gateway JWT
+verification is disabled so pg_net can reach the function, and the function
+performs service-role validation internally.
+
+Optional request payload:
+
+```json
+{
+  "limit": 5,
+  "leaseSeconds": 300,
+  "retryAfterMinutes": 5,
+  "awaitInvocations": false
+}
+```
+
+Response payload:
+
+```json
+{
+  "success": true,
+  "claimed": 1,
+  "dispatched": 1,
+  "completedExisting": 0,
+  "skippedExistingIncomplete": 0,
+  "failedDispatches": 0,
+  "errors": []
+}
+```
+
+The worker claims due `scan_ingestion_jobs` rows whose paired
+`scan_ingestion_intents` are `resumable = true` and not inline-redacted,
+reconstructs the staged-media request from the sanitized intent payload, and
+invokes `/identify-multimodal` with the original `client_scan_id`. The
+multimodal endpoint still owns AI inference, moderation, media promotion, scan
+insert idempotency, and the strict playback-video durability gate. Inline
+foreground requests remain client-owned because their raw media bytes are never
+stored server-side.
+
+If the scan row already exists and has the required video media plus a video
+entry in `captured_media`, the worker marks the job complete without replaying
+AI. If the scan row exists but media is incomplete, the worker leaves the job
+retryable for reconciliation or local video restore instead of rerunning
+inference against an already-created scan row.
 
 ---
 

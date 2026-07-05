@@ -47,6 +47,6 @@ Optional POST body:
 The worker deliberately does not replay AI inference. It only finalizes existing
 scan rows, updates the ingestion-job ledger around media repair/abandonment, or
 cleans abandoned staging artifacts. Sanitized `scan_ingestion_intents` rows give
-operations and future replay tooling the accepted staged-media request shape, but
-this worker does not consume those intents; the iOS offline queue remains the
-source of truth for retrying inline or not-yet-inferred scans.
+`replay-scan-ingestion` the accepted staged-media request shape; this worker does
+not consume those intents. Inline/redacted scans still depend on the iOS offline
+queue, while resumable staged scans are retried by `replay-scan-ingestion`.

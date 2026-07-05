@@ -9,7 +9,7 @@ This directory is the technical master reference for the native iOS application,
 - **Deployment target**: iOS 17.2 for the app and widget; watchOS 10.0 for the companion target.
 - **Project source of truth**: `project.yml` via XcodeGen. `Merian.xcodeproj` is committed for convenience and should be regenerated after project-structure changes.
 - **Active SwiftData schema**: `MerianSchemaV48` via `typealias CurrentSchema = MerianSchemaV48` in `apps/ios/Merian/Models/Aliases.swift`. V48 adds the durable offline job/control-plane rows and persisted queue retry metadata.
-- **Primary inference endpoint**: `/identify-multimodal` for visual, audio, describe, and mixed-media submissions. It owns staged media durability through `scan_ingestion_jobs`, sanitized `scan_ingestion_intents`, and playback-video promotion gates. `/identify` remains documented for legacy/image-specific compatibility and shared backend primitives.
+- **Primary inference endpoint**: `/identify-multimodal` for visual, audio, describe, and mixed-media submissions. It owns staged media durability through `scan_ingestion_jobs`, sanitized `scan_ingestion_intents`, scheduled `replay-scan-ingestion`, and playback-video promotion gates. `/identify` remains documented for legacy/image-specific compatibility and shared backend primitives.
 
 ## Directory Structure
 

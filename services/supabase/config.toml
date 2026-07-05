@@ -426,6 +426,9 @@ verify_jwt = false
 [functions.scan-media-health]
 verify_jwt = false
 
+[functions.replay-scan-ingestion]
+verify_jwt = false
+
 [functions.block-user]
 verify_jwt = false
 
