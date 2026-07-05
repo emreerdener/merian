@@ -12,7 +12,8 @@ TestFlight, App Store, support, and QA.
 - Added Pro short video scans from the visual shutter: tap still takes a photo, while a brief hold latches into a 5-second video recording with saved playback and image-based thumbnails.
 - Added clearer haptic feedback for video recording start, finish, successful staging, and recording failures.
 - Fixed a crash that could happen after tapping stop on a Pro video recording while Merian extracted the clip's audio.
-- Compressed saved Pro video clips for lighter scan-library playback, Explore sharing, and cloud storage while keeping AI analysis frames sampled from the original recording.
+- Pro video clips now prefer compression for lighter scan-library playback, Explore sharing, and cloud storage while keeping AI analysis frames sampled from the original recording.
+- Improved Pro video staging so upload-safe clips still stage when playback compression is slow or unavailable.
 - Fixed cloud-hydrated video scans so sampled analysis frames stay hidden behind the playable video instead of appearing as standalone Insight carousel images.
 - Improved camera shutter feedback so photo captures and video recording start with a stronger, prewarmed haptic cue, and video recording begins almost immediately after a brief hold.
 - Updated video scan analysis so Pro video scans sample five ordered frames, treat accompanying audio as evidence from the same video, and are no longer described as images.

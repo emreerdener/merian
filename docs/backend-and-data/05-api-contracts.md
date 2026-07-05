@@ -647,8 +647,8 @@ inside Cloudflare R2, and the CDN URL
 (`https://media.merian.app/public_uploads/...`) is stored in
 `scans.image_storage_urls`. For the `imageBase64s` path, the bytes are uploaded
 directly to the public destination without a staging step. Safe video media is
-moderated through five sampled frames, then the staged compressed playback `.mp4`
-is promoted separately and persisted in `scans.video_storage_urls`. Multimodal
+moderated through five sampled frames, then the staged upload-bounded playback
+`.mp4` is promoted separately and persisted in `scans.video_storage_urls`. Multimodal
 inserts also write `scans.captured_media`, a canonical ordered media timeline
 that attaches video playback URLs and poster thumbnails together; this prevents
 sampled video inference frames from hydrating as standalone Insight carousel
@@ -2720,7 +2720,9 @@ ordered compositions of images, audio, and descriptive context.
   inline, from R2 staging, or as extracted audio from a video scan.
 - Video scans send five ordered sampled frames through the image payload path,
   extracted accompanying audio through the audio payload path when available,
-  and stage the compressed playback `.mp4` in `videoR2ObjectKeys`. New clients send
+  and stage the upload-bounded playback `.mp4` in `videoR2ObjectKeys`. That
+  staged video is normally a compressed 720p export, but clients may fall back to
+  the original recording when it is already within the hard video byte cap. New clients send
   `visualMediaItems` (or snake-case `visual_media_items`) with one entry per
   resolved visual input so the prompt can distinguish still photos from ordered
   `video_frame` samples by `clipIndex` and `frameIndex`; `audioMediaItems` (or

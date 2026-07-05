@@ -722,8 +722,10 @@ The transaction log for every successful identification.
   for moderated sampled frames; the app-facing media timeline comes from
   `captured_media`.
 - `video_storage_urls` (Text Array): Public Cloudflare video links for promoted
-  compressed playback `.mp4` scan clips. The AI receives five sampled frames and
-  optional extracted accompanying audio, not these public playback URLs.
+  upload-bounded playback `.mp4` scan clips. These are normally compressed 720p
+  exports, with upload-safe original recordings allowed as a client fallback.
+  The AI receives five sampled frames and optional extracted accompanying audio,
+  not these public playback URLs.
 - `captured_media` (JSONB): Canonical captured-media timeline using the iOS
   `SerializedMediaItem` shape. Video entries attach the playback clip and poster
   thumbnail together so sampled inference frames do not hydrate as standalone
@@ -1039,7 +1041,7 @@ migration `20260703130000_add_explore_post_media.sql`.
 - `post_id` (UUID FK -> `explore_posts.id`, CASCADE DELETE): The owning public
   post.
 - `kind` (TEXT): `image` or `video`.
-- `url` (TEXT): Public CDN URL for the image or compressed playback video object.
+- `url` (TEXT): Public CDN URL for the image or playback video object.
 - `thumbnail_url` (TEXT, nullable): Public image thumbnail for video playback
   and compact previews. Video posts require a thumbnail when shared.
 - `order_index` (INT): Stable carousel ordering within the post.

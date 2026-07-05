@@ -115,7 +115,8 @@
         {
           "title": "Fixed",
           "items": [
-            "Fixed a crash that could happen after tapping stop on a Pro video recording while Merian extracted the clip's audio."
+            "Fixed a crash that could happen after tapping stop on a Pro video recording while Merian extracted the clip's audio.",
+            "Upload-safe Pro video clips now still stage when playback compression is slow or unavailable."
           ]
         }
       ]
@@ -128,7 +129,7 @@
         {
           "title": "Improved",
           "items": [
-            "Saved Pro video clips are now compressed for lighter scan-library playback, Explore sharing, and cloud storage while AI analysis still samples frames from the original recording.",
+            "Saved Pro video clips now prefer compression for lighter scan-library playback, Explore sharing, and cloud storage while AI analysis still samples frames from the original recording.",
             "Cloud-hydrated video scans now keep sampled analysis frames hidden behind the playable video instead of showing them as standalone Insight carousel images."
           ]
         }

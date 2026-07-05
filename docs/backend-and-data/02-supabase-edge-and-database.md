@@ -550,8 +550,10 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    `audio_media_items`, `videoFrameCount`, and `observation_contexts` arrays.
    Video scans send five ordered sampled frames through the normal image payload path
    for AI inference and, when available, send an extracted accompanying Int16 PCM
-   WAV audio track through the normal audio path. The compressed playback `.mp4`
-   is staged only for persistence after moderation. `visualMediaItems` is the preferred contract for
+   WAV audio track through the normal audio path. The upload-bounded playback `.mp4`
+   is staged only for persistence after moderation; it is usually a compressed
+   720p export, with an original-file fallback only when the source remains
+   under the hard video byte cap. `visualMediaItems` is the preferred contract for
    telling the prompt which visual inputs are still photos and which are ordered
    frames from one or more short clips; `audioMediaItems` identifies standalone
    audio versus audio extracted from a video clip. `videoFrameCount` remains a
@@ -593,7 +595,7 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    common names are attached synchronously when available, and cache misses are
    enriched in the background so the next scan is warm.
 6. Persisted multimodal scan imagery still lands in `scans.image_storage_urls`;
-   promoted compressed playback clips land separately in `scans.video_storage_urls`. Staged audio,
+   promoted playback clips land separately in `scans.video_storage_urls`. Staged audio,
    including extracted video audio, is an inference input, not a public media
    artifact; `identify-multimodal` deletes `audioR2ObjectKeys` from staging
    after successful background ingestion. Staged video keys are promoted only

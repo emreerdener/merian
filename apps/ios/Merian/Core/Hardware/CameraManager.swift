@@ -1012,6 +1012,7 @@ private struct CameraVideoRecordingStartHandler: Sendable {
 
     nonisolated private func configureMovieOutputConnection(maxDuration: TimeInterval) {
         movieOutput.maxRecordedDuration = CMTime(seconds: max(maxDuration, 0.5), preferredTimescale: 600)
+        movieOutput.maxRecordedFileSize = Int64(MerianConfig.videoPayloadMaxBytes)
         if let connection = movieOutput.connection(with: .video),
            let rotationAngle = stateLock.withLock({ rotationCoordinator?.videoRotationAngleForHorizonLevelCapture }),
            connection.isVideoRotationAngleSupported(rotationAngle) {

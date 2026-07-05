@@ -287,24 +287,75 @@ extension CaptureWorkspaceViewModel {
     nonisolated private static func prepareVideoPlaybackClip(
         videoURL: URL
     ) async throws -> PreparedVideoPlaybackClip {
+        let originalSize = try fileSize(at: videoURL)
+        let exportStart = CFAbsoluteTimeGetCurrent()
+
         do {
-            let compressedURL = try await compressVideoForPlayback(videoURL: videoURL)
+            let compressedURL = try await withTimeout(
+                seconds: Self.videoPlaybackPreparationTimeout,
+                message: "Preparing video playback timed out."
+            ) {
+                try await compressVideoForPlayback(videoURL: videoURL)
+            }
             let compressedSize = try fileSize(at: compressedURL)
             guard compressedSize > 0, compressedSize <= MerianConfig.videoPayloadMaxBytes else {
                 try? FileManager.default.removeItem(at: compressedURL)
-                throw NSError(
+                let sizeError = NSError(
                     domain: "CaptureWorkspaceViewModel",
                     code: -26,
                     userInfo: [NSLocalizedDescriptionKey: "Compressed video exceeds the upload budget."]
                 )
+                guard originalSize <= MerianConfig.videoPayloadMaxBytes else {
+                    throw sizeError
+                }
+                MerianLog.hardware.warning(
+                    """
+                    Video compression produced unusable output; staging original upload-safe clip. \
+                    originalBytes=\(originalSize, privacy: .public), \
+                    compressedBytes=\(compressedSize, privacy: .public)
+                    """
+                )
+                return PreparedVideoPlaybackClip(fileURL: videoURL, isCompressed: false)
+            }
+            MerianLog.hardware.debug(
+                """
+                Video compression completed. \
+                duration=\(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - exportStart), privacy: .public)s, \
+                originalBytes=\(originalSize, privacy: .public), \
+                compressedBytes=\(compressedSize, privacy: .public)
+                """
+            )
+            if compressedSize >= originalSize, originalSize <= MerianConfig.videoPayloadMaxBytes {
+                try? FileManager.default.removeItem(at: compressedURL)
+                MerianLog.hardware.warning(
+                    """
+                    Video compression was not smaller; staging original upload-safe clip. \
+                    originalBytes=\(originalSize, privacy: .public), \
+                    compressedBytes=\(compressedSize, privacy: .public)
+                    """
+                )
+                return PreparedVideoPlaybackClip(fileURL: videoURL, isCompressed: false)
             }
             return PreparedVideoPlaybackClip(fileURL: compressedURL, isCompressed: true)
         } catch {
             MerianLog.hardware.error("Video compression failed: \(error, privacy: .private)")
-            let originalSize = try fileSize(at: videoURL)
             guard originalSize <= MerianConfig.videoPayloadMaxBytes else {
+                MerianLog.hardware.error(
+                    """
+                    Video staging failed because neither compression nor the original clip fit the upload budget. \
+                    originalBytes=\(originalSize, privacy: .public), \
+                    maxBytes=\(MerianConfig.videoPayloadMaxBytes, privacy: .public)
+                    """
+                )
                 throw error
             }
+            MerianLog.hardware.warning(
+                """
+                Video compression unavailable; staging original upload-safe clip. \
+                originalBytes=\(originalSize, privacy: .public), \
+                maxBytes=\(MerianConfig.videoPayloadMaxBytes, privacy: .public)
+                """
+            )
             return PreparedVideoPlaybackClip(fileURL: videoURL, isCompressed: false)
         }
     }
@@ -635,12 +686,7 @@ extension CaptureWorkspaceViewModel {
                 ) {
                     await Self.extractVideoAudioTrack(videoURL: recording.fileURL)
                 }
-                let playbackClip = try await Self.withTimeout(
-                    seconds: Self.videoPlaybackPreparationTimeout,
-                    message: "Preparing video playback timed out."
-                ) {
-                    try await Self.prepareVideoPlaybackClip(videoURL: recording.fileURL)
-                }
+                let playbackClip = try await Self.prepareVideoPlaybackClip(videoURL: recording.fileURL)
 
                 let task = Task {
                     await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)

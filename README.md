@@ -14,7 +14,7 @@ Merian is a field-ready biological identification app built around zero-friction
 - Tap-to-focus, tap-to-expose, pinch zoom, vertical swipe zoom, and direct drag on the zoom meter.
 - Native hardware button capture via `AVCaptureEventInteraction` (volume buttons, Action button, iPhone 16 Camera Control).
 - Mixed-media staging mode — queue up to 2 total photos, short Pro video clips, audio clips, or descriptions before submitting to inference.
-- Pro video scans let users briefly hold the visual shutter for a short clip, with an active countdown, cancel control, staged playback review, and image-based thumbnail; Merian analyzes five ordered sampled frames plus accompanying audio when available, then stores a compressed 720p playback clip for library review and Explore sharing while keeping sampled frames out of the user-visible media carousel.
+- Pro video scans let users briefly hold the visual shutter for a short clip, with an active countdown, cancel control, staged playback review, and image-based thumbnail; Merian analyzes five ordered sampled frames plus accompanying audio when available, then stores an upload-bounded playback clip for library review and Explore sharing while keeping sampled frames out of the user-visible media carousel.
 - Audio Listen Mode records a 15-second WAV clip with live spectrogram and SNR feedback.
 - Describe Mode supports typed observations and live voice dictation through `SpeechManager`.
 - Real-time viewfinder intelligence hints (brightness, distance, motion blur) powered by on-device luma analysis at 3fps.
@@ -54,7 +54,7 @@ Merian is a field-ready biological identification app built around zero-friction
   common-name snapshot, browse hashtag post collections, like posts, comment,
   react to comments, follow authors, and receive Explore notifications.
 - Explore cards and public share text can show confident dog/cat pet labels without replacing the stored species common/scientific names used for dictionary links and statistics.
-- Explore posts support public image/video media snapshots; feed and detail can play muted compressed playback videos while maps, widgets, and compact profile previews stay thumbnail-first.
+- Explore posts support public image/video media snapshots; feed and detail can play muted playback videos while maps, widgets, and compact profile previews stay thumbnail-first.
 - Author profile sheets expose privacy-scoped public stats and non-opening public achievements.
 - Home Screen widget caches thumbnail-first Explore snapshots through the shared App Group, including play indicators for video posts.
 - Public Explore share pages render at `https://merian.earth/explore/post/{postId}` through the Next.js web app.

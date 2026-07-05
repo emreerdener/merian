@@ -54,7 +54,7 @@ Batch sizing is governed by `MerianConfig`:
 - **`pendingScanFetchLimit`** (50): maximum `OfflineQueuedScan` records fetched per cycle via `BackgroundDatabaseActor.fetchPendingScans(limit:)`.
 - **`uploadBatchSize`** (5): maximum scans considered for R2 staging per cycle. The selected scan batch is additionally capped by `MediaStagingContract.maxUploadItemsPerRequest` / `MerianConfig.mediaStagingMaxFilesPerRequest` to the `generate-upload-urls` limit of 5 media files total, so a mixed scan with images + audio + video cannot overrun the pre-signed URL contract.
 - **`mediaStagingMaxAudioFilesPerRequest`** (2): maximum audio files in one upload-signing request, matching the Edge parser and the documented cross-language contract in `docs/contracts/media-staging-upload-manifest.json`.
-- **`mediaStagingMaxVideoFilesPerRequest`** (1): maximum video files in one upload-signing request, with `video/mp4` as the canonical queued content type. New Pro video captures target a compressed 720p playback clip of roughly 3 MB before upload while retaining the 12 MB hard cap for compatibility and fallback.
+- **`mediaStagingMaxVideoFilesPerRequest`** (1): maximum video files in one upload-signing request, with `video/mp4` as the canonical queued content type. New Pro video captures prefer a compressed 720p playback clip of roughly 3 MB before upload while retaining the 12 MB hard cap for capture-time bounding, compatibility, and fallback when export is slow or unavailable.
 
 Before upload tasks are dispatched, `MediaStagingContract` builds the canonical staging manifest: sanitized filename, deterministic `staging/{userId}/{fileName}` object key, media kind, content type, byte size, file URL, and upload task description. It also validates the local media budget before any scan is promoted out of `.pending`: staged images must stay within the edge's 5 MB image fetch budget, staged audio must stay within the 2.7 MB raw audio budget, staged video must stay within the strict video byte budget, and a signing batch may include at most 2 audio files and 1 video file. Records that fail this preflight are tombstoned instead of being marked `.uploading`.
 
@@ -237,7 +237,7 @@ All magic numbers governing the sync pipeline live in `MerianConfig.swift` (Core
 | `mediaStagingMaxVideoFilesPerRequest` | 1 | Video files allowed by `generate-upload-urls` per request |
 | `stagedImagePayloadMaxBytes` | 5 MB | Maximum staged image bytes fetched by edge inference |
 | `audioPayloadMaxBytes` | 2.7 MB | Maximum inline or staged audio bytes accepted for inference |
-| `videoPlaybackExpectedMaxBytes` | 3 MB | Client-side target for compressed Pro video playback clips |
+| `videoPlaybackExpectedMaxBytes` | 3 MB | Client-side target for preferred compressed Pro video playback clips |
 | `videoPayloadMaxBytes` | 12 MB | Hard maximum staged video bytes accepted for persistence |
 | `historicalSyncPageSize` | 200 | Records per page for scans rehydration |
 | `collectionsSyncPageSize` | 100 | Records per page for collections rehydration |

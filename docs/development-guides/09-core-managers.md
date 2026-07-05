@@ -379,9 +379,12 @@ triggering excessive SwiftUI view rebuilds.
   across images, videos, audio clips, and descriptions. Images, video clips, and
   video poster thumbnails are written to `.documentsDirectory` via
   `FileIOActor`. Pro video capture samples five inference frames and extracts
-  video-audio WAVs from the original temporary recording, then stages a compressed
-  network-optimized 720p playback `.mp4` for local review, scan-library playback,
-  Explore sharing, and cloud storage. Extracted video-audio WAVs are exported into
+  video-audio WAVs from the original temporary recording, then stages an
+  upload-bounded playback `.mp4` for local review, scan-library playback,
+  Explore sharing, and cloud storage. The preferred playback file is a compressed
+  network-optimized 720p export, but compression failure or timeout falls back to
+  the original recording only when it remains within the hard video upload cap.
+  Extracted video-audio WAVs are exported into
   Documents with `AVAssetReader` + `AVAssetWriter` and attached to the video
   media reference for inference replay rather than displayed as separate audio
   pages.

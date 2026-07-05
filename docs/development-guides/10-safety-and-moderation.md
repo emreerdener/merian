@@ -52,16 +52,16 @@ The strike counter is read and written via the Supabase service role in `_shared
 
 ## Media Promotion Pipeline
 
-For safe scans, `moderation.ts` promotes images from temporary staging storage to permanent public storage. Short video scans still moderate through the five ordered sampled frames sent to Gemini; when available, extracted accompanying audio can also inform identification but is not reference media. Once the frames are safe, `identify-multimodal` promotes the staged compressed playback `.mp4` separately into `video_storage_urls` for the scan record. The playback video is never used for AI inference or reference-media promotion. When a user shares that scan, Explore snapshots post-owned public video media from the promoted video URL and requires an image-backed poster thumbnail. Videos are not Dictionary/reference-media inputs in v1.
+For safe scans, `moderation.ts` promotes images from temporary staging storage to permanent public storage. Short video scans still moderate through the five ordered sampled frames sent to Gemini; when available, extracted accompanying audio can also inform identification but is not reference media. Once the frames are safe, `identify-multimodal` promotes the staged upload-bounded playback `.mp4` separately into `video_storage_urls` for the scan record. That playback file is normally the client's compressed 720p export, but the client may stage the original recording when compression is slow or unavailable and the source remains within the hard video byte cap. The playback video is never used for AI inference or reference-media promotion. When a user shares that scan, Explore snapshots post-owned public video media from the promoted video URL and requires an image-backed poster thumbnail. Videos are not Dictionary/reference-media inputs in v1.
 
 ### R2 Bucket Layout
 
 | Purpose | Path Pattern |
 |---|---|
 | Temporary staging (pre-moderation) | `staging/{userId}/{filename}.webp` |
-| Temporary compressed playback video (pre-moderation) | `staging/{userId}/{filename}.mp4` |
+| Temporary playback video (pre-moderation) | `staging/{userId}/{filename}.mp4` |
 | Permanent public storage (post-moderation) | `public_uploads/{tier}/{userId}/{filename}.webp` |
-| Permanent compressed playback video storage (post-moderation) | `public_uploads/{tier}/{userId}/{filename}.mp4` |
+| Permanent playback video storage (post-moderation) | `public_uploads/{tier}/{userId}/{filename}.mp4` |
 | Durable public profile avatars | `avatars/{userId}/{uuid}.webp|jpg` |
 | CDN base URL | `https://media.merian.app/` |
 
@@ -90,7 +90,7 @@ The filename is derived from `r2ObjectKeys[i].split("/").pop()` when available; 
 
 If any image promotion step fails (non-OK direct upload, failed staging copy, or staging delete after copy), the shared moderation helper aborts the entire promotion batch and rolls back any already-promoted public objects from that batch before returning `ERROR`. The scan is not inserted with a partial `image_storage_urls` array.
 
-For video scans, unsafe moderation deletes any additional staged compressed playback video keys passed by `identify-multimodal` along with staged image keys. Safe video promotion is best-effort after the five sampled inference frames pass moderation; if promotion fails, the scan can still persist with the five sampled image frames while the failed staged playback video is cleaned up.
+For video scans, unsafe moderation deletes any additional staged playback video keys passed by `identify-multimodal` along with staged image keys. Safe video promotion is best-effort after the five sampled inference frames pass moderation; if promotion fails, the scan can still persist with the five sampled image frames while the failed staged playback video is cleaned up.
 
 ### R2 Rollback on Scan Insert Failure
 
