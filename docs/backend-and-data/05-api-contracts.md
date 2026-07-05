@@ -82,7 +82,11 @@ profile avatars, and for legacy `fileNames` clients. During
 `identify-multimodal` finalization, promoted image/video staging keys update the
 matching staged rows to `promoted` and link them to the completed scan. Consumed
 audio staging keys become `deleted`; moderation, promotion, or scan-insert
-failures mark still-staged rows as `failed`.
+failures mark still-staged rows as `failed`. The returned `mediaSessionId`
+values also let ingestion recover the exact upload sessions for the staged
+object keys; those session ids participate in the `scan_ingestion_jobs`
+`manifest_checksum`, giving retries and repair workers a stable server-side
+description of the requested media set without storing media bytes.
 
 > The pre-signed URL is generated with the exact `contentType` from the
 > structured manifest. The iOS `URLRequest` must send the same `Content-Type`
@@ -129,9 +133,12 @@ The worker only reconciles media lifecycle state. It can repair an existing scan
 that has a surviving staged playback video by promoting the video, updating
 `video_storage_urls`, rebuilding `captured_media`, and refreshing ready
 `scan_media_assets` rows. It can also delete abandoned staging objects and mark
-their staged rows failed. It does not replay AI inference for scans that never
-created a cloud scan row; those remain the responsibility of the iOS offline
-queue retry path.
+their staged rows failed. Before treating an orphan as abandoned, it checks the
+matching `scan_ingestion_jobs` row: active leases and future retry windows keep
+the media pending, repaired scans mark the job complete when required video
+media is present, and TTL-abandoned media marks the job `failed_terminal`. It
+does not replay AI inference for scans that never created a cloud scan row;
+those remain the responsibility of the iOS offline queue retry path.
 
 ---
 
@@ -2899,6 +2906,12 @@ ordered compositions of images, audio, and descriptive context.
   `scan_media_assets` rows; this endpoint links those rows to the scan as
   `promoted`, marks consumed audio rows `deleted`, and marks failed finalization
   rows `failed`.
+- Before inference work starts, the endpoint claims a `scan_ingestion_jobs` row
+  for the authenticated user and `client_scan_id`. The claim records media
+  counts, staged image/audio/video object keys, recovered upload-session ids, and
+  a normalized `manifest_checksum`; subsequent stage updates make
+  `/check-scan-status`, health checks, and reconciliation agree on whether the
+  scan is processing, retryable, complete, or terminal.
 - The edge writes `captured_media` for new multimodal scan rows. That JSON keeps
   still photos as image items but collapses ordered `video_frame` samples into a
   single video media item with a thumbnail reference, preserving playback-first

@@ -973,6 +973,14 @@ in migration `20260705120000_add_scan_ingestion_jobs.sql`.
   required video count, video frame count, and description presence.
 - `media_object_keys` (JSONB): Staged R2 object-key references only. Raw media
   bytes are never stored in this ledger.
+- `upload_session_ids` (UUID[]): Upload-session ids created by
+  `/generate-upload-urls` and recovered from `scan_media_assets` during
+  ingestion.
+- `manifest_checksum` (TEXT, added by
+  `20260705130000_extend_scan_ingestion_jobs_media_manifest.sql`): SHA-256 of
+  the normalized ingestion media manifest: expected media counts, staged object
+  keys, and upload session ids. Used to distinguish true retries from accidental
+  media-shape drift for the same `client_scan_id`.
 - `locked_at`, `lock_expires_at`, `retry_after`, `last_error`, `completed_at`:
   Lease, retry, failure, and completion metadata for status polling and ops.
 
@@ -984,6 +992,13 @@ client compatibility, and includes optional `job_status`, `job_stage`,
 scan row is not yet complete. RLS allows owners to read their own job rows;
 service-role writers own mutation, and the claim RPC is executable only by
 `service_role`.
+
+The media reconciliation worker also feeds back into this ledger. If a stale
+capture-upload row still belongs to an active or future-retry job, the worker
+leaves the media pending. If a surviving staged playback video repairs an
+existing scan and satisfies the job's required video count, the job is marked
+`complete`. If media is abandoned after the TTL without a scan row, the job is
+marked `failed_terminal` with a reconciliation stage for operator review.
 
 ### `user_blocks`
 

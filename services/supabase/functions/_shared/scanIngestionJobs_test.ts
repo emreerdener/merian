@@ -3,6 +3,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   scanIngestionClientState,
   type ScanIngestionJobRow,
+  scanIngestionManifestChecksum,
   scanIngestionMediaObjectKeys,
 } from "./scanIngestionJobs.ts";
 
@@ -20,6 +21,7 @@ function jobRow(
     media_counts: {},
     media_object_keys: {},
     upload_session_ids: [],
+    manifest_checksum: null,
     locked_at: null,
     lock_expires_at: null,
     retry_after: null,
@@ -44,6 +46,46 @@ Deno.test("scanIngestionMediaObjectKeys deduplicates and trims staged key arrays
       video: ["staging/user/a.mp4"],
     },
   );
+});
+
+Deno.test("scanIngestionManifestChecksum is stable across object-key and session noise", async () => {
+  const lhs = await scanIngestionManifestChecksum({
+    mediaCounts: {
+      image_count: 5,
+      audio_count: 1,
+      video_count: 1,
+      required_video_count: 1,
+      video_frame_count: 5,
+      video_inference_frame_count: 5,
+      has_description: false,
+    },
+    mediaObjectKeys: {
+      image: [" staging/user/frame.webp ", "staging/user/frame.webp"],
+      audio: ["staging/user/audio.wav"],
+      video: ["staging/user/video.mp4"],
+    },
+    uploadSessionIds: ["session-b", " session-a ", "session-a"],
+  });
+  const rhs = await scanIngestionManifestChecksum({
+    mediaCounts: {
+      has_description: false,
+      video_inference_frame_count: 5,
+      video_frame_count: 5,
+      required_video_count: 1,
+      video_count: 1,
+      audio_count: 1,
+      image_count: 5,
+    },
+    mediaObjectKeys: {
+      image: ["staging/user/frame.webp"],
+      audio: ["staging/user/audio.wav"],
+      video: ["staging/user/video.mp4"],
+    },
+    uploadSessionIds: ["session-a", "session-b"],
+  });
+
+  assertEquals(lhs, rhs);
+  assertEquals(lhs.length, 64);
 });
 
 Deno.test("scanIngestionClientState hides last_error until the job is failed", () => {

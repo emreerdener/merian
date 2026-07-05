@@ -21,4 +21,7 @@ signs the temporary staging upload. The durable object is created later under
 Avatar and other non-scan uploads omit `clientScanId`, so the response does not
 include `mediaAssetId` or `mediaSessionId`. Scan uploads include those optional
 response fields and `identify-multimodal` later moves the staged rows to
-`promoted`, `deleted`, or `failed`.
+`promoted`, `deleted`, or `failed`. During ingestion, the server recovers the
+matching upload-session ids from `scan_media_assets` for the submitted staged
+object keys and records them in `scan_ingestion_jobs`; they are part of the
+manifest checksum used by retry, status, and reconciliation paths.

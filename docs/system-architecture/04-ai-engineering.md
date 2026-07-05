@@ -774,13 +774,17 @@ or audio attached:
   and that the total base64 byte length does not exceed 7 MB (≈ 5 MB raw).
   Requests violating either bound are rejected with `HTTP 400` / `HTTP 413`
   before any I/O runs, protecting Deno memory and Gemini quota.
-- **Background Ingestion Dead-Letter Logging**: The `runBackground` task that
-  handles moderation, enrichment, and Postgres UPSERTs wraps its work in a
-  structured `try/catch`. On failure, a JSON-structured log line is emitted via
-  `console.error` including `event`, `user_id`, `scan_id`, `error`, and `ts`
-  fields. This replaces the previous silent swallow of background errors and
-  makes failures observable in Supabase Edge Function logs without exposing
-  internals to the client.
+- **Background Ingestion Ledger and Dead-Letter Logging**: The `runBackground`
+  task that handles moderation, enrichment, and Postgres UPSERTs wraps its work
+  in a structured `try/catch`. Before that work begins, `identify-multimodal`
+  claims `scan_ingestion_jobs` with expected media counts, staged object keys,
+  recovered upload-session ids, and a deterministic `manifest_checksum`; stage
+  updates then expose processing, finalizing, retryable, terminal, and complete
+  states to `/check-scan-status` and the media reconciliation worker. On failure,
+  a JSON-structured log line is emitted via `console.error` including `event`,
+  `user_id`, `scan_id`, `error`, and `ts` fields. This replaces the previous
+  silent swallow of background errors and makes failures observable in Supabase
+  Edge Function logs without exposing internals to the client.
 - **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client
   (from `@google/genai@1.0.0`) is instantiated once at module scope (`_genAI`)
   in `_shared/gemini.ts` and imported by `identify`, `enrich-scan`, and

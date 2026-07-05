@@ -182,6 +182,13 @@ offline queue remains responsible for retrying scans that never reached
 `identify-multimodal`, using persisted V48 `OfflineJobRecord` retry windows
 rather than process-local counters.
 
+The worker now reads `scan_ingestion_jobs` before deciding whether stale media is
+truly abandoned. Active `processing` / `finalizing` leases and future
+`retry_after` windows keep media pending; repaired existing scans can mark the
+job `complete` once the required video count and captured-media manifest match;
+media abandoned after the TTL marks the job `failed_terminal` so status polling
+and health checks have one server-authoritative reason.
+
 ## Scan Media Health (`scan-media-health`)
 
 The `scan-media-health` Edge Function is an internal service-role read path for
@@ -654,7 +661,11 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    Upload-session rows created by `/generate-upload-urls` are linked to the scan
    during this finalization step: promoted visual/video rows become `promoted`,
    consumed audio rows become `deleted`, and failed finalization leaves a
-   retryable `failed` trail.
+   retryable `failed` trail. Before AI inference starts, the same request claims
+   `scan_ingestion_jobs` with expected media counts, staged object keys,
+   recovered upload-session ids, and a normalized `manifest_checksum`; that job
+   row is the server-side source of truth for status polling, retry ownership,
+   and later media reconciliation.
    The `scan_media_assets` lifecycle table is refreshed by the database trigger
    plus a best-effort Edge refresh call, so newer media readers can use ready
    display/playback rows instead of inferring user-visible media from

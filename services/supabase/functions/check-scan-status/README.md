@@ -87,6 +87,9 @@ Bulk responses include the probed scan id on each result:
 - `status` remains compatibility-only (`found` or `not_found`). When the scan
   row is not yet complete, optional job fields come from `scan_ingestion_jobs`
   and expose owner-safe processing/finalization/retry state.
+- The response intentionally does not expose `media_object_keys`,
+  `upload_session_ids`, or `manifest_checksum`; those remain server/operator
+  diagnostics for tying retries and reconciliation back to the staged media set.
 - The endpoint is read-only.
 
 ## Local Verification

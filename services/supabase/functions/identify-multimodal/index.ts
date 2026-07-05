@@ -58,10 +58,12 @@ import {
 import {
   claimScanIngestionJob,
   type ScanIngestionJobStatus,
+  scanIngestionManifestChecksum,
   scanIngestionMediaObjectKeys,
   updateScanIngestionJob,
 } from "../_shared/scanIngestionJobs.ts";
 import {
+  fetchCaptureUploadSessionIdsForKeys,
   markStagedScanMediaAssetsDeleted,
   markStagedScanMediaAssetsFailed,
   markStagedScanMediaAssetsPromoted,
@@ -742,27 +744,59 @@ Deno.serve((req: Request) =>
       }, 400);
     }
 
+    const mediaCounts = {
+      image_count: mediaTelemetry.imageCount,
+      audio_count: processedAudios.length,
+      video_count: mediaTelemetry.videoClipCount,
+      required_video_count: videoR2ObjectKeys.length,
+      video_frame_count: mediaTelemetry.declaredVideoFrameCount,
+      video_inference_frame_count: mediaTelemetry.videoInferenceFrameCount,
+      has_description: hasObservationContextText,
+    };
+    const mediaObjectKeys = scanIngestionMediaObjectKeys({
+      imageKeys: r2ObjectKeys,
+      audioKeys: audioR2ObjectKeys,
+      videoKeys: videoR2ObjectKeys,
+    });
+
+    let uploadSessionIds: string[] = [];
+    try {
+      uploadSessionIds = await fetchCaptureUploadSessionIdsForKeys(
+        {
+          userId: user.id,
+          clientScanId: generatedScanId,
+          storageKeys: [
+            ...mediaObjectKeys.image,
+            ...mediaObjectKeys.audio,
+            ...mediaObjectKeys.video,
+          ],
+        },
+        supabaseAdmin,
+      );
+    } catch (error) {
+      logStructuredError("multimodal/upload_session_lookup_failed", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    const manifestChecksum = await scanIngestionManifestChecksum({
+      mediaCounts,
+      mediaObjectKeys,
+      uploadSessionIds,
+    });
+
     try {
       await claimScanIngestionJob(
         {
           scanId: generatedScanId,
           userId: user.id,
           endpoint: "identify-multimodal",
-          mediaCounts: {
-            image_count: mediaTelemetry.imageCount,
-            audio_count: processedAudios.length,
-            video_count: mediaTelemetry.videoClipCount,
-            required_video_count: videoR2ObjectKeys.length,
-            video_frame_count: mediaTelemetry.declaredVideoFrameCount,
-            video_inference_frame_count:
-              mediaTelemetry.videoInferenceFrameCount,
-            has_description: hasObservationContextText,
-          },
-          mediaObjectKeys: scanIngestionMediaObjectKeys({
-            imageKeys: r2ObjectKeys,
-            audioKeys: audioR2ObjectKeys,
-            videoKeys: videoR2ObjectKeys,
-          }),
+          mediaCounts,
+          mediaObjectKeys,
+          uploadSessionIds,
+          manifestChecksum,
           leaseSeconds: 300,
         },
         supabaseAdmin,

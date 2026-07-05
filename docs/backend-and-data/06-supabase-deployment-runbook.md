@@ -122,8 +122,13 @@ run means the endpoint returned `critical` or the monitor could not reach the
 service-role endpoint. Start triage from the issue code:
 
 - `stuck_ingestion_jobs`: inspect `scan_ingestion_jobs.stage`,
-  `lock_expires_at`, and `last_error`; retryable rows should be retried by the
-  client/server queue, while expired active rows may need operator replay.
+  `lock_expires_at`, `retry_after`, `manifest_checksum`, `upload_session_ids`,
+  and `last_error`; retryable rows should be retried by the client/server queue,
+  while expired active rows may need operator replay. If the stuck job still has
+  staged `scan_media_assets`, `reconcile-scan-media-assets` will keep those
+  rows pending while the lease or retry window is active, mark the job complete
+  after a successful media repair, or mark it `failed_terminal` after the
+  abandonment TTL.
 - `video_scan_missing_captured_media_video`: inspect the scan's
   `video_storage_urls`, `captured_media`, and ready playback
   `scan_media_assets`; repair should go through `reconcile-scan-media-assets`

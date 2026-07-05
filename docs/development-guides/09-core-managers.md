@@ -423,9 +423,12 @@ triggering excessive SwiftUI view rebuilds.
   deleted, `processing` / `finalizing` / `retrying` server jobs keep the local
   row in `.inferencing` and schedule another poll, `failed_retryable` respects
   the server `retry_after` before retreating to `.staged`, and terminal failures
-  mark the queue row as needing attention. This keeps video playback
-  finalization from being mistaken for a local inference failure after app
-  suspension or restart.
+  mark the queue row as needing attention. The server job was claimed with the
+  same media counts, staged object keys, upload-session ids, and manifest
+  checksum that the queue submitted, so local replay waits for the authoritative
+  ingestion attempt instead of guessing from process-local retry state. This
+  keeps video playback finalization from being mistaken for a local inference
+  failure after app suspension or restart.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5),
   `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (5),
   `mediaStagingMaxAudioFilesPerRequest` (2), `stagedImagePayloadMaxBytes` (5
@@ -441,8 +444,10 @@ triggering excessive SwiftUI view rebuilds.
   session rows for scan uploads. Swift and Deno tests both load
   `docs/contracts/media-staging-upload-manifest.json` to catch drift in limits,
   allowed content types, and optional session fields. This prevents upload
-  completion, replay, request
-  construction, and Edge signing from reconstructing object keys differently.
+  completion, replay, request construction, and Edge signing from reconstructing
+  object keys differently. The server later recovers those upload-session ids
+  from `scan_media_assets` and includes them in the ingestion-job manifest
+  checksum.
 - **Concurrent upload staging (`withTaskGroup`)**: File copy and
   `URLSession.uploadTask` creation for each image in a batch are fanned out via
   `withTaskGroup`. Pre-flight guards (URL validation, file existence,

@@ -8,7 +8,11 @@ import {
   buildRepairedVideoCapturedMedia,
   reconcileScanMediaAssets,
 } from "./worker.ts";
-import type { ReconciliationAssetRow, ReconciliationScanRow } from "./db.ts";
+import type {
+  ReconciliationAssetRow,
+  ReconciliationJobRow,
+  ReconciliationScanRow,
+} from "./db.ts";
 
 const NOW = new Date("2026-07-05T12:00:00.000Z");
 const R2_CONFIG = {
@@ -60,6 +64,21 @@ function scanRow(
   };
 }
 
+function jobRow(
+  overrides: Partial<ReconciliationJobRow> = {},
+): ReconciliationJobRow {
+  return {
+    scan_id: "00000000-0000-0000-0000-000000000001",
+    user_id: "user-1",
+    status: "failed_retryable",
+    stage: "video_promotion_failed",
+    media_counts: { required_video_count: 1 },
+    lock_expires_at: null,
+    retry_after: null,
+    ...overrides,
+  };
+}
+
 function noopRecordRun() {
   return Promise.resolve();
 }
@@ -101,6 +120,7 @@ Deno.test("reconcileScanMediaAssets repairs an existing scan with a stranded pla
     r2Config: R2_CONFIG,
     fetchAssets: () => Promise.resolve([stagedAsset()]),
     fetchScans: () => Promise.resolve([scanRow()]),
+    fetchJobs: () => Promise.resolve([]),
     headObject: () => Promise.resolve(new Response(null, { status: 200 })),
     promoteMedia: (input) => {
       promotedInputs.push(input);
@@ -152,6 +172,7 @@ Deno.test("reconcileScanMediaAssets garbage-collects abandoned staged uploads", 
         stagedAsset({ created_at: "2026-07-03T23:00:00.000Z" }),
       ]),
     fetchScans: () => Promise.resolve([]),
+    fetchJobs: () => Promise.resolve([]),
     headObject: () => Promise.resolve(new Response(null, { status: 200 })),
     deleteObject: (key) => {
       deletedKeys.push(key);
@@ -186,6 +207,7 @@ Deno.test("reconcileScanMediaAssets leaves recent orphan uploads for client retr
     r2Config: R2_CONFIG,
     fetchAssets: () => Promise.resolve([stagedAsset()]),
     fetchScans: () => Promise.resolve([]),
+    fetchJobs: () => Promise.resolve([]),
     headObject: () => {
       headCalled = true;
       return Promise.resolve(new Response(null, { status: 200 }));
@@ -220,6 +242,7 @@ Deno.test("reconcileScanMediaAssets deletes consumed audio staging when the scan
         }),
       ]),
     fetchScans: () => Promise.resolve([scanRow()]),
+    fetchJobs: () => Promise.resolve([]),
     deleteObject: (key) => {
       deletedKeys.push(key);
       return Promise.resolve(new Response(null, { status: 204 }));
@@ -237,5 +260,146 @@ Deno.test("reconcileScanMediaAssets deletes consumed audio staging when the scan
   assertEquals(deletedAssets, [{
     assetId: "audio-asset",
     scanId: "00000000-0000-0000-0000-000000000001",
+  }]);
+});
+
+Deno.test("reconcileScanMediaAssets waits when an ingestion job still owns pending media", async () => {
+  let headCalled = false;
+
+  const result = await reconcileScanMediaAssets({} as never, {
+    now: NOW,
+    repairAfterMinutes: 15,
+    abandonAfterHours: 36,
+  }, {
+    r2Config: R2_CONFIG,
+    fetchAssets: () =>
+      Promise.resolve([
+        stagedAsset({ created_at: "2026-07-03T23:00:00.000Z" }),
+      ]),
+    fetchScans: () => Promise.resolve([]),
+    fetchJobs: () =>
+      Promise.resolve([
+        jobRow({
+          status: "finalizing",
+          stage: "video_promotion_started",
+          lock_expires_at: "2026-07-05T12:03:00.000Z",
+        }),
+      ]),
+    headObject: () => {
+      headCalled = true;
+      return Promise.resolve(new Response(null, { status: 200 }));
+    },
+    recordRun: noopRecordRun,
+  });
+
+  assertEquals(result.scanned, 1);
+  assertEquals(result.stillPending, 1);
+  assertEquals(result.failedAssets, 0);
+  assert(!headCalled);
+});
+
+Deno.test("reconcileScanMediaAssets does not let another user's job hold media", async () => {
+  let headCalled = false;
+
+  const result = await reconcileScanMediaAssets({} as never, {
+    now: NOW,
+    repairAfterMinutes: 15,
+    abandonAfterHours: 36,
+  }, {
+    r2Config: R2_CONFIG,
+    fetchAssets: () =>
+      Promise.resolve([
+        stagedAsset({ created_at: "2026-07-03T23:00:00.000Z" }),
+      ]),
+    fetchScans: () => Promise.resolve([]),
+    fetchJobs: () =>
+      Promise.resolve([
+        jobRow({
+          user_id: "user-2",
+          status: "finalizing",
+          stage: "video_promotion_started",
+          lock_expires_at: "2026-07-05T12:03:00.000Z",
+        }),
+      ]),
+    headObject: () => {
+      headCalled = true;
+      return Promise.resolve(new Response(null, { status: 404 }));
+    },
+    markFailed: () => Promise.resolve(),
+    recordRun: noopRecordRun,
+  });
+
+  assertEquals(result.scanned, 1);
+  assertEquals(result.stillPending, 0);
+  assertEquals(result.failedAssets, 1);
+  assert(headCalled);
+});
+
+Deno.test("reconcileScanMediaAssets marks abandoned ingestion jobs terminal", async () => {
+  const failedJobs: unknown[] = [];
+
+  const result = await reconcileScanMediaAssets({} as never, {
+    now: NOW,
+    repairAfterMinutes: 15,
+    abandonAfterHours: 36,
+  }, {
+    r2Config: R2_CONFIG,
+    fetchAssets: () =>
+      Promise.resolve([
+        stagedAsset({ created_at: "2026-07-03T23:00:00.000Z" }),
+      ]),
+    fetchScans: () => Promise.resolve([]),
+    fetchJobs: () => Promise.resolve([jobRow()]),
+    headObject: () => Promise.resolve(new Response(null, { status: 404 })),
+    markFailed: () => Promise.resolve(),
+    markJobFailed: (scanId, userId, failureReason) => {
+      failedJobs.push({ scanId, userId, failureReason });
+      return Promise.resolve();
+    },
+    recordRun: noopRecordRun,
+  });
+
+  assertEquals(result.scanned, 1);
+  assertEquals(result.failedAssets, 1);
+  assertEquals(result.missingObjects, 1);
+  assertEquals(failedJobs, [{
+    scanId: "00000000-0000-0000-0000-000000000001",
+    userId: "user-1",
+    failureReason: "scan_missing_after_media_ttl",
+  }]);
+});
+
+Deno.test("reconcileScanMediaAssets marks repaired complete jobs complete", async () => {
+  const completedJobs: unknown[] = [];
+
+  const result = await reconcileScanMediaAssets({} as never, {
+    now: NOW,
+    repairAfterMinutes: 15,
+    abandonAfterHours: 36,
+  }, {
+    r2Config: R2_CONFIG,
+    fetchAssets: () => Promise.resolve([stagedAsset()]),
+    fetchScans: () => Promise.resolve([scanRow()]),
+    fetchJobs: () => Promise.resolve([jobRow()]),
+    headObject: () => Promise.resolve(new Response(null, { status: 200 })),
+    promoteMedia: () =>
+      Promise.resolve([
+        "https://media.merian.app/public_uploads/pro/user-1/video.mp4",
+      ]),
+    updateScanMedia: () => Promise.resolve(),
+    markPromoted: () => Promise.resolve(),
+    refreshAssets: () => Promise.resolve(),
+    markJobComplete: (scanId, userId) => {
+      completedJobs.push({ scanId, userId });
+      return Promise.resolve();
+    },
+    recordRun: noopRecordRun,
+  });
+
+  assertEquals(result.scanned, 1);
+  assertEquals(result.repairedVideoScans, 1);
+  assertEquals(completedJobs, [{
+    scanId: "00000000-0000-0000-0000-000000000001",
+    userId: "user-1",
   }]);
 });

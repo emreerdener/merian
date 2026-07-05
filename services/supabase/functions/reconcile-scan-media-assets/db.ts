@@ -32,6 +32,16 @@ export interface ReconciliationScanRow {
   inference_tier: string | null;
 }
 
+export interface ReconciliationJobRow {
+  scan_id: string;
+  user_id: string;
+  status: string;
+  stage: string;
+  media_counts: Record<string, unknown> | null;
+  lock_expires_at: string | null;
+  retry_after: string | null;
+}
+
 export interface ReconciliationRunInsert {
   started_at: string;
   finished_at: string;
@@ -107,6 +117,77 @@ export async function fetchReconciliationScans(
   }
 
   return (data ?? []) as unknown as ReconciliationScanRow[];
+}
+
+export async function fetchReconciliationJobs(
+  scanIds: string[],
+  supabaseAdmin: SupabaseClient,
+): Promise<ReconciliationJobRow[]> {
+  const uniqueScanIds = [...new Set(scanIds.map((id) => id.trim()))].filter((
+    id,
+  ) => id.length > 0);
+  if (uniqueScanIds.length === 0) return [];
+
+  const { data, error } = await supabaseAdmin
+    .from("scan_ingestion_jobs")
+    .select(
+      "scan_id,user_id,status,stage,media_counts,lock_expires_at,retry_after",
+    )
+    .in("scan_id", uniqueScanIds);
+
+  if (error) {
+    throw new Error(`fetchReconciliationJobs: ${error.message}`);
+  }
+
+  return (data ?? []) as unknown as ReconciliationJobRow[];
+}
+
+export async function markReconciliationJobComplete(
+  scanId: string,
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("scan_ingestion_jobs")
+    .update({
+      status: "complete",
+      stage: "media_reconciliation_complete",
+      retry_after: null,
+      last_error: null,
+      completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("scan_id", scanId)
+    .eq("user_id", userId)
+    .neq("status", "complete");
+
+  if (error) {
+    throw new Error(`markReconciliationJobComplete: ${error.message}`);
+  }
+}
+
+export async function markReconciliationJobFailed(
+  scanId: string,
+  userId: string,
+  failureReason: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("scan_ingestion_jobs")
+    .update({
+      status: "failed_terminal",
+      stage: "media_reconciliation_abandoned",
+      retry_after: null,
+      last_error: failureReason.slice(0, 500),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("scan_id", scanId)
+    .eq("user_id", userId)
+    .neq("status", "complete");
+
+  if (error) {
+    throw new Error(`markReconciliationJobFailed: ${error.message}`);
+  }
 }
 
 export async function markCaptureUploadAssetPromoted(

@@ -204,6 +204,39 @@ export async function createStagedScanMediaAssets(
   return (data ?? []) as StagedScanMediaAssetRow[];
 }
 
+export async function fetchCaptureUploadSessionIdsForKeys(
+  input: {
+    userId: string;
+    clientScanId: string;
+    storageKeys: string[];
+  },
+  supabaseAdmin: SupabaseClient,
+): Promise<string[]> {
+  const uniqueKeys = [...new Set(input.storageKeys.map((key) => key.trim()))]
+    .filter((key) => key.length > 0);
+  if (uniqueKeys.length === 0) return [];
+
+  const { data, error } = await supabaseAdmin
+    .from("scan_media_assets")
+    .select("upload_session_id")
+    .eq("user_id", input.userId)
+    .eq("client_scan_id", input.clientScanId)
+    .eq("source", "capture_upload")
+    .in("storage_key", uniqueKeys);
+
+  if (error) {
+    throw new Error(`fetchCaptureUploadSessionIdsForKeys: ${error.message}`);
+  }
+
+  return [
+    ...new Set(
+      ((data ?? []) as Array<{ upload_session_id?: string | null }>)
+        .map((row) => row.upload_session_id?.trim() ?? "")
+        .filter((id) => id.length > 0),
+    ),
+  ].sort();
+}
+
 export async function markStagedScanMediaAssetsPromoted(
   input: {
     userId: string;

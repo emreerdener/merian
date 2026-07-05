@@ -492,6 +492,16 @@ exclusion, raw-image-access system instruction, supported action parsing,
 message caps, deterministic safety refusals, and the `suggest_prompts` action's
 safe three-prompt JSON contract.
 
+Media-ingestion durability has focused Deno coverage as well:
+`_shared/scanIngestionJobs_test.ts` locks client-safe job-state projection and
+the deterministic manifest checksum; `reconcile-scan-media-assets/worker_test.ts`
+covers video repair, abandoned media cleanup, active-job waiting, ownership
+matching by user plus scan id, and job completion/failure feedback; and
+`_tests/migrationMediaContract.test.ts` checks the scan-media, reconciliation,
+ingestion-job, and manifest-checksum migrations. Run the migration contract test
+with `--allow-read=services/supabase/migrations` because it reads SQL files
+directly.
+
 ### `validate_edge_dtos.ts`
 
 - **AST Protection**: Before every production Edge rollout, AI Agents and

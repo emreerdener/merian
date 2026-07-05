@@ -184,3 +184,25 @@ Deno.test("scan_ingestion_jobs migration declares the status ledger used by clie
     assertStringIncludes(sql, fragment);
   }
 });
+
+Deno.test("scan_ingestion_jobs manifest migration extends claim contract", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260705130000_extend_scan_ingestion_jobs_media_manifest.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "ADD COLUMN IF NOT EXISTS manifest_checksum TEXT",
+      "CREATE INDEX IF NOT EXISTS idx_scan_ingestion_jobs_manifest_checksum",
+      "DROP FUNCTION IF EXISTS public.claim_scan_ingestion_job",
+      "p_manifest_checksum TEXT DEFAULT NULL",
+      "manifest_checksum = COALESCE(EXCLUDED.manifest_checksum, public.scan_ingestion_jobs.manifest_checksum)",
+      "GRANT EXECUTE ON FUNCTION public.claim_scan_ingestion_job",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});

@@ -16,6 +16,10 @@ Service-role worker for staged scan-media upload-session reconciliation.
     playable video item.
 - If no scan row exists after the abandonment TTL, deletes any remaining staging
   object and marks the asset failed for audit.
+- Checks `scan_ingestion_jobs` before abandoning orphaned staged media:
+  active leases and future `retry_after` windows keep media pending, repaired
+  scans can mark their job complete once required video media exists, and
+  TTL-abandoned media marks the job `failed_terminal`.
 - Writes summary rows to `scan_media_reconciliation_runs` and logs structured
   completion counts.
 
@@ -41,5 +45,6 @@ Optional POST body:
 ```
 
 The worker deliberately does not replay AI inference. It only finalizes existing
-scan rows or cleans abandoned staging artifacts; the iOS offline queue remains
-the source of truth for retrying scans that never reached inference.
+scan rows, updates the ingestion-job ledger around media repair/abandonment, or
+cleans abandoned staging artifacts; the iOS offline queue remains the source of
+truth for retrying scans that never reached inference.

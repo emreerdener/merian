@@ -9,12 +9,16 @@ import {
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { refreshScanMediaAssets } from "../_shared/scanMediaAssets.ts";
 import {
+  fetchReconciliationJobs,
   fetchReconciliationScans,
   fetchStaleCaptureUploadAssets,
   markCaptureUploadAssetDeleted,
   markCaptureUploadAssetFailed,
   markCaptureUploadAssetPromoted,
+  markReconciliationJobComplete,
+  markReconciliationJobFailed,
   type ReconciliationAssetRow,
+  type ReconciliationJobRow,
   type ReconciliationRunInsert,
   type ReconciliationScanRow,
   recordScanMediaReconciliationRun,
@@ -52,6 +56,7 @@ export interface ReconcileScanMediaAssetsResult {
 interface ReconcileDependencies {
   fetchAssets?: typeof fetchStaleCaptureUploadAssets;
   fetchScans?: typeof fetchReconciliationScans;
+  fetchJobs?: typeof fetchReconciliationJobs;
   headObject?: typeof headR2Object;
   deleteObject?: typeof deleteR2Object;
   promoteMedia?: typeof promoteSafeMedia;
@@ -60,6 +65,8 @@ interface ReconcileDependencies {
   markFailed?: typeof markCaptureUploadAssetFailed;
   updateScanMedia?: typeof updateScanVideoMedia;
   refreshAssets?: typeof refreshScanMediaAssets;
+  markJobComplete?: typeof markReconciliationJobComplete;
+  markJobFailed?: typeof markReconciliationJobFailed;
   recordRun?: typeof recordScanMediaReconciliationRun;
   r2Config?: ReturnType<typeof getR2Config>;
 }
@@ -124,6 +131,68 @@ function hasManifestVideo(value: unknown[] | null | undefined): boolean {
     !Array.isArray(entry) &&
     Object.hasOwn(entry as Record<string, unknown>, "video")
   );
+}
+
+function capturedManifestVideoCount(
+  value: unknown[] | null | undefined,
+): number {
+  if (!Array.isArray(value)) return 0;
+  return value.filter((entry) =>
+    entry != null &&
+    typeof entry === "object" &&
+    !Array.isArray(entry) &&
+    Object.hasOwn(entry as Record<string, unknown>, "video")
+  ).length;
+}
+
+function requiredVideoCount(job: ReconciliationJobRow | undefined): number {
+  const value = job?.media_counts?.required_video_count;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.trunc(value)
+    : 0;
+}
+
+function scanSatisfiesJobMedia(
+  scan: ReconciliationScanRow,
+  job: ReconciliationJobRow | undefined,
+): boolean {
+  const requiredVideos = requiredVideoCount(job);
+  if (requiredVideos <= 0) return true;
+  return cleanUrls(scan.video_storage_urls).length >= requiredVideos &&
+    capturedManifestVideoCount(scan.captured_media) >= requiredVideos;
+}
+
+function timeValue(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function jobStillOwnsPendingMedia(
+  job: ReconciliationJobRow | undefined,
+  now: Date,
+): boolean {
+  if (!job) return false;
+  const nowMs = now.getTime();
+  if (job.status === "processing" || job.status === "finalizing") {
+    const lockExpiresAt = timeValue(job.lock_expires_at);
+    return lockExpiresAt != null && lockExpiresAt > nowMs;
+  }
+  if (job.status === "retrying" || job.status === "failed_retryable") {
+    const retryAfter = timeValue(job.retry_after);
+    return retryAfter != null && retryAfter > nowMs;
+  }
+  return false;
+}
+
+function jobMapKey(scanId: string, userId: string): string {
+  return `${userId}:${scanId}`;
+}
+
+function jobMapByScanIdAndUser(
+  jobs: ReconciliationJobRow[],
+): Map<string, ReconciliationJobRow> {
+  return new Map(jobs.map((job) => [jobMapKey(job.scan_id, job.user_id), job]));
 }
 
 export function buildRepairedVideoCapturedMedia(
@@ -487,6 +556,7 @@ export async function reconcileScanMediaAssets(
   const fetchAssets = dependencies.fetchAssets ??
     fetchStaleCaptureUploadAssets;
   const fetchScans = dependencies.fetchScans ?? fetchReconciliationScans;
+  const fetchJobs = dependencies.fetchJobs ?? fetchReconciliationJobs;
   const headObject = dependencies.headObject ?? headR2Object;
   const deleteObject = dependencies.deleteObject ?? deleteR2Object;
   const promoteMedia = dependencies.promoteMedia ?? promoteSafeMedia;
@@ -496,6 +566,10 @@ export async function reconcileScanMediaAssets(
   const markFailed = dependencies.markFailed ?? markCaptureUploadAssetFailed;
   const updateScanMedia = dependencies.updateScanMedia ?? updateScanVideoMedia;
   const refreshAssets = dependencies.refreshAssets ?? refreshScanMediaAssets;
+  const markJobComplete = dependencies.markJobComplete ??
+    markReconciliationJobComplete;
+  const markJobFailed = dependencies.markJobFailed ??
+    markReconciliationJobFailed;
   const recordRun = dependencies.recordRun ?? recordScanMediaReconciliationRun;
   const r2Config = dependencies.r2Config ?? getR2Config();
 
@@ -514,10 +588,16 @@ export async function reconcileScanMediaAssets(
     id,
   ) => id.length > 0);
   const scansById = scanMapById(await fetchScans(scanIds, supabaseAdmin));
+  const jobsByScanIdAndUser = jobMapByScanIdAndUser(
+    await fetchJobs(scanIds, supabaseAdmin),
+  );
 
   for (const asset of assets) {
     const scan = asset.client_scan_id
       ? scansById.get(asset.client_scan_id)
+      : undefined;
+    const job = asset.client_scan_id
+      ? jobsByScanIdAndUser.get(jobMapKey(asset.client_scan_id, asset.user_id))
       : undefined;
     const createdAt = new Date(asset.created_at);
     const isAbandoned = Number.isFinite(createdAt.getTime()) &&
@@ -544,6 +624,19 @@ export async function reconcileScanMediaAssets(
           },
         );
         scansById.set(updatedScan.id, updatedScan);
+        if (
+          !dryRun &&
+          job &&
+          scanSatisfiesJobMedia(updatedScan, job)
+        ) {
+          await markJobComplete(
+            updatedScan.id,
+            updatedScan.user_id,
+            supabaseAdmin,
+          );
+        }
+      } else if (jobStillOwnsPendingMedia(job, startedAt)) {
+        result.stillPending++;
       } else if (isAbandoned) {
         await reconcileAbandonedAsset(asset, result, supabaseAdmin, {
           dryRun,
@@ -552,6 +645,14 @@ export async function reconcileScanMediaAssets(
           deleteObject,
           markFailed,
         });
+        if (!dryRun && job && asset.client_scan_id) {
+          await markJobFailed(
+            asset.client_scan_id,
+            asset.user_id,
+            "scan_missing_after_media_ttl",
+            supabaseAdmin,
+          );
+        }
       } else {
         result.stillPending++;
       }
