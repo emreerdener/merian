@@ -423,6 +423,223 @@ struct MigrationPlanTests {
         }
     }
 
+    @Test func recentRetiredSchemasUseFrozenModelReferences() throws {
+        let source = try schemaVersionsSource()
+        let retiredSchemaNames = ["MerianSchemaV44", "MerianSchemaV45", "MerianSchemaV46"]
+        let forbiddenModelReferences = [
+            "LocalScanRecord.self",
+            "OfflineQueuedScan.self",
+            "CapturedMediaEntry.self",
+            "ScanCollection.self"
+        ]
+        var currentSchemaName: String?
+        var violations: [String] = []
+
+        for (index, sourceLine) in source.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+            let line = String(sourceLine)
+            if let schemaName = retiredSchemaNames.first(where: { line.contains("enum \($0): VersionedSchema") }) {
+                currentSchemaName = schemaName
+            } else if line.contains("enum MerianSchemaV47: VersionedSchema") {
+                currentSchemaName = nil
+            }
+
+            guard let currentSchemaName else { continue }
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            for forbiddenReference in forbiddenModelReferences where trimmedLine.contains(forbiddenReference) {
+                let qualifiedReference = "\(currentSchemaName).\(forbiddenReference)"
+                if !trimmedLine.contains(qualifiedReference) {
+                    violations.append("SchemaVersions.swift:\(index + 1): \(trimmedLine)")
+                }
+            }
+        }
+
+        #expect(
+            violations.isEmpty,
+            "Recent retired schemas must reference schema-scoped frozen models, not active globals:\n\(violations.joined(separator: "\n"))"
+        )
+    }
+
+    @Test func migrationFromV44ToCurrentSchemaDoesNotSafeMode() throws {
+        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v44migration_test.sqlite")
+        defer { removeSQLiteStore(at: url) }
+
+        let scanId = "v44-current-migration-scan"
+
+        do {
+            let schema44 = Schema(versionedSchema: MerianSchemaV44.self)
+            let config44 = ModelConfiguration(schema: schema44, url: url)
+            let container44 = try ModelContainer(for: schema44, configurations: [config44])
+            let context44 = ModelContext(container44)
+            let record = MerianSchemaV44.LocalScanRecord(
+                id: scanId,
+                speciesId: "v44-species",
+                scientificName: "Danaus plexippus",
+                commonName: "Monarch",
+                isBiological: true,
+                isLiveCapture: true,
+                isInvasive: false,
+                ecologyType: "wild",
+                fieldNotes: "created before invasive status fields"
+            )
+            context44.insert(record)
+            try context44.save()
+        }
+
+        do {
+            let currentSchema = Schema(versionedSchema: CurrentSchema.self)
+            let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
+            let currentContainer = try ModelContainer(
+                for: currentSchema,
+                migrationPlan: MerianMigrationPlan.self,
+                configurations: [currentConfig]
+            )
+            let currentContext = ModelContext(currentContainer)
+            var descriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            descriptor.fetchLimit = 1
+            let migratedRecord = try #require(currentContext.fetch(descriptor).first)
+            #expect(migratedRecord.scientificName == "Danaus plexippus")
+            #expect(migratedRecord.invasiveStatusRegion == nil)
+            #expect(migratedRecord.fieldNotes == "created before invasive status fields")
+        }
+    }
+
+    @Test func migrationFromV45ToCurrentSchemaDoesNotSafeMode() throws {
+        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v45migration_test.sqlite")
+        defer { removeSQLiteStore(at: url) }
+
+        let scanId = "v45-current-migration-scan"
+        let queuedId = "v45-current-migration-queued"
+
+        do {
+            let schema45 = Schema(versionedSchema: MerianSchemaV45.self)
+            let config45 = ModelConfiguration(schema: schema45, url: url)
+            let container45 = try ModelContainer(for: schema45, configurations: [config45])
+            let context45 = ModelContext(container45)
+            let record = MerianSchemaV45.LocalScanRecord(
+                id: scanId,
+                speciesId: "v45-species",
+                scientificName: "Ailanthus altissima",
+                commonName: "Tree of Heaven",
+                isBiological: true,
+                isLiveCapture: true,
+                isInvasive: true,
+                invasiveStatusRegion: "North America",
+                invasiveRationale: "test rationale",
+                invasiveConfidence: 0.94,
+                ecologyType: "wild"
+            )
+            let queuedScan = MerianSchemaV45.OfflineQueuedScan(
+                id: queuedId,
+                stagedR2Keys: ["queued/v45/image.webp"],
+                fieldNotes: "queued before inference replay fields"
+            )
+            context45.insert(record)
+            context45.insert(queuedScan)
+            try context45.save()
+        }
+
+        do {
+            let currentSchema = Schema(versionedSchema: CurrentSchema.self)
+            let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
+            let currentContainer = try ModelContainer(
+                for: currentSchema,
+                migrationPlan: MerianMigrationPlan.self,
+                configurations: [currentConfig]
+            )
+            let currentContext = ModelContext(currentContainer)
+
+            var scanDescriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            scanDescriptor.fetchLimit = 1
+            let migratedRecord = try #require(currentContext.fetch(scanDescriptor).first)
+            #expect(migratedRecord.invasiveStatusRegion == "North America")
+            #expect(migratedRecord.invasiveRationale == "test rationale")
+            #expect(migratedRecord.invasiveConfidence == 0.94)
+
+            var queuedDescriptor = FetchDescriptor<OfflineQueuedScan>(
+                predicate: #Predicate { $0.id == queuedId }
+            )
+            queuedDescriptor.fetchLimit = 1
+            let migratedQueuedScan = try #require(currentContext.fetch(queuedDescriptor).first)
+            #expect(migratedQueuedScan.stagedR2Keys == ["queued/v45/image.webp"])
+            #expect(migratedQueuedScan.fieldNotes == "queued before inference replay fields")
+            #expect(migratedQueuedScan.inferenceImagePaths == nil)
+            #expect(migratedQueuedScan.visualMediaItemsJSON == nil)
+        }
+    }
+
+    @Test func migrationFromV46ToCurrentSchemaDoesNotSafeMode() throws {
+        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v46migration_test.sqlite")
+        defer { removeSQLiteStore(at: url) }
+
+        let scanId = "v46-current-migration-scan"
+        let queuedId = "v46-current-migration-queued"
+
+        do {
+            let schema46 = Schema(versionedSchema: MerianSchemaV46.self)
+            let config46 = ModelConfiguration(schema: schema46, url: url)
+            let container46 = try ModelContainer(for: schema46, configurations: [config46])
+            let context46 = ModelContext(container46)
+            let record = MerianSchemaV46.LocalScanRecord(
+                id: scanId,
+                speciesId: "v46-species",
+                scientificName: "Quercus alba",
+                commonName: "White Oak",
+                isBiological: true,
+                isLiveCapture: true,
+                isInvasive: false,
+                invasiveStatusRegion: "Eastern United States",
+                ecologyType: "wild"
+            )
+            let queuedScan = MerianSchemaV46.OfflineQueuedScan(
+                id: queuedId,
+                capturedMediaJSON: try String(
+                    data: JSONEncoder().encode([SerializedMediaItem.image(.documents("queued-v46.webp"))]),
+                    encoding: .utf8
+                ),
+                coverImagePath: "queued-v46.webp",
+                stagedR2Keys: ["queued/v46/image.webp"],
+                fieldNotes: "queued during video capture build"
+            )
+            context46.insert(record)
+            context46.insert(queuedScan)
+            try context46.save()
+        }
+
+        do {
+            let currentSchema = Schema(versionedSchema: CurrentSchema.self)
+            let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
+            let currentContainer = try ModelContainer(
+                for: currentSchema,
+                migrationPlan: MerianMigrationPlan.self,
+                configurations: [currentConfig]
+            )
+            let currentContext = ModelContext(currentContainer)
+
+            var scanDescriptor = FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            scanDescriptor.fetchLimit = 1
+            let migratedRecord = try #require(currentContext.fetch(scanDescriptor).first)
+            #expect(migratedRecord.scientificName == "Quercus alba")
+            #expect(migratedRecord.invasiveStatusRegion == "Eastern United States")
+
+            var queuedDescriptor = FetchDescriptor<OfflineQueuedScan>(
+                predicate: #Predicate { $0.id == queuedId }
+            )
+            queuedDescriptor.fetchLimit = 1
+            let migratedQueuedScan = try #require(currentContext.fetch(queuedDescriptor).first)
+            #expect(migratedQueuedScan.coverImagePath == "queued-v46.webp")
+            #expect(migratedQueuedScan.stagedR2Keys == ["queued/v46/image.webp"])
+            #expect(migratedQueuedScan.fieldNotes == "queued during video capture build")
+            #expect(migratedQueuedScan.inferenceImagePaths == nil)
+            #expect(migratedQueuedScan.visualMediaItemsJSON == nil)
+        }
+    }
+
     /// Simulates upgrading from V38 to V39 — verifies that the custom migration stage
     /// correctly backfills the singular `audioFilePath`/`observationContextJSON` String?
     /// columns into the new plural `audioFilePaths`/`observationContextsJSON` [String]? arrays.

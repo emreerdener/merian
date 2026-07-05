@@ -1083,7 +1083,7 @@ enum MerianSchemaV44: VersionedSchema {
     static var versionIdentifier = Schema.Version(44, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        [MerianSchemaV44.LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
+        [MerianSchemaV44.LocalScanRecord.self, MerianSchemaV44.OfflineQueuedScan.self, MerianSchemaV44.CapturedMediaEntry.self,
          MerianSchemaV44.ScanCollection.self, PendingCloudDeletionTask.self,
          UserSpeciesPreference.self]
     }
@@ -1093,8 +1093,8 @@ enum MerianSchemaV45: VersionedSchema {
     static var versionIdentifier = Schema.Version(45, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
-         ScanCollection.self, PendingCloudDeletionTask.self,
+        [MerianSchemaV45.LocalScanRecord.self, MerianSchemaV45.OfflineQueuedScan.self, MerianSchemaV45.CapturedMediaEntry.self,
+         MerianSchemaV45.ScanCollection.self, PendingCloudDeletionTask.self,
          UserSpeciesPreference.self]
     }
 }
@@ -1103,8 +1103,8 @@ enum MerianSchemaV46: VersionedSchema {
     static var versionIdentifier = Schema.Version(46, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
-         ScanCollection.self, PendingCloudDeletionTask.self,
+        [MerianSchemaV46.LocalScanRecord.self, MerianSchemaV46.OfflineQueuedScan.self, MerianSchemaV46.CapturedMediaEntry.self,
+         MerianSchemaV46.ScanCollection.self, PendingCloudDeletionTask.self,
          UserSpeciesPreference.self]
     }
 }
@@ -1120,6 +1120,9 @@ enum MerianSchemaV47: VersionedSchema {
 }
 
 extension MerianSchemaV44 {
+    typealias CapturedMediaEntry = MerianSchemaV43.CapturedMediaEntry
+    typealias OfflineQueuedScan = MerianSchemaV43.OfflineQueuedScan
+
     @Model
     final class LocalScanRecord {
         @Attribute(.unique) var id: String
@@ -1335,6 +1338,492 @@ extension MerianSchemaV44 {
         @Relationship(inverse: \MerianSchemaV44.LocalScanRecord.collections) var scans: [MerianSchemaV44.LocalScanRecord]? = []
 
         init(id: String = UUID().uuidString, name: String, createdAt: Date = Date(), isDeleted: Bool = false, scans: [MerianSchemaV44.LocalScanRecord]? = []) {
+            self.id = id
+            self.name = name
+            self.createdAt = createdAt
+            self.isDeleted = isDeleted
+            self.scans = scans
+        }
+    }
+}
+
+extension MerianSchemaV45 {
+    typealias CapturedMediaEntry = MerianSchemaV44.CapturedMediaEntry
+    typealias OfflineQueuedScan = MerianSchemaV44.OfflineQueuedScan
+
+    @Model
+    final class LocalScanRecord {
+        @Attribute(.unique) var id: String
+        var speciesId: String
+        var scientificName: String
+        var commonName: String
+        var timestamp: Date
+        var captureDate: Date?
+        var capturedMediaJSON: String?
+        @Relationship(deleteRule: .cascade) var capturedMediaEntries: [MerianSchemaV45.CapturedMediaEntry]? = []
+
+        var semanticTags: [String]
+        var hazardType: String = "none"
+        var isBiological: Bool
+        var isLiveCapture: Bool
+        var isInvasive: Bool
+        @Attribute var invasiveStatusRegion: String?
+        @Attribute var invasiveRationale: String?
+        @Attribute var invasiveConfidence: Double?
+        var ecologyType: String
+        var wikipediaUrl: String?
+        @Attribute(originalName: "wikipediaExtract") var wikipediaOverview: String?
+        var referenceImageUrl: String?
+        var confidenceScore: Double?
+        @Attribute var isLocallyArchived: Bool = false
+
+        var taxonomyKingdom: String?
+        var taxonomyPhylum: String?
+        var taxonomyClass: String?
+        var taxonomyOrder: String?
+        var taxonomyFamily: String?
+        var taxonomyGenus: String?
+
+        var locationName: String?
+        var weatherCondition: String?
+        var weatherTemperatureF: Double?
+
+        var collections: [MerianSchemaV45.ScanCollection]? = []
+
+        var similarSpecies: [String]?
+        var lookalikesData: Data?
+        @Attribute var candidatesData: Data?
+        @Attribute var userIdentificationOverride: String?
+        @Attribute var userConfirmedIdentification: Bool = false
+        @Attribute var isFlagged: Bool = false
+
+        @Attribute var iucnRedListStatus: String?
+        @Attribute var gpsLatitude: Double?
+        @Attribute var gpsLongitude: Double?
+        @Attribute var gpsElevation: Double?
+        @Attribute var zoomFactor: Double?
+
+        @Attribute var aiReasoning: String?
+        @Attribute var habitatDescription: String?
+        @Attribute var gbifTaxonKey: Int?
+
+        @Attribute var estimatedSizeCm: Double?
+        @Attribute var lifeStage: String?
+        @Attribute var reproductiveCondition: String?
+        @Attribute var sex: String?
+        @Attribute var sexConfidence: Double?
+        @Attribute var sexEvidence: String?
+        @Attribute var individualCount: Int?
+        @Attribute var ecologicalInteractions: [String]?
+        @Attribute var inferenceTier: String?
+        @Attribute var customTags: [String] = []
+        var hasBeenViewed: Bool = true
+        @Attribute var imageQualityScore: Int?
+        @Attribute var alternativeCommonNames: [String]?
+        @Attribute var petIdentificationData: Data?
+        @Attribute var confirmedSpeciesId: String?
+        @Attribute var userReviewStateRaw: String? = "unreviewed"
+        @Attribute var observationContextsJSON: [String]?
+        @Attribute var fieldNotes: String?
+        @Attribute var coverImagePath: String?
+
+        var userReviewState: UserReviewState {
+            get { UserReviewState(rawValue: userReviewStateRaw ?? UserReviewState.unreviewed.rawValue) ?? .unreviewed }
+            set { userReviewStateRaw = newValue.rawValue }
+        }
+
+        init(
+            id: String = UUID().uuidString,
+            speciesId: String,
+            scientificName: String,
+            commonName: String,
+            timestamp: Date = Date(),
+            captureDate: Date? = nil,
+            capturedMediaJSON: String? = nil,
+            coverImagePath: String? = nil,
+            semanticTags: [String] = [],
+            hazardType: String = "none",
+            isBiological: Bool = true,
+            isLiveCapture: Bool = true,
+            isInvasive: Bool = false,
+            invasiveStatusRegion: String? = nil,
+            invasiveRationale: String? = nil,
+            invasiveConfidence: Double? = nil,
+            ecologyType: String = "unknown",
+            wikipediaUrl: String? = nil,
+            wikipediaOverview: String? = nil,
+            referenceImageUrl: String? = nil,
+            confidenceScore: Double? = nil,
+            isLocallyArchived: Bool = false,
+            taxonomyKingdom: String? = nil,
+            taxonomyPhylum: String? = nil,
+            taxonomyClass: String? = nil,
+            taxonomyOrder: String? = nil,
+            taxonomyFamily: String? = nil,
+            taxonomyGenus: String? = nil,
+            locationName: String? = nil,
+            weatherCondition: String? = nil,
+            weatherTemperatureF: Double? = nil,
+            collections: [MerianSchemaV45.ScanCollection]? = [],
+            similarSpecies: [String]? = nil,
+            lookalikesData: Data? = nil,
+            candidatesData: Data? = nil,
+            iucnRedListStatus: String? = nil,
+            gpsLatitude: Double? = nil,
+            gpsLongitude: Double? = nil,
+            gpsElevation: Double? = nil,
+            zoomFactor: Double? = nil,
+            aiReasoning: String? = nil,
+            habitatDescription: String? = nil,
+            gbifTaxonKey: Int? = nil,
+            estimatedSizeCm: Double? = nil,
+            lifeStage: String? = nil,
+            reproductiveCondition: String? = nil,
+            sex: String? = nil,
+            sexConfidence: Double? = nil,
+            sexEvidence: String? = nil,
+            individualCount: Int? = nil,
+            ecologicalInteractions: [String]? = nil,
+            inferenceTier: String? = nil,
+            customTags: [String] = [],
+            hasBeenViewed: Bool = false,
+            userIdentificationOverride: String? = nil,
+            userConfirmedIdentification: Bool = false,
+            isFlagged: Bool = false,
+            imageQualityScore: Int? = nil,
+            alternativeCommonNames: [String]? = nil,
+            petIdentificationData: Data? = nil,
+            confirmedSpeciesId: String? = nil,
+            userReviewStateRaw: String? = nil,
+            observationContextsJSON: [String]? = nil,
+            fieldNotes: String? = nil
+        ) {
+            self.id = id
+            self.speciesId = speciesId
+            self.scientificName = scientificName
+            self.commonName = commonName
+            self.timestamp = timestamp
+            self.captureDate = captureDate
+            self.capturedMediaJSON = capturedMediaJSON
+            self.coverImagePath = coverImagePath
+            self.semanticTags = semanticTags
+            self.hazardType = hazardType
+            self.isBiological = isBiological
+            self.isLiveCapture = isLiveCapture
+            self.isInvasive = isInvasive
+            self.invasiveStatusRegion = invasiveStatusRegion
+            self.invasiveRationale = invasiveRationale
+            self.invasiveConfidence = invasiveConfidence
+            self.ecologyType = ecologyType
+            self.wikipediaUrl = wikipediaUrl
+            self.wikipediaOverview = wikipediaOverview
+            self.referenceImageUrl = referenceImageUrl
+            self.confidenceScore = confidenceScore
+            self.isLocallyArchived = isLocallyArchived
+            self.taxonomyKingdom = taxonomyKingdom
+            self.taxonomyPhylum = taxonomyPhylum
+            self.taxonomyClass = taxonomyClass
+            self.taxonomyOrder = taxonomyOrder
+            self.taxonomyFamily = taxonomyFamily
+            self.taxonomyGenus = taxonomyGenus
+            self.locationName = locationName
+            self.weatherCondition = weatherCondition
+            self.weatherTemperatureF = weatherTemperatureF
+            self.collections = collections
+            self.similarSpecies = similarSpecies
+            self.lookalikesData = lookalikesData
+            self.candidatesData = candidatesData
+            self.iucnRedListStatus = iucnRedListStatus
+            self.gpsLatitude = gpsLatitude
+            self.gpsLongitude = gpsLongitude
+            self.gpsElevation = gpsElevation
+            self.zoomFactor = zoomFactor
+            self.aiReasoning = aiReasoning
+            self.habitatDescription = habitatDescription
+            self.gbifTaxonKey = gbifTaxonKey
+            self.estimatedSizeCm = estimatedSizeCm
+            self.lifeStage = lifeStage
+            self.reproductiveCondition = reproductiveCondition
+            self.sex = sex
+            self.sexConfidence = sexConfidence
+            self.sexEvidence = sexEvidence
+            self.individualCount = individualCount
+            self.ecologicalInteractions = ecologicalInteractions
+            self.inferenceTier = inferenceTier
+            self.customTags = customTags
+            self.hasBeenViewed = hasBeenViewed
+            self.userIdentificationOverride = userIdentificationOverride
+            self.userConfirmedIdentification = userConfirmedIdentification
+            self.isFlagged = isFlagged
+            self.imageQualityScore = imageQualityScore
+            self.alternativeCommonNames = alternativeCommonNames
+            self.petIdentificationData = petIdentificationData
+            self.confirmedSpeciesId = confirmedSpeciesId
+            self.userReviewStateRaw = userReviewStateRaw
+            self.observationContextsJSON = observationContextsJSON
+            self.fieldNotes = fieldNotes
+        }
+    }
+
+    @Model
+    final class ScanCollection {
+        @Attribute(.unique) var id: String = UUID().uuidString
+        var name: String
+        var createdAt: Date = Date()
+        var isDeleted: Bool = false
+
+        @Relationship(inverse: \MerianSchemaV45.LocalScanRecord.collections) var scans: [MerianSchemaV45.LocalScanRecord]? = []
+
+        init(
+            id: String = UUID().uuidString,
+            name: String,
+            createdAt: Date = Date(),
+            isDeleted: Bool = false,
+            scans: [MerianSchemaV45.LocalScanRecord]? = []
+        ) {
+            self.id = id
+            self.name = name
+            self.createdAt = createdAt
+            self.isDeleted = isDeleted
+            self.scans = scans
+        }
+    }
+}
+
+extension MerianSchemaV46 {
+    typealias CapturedMediaEntry = MerianSchemaV45.CapturedMediaEntry
+    typealias OfflineQueuedScan = MerianSchemaV45.OfflineQueuedScan
+
+    @Model
+    final class LocalScanRecord {
+        @Attribute(.unique) var id: String
+        var speciesId: String
+        var scientificName: String
+        var commonName: String
+        var timestamp: Date
+        var captureDate: Date?
+        var capturedMediaJSON: String?
+        @Relationship(deleteRule: .cascade) var capturedMediaEntries: [MerianSchemaV46.CapturedMediaEntry]? = []
+
+        var semanticTags: [String]
+        var hazardType: String = "none"
+        var isBiological: Bool
+        var isLiveCapture: Bool
+        var isInvasive: Bool
+        @Attribute var invasiveStatusRegion: String?
+        @Attribute var invasiveRationale: String?
+        @Attribute var invasiveConfidence: Double?
+        var ecologyType: String
+        var wikipediaUrl: String?
+        @Attribute(originalName: "wikipediaExtract") var wikipediaOverview: String?
+        var referenceImageUrl: String?
+        var confidenceScore: Double?
+        @Attribute var isLocallyArchived: Bool = false
+
+        var taxonomyKingdom: String?
+        var taxonomyPhylum: String?
+        var taxonomyClass: String?
+        var taxonomyOrder: String?
+        var taxonomyFamily: String?
+        var taxonomyGenus: String?
+
+        var locationName: String?
+        var weatherCondition: String?
+        var weatherTemperatureF: Double?
+
+        var collections: [MerianSchemaV46.ScanCollection]? = []
+
+        var similarSpecies: [String]?
+        var lookalikesData: Data?
+        @Attribute var candidatesData: Data?
+        @Attribute var userIdentificationOverride: String?
+        @Attribute var userConfirmedIdentification: Bool = false
+        @Attribute var isFlagged: Bool = false
+
+        @Attribute var iucnRedListStatus: String?
+        @Attribute var gpsLatitude: Double?
+        @Attribute var gpsLongitude: Double?
+        @Attribute var gpsElevation: Double?
+        @Attribute var zoomFactor: Double?
+
+        @Attribute var aiReasoning: String?
+        @Attribute var habitatDescription: String?
+        @Attribute var gbifTaxonKey: Int?
+
+        @Attribute var estimatedSizeCm: Double?
+        @Attribute var lifeStage: String?
+        @Attribute var reproductiveCondition: String?
+        @Attribute var sex: String?
+        @Attribute var sexConfidence: Double?
+        @Attribute var sexEvidence: String?
+        @Attribute var individualCount: Int?
+        @Attribute var ecologicalInteractions: [String]?
+        @Attribute var inferenceTier: String?
+        @Attribute var customTags: [String] = []
+        var hasBeenViewed: Bool = true
+        @Attribute var imageQualityScore: Int?
+        @Attribute var alternativeCommonNames: [String]?
+        @Attribute var petIdentificationData: Data?
+        @Attribute var confirmedSpeciesId: String?
+        @Attribute var userReviewStateRaw: String? = "unreviewed"
+        @Attribute var observationContextsJSON: [String]?
+        @Attribute var fieldNotes: String?
+        @Attribute var coverImagePath: String?
+
+        var userReviewState: UserReviewState {
+            get { UserReviewState(rawValue: userReviewStateRaw ?? UserReviewState.unreviewed.rawValue) ?? .unreviewed }
+            set { userReviewStateRaw = newValue.rawValue }
+        }
+
+        init(
+            id: String = UUID().uuidString,
+            speciesId: String,
+            scientificName: String,
+            commonName: String,
+            timestamp: Date = Date(),
+            captureDate: Date? = nil,
+            capturedMediaJSON: String? = nil,
+            coverImagePath: String? = nil,
+            semanticTags: [String] = [],
+            hazardType: String = "none",
+            isBiological: Bool = true,
+            isLiveCapture: Bool = true,
+            isInvasive: Bool = false,
+            invasiveStatusRegion: String? = nil,
+            invasiveRationale: String? = nil,
+            invasiveConfidence: Double? = nil,
+            ecologyType: String = "unknown",
+            wikipediaUrl: String? = nil,
+            wikipediaOverview: String? = nil,
+            referenceImageUrl: String? = nil,
+            confidenceScore: Double? = nil,
+            isLocallyArchived: Bool = false,
+            taxonomyKingdom: String? = nil,
+            taxonomyPhylum: String? = nil,
+            taxonomyClass: String? = nil,
+            taxonomyOrder: String? = nil,
+            taxonomyFamily: String? = nil,
+            taxonomyGenus: String? = nil,
+            locationName: String? = nil,
+            weatherCondition: String? = nil,
+            weatherTemperatureF: Double? = nil,
+            collections: [MerianSchemaV46.ScanCollection]? = [],
+            similarSpecies: [String]? = nil,
+            lookalikesData: Data? = nil,
+            candidatesData: Data? = nil,
+            iucnRedListStatus: String? = nil,
+            gpsLatitude: Double? = nil,
+            gpsLongitude: Double? = nil,
+            gpsElevation: Double? = nil,
+            zoomFactor: Double? = nil,
+            aiReasoning: String? = nil,
+            habitatDescription: String? = nil,
+            gbifTaxonKey: Int? = nil,
+            estimatedSizeCm: Double? = nil,
+            lifeStage: String? = nil,
+            reproductiveCondition: String? = nil,
+            sex: String? = nil,
+            sexConfidence: Double? = nil,
+            sexEvidence: String? = nil,
+            individualCount: Int? = nil,
+            ecologicalInteractions: [String]? = nil,
+            inferenceTier: String? = nil,
+            customTags: [String] = [],
+            hasBeenViewed: Bool = false,
+            userIdentificationOverride: String? = nil,
+            userConfirmedIdentification: Bool = false,
+            isFlagged: Bool = false,
+            imageQualityScore: Int? = nil,
+            alternativeCommonNames: [String]? = nil,
+            petIdentificationData: Data? = nil,
+            confirmedSpeciesId: String? = nil,
+            userReviewStateRaw: String? = nil,
+            observationContextsJSON: [String]? = nil,
+            fieldNotes: String? = nil
+        ) {
+            self.id = id
+            self.speciesId = speciesId
+            self.scientificName = scientificName
+            self.commonName = commonName
+            self.timestamp = timestamp
+            self.captureDate = captureDate
+            self.capturedMediaJSON = capturedMediaJSON
+            self.coverImagePath = coverImagePath
+            self.semanticTags = semanticTags
+            self.hazardType = hazardType
+            self.isBiological = isBiological
+            self.isLiveCapture = isLiveCapture
+            self.isInvasive = isInvasive
+            self.invasiveStatusRegion = invasiveStatusRegion
+            self.invasiveRationale = invasiveRationale
+            self.invasiveConfidence = invasiveConfidence
+            self.ecologyType = ecologyType
+            self.wikipediaUrl = wikipediaUrl
+            self.wikipediaOverview = wikipediaOverview
+            self.referenceImageUrl = referenceImageUrl
+            self.confidenceScore = confidenceScore
+            self.isLocallyArchived = isLocallyArchived
+            self.taxonomyKingdom = taxonomyKingdom
+            self.taxonomyPhylum = taxonomyPhylum
+            self.taxonomyClass = taxonomyClass
+            self.taxonomyOrder = taxonomyOrder
+            self.taxonomyFamily = taxonomyFamily
+            self.taxonomyGenus = taxonomyGenus
+            self.locationName = locationName
+            self.weatherCondition = weatherCondition
+            self.weatherTemperatureF = weatherTemperatureF
+            self.collections = collections
+            self.similarSpecies = similarSpecies
+            self.lookalikesData = lookalikesData
+            self.candidatesData = candidatesData
+            self.iucnRedListStatus = iucnRedListStatus
+            self.gpsLatitude = gpsLatitude
+            self.gpsLongitude = gpsLongitude
+            self.gpsElevation = gpsElevation
+            self.zoomFactor = zoomFactor
+            self.aiReasoning = aiReasoning
+            self.habitatDescription = habitatDescription
+            self.gbifTaxonKey = gbifTaxonKey
+            self.estimatedSizeCm = estimatedSizeCm
+            self.lifeStage = lifeStage
+            self.reproductiveCondition = reproductiveCondition
+            self.sex = sex
+            self.sexConfidence = sexConfidence
+            self.sexEvidence = sexEvidence
+            self.individualCount = individualCount
+            self.ecologicalInteractions = ecologicalInteractions
+            self.inferenceTier = inferenceTier
+            self.customTags = customTags
+            self.hasBeenViewed = hasBeenViewed
+            self.userIdentificationOverride = userIdentificationOverride
+            self.userConfirmedIdentification = userConfirmedIdentification
+            self.isFlagged = isFlagged
+            self.imageQualityScore = imageQualityScore
+            self.alternativeCommonNames = alternativeCommonNames
+            self.petIdentificationData = petIdentificationData
+            self.confirmedSpeciesId = confirmedSpeciesId
+            self.userReviewStateRaw = userReviewStateRaw
+            self.observationContextsJSON = observationContextsJSON
+            self.fieldNotes = fieldNotes
+        }
+    }
+
+    @Model
+    final class ScanCollection {
+        @Attribute(.unique) var id: String = UUID().uuidString
+        var name: String
+        var createdAt: Date = Date()
+        var isDeleted: Bool = false
+
+        @Relationship(inverse: \MerianSchemaV46.LocalScanRecord.collections) var scans: [MerianSchemaV46.LocalScanRecord]? = []
+
+        init(
+            id: String = UUID().uuidString,
+            name: String,
+            createdAt: Date = Date(),
+            isDeleted: Bool = false,
+            scans: [MerianSchemaV46.LocalScanRecord]? = []
+        ) {
             self.id = id
             self.name = name
             self.createdAt = createdAt

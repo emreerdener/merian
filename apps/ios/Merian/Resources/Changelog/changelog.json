@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-05-startup-schema-migration",
+      "date": "2026-07-05",
+      "title": "Startup library migration",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Recent TestFlight upgrades now reopen existing local scan libraries normally instead of launching in safe mode after a schema update."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-05-video-durability",
       "date": "2026-07-05",
       "title": "Video scan durability",
