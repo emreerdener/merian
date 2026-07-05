@@ -752,3 +752,47 @@ let pending = try modelContext.fetch(descriptor) // Fetches the full lightweight
 ```
 
 Because these metadata models (`OfflineQueuedScan` and `LocalScanRecord`) are highly compact and database operations occur asynchronously on a dedicated `@ModelActor` queue, fetching the full record carries negligible overhead and is 100% crash-free.
+
+---
+
+## 24. Replay Intents Are Not Raw Media Archives
+
+`identify-multimodal` now writes a paired `scan_ingestion_intents` row alongside
+`scan_ingestion_jobs`. This is a durable server replay contract for accepted
+scan-ingestion attempts, but it is intentionally not a dump of the original
+client payload.
+
+### The Vulnerability
+
+Treating `request_payload` as a complete request archive can create two classes
+of bugs:
+
+- A privacy/storage bug if future code tries to persist raw `imageBase64s`,
+  `audioBase64s`, or local device file paths.
+- A recovery bug if server tooling assumes an inline-media request can be
+  replayed without the iOS offline queue.
+
+Inline foreground media is redacted before persistence. The intent records only
+counts for those inline media arrays and sets `resumable = false` plus
+`inline_media_redacted = true`. Queued/staged media requests are the replayable
+case because the payload contains server-owned staged object keys, media
+descriptors, upload-session ids, telemetry, observation context, and checksums.
+
+### The Pattern: Store The Sanitized Intent, Keep Raw Media Client-Owned
+
+When adding or changing ingestion payload fields:
+
+- Add metadata fields to `_shared/scanIngestionIntents.ts` only if they are safe
+  to store server-side.
+- Keep raw media bytes, private file paths, and unbounded text out of
+  `request_payload`.
+- Use `payload_checksum` and `manifest_checksum` to prove retry shape, not to
+  smuggle raw request bodies into Postgres.
+- Treat `resumable = false` as a hard boundary: server tools can diagnose or
+  mark the job for client retry, but cannot independently reconstruct the
+  original media.
+
+Video remains stricter than still images: a new video scan is not complete until
+the playback `.mp4` is promoted and represented in both `video_storage_urls` and
+the `captured_media` timeline. The sampled video frames are inference inputs,
+not shareable replacement media.

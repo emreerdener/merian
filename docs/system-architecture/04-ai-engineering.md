@@ -780,11 +780,14 @@ or audio attached:
   claims `scan_ingestion_jobs` with expected media counts, staged object keys,
   recovered upload-session ids, and a deterministic `manifest_checksum`; stage
   updates then expose processing, finalizing, retryable, terminal, and complete
-  states to `/check-scan-status` and the media reconciliation worker. On failure,
-  a JSON-structured log line is emitted via `console.error` including `event`,
-  `user_id`, `scan_id`, `error`, and `ts` fields. This replaces the previous
-  silent swallow of background errors and makes failures observable in Supabase
-  Edge Function logs without exposing internals to the client.
+  states to `/check-scan-status` and the media reconciliation worker. The same
+  request records `scan_ingestion_intents`, a service-role-only sanitized replay
+  payload with a `payload_checksum`; raw inline media bytes are redacted and mark
+  the intent non-resumable. On failure, a JSON-structured log line is emitted via
+  `console.error` including `event`, `user_id`, `scan_id`, `error`, and `ts`
+  fields. This replaces the previous silent swallow of background errors and
+  makes failures observable in Supabase Edge Function logs without exposing
+  internals to the client.
 - **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client
   (from `@google/genai@1.0.0`) is instantiated once at module scope (`_genAI`)
   in `_shared/gemini.ts` and imported by `identify`, `enrich-scan`, and

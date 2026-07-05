@@ -24,4 +24,6 @@ response fields and `identify-multimodal` later moves the staged rows to
 `promoted`, `deleted`, or `failed`. During ingestion, the server recovers the
 matching upload-session ids from `scan_media_assets` for the submitted staged
 object keys and records them in `scan_ingestion_jobs`; they are part of the
-manifest checksum used by retry, status, and reconciliation paths.
+manifest checksum used by retry, status, and reconciliation paths. The same
+session ids are copied into `scan_ingestion_intents`, whose sanitized request
+payload is the server-side replay source for staged-media scans.

@@ -8,6 +8,9 @@ Service-role health endpoint for scan media durability.
   their lease window or have retryable failures past `retry_after`; operators
   can inspect the job's `manifest_checksum` and `upload_session_ids` to match
   the stuck attempt back to staged scan media.
+- Reports in-flight/retryable ingestion jobs that are missing
+  `scan_ingestion_intents` rows or whose intents are non-resumable because inline
+  media bytes were intentionally redacted.
 - Reports stale `scan_media_assets` capture-upload rows, failed media assets,
   and recent video scans whose durable media surfaces disagree.
 - Detects recent video-specific drift such as `video_storage_urls` without a

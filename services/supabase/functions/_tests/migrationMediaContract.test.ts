@@ -206,3 +206,34 @@ Deno.test("scan_ingestion_jobs manifest migration extends claim contract", async
     assertStringIncludes(sql, fragment);
   }
 });
+
+Deno.test("scan_ingestion_intents migration declares the replay intent contract", async () => {
+  const sql = normalized(
+    await migrationSql("20260705140000_add_scan_ingestion_intents.sql"),
+  );
+
+  for (
+    const fragment of [
+      "CREATE TABLE IF NOT EXISTS public.scan_ingestion_intents",
+      "UNIQUE (user_id, scan_id)",
+      "request_payload JSONB NOT NULL DEFAULT '{}'::JSONB",
+      "media_counts JSONB NOT NULL DEFAULT '{}'::JSONB",
+      "media_object_keys JSONB NOT NULL DEFAULT '{}'::JSONB",
+      "upload_session_ids UUID[] NOT NULL DEFAULT '{}'::UUID[]",
+      "manifest_checksum TEXT",
+      "payload_checksum TEXT",
+      "resumable BOOLEAN NOT NULL DEFAULT TRUE",
+      "inline_media_redacted BOOLEAN NOT NULL DEFAULT FALSE",
+      "redacted_media_counts JSONB NOT NULL DEFAULT '{}'::JSONB",
+      "CREATE INDEX IF NOT EXISTS idx_scan_ingestion_intents_resumable_updated",
+      "ALTER TABLE public.scan_ingestion_intents ENABLE ROW LEVEL SECURITY",
+      "CREATE OR REPLACE FUNCTION public.record_scan_ingestion_intent",
+      "ON CONFLICT (user_id, scan_id) DO UPDATE",
+      "REVOKE ALL ON FUNCTION public.record_scan_ingestion_intent",
+      "GRANT EXECUTE ON FUNCTION public.record_scan_ingestion_intent",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});

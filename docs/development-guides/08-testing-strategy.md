@@ -494,13 +494,14 @@ safe three-prompt JSON contract.
 
 Media-ingestion durability has focused Deno coverage as well:
 `_shared/scanIngestionJobs_test.ts` locks client-safe job-state projection and
-the deterministic manifest checksum; `reconcile-scan-media-assets/worker_test.ts`
-covers video repair, abandoned media cleanup, active-job waiting, ownership
-matching by user plus scan id, and job completion/failure feedback; and
-`_tests/migrationMediaContract.test.ts` checks the scan-media, reconciliation,
-ingestion-job, and manifest-checksum migrations. Run the migration contract test
-with `--allow-read=services/supabase/migrations` because it reads SQL files
-directly.
+the deterministic manifest checksum; `_shared/scanIngestionIntents_test.ts`
+locks sanitized replay-intent construction and inline-media redaction;
+`reconcile-scan-media-assets/worker_test.ts` covers video repair, abandoned
+media cleanup, active-job waiting, ownership matching by user plus scan id, and
+job completion/failure feedback; and `_tests/migrationMediaContract.test.ts`
+checks the scan-media, reconciliation, ingestion-job, manifest-checksum, and
+intent-outbox migrations. Run the migration contract test with
+`--allow-read=services/supabase/migrations` because it reads SQL files directly.
 
 ### `validate_edge_dtos.ts`
 

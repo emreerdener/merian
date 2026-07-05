@@ -6,6 +6,7 @@ import {
   type ReadyVideoAssetHealthRow,
   type ReconciliationRunHealthRow,
   type ScanIngestionHealthRow,
+  type ScanIngestionIntentHealthRow,
   type ScanMediaAssetHealthRow,
   type ScanMediaHealthReport,
   type ScanMediaHealthRequest,
@@ -45,11 +46,16 @@ export async function fetchScanMediaHealth(
     scans.map((scan) => scan.id),
     supabaseAdmin,
   );
+  const ingestionIntents = await fetchIngestionIntents(
+    ingestionJobs.map((job) => job.scan_id),
+    supabaseAdmin,
+  );
 
   return buildScanMediaHealthReport({
     now,
     request,
     ingestionJobs,
+    ingestionIntents,
     staleCaptureUploadAssets,
     failedAssets,
     scans,
@@ -57,6 +63,39 @@ export async function fetchScanMediaHealth(
     exploreVideoMedia,
     reconciliationRuns,
   });
+}
+
+async function fetchIngestionIntents(
+  scanIds: string[],
+  supabaseAdmin: SupabaseClient,
+): Promise<ScanIngestionIntentHealthRow[]> {
+  const uniqueScanIds = [...new Set(scanIds.map((id) => id.trim()))].filter((
+    id,
+  ) => id.length > 0);
+  if (uniqueScanIds.length === 0) return [];
+
+  const { data, error } = await supabaseAdmin
+    .from("scan_ingestion_intents")
+    .select(
+      [
+        "scan_id",
+        "user_id",
+        "manifest_checksum",
+        "payload_checksum",
+        "resumable",
+        "inline_media_redacted",
+        "redacted_media_counts",
+        "updated_at",
+      ].join(","),
+    )
+    .in("scan_id", uniqueScanIds)
+    .limit(uniqueScanIds.length);
+
+  if (error) {
+    throw new Error(`fetchIngestionIntents: ${error.message}`);
+  }
+
+  return (data ?? []) as unknown as ScanIngestionIntentHealthRow[];
 }
 
 async function fetchIngestionJobs(

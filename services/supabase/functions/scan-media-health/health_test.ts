@@ -91,6 +91,7 @@ Deno.test("buildScanMediaHealthReport flags stuck jobs and video media drift", (
       lock_expires_at: "2026-07-05T14:30:00.000Z",
       updated_at: "2026-07-05T14:20:00.000Z",
     }],
+    ingestionIntents: [ingestionIntent({ scan_id: "scan-stuck" })],
     scans: [{
       id: "scan-video-missing",
       user_id: "user-1",
@@ -156,6 +157,50 @@ Deno.test("buildScanMediaHealthReport flags frame-only video smells as warning",
 
   assertEquals(report.status, "warning");
   assertEquals(report.issues[0].code, "frame_only_video_smells");
+});
+
+Deno.test("buildScanMediaHealthReport flags missing and redacted ingestion intents", () => {
+  const report = buildScanMediaHealthReport(baseInput({
+    ingestionJobs: [
+      {
+        scan_id: "scan-missing-intent",
+        user_id: "user-1",
+        status: "failed_retryable",
+        stage: "video_promotion_failed",
+        attempt_count: 2,
+        retry_after: "2026-07-05T14:50:00.000Z",
+        updated_at: "2026-07-05T14:49:00.000Z",
+      },
+      {
+        scan_id: "scan-inline-intent",
+        user_id: "user-1",
+        status: "processing",
+        stage: "ai_inference_started",
+        attempt_count: 1,
+        lock_expires_at: "2026-07-05T15:05:00.000Z",
+        updated_at: "2026-07-05T14:58:00.000Z",
+      },
+    ],
+    ingestionIntents: [
+      ingestionIntent({
+        scan_id: "scan-inline-intent",
+        resumable: false,
+        inline_media_redacted: true,
+        redacted_media_counts: { image_base64_count: 1 },
+      }),
+    ],
+  }));
+
+  assertEquals(report.status, "warning");
+  assertEquals(
+    report.issues.map((issue) => issue.code),
+    [
+      "retryable_ingestion_jobs_past_due",
+      "ingestion_jobs_missing_intent",
+      "ingestion_intents_not_resumable",
+    ],
+  );
+  assertEquals(report.counts.ingestion_intents_checked, 1);
 });
 
 Deno.test("buildScanMediaHealthReport ignores ordinary five-image scans", () => {
@@ -227,6 +272,7 @@ function baseInput(
     now: NOW,
     request: BASE_REQUEST,
     ingestionJobs: [],
+    ingestionIntents: [],
     staleCaptureUploadAssets: [],
     failedAssets: [],
     scans: [],
@@ -234,6 +280,23 @@ function baseInput(
     exploreVideoMedia: [],
     reconciliationRuns: [],
     ...overrides,
+  };
+}
+
+function ingestionIntent(
+  overrides: Partial<
+    BuildScanMediaHealthReportInput["ingestionIntents"][number]
+  >,
+): BuildScanMediaHealthReportInput["ingestionIntents"][number] {
+  return {
+    scan_id: overrides.scan_id ?? "scan-1",
+    user_id: overrides.user_id ?? "user-1",
+    manifest_checksum: overrides.manifest_checksum ?? "manifest",
+    payload_checksum: overrides.payload_checksum ?? "payload",
+    resumable: overrides.resumable ?? true,
+    inline_media_redacted: overrides.inline_media_redacted ?? false,
+    redacted_media_counts: overrides.redacted_media_counts ?? {},
+    updated_at: overrides.updated_at ?? "2026-07-05T14:59:00.000Z",
   };
 }
 

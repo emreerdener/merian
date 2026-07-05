@@ -63,6 +63,10 @@ import {
   updateScanIngestionJob,
 } from "../_shared/scanIngestionJobs.ts";
 import {
+  buildScanIngestionIntent,
+  recordScanIngestionIntent,
+} from "../_shared/scanIngestionIntents.ts";
+import {
   fetchCaptureUploadSessionIdsForKeys,
   markStagedScanMediaAssetsDeleted,
   markStagedScanMediaAssetsFailed,
@@ -786,6 +790,35 @@ Deno.serve((req: Request) =>
       mediaObjectKeys,
       uploadSessionIds,
     });
+    const ingestionIntent = await buildScanIngestionIntent({
+      scanId: generatedScanId,
+      payload,
+      mediaCounts,
+      mediaObjectKeys,
+      uploadSessionIds,
+      manifestChecksum,
+      visualMediaItems: normalizedVisualMediaItems,
+      audioMediaItems: normalizedAudioMediaItems,
+      normalizedTelemetry: {
+        timestamp,
+        gpsLatitude: safeGpsLat,
+        gpsLongitude: safeGpsLon,
+        gpsElevation,
+        semanticLocation,
+        publicLocationLabel: publicExploreLocationLabel,
+        geoprivacy: scanGeoprivacy,
+        weatherCondition,
+        weatherTemperatureF,
+        deviceLocale,
+        deviceTimeZone,
+        deviceRegion,
+        currentMonth,
+        timeOfDay,
+        depthScaleText,
+        zoomFactor,
+        estimatedSizeCm,
+      },
+    });
 
     try {
       await claimScanIngestionJob(
@@ -801,13 +834,48 @@ Deno.serve((req: Request) =>
         },
         supabaseAdmin,
       );
+    } catch (error) {
+      logStructuredError("multimodal/scan_ingestion_job_claim_failed", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
+      await recordScanIngestionIntent(
+        {
+          scanId: generatedScanId,
+          userId: user.id,
+          endpoint: "identify-multimodal",
+          requestPayload: ingestionIntent.payload,
+          mediaCounts,
+          mediaObjectKeys,
+          uploadSessionIds,
+          manifestChecksum,
+          payloadChecksum: ingestionIntent.payloadChecksum,
+          resumable: ingestionIntent.resumable,
+          inlineMediaRedacted: ingestionIntent.inlineMediaRedacted,
+          redactedMediaCounts: ingestionIntent.redactedMediaCounts,
+        },
+        supabaseAdmin,
+      );
+    } catch (error) {
+      logStructuredError("multimodal/scan_ingestion_intent_record_failed", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
       await updateIngestionJobBestEffort(
         "processing",
         "ai_inference_started",
         { leaseSeconds: 300 },
       );
     } catch (error) {
-      logStructuredError("multimodal/scan_ingestion_job_claim_failed", {
+      logStructuredError("multimodal/scan_ingestion_job_start_failed", {
         user_id: user.id,
         scan_id: generatedScanId,
         error: error instanceof Error ? error.message : String(error),

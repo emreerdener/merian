@@ -1000,6 +1000,37 @@ existing scan and satisfies the job's required video count, the job is marked
 `complete`. If media is abandoned after the TTL without a scan row, the job is
 marked `failed_terminal` with a reconciliation stage for operator review.
 
+### `scan_ingestion_intents`
+
+Service-role-only sanitized request snapshots for accepted scan ingestion
+attempts. Added in migration
+`20260705140000_add_scan_ingestion_intents.sql`.
+
+- `scan_id` / `user_id` (TEXT / UUID): Same ownership key as
+  `scan_ingestion_jobs`.
+- `request_payload` (JSONB): Sanitized replay intent containing telemetry,
+  observation context, media descriptors, staged object keys, media counts,
+  upload-session ids, and manifest checksum. Raw base64 media bytes and local
+  device paths are never stored here.
+- `media_counts`, `media_object_keys`, `upload_session_ids`,
+  `manifest_checksum`: Duplicated from the job claim so replay workers and ops
+  can recover the exact media shape without joining through logs.
+- `payload_checksum` (TEXT): SHA-256 checksum of the sanitized replay payload,
+  used to detect request-intent drift separately from the media manifest.
+- `resumable` (BOOLEAN): `true` when the intent contains enough staged/cloud
+  references for server-side replay. Inline foreground base64 media is redacted,
+  so those rows remain client-retry-only until the client stages media first.
+- `inline_media_redacted` / `redacted_media_counts` (BOOLEAN / JSONB): Records
+  that inline media existed and how many inline image/audio payloads were
+  omitted.
+- `last_replayed_at`, `replay_attempt_count`, `last_replay_error`: Reserved
+  control-plane fields for the server replay worker.
+
+The table has RLS enabled with no client read policy; only service-role Edge
+code and operators should read the sanitized intent. The
+`public.record_scan_ingestion_intent(...)` RPC is executable only by
+`service_role` and upserts by `(user_id, scan_id)`.
+
 ### `user_blocks`
 
 Registers blocked users so they are excluded from Discovery and Explore

@@ -123,12 +123,19 @@ service-role endpoint. Start triage from the issue code:
 
 - `stuck_ingestion_jobs`: inspect `scan_ingestion_jobs.stage`,
   `lock_expires_at`, `retry_after`, `manifest_checksum`, `upload_session_ids`,
-  and `last_error`; retryable rows should be retried by the client/server queue,
-  while expired active rows may need operator replay. If the stuck job still has
-  staged `scan_media_assets`, `reconcile-scan-media-assets` will keep those
-  rows pending while the lease or retry window is active, mark the job complete
-  after a successful media repair, or mark it `failed_terminal` after the
-  abandonment TTL.
+  and `last_error`, then check the matching `scan_ingestion_intents` row for
+  `resumable`, `inline_media_redacted`, and `payload_checksum`. Retryable rows
+  with resumable intents are eligible for server replay; rows with redacted
+  inline media still require client retry. If the stuck job still has staged
+  `scan_media_assets`, `reconcile-scan-media-assets` will keep those rows
+  pending while the lease or retry window is active, mark the job complete after
+  a successful media repair, or mark it `failed_terminal` after the abandonment
+  TTL.
+- `ingestion_jobs_missing_intent` / `ingestion_intents_not_resumable`: inspect
+  `scan_ingestion_jobs` plus `scan_ingestion_intents`. Missing intents mean the
+  accepted job predates the durable outbox or the intent write failed; non-
+  resumable intents intentionally redacted inline media bytes and depend on the
+  iOS queue to retry with durable staged media.
 - `video_scan_missing_captured_media_video`: inspect the scan's
   `video_storage_urls`, `captured_media`, and ready playback
   `scan_media_assets`; repair should go through `reconcile-scan-media-assets`

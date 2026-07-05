@@ -665,7 +665,11 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    `scan_ingestion_jobs` with expected media counts, staged object keys,
    recovered upload-session ids, and a normalized `manifest_checksum`; that job
    row is the server-side source of truth for status polling, retry ownership,
-   and later media reconciliation.
+   and later media reconciliation. The request also records a
+   `scan_ingestion_intents` row with the sanitized replay payload and a
+   `payload_checksum`; inline base64 media is redacted and marks the intent
+   non-resumable, while queued/staged media requests become eligible for future
+   server-side replay.
    The `scan_media_assets` lifecycle table is refreshed by the database trigger
    plus a best-effort Edge refresh call, so newer media readers can use ready
    display/playback rows instead of inferring user-visible media from

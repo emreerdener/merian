@@ -36,6 +36,17 @@ export interface ScanIngestionHealthRow {
   updated_at?: string | null;
 }
 
+export interface ScanIngestionIntentHealthRow {
+  scan_id: string;
+  user_id: string;
+  manifest_checksum?: string | null;
+  payload_checksum?: string | null;
+  resumable: boolean;
+  inline_media_redacted: boolean;
+  redacted_media_counts?: unknown;
+  updated_at?: string | null;
+}
+
 export interface ScanMediaAssetHealthRow {
   id: string;
   scan_id: string | null;
@@ -115,6 +126,7 @@ export interface ScanMediaHealthReport {
     ready_video_assets_checked: number;
     explore_video_rows_checked: number;
     reconciliation_runs_checked: number;
+    ingestion_intents_checked: number;
     issues: number;
     critical_issues: number;
     warning_issues: number;
@@ -132,6 +144,7 @@ export interface BuildScanMediaHealthReportInput {
   now: Date;
   request: ScanMediaHealthRequest;
   ingestionJobs: ScanIngestionHealthRow[];
+  ingestionIntents: ScanIngestionIntentHealthRow[];
   staleCaptureUploadAssets: ScanMediaAssetHealthRow[];
   failedAssets: ScanMediaAssetHealthRow[];
   scans: ScanMediaHealthScanRow[];
@@ -141,6 +154,12 @@ export interface BuildScanMediaHealthReportInput {
 }
 
 const ACTIVE_JOB_STATUSES = new Set(["processing", "finalizing", "retrying"]);
+const RESUMABLE_JOB_STATUSES = new Set([
+  "processing",
+  "finalizing",
+  "retrying",
+  "failed_retryable",
+]);
 
 export function parseScanMediaHealthRequest(
   body: Record<string, unknown> = {},
@@ -225,6 +244,44 @@ export function buildScanMediaHealthReport(
       "Retryable scan ingestion jobs are past retry_after and should be retried or inspected.",
     rows: retryablePastDue,
     sample: sampleJob,
+    limit: input.request.limit,
+  });
+
+  const intentsByJobKey = new Map(
+    input.ingestionIntents.map((intent) => [jobKey(intent), intent]),
+  );
+  const resumableCandidateJobs = input.ingestionJobs.filter((job) =>
+    RESUMABLE_JOB_STATUSES.has(job.status)
+  );
+  const jobsMissingIntent = resumableCandidateJobs.filter((job) =>
+    !intentsByJobKey.has(jobKey(job))
+  );
+  addIssue(issues, {
+    code: "ingestion_jobs_missing_intent",
+    severity: "warning",
+    message:
+      "Retryable or in-flight scan ingestion jobs do not have a persisted server replay intent.",
+    rows: jobsMissingIntent,
+    sample: sampleJob,
+    limit: input.request.limit,
+  });
+
+  const jobsWithNonResumableIntent = resumableCandidateJobs
+    .map((job) => ({ job, intent: intentsByJobKey.get(jobKey(job)) }))
+    .filter((entry): entry is {
+      job: ScanIngestionHealthRow;
+      intent: ScanIngestionIntentHealthRow;
+    } => entry.intent != null && !entry.intent.resumable);
+  addIssue(issues, {
+    code: "ingestion_intents_not_resumable",
+    severity: "warning",
+    message:
+      "Scan ingestion intents exist but cannot be replayed server-side because inline media was redacted.",
+    rows: jobsWithNonResumableIntent,
+    sample: ({ job, intent }) => ({
+      ...sampleJob(job),
+      ...sampleIntent(intent),
+    }),
     limit: input.request.limit,
   });
 
@@ -383,6 +440,7 @@ export function buildScanMediaHealthReport(
       ready_video_assets_checked: input.readyVideoAssets.length,
       explore_video_rows_checked: input.exploreVideoMedia.length,
       reconciliation_runs_checked: input.reconciliationRuns.length,
+      ingestion_intents_checked: input.ingestionIntents.length,
       issues: issues.length,
       critical_issues: criticalCount,
       warning_issues: warningCount,
@@ -488,6 +546,10 @@ function timeValue(value: string | null | undefined): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function jobKey(row: { scan_id: string; user_id: string }): string {
+  return `${row.user_id}:${row.scan_id}`;
+}
+
 function sampleJob(row: ScanIngestionHealthRow): Record<string, unknown> {
   return {
     scan_id: row.scan_id,
@@ -499,6 +561,19 @@ function sampleJob(row: ScanIngestionHealthRow): Record<string, unknown> {
     retry_after: row.retry_after ?? null,
     updated_at: row.updated_at ?? null,
     last_error: row.last_error ?? null,
+  };
+}
+
+function sampleIntent(
+  row: ScanIngestionIntentHealthRow,
+): Record<string, unknown> {
+  return {
+    intent_resumable: row.resumable,
+    inline_media_redacted: row.inline_media_redacted,
+    has_manifest_checksum: cleanString(row.manifest_checksum) !== null,
+    has_payload_checksum: cleanString(row.payload_checksum) !== null,
+    redacted_media_counts: row.redacted_media_counts ?? null,
+    intent_updated_at: row.updated_at ?? null,
   };
 }
 

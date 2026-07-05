@@ -425,10 +425,11 @@ triggering excessive SwiftUI view rebuilds.
   the server `retry_after` before retreating to `.staged`, and terminal failures
   mark the queue row as needing attention. The server job was claimed with the
   same media counts, staged object keys, upload-session ids, and manifest
-  checksum that the queue submitted, so local replay waits for the authoritative
-  ingestion attempt instead of guessing from process-local retry state. This
-  keeps video playback finalization from being mistaken for a local inference
-  failure after app suspension or restart.
+  checksum that the queue submitted, and the paired `scan_ingestion_intents`
+  row stores the sanitized replay request for staged-media scans. Local replay
+  waits for the authoritative ingestion attempt instead of guessing from
+  process-local retry state. This keeps video playback finalization from being
+  mistaken for a local inference failure after app suspension or restart.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5),
   `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (5),
   `mediaStagingMaxAudioFilesPerRequest` (2), `stagedImagePayloadMaxBytes` (5

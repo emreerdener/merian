@@ -136,9 +136,12 @@ that has a surviving staged playback video by promoting the video, updating
 their staged rows failed. Before treating an orphan as abandoned, it checks the
 matching `scan_ingestion_jobs` row: active leases and future retry windows keep
 the media pending, repaired scans mark the job complete when required video
-media is present, and TTL-abandoned media marks the job `failed_terminal`. It
-does not replay AI inference for scans that never created a cloud scan row;
-those remain the responsibility of the iOS offline queue retry path.
+media is present, and TTL-abandoned media marks the job `failed_terminal`.
+Sanitized `scan_ingestion_intents` rows preserve staged-media replay metadata for
+operations and future tooling, but this worker does not replay AI inference for
+scans that never created a cloud scan row; those remain the responsibility of
+the iOS offline queue retry path unless a dedicated server replay worker is
+added later.
 
 ---
 
@@ -179,6 +182,7 @@ Response payload:
     "ready_video_assets_checked": 2,
     "explore_video_rows_checked": 10,
     "reconciliation_runs_checked": 5,
+    "ingestion_intents_checked": 3,
     "issues": 1,
     "critical_issues": 0,
     "warning_issues": 1
@@ -204,7 +208,8 @@ Response payload:
 The status can be `ok`, `warning`, or `critical`. Critical issues indicate a
 durability invariant is already broken or a server-owned ingestion job is stuck
 past its lease. Warning issues indicate retry/repair work may still complete but
-should be monitored. The endpoint does not repair media; writers remain
+should be monitored, including missing or non-resumable ingestion intents for
+retryable work. The endpoint does not repair media; writers remain
 `identify-multimodal`, `reconcile-scan-media-assets`, and the iOS offline queue.
 The scheduled **Scan Media Health Monitor** workflow calls this endpoint every
 30 minutes, stores JSON/Markdown artifacts, and fails only on `critical` by
@@ -2912,6 +2917,12 @@ ordered compositions of images, audio, and descriptive context.
   a normalized `manifest_checksum`; subsequent stage updates make
   `/check-scan-status`, health checks, and reconciliation agree on whether the
   scan is processing, retryable, complete, or terminal.
+- The endpoint also records a `scan_ingestion_intents` row for server recovery.
+  That row stores a sanitized replay payload with telemetry, observation context,
+  media descriptors, staged keys, upload-session ids, and a `payload_checksum`.
+  It never stores raw base64 media bytes or local device paths. Requests that
+  used inline foreground media are marked `resumable = false` with
+  `inline_media_redacted = true`; queued/staged-media requests are resumable.
 - The edge writes `captured_media` for new multimodal scan rows. That JSON keeps
   still photos as image items but collapses ordered `video_frame` samples into a
   single video media item with a thumbnail reference, preserving playback-first
