@@ -186,7 +186,7 @@ private struct VideoPlaybackCarouselPage: View {
         ZStack {
             Color.black
             if let player {
-                VideoPlayer(player: player)
+                CoverVideoPlayer(player: player)
                     .ignoresSafeArea()
             } else {
                 ProgressView()
@@ -209,6 +209,26 @@ private struct VideoPlaybackCarouselPage: View {
             return url
         }
         return URL(fileURLWithPath: trimmed)
+    }
+}
+
+private struct CoverVideoPlayer: UIViewControllerRepresentable {
+    let player: AVPlayer
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.videoGravity = .resizeAspectFill
+        controller.showsPlaybackControls = true
+        controller.view.backgroundColor = .black
+        return controller
+    }
+
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        if controller.player !== player {
+            controller.player = player
+        }
+        controller.videoGravity = .resizeAspectFill
     }
 }
 

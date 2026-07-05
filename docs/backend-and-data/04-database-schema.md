@@ -1031,7 +1031,9 @@ backward-compatible cover thumbnail on `explore_posts`. If the scan is
 tombstoned, unshared, auto-purged, moderated unsafe, or later loses public scan
 media, cleanup flows remove or hide the corresponding public post media. Scan
 geoprivacy no longer hides the post itself; post-level `location_sharing`
-controls public location output.
+controls public location output. Share-state reads also require at least one
+`explore_post_media` row before returning a post as feed-visible, so partial
+post rows left by failed media writes are hidden until sharing succeeds.
 
 ### `explore_post_media`
 
@@ -1054,7 +1056,9 @@ migration `20260703130000_add_explore_post_media.sql`.
 `public.explore_post_media_items(post_id)` returns ordered media JSON for feed,
 detail, author, hashtag, map, and Community ID read paths. Map, widget, profile
 grid, and compact surfaces should keep using `hero_image_url` thumbnails plus a
-play indicator when any returned media item is video.
+play indicator when any returned media item is video. For scans with
+`captured_media`, composer and share endpoints resolve public media from that
+manifest first so playback video URLs and poster thumbnails remain paired.
 
 ### `explore_post_hashtags`
 

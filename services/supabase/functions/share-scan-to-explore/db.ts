@@ -1,6 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getR2Config } from "../_shared/aws.ts";
 import {
+  buildComposerMediaSources,
   cleanMediaUrls,
   parseSourceMediaId,
 } from "../_shared/exploreComposerMedia.ts";
@@ -13,6 +14,7 @@ export interface ShareEligibleScanRow {
   geoprivacy: string;
   image_storage_urls: string[];
   video_storage_urls?: string[];
+  captured_media?: unknown[] | null;
   is_tombstoned: boolean;
   species_id: string | null;
   confirmed_species_id: string | null;
@@ -24,6 +26,15 @@ export interface SelectedExplorePostMediaItem {
   source_index?: number;
   thumbnail_source_index?: number;
   order_index: number;
+}
+
+interface ExplorePostMediaInsertRow {
+  kind: "image" | "video";
+  url: string;
+  thumbnail_url: string;
+  order_index: number;
+  duration_seconds: number | null;
+  has_audio: boolean;
 }
 
 function makeHttpError(
@@ -44,7 +55,7 @@ export async function fetchShareEligibleScan(
   const { data, error } = await supabaseAdmin
     .from("scans")
     .select(
-      "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,is_tombstoned,species_id,confirmed_species_id",
+      "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
     )
     .eq("id", scanId)
     .eq("user_id", userId)
@@ -80,7 +91,7 @@ export async function fetchShareEligibleScan(
       .eq("id", scanId)
       .eq("user_id", userId)
       .select(
-        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,is_tombstoned,species_id,confirmed_species_id",
+        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
       )
       .single();
 
@@ -168,6 +179,8 @@ export async function upsertExplorePost(
   mediaItems: SelectedExplorePostMediaItem[] | undefined,
   supabaseAdmin: SupabaseClient,
 ): Promise<{ id: string; shared_at: string }> {
+  const mediaRows = buildExplorePostMediaRows(scan, mediaItems);
+
   const { data, error } = await supabaseAdmin
     .from("explore_posts")
     .upsert(
@@ -194,105 +207,132 @@ export async function upsertExplorePost(
   }
 
   const post = data as { id: string; shared_at: string };
-  if (mediaItems !== undefined) {
-    await replaceExplorePostMediaFromScan(
-      post.id,
-      scan,
-      mediaItems,
-      supabaseAdmin,
-    );
-    return post;
-  }
-
-  await refreshExplorePostMedia(post.id, supabaseAdmin);
+  await replaceExplorePostMediaRows(post.id, mediaRows, supabaseAdmin);
 
   return post;
 }
 
-async function refreshExplorePostMedia(
-  postId: string,
-  supabaseAdmin: SupabaseClient,
-): Promise<void> {
-  const { error: mediaError } = await supabaseAdmin.rpc(
-    "refresh_explore_post_media",
-    { target_post_id: postId },
-  );
-
-  if (mediaError) {
-    const message = mediaError.message?.toLowerCase().includes(
-        "video thumbnail unavailable",
-      )
-      ? "Video thumbnail unavailable."
-      : mediaError.message ?? "Unknown error";
-    throw makeHttpError(409, message);
+export function buildExplorePostMediaRows(
+  scan: ShareEligibleScanRow,
+  mediaItems: SelectedExplorePostMediaItem[] | undefined,
+): ExplorePostMediaInsertRow[] {
+  if (mediaItems !== undefined && mediaItems.length === 0) {
+    throw makeHttpError(400, "media_items must include at least one item.");
   }
+
+  const composerSources = buildComposerMediaSources(scan);
+  const selectedSources = mediaItems === undefined
+    ? composerSources
+    : mediaItems
+      .slice()
+      .sort((lhs, rhs) => lhs.order_index - rhs.order_index)
+      .map((item) => sourceForSelection(item, scan, composerSources));
+
+  const rows = selectedSources.map((source, offset) => {
+    if (source.kind === "video" && source.thumbnail_url === source.url) {
+      throw makeHttpError(409, "Video thumbnail unavailable.");
+    }
+
+    return {
+      kind: source.kind,
+      url: source.url,
+      thumbnail_url: source.thumbnail_url,
+      order_index: offset,
+      duration_seconds: null,
+      has_audio: source.kind === "video",
+    };
+  });
+
+  if (rows.length === 0) {
+    throw makeHttpError(409, "This scan no longer has shareable media.");
+  }
+
+  return rows;
 }
 
-async function replaceExplorePostMediaFromScan(
-  postId: string,
+function sourceForSelection(
+  item: SelectedExplorePostMediaItem,
   scan: ShareEligibleScanRow,
-  mediaItems: SelectedExplorePostMediaItem[],
-  supabaseAdmin: SupabaseClient,
-): Promise<void> {
-  if (mediaItems.length === 0) {
-    throw makeHttpError(400, "media_items must include at least one item.");
+  composerSources: ReturnType<typeof buildComposerMediaSources>,
+): {
+  kind: "image" | "video";
+  url: string;
+  thumbnail_url: string;
+} {
+  if (item.source_media_id) {
+    const parsed = parseSourceMediaId(item.source_media_id);
+    if (!parsed || parsed.scanId !== scan.id.toLowerCase()) {
+      throw makeHttpError(400, "Selected media does not belong to this scan.");
+    }
+    if (parsed.kind !== item.kind) {
+      throw makeHttpError(
+        400,
+        "Selected media kind does not match its source.",
+      );
+    }
+
+    const source = composerSources.find((candidate) =>
+      candidate.source_media_id === item.source_media_id &&
+      candidate.kind === item.kind
+    );
+    if (!source) {
+      throw makeHttpError(
+        400,
+        `Selected ${item.kind} media does not belong to this scan.`,
+      );
+    }
+
+    return source;
   }
 
   const imageUrls = cleanMediaUrls(scan.image_storage_urls);
   const videoUrls = cleanMediaUrls(scan.video_storage_urls ?? []);
-  const rows = mediaItems
-    .slice()
-    .sort((lhs, rhs) => lhs.order_index - rhs.order_index)
-    .map((item, offset) => {
-      const source = sourceIndexForSelection(item, scan.id);
-      if (item.kind === "image") {
-        const url = imageUrls[source.index];
-        if (!url) {
-          throw makeHttpError(
-            400,
-            "Selected image media does not belong to this scan.",
-          );
-        }
-
-        return {
-          post_id: postId,
-          kind: "image",
-          url,
-          thumbnail_url: url,
-          order_index: offset,
-          duration_seconds: null,
-          has_audio: false,
-        };
-      }
-
-      const url = videoUrls[source.index];
-      if (!url) {
-        throw makeHttpError(
-          400,
-          "Selected video media does not belong to this scan.",
-        );
-      }
-
-      const thumbnailIndex = item.thumbnail_source_index ?? Math.min(
-        source.index,
-        imageUrls.length - 1,
+  const source = sourceIndexForSelection(item);
+  if (item.kind === "image") {
+    const url = imageUrls[source.index];
+    if (!url) {
+      throw makeHttpError(
+        400,
+        "Selected image media does not belong to this scan.",
       );
-      const thumbnailUrl = imageUrls[thumbnailIndex];
-      if (!thumbnailUrl) {
-        throw makeHttpError(409, "Video thumbnail unavailable.");
-      }
+    }
 
-      return {
-        post_id: postId,
-        kind: "video",
-        url,
-        thumbnail_url: thumbnailUrl,
-        order_index: offset,
-        duration_seconds: null,
-        has_audio: true,
-      };
-    });
+    return {
+      kind: "image",
+      url,
+      thumbnail_url: url,
+    };
+  }
 
+  const url = videoUrls[source.index];
+  if (!url) {
+    throw makeHttpError(
+      400,
+      "Selected video media does not belong to this scan.",
+    );
+  }
+
+  const thumbnailIndex = item.thumbnail_source_index ?? Math.min(
+    source.index,
+    imageUrls.length - 1,
+  );
+  const thumbnailUrl = imageUrls[thumbnailIndex];
+  if (!thumbnailUrl) {
+    throw makeHttpError(409, "Video thumbnail unavailable.");
+  }
+
+  return {
+    kind: "video",
+    url,
+    thumbnail_url: thumbnailUrl,
+  };
+}
+
+async function replaceExplorePostMediaRows(
+  postId: string,
+  rows: ExplorePostMediaInsertRow[],
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
   const { error: deleteError } = await supabaseAdmin
     .from("explore_post_media")
     .delete()
@@ -306,7 +346,7 @@ async function replaceExplorePostMediaFromScan(
 
   const { error: insertError } = await supabaseAdmin
     .from("explore_post_media")
-    .insert(rows);
+    .insert(rows.map((row) => ({ ...row, post_id: postId })));
 
   if (insertError) {
     throw new Error(
@@ -317,22 +357,7 @@ async function replaceExplorePostMediaFromScan(
 
 function sourceIndexForSelection(
   item: SelectedExplorePostMediaItem,
-  scanId: string,
 ): { index: number } {
-  if (item.source_media_id) {
-    const parsed = parseSourceMediaId(item.source_media_id);
-    if (!parsed || parsed.scanId !== scanId.toLowerCase()) {
-      throw makeHttpError(400, "Selected media does not belong to this scan.");
-    }
-    if (parsed.kind !== item.kind) {
-      throw makeHttpError(
-        400,
-        "Selected media kind does not match its source.",
-      );
-    }
-    return { index: parsed.index };
-  }
-
   if (item.source_index == null) {
     throw makeHttpError(400, "Selected media requires a source.");
   }

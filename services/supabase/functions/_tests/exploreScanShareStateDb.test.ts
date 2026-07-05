@@ -21,6 +21,28 @@ type ExploreScanShareStateRow = {
   location_sharing: "open" | "obscured" | "private";
 };
 
+async function insertExplorePostMedia(
+  client: Client,
+  postId: string,
+  url = "https://media.merian.app/test-image.webp",
+): Promise<void> {
+  await client.queryArray(
+    `
+      INSERT INTO public.explore_post_media (
+        post_id,
+        kind,
+        url,
+        thumbnail_url,
+        order_index,
+        duration_seconds,
+        has_audio
+      )
+      VALUES ($1, 'image', $2, $2, 0, NULL, FALSE)
+    `,
+    [postId, url],
+  );
+}
+
 Deno.test("Explore scan share state DB - returns active Explore post for an owned shared scan", async () => {
   await withExploreDbTest(
     "exploreScanShareStateDb.test",
@@ -45,6 +67,7 @@ Deno.test("Explore scan share state DB - returns active Explore post for an owne
         userId: ownerId,
         scanId,
       });
+      await insertExplorePostMedia(client, postId);
 
       const result = await client.queryObject<ExploreScanShareStateRow>(
         `
@@ -99,6 +122,7 @@ Deno.test("Explore scan share state DB - keeps the shared post when scan geopriv
         scanId,
         locationSharing: "open",
       });
+      await insertExplorePostMedia(client, postId);
 
       await client.queryArray(
         `
@@ -137,6 +161,57 @@ Deno.test("Explore scan share state DB - keeps the shared post when scan geopriv
   );
 });
 
+Deno.test("Explore scan share state DB - hides post rows that have no public media", async () => {
+  await withExploreDbTest(
+    "exploreScanShareStateDb.test",
+    async (client: Client) => {
+      const ownerId = crypto.randomUUID();
+      const speciesId = crypto.randomUUID();
+      const scanId = crypto.randomUUID();
+      const postId = crypto.randomUUID();
+
+      await insertUser(client, ownerId, "Share State Phantom");
+      await insertSpecies(client, speciesId, "Rosa phantom-share-state");
+      await insertScan(client, {
+        id: scanId,
+        userId: ownerId,
+        speciesId,
+        latitude: 30.2672,
+        longitude: -97.7431,
+        geoprivacy: "open",
+      });
+      await insertExplorePost(client, {
+        id: postId,
+        userId: ownerId,
+        scanId,
+      });
+
+      const result = await client.queryObject<ExploreScanShareStateRow>(
+        `
+        SELECT
+          scan_id,
+          post_id,
+          shared_at::text AS shared_at,
+          community_request_id,
+          community_request_status,
+          is_explore_feed_visible,
+          location_sharing
+        FROM public.get_scan_explore_share_state($1, $2)
+      `,
+        [ownerId, scanId],
+      );
+
+      const row = result.rows[0];
+      assertExists(row);
+      assertEquals(row.scan_id, scanId);
+      assertEquals(row.post_id, null);
+      assertEquals(row.shared_at, null);
+      assertEquals(row.is_explore_feed_visible, false);
+      assertEquals(row.location_sharing, "open");
+    },
+  );
+});
+
 Deno.test("Explore scan share state DB - restores pending community request state without feed visibility", async () => {
   await withExploreDbTest(
     "exploreScanShareStateDb.test",
@@ -163,6 +238,7 @@ Deno.test("Explore scan share state DB - restores pending community request stat
         scanId,
         locationSharing: "obscured",
       });
+      await insertExplorePostMedia(client, postId);
       await client.queryArray(
         `
         INSERT INTO public.explore_community_requests (
@@ -231,6 +307,7 @@ Deno.test("Explore scan share state DB - hides resolved community requests until
         userId: ownerId,
         scanId,
       });
+      await insertExplorePostMedia(client, postId);
       await client.queryArray(
         `
         INSERT INTO public.taxon_nodes (

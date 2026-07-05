@@ -61,6 +61,10 @@ or:
 - Video rows include their playable public `.mp4` URL plus the required public
   poster image URL. The poster is selection metadata for the video row, not a
   separate image item unless the scan also contains that image as user media.
+- When `scans.captured_media` is present, the response is built from that
+  manifest before legacy image/video URL arrays so video clips and poster
+  thumbnails stay paired. `/share-scan-to-explore` resolves submitted
+  `source_media_id` values through this same source list.
 - Audio, Describe content, observation context, AI/reference images, and
   Dictionary media are not returned.
 - For first-share `scan_id` requests, all eligible media is selected by default.

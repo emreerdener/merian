@@ -1947,6 +1947,12 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   eligible scan image/video URLs. Empty selections, non-visual media kinds,
   Describe/observation context, AI/reference images, and Dictionary media are
   rejected or ignored before the public post snapshot is written.
+- For scans with `captured_media`, `source_media_id` values are resolved through
+  the same manifest-aware media source list returned to the composer, so video
+  playback URLs and poster thumbnails stay paired even when sampled inference
+  frames remain in compatibility image URL arrays. Share-state visibility
+  requires a saved `explore_post_media` row, preventing failed media writes from
+  appearing as existing Explore posts.
 - When the scan has an active Identify request, sharing to Explore is blocked
   until that request resolves. Publishing a resolved Identify request marks the
   request with `explore_published_at`, materializes any new GBIF-backed resolved

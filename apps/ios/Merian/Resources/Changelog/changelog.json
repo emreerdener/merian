@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-05-video-explore-sharing",
+      "date": "2026-07-05",
+      "title": "Video Explore sharing",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Video clips selected in the Explore composer now publish correctly from the captured-media manifest, and failed media snapshots no longer make the Share sheet look like a post already exists."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-04-collections-default-tile-placement",
       "date": "2026-07-04",
       "title": "Collections layout",

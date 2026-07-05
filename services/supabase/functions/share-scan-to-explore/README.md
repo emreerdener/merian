@@ -37,6 +37,11 @@ point to the scan's promoted image/video URL arrays; for videos,
 Audio, Describe content, AI/reference images, and Dictionary media are not valid
 Explore post media.
 
+For video scans with `scans.captured_media`, `source_media_id` resolves through
+the same manifest-aware source list shown by the composer. This keeps the
+playback `.mp4` and poster thumbnail paired even when sampled inference frames
+also exist in legacy image URL arrays.
+
 Valid location values:
 
 - `open`: project post-owned public coordinates and allow Explore Map and
@@ -68,6 +73,9 @@ Legacy `hidden` input is accepted as `private`.
 - Sharing snapshots public image/video URLs into `explore_post_media` for the
   post. Video posts require a public thumbnail image; otherwise the endpoint
   returns `Video thumbnail unavailable.`
+- Media selections are validated before the post is reported as shared. Public
+  feed/share-state visibility requires at least one saved `explore_post_media`
+  row, so a failed media snapshot cannot leave a phantom visible Explore post.
 - Describe/observation context is private scan context. It is never copied into
   `field_notes`, hashtags, captions, media metadata, or the public media
   snapshot unless the user manually writes that text into the composer.
