@@ -48,6 +48,12 @@ Response:
     "critical_issues": 0,
     "warning_issues": 1
   },
+  "asset_breakdown": {
+    "stale_capture_upload_assets": [
+      { "kind": "image", "role": "display", "count": 1 }
+    ],
+    "failed_assets": []
+  },
   "issues": [
     {
       "code": "stale_capture_upload_assets",
@@ -64,6 +70,14 @@ active ingestion job is stuck past its lease. `status = warning` means
 repair/retry work may still succeed, or a terminal ingestion failure may need
 review if unexpected.
 
+## Scheduled Monitor
+
+`.github/workflows/scan-media-health-monitor.yml` calls this endpoint every 30
+minutes with `fail_on = critical`. The workflow writes JSON and Markdown
+artifacts for each run and appends the Markdown summary to the GitHub job
+summary. Manual dispatch can use `fail_on = warning` for stricter validation or
+`fail_on = never` when collecting a non-gating diagnostic snapshot.
+
 ## Validation
 
 ```bash
@@ -71,4 +85,6 @@ deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/scan-media-health/health_test.ts
 deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/scan-media-health/index.ts
+deno test --config services/supabase/functions/deno.json \
+  services/supabase/scripts/monitor_scan_media_health_test.ts
 ```

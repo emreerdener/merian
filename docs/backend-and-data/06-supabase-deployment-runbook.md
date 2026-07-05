@@ -103,6 +103,42 @@ runs use:
 The scheduled job uploads JSON/Markdown summary artifacts, writes a GitHub job
 summary, and commits the running checklist when a real import changes it.
 
+## Scan Media Health Automation
+
+The **Scan Media Health Monitor** workflow runs every 30 minutes and can also be
+started manually from GitHub Actions. It resolves the production service-role
+key at runtime through the Supabase CLI, calls `/scan-media-health`, writes JSON
+and Markdown summary artifacts, and appends the Markdown report to the job
+summary.
+
+Scheduled runs use:
+
+- `limit`: `25`
+- `recent_scan_limit`: `250`
+- `fail_on`: `critical`
+
+Warnings are visible in the summary but do not fail the scheduled run. A failed
+run means the endpoint returned `critical` or the monitor could not reach the
+service-role endpoint. Start triage from the issue code:
+
+- `stuck_ingestion_jobs`: inspect `scan_ingestion_jobs.stage`,
+  `lock_expires_at`, and `last_error`; retryable rows should be retried by the
+  client/server queue, while expired active rows may need operator replay.
+- `video_scan_missing_captured_media_video`: inspect the scan's
+  `video_storage_urls`, `captured_media`, and ready playback
+  `scan_media_assets`; repair should go through `reconcile-scan-media-assets`
+  or the local `.mp4` restore path.
+- `video_scan_missing_ready_playback_asset`: run or inspect
+  `refresh_scan_media_assets(scan_id)` and the reconciliation worker result.
+- `explore_video_missing_thumbnail`: inspect `explore_post_media.thumbnail_url`
+  and the source scan's first safe image/poster thumbnail.
+- `latest_reconciliation_run_not_clean`: inspect
+  `scan_media_reconciliation_runs.errors` before rerunning the worker.
+
+Manual dispatch can use `fail_on = warning` for stricter validation before a
+media-path release, or `fail_on = never` to collect a non-gating diagnostic
+snapshot.
+
 ## Manual Taxonomy Import
 
 Use **Actions > Import Community Taxonomy > Run workflow** when the deployed
@@ -142,6 +178,8 @@ deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/encoding.ts \
   services/supabase/functions/_shared/concurrency.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
+  services/supabase/scripts/monitor_scan_media_health.ts \
+  services/supabase/scripts/monitor_scan_media_health_test.ts \
   services/supabase/functions/update-public-avatar/index.ts \
   services/supabase/functions/update-public-display-name/index.ts \
   services/supabase/functions/insight-chat/index.ts \
@@ -152,6 +190,7 @@ deno check --config services/supabase/functions/deno.json \
 deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/aws_test.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
+  services/supabase/scripts/monitor_scan_media_health_test.ts \
   services/supabase/functions/update-public-avatar/avatar_test.ts \
   services/supabase/functions/_tests/updatePublicDisplayName.test.ts \
   services/supabase/functions/insight-chat/guards_test.ts \

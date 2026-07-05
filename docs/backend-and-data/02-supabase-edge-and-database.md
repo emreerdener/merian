@@ -195,6 +195,9 @@ scan rows, replay inference, or delete staged media. Repairs stay owned by
 `identify-multimodal`, `reconcile-scan-media-assets`, and the iOS offline queue.
 Deploy smoke tests call it with a small sample to prove the service-role status
 surface is reachable after migrations and function deployment.
+The scheduled **Scan Media Health Monitor** GitHub workflow calls the same
+endpoint every 30 minutes, stores JSON/Markdown artifacts, and fails only on
+`critical` by default so warnings remain visible without paging the deploy path.
 
 ## The Public Avatar Promotion Node (`update-public-avatar`)
 

@@ -186,6 +186,40 @@ Deno.test("buildScanMediaHealthReport ignores ordinary five-image scans", () => 
   assertEquals(report.issues, []);
 });
 
+Deno.test("buildScanMediaHealthReport groups stale and failed assets by media kind and role", () => {
+  const report = buildScanMediaHealthReport(baseInput({
+    staleCaptureUploadAssets: [
+      mediaAsset({ id: "asset-a", kind: "image", role: "display" }),
+      mediaAsset({ id: "asset-b", kind: "image", role: "display" }),
+      mediaAsset({ id: "asset-c", kind: "audio", role: "audio" }),
+    ],
+    failedAssets: [
+      mediaAsset({
+        id: "asset-d",
+        kind: "video",
+        role: "playback",
+        status: "failed",
+      }),
+      mediaAsset({
+        id: "asset-e",
+        kind: "image",
+        role: "thumbnail",
+        status: "failed",
+      }),
+    ],
+  }));
+
+  assertEquals(report.status, "warning");
+  assertEquals(report.asset_breakdown.stale_capture_upload_assets, [
+    { kind: "audio", role: "audio", count: 1 },
+    { kind: "image", role: "display", count: 2 },
+  ]);
+  assertEquals(report.asset_breakdown.failed_assets, [
+    { kind: "image", role: "thumbnail", count: 1 },
+    { kind: "video", role: "playback", count: 1 },
+  ]);
+});
+
 function baseInput(
   overrides: Partial<BuildScanMediaHealthReportInput> = {},
 ): BuildScanMediaHealthReportInput {
@@ -200,5 +234,28 @@ function baseInput(
     exploreVideoMedia: [],
     reconciliationRuns: [],
     ...overrides,
+  };
+}
+
+function mediaAsset(
+  overrides: Partial<
+    BuildScanMediaHealthReportInput["staleCaptureUploadAssets"][number]
+  >,
+): BuildScanMediaHealthReportInput["staleCaptureUploadAssets"][number] {
+  return {
+    id: overrides.id ?? "asset-1",
+    scan_id: overrides.scan_id ?? null,
+    client_scan_id: overrides.client_scan_id ?? "scan-1",
+    user_id: overrides.user_id ?? "user-1",
+    kind: overrides.kind ?? "image",
+    role: overrides.role ?? "display",
+    status: overrides.status ?? "staged",
+    source: overrides.source ?? "capture_upload",
+    url: overrides.url ?? null,
+    storage_key: overrides.storage_key ?? "staging/user-1/media.webp",
+    thumbnail_url: overrides.thumbnail_url ?? null,
+    failure_reason: overrides.failure_reason ?? null,
+    created_at: overrides.created_at ?? "2026-07-05T14:00:00.000Z",
+    updated_at: overrides.updated_at ?? "2026-07-05T14:00:00.000Z",
   };
 }

@@ -176,6 +176,12 @@ Response payload:
     "critical_issues": 0,
     "warning_issues": 1
   },
+  "asset_breakdown": {
+    "stale_capture_upload_assets": [
+      { "kind": "image", "role": "display", "count": 1 }
+    ],
+    "failed_assets": []
+  },
   "issues": [
     {
       "code": "stale_capture_upload_assets",
@@ -193,6 +199,9 @@ durability invariant is already broken or a server-owned ingestion job is stuck
 past its lease. Warning issues indicate retry/repair work may still complete but
 should be monitored. The endpoint does not repair media; writers remain
 `identify-multimodal`, `reconcile-scan-media-assets`, and the iOS offline queue.
+The scheduled **Scan Media Health Monitor** workflow calls this endpoint every
+30 minutes, stores JSON/Markdown artifacts, and fails only on `critical` by
+default.
 
 ---
 

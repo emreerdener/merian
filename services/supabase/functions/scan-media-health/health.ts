@@ -103,6 +103,10 @@ export interface ScanMediaHealthReport {
     stuck_after_minutes: number;
     stale_asset_after_minutes: number;
   };
+  asset_breakdown: {
+    stale_capture_upload_assets: ScanMediaAssetBreakdown[];
+    failed_assets: ScanMediaAssetBreakdown[];
+  };
   counts: {
     ingestion_jobs_checked: number;
     stale_capture_upload_assets: number;
@@ -116,6 +120,12 @@ export interface ScanMediaHealthReport {
     warning_issues: number;
   };
   issues: ScanMediaHealthIssue[];
+}
+
+export interface ScanMediaAssetBreakdown {
+  kind: string;
+  role: string;
+  count: number;
 }
 
 export interface BuildScanMediaHealthReportInput {
@@ -359,6 +369,12 @@ export function buildScanMediaHealthReport(
       stuck_after_minutes: input.request.stuckAfterMinutes,
       stale_asset_after_minutes: input.request.staleAssetAfterMinutes,
     },
+    asset_breakdown: {
+      stale_capture_upload_assets: summarizeAssetsByKindRole(
+        input.staleCaptureUploadAssets,
+      ),
+      failed_assets: summarizeAssetsByKindRole(input.failedAssets),
+    },
     counts: {
       ingestion_jobs_checked: input.ingestionJobs.length,
       stale_capture_upload_assets: input.staleCaptureUploadAssets.length,
@@ -373,6 +389,27 @@ export function buildScanMediaHealthReport(
     },
     issues,
   };
+}
+
+function summarizeAssetsByKindRole(
+  rows: ScanMediaAssetHealthRow[],
+): ScanMediaAssetBreakdown[] {
+  const counts = new Map<string, ScanMediaAssetBreakdown>();
+  for (const row of rows) {
+    const kind = cleanString(row.kind) ?? "unknown";
+    const role = cleanString(row.role) ?? "unknown";
+    const key = `${kind}:${role}`;
+    const existing = counts.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      counts.set(key, { kind, role, count: 1 });
+    }
+  }
+  return [...counts.values()].sort((lhs, rhs) =>
+    lhs.kind.localeCompare(rhs.kind) ||
+    lhs.role.localeCompare(rhs.role)
+  );
 }
 
 function parsePositiveInteger(
