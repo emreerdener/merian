@@ -46,6 +46,65 @@ COMMENT ON TABLE public.scan_media_reconciliation_runs IS
 COMMENT ON COLUMN public.scan_media_reconciliation_runs.repaired_video_scan_count IS
   'Number of existing scan rows repaired by promoting a stranded staged playback video and rebuilding captured_media.';
 
+-- Earlier deployments may already have a scan_media_assets table from an older
+-- draft of the media lifecycle migration. Because that table is created with
+-- CREATE TABLE IF NOT EXISTS in the previous migration, make this scheduling
+-- migration repair missing lifecycle columns before it indexes staged
+-- capture-upload rows or enables the worker.
+ALTER TABLE public.scan_media_assets
+    ADD COLUMN IF NOT EXISTS client_scan_id UUID,
+    ADD COLUMN IF NOT EXISTS upload_session_id UUID,
+    ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'image',
+    ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'display',
+    ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ready',
+    ADD COLUMN IF NOT EXISTS source TEXT,
+    ADD COLUMN IF NOT EXISTS url TEXT,
+    ADD COLUMN IF NOT EXISTS storage_key TEXT,
+    ADD COLUMN IF NOT EXISTS thumbnail_url TEXT,
+    ADD COLUMN IF NOT EXISTS order_index INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS duration_seconds DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS has_audio BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS content_type TEXT,
+    ADD COLUMN IF NOT EXISTS byte_size BIGINT,
+    ADD COLUMN IF NOT EXISTS checksum_sha256 TEXT,
+    ADD COLUMN IF NOT EXISTS width INTEGER,
+    ADD COLUMN IF NOT EXISTS height INTEGER,
+    ADD COLUMN IF NOT EXISTS failure_reason TEXT,
+    ADD COLUMN IF NOT EXISTS ready_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+UPDATE public.scan_media_assets
+SET source = CASE
+    WHEN source IN ('scan_refresh', 'capture_upload', 'repair', 'backfill', 'manual') THEN source
+    WHEN status = 'staged' THEN 'capture_upload'
+    ELSE 'scan_refresh'
+END
+WHERE source IS NULL
+   OR NULLIF(BTRIM(source), '') IS NULL
+   OR source NOT IN ('scan_refresh', 'capture_upload', 'repair', 'backfill', 'manual');
+
+ALTER TABLE public.scan_media_assets
+    ALTER COLUMN source SET DEFAULT 'scan_refresh',
+    ALTER COLUMN source SET NOT NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'public.scan_media_assets'::REGCLASS
+          AND conname = 'scan_media_assets_source_check'
+    ) THEN
+        ALTER TABLE public.scan_media_assets
+            ADD CONSTRAINT scan_media_assets_source_check
+            CHECK (source IN ('scan_refresh', 'capture_upload', 'repair', 'backfill', 'manual'));
+    END IF;
+END;
+$$;
+
 CREATE INDEX IF NOT EXISTS idx_scan_media_assets_staged_capture_upload_age
     ON public.scan_media_assets(created_at, client_scan_id)
     WHERE source = 'capture_upload' AND status = 'staged';

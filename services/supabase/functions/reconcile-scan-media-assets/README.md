@@ -25,6 +25,9 @@ The function is scheduled hourly by
 `20260705110000_schedule_scan_media_asset_reconciliation.sql` through
 `pg_cron` / `pg_net`. It uses `verify_jwt = false` at the gateway, then requires
 `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` inside the function.
+The scheduling migration also repairs early `scan_media_assets` table shapes
+before creating the staged capture-upload index, so remote databases that
+already applied an older media-assets migration can deploy the worker safely.
 
 Optional POST body:
 

@@ -1142,6 +1142,11 @@ old staged rows: existing scan rows can be repaired from surviving staged
 playback videos, while abandoned upload sessions are failed and garbage
 collected after their TTL.
 
+Operational note: `20260705110000_schedule_scan_media_asset_reconciliation.sql`
+also repairs early deployed `scan_media_assets` tables that were created before
+the final lifecycle columns existed. It backfills `source` before creating the
+staged capture-upload index so remote deploys do not fail on older table shape.
+
 ### `scan_media_reconciliation_runs`
 
 Service-role audit log for the scheduled scan-media reconciliation worker. Added
