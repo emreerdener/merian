@@ -1,4 +1,8 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  fetchScanMediaAssetsBestEffort,
+  ScanMediaAssetRow,
+} from "../_shared/scanMediaAssets.ts";
 
 export async function fetchScanOwnership(
   scanId: string,
@@ -23,6 +27,7 @@ export interface ScanStatusMediaRow {
   id: string;
   video_storage_urls?: string[] | null;
   captured_media?: unknown[] | null;
+  media_assets?: ScanMediaAssetRow[] | null;
 }
 
 export async function fetchScanStatusMedia(
@@ -41,5 +46,11 @@ export async function fetchScanStatusMedia(
     throw new Error(`fetchScanStatusMedia: ${error.message}`);
   }
 
-  return (data as ScanStatusMediaRow | null) ?? null;
+  const row = (data as ScanStatusMediaRow | null) ?? null;
+  if (!row) return null;
+
+  return {
+    ...row,
+    media_assets: await fetchScanMediaAssetsBestEffort(scanId, supabaseAdmin),
+  };
 }

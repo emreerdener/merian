@@ -28,8 +28,9 @@ TestFlight, App Store, support, and QA.
 
 ### Explore
 - Added public video Explore posts: shared video scans can now appear in Explore and Ask the Community with muted playback in feed/detail and thumbnail play indicators on compact surfaces.
-- Fixed video Explore sharing so composer-selected video clips publish, edit, and request Community ID from the captured-media manifest, while failed media snapshots no longer leave the Share sheet showing a phantom Explore post.
+- Fixed video Explore sharing so composer-selected video clips publish, edit, and request Community ID from the server media source list, while failed media snapshots no longer leave the Share sheet showing a phantom Explore post.
 - Improved video Explore sharing repair so scans with a surviving local `.mp4` can restore missing cloud video media before publishing.
+- Hardened video media recovery so cloud scans keep a normalized image/video media record for future sharing and playback repairs.
 - Added Explore post management actions to the Insight top menu so published scans can be edited or opened without returning to the Share sheet.
 - Added a View insight action to your own Explore post menus, including posts opened from an Insight sheet or your Profile's published scans.
 - Fixed notification-opened comment reply threads so parent comments and replies include the same emoji reaction controls as regular Explore comments.

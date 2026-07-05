@@ -54,10 +54,10 @@ Web runtime config:
 The active schema is:
 
 ```swift
-typealias CurrentSchema = MerianSchemaV45
+typealias CurrentSchema = MerianSchemaV47
 ```
 
-`MerianSchemaV45` is declared in `apps/ios/Merian/Models/SchemaVersions.swift` and points
+`MerianSchemaV47` is declared in `apps/ios/Merian/Models/SchemaVersions.swift` and points
 at the global active model classes in `apps/ios/Merian/Models/ActiveSchema/`.
 
 Active persistent models:
@@ -84,6 +84,8 @@ Recent schema milestones:
 - V43 introduced AI-derived sex observation metadata on completed local scans.
 - V44 added optional dog/cat pet-identification display metadata on completed
   local scans.
+- V47 added offline video inference replay fields so sampled frames can be
+  queued separately from the user-visible playback video timeline.
 
 Historical schema snapshots V1 through V39 live under `apps/ios/Merian/Models/Schema/`.
 V40 through V44 live in `SchemaVersions.swift` alongside the migration plan.
@@ -244,6 +246,13 @@ Every function above has a `[functions.<name>]` entry in `services/supabase/conf
 `merge-ghost-profile` and `request-export-dwca` intentionally use
 `verify_jwt = true`; app-facing functions generally set `verify_jwt = false`
 and perform identity checks inside shared handler code.
+
+## Supabase Media Projections
+
+| Surface | Current files | Responsibility |
+|---|---|---|
+| Scan media assets | `services/supabase/migrations/20260705100000_add_scan_media_assets.sql`, `services/supabase/functions/_shared/scanMediaAssets.ts` | Normalized user-visible scan media projection. `captured_media` remains the canonical manifest on `scans`; `scan_media_assets` is rebuilt from it, falls back to legacy image/video arrays for older rows, and lets composer/status reads avoid treating sampled video frames as standalone user media. |
+| Explore post media | `services/supabase/migrations/20260703130000_add_explore_post_media.sql`, `services/supabase/functions/_shared/explorePostMedia.ts` | Post-owned public media snapshot used by Explore feed/detail, Community ID, map/profile/widget previews, and public web read paths. |
 
 ## Test Inventory
 

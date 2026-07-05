@@ -2,6 +2,7 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
+import { refreshScanMediaAssetsBestEffort } from "../_shared/scanMediaAssets.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
 
 export interface ShareEligibleScanRow {
@@ -173,6 +174,7 @@ export async function fetchShareEligibleScan(
     }
 
     row = updatedRow as ShareEligibleScanRow;
+    await refreshScanMediaAssetsBestEffort(scanId, supabaseAdmin);
   }
 
   if (
@@ -221,6 +223,7 @@ export async function fetchShareEligibleScan(
     }
 
     row = updatedRow as ShareEligibleScanRow;
+    await refreshScanMediaAssetsBestEffort(scanId, supabaseAdmin);
   }
 
   if (

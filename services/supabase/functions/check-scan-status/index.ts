@@ -4,6 +4,7 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
+import { countVideoScanMediaAssets } from "../_shared/scanMediaAssets.ts";
 import { fetchScanStatusMedia } from "./db.ts";
 
 function normalizeRequiredVideoCount(value: unknown): number {
@@ -58,8 +59,9 @@ Deno.serve((req: Request) =>
       if (exists && requiredVideoCount > 0) {
         const videoUrlCount = cleanMediaUrls(row?.video_storage_urls).length;
         const manifestVideoCount = capturedVideoCount(row?.captured_media);
+        const assetVideoCount = countVideoScanMediaAssets(row?.media_assets);
         exists = videoUrlCount >= requiredVideoCount &&
-          manifestVideoCount >= requiredVideoCount;
+          Math.max(manifestVideoCount, assetVideoCount) >= requiredVideoCount;
       }
 
       return jsonResponse({ status: exists ? "found" : "not_found" }, 200);

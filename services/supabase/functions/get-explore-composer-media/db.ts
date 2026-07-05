@@ -3,6 +3,10 @@ import {
   buildComposerMediaSources,
   ExploreComposerMediaSource,
 } from "../_shared/exploreComposerMedia.ts";
+import {
+  fetchScanMediaAssetsBestEffort,
+  ScanMediaAssetRow,
+} from "../_shared/scanMediaAssets.ts";
 
 function makeHttpError(
   status: number,
@@ -19,6 +23,7 @@ interface ComposerScanRow {
   image_storage_urls: string[] | null;
   video_storage_urls: string[] | null;
   captured_media: unknown[] | null;
+  media_assets?: ScanMediaAssetRow[] | null;
   is_tombstoned: boolean;
 }
 
@@ -144,7 +149,10 @@ async function fetchOwnedScan(
     throw makeHttpError(409, "Tombstoned scans cannot be shared to Explore.");
   }
 
-  return scan;
+  return {
+    ...scan,
+    media_assets: await fetchScanMediaAssetsBestEffort(scan.id, supabaseAdmin),
+  };
 }
 
 async function selectedSourceMediaForPost(

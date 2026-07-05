@@ -55,6 +55,7 @@ import {
   MEDIA_BUDGETS,
   readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
+import { refreshScanMediaAssetsBestEffort } from "../_shared/scanMediaAssets.ts";
 import {
   buildContextText,
   normalizeCurrentMonth,
@@ -420,6 +421,12 @@ function buildCapturedMediaManifest(
   return sanitizedImageUrls.map((imageUrl) => ({
     image: { _0: remoteMediaReference(imageUrl) },
   }));
+}
+
+function capturedMediaVideoCount(
+  capturedMedia: SerializedMediaItemDTO[] | null,
+): number {
+  return (capturedMedia ?? []).filter((item) => "video" in item).length;
 }
 
 Deno.serve((req: Request) =>
@@ -1196,6 +1203,7 @@ Deno.serve((req: Request) =>
           supabaseAdmin,
         );
         scanInserted = true;
+        await refreshScanMediaAssetsBestEffort(generatedScanId, supabaseAdmin);
         if (audioR2ObjectKeys.length > 0) {
           const r2Config = getR2Config();
           Promise.allSettled(
@@ -1295,6 +1303,11 @@ Deno.serve((req: Request) =>
           video_clip_count: mediaTelemetry.videoClipCount,
           video_frame_count: mediaTelemetry.declaredVideoFrameCount,
           video_inference_frame_count: mediaTelemetry.videoInferenceFrameCount,
+          durable_video_required: requireDurableVideo,
+          video_r2_object_key_count: videoR2ObjectKeys.length,
+          video_storage_url_count: videoStorageUrls.length,
+          captured_media_item_count: capturedMedia?.length ?? 0,
+          captured_media_video_count: capturedMediaVideoCount(capturedMedia),
           audio_clip_count: processedAudios.length,
           llm_model: targetModel,
           llm_prompt_tokens: llmPromptTokens,
@@ -1431,6 +1444,14 @@ Deno.serve((req: Request) =>
           scan_id: generatedScanId,
           error: error instanceof Error ? error.message : String(error),
         });
+        trackPostHogEvent(user.id, "video_scan_persistence_failed", {
+          scan_id: generatedScanId,
+          inference_tier: inferenceTier,
+          tier: userTier,
+          ...tierTelemetryProperties(tierResolution),
+          video_r2_object_key_count: videoR2ObjectKeys.length,
+          error: error instanceof Error ? error.message : String(error),
+        }).catch((e) => console.error("PostHog tracking failed:", e));
         return jsonResponse(
           { error: "Video media could not be saved. Please retry." },
           503,

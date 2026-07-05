@@ -1,3 +1,8 @@
+import {
+  cleanScanMediaAssetRows,
+  ScanMediaAssetRow,
+} from "./scanMediaAssets.ts";
+
 export type ExploreComposerMediaKind = "image" | "video";
 
 export interface ExploreComposerScanMediaRow {
@@ -5,6 +10,7 @@ export interface ExploreComposerScanMediaRow {
   image_storage_urls?: string[] | null;
   video_storage_urls?: string[] | null;
   captured_media?: unknown[] | null;
+  media_assets?: ScanMediaAssetRow[] | null;
 }
 
 export interface ExploreComposerMediaSource {
@@ -57,6 +63,14 @@ export function buildComposerMediaSources(
   scan: ExploreComposerScanMediaRow,
   selectedSourceMediaIds: Map<string, number> = new Map(),
 ): ExploreComposerMediaSource[] {
+  const assetRows = buildComposerMediaSourcesFromAssets(
+    scan,
+    selectedSourceMediaIds,
+  );
+  if (assetRows.length > 0) {
+    return assetRows;
+  }
+
   const imageUrls = cleanMediaUrls(scan.image_storage_urls);
   const videoUrls = cleanMediaUrls(scan.video_storage_urls);
   const manifestRows = buildComposerMediaSourcesFromManifest(
@@ -105,6 +119,48 @@ export function buildComposerMediaSources(
       selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ?? null,
     });
   });
+
+  return rows;
+}
+
+function buildComposerMediaSourcesFromAssets(
+  scan: ExploreComposerScanMediaRow,
+  selectedSourceMediaIds: Map<string, number>,
+): ExploreComposerMediaSource[] {
+  const assets = cleanScanMediaAssetRows(scan.media_assets);
+  if (assets.length === 0) return [];
+
+  const rows: ExploreComposerMediaSource[] = [];
+  let imageIndex = 0;
+  let videoIndex = 0;
+
+  for (const asset of assets) {
+    const index = asset.kind === "video" ? videoIndex : imageIndex;
+    const sourceMediaId = makeSourceMediaId(scan.id, asset.kind, index);
+    const thumbnailUrl = asset.thumbnail_url?.trim() ||
+      (asset.kind === "image" ? asset.url : "");
+
+    if (asset.kind === "video" && thumbnailUrl.length === 0) {
+      videoIndex += 1;
+      continue;
+    }
+
+    rows.push({
+      source_media_id: sourceMediaId,
+      kind: asset.kind,
+      url: asset.url,
+      thumbnail_url: thumbnailUrl,
+      order_index: rows.length,
+      is_selected: selectedSourceMediaIds.has(sourceMediaId),
+      selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ?? null,
+    });
+
+    if (asset.kind === "video") {
+      videoIndex += 1;
+    } else {
+      imageIndex += 1;
+    }
+  }
 
   return rows;
 }

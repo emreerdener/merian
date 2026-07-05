@@ -11,6 +11,12 @@
           "items": [
             "Video scans now require a saved playback clip before completing, and Explore sharing can repair missing cloud video media when the local clip is still available."
           ]
+        },
+        {
+          "title": "Improved",
+          "items": [
+            "Cloud video scans now keep a more durable media record for future sharing and playback recovery."
+          ]
         }
       ]
     },
@@ -50,7 +56,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Video clips selected in the Explore composer now publish, edit, and request Community ID correctly from the captured-media manifest, and failed media snapshots no longer make the Share sheet look like a post already exists."
+            "Video clips selected in the Explore composer now publish, edit, and request Community ID correctly from the server media source list, and failed media snapshots no longer make the Share sheet look like a post already exists."
           ]
         }
       ]

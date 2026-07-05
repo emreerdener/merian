@@ -38,17 +38,19 @@ point to the scan's promoted image/video URL arrays; for videos,
 Audio, Describe content, AI/reference images, and Dictionary media are not valid
 Explore post media.
 
-For video scans with `scans.captured_media`, `source_media_id` resolves through
-the same manifest-aware source list shown by the composer. This keeps the
-playback `.mp4` and poster thumbnail paired even when sampled inference frames
-also exist in legacy image URL arrays.
+For video scans, `source_media_id` resolves through the same source list shown
+by the composer: normalized `scan_media_assets` first, then
+`scans.captured_media`, then legacy URL arrays. This keeps the playback `.mp4`
+and poster thumbnail paired even when sampled inference frames also exist in
+legacy image URL arrays.
 
 `restored_video_object_keys` is optional and only used by repair-capable clients.
 If the owner still has the original local `.mp4` but the cloud scan row is
 missing `video_storage_urls`, the client uploads that clip to staging and sends
 the returned keys here. The function promotes the videos, rebuilds
-`captured_media`, and validates the selected video media again before publishing.
-Rows whose original local video is gone remain image-only historical rows.
+`captured_media`, makes a best-effort `scan_media_assets` refresh, and validates
+the selected video media again before publishing. Rows whose original local video
+is gone remain image-only historical rows.
 
 Valid location values:
 

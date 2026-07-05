@@ -606,6 +606,10 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    promotion shortfall fails the video scan instead of inserting a frame-only
    row. Successful video inserts write both `video_storage_urls` and a
    `captured_media` video item before the client treats the scan as complete.
+   The `scan_media_assets` projection is refreshed by the database trigger plus
+   a best-effort Edge refresh call, so newer media readers can use one
+   normalized image/video source instead of inferring user-visible media from
+   compatibility arrays.
 
 ## The Explore Social Surface
 
@@ -664,7 +668,7 @@ clips.
 
 For captured-media video scans, the Explore composer, `share-scan-to-explore`,
 `update-explore-field-notes`, and Ask the Community request creation all resolve
-media from the same manifest-aware source list, pairing the playback `.mp4` with
+media from the same asset-first source list, pairing the playback `.mp4` with
 its poster thumbnail instead of treating sampled inference frames as standalone
 user media. A post row is not considered feed-visible by share state unless it
 has at least one saved `explore_post_media` row; this prevents failed media

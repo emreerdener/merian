@@ -36,7 +36,7 @@ or:
   query and non-owned rows are indistinguishable from missing rows.
 - When `required_video_count > 0`, the endpoint returns `found` only if the scan
   row has at least that many non-empty `video_storage_urls` and at least that
-  many video entries in `captured_media`.
+  many video entries in `scan_media_assets` or `captured_media`.
 - This prevents the offline queue from treating a legacy frame-only cloud row as
   a completed video scan. If the durable playback `.mp4` is missing, the queue
   retries instead of deleting the local video.

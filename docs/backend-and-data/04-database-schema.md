@@ -732,7 +732,9 @@ The transaction log for every successful identification.
   `SerializedMediaItem` shape. Video entries attach the playback clip and poster
   thumbnail together so sampled inference frames do not hydrate as standalone
   Insight carousel images. Video rows should be present whenever
-  `video_storage_urls` is present.
+  `video_storage_urls` is present. The `scan_media_assets` projection is rebuilt
+  from this manifest when present and falls back to legacy media arrays for older
+  rows.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` for
@@ -1038,6 +1040,35 @@ controls public location output. Share-state reads also require at least one
 `explore_post_media` row before returning a post as feed-visible, so partial
 post rows left by failed media writes are hidden until sharing succeeds.
 
+### `scan_media_assets`
+
+Normalized user-visible scan media assets. Added in migration
+`20260705100000_add_scan_media_assets.sql`.
+
+- `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE): The owning scan.
+- `user_id` (UUID FK -> `users.id`, CASCADE DELETE): Denormalized owner for
+  RLS and efficient owner-scoped media reads.
+- `kind` (TEXT): `image` or `video`.
+- `url` (TEXT): Public CDN URL for the user-visible image or playback video.
+- `thumbnail_url` (TEXT, nullable): Public image thumbnail for compact previews
+  and video poster frames.
+- `order_index` (INT): Stable media order within the scan's captured-media
+  timeline.
+- `duration_seconds` (DOUBLE PRECISION, nullable): Reserved for video playback
+  metadata.
+- `has_audio` (BOOLEAN): Whether the playback video may contain an audio track.
+- `metadata` (JSONB): Reserved structured metadata for dimensions, codec,
+  checksum, and future processing status.
+- `created_at` / `updated_at` (TIMESTAMPTZ): Projection lifecycle timestamps.
+
+`public.refresh_scan_media_assets(scan_id)` rebuilds the projection from
+`scans.captured_media` first. If the manifest is absent, it falls back to
+`image_storage_urls` / `video_storage_urls` and collapses legacy sampled video
+frames behind a single video asset. A trigger keeps the table synchronized after
+scan media inserts, updates, and deletes; Edge write paths also make best-effort
+refresh RPC calls after critical scan inserts and video-repair updates, but
+existing manifest/array fallbacks remain available if projection refresh fails.
+
 ### `explore_post_media`
 
 Post-owned public media snapshots for Explore and Community ID posts. Added in
@@ -1060,9 +1091,8 @@ migration `20260703130000_add_explore_post_media.sql`.
 detail, author, hashtag, map, and Community ID read paths. Map, widget, profile
 grid, and compact surfaces should keep using `hero_image_url` thumbnails plus a
 play indicator when any returned media item is video. For scans with
-`captured_media`, composer, share, edit, and Community request write paths
-resolve public media from that manifest first so playback video URLs and poster
-thumbnails remain paired.
+`scan_media_assets` first, then `captured_media`, and finally legacy URL arrays
+so playback video URLs and poster thumbnails remain paired.
 
 ### `explore_post_hashtags`
 
@@ -1565,7 +1595,7 @@ historical schema must also be schema-scoped snapshots; V41 owns
 without SwiftData casting V41 records to active `LocalScanRecord` or
 `OfflineQueuedScan`.
 
-The current active schema is `MerianSchemaV45`. Recent milestones:
+The current active schema is `MerianSchemaV47`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -1594,6 +1624,9 @@ The current active schema is `MerianSchemaV45`. Recent milestones:
   `invasiveRationale`, `invasiveConfidence`) to completed local scans, matching
   the cloud `scans` columns introduced by migration
   `20260703120000_add_invasive_context_to_scans.sql`.
+- V47 added `OfflineQueuedScan.inferenceImagePaths` and
+  `visualMediaItemsJSON` so queued video replay can keep sampled inference frames
+  separate from the user-visible playback video timeline.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): Declares
 `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and
