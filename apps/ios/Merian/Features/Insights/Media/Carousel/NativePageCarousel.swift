@@ -64,7 +64,9 @@ struct NativePageCarousel: UIViewControllerRepresentable {
         for newPage in pages {
             if let oldIndex = coordinator.pages.firstIndex(of: newPage) {
                 // The exact same page identity exists — preserve its controller!
-                newControllers.append(coordinator.controllers[oldIndex])
+                let controller = coordinator.controllers[oldIndex]
+                controller.rootView = newPage.view
+                newControllers.append(controller)
             } else {
                 // It is structurally new (e.g., .liveImage -> .image) or a brand new insertion.
                 newControllers.append(ZoomPageViewController(page: newPage.view))

@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-05-insight-video-autoplay",
+      "date": "2026-07-05",
+      "title": "Insight video playback",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Video scan media now starts muted playback once when its Insight sheet opens, with a bottom-left sound status toggle.",
+            "Account-library video scans whose cloud record still listed sampled frames now open the playable video instead of a thumbnail sequence.",
+            "Video scans that only have sampled frames available now fall back to the middle frame instead of filling the Insight carousel with all five samples."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-05-video-explore-sharing",
       "date": "2026-07-05",
       "title": "Video Explore sharing",

@@ -38,6 +38,9 @@ TestFlight, App Store, support, and QA.
 - Hardened launch recovery so a damaged local scan library can be quarantined safely without signing the user out.
 
 ### Insight Sheet
+- Video scan media now starts muted playback once when its Insight sheet opens, with a bottom-left sound status toggle.
+- Fixed account-library video scans whose cloud record still listed sampled frames so Insight opens the playable video instead of a thumbnail sequence.
+- Video scans that only have sampled frames available now fall back to the middle frame instead of filling the Insight carousel with all five samples.
 - Added fullscreen playback for video scan media from the Insight carousel.
 - Added field-note visibility controls to the Field notes edit sheet, with Published and Private badges on shared Insight and Explore note cards.
 - Added a Non-biological pill and retention notice to non-biological Insight results, and hid biological-only field notes, tags, and collection actions from those scans.

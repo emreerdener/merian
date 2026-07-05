@@ -1,12 +1,12 @@
 import Foundation
-import Testing
 @testable import Merian
+import Testing
 
 @MainActor
 struct SerializedMediaItemTests {
     private func encodedJSON(for items: [SerializedMediaItem]) throws -> String {
         let data = try JSONEncoder().encode(items)
-        return String(decoding: data, as: UTF8.self)
+        return try #require(String(data: data, encoding: .utf8))
     }
 
     @Test func localScanRecordPrefersCapturedMediaJSONOverRelationshipMirror() throws {
@@ -98,5 +98,53 @@ struct SerializedMediaItemTests {
         #expect(snapshot.imagePaths.isEmpty)
         #expect(snapshot.thumbnailImagePaths == ["https://cdn.example.com/frame-1.webp"])
         #expect(snapshot.videoPaths == ["https://cdn.example.com/clip.mp4"])
+    }
+
+    @Test func cloudHydrationRepairsImageOnlyManifestWhenVideoURLExists() throws {
+        let frameURLs = (1...5).map { "https://cdn.example.com/frame-\($0).webp" }
+        let staleManifestItems = frameURLs.map { SerializedMediaItem.image(.remoteURL($0)) }
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: staleManifestItems,
+            imageStorageURLs: frameURLs,
+            videoStorageURLs: ["https://cdn.example.com/clip.mp4"]
+        )
+        let snapshot = CapturedMediaSnapshot(items: hydrated)
+
+        #expect(snapshot.items.count == 1)
+        #expect(snapshot.imagePaths.isEmpty)
+        #expect(snapshot.thumbnailImagePaths == ["https://cdn.example.com/frame-1.webp"])
+        #expect(snapshot.videoPaths == ["https://cdn.example.com/clip.mp4"])
+    }
+
+    @Test func cloudHydrationFallsBackToMiddleFrameWhenManifestVideoIsMissing() throws {
+        let frameURLs = (1...5).map { "https://cdn.example.com/frame-\($0).webp" }
+        let staleManifestItems = frameURLs.map { SerializedMediaItem.image(.remoteURL($0)) }
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: staleManifestItems,
+            imageStorageURLs: frameURLs,
+            videoStorageURLs: nil
+        )
+        let snapshot = CapturedMediaSnapshot(items: hydrated)
+
+        #expect(snapshot.items.count == 1)
+        #expect(snapshot.imagePaths == ["https://cdn.example.com/frame-3.webp"])
+        #expect(snapshot.videoPaths.isEmpty)
+    }
+
+    @Test func cloudHydrationFallsBackToMiddleFrameWhenOnlyFrameURLsRemain() throws {
+        let frameURLs = (1...5).map { "https://cdn.example.com/frame-\($0).webp" }
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: nil,
+            imageStorageURLs: frameURLs,
+            videoStorageURLs: nil
+        )
+        let snapshot = CapturedMediaSnapshot(items: hydrated)
+
+        #expect(snapshot.items.count == 1)
+        #expect(snapshot.imagePaths == ["https://cdn.example.com/frame-3.webp"])
+        #expect(snapshot.videoPaths.isEmpty)
     }
 }

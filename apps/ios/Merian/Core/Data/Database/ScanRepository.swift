@@ -504,24 +504,19 @@ actor HistoricalDatabaseActor {
 
                 let dictRefImage = res.species_dictionary?.reference_image_url
 
-                var paths: [String] = []
-                if let jsonStr = existing.capturedMediaJSON,
-                   let jsonData = jsonStr.data(using: .utf8),
-                   let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-                    paths = items.compactMap {
-                        guard case .image(let reference) = $0 else { return nil }
-                        return reference.serializedPath
-                    }
-                }
+                let existingMediaSnapshot = existing.capturedMediaSnapshot
+                let existingMediaPaths = existingMediaSnapshot.thumbnailImagePaths + existingMediaSnapshot.videoPaths
                 let newItems = CapturedMediaSnapshot.cloudHydratedItems(
                     capturedMediaItems: res.captured_media,
                     imageStorageURLs: res.image_storage_urls,
                     videoStorageURLs: res.video_storage_urls
                 )
                 if !newItems.isEmpty {
-                    let hasRemoteMedia = paths.contains { $0.starts(with: "http://") || $0.starts(with: "https://") }
-                    let onlyLocalOrMissingMedia = paths.isEmpty || !hasRemoteMedia
-                    if onlyLocalOrMissingMedia {
+                    let newMediaSnapshot = CapturedMediaSnapshot(items: newItems)
+                    let hasRemoteMedia = existingMediaPaths.contains { $0.starts(with: "http://") || $0.starts(with: "https://") }
+                    let onlyLocalOrMissingMedia = existingMediaPaths.isEmpty || !hasRemoteMedia
+                    let repairsMissingVideo = !existingMediaSnapshot.summary.hasVideo && newMediaSnapshot.summary.hasVideo
+                    if onlyLocalOrMissingMedia || repairsMissingVideo {
                         existing.replaceCapturedMedia(with: newItems)
                         chunkDidUpdate = true
                     }

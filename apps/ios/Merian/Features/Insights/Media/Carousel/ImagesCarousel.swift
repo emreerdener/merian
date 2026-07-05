@@ -5,6 +5,8 @@ struct CarouselPageBuilder {
     static func buildPages(
         for activeMedia: ActiveScanMedia,
         referenceWikipediaUrl: String?,
+        selectedIndex: Binding<Int>,
+        isVideoMuted: Binding<Bool>,
         onImageFailure: @escaping (String) -> Void,
         onDescriptionTap: (() -> Void)?
     ) -> [CarouselPageItem] {
@@ -39,10 +41,16 @@ struct CarouselPageBuilder {
                     view: AnyView(AudioPlaybackCarouselPage(filePath: resolvedPath))
                 ))
             case .video(let resolvedPath):
+                let pageIndex = pages.count
                 pages.append(CarouselPageItem(
                     id: "video-\(resolvedPath)",
                     mediaKind: .video,
-                    view: AnyView(VideoPlaybackCarouselPage(path: resolvedPath))
+                    view: AnyView(VideoPlaybackCarouselPage(
+                        path: resolvedPath,
+                        pageIndex: pageIndex,
+                        selectedIndex: selectedIndex,
+                        isMuted: isVideoMuted
+                    ))
                 ))
             }
         }
@@ -179,8 +187,18 @@ enum CarouselMediaKind {
 
 private struct VideoPlaybackCarouselPage: View {
     let path: String
+    let pageIndex: Int
+    @Binding var selectedIndex: Int
+    @Binding var isMuted: Bool
 
     @State private var player: AVPlayer?
+    @State private var hasAutoplayed = false
+    @State private var isPlaying = false
+    @State private var playbackEndObserver: NSObjectProtocol?
+
+    private var isSelected: Bool {
+        selectedIndex == pageIndex
+    }
 
     var body: some View {
         ZStack {
@@ -194,11 +212,70 @@ private struct VideoPlaybackCarouselPage: View {
             }
         }
         .task(id: path) {
-            player?.pause()
-            player = resolvedURL(path).map(AVPlayer.init(url:))
+            configurePlayer()
+        }
+        .onChange(of: selectedIndex) { _, _ in
+            updatePlaybackForSelection()
+        }
+        .onChange(of: isMuted) { _, newValue in
+            player?.isMuted = newValue
         }
         .onDisappear {
             player?.pause()
+            isPlaying = false
+            removePlaybackEndObserver()
+        }
+    }
+
+    private func configurePlayer() {
+        player?.pause()
+        removePlaybackEndObserver()
+        hasAutoplayed = false
+        isPlaying = false
+
+        guard let url = resolvedURL(path) else {
+            player = nil
+            return
+        }
+
+        let configuredPlayer = AVPlayer(url: url)
+        configuredPlayer.isMuted = isMuted
+        configuredPlayer.actionAtItemEnd = .pause
+        player = configuredPlayer
+        installPlaybackEndObserver(for: configuredPlayer)
+        updatePlaybackForSelection()
+    }
+
+    private func updatePlaybackForSelection() {
+        guard let player else { return }
+
+        if isSelected, !hasAutoplayed {
+            player.seek(to: .zero)
+            player.isMuted = isMuted
+            player.play()
+            hasAutoplayed = true
+            isPlaying = true
+        } else if !isSelected, isPlaying {
+            player.pause()
+            isPlaying = false
+        }
+    }
+
+    private func installPlaybackEndObserver(for player: AVPlayer) {
+        playbackEndObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: player.currentItem,
+            queue: .main
+        ) { _ in
+            isPlaying = false
+            player.seek(to: .zero)
+        }
+    }
+
+    private func removePlaybackEndObserver() {
+        if let playbackEndObserver {
+            NotificationCenter.default.removeObserver(playbackEndObserver)
+            self.playbackEndObserver = nil
         }
     }
 
@@ -315,6 +392,7 @@ struct ImagesCarousel: View {
 
     // MARK: - State
     @State private var selectedIndex: Int = 0
+    @State private var isVideoMuted = true
 
     // MARK: - Body
     var body: some View {
@@ -348,6 +426,7 @@ struct ImagesCarousel: View {
                             handleVisualImageTap()
                         }
                     )
+                    .overlay(alignment: .bottomLeading) { videoMuteControl }
             } else {
                 Color.black
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -362,6 +441,8 @@ struct ImagesCarousel: View {
         CarouselPageBuilder.buildPages(
             for: activeMedia,
             referenceWikipediaUrl: referenceWikipediaUrl,
+            selectedIndex: $selectedIndex,
+            isVideoMuted: $isVideoMuted,
             onImageFailure: { handleImageFailure(identifier: $0) },
             onDescriptionTap: onDescriptionTap
         )
@@ -535,6 +616,40 @@ private struct AnalyzingMediaOverlay: View {
 
 // MARK: - Layout Subcomponents
 private extension ImagesCarousel {
+
+    @ViewBuilder
+    var videoMuteControl: some View {
+        if selectedMediaKind == .video {
+            Button {
+                isVideoMuted.toggle()
+                HapticManager.shared.triggerLightImpact(intensity: 0.45)
+            } label: {
+                Label(isVideoMuted ? "Muted" : "Sound on", systemImage: isVideoMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 7)
+                    .background {
+                        Capsule(style: .continuous)
+                            .fill(.black.opacity(0.28))
+                    }
+                    .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+                    .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isVideoMuted ? "Video muted" : "Video sound on")
+            .accessibilityHint("Toggles video sound")
+            .padding(.leading, 14)
+            .padding(.bottom, 40)
+            .transition(.asymmetric(
+                insertion: .opacity.combined(with: .move(edge: .leading)),
+                removal: .opacity
+            ))
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isVideoMuted)
+        }
+    }
 
     @ViewBuilder
     var referenceAttributionTag: some View {

@@ -193,6 +193,7 @@ enum SerializedMediaItem: Codable, Equatable, Sendable {
 
 struct CapturedMediaSnapshot: Equatable, Sendable {
     let items: [SerializedMediaItem]
+    private static let sampledVideoFrameCount = 5
 
     init(items: [SerializedMediaItem] = []) {
         self.items = items
@@ -345,10 +346,6 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
         imageStorageURLs: [String]?,
         videoStorageURLs: [String]?
     ) -> [SerializedMediaItem] {
-        if let capturedMediaItems, !capturedMediaItems.isEmpty {
-            return capturedMediaItems
-        }
-
         let imageURLs = (imageStorageURLs ?? [])
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -356,18 +353,48 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
+        if let capturedMediaItems, !capturedMediaItems.isEmpty {
+            let snapshot = CapturedMediaSnapshot(items: capturedMediaItems)
+            if snapshot.summary.hasVideo {
+                return capturedMediaItems
+            }
+            if videoURLs.isEmpty {
+                return middleFrameFallbackItems(from: capturedMediaItems) ?? capturedMediaItems
+            }
+        }
+
         guard !videoURLs.isEmpty else {
+            if let middleFrame = middleFrameFallbackURL(from: imageURLs) {
+                return [.image(.remoteURL(middleFrame))]
+            }
             return imageURLs.map { .image(.remoteURL($0)) }
         }
 
-        let expectedVideoFrameCount = videoURLs.count * 5
-        let standaloneImageCount = max(imageURLs.count - expectedVideoFrameCount, 0)
-        let standaloneImages = imageURLs.prefix(standaloneImageCount).map { SerializedMediaItem.image(.remoteURL($0)) }
-        let videoFrameURLs = Array(imageURLs.dropFirst(standaloneImageCount))
-        let fallbackThumbnailURL = videoFrameURLs.first ?? imageURLs.first
+        let manifestImageURLs = capturedMediaItems?
+            .compactMap { item -> String? in
+                guard case .image(let reference) = item else { return nil }
+                let path = reference.serializedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+                return path.isEmpty ? nil : path
+            } ?? []
+        let availableImageURLs = imageURLs.isEmpty ? manifestImageURLs : imageURLs
+        let preservedManifestItems = capturedMediaItems?
+            .filter { item in
+                switch item {
+                case .audio, .description:
+                    return true
+                case .image, .video:
+                    return false
+                }
+            } ?? []
+
+        let expectedVideoFrameCount = videoURLs.count * sampledVideoFrameCount
+        let standaloneImageCount = max(availableImageURLs.count - expectedVideoFrameCount, 0)
+        let standaloneImages = availableImageURLs.prefix(standaloneImageCount).map { SerializedMediaItem.image(.remoteURL($0)) }
+        let videoFrameURLs = Array(availableImageURLs.dropFirst(standaloneImageCount))
+        let fallbackThumbnailURL = videoFrameURLs.first ?? availableImageURLs.first
 
         let videos = videoURLs.enumerated().map { index, videoURL in
-            let thumbnailIndex = index * 5
+            let thumbnailIndex = index * sampledVideoFrameCount
             let thumbnailURL = videoFrameURLs.indices.contains(thumbnailIndex)
                 ? videoFrameURLs[thumbnailIndex]
                 : fallbackThumbnailURL
@@ -377,7 +404,31 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
             ))
         }
 
-        return standaloneImages + videos
+        return standaloneImages + videos + preservedManifestItems
+    }
+
+    private static func middleFrameFallbackItems(from items: [SerializedMediaItem]) -> [SerializedMediaItem]? {
+        var imageReferences: [StoredMediaReference] = []
+        var preservedItems: [SerializedMediaItem] = []
+
+        for item in items {
+            switch item {
+            case .image(let reference):
+                imageReferences.append(reference)
+            case .audio, .description:
+                preservedItems.append(item)
+            case .video:
+                return nil
+            }
+        }
+
+        guard imageReferences.count == sampledVideoFrameCount else { return nil }
+        return [.image(imageReferences[sampledVideoFrameCount / 2])] + preservedItems
+    }
+
+    private static func middleFrameFallbackURL(from imageURLs: [String]) -> String? {
+        guard imageURLs.count == sampledVideoFrameCount else { return nil }
+        return imageURLs[sampledVideoFrameCount / 2]
     }
 }
 
