@@ -300,14 +300,19 @@ MerianTests/
   - **`replayInferenceForUploadedScans` skip
     (`testReplayInferenceSkipsAlreadyClaimedScans`)** (V33): Inserts a scan with
     `scanState: .inferencing` (already claimed by another pipeline). Calls
-    `replayInferenceForUploadedScans()` and waits 500 ms; asserts
-    `uploadRetryCount[scan.id] == 0`. Guards against dispatching a second
+    `replayInferenceForUploadedScans()` and waits 500 ms; asserts the durable
+    queue metadata remains unchanged. Guards against dispatching a second
     pipeline for a scan already in `.inferencing` state — the function only
     queries `.staged` scans.
   - **Exponential backoff math (`testUploadRetryDelayExponentialBackoff`)**:
     Replicates the `syncPendingScans` backoff formula inline and asserts the
     full delay sequence (0→1→2→4→8→16→30) and cap behavior. Also asserts
     `maxUploadRetryDelay == 30`.
+  - **Durable queue retry policy**: `OfflineQueueRetryPolicy` tests should cover
+    transient network/server failures, local-media terminal failures, persisted
+    `queueNextRetryAt`, server `retry_after`, and app relaunch behavior. Video
+    cases must assert durable playback media remains required while image,
+    audio, and description-only scans use the same scheduler.
 - **`CompositeLibraryTests.swift`** (`apps/ios/MerianTests/Features/Scans/Library/`): Validates
   the bounding behaviors of the composite `ScansGrid` that renders both
   `OfflineQueuedScan` and `LocalScanRecord` items in the same `LazyVGrid`.

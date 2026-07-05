@@ -16,6 +16,10 @@ struct QueuedScanSnapshot: Identifiable, Equatable {
     let capturedMediaJSON: String?
     let queueState: ScanQueueState
     let timestamp: Date
+    let queueNextRetryAt: Date?
+    let queueLastErrorMessage: String?
+    let queueNeedsAttention: Bool
+    let approximateQueuedBytes: Int64
 
     var capturedMediaItems: [SerializedMediaItem] {
         var items = CapturedMediaSnapshot(jsonString: capturedMediaJSON).items
@@ -34,6 +38,10 @@ struct QueuedScanSnapshot: Identifiable, Equatable {
     /// keys and warn "ID is used by multiple child views". The `q_` prefix makes the
     /// queued-scan keys disjoint from the completed-scan keys.
     var gridId: String { "q_\(id)" }
+
+    var canRetryNow: Bool {
+        queueState == .failed || queueNextRetryAt != nil || queueNeedsAttention
+    }
 }
 
 // MARK: - Core Discovery Grid Component
@@ -87,7 +95,15 @@ struct ScansGrid<MenuContent: View>: View {
                     .overlay(
                         ZStack {
                             Color.black.opacity(offlineQueueManager.isOnline ? 0.6 : 0.45)
-                            if offlineQueueManager.isOnline {
+                            if queued.queueNeedsAttention || queued.queueState == .failed {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundColor(.white)
+                            } else if queued.queueNextRetryAt != nil {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundColor(.white)
+                            } else if offlineQueueManager.isOnline {
                                 ProgressView()
                                     .controlSize(.regular)
                                     .tint(.white)
@@ -102,6 +118,13 @@ struct ScansGrid<MenuContent: View>: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("QueuedScanTile_\(queued.id)")
                 .contextMenu {
+                    if queued.canRetryNow {
+                        Button {
+                            _ = offlineQueueManager.retryQueuedScanNow(scanId: queued.id)
+                        } label: {
+                            Label("Retry now", systemImage: "arrow.clockwise")
+                        }
+                    }
                     Button(role: .destructive) {
                         onQueuedScanDelete?(queued)
                     } label: {

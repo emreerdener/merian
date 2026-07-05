@@ -259,61 +259,66 @@ extension OfflineQueueManager {
     /// Handles transport-level and HTTP-level upload errors.
     /// Returns `true` if an error was found and handled (caller should abort), `false` on success.
     private func handleUploadFallback(scanId: String, uploadError: Error?, responseStatusCode: Int?) async -> Bool {
-        if let uploadError {
-            let nsError = uploadError as NSError
-            let isFileMissing = nsError.domain == NSURLErrorDomain
-                && (nsError.code == NSURLErrorFileDoesNotExist || nsError.code == NSURLErrorCannotOpenFile)
-            
-            if isFileMissing {
-                MerianLog.data.debug("Terminal file corruption — tombstoning \(scanId, privacy: .private)")
-                await MainActor.run { _ = OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
-                return true
-            }
+        let currentAttempt = await MainActor.run { queueAttemptCount(for: scanId) }
+        let disposition = OfflineQueueRetryPolicy.classifyUpload(
+            error: uploadError,
+            statusCode: responseStatusCode,
+            currentAttempt: currentAttempt
+        )
 
-            let transientCodes: Set<Int> = [
-                NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost, NSURLErrorNotConnectedToInternet,
-                NSURLErrorDataNotAllowed, NSURLErrorInternationalRoamingOff
-            ]
-            if nsError.domain == NSURLErrorDomain && transientCodes.contains(nsError.code) {
-                let retries = await MainActor.run { () -> Int in
-                    let next = (OfflineQueueManager.shared.uploadRetryCount[scanId] ?? 0) + 1
-                    OfflineQueueManager.shared.uploadRetryCount[scanId] = next
-                    return next
-                }
-                let max = OfflineQueueManager.maxUploadRetries
-                if retries >= max {
-                    MerianLog.data.debug("Upload retry limit reached (\(retries)/\(max)) — tombstoning \(scanId, privacy: .private)")
-                    await MainActor.run {
-                        OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId)
-                        OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId)
-                    }
-                } else {
-                    MerianLog.data.debug("Transient upload error \(retries)/\(max) for \(scanId, privacy: .private) — retaining in queue")
-                }
-            } else {
-                MerianLog.data.debug("Background upload failed: \(uploadError, privacy: .private)")
+        switch disposition {
+        case .success:
+            await MainActor.run {
+                clearQueueRetry(scanId: scanId)
+                recordQueueEvent(
+                    scanId: scanId,
+                    jobId: Self.scanIngestionJobId(scanId: scanId),
+                    kind: .uploadCompleted,
+                    message: "Queued scan media upload completed.",
+                    httpStatus: responseStatusCode
+                )
             }
-            return true
-        }
-
-        guard let statusCode = responseStatusCode, statusCode == 200 else {
-            let code = responseStatusCode ?? 0
-            let recoverableCodes: Set<Int> = [429, 500, 502, 503, 504]
-            if recoverableCodes.contains(code) {
-                MerianLog.data.debug("Background upload recoverable (\(code, privacy: .public)) — retaining in queue")
-            } else {
-                MerianLog.data.debug("Background upload rejected (\(code, privacy: .public)) — tombstoning scan")
-                await MainActor.run { _ = OfflineQueueManager.shared.softDeleteQueuedScan(scanId: scanId) }
+            return false
+        case .retry(let delay, let code, let message):
+            await MainActor.run {
+                let attempt = updateQueuedScanForRetry(
+                    scanId: scanId,
+                    code: code,
+                    message: message,
+                    httpStatus: responseStatusCode,
+                    delay: delay,
+                    resetTo: .pending
+                )
+                MerianLog.data.debug(
+                    "handleUploadFallback: scheduled upload retry scanId=\(scanId, privacy: .public) attempt=\(attempt, privacy: .public) delay=\(String(format: "%.1f", delay), privacy: .public)s code=\(code, privacy: .public)"
+                )
             }
             return true
+        case .needsAttention(let code, let message):
+            await MainActor.run {
+                _ = softDeleteQueuedScan(
+                    scanId: scanId,
+                    reason: message,
+                    errorCode: code,
+                    httpStatus: responseStatusCode,
+                    needsAttention: true
+                )
+            }
+            return true
+        case .terminal(let code, let message):
+            await MainActor.run {
+                _ = softDeleteQueuedScan(
+                    scanId: scanId,
+                    reason: message,
+                    errorCode: code,
+                    httpStatus: responseStatusCode,
+                    needsAttention: false
+                )
+            }
+            return true
+        case .waitForServer:
+            return true
         }
-
-        // Success — evict the retry counter so it does not accumulate across long sessions.
-        // The entry is only written on transient failures; on a clean first-attempt upload
-        // this is a no-op removeValue on a key that was never inserted.
-        await MainActor.run { _ = OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId) }
-
-        return false
     }
 
     /// Fetches the queued scan's snapshot and maps it to ExtractedScanData on the main actor.
@@ -565,7 +570,7 @@ extension OfflineQueueManager {
     ///
     /// Mirrors the success/failure routing of the former `runInferencePipeline`:
     /// - HTTP 4xx → tombstone (permanent failure)
-    /// - HTTP 5xx / missing data → retry via `.staged` reset (up to `maxUploadRetries`)
+    /// - HTTP 5xx / missing data → retry via durable queue metadata and `.staged` reset
     /// - HTTP 200 → persist `LocalScanRecord`, delete `OfflineQueuedScan`, fire notifications
     func processInferenceDownloadResult(scanId: String, resultFileURL: URL, statusCode: Int?) async {
         defer { try? FileManager.default.removeItem(at: resultFileURL) }
@@ -729,7 +734,7 @@ extension OfflineQueueManager {
                 OfflineQueueManager.shared.updateUnsyncedItemCount()
             }
             CircuitBreakerManager.shared.recordSuccess()
-            _ = OfflineQueueManager.shared.uploadRetryCount.removeValue(forKey: scanId)
+            OfflineQueueManager.shared.markScanJobComplete(scanId: scanId)
             SyncStateManager.shared.completeSync()
         }
     }
@@ -851,21 +856,13 @@ extension OfflineQueueManager {
         reason: String
     ) async {
         guard let container = modelContext?.container else { return }
-        let retries = await MainActor.run { () -> Int in
-            let next = (uploadRetryCount[scanId] ?? 0) + 1
-            uploadRetryCount[scanId] = next
-            return next
-        }
-
-        guard retries < OfflineQueueManager.maxUploadRetries else {
-            MerianLog.data.debug(
-                "scheduleRetryableServerFailure: retry limit reached scanId=\(scanId, privacy: .private) reason=\(reason, privacy: .public)"
-            )
-            uploadRetryCount.removeValue(forKey: scanId)
-            softDeleteQueuedScan(scanId: scanId)
-            clearServerIngestionState(scanId: scanId)
-            return
-        }
+        let retries = updateQueuedScanForRetry(
+            scanId: scanId,
+            code: "server_retryable_failure",
+            message: reason,
+            delay: delay,
+            resetTo: nil
+        )
 
         serverIngestionPollTasks[scanId]?.cancel()
         serverIngestionPollTasks[scanId] = Task { [weak self] in
@@ -885,7 +882,7 @@ extension OfflineQueueManager {
             }
         }
         MerianLog.data.debug(
-            "scheduleRetryableServerFailure: scheduled scanId=\(scanId, privacy: .public) delay=\(String(format: "%.1f", delay), privacy: .public)s retry=\(retries, privacy: .public)/\(OfflineQueueManager.maxUploadRetries, privacy: .public) reason=\(reason, privacy: .public)"
+            "scheduleRetryableServerFailure: scheduled scanId=\(scanId, privacy: .public) delay=\(String(format: "%.1f", delay), privacy: .public)s retry=\(retries, privacy: .public) reason=\(reason, privacy: .public)"
         )
     }
 
@@ -931,6 +928,7 @@ extension OfflineQueueManager {
         } else {
             scanIngestionJobStates[scanId] = nil
         }
+        persistServerStatus(scanId: scanId, response: response)
 
         let action = Self.scanStatusRecoveryAction(for: response)
         MerianLog.data.debug(
@@ -957,8 +955,12 @@ extension OfflineQueueManager {
             MerianLog.data.debug(
                 "recoverCompletedInferenceFromServer: terminal server failure scanId=\(scanId, privacy: .public) message=\((message ?? "nil"), privacy: .public)"
             )
-            uploadRetryCount.removeValue(forKey: scanId)
-            softDeleteQueuedScan(scanId: scanId)
+            _ = softDeleteQueuedScan(
+                scanId: scanId,
+                reason: message,
+                errorCode: "server_terminal_failure",
+                needsAttention: true
+            )
             clearServerIngestionState(scanId: scanId)
             return action
         case .unresolved:
@@ -969,7 +971,7 @@ extension OfflineQueueManager {
     private func recoverFoundScanFromServer(scanId: String, reason: String) async -> Bool {
         clearServerIngestionState(scanId: scanId)
         cancelInferenceStatusProbe(scanId: scanId)
-        uploadRetryCount.removeValue(forKey: scanId)
+        clearQueueRetry(scanId: scanId)
         let didSyncTarget: Bool
         if let context = modelContext {
             didSyncTarget = await AppDIContainer.shared.scanRepository.syncHistoricalScanDown(
@@ -993,6 +995,7 @@ extension OfflineQueueManager {
         }
 
         let didDeleteQueue = await deleteQueuedScan(scanId: scanId)
+        markScanJobComplete(scanId: scanId)
         updateUnsyncedItemCount()
         ScanLibraryEvents.postLibraryDidUpdate()
         MerianLog.data.debug(
@@ -1077,8 +1080,8 @@ extension OfflineQueueManager {
     /// Handles a background inference download task network-level failure.
     ///
     /// Called from `urlSession(_:task:didCompleteWithError:)` when the download task fails
-    /// with a transport error (the server never responded). Resets the scan to `.staged` below
-    /// the retry threshold, or tombstones it once `maxUploadRetries` is exhausted.
+    /// with a transport error (the server never responded). Resets the scan to `.staged` after
+    /// a persisted backoff window so app relaunches do not lose retry state.
     ///
     /// Code=-999 (NSURLErrorCancelled) is special-cased: it means an owner path explicitly
     /// cancelled the task. Either the parallel live inference path already succeeded, the user
@@ -1094,8 +1097,8 @@ extension OfflineQueueManager {
         await handleInferenceRetry(scanId: scanId, reason: "network failure")
     }
 
-    /// Increments the retry counter for a scan and either resets it to `.staged` for the
-    /// next sync cycle or tombstones it once `maxUploadRetries` is exhausted.
+    /// Records durable retry metadata for a scan and resets it to `.staged` for the next
+    /// sync cycle after the persisted backoff window.
     ///
     /// Before retrying, polls `/check-scan-status` to detect the outbox gap: if the edge
     /// function already persisted the scan but the background download task never delivered
@@ -1110,28 +1113,25 @@ extension OfflineQueueManager {
             return
         }
 
-        let retries = await MainActor.run { () -> Int in
-            let next = (uploadRetryCount[scanId] ?? 0) + 1
-            uploadRetryCount[scanId] = next
-            return next
+        let currentAttempt = await MainActor.run { queueAttemptCount(for: scanId) }
+        let delay = OfflineQueueRetryPolicy.delay(forAttempt: currentAttempt + 1)
+        let retries = await MainActor.run {
+            updateQueuedScanForRetry(
+                scanId: scanId,
+                code: "inference_retry",
+                message: reason,
+                delay: delay,
+                resetTo: nil
+            )
         }
-
-        if retries >= OfflineQueueManager.maxUploadRetries {
-            MerianLog.data.debug("Inference retry limit reached for \(scanId, privacy: .private) — tombstoning scan")
-            await MainActor.run {
-                uploadRetryCount.removeValue(forKey: scanId)
-                softDeleteQueuedScan(scanId: scanId)
-            }
-        } else {
-            let retryActor = resolvedInferenceDbActor(container: container)
-            await retryActor.transitionScanToStaged(id: scanId)
-            MerianLog.data.debug("Inference failed for \(scanId, privacy: .private) — reset to .staged for retry (\(retries)/\(OfflineQueueManager.maxUploadRetries)) reason=\(reason, privacy: .public)")
-            updateUnsyncedItemCount()
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else { return }
-                self.replayInferenceForUploadedScans()
-            }
+        let retryActor = resolvedInferenceDbActor(container: container)
+        await retryActor.transitionScanToStaged(id: scanId)
+        MerianLog.data.debug("Inference failed for \(scanId, privacy: .private) — scheduled durable retry \(retries, privacy: .public) reason=\(reason, privacy: .public)")
+        updateUnsyncedItemCount()
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            self.replayInferenceForUploadedScans()
         }
     }
 }

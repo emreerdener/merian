@@ -103,18 +103,13 @@ final class OfflineSyncTests: XCTestCase {
         XCTAssertFalse(isSyncing, "Pipeline Deadlock: isSyncing did not drop when all source files were missing.")
     }
 
-    func test_inferencePipeline_transientRetryResetsToStagedBelowThreshold() async {
-        // runInferencePipeline's transient catch block calls transitionScanToStaged (not
-        // activeScanUploadIds.remove — that set was removed in V33). Verify the retry-count
-        // boundary that gates whether the scan is reset to .staged or tombstoned.
-        let maxRetries = await MainActor.run { OfflineQueueManager.maxUploadRetries }
+    func test_inferencePipeline_transientRetryUsesDurableBackoffInsteadOfTombstoneThreshold() async {
+        let firstDelay = OfflineQueueRetryPolicy.delay(forAttempt: 1)
+        let laterDelay = OfflineQueueRetryPolicy.delay(forAttempt: 6)
 
-        // Below threshold → transitionScanToStaged is called, scan stays retryable.
-        XCTAssertFalse(1 >= maxRetries, "First transient failure must not tombstone — scan should reset to .staged via transitionScanToStaged")
-        XCTAssertFalse(2 >= maxRetries, "Second transient failure must not tombstone")
-
-        // At threshold → softDeleteQueuedScan is called, scan is tombstoned.
-        XCTAssertTrue(maxRetries >= maxRetries, "At maxUploadRetries the scan must be tombstoned, not reset to .staged")
+        XCTAssertGreaterThan(firstDelay, 0, "Transient retries should schedule a future retry window.")
+        XCTAssertGreaterThan(laterDelay, firstDelay, "Later attempts should back off instead of deleting queued media.")
+        XCTAssertLessThanOrEqual(laterDelay, OfflineQueueRetryPolicy.maximumRetryDelay)
     }
 
     // MARK: - 4. Enqueue Bounds (Free Tier Hoarding)
@@ -173,25 +168,20 @@ final class OfflineSyncTests: XCTestCase {
         XCTAssertFalse(simulateNeedsWeather(nil, nil, nil), "Hydration Panic: Sent Weather request blindly without valid coordinates.")
     }
 
-    // MARK: - 7. Tombstone Threshold
+    // MARK: - 7. Terminal Failure Classification
     
-    func test_runInferencePipeline_tombstonesOnTerminalRetry() async {
-        var isDeleted = false
-        let maxRetries = 3
-        var activeRetriesCount = 2
-        
-        // Simulating the catch loop evaluating limits
-        let simulateFailure: () -> Void = {
-            activeRetriesCount += 1
-            if activeRetriesCount >= maxRetries {
-                isDeleted = true
-            }
+    func test_runInferencePipeline_keepsTransientFailuresRetryable() async {
+        let disposition = OfflineQueueRetryPolicy.classifyUpload(
+            error: NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost),
+            statusCode: nil,
+            currentAttempt: 8
+        )
+
+        if case .retry = disposition {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Transient network failures should remain retryable even after many attempts.")
         }
-        
-        // The third active failure crosses the Rubicon and guarantees memory isolation
-        simulateFailure()
-        
-        XCTAssertTrue(isDeleted, "Ghost Replay Loop: Failed exactly maxRetries times but wasn't soft-deleted out of the queue!")
     }
 
     func test_processUploadCompletion_tombstonesOnTerminalFileCorruption() async {

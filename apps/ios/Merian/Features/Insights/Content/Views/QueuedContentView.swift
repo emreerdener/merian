@@ -15,6 +15,12 @@ private extension QueuedScanContext {
         gpsElevation: Double?,
         gpsLatitude: Double?,
         gpsLongitude: Double?,
+        queueAttemptCount: Int = 0,
+        queueNextRetryAt: Date? = nil,
+        queueLastErrorCode: String? = nil,
+        queueLastErrorMessage: String? = nil,
+        queueNeedsAttention: Bool = false,
+        approximateQueuedBytes: Int64 = 0
     ) {
         self.id = id
         self.capturedMediaItems = CapturedMediaSnapshot(jsonString: capturedMediaJSON).items
@@ -26,6 +32,12 @@ private extension QueuedScanContext {
         self.gpsElevation = gpsElevation
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
+        self.queueAttemptCount = queueAttemptCount
+        self.queueNextRetryAt = queueNextRetryAt
+        self.queueLastErrorCode = queueLastErrorCode
+        self.queueLastErrorMessage = queueLastErrorMessage
+        self.queueNeedsAttention = queueNeedsAttention
+        self.approximateQueuedBytes = approximateQueuedBytes
     }
 
     static var preview: QueuedScanContext {
@@ -38,7 +50,7 @@ private extension QueuedScanContext {
             weatherCondition: "partly cloudy",
             gpsElevation: 142,
             gpsLatitude: 37.8970,
-            gpsLongitude: -122.5810,
+            gpsLongitude: -122.5810
         )
     }
 }
@@ -174,6 +186,31 @@ struct QueuedContentView: View {
         }
     }
 
+    private var queueDetails: [String] {
+        var details: [String] = []
+        if !queuedContext.mediaKinds.isEmpty {
+            details.append(queuedContext.mediaKinds.joined(separator: " + "))
+        }
+        if queuedContext.queueAttemptCount > 0 {
+            details.append("Attempt \(queuedContext.queueAttemptCount + 1)")
+        }
+        if let nextRetryAt = queuedContext.queueNextRetryAt {
+            details.append("Retry \(nextRetryAt.formatted(date: .omitted, time: .shortened))")
+        }
+        if queuedContext.approximateQueuedBytes > 0 {
+            details.append(ByteCountFormatter.string(
+                fromByteCount: queuedContext.approximateQueuedBytes,
+                countStyle: .file
+            ))
+        }
+        return details
+    }
+
+    private var friendlyErrorText: String? {
+        guard queuedContext.queueNeedsAttention || queuedContext.queueState == .failed else { return nil }
+        return queuedContext.queueLastErrorMessage ?? "This queued scan needs a fresh retry."
+    }
+
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
 
@@ -199,6 +236,46 @@ struct QueuedContentView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 8)
+
+            if !queueDetails.isEmpty || friendlyErrorText != nil || queuedContext.canRetryNow {
+                VStack(spacing: 12) {
+                    if !queueDetails.isEmpty {
+                        Text(queueDetails.joined(separator: " • "))
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    if let friendlyErrorText {
+                        Text(friendlyErrorText)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    HStack(spacing: 10) {
+                        if queuedContext.canRetryNow {
+                            Button {
+                                _ = offlineQueueManager.retryQueuedScanNow(scanId: queuedContext.id)
+                            } label: {
+                                Label("Retry now", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+
+                        Button(role: .destructive) {
+                            Task {
+                                await offlineQueueManager.deleteQueuedScan(scanId: queuedContext.id)
+                            }
+                        } label: {
+                            Label("Cancel", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .labelStyle(.titleAndIcon)
+                }
+                .padding(.horizontal, 8)
+            }
 
             if viewModel.shouldShowFieldNotesCard {
                 FieldNotesCard(

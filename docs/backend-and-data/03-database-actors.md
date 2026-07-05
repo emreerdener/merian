@@ -210,7 +210,7 @@ let newPayload = await dbActor.extractSearchablePayloads(from: [persistentId])
 - `deleteFiles(at:)` — generalized deletion entry point for absolute file paths, `documentsDirectory` filenames, and mixed cleanup lists captured during queue/tombstone cleanup.
 - `validPaths(from:)` — filters a list of paths/URLs down to those that actually exist on disk or are remote URLs
 
-**When to use**: Always use `FileIOActor.shared` — it is a singleton. Never write or delete image files from `BackgroundDatabaseActor`, `@MainActor`, or `Task.detached`. All disk I/O for images flows through here.
+**When to use**: Always use `FileIOActor.shared` — it is a singleton. Never write or delete scan media from `BackgroundDatabaseActor`, `@MainActor`, or ad-hoc `Task.detached` blocks. Image writes still use `writeTemporaryImages(imageDatas:)`; mixed cleanup for images, video files, thumbnails, extracted audio, and queue-only inference frames should flow through `deleteFiles(at:)`.
 
 ```swift
 let savedPaths = await FileIOActor.shared.writeTemporaryImages(imageDatas: compressedDatas)
@@ -292,9 +292,9 @@ Smart default collections are local, auto-managed UI projections. `SmartCollecti
 | Calculate all profile data (stats + heatmap + awards) | `ProfileDatabaseActor.calculateAll()` (ad-hoc) |
 | Calculate achievement awards only (post-inference) | `ProfileDatabaseActor.calculateAwards()` via `resolvedProfileDbActor` (long-lived) |
 | Calculate profile stats (species count, streak) | `ProfileDatabaseActor.calculateProfileStats()` (ad-hoc) |
-| Write image files to disk | `FileIOActor.shared` |
-| Delete image files from disk | `FileIOActor.shared` |
-| Validate image paths | `FileIOActor.shared` |
+| Write scan image files to disk | `FileIOActor.shared` |
+| Delete scan media files from disk | `FileIOActor.shared` |
+| Validate scan media paths | `FileIOActor.shared` |
 | Push collections to Edge | `BackgroundDatabaseActor` (ad-hoc) |
 | Persist enrichment data after enrich-scan returns | `BackgroundDatabaseActor` (ad-hoc) |
 

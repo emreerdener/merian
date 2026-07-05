@@ -7,11 +7,11 @@ Merian is a biological classification and gamification platform built for iOS an
 ```mermaid
 flowchart TD
     A([📱 Capture]) -->|Builds ordered media timeline + telemetry| B[OfflineQueueManager]
-    B -->|Persists Locally if Off-grid| C[(SwiftData Native DB)]
-    C -->|NWPathMonitor Awoken by Cell Tower| D{Network Status 200 OK}
+    B -->|Persists scan + job metadata| C[(SwiftData Native DB)]
+    C -->|NWPathMonitor wakes OfflineJobScheduler| D{Network Status 200 OK}
 
     D -->|/generate-upload-urls| E[Cloudflare R2 Staging Bucket]
-    E -->|URLSession Background PUT (staged images + queued audio)| F((Cloudflare R2))
+    E -->|URLSession Background PUT (image/audio/video media)| F((Cloudflare R2))
     F -->|Background replay or live request| G([⚡️ Supabase Edge /identify-multimodal])
 
     G -->|Resolves mixed media & validates| H[🤖 Gemini 2.5 Flash / Pro]
@@ -38,10 +38,11 @@ flowchart TD
 - **Pre-warmed Tactile Shutter (`HapticManager`):** The app `.prepare()`s Taptic Engine instances (e.g. `UIImpactFeedbackGenerator(style: .medium)`) on app boot inside a global `HapticManager`. Centralizing haptics removes the ~20ms "cold" instantiation lag on physical button triggers. To protect the "Instant-On" launch requirement, these `.prepare()` calls are deferred inside a `Task { @MainActor }` sleeping 300ms, allowing the Main Thread to complete the heavy hardware layers (`AVCaptureSession`) unimpeded.
 - **Battery-bounded Context Tracking (`EnvironmentContextManager`):** Manages `CoreLocation` and `WeatherKit` with coarse, pausable location updates while the camera is active, then fires a one-shot high-accuracy `requestLocation()` when the shutter is pressed. Heading updates are not started because compass telemetry is not part of the active inference payload. The shutter location is used for Camera Roll EXIF and deferred weather/geocode context, while stale cached coordinates remain a fallback if GPS cannot settle within the timeout. It also backfills historical edge metadata (GPS and past WeatherKit conditions) by mapping `PHAsset` EXIF data for library imports prior to inference.
 
-### 2. Ephemeral Offline-First Sync (`OfflineQueueManager`, `SwiftData`)
+### 2. Ephemeral Offline-First Sync (`OfflineQueueManager`, `OfflineJobScheduler`, `SwiftData`)
 
 - Employs a zero-data-loss queue structure tracking users without cellular data using `SwiftData` inside `MerianApp`. The durable unit is a canonical ordered mixed-media timeline, persisted once at submission time and reused across live inference, offline replay, thumbnails, and result hydration.
-- `NWPathMonitor` observes 3G/off-grid boundaries, debouncing signals for 1.0 second when the hiker steps into cell service. It wraps a `UIBackgroundTaskIdentifier` as a 30-second timeout handler before handing payloads to an iOS `.background` `URLSession` daemon. `AppDelegate` hook completions are intercepted to satisfy iOS background Watchdog limits.
+- `NWPathMonitor` observes off-grid boundaries, debouncing signals for 3 seconds when connectivity returns. `OfflineJobScheduler` then drains runnable scan ingestion, cloud deletion, and collection-sync jobs according to persisted retry windows and network policy. Scan media uploads still hand payloads to an iOS `.background` `URLSession` daemon wrapped by `BackgroundTaskWrapper`; `AppDelegate` hook completions are intercepted to satisfy iOS background Watchdog limits.
+- V48 queue metadata (`OfflineQueuedScan.queue*`, `OfflineJobRecord`, `OfflineQueueEvent`) makes retry state durable across app kills and provides a redacted diagnostics export without raw media paths or private media bytes.
 
 ### 3. Serverless Edge Verification (`Supabase Edge Functions`, `Gemini 2.5 Flash / Pro`)
 

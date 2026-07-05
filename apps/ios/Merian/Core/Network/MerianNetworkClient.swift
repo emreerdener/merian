@@ -49,6 +49,7 @@ enum ScanIngestionJobStatus: String, Decodable, Equatable, Sendable {
 }
 
 struct ScanStatusResponse: Decodable, Equatable, Sendable {
+    let scanId: String?
     let status: ScanCloudStatus
     let jobStatus: ScanIngestionJobStatus?
     let jobStage: String?
@@ -58,7 +59,26 @@ struct ScanStatusResponse: Decodable, Equatable, Sendable {
 
     var isFound: Bool { status == .found }
 
+    init(
+        scanId: String? = nil,
+        status: ScanCloudStatus,
+        jobStatus: ScanIngestionJobStatus?,
+        jobStage: String?,
+        jobAttemptCount: Int?,
+        retryAfter: String?,
+        lastError: String?
+    ) {
+        self.scanId = scanId
+        self.status = status
+        self.jobStatus = jobStatus
+        self.jobStage = jobStage
+        self.jobAttemptCount = jobAttemptCount
+        self.retryAfter = retryAfter
+        self.lastError = lastError
+    }
+
     private enum CodingKeys: String, CodingKey {
+        case scanId = "scan_id"
         case status
         case jobStatus = "job_status"
         case jobStage = "job_stage"
@@ -66,6 +86,10 @@ struct ScanStatusResponse: Decodable, Equatable, Sendable {
         case retryAfter = "retry_after"
         case lastError = "last_error"
     }
+}
+
+private struct BulkScanStatusResponse: Decodable {
+    let results: [ScanStatusResponse]
 }
 
 private struct UploadURLRequestBody: Encodable {
@@ -1265,6 +1289,26 @@ final class MerianNetworkClient {
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         return try JSONDecoder().decode(ScanStatusResponse.self, from: data)
+    }
+
+    func checkScanStatuses(_ requirements: [String: Int]) async throws -> [String: ScanStatusResponse] {
+        guard !requirements.isEmpty else { return [:] }
+        let functionUrl = try endpointURL("check-scan-status")
+        let scans = requirements.map { requirement in
+            var payload: [String: Any] = ["scan_id": requirement.key]
+            let requiredVideoCount = requirement.value
+            if requiredVideoCount > 0 {
+                payload["required_video_count"] = requiredVideoCount
+            }
+            return payload
+        }
+        let bodyData = try JSONSerialization.data(withJSONObject: ["scans": scans])
+        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        let decoded = try JSONDecoder().decode(BulkScanStatusResponse.self, from: data)
+        return Dictionary(uniqueKeysWithValues: decoded.results.compactMap { result in
+            guard let scanId = result.scanId else { return nil }
+            return (scanId, result)
+        })
     }
 
     /// Compatibility wrapper for older call sites that only need `"found"` / `"not_found"`.

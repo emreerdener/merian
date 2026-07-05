@@ -820,10 +820,11 @@ throws during the `imageBase64s` promotion pass.
 | `503`  | `{ "error": "AI processing error. Please try again." }`                         | Transient Gemini failure (API error, rate limit, timeout, non-SAFETY non-STOP finish reason) |
 
 `400` on a content policy failure is intentional — the iOS `OfflineQueueManager`
-treats `400` as a permanent tombstone and removes the queue entry rather than
-retrying. All other Gemini errors return `503` so the offline queue retries up
-to `maxUploadRetries` times before giving up. `422` is also excluded from
-recoverable codes and drops the entry immediately.
+treats `400` as a permanent failure and marks the queued row as needing user
+attention rather than silently deleting media. All other Gemini errors return
+`503` so the offline queue retries with persisted `queueNextRetryAt` /
+`OfflineJobRecord.nextRunAt` metadata. `422` is also excluded from recoverable
+codes and is treated as a terminal validation failure.
 
 ## The Standardized JSON Return Payload (From Supabase to Swift)
 
@@ -3526,10 +3527,11 @@ and `collection_scans` schemas, handling diffing and missing FK references.
    single-flight latch. `OfflineQueueManager` retains the active
    `collectionSyncTask`, so concurrent callers await the same request instead of
    launching parallel pushes. A monotonic `collectionSyncRevision` is captured
-   when each request starts; the pending-sync flag is cleared only if no newer
-   collection mutation was enqueued while that request was in flight. This
-   prevents race conditions where a stale `.upsert()` snapshot lands after a
-   newer `.delete()`, causing ghost resurrections.
+   when each request starts; the coalesced `OfflineJobRecord(id:
+   "collection-sync")` is marked complete only if no newer collection mutation
+   was enqueued while that request was in flight. This prevents race conditions
+   where a stale `.upsert()` snapshot lands after a newer `.delete()`, causing
+   ghost resurrections.
 
 > **Parameter naming**: The `syncMembershipDelta` function parameter names were
 > updated from `validCollections`/`activeIds` to `ownedCollections`/`ownedIds`

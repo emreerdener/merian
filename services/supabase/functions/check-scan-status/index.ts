@@ -3,39 +3,113 @@ import {
   logStructuredError,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { requireParams } from "../_shared/http.ts";
 import { scanIngestionClientState } from "../_shared/scanIngestionJobs.ts";
-import { countVideoScanMediaAssets } from "../_shared/scanMediaAssets.ts";
 import { fetchScanStatusJob, fetchScanStatusMedia } from "./db.ts";
+import {
+  hasRequiredVideoMedia,
+  normalizeRequiredVideoCount,
+} from "./status.ts";
 
-function normalizeRequiredVideoCount(value: unknown): number {
-  if (value == null) return 0;
-  if (!Number.isInteger(value) || (value as number) < 0) {
-    throw new Error("required_video_count must be a non-negative integer.");
+interface ScanStatusRequest {
+  scan_id: string;
+  required_video_count?: unknown;
+}
+
+async function buildScanStatusResponse(
+  request: ScanStatusRequest,
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+) {
+  const requiredVideoCount = normalizeRequiredVideoCount(
+    request.required_video_count,
+  );
+  const row = await fetchScanStatusMedia(
+    request.scan_id,
+    userId,
+    supabaseAdmin,
+  );
+  let exists = row?.id != null;
+
+  if (exists && requiredVideoCount > 0) {
+    exists = hasRequiredVideoMedia(row, requiredVideoCount);
   }
-  return value as number;
-}
 
-function cleanMediaUrls(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => typeof entry === "string" ? entry.trim() : "")
-    .filter((entry) => entry.length > 0);
-}
-
-function capturedVideoCount(value: unknown): number {
-  if (!Array.isArray(value)) return 0;
-  return value.filter((entry) => {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      return false;
+  let job = null;
+  if (!exists) {
+    try {
+      job = await fetchScanStatusJob(request.scan_id, userId, supabaseAdmin);
+    } catch (error) {
+      logStructuredError("check_scan_status_job_fetch_failed", {
+        scan_id: request.scan_id,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-    return Object.hasOwn(entry as Record<string, unknown>, "video");
-  }).length;
+  }
+  const jobState = scanIngestionClientState(job);
+
+  return {
+    scan_id: request.scan_id,
+    status: exists ? "found" : "not_found",
+    job_status: jobState?.status ?? null,
+    job_stage: jobState?.stage ?? null,
+    job_attempt_count: jobState?.attempt_count ?? null,
+    retry_after: jobState?.retry_after ?? null,
+    last_error: jobState?.last_error ?? null,
+  };
 }
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const body = await req.json();
+
+    if (Array.isArray(body.scans)) {
+      if (body.scans.length > 50) {
+        return jsonResponse(
+          { error: "A maximum of 50 scans can be checked." },
+          400,
+        );
+      }
+      const requests: ScanStatusRequest[] = [];
+      for (const entry of body.scans) {
+        if (!entry || typeof entry !== "object") {
+          return jsonResponse({
+            error: "Each scan status request must be an object.",
+          }, 400);
+        }
+        const scanId = (entry as Record<string, unknown>).scan_id;
+        if (typeof scanId !== "string" || scanId.trim().length === 0) {
+          return jsonResponse(
+            { error: "scan_id is required for each scan." },
+            400,
+          );
+        }
+        requests.push({
+          scan_id: scanId,
+          required_video_count:
+            (entry as Record<string, unknown>).required_video_count,
+        });
+      }
+      try {
+        const results = [];
+        for (const scanStatusRequest of requests) {
+          results.push(
+            await buildScanStatusResponse(
+              scanStatusRequest,
+              user.id,
+              supabaseAdmin,
+            ),
+          );
+        }
+        return jsonResponse({ results }, 200);
+      } catch (error) {
+        logStructuredError("check_scan_status_bulk_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return jsonResponse({ error: "Internal Server Error" }, 500);
+      }
+    }
 
     const paramError = requireParams(body, ["scan_id"]);
     if (paramError) return paramError;
@@ -54,38 +128,13 @@ Deno.serve((req: Request) =>
     }
 
     try {
-      const row = await fetchScanStatusMedia(scan_id, user.id, supabaseAdmin);
-      let exists = row?.id != null;
-
-      if (exists && requiredVideoCount > 0) {
-        const videoUrlCount = cleanMediaUrls(row?.video_storage_urls).length;
-        const manifestVideoCount = capturedVideoCount(row?.captured_media);
-        const assetVideoCount = countVideoScanMediaAssets(row?.media_assets);
-        exists = videoUrlCount >= requiredVideoCount &&
-          Math.max(manifestVideoCount, assetVideoCount) >= requiredVideoCount;
-      }
-
-      let job = null;
-      if (!exists) {
-        try {
-          job = await fetchScanStatusJob(scan_id, user.id, supabaseAdmin);
-        } catch (error) {
-          logStructuredError("check_scan_status_job_fetch_failed", {
-            scan_id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-      const jobState = scanIngestionClientState(job);
-
-      return jsonResponse({
-        status: exists ? "found" : "not_found",
-        job_status: jobState?.status ?? null,
-        job_stage: jobState?.stage ?? null,
-        job_attempt_count: jobState?.attempt_count ?? null,
-        retry_after: jobState?.retry_after ?? null,
-        last_error: jobState?.last_error ?? null,
-      }, 200);
+      const response = await buildScanStatusResponse(
+        { scan_id, required_video_count: requiredVideoCount },
+        user.id,
+        supabaseAdmin,
+      );
+      const { scan_id: _scanId, ...singleResponse } = response;
+      return jsonResponse(singleResponse, 200);
     } catch (error) {
       logStructuredError("check_scan_status_failed", {
         scan_id,

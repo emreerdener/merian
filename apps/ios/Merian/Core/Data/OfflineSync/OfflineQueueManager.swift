@@ -75,10 +75,6 @@ import SwiftData
     /// to prevent stacked syncs when the OS path monitor fires multiple times in quick succession.
     @ObservationIgnored private var reconnectDebounceTask: Task<Void, Never>?
 
-    /// In-memory counter tracking consecutive transient upload/inference failures per scan ID.
-    /// Resets on app restart — a fresh process always gets a clean slate of retries.
-    @ObservationIgnored var uploadRetryCount: [String: Int] = [:]
-
     /// Scans that have been claimed as `.inferencing` while the background URLSession
     /// download task is still being built. Replay must treat these as active so the
     /// WeatherKit/request-construction window does not get mistaken for an orphan.
@@ -105,6 +101,9 @@ import SwiftData
     /// Last server-side ingestion job status observed for queued scans. Used only for
     /// user-facing transient copy while the backend remains the durable source of truth.
     var scanIngestionJobStates: [String: ScanIngestionJobStatus] = [:]
+    /// Scan IDs whose next attempt was explicitly requested by the user. These may bypass
+    /// expensive-network video deferral for one sync cycle.
+    @ObservationIgnored var userRequestedLargeUploadScanIds: Set<String> = []
 
     /// Scans whose inference response is being processed. During this window the
     /// URLSession task is already gone, but replay must not treat the scan as orphaned.
@@ -124,8 +123,6 @@ import SwiftData
     @ObservationIgnored var replayedStagedScanCount: Int = 0
 #endif
 
-    /// Maximum consecutive transient errors before a scan is tombstoned.
-    static let maxUploadRetries = 3
     /// Maximum delay between `generateUploadURLs` failure retries (seconds).
     static let maxUploadRetryDelay: TimeInterval = 30
 
@@ -186,6 +183,15 @@ import SwiftData
 
     // MARK: - Network Monitoring
 
+    var isCurrentNetworkConstrained: Bool {
+        monitor.currentPath.isConstrained
+    }
+
+    var allowsLargeQueuedUploadsOnCurrentNetwork: Bool {
+        let path = monitor.currentPath
+        return !path.isConstrained && !path.isExpensive
+    }
+
     private func startMonitoring() {
         monitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
@@ -206,11 +212,8 @@ import SwiftData
                         try? await Task.sleep(nanoseconds: 3_000_000_000)
                         guard !Task.isCancelled else { return }
                         // Skip background sync on constrained networks (Low Data Mode).
-                        if self.monitor.currentPath.isConstrained { return }
-                        self.syncPendingScans()
-                        self.replayInferenceForUploadedScans()
-                        await self.syncPendingDeletions()
-                        self.syncCollectionsIfPending()
+                        if self.isCurrentNetworkConstrained { return }
+                        await OfflineJobScheduler.shared.drainRunnableJobs(using: self)
                     }
                 } else {
                     // Circuit-break active uploads immediately on connectivity loss.

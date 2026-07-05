@@ -34,7 +34,6 @@ struct AppLifecycleManagerTests {
             offlineManager.modelContext              = originalContext
             offlineManager.isOnline                  = originalOnline
             offlineManager.hasReconciledStartupState = originalReconciled
-            offlineManager.uploadRetryCount.removeValue(forKey: stuck.id)
             offlineManager.replayedStagedScanCount   = 0
             diContainer.appSettings.hasCompletedOnboarding = originalOnboarding
         }

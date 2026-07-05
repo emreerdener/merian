@@ -54,16 +54,19 @@ Web runtime config:
 The active schema is:
 
 ```swift
-typealias CurrentSchema = MerianSchemaV47
+typealias CurrentSchema = MerianSchemaV48
 ```
 
-`MerianSchemaV47` is declared in `apps/ios/Merian/Models/SchemaVersions.swift` and points
-at the global active model classes in `apps/ios/Merian/Models/ActiveSchema/`.
+`MerianSchemaV48` is declared in `apps/ios/Merian/Models/SchemaVersions.swift` and points
+at the global active model classes in `apps/ios/Merian/Models/ActiveSchema/`. V47 remains
+frozen in `SchemaVersions.swift` for the outgoing offline-video schema.
 
 Active persistent models:
 
 - `LocalScanRecord`
 - `OfflineQueuedScan`
+- `OfflineJobRecord`
+- `OfflineQueueEvent`
 - `CapturedMediaEntry`
 - `ScanCollection`
 - `PendingCloudDeletionTask`
@@ -86,6 +89,9 @@ Recent schema milestones:
   local scans.
 - V47 added offline video inference replay fields so sampled frames can be
   queued separately from the user-visible playback video timeline.
+- V48 added durable queue retry metadata on `OfflineQueuedScan`, plus
+  `OfflineJobRecord` and bounded `OfflineQueueEvent` rows for scan ingestion,
+  cloud deletion, collection sync, diagnostics, and future offline work.
 
 Historical schema snapshots V1 through V39 live under `apps/ios/Merian/Models/Schema/`.
 V40 through V44 live in `SchemaVersions.swift` alongside the migration plan.

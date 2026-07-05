@@ -31,6 +31,7 @@ final class ScanRepository {
     /// visible hitch before the first frame rendered.
     func configure(with modelContext: ModelContext) {
         offlineQueue.modelContext = modelContext
+        offlineQueue.bootstrapOfflineJobBridgeIfNeeded()
         Task { @MainActor in
             self.seedFavoritesIfNeeded(modelContext: modelContext)
         }
@@ -96,7 +97,7 @@ final class ScanRepository {
             // the cloud first, those unsynced collections will be deleted during the sync pass.
             // Route this through OfflineQueueManager's shared drain so launch-time historical
             // sync cannot race a stale background upsert against a newer tombstone delete.
-            if UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync) {
+            if offlineQueue.hasPendingCollectionSyncJob {
                 let didDrainCollections = await offlineQueue.drainCollectionSyncIfPossible()
                 guard didDrainCollections else {
                     MerianLog.data.debug("syncHistoricalScansDown: skipped cloud reconciliation because pending collection mutations could not be drained safely.")
@@ -272,8 +273,13 @@ final class ScanRepository {
             })
         }
 
-        // 1. Tombstone any in-flight upload.
-        offlineQueue.softDeleteQueuedScan(scanId: record.id)
+        // 1. Cancel/tombstone any in-flight upload for this now-deleted scan.
+        offlineQueue.softDeleteQueuedScan(
+            scanId: record.id,
+            reason: "Scan was deleted locally.",
+            errorCode: "local_scan_deleted",
+            needsAttention: false
+        )
 
         // 2. Queue cloud deletion task + remove SwiftData record atomically.
         do {

@@ -375,7 +375,9 @@ struct ScansSheetView: View {
         let readContext = ModelContext(modelContext.container)
         let firstNonRunnableRaw = ScanQueueState.externalImport.rawValue
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate<OfflineQueuedScan> { $0.scanStateRaw < firstNonRunnableRaw },
+            predicate: #Predicate<OfflineQueuedScan> {
+                $0.scanStateRaw < firstNonRunnableRaw || $0.queueNeedsAttention
+            },
             sortBy: [SortDescriptor(\OfflineQueuedScan.timestamp, order: .reverse)]
         )
         let fetched = (try? readContext.fetch(descriptor)) ?? []
@@ -404,7 +406,14 @@ struct ScansSheetView: View {
                 imagePath: $0.coverImagePath,
                 capturedMediaJSON: $0.capturedMediaJSON,
                 queueState: $0.queueState,
-                timestamp: $0.timestamp
+                timestamp: $0.timestamp,
+                queueNextRetryAt: $0.queueNextRetryAt,
+                queueLastErrorMessage: $0.queueLastErrorMessage,
+                queueNeedsAttention: $0.queueNeedsAttention,
+                approximateQueuedBytes: QueuedScanContext.approximateQueuedBytes(
+                    mediaItems: $0.serializedCapturedMediaItems,
+                    inferenceImagePaths: $0.inferenceImagePaths
+                )
             )
         }
         if queuedScans != snapshots {

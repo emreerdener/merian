@@ -45,6 +45,10 @@ enum MerianConfig {
     /// Client-side storage target for compressed Pro micro-clips. The existing
     /// `videoPayloadMaxBytes` remains the hard upload compatibility ceiling.
     static let videoPlaybackExpectedMaxBytes = 3 * 1024 * 1024
+    /// Minimum free disk space that must remain after accepting a new offline queue payload.
+    static let offlineQueueMinimumFreeDiskBytes: Int64 = 100 * 1024 * 1024
+    /// Maximum total bytes a single queued payload may add before user-visible retry is safer.
+    static let offlineQueueSinglePayloadSoftLimitBytes: Int64 = 25 * 1024 * 1024
 
     // MARK: - Historical Sync Pagination
 

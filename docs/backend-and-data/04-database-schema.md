@@ -1692,7 +1692,7 @@ historical schema must also be schema-scoped snapshots; V41 owns
 without SwiftData casting V41 records to active `LocalScanRecord` or
 `OfflineQueuedScan`.
 
-The current active schema is `MerianSchemaV47`. Recent milestones:
+The current active schema is `MerianSchemaV48`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -1724,6 +1724,9 @@ The current active schema is `MerianSchemaV47`. Recent milestones:
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and
   `visualMediaItemsJSON` so queued video replay can keep sampled inference frames
   separate from the user-visible playback video timeline.
+- V48 added persisted queue retry metadata on `OfflineQueuedScan`, plus
+  `OfflineJobRecord` and bounded `OfflineQueueEvent` models for scan ingestion,
+  cloud deletion, collection sync, diagnostics, and future offline work.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): Declares
 `EdgeResponseWrapper`, `EdgeResponse` (the `/identify` response), and
@@ -1886,6 +1889,64 @@ mirror for migration safety and compatibility.
   `[IdentifyVisualMediaItem]` aligned one-to-one with `inferenceImagePaths`, so
   replay can tell `/identify-multimodal` which inference images are still photos
   versus ordered video frames.)
+- `queueAttemptCount`: Int (Added in `MerianSchemaV48`. Persisted retry count for
+  the queued scan. Replaces the older process-local `uploadRetryCount` authority.)
+- `queueLastAttemptAt`, `queueNextRetryAt`: Date? (Added in V48. Used by
+  `OfflineQueueRetryPolicy` and the scheduler to survive app relaunch without
+  losing backoff state.)
+- `queueLastErrorCode`, `queueLastErrorMessage`: String? (Added in V48.
+  User/support-facing last local retry or terminal error.)
+- `queueLastHTTPStatus`: Int? (Added in V48. Last HTTP response status associated
+  with upload or inference retry handling.)
+- `queueLastServerStatus`, `queueLastServerStage`: String? (Added in V48. Mirrors
+  `/check-scan-status` ingestion job state for server-owned work.)
+- `queueLastServerRetryAfter`: Date? (Added in V48. Parsed server retry window for
+  retryable ingestion jobs.)
+- `queueUpdatedAt`: Date (Added in V48. Last durable queue metadata mutation.)
+- `queueNeedsAttention`: Bool (Added in V48. Terminal user-actionable local
+  problems stay visible instead of being purged as disposable tombstones.)
+
+### `OfflineJobRecord`
+
+Added in `MerianSchemaV48`. Scheduler/control-plane row for media-agnostic
+offline work. Current `kindRaw` values are `scanIngestion`, `cloudDeletion`,
+`collectionSync`, `speciesPreferenceSync`, and `future`; current `statusRaw`
+values are `pending`, `running`, `waiting`, `needsAttention`, `complete`, and
+`cancelled`.
+
+- `id`: String (unique stable job id such as `scan-ingestion:{scanId}`,
+  `cloud-deletion:{scanId}`, or `collection-sync`.)
+- `kindRaw`, `statusRaw`: String enum raw values.
+- `subjectId`: String? (Scan id or other domain id, when applicable.)
+- `priority`: Int
+- `createdAt`, `updatedAt`: Date
+- `lastAttemptAt`, `nextRunAt`: Date?
+- `attemptCount`: Int
+- `lastErrorCode`, `lastErrorMessage`: String?
+- `lastHTTPStatus`: Int?
+- `serverStatus`, `serverStage`, `serverRetryAfter`: server ingestion status
+  mirrors for scan jobs.
+- `requiresUnconstrainedNetwork`, `allowsCellular`: Bool policy hints.
+- `approximateBytes`: Int64 redacted local footprint estimate.
+- `metadataJSON`: String? reserved for non-media scheduler metadata.
+
+### `OfflineQueueEvent`
+
+Added in `MerianSchemaV48`. Bounded local diagnostics rows for support export and
+developer debugging. Events are metadata-only; raw media bytes and private media
+paths must never be stored here.
+
+- `id`: String
+- `jobId`: String?
+- `scanId`: String?
+- `kindRaw`: String (`queued`, `claimed`, `uploadStarted`, `uploadCompleted`,
+  `staged`, `inferenceStarted`, `serverWait`, `retryScheduled`, `completed`,
+  `failed`, `cancelled`, `needsAttention`, or `diagnostics`.)
+- `createdAt`: Date
+- `message`, `errorCode`: String?
+- `httpStatus`: Int?
+- `metadataJSON`: String? metadata only; diagnostics export redacts it to a
+  boolean presence flag.
 
 ### `LocalScanRecord` (Scans)
 

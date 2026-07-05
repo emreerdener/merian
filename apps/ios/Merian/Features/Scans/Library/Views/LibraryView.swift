@@ -217,7 +217,11 @@ struct LibraryView: View {
                 id: snapshot.id,
                 capturedMediaItems: snapshot.capturedMediaItems,
                 queueState: snapshot.queueState,
-                timestamp: snapshot.timestamp
+                timestamp: snapshot.timestamp,
+                queueNextRetryAt: snapshot.queueNextRetryAt,
+                queueLastErrorMessage: snapshot.queueLastErrorMessage,
+                queueNeedsAttention: snapshot.queueNeedsAttention,
+                approximateQueuedBytes: snapshot.approximateQueuedBytes
             )
         )
     }

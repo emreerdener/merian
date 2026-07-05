@@ -369,12 +369,18 @@ triggering excessive SwiftUI view rebuilds.
 
 ### `OfflineQueueManager`
 
-- Manages background `URLSession` uploads, queuing imagery to the local
+- Manages background `URLSession` uploads, queuing scan media to the local
   Documents Directory when the device is off-grid.
 - Registers background handlers in `AppDelegate` so `URLSession` callbacks
   complete independently from the main UI thread.
 - Uses `BackgroundTaskWrapper.execute(name:operation:)` to wrap operations in
   `UIBackgroundTaskIdentifier` windows, preventing system suspension mid-flight.
+- **Durable job control plane**: `OfflineJobScheduler` is the reconnect facade.
+  It delegates existing scan upload/replay execution back to `OfflineQueueManager`
+  while scheduling cloud deletion and collection sync through `OfflineJobRecord`
+  rows. `OfflineQueuedScan.queue*` fields and bounded `OfflineQueueEvent` rows
+  replace the old process-local retry authority, so app relaunch preserves
+  attempts, next retry time, last server stage, and user-attention state.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
   across images, videos, audio clips, and descriptions. Images, video clips, and
   video poster thumbnails are written to `.documentsDirectory` via
@@ -414,11 +420,12 @@ triggering excessive SwiftUI view rebuilds.
 - **Server-Owned Inference Recovery**: Before replay resets an orphaned
   `.inferencing` scan, it polls `/check-scan-status` with the queued scan's
   required video count. `found` scans are synced down and the queue row is
-  deleted, `processing` / `finalizing` / `retrying` server jobs keep the local row
-  in `.inferencing` and schedule another poll, `failed_retryable` respects the
-  server `retry_after` before retreating to `.staged`, and terminal failures
-  tombstone the queue row. This keeps video playback finalization from being
-  mistaken for a local inference failure after app suspension or restart.
+  deleted, `processing` / `finalizing` / `retrying` server jobs keep the local
+  row in `.inferencing` and schedule another poll, `failed_retryable` respects
+  the server `retry_after` before retreating to `.staged`, and terminal failures
+  mark the queue row as needing attention. This keeps video playback
+  finalization from being mistaken for a local inference failure after app
+  suspension or restart.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5),
   `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (5),
   `mediaStagingMaxAudioFilesPerRequest` (2), `stagedImagePayloadMaxBytes` (5
@@ -459,6 +466,10 @@ triggering excessive SwiftUI view rebuilds.
 - **Sync Phase Transitions**: Drives `SyncStateManager` through
   `.uploading(count:)` → `.inferencing` → `.finalizing` → `.idle` as the
   pipeline progresses.
+- **Diagnostics export**: `writeQueueDiagnosticsExport(eventLimit:)` writes
+  support JSON containing job rows, redacted queued-scan metadata, and queue
+  events only. It intentionally omits raw media paths, descriptions, GPS, and
+  private media bytes.
 
 ### `MessageScanShareCacheWriter`
 
@@ -482,7 +493,7 @@ triggering excessive SwiftUI view rebuilds.
 - Replaced the original `isSyncing: Bool` + `pendingUploadCount: Int` properties
   with a `SyncPhase` enum:
   - `.idle` — no activity
-  - `.uploading(count: Int)` — image files are being PUT to R2 staging
+  - `.uploading(count: Int)` — media files are being PUT to R2 staging
   - `.inferencing` — the Gemini Edge function is running
   - `.finalizing` — writing `LocalScanRecord` and cleaning up queue entries
 - The `.finalizing` phase may represent a live/background dual-path race for
@@ -512,7 +523,9 @@ triggering excessive SwiftUI view rebuilds.
 - `@MainActor` singleton facade over `OfflineQueueManager` and SwiftData,
   decoupling UI and ViewModels from `ModelContext` and queue internals.
 - Injected at startup via `configure(with:)`, which also seeds the "Favorites"
-  collection if absent.
+  collection if absent and imports the legacy `needsCollectionSync` pending bit
+  into a coalesced `OfflineJobRecord`. After that bridge, the job record is the
+  scheduler authority.
 - **`configure(with:)` — non-blocking launch**: The Favorites collection seed is
   deferred to `Task { @MainActor in }` so `configure` returns immediately
   without performing any SQLite I/O on the synchronous launch path. On large
@@ -712,7 +725,7 @@ triggering excessive SwiftUI view rebuilds.
 | `invertZoomDirection`                  | `"invertZoomDirection"`                  | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView`                                                                                                           |
 | `zoomSideLeft`                         | `"zoomSideLeft"`                         | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView`                                                                                                                           |
 | `zoomSliderVisible`                    | `"zoomSliderVisible"`                    | `ZoomSliderView`, `CameraSettingsView`                                                                                                                                              |
-| `needsCollectionSync`                  | `"needsCollectionSync"`                  | `OfflineQueueManager+Sync` (write on enqueue, clear on success), `ScanRepository` (read/clear during historical sync)                                                               |
+| `needsCollectionSync`                  | `"needsCollectionSync"`                  | Legacy one-release bridge only. `ScanRepository.configure(with:)` imports it into `OfflineJobRecord(id: "collection-sync")`; active scheduling should use the job record.          |
 | `hiddenSmartCollectionIDs`             | `"hiddenSmartCollectionIDs"`             | `SmartCollectionPreferences` stores locally hidden smart collection ids; these are UI-only and are not synced through `/sync-collections`.                                           |
 | `speciesPreferredNamePrefix`           | `"speciesPreferredName_"`                | `SpeciesPreferredNameStore` bridge for per-species display-name overrides used by Insights and Explore.                                                                             |
 
@@ -871,7 +884,7 @@ and `KeychainManager` migration logic. Do not inline
 - `restoreExploreMediaObjectKeys` now uploads via
   `URLSession.upload(for:fromFile:)` with bounded concurrency, and MIME type
   detection prefers file extension plus a small header read instead of inflating
-  full images into RAM.
+  full image or video files into RAM.
 - Live multimodal audio reads preflight total byte size before any
   `Data(contentsOf:)` or base64 allocation, then use `.mappedIfSafe`. Queued
   audio does not use inline base64: `MediaStagingContract` validates and uploads

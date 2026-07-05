@@ -50,29 +50,28 @@ When a network call fails in `OfflineQueueManager`, the error classification det
 ```
 Upload (background URLSession upload task)
     ├── File missing (NSURLErrorFileDoesNotExist / CannotOpenFile)
-    │   └── tombstone via softDeleteQueuedScan (terminal)
+    │   └── mark queueNeedsAttention; keep local row for retry/cancel
     ├── Transient connectivity error (TimedOut / NetworkConnectionLost /
     │   NotConnectedToInternet / DataNotAllowed / InternationalRoamingOff)
-    │   ├── retries < maxUploadRetries (3) → retain in queue, increment uploadRetryCount
-    │   └── retries ≥ 3 → tombstone (terminal)
-    ├── Other transport error → log, retain in queue
+    │   └── retain in queue with persisted queueNextRetryAt
+    ├── Other transport error → log, retain in queue with persisted retry metadata
     ├── HTTP 200 → dispatch background inference download task ("inference_{scanId}")
     ├── HTTP 429 / 5xx → retain in queue (recoverable)
-    ├── HTTP 401 / 403 → tombstone (auth failure, terminal)
-    └── HTTP 4xx (other) → tombstone (terminal)
+    ├── HTTP 401 / 403 → needs attention (auth failure, terminal)
+    └── HTTP 4xx (other) → needs attention (terminal)
 
 Inference (background URLSession download task)
-    ├── Transport error → handleInferenceRetry: reset to .staged (< maxUploadRetries) or tombstone
+    ├── Transport error → handleInferenceRetry: persist retry and reset to .staged
     ├── HTTP 200 → processInferenceDownloadResult → persist LocalScanRecord, delete OfflineQueuedScan
-    ├── HTTP 4xx → tombstone (permanent failure, terminal)
-    └── HTTP 5xx / 429 → handleInferenceRetry: reset to .staged (< maxUploadRetries) or tombstone
+    ├── HTTP 4xx → needs attention (permanent failure, terminal)
+    └── HTTP 5xx / 429 → handleInferenceRetry: persist retry and reset to .staged
 
 Cloud deletion (PendingCloudDeletionTask)
     ├── MerianError.invalidResponse → tombstone (resource already gone, no point retrying)
-    └── All other errors → retain in queue
+    └── All other errors → retain as OfflineJobRecord waiting for nextRunAt
 ```
 
-Both uploads and inference use the same background `URLSession` (`URLSessionConfiguration.background`) with `sessionSendsLaunchEvents = true`, so iOS can re-attach in-flight tasks on app relaunch and deliver inference results while the app is completely suspended. Upload task descriptions are `"\(scanId)_\(uploadIndex)"` and inference task descriptions are `"inference_\(scanId)"` — both are used for deduplication against already-running tasks after a relaunch.
+Both uploads and inference use the same background `URLSession` (`URLSessionConfiguration.background`) with `sessionSendsLaunchEvents = true`, so iOS can re-attach in-flight tasks on app relaunch and deliver inference results while the app is completely suspended. Upload task descriptions are `upload|{scanId}|{uploadIndex}` and inference task descriptions are `"inference_\(scanId)"` — both are used for deduplication against already-running tasks after a relaunch. Retry state lives in SwiftData (`OfflineQueuedScan.queue*` plus `OfflineJobRecord`) rather than in process memory.
 
 ---
 
@@ -83,8 +82,8 @@ Both uploads and inference use the same background `URLSession` (`URLSessionConf
 | Inference decoding failure (`MerianError.decodingFailed`) | InsightSheet opens with "Analysis Failed" / "Data Unreadable" placeholder result |
 | Network timeout (Pro user) | InsightSheet opens with "Network Timeout" / "Offline Mode" placeholder + scan queued silently |
 | Network timeout (Free user) | Paywall sheet presented via `TriggerPaywall` notification |
-| R2 upload failure (missing source file) | Scan tombstoned silently via `softDeleteQueuedScan`; user is not notified |
-| R2 upload — transient error × 3 consecutive failures | Scan tombstoned silently after `maxUploadRetries` exhausted; user is not notified |
+| R2 upload failure (missing source file) | Queued scan remains visible with needs-attention copy plus retry/cancel actions |
+| R2 upload transient failure | Queued scan remains saved locally with persisted next retry time |
 | SwiftData save failure during deletion | `.error` logged; file deletion aborted; DB state remains consistent (record still exists, deletion task not persisted) |
 | SwiftData store corruption at startup | Store artifacts are quarantined, a support manifest is written, persistent open is retried once, and the user sees "Library Repaired" if recovery succeeds |
 | Non-corruption `ModelContainer` startup failure | Local store files are not moved; app boots in in-memory safe mode with a startup notice |

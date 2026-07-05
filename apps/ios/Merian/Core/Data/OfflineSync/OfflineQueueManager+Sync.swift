@@ -27,13 +27,61 @@ extension OfflineQueueManager {
 
         guard !pendingTasks.isEmpty else { return }
 
+        let now = Date()
+        var didBackfillJob = false
+        let runnableTasks = pendingTasks.filter { task in
+            let job = ensureCloudDeletionJob(scanId: task.scanId, context: context)
+            if job?.created == true {
+                didBackfillJob = true
+            }
+            guard let record = job?.record else { return true }
+            if let nextRunAt = record.nextRunAt, nextRunAt > now {
+                return false
+            }
+            return true
+        }
+
+        if didBackfillJob {
+            do {
+                try context.save()
+            } catch {
+                context.rollback()
+                MerianLog.data.error("syncPendingDeletions: failed to backfill deletion jobs: \(error, privacy: .private)")
+                return
+            }
+        }
+
+        guard !runnableTasks.isEmpty else { return }
+
+        for task in runnableTasks {
+            if let job = ensureCloudDeletionJob(scanId: task.scanId, context: context)?.record {
+                job.status = .running
+                job.updatedAt = now
+                job.lastAttemptAt = now
+                context.insert(OfflineQueueEvent(
+                    jobId: job.id,
+                    scanId: task.scanId,
+                    kind: .claimed,
+                    message: "Cloud deletion started."
+                ))
+            }
+        }
+
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            MerianLog.data.error("syncPendingDeletions: failed to claim deletion jobs: \(error, privacy: .private)")
+            return
+        }
+
         // Fetch O(n) results using the batch dispatcher
-        let scanIds = pendingTasks.map(\.scanId)
+        let scanIds = runnableTasks.map(\.scanId)
         let allResults = await dispatchDeleteBatches(scanIds: scanIds)
 
         // Build an O(1) lookup so the per-result loop below doesn't scan the full
         // pendingTasks array for each result (was O(n²) when the batch was large).
-        let taskById = Dictionary(uniqueKeysWithValues: pendingTasks.map { ($0.scanId, $0) })
+        let taskById = Dictionary(uniqueKeysWithValues: runnableTasks.map { ($0.scanId, $0) })
         var didMutate = false
         for (scanId, error) in allResults {
             guard let task = taskById[scanId] else { continue }
@@ -42,12 +90,17 @@ extension OfflineQueueManager {
                 if case MerianError.invalidResponse = error {
                     // Remote resource already gone — tombstone locally.
                     context.delete(task)
+                    markCloudDeletionJob(scanId: scanId, success: true, error: nil, context: context)
+                    didMutate = true
+                } else {
+                    markCloudDeletionJob(scanId: scanId, success: false, error: error, context: context)
                     didMutate = true
                 }
                 // All other errors: retain in queue for the next connectivity cycle.
             } else {
                 MerianLog.data.debug("✅ Deleted \(scanId, privacy: .private) from Edge")
                 context.delete(task)
+                markCloudDeletionJob(scanId: scanId, success: true, error: nil, context: context)
                 didMutate = true
             }
         }
@@ -96,6 +149,69 @@ extension OfflineQueueManager {
         return allResults
     }
 
+    private func markCloudDeletionJob(scanId: String, success: Bool, error: Error?, context: ModelContext) {
+        let jobId = "cloud-deletion:\(scanId)"
+        var descriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        descriptor.fetchLimit = 1
+        guard let job = (try? context.fetch(descriptor))?.first else { return }
+        job.updatedAt = Date()
+        if success {
+            job.status = .complete
+            job.nextRunAt = nil
+            context.insert(OfflineQueueEvent(
+                jobId: job.id,
+                scanId: scanId,
+                kind: .completed,
+                message: "Cloud deletion completed."
+            ))
+        } else {
+            job.status = .waiting
+            job.attemptCount += 1
+            job.lastAttemptAt = Date()
+            job.nextRunAt = Date().addingTimeInterval(OfflineQueueRetryPolicy.delay(forAttempt: job.attemptCount))
+            job.lastErrorCode = "cloud_deletion_failed"
+            job.lastErrorMessage = error?.localizedDescription
+            context.insert(OfflineQueueEvent(
+                jobId: job.id,
+                scanId: scanId,
+                kind: .retryScheduled,
+                message: error?.localizedDescription,
+                errorCode: "cloud_deletion_failed"
+            ))
+        }
+    }
+
+    private func ensureCloudDeletionJob(
+        scanId: String,
+        context: ModelContext
+    ) -> (record: OfflineJobRecord, created: Bool)? {
+        let jobId = "cloud-deletion:\(scanId)"
+        var descriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        descriptor.fetchLimit = 1
+        if let existing = (try? context.fetch(descriptor))?.first {
+            return (existing, false)
+        }
+
+        let record = OfflineJobRecord(
+            id: jobId,
+            kind: .cloudDeletion,
+            subjectId: scanId,
+            priority: 60
+        )
+        context.insert(record)
+        context.insert(OfflineQueueEvent(
+            jobId: jobId,
+            scanId: scanId,
+            kind: .queued,
+            message: "Queued cloud deletion."
+        ))
+        return (record, true)
+    }
+
     // MARK: - Uploads
 
     /// Fetches `.pending` scans and schedules background `PUT` uploads to Cloudflare R2 staging.
@@ -116,6 +232,10 @@ extension OfflineQueueManager {
         }
         guard isOnline else {
             MerianLog.data.debug("syncPendingScans: skipped because network is offline")
+            return
+        }
+        guard !isCurrentNetworkConstrained else {
+            MerianLog.data.debug("syncPendingScans: skipped because network is constrained")
             return
         }
         guard !isSyncing else {
@@ -144,10 +264,15 @@ extension OfflineQueueManager {
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             let scanData = await dbActor.fetchPendingScans(limit: MerianConfig.pendingScanFetchLimit)
             let session  = await MainActor.run { self.backgroundSession }
+            let allowsLargeUploads = await MainActor.run { self.allowsLargeQueuedUploadsOnCurrentNetwork }
+            let forcedLargeUploadIds = await MainActor.run { self.userRequestedLargeUploadScanIds }
+            let eligibleScanData = scanData.filter { scan in
+                allowsLargeUploads || scan.localVideoPaths.isEmpty || forcedLargeUploadIds.contains(scan.id)
+            }
 
-            let filteredScans = self.selectUploadBatch(from: scanData)
+            let filteredScans = self.selectUploadBatch(from: eligibleScanData)
             MerianLog.data.debug(
-                "syncPendingScans: fetched pending=\(scanData.count, privacy: .public) selected=\(filteredScans.count, privacy: .public)"
+                "syncPendingScans: fetched pending=\(scanData.count, privacy: .public) eligible=\(eligibleScanData.count, privacy: .public) selected=\(filteredScans.count, privacy: .public) largeUploads=\(allowsLargeUploads, privacy: .public)"
             )
 
             guard !filteredScans.isEmpty else {
@@ -195,6 +320,9 @@ extension OfflineQueueManager {
             }
 
             let claimedScanIds = await dbActor.markScansAsUploading(scanIds: Array(candidateUploadScanIds))
+            await MainActor.run {
+                self.userRequestedLargeUploadScanIds.subtract(claimedScanIds)
+            }
             MerianLog.data.debug(
                 "syncPendingScans: claimed scans=\(claimedScanIds.count, privacy: .public) ids=\(claimedScanIds.sorted().joined(separator: ","), privacy: .public)"
             )
@@ -426,6 +554,41 @@ extension OfflineQueueManager {
         syncCollectionsIfPending()
     }
 
+    var hasPendingCollectionSyncJob: Bool {
+        guard let context = modelContext else {
+            return UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync)
+        }
+        guard let job = fetchCollectionSyncJob(context: context) else { return false }
+        return isActiveCollectionSyncStatus(job.statusRaw)
+    }
+
+    private var isCollectionSyncJobRunnable: Bool {
+        guard let context = modelContext else {
+            return UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync)
+        }
+        guard let job = fetchCollectionSyncJob(context: context),
+              isActiveCollectionSyncStatus(job.statusRaw) else { return false }
+        if let nextRunAt = job.nextRunAt, nextRunAt > Date() {
+            return false
+        }
+        return true
+    }
+
+    private func fetchCollectionSyncJob(context: ModelContext) -> OfflineJobRecord? {
+        let jobId = Self.collectionSyncJobId
+        var descriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        descriptor.fetchLimit = 1
+        return (try? context.fetch(descriptor))?.first
+    }
+
+    private func isActiveCollectionSyncStatus(_ statusRaw: String) -> Bool {
+        statusRaw == OfflineJobStatus.pending.rawValue ||
+            statusRaw == OfflineJobStatus.waiting.rawValue ||
+            statusRaw == OfflineJobStatus.running.rawValue
+    }
+
     /// Pushes local `ScanCollection` records to the `sync-collections` Edge function if changes are pending.
     /// No-ops when offline or unauthenticated.
     func syncCollectionsIfPending() {
@@ -440,8 +603,9 @@ extension OfflineQueueManager {
     /// the same single-flight latch, so a stale upsert can never race a newer tombstone.
     @discardableResult
     func drainCollectionSyncIfPossible() async -> Bool {
-        while UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync) {
+        while hasPendingCollectionSyncJob {
             guard isOnline, SupabaseManager.shared.isAuthenticated else { return false }
+            guard isCollectionSyncJobRunnable else { return false }
 
             if let existingTask = collectionSyncTask {
                 let didSucceed = await existingTask.value
@@ -453,6 +617,7 @@ extension OfflineQueueManager {
 
             let capturedRevision = collectionSyncRevision
             isCollectionSyncing = true
+            markCollectionSyncStarted()
 
             let task = BackgroundTaskWrapper.execute(name: "CollectionSync") { [weak self] _ in
                 guard let self else { return false }
@@ -476,18 +641,89 @@ extension OfflineQueueManager {
 
     func markCollectionSyncPending() {
         collectionSyncRevision &+= 1
-        // ALWAYS set the flag when enqueued (so offline edits are remembered)
-        UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
+        guard let context = modelContext else {
+            UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
+            return
+        }
+        do {
+            let job = try context.ensureOfflineJobRecord(
+                id: Self.collectionSyncJobId,
+                kind: .collectionSync,
+                priority: 80
+            )
+            job.status = .pending
+            job.updatedAt = Date()
+            job.nextRunAt = nil
+            context.insert(OfflineQueueEvent(
+                jobId: job.id,
+                kind: .queued,
+                message: "Queued collection sync."
+            ))
+            try context.save()
+            UserDefaults.standard.set(false, forKey: UserDefaultsKeys.needsCollectionSync)
+        } catch {
+            context.rollback()
+            UserDefaults.standard.set(true, forKey: UserDefaultsKeys.needsCollectionSync)
+            MerianLog.data.error("markCollectionSyncPending: save failed: \(error, privacy: .private)")
+        }
     }
 
     func finishCollectionSyncAttempt(success: Bool, capturedRevision: UInt64) {
         isCollectionSyncing = false
         collectionSyncTask = nil
 
-        // Only clear the pending bit if no newer collection mutation was enqueued while
-        // this network request was in flight. Otherwise the next drain loop must run again.
+        guard let context = modelContext else {
+            if success, collectionSyncRevision == capturedRevision {
+                UserDefaults.standard.set(false, forKey: UserDefaultsKeys.needsCollectionSync)
+            }
+            return
+        }
+
+        let jobId = Self.collectionSyncJobId
+        var descriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        descriptor.fetchLimit = 1
+        guard let job = (try? context.fetch(descriptor))?.first else { return }
+        job.updatedAt = Date()
         if success, collectionSyncRevision == capturedRevision {
+            job.status = .complete
+            job.nextRunAt = nil
             UserDefaults.standard.set(false, forKey: UserDefaultsKeys.needsCollectionSync)
+            context.insert(OfflineQueueEvent(jobId: job.id, kind: .completed, message: "Collection sync completed."))
+        } else if !success {
+            job.attemptCount += 1
+            job.status = .waiting
+            job.lastAttemptAt = Date()
+            job.nextRunAt = Date().addingTimeInterval(OfflineQueueRetryPolicy.delay(forAttempt: job.attemptCount))
+            job.lastErrorCode = "collection_sync_failed"
+            context.insert(OfflineQueueEvent(jobId: job.id, kind: .retryScheduled, message: "Collection sync will retry.", errorCode: "collection_sync_failed"))
+        }
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            MerianLog.data.error("finishCollectionSyncAttempt: save failed: \(error, privacy: .private)")
+        }
+    }
+
+    private func markCollectionSyncStarted() {
+        guard let context = modelContext else { return }
+        let jobId = Self.collectionSyncJobId
+        var descriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        descriptor.fetchLimit = 1
+        guard let job = (try? context.fetch(descriptor))?.first else { return }
+        job.status = .running
+        job.updatedAt = Date()
+        job.lastAttemptAt = Date()
+        context.insert(OfflineQueueEvent(jobId: job.id, kind: .claimed, message: "Collection sync started."))
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            MerianLog.data.error("markCollectionSyncStarted: save failed: \(error, privacy: .private)")
         }
     }
 }

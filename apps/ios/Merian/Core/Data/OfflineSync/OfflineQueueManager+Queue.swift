@@ -79,9 +79,16 @@ extension OfflineQueueManager {
     /// Tombstones a scan by transitioning it to `.failed`.
     ///
     /// Used for scans whose source files are missing or whose uploads were permanently rejected.
-    /// The record is excluded from future sync attempts and cleaned up by `purgeSoftDeletedRecords()`.
+    /// The record is excluded from future sync attempts. Rows that still need user attention stay
+    /// visible until the user retries or cancels; non-actionable failures can be purged later.
     @discardableResult
-    func softDeleteQueuedScan(scanId: String) -> Bool {
+    func softDeleteQueuedScan(
+        scanId: String,
+        reason: String? = nil,
+        errorCode: String? = nil,
+        httpStatus: Int? = nil,
+        needsAttention: Bool = true
+    ) -> Bool {
         guard let context = modelContext else { return false }
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate<OfflineQueuedScan> { $0.id == scanId }
@@ -95,6 +102,29 @@ extension OfflineQueueManager {
         }
         guard let match else { return false }
         match.scanStateRaw = ScanQueueState.failed.rawValue
+        match.queueLastAttemptAt = Date()
+        match.queueNextRetryAt = nil
+        match.queueLastErrorCode = errorCode
+        match.queueLastErrorMessage = reason
+        match.queueLastHTTPStatus = httpStatus
+        match.queueNeedsAttention = needsAttention
+        match.queueUpdatedAt = Date()
+        if let job = fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId), context: context) {
+            job.status = needsAttention ? .needsAttention : .cancelled
+            job.updatedAt = Date()
+            job.nextRunAt = nil
+            job.lastErrorCode = errorCode
+            job.lastErrorMessage = reason
+            job.lastHTTPStatus = httpStatus
+        }
+        context.insert(OfflineQueueEvent(
+            jobId: Self.scanIngestionJobId(scanId: scanId),
+            scanId: scanId,
+            kind: needsAttention ? .needsAttention : .failed,
+            message: reason,
+            errorCode: errorCode,
+            httpStatus: httpStatus
+        ))
         do {
             try context.save()
         } catch {
@@ -201,6 +231,17 @@ extension OfflineQueueManager {
             appendDeletionCandidate(.documents(inferenceImagePath))
         }
 
+        if let job = fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId), context: context) {
+            job.status = .cancelled
+            job.updatedAt = Date()
+            job.nextRunAt = nil
+        }
+        context.insert(OfflineQueueEvent(
+            jobId: Self.scanIngestionJobId(scanId: scanId),
+            scanId: scanId,
+            kind: .cancelled,
+            message: "Queued scan was removed locally."
+        ))
         context.delete(scan)
         do {
             try context.save()
@@ -222,7 +263,7 @@ extension OfflineQueueManager {
         guard let context = modelContext else { return }
         let failedRaw = ScanQueueState.failed.rawValue
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
-            predicate: #Predicate { $0.scanStateRaw == failedRaw }
+            predicate: #Predicate { $0.scanStateRaw == failedRaw && !$0.queueNeedsAttention }
         )
         descriptor.fetchLimit = 500
 
@@ -240,16 +281,22 @@ extension OfflineQueueManager {
                             pathsToDelete.append(reference.serializedPath)
                         }
                     case .video(let reference):
-                        if let targetURL = reference.video.resolvedURL, !reference.video.isRemote {
-                            pathsToDelete.append(targetURL.path)
-                        } else {
-                            pathsToDelete.append(reference.serializedPath)
+                        for mediaReference in [reference.video, reference.thumbnail, reference.audio].compactMap({ $0 }) {
+                            if let targetURL = mediaReference.resolvedURL, !mediaReference.isRemote {
+                                pathsToDelete.append(targetURL.path)
+                            } else {
+                                pathsToDelete.append(mediaReference.serializedPath)
+                            }
                         }
                     case .description:
                         break
                     }
                 }
                 context.delete(scan)
+                if let job = fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scan.id), context: context) {
+                    job.status = .cancelled
+                    job.updatedAt = Date()
+                }
             }
             try context.save()
             Task {
@@ -407,11 +454,19 @@ extension OfflineQueueManager {
         let descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.scanStateRaw == stagedRaw }
         )
-        guard let staged = try? context.fetch(descriptor), !staged.isEmpty else {
+        guard let fetched = try? context.fetch(descriptor), !fetched.isEmpty else {
             MerianLog.data.debug("replayInferenceStagedScans: no staged scans")
             return
         }
-        MerianLog.data.debug("replayInferenceStagedScans: staged scans=\(staged.count, privacy: .public)")
+        let now = Date()
+        let staged = fetched.filter { scan in
+            !scan.queueNeedsAttention && (scan.queueNextRetryAt == nil || (scan.queueNextRetryAt ?? now) <= now)
+        }
+        guard !staged.isEmpty else {
+            MerianLog.data.debug("replayInferenceStagedScans: no staged scans ready for retry")
+            return
+        }
+        MerianLog.data.debug("replayInferenceStagedScans: staged scans=\(fetched.count, privacy: .public) runnable=\(staged.count, privacy: .public)")
 
         for scan in staged {
             let scanId = scan.id
@@ -519,6 +574,17 @@ extension OfflineQueueManager {
             audioFilePaths: audioFilePaths,
             videoFilePaths: videoFilePaths
         )
+        let displayBytes = displayImageDatas.map { $0.reduce(0) { $0 + $1.count } } ?? 0
+        let estimatedPayloadBytes = Int64(imageDatas.reduce(0) { $0 + $1.count })
+            + Int64(displayBytes)
+            + estimatedFileBytes(audioFilePaths + videoFilePaths)
+        guard OfflineQueueStoragePolicy.canAdmitNewPayload(estimatedBytes: estimatedPayloadBytes) else {
+            MerianLog.data.error("enqueueCapture: storage pressure blocked queue insert scanId=\(resolvedScanId, privacy: .public) bytes=\(estimatedPayloadBytes, privacy: .public)")
+            if let onQueued {
+                onQueued(false)
+            }
+            return
+        }
 
         BackgroundTaskWrapper.execute(name: "OfflineQueueCaptureWrite", priority: .userInitiated) { [weak self] _ in
             guard let self else {
@@ -647,6 +713,41 @@ extension OfflineQueueManager {
         await FileIOActor.shared.deleteFiles(at: urls.map(\.path))
     }
 
+    private func approximateBytes(for urls: [URL]) -> Int64 {
+        urls.reduce(Int64(0)) { total, url in
+            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
+            return total + size
+        }
+    }
+
+    private func estimatedFileBytes(_ paths: [String]) -> Int64 {
+        paths.reduce(Int64(0)) { total, path in
+            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return total }
+            let candidates: [URL]
+            if trimmed.hasPrefix("/") {
+                candidates = [URL(fileURLWithPath: trimmed)]
+            } else {
+                candidates = [
+                    URL.documentsDirectory.appendingPathComponent(trimmed),
+                    FileManager.default.temporaryDirectory.appendingPathComponent(trimmed)
+                ]
+            }
+            let size = candidates.lazy.compactMap {
+                (try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? NSNumber)?.int64Value
+            }.first ?? 0
+            return total + size
+        }
+    }
+
+    private func fetchOfflineJob(id: String, context: ModelContext) -> OfflineJobRecord? {
+        var descriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == id }
+        )
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+
     @MainActor
     @discardableResult
     func enqueueNonVisualCapture(
@@ -668,6 +769,11 @@ extension OfflineQueueManager {
         )
 
         guard !timeline.isEmpty else { return false }
+        let estimatedPayloadBytes = estimatedFileBytes(filteredAudioFileNames + filteredVideoFilePaths)
+        guard OfflineQueueStoragePolicy.canAdmitNewPayload(estimatedBytes: estimatedPayloadBytes) else {
+            MerianLog.data.error("enqueueNonVisualCapture: storage pressure blocked queue insert bytes=\(estimatedPayloadBytes, privacy: .public)")
+            return false
+        }
 
         let persistedAudioNamesBySourcePath: [String: String]
         do {
@@ -758,6 +864,31 @@ extension OfflineQueueManager {
         }
 
         modelContext.insert(scan)
+        do {
+            let job = try modelContext.ensureOfflineJobRecord(
+                id: Self.scanIngestionJobId(scanId: resolvedScanId),
+                kind: .scanIngestion,
+                subjectId: resolvedScanId,
+                priority: hasUploadableMedia ? 100 : 120,
+                approximateBytes: approximateBytes(for: persistedAudioNamesBySourcePath.values.map {
+                    URL.documentsDirectory.appendingPathComponent($0)
+                } + persistedVideoNamesBySourcePath.values.map {
+                    URL.documentsDirectory.appendingPathComponent($0)
+                }),
+                requiresUnconstrainedNetwork: !persistedVideoNamesBySourcePath.isEmpty,
+                allowsCellular: persistedVideoNamesBySourcePath.isEmpty
+            )
+            modelContext.insert(OfflineQueueEvent(
+                jobId: job.id,
+                scanId: resolvedScanId,
+                kind: .queued,
+                message: "Queued non-visual scan for sync."
+            ))
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error("enqueueNonVisualCapture: failed to create offline job: \(error, privacy: .private)")
+            return false
+        }
         do {
             try modelContext.save()
             updateUnsyncedItemCount()
@@ -976,6 +1107,31 @@ extension OfflineQueueManager {
         }
         
         modelContext.insert(scan)
+        do {
+            let job = try modelContext.ensureOfflineJobRecord(
+                id: Self.scanIngestionJobId(scanId: scanId),
+                kind: .scanIngestion,
+                subjectId: scanId,
+                priority: 100,
+                approximateBytes: approximateBytes(for: fileURLs),
+                requiresUnconstrainedNetwork: scan.capturedMediaSnapshot.videoPaths.isEmpty == false,
+                allowsCellular: scan.capturedMediaSnapshot.videoPaths.isEmpty
+            )
+            modelContext.insert(OfflineQueueEvent(
+                jobId: job.id,
+                scanId: scanId,
+                kind: .queued,
+                message: "Queued scan for upload."
+            ))
+        } catch {
+            modelContext.rollback()
+            if didConsumeQuota {
+                UsageManager.shared.refundScan()
+            }
+            await cleanupPersistedCaptureFiles(fileURLs)
+            MerianLog.data.error("insertAndPersistRecord: failed to create offline job: \(error, privacy: .private)")
+            return false
+        }
 
         do {
             try modelContext.save()

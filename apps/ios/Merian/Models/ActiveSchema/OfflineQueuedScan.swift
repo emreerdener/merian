@@ -41,6 +41,20 @@ public final class OfflineQueuedScan {
     /// Private user-authored notes captured while the scan is still in flight.
     @Attribute public var fieldNotes: String?
 
+    /// Durable retry and diagnostics fields. These replace the older process-local retry counter
+    /// so app relaunches keep the queue's real state.
+    @Attribute public var queueAttemptCount: Int = 0
+    @Attribute public var queueLastAttemptAt: Date?
+    @Attribute public var queueNextRetryAt: Date?
+    @Attribute public var queueLastErrorCode: String?
+    @Attribute public var queueLastErrorMessage: String?
+    @Attribute public var queueLastHTTPStatus: Int?
+    @Attribute public var queueLastServerStatus: String?
+    @Attribute public var queueLastServerStage: String?
+    @Attribute public var queueLastServerRetryAfter: Date?
+    @Attribute public var queueUpdatedAt: Date = Date()
+    @Attribute public var queueNeedsAttention: Bool = false
+
     // MARK: - Typed accessor
 
     public var queueState: ScanQueueState {
@@ -73,7 +87,18 @@ public final class OfflineQueuedScan {
         stagedR2Keys: [String]? = nil,
         inferenceImagePaths: [String]? = nil,
         visualMediaItemsJSON: String? = nil,
-        fieldNotes: String? = nil
+        fieldNotes: String? = nil,
+        queueAttemptCount: Int = 0,
+        queueLastAttemptAt: Date? = nil,
+        queueNextRetryAt: Date? = nil,
+        queueLastErrorCode: String? = nil,
+        queueLastErrorMessage: String? = nil,
+        queueLastHTTPStatus: Int? = nil,
+        queueLastServerStatus: String? = nil,
+        queueLastServerStage: String? = nil,
+        queueLastServerRetryAfter: Date? = nil,
+        queueUpdatedAt: Date = Date(),
+        queueNeedsAttention: Bool = false
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -98,5 +123,16 @@ public final class OfflineQueuedScan {
         self.inferenceImagePaths = inferenceImagePaths
         self.visualMediaItemsJSON = visualMediaItemsJSON
         self.fieldNotes = fieldNotes
+        self.queueAttemptCount = queueAttemptCount
+        self.queueLastAttemptAt = queueLastAttemptAt
+        self.queueNextRetryAt = queueNextRetryAt
+        self.queueLastErrorCode = queueLastErrorCode
+        self.queueLastErrorMessage = queueLastErrorMessage
+        self.queueLastHTTPStatus = queueLastHTTPStatus
+        self.queueLastServerStatus = queueLastServerStatus
+        self.queueLastServerStage = queueLastServerStage
+        self.queueLastServerRetryAfter = queueLastServerRetryAfter
+        self.queueUpdatedAt = queueUpdatedAt
+        self.queueNeedsAttention = queueNeedsAttention
     }
 }

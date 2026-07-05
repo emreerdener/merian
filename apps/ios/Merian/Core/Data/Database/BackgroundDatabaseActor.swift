@@ -79,7 +79,7 @@ actor BackgroundDatabaseActor {
             predicate: #Predicate { $0.scanStateRaw == pendingRaw }
         )
         descriptor.sortBy = [SortDescriptor(\.timestamp)]
-        descriptor.fetchLimit = limit
+        descriptor.fetchLimit = max(limit, limit * 3)
 
         let pending: [OfflineQueuedScan]
         do {
@@ -88,8 +88,12 @@ actor BackgroundDatabaseActor {
             MerianLog.data.error("fetchPendingScans: fetch failed: \(error, privacy: .private)")
             return []
         }
-        MerianLog.data.debug("fetchPendingScans: fetched \(pending.count, privacy: .public) pending scans")
-        return pending.map { scan in
+        let now = Date()
+        let runnable = pending.filter { scan in
+            !scan.queueNeedsAttention && (scan.queueNextRetryAt == nil || (scan.queueNextRetryAt ?? now) <= now)
+        }
+        MerianLog.data.debug("fetchPendingScans: fetched \(pending.count, privacy: .public) pending scans runnable=\(runnable.count, privacy: .public)")
+        return runnable.prefix(limit).map { scan in
             let snapshot = scan.capturedMediaSnapshot
             return PendingScanPayload(
                 id: scan.id,
@@ -192,6 +196,14 @@ actor BackgroundDatabaseActor {
             return false
         }
         scan.scanStateRaw = inferencingRaw
+        scan.queueUpdatedAt = Date()
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        modelContext.insert(OfflineQueueEvent(
+            jobId: jobId,
+            scanId: scanId,
+            kind: .inferenceStarted,
+            message: "Queued scan claimed for inference."
+        ))
         do {
             try modelContext.save()
             MerianLog.data.debug("tryClaimForInference: claimed scanId=\(scanId, privacy: .public)")
@@ -219,6 +231,7 @@ actor BackgroundDatabaseActor {
         // Only retreat from .inferencing — do not overwrite a concurrent tombstone (.failed).
         guard scan.scanStateRaw == inferencingRaw else { return }
         scan.scanStateRaw = stagedRaw
+        scan.queueUpdatedAt = Date()
         do {
             try modelContext.save()
         } catch {
@@ -252,6 +265,14 @@ actor BackgroundDatabaseActor {
         }
         scan.stagedR2Keys  = r2Keys
         scan.scanStateRaw  = ScanQueueState.staged.rawValue
+        scan.queueNextRetryAt = nil
+        scan.queueUpdatedAt = Date()
+        modelContext.insert(OfflineQueueEvent(
+            jobId: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            scanId: scanId,
+            kind: .staged,
+            message: "Queued scan media staged for inference."
+        ))
         do {
             try modelContext.save()
             MerianLog.data.debug(
@@ -290,6 +311,7 @@ actor BackgroundDatabaseActor {
         var resetIds: [String] = []
         for scan in scans where !activeScanIds.contains(scan.id) {
             scan.scanStateRaw = pendingRaw
+            scan.queueUpdatedAt = Date()
             changed = true
             resetIds.append(scan.id)
         }
@@ -330,6 +352,7 @@ actor BackgroundDatabaseActor {
         var changed = false
         for scan in scans where !activeInferenceScanIds.contains(scan.id) {
             scan.scanStateRaw = stagedRaw
+            scan.queueUpdatedAt = Date()
             changed = true
         }
         if changed {
@@ -391,6 +414,22 @@ actor BackgroundDatabaseActor {
                 let scans = try modelContext.fetch(descriptor)
                 for scan in scans {
                     scan.scanStateRaw = uploadingRaw
+                    scan.queueLastAttemptAt = Date()
+                    scan.queueNextRetryAt = nil
+                    scan.queueUpdatedAt = Date()
+                    if let job = fetchOfflineJob(id: OfflineQueueManager.scanIngestionJobId(scanId: scan.id)) {
+                        job.status = .running
+                        job.updatedAt = Date()
+                        job.lastAttemptAt = Date()
+                        job.nextRunAt = nil
+                        job.attemptCount = scan.queueAttemptCount
+                    }
+                    modelContext.insert(OfflineQueueEvent(
+                        jobId: OfflineQueueManager.scanIngestionJobId(scanId: scan.id),
+                        scanId: scan.id,
+                        kind: .claimed,
+                        message: "Queued scan claimed for media upload."
+                    ))
                     claimedScanIds.insert(scan.id)
                 }
             } catch {
@@ -418,6 +457,14 @@ actor BackgroundDatabaseActor {
             MerianLog.data.error("markScansAsUploading: save failed: \(error, privacy: .private)")
             return []
         }
+    }
+
+    private func fetchOfflineJob(id: String) -> OfflineJobRecord? {
+        var descriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == id }
+        )
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
     }
 
     // MARK: - Offline Scan Processing

@@ -1113,9 +1113,109 @@ enum MerianSchemaV47: VersionedSchema {
     static var versionIdentifier = Schema.Version(47, 0, 0)
 
     static var models: [any PersistentModel.Type] {
+        [MerianSchemaV47.LocalScanRecord.self, MerianSchemaV47.OfflineQueuedScan.self, MerianSchemaV47.CapturedMediaEntry.self,
+         MerianSchemaV47.ScanCollection.self, PendingCloudDeletionTask.self,
+         UserSpeciesPreference.self]
+    }
+}
+
+enum MerianSchemaV48: VersionedSchema {
+    static var versionIdentifier = Schema.Version(48, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
         [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
          ScanCollection.self, PendingCloudDeletionTask.self,
-         UserSpeciesPreference.self]
+         UserSpeciesPreference.self, OfflineJobRecord.self, OfflineQueueEvent.self]
+    }
+}
+
+extension MerianSchemaV47 {
+    typealias LocalScanRecord = MerianSchemaV46.LocalScanRecord
+    typealias CapturedMediaEntry = MerianSchemaV46.CapturedMediaEntry
+    typealias ScanCollection = MerianSchemaV46.ScanCollection
+
+    @Model
+    final class OfflineQueuedScan {
+        @Attribute(.unique) var id: String
+        var timestamp: Date
+        var capturedMediaJSON: String?
+        @Relationship(deleteRule: .cascade) var capturedMediaEntries: [MerianSchemaV47.CapturedMediaEntry]? = []
+
+        var gpsLatitude: Double?
+        var gpsLongitude: Double?
+        var gpsElevation: Double?
+        var weatherCondition: String?
+        var weatherTemperatureF: Double?
+        var blurScore: Double?
+        var subjectDistanceInMeters: Float?
+        var locationName: String?
+        var isFlashFired: Bool?
+        var cameraPitchDegrees: Double?
+        var compassHeading: Double?
+        var relativeHumidity: Double?
+        var uvIndex: Int?
+        @Attribute var zoomFactor: Double?
+        var scanStateRaw: Int = ScanQueueState.pending.rawValue
+        var stagedR2Keys: [String]?
+        @Attribute var inferenceImagePaths: [String]?
+        @Attribute var visualMediaItemsJSON: String?
+        @Attribute var fieldNotes: String?
+        @Attribute var coverImagePath: String?
+
+        var queueState: ScanQueueState {
+            get { ScanQueueState(rawValue: scanStateRaw) ?? .pending }
+            set { scanStateRaw = newValue.rawValue }
+        }
+
+        init(
+            id: String = UUID().uuidString,
+            timestamp: Date = Date(),
+            capturedMediaJSON: String? = nil,
+            coverImagePath: String? = nil,
+            gpsLatitude: Double? = nil,
+            gpsLongitude: Double? = nil,
+            gpsElevation: Double? = nil,
+            weatherCondition: String? = nil,
+            weatherTemperatureF: Double? = nil,
+            blurScore: Double? = nil,
+            subjectDistanceInMeters: Float? = nil,
+            locationName: String? = nil,
+            isFlashFired: Bool? = nil,
+            cameraPitchDegrees: Double? = nil,
+            compassHeading: Double? = nil,
+            relativeHumidity: Double? = nil,
+            uvIndex: Int? = nil,
+            zoomFactor: Double? = nil,
+            scanState: ScanQueueState = .pending,
+            stagedR2Keys: [String]? = nil,
+            inferenceImagePaths: [String]? = nil,
+            visualMediaItemsJSON: String? = nil,
+            fieldNotes: String? = nil
+        ) {
+            self.id = id
+            self.timestamp = timestamp
+            self.capturedMediaJSON = capturedMediaJSON
+            self.coverImagePath = coverImagePath
+            self.gpsLatitude = gpsLatitude
+            self.gpsLongitude = gpsLongitude
+            self.gpsElevation = gpsElevation
+            self.weatherCondition = weatherCondition
+            self.weatherTemperatureF = weatherTemperatureF
+            self.blurScore = blurScore
+            self.subjectDistanceInMeters = subjectDistanceInMeters
+            self.locationName = locationName
+            self.isFlashFired = isFlashFired
+            self.cameraPitchDegrees = cameraPitchDegrees
+            self.compassHeading = compassHeading
+            self.relativeHumidity = relativeHumidity
+            self.uvIndex = uvIndex
+            self.zoomFactor = zoomFactor
+            self.scanStateRaw = scanState.rawValue
+            self.stagedR2Keys = stagedR2Keys
+            self.inferenceImagePaths = inferenceImagePaths
+            self.visualMediaItemsJSON = visualMediaItemsJSON
+            self.fieldNotes = fieldNotes
+        }
     }
 }
 
@@ -2165,7 +2265,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV44.self,
             MerianSchemaV45.self,
             MerianSchemaV46.self,
-            MerianSchemaV47.self
+            MerianSchemaV47.self,
+            MerianSchemaV48.self
         ]
     }
 
@@ -2216,9 +2317,15 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV43toV44,
             migrateV44toV45,
             migrateV45toV46,
-            migrateV46toV47
+            migrateV46toV47,
+            migrateV47toV48
         ]
     }
+
+    static let migrateV47toV48 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV47.self,
+        toVersion: MerianSchemaV48.self
+    )
 
     static let migrateV46toV47 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV46.self,

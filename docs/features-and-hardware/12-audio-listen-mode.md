@@ -397,7 +397,7 @@ For audio-only scans, `insertScan` persists `image_storage_urls: []` and the sam
 
 ### Error Status Semantics
 
-Mirrors the other inference endpoints: Gemini API failures → 503 (transient, iOS offline queue retries); malformed JSON → 422 (permanent, tombstone after `maxUploadRetries`); malformed audio payloads → 400.
+Mirrors the other inference endpoints: Gemini API failures → 503 (transient, iOS offline queue retries with persisted `queueNextRetryAt`); malformed JSON → 422 (permanent validation failure marked as needs attention); malformed audio payloads → 400.
 
 ---
 

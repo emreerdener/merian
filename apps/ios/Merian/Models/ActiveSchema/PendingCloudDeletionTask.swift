@@ -28,11 +28,29 @@ extension ModelContext {
         descriptor.fetchLimit = 1
 
         if let existing = try fetch(descriptor).first {
+            _ = try ensureOfflineJobRecord(
+                id: "cloud-deletion:\(scanId)",
+                kind: .cloudDeletion,
+                subjectId: scanId,
+                priority: 60
+            )
             return existing
         }
 
         let task = PendingCloudDeletionTask(scanId: scanId, timestamp: timestamp)
         insert(task)
+        let job = try ensureOfflineJobRecord(
+            id: "cloud-deletion:\(scanId)",
+            kind: .cloudDeletion,
+            subjectId: scanId,
+            priority: 60
+        )
+        insert(OfflineQueueEvent(
+            jobId: job.id,
+            scanId: scanId,
+            kind: .queued,
+            message: "Queued cloud deletion."
+        ))
         return task
     }
 }

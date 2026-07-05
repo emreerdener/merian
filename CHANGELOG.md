@@ -41,6 +41,8 @@ TestFlight, App Store, support, and QA.
 - Hid reference images on shared human identifications so Explore pages show only the user's media.
 
 ### Scans
+- Improved offline queue reliability so image, video, audio, and description scans keep retry state across app restarts, show retry/needs-attention status, and no longer discard user media after a fixed number of transient failures.
+- Added redacted offline queue diagnostics for support, including queued job state and recent queue events without private media.
 - Added Image and Video media filters to the Scans filter sheet.
 - Restored the Explore posts scan filter so the Scans library can show scans that have already been shared to Explore.
 - Hardened launch recovery so a damaged local scan library can be quarantined safely without signing the user out.

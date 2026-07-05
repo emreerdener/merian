@@ -389,7 +389,7 @@ Deno.serve((req: Request) =>
         error_status: errStatus,
       });
       // Return 503 (not 400) so the iOS offline queue treats this as a transient failure
-      // and retries up to maxUploadRetries times rather than tombstoning the scan permanently.
+      // and schedules a persisted retry instead of marking the scan as terminal.
       // 400 is reserved for genuine client errors (bad params, IDOR). Gemini API errors
       // (rate limits, timeouts, internal errors) are all transient and should be retried.
       return jsonResponse(

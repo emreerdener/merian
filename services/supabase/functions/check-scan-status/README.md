@@ -17,6 +17,17 @@ whose response body may have been lost after the server committed the scan.
 or send `0`. Video replay recovery sends the number of video items in the queued
 captured-media timeline.
 
+Bulk probes use the same fields per scan and are capped at 50 entries:
+
+```json
+{
+  "scans": [
+    { "scan_id": "uuid-1", "required_video_count": 1 },
+    { "scan_id": "uuid-2" }
+  ]
+}
+```
+
 ## Response
 
 ```json
@@ -43,6 +54,24 @@ or:
 }
 ```
 
+Bulk responses include the probed scan id on each result:
+
+```json
+{
+  "results": [
+    {
+      "scan_id": "uuid-1",
+      "status": "found",
+      "job_status": null,
+      "job_stage": null,
+      "job_attempt_count": null,
+      "retry_after": null,
+      "last_error": null
+    }
+  ]
+}
+```
+
 ## Rules
 
 - Requires an authenticated user through `withEdgeHandler`.
@@ -64,4 +93,5 @@ or:
 
 ```sh
 deno check --config services/supabase/functions/deno.json services/supabase/functions/check-scan-status/index.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/check-scan-status/status_test.ts
 ```

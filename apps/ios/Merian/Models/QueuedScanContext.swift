@@ -23,6 +23,12 @@ struct QueuedScanContext: Identifiable, Equatable {
     let gpsElevation: Double?
     let gpsLatitude: Double?
     let gpsLongitude: Double?
+    let queueAttemptCount: Int
+    let queueNextRetryAt: Date?
+    let queueLastErrorCode: String?
+    let queueLastErrorMessage: String?
+    let queueNeedsAttention: Bool
+    let approximateQueuedBytes: Int64
 
     var capturedMediaSnapshot: CapturedMediaSnapshot {
         CapturedMediaSnapshot(items: capturedMediaItems)
@@ -30,6 +36,20 @@ struct QueuedScanContext: Identifiable, Equatable {
 
     var capturedMediaJSON: String? {
         capturedMediaSnapshot.jsonString
+    }
+
+    var mediaKinds: [String] {
+        var kinds: [String] = []
+        let snapshot = capturedMediaSnapshot
+        if !snapshot.thumbnailImagePaths.isEmpty { kinds.append("Images") }
+        if !snapshot.videoPaths.isEmpty { kinds.append("Video") }
+        if !snapshot.audioPaths.isEmpty { kinds.append("Audio") }
+        if snapshot.descriptionText?.isEmpty == false { kinds.append("Text") }
+        return kinds
+    }
+
+    var canRetryNow: Bool {
+        queueState == .failed || queueNextRetryAt != nil || queueNeedsAttention
     }
 
     /// Initialises the context by resolving all attribute faults on the live `OfflineQueuedScan`.
@@ -45,7 +65,16 @@ struct QueuedScanContext: Identifiable, Equatable {
             weatherCondition: scan.weatherCondition,
             gpsElevation: scan.gpsElevation,
             gpsLatitude: scan.gpsLatitude,
-            gpsLongitude: scan.gpsLongitude
+            gpsLongitude: scan.gpsLongitude,
+            queueAttemptCount: scan.queueAttemptCount,
+            queueNextRetryAt: scan.queueNextRetryAt,
+            queueLastErrorCode: scan.queueLastErrorCode,
+            queueLastErrorMessage: scan.queueLastErrorMessage,
+            queueNeedsAttention: scan.queueNeedsAttention,
+            approximateQueuedBytes: Self.approximateQueuedBytes(
+                mediaItems: scan.serializedCapturedMediaItems,
+                inferenceImagePaths: scan.inferenceImagePaths
+            )
         )
     }
 
@@ -59,7 +88,13 @@ struct QueuedScanContext: Identifiable, Equatable {
         weatherCondition: String? = nil,
         gpsElevation: Double? = nil,
         gpsLatitude: Double? = nil,
-        gpsLongitude: Double? = nil
+        gpsLongitude: Double? = nil,
+        queueAttemptCount: Int = 0,
+        queueNextRetryAt: Date? = nil,
+        queueLastErrorCode: String? = nil,
+        queueLastErrorMessage: String? = nil,
+        queueNeedsAttention: Bool = false,
+        approximateQueuedBytes: Int64 = 0
     ) {
         self.id = id
         self.capturedMediaItems = capturedMediaItems
@@ -71,5 +106,45 @@ struct QueuedScanContext: Identifiable, Equatable {
         self.gpsElevation = gpsElevation
         self.gpsLatitude = gpsLatitude
         self.gpsLongitude = gpsLongitude
+        self.queueAttemptCount = queueAttemptCount
+        self.queueNextRetryAt = queueNextRetryAt
+        self.queueLastErrorCode = queueLastErrorCode
+        self.queueLastErrorMessage = queueLastErrorMessage
+        self.queueNeedsAttention = queueNeedsAttention
+        self.approximateQueuedBytes = approximateQueuedBytes
+    }
+
+    static func approximateQueuedBytes(
+        mediaItems: [SerializedMediaItem],
+        inferenceImagePaths: [String]? = nil
+    ) -> Int64 {
+        let snapshot = CapturedMediaSnapshot(items: mediaItems)
+        let paths = snapshot.thumbnailImagePaths +
+            snapshot.audioPaths +
+            snapshot.videoPaths +
+            (inferenceImagePaths ?? [])
+        return approximateLocalBytes(paths: paths)
+    }
+
+    private static func approximateLocalBytes(paths: [String]) -> Int64 {
+        let urls = Set(paths.compactMap(localURL(for:)))
+        return urls.reduce(Int64(0)) { total, url in
+            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
+            return total + size
+        }
+    }
+
+    private static func localURL(for path: String) -> URL? {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix("http://"), !trimmed.hasPrefix("https://") else {
+            return nil
+        }
+        if let url = URL(string: trimmed), url.isFileURL {
+            return url
+        }
+        if trimmed.hasPrefix("/") {
+            return URL(fileURLWithPath: trimmed)
+        }
+        return URL.documentsDirectory.appendingPathComponent(trimmed)
     }
 }

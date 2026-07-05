@@ -901,8 +901,8 @@ This ensures:
 
 - **Non-fatal bootstrap boundaries**: auth presentation, Apple nonce generation, and `ModelContainer` startup are now recoverable paths. Startup routes SwiftData/Core Data Objective-C exceptions through the bridge, retries corruption recovery once, quarantines the store when signatures match, and falls back to an in-memory safe mode with a user-facing notice instead of crashing.
 - **Collection membership is scan-driven**: hot UI paths (`CollectionCard`, `CollectionsView`, `SelectMultipleScansView`, `CollectionDetailView`) and historical reconciliation no longer rely on `collection.scans` traversal. Membership snapshots are derived from `LocalScanRecord.collections` so SwiftData faults stay bounded.
-- **Offline file work is actor-owned**: queued-scan cleanup and image writes flow through `FileIOActor.deleteFiles(at:)` / `writeTemporaryImages(imageDatas:)`.
-- **File-backed restore uploads**: explore restore now re-uploads images with `upload(for:fromFile:)` and a small task-group concurrency window, eliminating duplicate in-memory image buffers during restores.
+- **Offline file work is actor-owned**: queued-scan cleanup and media writes/adoption flow through `FileIOActor.deleteFiles(at:)` / `writeTemporaryImages(imageDatas:)`.
+- **File-backed restore uploads**: explore restore now re-uploads images and videos with `upload(for:fromFile:)` and a small task-group concurrency window, eliminating duplicate in-memory media buffers during restores.
 - **Detached tasks are now exceptional**: view-owned network mutation work such as biological rescue and export flows moved behind repository or actor APIs. Remaining detached work must stay within `Sendable` CPU/file bridges only.
 - **Documented detached-work bridge**: high-level app flows now use `DetachedWork` instead of spelling raw `Task.detached` inline. This keeps the remaining executor escapes explicit, searchable, and narrow enough for linting.
 - **Typed settings boundary**: settings-first UI surfaces now read and mutate `AppSettings` rather than owning `@AppStorage` strings directly. Storage keys remain centralized, while the view layer binds to typed state.

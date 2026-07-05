@@ -179,7 +179,8 @@ captured-media manifest are repaired. If no scan row exists after the
 abandonment TTL, remaining staging objects are deleted and the asset row is
 marked `failed` for audit. The worker does not replay AI inference; the iOS
 offline queue remains responsible for retrying scans that never reached
-`identify-multimodal`.
+`identify-multimodal`, using persisted V48 `OfflineJobRecord` retry windows
+rather than process-local counters.
 
 ## Scan Media Health (`scan-media-health`)
 
@@ -313,9 +314,10 @@ The `/identify` Edge Function acts as the inference proxy:
    `insertScan()` throws inside `runBackgroundIngestion()` (FK violation, DB
    timeout, network partition), the catch block writes a row to
    `public.failed_scan_ingestions` with the `scan_id`, `user_id`, and
-   `error_message`. The job ledger gives `/check-scan-status` live state;
-   dead letters remain the ops replay fallback. Replay is safe because
-   `insertScan` uses `ignoreDuplicates: true`.
+   `error_message`. The job ledger gives `/check-scan-status` live state,
+   including bulk status probes and video-completeness checks via
+   `required_video_count`; dead letters remain the ops replay fallback. Replay
+   is safe because `insertScan` uses `ignoreDuplicates: true`.
 6. **Moderation Pipeline (`_shared/identify/moderation.ts`)**: Evaluates Gemini
    Safety Ratings before any write occurs. Unsafe media sets the user's status
    to `SHADOWBANNED`, increments abuse strikes, and deletes the R2 object. Safe

@@ -1,8 +1,22 @@
 {
   "schemaVersion": 1,
-  "entries": [
-    {
-      "id": "2026-07-05-startup-schema-migration",
+    "entries": [
+        {
+            "id": "2026-07-05-offline-queue-durability",
+            "date": "2026-07-05",
+            "title": "Offline queue reliability",
+            "sections": [
+                {
+                    "title": "Improved",
+                    "items": [
+                        "Queued image, video, audio, and description scans now keep retry state across app restarts, show clearer retry or needs-attention status, and preserve user media during transient failures.",
+                        "Support diagnostics can now export redacted offline queue metadata and recent queue events without including private media."
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "2026-07-05-startup-schema-migration",
       "date": "2026-07-05",
       "title": "Startup library migration",
       "sections": [
