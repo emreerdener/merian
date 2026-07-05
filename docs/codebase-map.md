@@ -241,6 +241,7 @@ Scheduled/background workers:
 - `refresh-merian-reference-images`
 - `expire-subscription-passes`
 - `auto-purge-nonbio`
+- `reconcile-scan-media-assets`
 
 Every function above has a `[functions.<name>]` entry in `services/supabase/config.toml`.
 `merge-ghost-profile` and `request-export-dwca` intentionally use
@@ -251,7 +252,7 @@ and perform identity checks inside shared handler code.
 
 | Surface | Current files | Responsibility |
 |---|---|---|
-| Scan media assets | `services/supabase/migrations/20260705100000_add_scan_media_assets.sql`, `services/supabase/functions/_shared/scanMediaAssets.ts`, `services/supabase/functions/generate-upload-urls/` | Normalized scan media lifecycle table. Upload signing creates staged scan-media rows when clients send `clientScanId`/`mediaRole`; identify finalization marks those rows promoted/deleted/failed. `captured_media` remains the canonical scan manifest for generated ready rows; readers prefer ready display/playback assets, fall back to the manifest and legacy image/video arrays for older rows, and avoid treating sampled video frames as standalone user media. |
+| Scan media assets | `services/supabase/migrations/20260705100000_add_scan_media_assets.sql`, `services/supabase/migrations/20260705110000_schedule_scan_media_asset_reconciliation.sql`, `services/supabase/functions/_shared/scanMediaAssets.ts`, `services/supabase/functions/generate-upload-urls/`, `services/supabase/functions/reconcile-scan-media-assets/` | Normalized scan media lifecycle table. Upload signing creates staged scan-media rows when clients send `clientScanId`/`mediaRole`; identify finalization marks those rows promoted/deleted/failed; the scheduled reconciliation worker repairs stale existing-scan video uploads and garbage-collects abandoned staging objects. `captured_media` remains the canonical scan manifest for generated ready rows; readers prefer ready display/playback assets, fall back to the manifest and legacy image/video arrays for older rows, and avoid treating sampled video frames as standalone user media. |
 | Explore post media | `services/supabase/migrations/20260703130000_add_explore_post_media.sql`, `services/supabase/functions/_shared/explorePostMedia.ts` | Post-owned public media snapshot used by Explore feed/detail, Community ID, map/profile/widget previews, and public web read paths. |
 
 ## Test Inventory

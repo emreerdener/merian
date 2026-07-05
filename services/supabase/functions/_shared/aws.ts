@@ -146,6 +146,15 @@ export async function deleteR2Object(
   return await s3Client.fetch(new Request(deleteUrl, { method: "DELETE" }));
 }
 
+export async function headR2Object(
+  key: string,
+  config: R2Config,
+): Promise<Response> {
+  const { s3Client, bucketName, endpoint } = config;
+  const headUrl = `${endpoint}/${bucketName}/${key}`;
+  return await s3Client.fetch(new Request(headUrl, { method: "HEAD" }));
+}
+
 /**
  * Generates a presigned PUT URL for an R2 object.
  *

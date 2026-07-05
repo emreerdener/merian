@@ -91,6 +91,50 @@ failures mark still-staged rows as `failed`.
 
 ---
 
+## Deno `/reconcile-scan-media-assets` Internal Worker
+
+This endpoint is not called by iOS. It is invoked hourly by pg_cron with
+`Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}`. Supabase gateway JWT
+verification is disabled so pg_net can reach the function, and the function
+performs service-role key validation internally.
+
+Optional request payload:
+
+```json
+{
+  "limit": 100,
+  "repairAfterMinutes": 15,
+  "abandonAfterHours": 36,
+  "dryRun": false
+}
+```
+
+Response payload:
+
+```json
+{
+  "success": true,
+  "scanned": 3,
+  "promoted": 1,
+  "repairedVideoScans": 1,
+  "deletedStagingObjects": 2,
+  "failedAssets": 1,
+  "missingObjects": 0,
+  "stillPending": 1,
+  "errors": []
+}
+```
+
+The worker only reconciles media lifecycle state. It can repair an existing scan
+that has a surviving staged playback video by promoting the video, updating
+`video_storage_urls`, rebuilding `captured_media`, and refreshing ready
+`scan_media_assets` rows. It can also delete abandoned staging objects and mark
+their staged rows failed. It does not replay AI inference for scans that never
+created a cloud scan row; those remain the responsibility of the iOS offline
+queue retry path.
+
+---
+
 ## Deno `/update-public-avatar` Edge Node
 
 Promotes one user-owned staged R2 image into the durable public avatar prefix.

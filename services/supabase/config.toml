@@ -420,6 +420,9 @@ verify_jwt = false
 [functions.expire-subscription-passes]
 verify_jwt = false
 
+[functions.reconcile-scan-media-assets]
+verify_jwt = false
+
 [functions.block-user]
 verify_jwt = false
 

@@ -16,7 +16,8 @@
           "title": "Improved",
           "items": [
             "Cloud video scans now keep ready-state media records for future sharing and playback recovery.",
-            "Scan media uploads now carry server-tracked lifecycle state before final scan persistence."
+            "Scan media uploads now carry server-tracked lifecycle state before final scan persistence.",
+            "Staged video uploads can now be reconciled automatically when a cloud scan needs media repair."
           ]
         }
       ]

@@ -164,6 +164,23 @@ single prepared square WebP or JPEG to `staging/{userId}/...`, then calls
 prefix. The signing endpoint stays generic; ownership and avatar MIME policy
 are enforced by the promotion endpoint.
 
+## The Scan Media Reconciliation Worker (`reconcile-scan-media-assets`)
+
+The `reconcile-scan-media-assets` Edge Function is an internal service-role
+worker scheduled hourly by pg_cron. It scans old `capture_upload` rows in
+`scan_media_assets` and closes drift between R2 staging objects, the normalized
+asset lifecycle table, and `scans.captured_media` / `video_storage_urls`.
+
+If the scan row already exists, the worker only performs safe finalization:
+matching image rows are marked `promoted`, consumed audio staging objects are
+deleted and marked `deleted`, and stranded playback video objects are promoted
+from `staging/` into `public_uploads/` before the scan's video URL array and
+captured-media manifest are repaired. If no scan row exists after the
+abandonment TTL, remaining staging objects are deleted and the asset row is
+marked `failed` for audit. The worker does not replay AI inference; the iOS
+offline queue remains responsible for retrying scans that never reached
+`identify-multimodal`.
+
 ## The Public Avatar Promotion Node (`update-public-avatar`)
 
 The `/update-public-avatar` Edge Function promotes a staged, user-owned image

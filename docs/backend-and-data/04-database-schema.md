@@ -1103,7 +1103,28 @@ capture-upload rows must also have a final `scan_id` and public URL.
 `identify-multimodal` links those rows to `scan_id` during finalization:
 promoted image/video rows become `promoted`, consumed staged audio rows become
 `deleted`, and failed moderation/promotion/insert paths mark remaining staged
-rows as `failed`.
+rows as `failed`. The scheduled `reconcile-scan-media-assets` worker revisits
+old staged rows: existing scan rows can be repaired from surviving staged
+playback videos, while abandoned upload sessions are failed and garbage
+collected after their TTL.
+
+### `scan_media_reconciliation_runs`
+
+Service-role audit log for the scheduled scan-media reconciliation worker. Added
+in migration `20260705110000_schedule_scan_media_asset_reconciliation.sql`.
+
+- `started_at` / `finished_at` (TIMESTAMPTZ): Worker execution window.
+- `status` (TEXT): `success`, `partial_failure`, `failed`, or `dry_run`.
+- `scanned_count`, `promoted_count`, `repaired_video_scan_count`,
+  `deleted_staging_object_count`, `failed_asset_count`,
+  `missing_object_count`, `still_pending_count`, `error_count` (INT): Bounded
+  operational counters for media lifecycle drift.
+- `errors` (JSONB): Truncated structured error list for rows that could not be
+  reconciled in that run.
+
+The table is RLS-enabled without client policies. It is written by the
+service-role worker and intended for operations/monitoring queries, not app
+payloads.
 
 ### `explore_post_media`
 
