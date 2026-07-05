@@ -56,6 +56,17 @@ enum StagedMediaKind: String, Codable, Sendable, Equatable {
             return MerianConfig.videoPayloadMaxBytes
         }
     }
+
+    var defaultScanMediaRole: String {
+        switch self {
+        case .image:
+            return "display"
+        case .audio:
+            return "audio"
+        case .video:
+            return "playback"
+        }
+    }
 }
 
 struct StagedMediaObjectKeys: Sendable, Equatable {
@@ -78,6 +89,24 @@ struct StagingUploadFile: Codable, Sendable, Equatable {
     let mediaKind: StagedMediaKind
     let contentType: String
     let sizeBytes: Int?
+    let clientScanId: String?
+    let mediaRole: String?
+
+    init(
+        fileName: String,
+        mediaKind: StagedMediaKind,
+        contentType: String,
+        sizeBytes: Int?,
+        clientScanId: String? = nil,
+        mediaRole: String? = nil
+    ) {
+        self.fileName = fileName
+        self.mediaKind = mediaKind
+        self.contentType = contentType
+        self.sizeBytes = sizeBytes
+        self.clientScanId = clientScanId
+        self.mediaRole = mediaRole
+    }
 }
 
 enum MediaStagingContract {
@@ -233,7 +262,9 @@ enum MediaStagingContract {
                 fileName: item.fileName,
                 mediaKind: item.mediaKind,
                 contentType: item.contentType,
-                sizeBytes: try fileSizeBytes(at: item.fileURL)
+                sizeBytes: try fileSizeBytes(at: item.fileURL),
+                clientScanId: item.scanId,
+                mediaRole: item.mediaKind.defaultScanMediaRole
             )
         }
     }

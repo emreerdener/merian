@@ -31,6 +31,9 @@ interface MediaStagingUploadManifestContract {
   canonicalQueuedWavContentType: string;
   canonicalQueuedM4AContentType: string;
   canonicalQueuedVideoContentType: string;
+  optionalRequestFields: string[];
+  optionalResponseFields: string[];
+  mediaRolesByKind: Record<string, string[]>;
   fileNameSafeCharacterPattern: string;
   legacyFileNamesAccepted: boolean;
 }
@@ -39,6 +42,7 @@ Deno.test("media staging constants match the documented cross-language contract"
   const contract = mediaStagingContract as MediaStagingUploadManifestContract;
 
   assertEquals(contract.endpoint, "/generate-upload-urls");
+  assertEquals(contract.schemaVersion, 2);
   assertEquals(MAX_STAGING_FILES, contract.maxFilesPerRequest);
   assertEquals(MAX_STAGED_IMAGE_BYTES, contract.maxImageBytes);
   assertEquals(MAX_STAGED_AUDIO_BYTES, contract.maxAudioBytes);
@@ -57,6 +61,21 @@ Deno.test("media staging constants match the documented cross-language contract"
     STAGING_ALLOWED_CONTENT_TYPES.video,
     contract.videoContentTypes,
   );
+  assertEquals(contract.optionalRequestFields, [
+    "clientScanId",
+    "mediaRole",
+  ]);
+  assertEquals(contract.optionalResponseFields, [
+    "mediaAssetId",
+    "mediaSessionId",
+  ]);
+  assertEquals(contract.mediaRolesByKind.video, ["playback"]);
+  assertEquals(contract.mediaRolesByKind.audio, ["audio"]);
+  assertEquals(contract.mediaRolesByKind.image, [
+    "display",
+    "thumbnail",
+    "inference_frame",
+  ]);
   assertEquals(contract.legacyFileNamesAccepted, true);
 });
 
@@ -80,6 +99,8 @@ Deno.test("parseStagingUploadFiles accepts structured mixed-media manifests", ()
         mediaKind: "video",
         contentType: "video/mp4",
         sizeBytes: 840_000,
+        clientScanId: "00000000-0000-0000-0000-000000000001",
+        mediaRole: "playback",
       },
     ],
   });
@@ -89,6 +110,51 @@ Deno.test("parseStagingUploadFiles accepts structured mixed-media manifests", ()
   assertEquals(parsed.files?.[0].mediaKind, "image");
   assertEquals(parsed.files?.[1].contentType, "audio/wav");
   assertEquals(parsed.files?.[2].mediaKind, "video");
+  assertEquals(
+    parsed.files?.[2].clientScanId,
+    "00000000-0000-0000-0000-000000000001",
+  );
+  assertEquals(parsed.files?.[2].mediaRole, "playback");
+});
+
+Deno.test("parseStagingUploadFiles rejects invalid scan media session metadata", () => {
+  const badClientScanId = parseStagingUploadFiles({
+    files: [
+      {
+        fileName: "scan-1_video.mp4",
+        mediaKind: "video",
+        contentType: "video/mp4",
+        sizeBytes: 840_000,
+        clientScanId: "not-a-uuid",
+        mediaRole: "playback",
+      },
+    ],
+  });
+
+  assertEquals(badClientScanId.status, 400);
+  assertEquals(
+    badClientScanId.error,
+    "Bad Request: clientScanId must be a UUID.",
+  );
+
+  const badRole = parseStagingUploadFiles({
+    files: [
+      {
+        fileName: "scan-1_video.mp4",
+        mediaKind: "video",
+        contentType: "video/mp4",
+        sizeBytes: 840_000,
+        clientScanId: "00000000-0000-0000-0000-000000000001",
+        mediaRole: "display",
+      },
+    ],
+  });
+
+  assertEquals(badRole.status, 400);
+  assertEquals(
+    badRole.error,
+    "Bad Request: mediaRole is not valid for mediaKind.",
+  );
 });
 
 Deno.test("parseStagingUploadFiles rejects unsanitized structured file names", () => {

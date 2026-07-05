@@ -21,13 +21,17 @@ load that file so limits and allowed content types cannot drift silently.
       "fileName": "scan-id_photo_1.webp",
       "mediaKind": "image",
       "contentType": "image/webp",
-      "sizeBytes": 124000
+      "sizeBytes": 124000,
+      "clientScanId": "00000000-0000-0000-0000-000000000001",
+      "mediaRole": "display"
     },
     {
       "fileName": "scan-id_audio_1.wav",
       "mediaKind": "audio",
       "contentType": "audio/wav",
-      "sizeBytes": 42000
+      "sizeBytes": 42000,
+      "clientScanId": "00000000-0000-0000-0000-000000000001",
+      "mediaRole": "audio"
     }
   ]
 }
@@ -39,12 +43,17 @@ request body. To prevent array-abuse memory locking on the Edge Node, the
 endpoint strictly requires exactly 1 to 5 `files`, with at most 2 audio files.
 The main app queue builds this manifest through `MediaStagingContract` and must
 apply the same filename sanitization as the Edge function before upload URL
-generation. The Edge parser rejects unsanitized filenames, invalid `mediaKind`
-values, content-type/kind mismatches, and oversized media before signing.
-Structured manifests require `sizeBytes`; the
-legacy `fileNames` array remains accepted for older clients but is
-compatibility-only and cannot express byte budgets. Pre-signed `PUT` URLs
-include an `X-Amz-Expires=86400` parameter (24 hours). This extended window
+generation. For scan uploads, each structured entry may also include
+`clientScanId` and `mediaRole`; when present, `/generate-upload-urls` creates a
+server-owned staged `scan_media_assets` row before returning the signed URL.
+Image roles may be `display`, `thumbnail`, or `inference_frame`; video uses
+`playback`; audio uses `audio`. The Edge parser rejects unsanitized filenames,
+invalid `mediaKind` values, invalid role/kind combinations,
+content-type/kind mismatches, and oversized media before signing. Structured
+manifests require `sizeBytes`; the legacy `fileNames` array remains accepted for
+older clients but is compatibility-only and cannot express byte budgets or media
+asset sessions. Pre-signed `PUT` URLs include an `X-Amz-Expires=86400`
+parameter (24 hours). This extended window
 gives iOS `BackgroundTasks` flexibility to transmit overnight, subject to OS
 memory, thermal, and Wi-Fi conditions, without hitting 403 errors.
 
@@ -60,11 +69,20 @@ during subsequent offline inference triggers.
     {
       "fileName": "photo_1.webp",
       "signedUrl": "https://<R2_URL>?X-Amz-Signature=...",
-      "objectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_photo_1.webp"
+      "objectKey": "staging/A1B2C3D4-E5F6-7890-ABCD-EF1234567890/uuid_photo_1.webp",
+      "mediaAssetId": "scan_media_assets row UUID",
+      "mediaSessionId": "upload session UUID"
     }
   ]
 }
 ```
+
+`mediaAssetId` and `mediaSessionId` are omitted for non-scan uploads, such as
+profile avatars, and for legacy `fileNames` clients. During
+`identify-multimodal` finalization, promoted image/video staging keys update the
+matching staged rows to `promoted` and link them to the completed scan. Consumed
+audio staging keys become `deleted`; moderation, promotion, or scan-insert
+failures mark still-staged rows as `failed`.
 
 > The pre-signed URL is generated with the exact `contentType` from the
 > structured manifest. The iOS `URLRequest` must send the same `Content-Type`
@@ -2761,7 +2779,11 @@ ordered compositions of images, audio, and descriptive context.
   inference or reference-media input. If `videoR2ObjectKeys` is non-empty, the
   scan is only successful when every requested video key is promoted and
   persisted into `video_storage_urls` and `captured_media`; otherwise the client
-  receives a retryable failure rather than a frame-only video scan.
+  receives a retryable failure rather than a frame-only video scan. Uploads
+  signed with `clientScanId`/`mediaRole` already have staged
+  `scan_media_assets` rows; this endpoint links those rows to the scan as
+  `promoted`, marks consumed audio rows `deleted`, and marks failed finalization
+  rows `failed`.
 - The edge writes `captured_media` for new multimodal scan rows. That JSON keeps
   still photos as image items but collapses ordered `video_frame` samples into a
   single video media item with a thumbnail reference, preserving playback-first

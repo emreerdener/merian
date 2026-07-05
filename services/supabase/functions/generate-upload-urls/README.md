@@ -6,8 +6,8 @@ The client then uploads the multi-megabyte `Data` payloads natively to the Cloud
 
 ## Architecture
 
-- **`index.ts`**: The HTTP orchestrator. It safely catches `.json()` parse anomalies, accepts the structured `files` manifest (`fileName`, `mediaKind`, `contentType`, `sizeBytes`), keeps legacy `fileNames` compatibility, and blocks requests that exceed 5 media objects.
-- **`storage.ts`**: Validates media kind/content type/byte budgets before signing, enforces the `Promise.all` key generation mapping, injects the verified `userId` to strictly namespace objects dynamically, and executes regex sanitization against `fileName` to prevent `/../` directory traversal vulnerabilities on Cloudflare's staging bucket. Video signing is strict: the client supplies one upload-bounded `video/mp4` playback file per video capture or repair attempt, and downstream identify/share flows fail rather than silently accepting a partial video set.
+- **`index.ts`**: The HTTP orchestrator. It safely catches `.json()` parse anomalies, accepts the structured `files` manifest (`fileName`, `mediaKind`, `contentType`, `sizeBytes`, optional `clientScanId`, optional `mediaRole`), keeps legacy `fileNames` compatibility, blocks requests that exceed 5 media objects, and creates staged `scan_media_assets` rows for scan media before returning signed URLs.
+- **`storage.ts`**: Validates media kind/content type/byte budgets and role/kind combinations before signing, enforces the `Promise.all` key generation mapping, injects the verified `userId` to strictly namespace objects dynamically, and executes regex sanitization against `fileName` to prevent `/../` directory traversal vulnerabilities on Cloudflare's staging bucket. Video signing is strict: the client supplies one upload-bounded `video/mp4` playback file per video capture or repair attempt, and downstream identify/share flows fail rather than silently accepting a partial video set.
 
 ## Avatar Uploads
 
@@ -17,3 +17,8 @@ uploads it to `staging/{userId}/...`, then calls `update-public-avatar` with the
 returned `objectKey`. This function does not promote or persist avatars; it only
 signs the temporary staging upload. The durable object is created later under
 `avatars/{userId}/...`.
+
+Avatar and other non-scan uploads omit `clientScanId`, so the response does not
+include `mediaAssetId` or `mediaSessionId`. Scan uploads include those optional
+response fields and `identify-multimodal` later moves the staged rows to
+`promoted`, `deleted`, or `failed`.

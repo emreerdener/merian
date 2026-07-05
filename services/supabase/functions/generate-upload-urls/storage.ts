@@ -4,6 +4,7 @@ import {
   STAGING_ALLOWED_CONTENT_TYPES,
 } from "../_shared/mediaBudgets.ts";
 import type { StagingMediaKind } from "../_shared/mediaBudgets.ts";
+import type { ScanMediaAssetRole } from "../_shared/scanMediaAssets.ts";
 
 export type { StagingMediaKind };
 export { STAGING_ALLOWED_CONTENT_TYPES };
@@ -20,12 +21,16 @@ export interface StagingUploadFile {
   mediaKind: StagingMediaKind;
   contentType: string;
   sizeBytes?: number;
+  clientScanId?: string;
+  mediaRole?: ScanMediaAssetRole;
 }
 
 export interface PresignedUrlPayload {
   fileName: string;
   signedUrl: string;
   objectKey: string;
+  mediaAssetId?: string;
+  mediaSessionId?: string;
 }
 
 export interface ParseStagingUploadFilesResult {
@@ -61,6 +66,51 @@ function allowedContentTypesForKind(kind: StagingMediaKind): Set<string> {
   return new Set(STAGING_ALLOWED_CONTENT_TYPES[kind]);
 }
 
+function defaultMediaRoleForKind(kind: StagingMediaKind): ScanMediaAssetRole {
+  if (kind === "video") return "playback";
+  if (kind === "audio") return "audio";
+  return "display";
+}
+
+function mediaRoleAllowedForKind(
+  role: ScanMediaAssetRole,
+  kind: StagingMediaKind,
+): boolean {
+  if (kind === "video") return role === "playback";
+  if (kind === "audio") return role === "audio";
+  return role === "display" || role === "thumbnail" ||
+    role === "inference_frame";
+}
+
+function parseMediaRole(
+  value: unknown,
+  mediaKind: StagingMediaKind,
+): { role?: ScanMediaAssetRole; error?: string } {
+  if (value == null) return { role: defaultMediaRoleForKind(mediaKind) };
+  if (
+    value !== "display" &&
+    value !== "playback" &&
+    value !== "thumbnail" &&
+    value !== "inference_frame" &&
+    value !== "audio"
+  ) {
+    return { error: "Bad Request: mediaRole is not valid." };
+  }
+  if (!mediaRoleAllowedForKind(value, mediaKind)) {
+    return { error: "Bad Request: mediaRole is not valid for mediaKind." };
+  }
+  return { role: value };
+}
+
+function cleanClientScanId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim().toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+      .test(trimmed)
+    ? trimmed
+    : undefined;
+}
+
 function maxBytesForKind(kind: StagingMediaKind): number {
   if (kind === "audio") return MAX_STAGED_AUDIO_BYTES;
   if (kind === "video") return MAX_STAGED_VIDEO_BYTES;
@@ -94,7 +144,9 @@ function validateStructuredUploadFiles(
       return error(400, "Bad Request: fileName must already be sanitized.");
     }
 
-    if (mediaKind !== "image" && mediaKind !== "audio" && mediaKind !== "video") {
+    if (
+      mediaKind !== "image" && mediaKind !== "audio" && mediaKind !== "video"
+    ) {
       return error(
         400,
         "Bad Request: mediaKind must be 'image', 'audio', or 'video'.",
@@ -106,6 +158,24 @@ function validateStructuredUploadFiles(
       !allowedContentTypesForKind(mediaKind).has(contentType)
     ) {
       return error(400, "Bad Request: contentType is not valid for mediaKind.");
+    }
+
+    const clientScanId = cleanClientScanId(
+      rawFile.clientScanId ?? rawFile.client_scan_id,
+    );
+    if (
+      (rawFile.clientScanId != null || rawFile.client_scan_id != null) &&
+      !clientScanId
+    ) {
+      return error(400, "Bad Request: clientScanId must be a UUID.");
+    }
+
+    const roleResult = parseMediaRole(
+      rawFile.mediaRole ?? rawFile.media_role,
+      mediaKind,
+    );
+    if (roleResult.error || !roleResult.role) {
+      return error(400, roleResult.error ?? "Bad Request: invalid mediaRole.");
     }
 
     if (
@@ -146,7 +216,14 @@ function validateStructuredUploadFiles(
       }
     }
 
-    files.push({ fileName, mediaKind, contentType, sizeBytes });
+    files.push({
+      fileName,
+      mediaKind,
+      contentType,
+      sizeBytes,
+      clientScanId,
+      mediaRole: roleResult.role,
+    });
   }
 
   return { files };

@@ -1045,10 +1045,18 @@ post rows left by failed media writes are hidden until sharing succeeds.
 Normalized scan media lifecycle assets. Added in migration
 `20260705100000_add_scan_media_assets.sql`.
 
-- `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE): The owning scan.
+- `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE, nullable): The owning scan
+  once the scan row exists. Pre-scan upload-session rows keep this null until
+  finalization.
+- `client_scan_id` (UUID, nullable): Client-generated scan UUID used to
+  correlate staged uploads before the `scans` row is inserted.
+- `upload_session_id` (UUID, nullable): Server-generated upload session UUID
+  shared by media assets signed for one scan in a `/generate-upload-urls`
+  request.
 - `user_id` (UUID FK -> `users.id`, CASCADE DELETE): Denormalized owner for
   RLS and efficient owner-scoped media reads.
-- `kind` (TEXT): `image` or `video`.
+- `kind` (TEXT): `image`, `video`, or `audio`. Audio rows are lifecycle
+  diagnostics for inference input, not user-visible media.
 - `role` (TEXT): Lifecycle role. Current user-visible rows use `display` for
   still images and `playback` for playable video clips; reserved roles include
   `thumbnail` and `inference_frame`.
@@ -1087,6 +1095,15 @@ after critical scan inserts and video-repair updates, but existing
 manifest/array fallbacks remain available if refresh fails. RLS lets owners read
 their lifecycle rows; public open-scan reads are limited to ready
 display/playback rows so staged/failed diagnostics stay private.
+
+`/generate-upload-urls` creates `capture_upload` rows with `status = 'staged'`
+when structured scan uploads include `clientScanId` and `mediaRole`.
+Capture-upload rows must keep a client scan id and storage key; promoted
+capture-upload rows must also have a final `scan_id` and public URL.
+`identify-multimodal` links those rows to `scan_id` during finalization:
+promoted image/video rows become `promoted`, consumed staged audio rows become
+`deleted`, and failed moderation/promotion/insert paths mark remaining staged
+rows as `failed`.
 
 ### `explore_post_media`
 

@@ -14,6 +14,8 @@ struct PreSignedURL: Codable {
     let fileName: String
     let signedUrl: String
     let objectKey: String
+    let mediaAssetId: String?
+    let mediaSessionId: String?
 }
 
 private struct UploadURLRequestBody: Encodable {
@@ -1125,7 +1127,9 @@ final class MerianNetworkClient {
                 fileName: MediaStagingContract.stagingFileName(scanId: scanId, localPath: fileURL.lastPathComponent),
                 mediaKind: .video,
                 contentType: StagedMediaKind.video.contentType(for: fileURL.path),
-                sizeBytes: sizeBytes
+                sizeBytes: sizeBytes,
+                clientScanId: scanId,
+                mediaRole: StagedMediaKind.video.defaultScanMediaRole
             )
         }
 
@@ -2709,7 +2713,9 @@ final class MerianNetworkClient {
                     fileName: fileName,
                     mediaKind: .image,
                     contentType: "image/webp",
-                    sizeBytes: fallbackImageData.count
+                    sizeBytes: fallbackImageData.count,
+                    clientScanId: scan.scanId,
+                    mediaRole: StagedMediaKind.image.defaultScanMediaRole
                 )
             ]
             let uploadUrls = try await generateUploadURLs(uploadFiles: uploadFiles)
@@ -2732,7 +2738,9 @@ final class MerianNetworkClient {
                 fileName: fileName,
                 mediaKind: .image,
                 contentType: exploreRestoreMimeType(for: fileURL),
-                sizeBytes: try MediaStagingContract.fileSizeBytes(at: fileURL)
+                sizeBytes: try MediaStagingContract.fileSizeBytes(at: fileURL),
+                clientScanId: scan.scanId,
+                mediaRole: StagedMediaKind.image.defaultScanMediaRole
             )
         }
 
@@ -2794,7 +2802,9 @@ final class MerianNetworkClient {
                 fileName: fileName,
                 mediaKind: .video,
                 contentType: StagedMediaKind.video.contentType(for: fileURL.path),
-                sizeBytes: sizeBytes
+                sizeBytes: sizeBytes,
+                clientScanId: scan.scanId,
+                mediaRole: StagedMediaKind.video.defaultScanMediaRole
             )
         }
 

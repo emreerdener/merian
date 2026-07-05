@@ -1084,7 +1084,9 @@ struct MerianNetworkClientTests {
                 {
                     "fileName": "image_1",
                     "signedUrl": "https://example.com/put/image_1",
-                    "objectKey": "merian/user/image_1.webp"
+                    "objectKey": "merian/user/image_1.webp",
+                    "mediaAssetId": "asset-123",
+                    "mediaSessionId": "session-456"
                 }
             ]
         }
@@ -1103,6 +1105,8 @@ struct MerianNetworkClientTests {
             #expect(files[0]["mediaKind"] as? String == "image")
             #expect(files[0]["contentType"] as? String == "image/webp")
             #expect(files[0]["sizeBytes"] as? Int == 1024)
+            #expect(files[0]["clientScanId"] as? String == "00000000-0000-0000-0000-000000000001")
+            #expect(files[0]["mediaRole"] as? String == "display")
             return (mockResponse, testData)
         }
         
@@ -1112,12 +1116,16 @@ struct MerianNetworkClientTests {
                     fileName: "image_1",
                     mediaKind: .image,
                     contentType: "image/webp",
-                    sizeBytes: 1024
+                    sizeBytes: 1024,
+                    clientScanId: "00000000-0000-0000-0000-000000000001",
+                    mediaRole: "display"
                 )
             ]
         )
         #expect(urls.count == 1)
         #expect(urls[0].signedUrl == "https://example.com/put/image_1")
+        #expect(urls[0].mediaAssetId == "asset-123")
+        #expect(urls[0].mediaSessionId == "session-456")
     }
 
     @Test func testUploadStagedVideoFilesFallsBackToMovedDocumentsFile() async throws {

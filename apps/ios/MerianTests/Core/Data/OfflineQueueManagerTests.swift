@@ -28,6 +28,7 @@ struct OfflineQueueManagerTests {
     }
 
     private struct MediaStagingUploadManifestContract: Decodable {
+        let schemaVersion: Int
         let endpoint: String
         let maxFilesPerRequest: Int
         let maxImageBytes: Int
@@ -35,9 +36,14 @@ struct OfflineQueueManagerTests {
         let maxAudioFiles: Int
         let imageContentTypes: [String]
         let audioContentTypes: [String]
+        let videoContentTypes: [String]
         let canonicalQueuedImageContentType: String
         let canonicalQueuedWavContentType: String
         let canonicalQueuedM4AContentType: String
+        let canonicalQueuedVideoContentType: String
+        let optionalRequestFields: [String]
+        let optionalResponseFields: [String]
+        let mediaRolesByKind: [String: [String]]
         let legacyFileNamesAccepted: Bool
     }
 
@@ -138,6 +144,7 @@ struct OfflineQueueManagerTests {
     @Test func testMediaStagingContractMatchesDocumentedUploadManifestContract() throws {
         let contract = try loadMediaStagingContract()
 
+        #expect(contract.schemaVersion == 2)
         #expect(contract.endpoint == "/generate-upload-urls")
         #expect(MerianConfig.mediaStagingMaxFilesPerRequest == contract.maxFilesPerRequest)
         #expect(MerianConfig.mediaStagingMaxAudioFilesPerRequest == contract.maxAudioFiles)
@@ -146,15 +153,23 @@ struct OfflineQueueManagerTests {
         #expect(StagedMediaKind.image.contentType(for: "queued.webp") == contract.canonicalQueuedImageContentType)
         #expect(StagedMediaKind.audio.contentType(for: "queued.wav") == contract.canonicalQueuedWavContentType)
         #expect(StagedMediaKind.audio.contentType(for: "queued.m4a") == contract.canonicalQueuedM4AContentType)
+        #expect(StagedMediaKind.video.contentType(for: "queued.mp4") == contract.canonicalQueuedVideoContentType)
         #expect(contract.imageContentTypes.contains(StagedMediaKind.image.contentType(for: "queued.webp")))
         #expect(contract.audioContentTypes.contains(StagedMediaKind.audio.contentType(for: "queued.wav")))
         #expect(contract.audioContentTypes.contains(StagedMediaKind.audio.contentType(for: "queued.m4a")))
+        #expect(contract.videoContentTypes.contains(StagedMediaKind.video.contentType(for: "queued.mp4")))
+        #expect(contract.optionalRequestFields == ["clientScanId", "mediaRole"])
+        #expect(contract.optionalResponseFields == ["mediaAssetId", "mediaSessionId"])
+        #expect(contract.mediaRolesByKind["image"] == ["display", "thumbnail", "inference_frame"])
+        #expect(contract.mediaRolesByKind["audio"] == ["audio"])
+        #expect(contract.mediaRolesByKind["video"] == ["playback"])
         #expect(contract.legacyFileNamesAccepted)
     }
 
     @Test func testMediaStagingContractBuildsSanitizedMixedMediaKeys() throws {
+        let scanId = "00000000-0000-0000-0000-000000000042"
         let payload = PendingScanPayload(
-            id: "scan_with_symbols",
+            id: scanId,
             localImagePaths: ["image one.webp"],
             localAudioPaths: ["field/audio one.wav"],
             localVideoPaths: ["fallback video.mp4"]
@@ -164,19 +179,23 @@ struct OfflineQueueManagerTests {
         #expect(items.count == 3)
 
         #expect(items[0].mediaKind == StagedMediaKind.image)
-        #expect(items[0].fileName == "scan_with_symbols_image_one.webp")
+        #expect(items[0].fileName == "\(scanId)_image_one.webp")
         #expect(items[0].contentType == "image/webp")
-        #expect(items[0].objectKey == "staging/user_abc/scan_with_symbols_image_one.webp")
+        #expect(items[0].objectKey == "staging/user_abc/\(scanId)_image_one.webp")
 
         #expect(items[1].mediaKind == StagedMediaKind.audio)
-        #expect(items[1].fileName == "scan_with_symbols_field_audio_one.wav")
+        #expect(items[1].fileName == "\(scanId)_field_audio_one.wav")
         #expect(items[1].contentType == "audio/wav")
-        #expect(items[1].objectKey == "staging/user_abc/scan_with_symbols_field_audio_one.wav")
+        #expect(items[1].objectKey == "staging/user_abc/\(scanId)_field_audio_one.wav")
 
         #expect(items[2].mediaKind == StagedMediaKind.video)
-        #expect(items[2].fileName == "scan_with_symbols_fallback_video.mp4")
+        #expect(items[2].fileName == "\(scanId)_fallback_video.mp4")
         #expect(items[2].contentType == "video/mp4")
-        #expect(items[2].objectKey == "staging/user_abc/scan_with_symbols_fallback_video.mp4")
+        #expect(items[2].objectKey == "staging/user_abc/\(scanId)_fallback_video.mp4")
+
+        let uploadFiles = try MediaStagingContract.uploadFiles(for: items)
+        #expect(uploadFiles.map(\.clientScanId) == Array(repeating: Optional(payload.id), count: 3))
+        #expect(uploadFiles.map(\.mediaRole) == ["display", "audio", "playback"])
 
         let splitKeys = MediaStagingContract.splitObjectKeys(
             items.map(\.objectKey),

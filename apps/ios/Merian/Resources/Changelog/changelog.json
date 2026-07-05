@@ -15,7 +15,8 @@
         {
           "title": "Improved",
           "items": [
-            "Cloud video scans now keep ready-state media records for future sharing and playback recovery."
+            "Cloud video scans now keep ready-state media records for future sharing and playback recovery.",
+            "Scan media uploads now carry server-tracked lifecycle state before final scan persistence."
           ]
         }
       ]

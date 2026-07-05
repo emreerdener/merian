@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "endpoint": "/generate-upload-urls",
   "maxFilesPerRequest": 5,
   "maxImageBytes": 5242880,
@@ -25,6 +25,27 @@
   "canonicalQueuedWavContentType": "audio/wav",
   "canonicalQueuedM4AContentType": "audio/mp4",
   "canonicalQueuedVideoContentType": "video/mp4",
+  "optionalRequestFields": [
+    "clientScanId",
+    "mediaRole"
+  ],
+  "optionalResponseFields": [
+    "mediaAssetId",
+    "mediaSessionId"
+  ],
+  "mediaRolesByKind": {
+    "image": [
+      "display",
+      "thumbnail",
+      "inference_frame"
+    ],
+    "audio": [
+      "audio"
+    ],
+    "video": [
+      "playback"
+    ]
+  },
   "fileNameSafeCharacterPattern": "^[A-Za-z0-9_.-]+$",
   "legacyFileNamesAccepted": true
 }

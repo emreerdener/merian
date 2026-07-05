@@ -417,13 +417,16 @@ triggering excessive SwiftUI view rebuilds.
   MB), and `audioPayloadMaxBytes` (2.7 MB) are governed by `MerianConfig`
   constants rather than inline literals.
 - **`MediaStagingContract`**: Owns the canonical R2 staging manifest for queued
-  images and audio: sanitized filename, deterministic `staging/{userId}/...`
-  key, media kind, content type, `sizeBytes`, upload task description,
-  audio-file count, and byte-budget validation before `.pending → .uploading`.
+  images, audio, and video: sanitized filename, deterministic
+  `staging/{userId}/...` key, media kind, content type, `sizeBytes`,
+  `clientScanId`, `mediaRole`, upload task description, audio-file count, and
+  byte-budget validation before `.pending → .uploading`.
   The same manifest is sent to `/generate-upload-urls`, whose Edge parser
-  validates kind/type/size before signing. Swift and Deno tests both load
-  `docs/contracts/media-staging-upload-manifest.json` to catch drift in limits
-  and allowed content types. This prevents upload completion, replay, request
+  validates kind/type/size/role before signing and creates staged media-asset
+  session rows for scan uploads. Swift and Deno tests both load
+  `docs/contracts/media-staging-upload-manifest.json` to catch drift in limits,
+  allowed content types, and optional session fields. This prevents upload
+  completion, replay, request
   construction, and Edge signing from reconstructing object keys differently.
 - **Concurrent upload staging (`withTaskGroup`)**: File copy and
   `URLSession.uploadTask` creation for each image in a batch are fanned out via

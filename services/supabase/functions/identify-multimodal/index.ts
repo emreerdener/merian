@@ -55,7 +55,12 @@ import {
   MEDIA_BUDGETS,
   readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
-import { refreshScanMediaAssetsBestEffort } from "../_shared/scanMediaAssets.ts";
+import {
+  markStagedScanMediaAssetsDeleted,
+  markStagedScanMediaAssetsFailed,
+  markStagedScanMediaAssetsPromoted,
+  refreshScanMediaAssetsBestEffort,
+} from "../_shared/scanMediaAssets.ts";
 import {
   buildContextText,
   normalizeCurrentMonth,
@@ -346,6 +351,22 @@ function buildVisualMediaPrompt(
 
 function remoteMediaReference(url: string): StoredMediaReferenceDTO {
   return { storage: "remoteURL", path: url };
+}
+
+function publicUrlsByStorageKey(
+  storageKeys: string[],
+  publicUrls: string[],
+): Map<string, string> {
+  const urlsByStorageKey = new Map<string, string>();
+  const count = Math.min(storageKeys.length, publicUrls.length);
+  for (let index = 0; index < count; index++) {
+    const storageKey = storageKeys[index]?.trim();
+    const publicUrl = publicUrls[index]?.trim();
+    if (storageKey && publicUrl) {
+      urlsByStorageKey.set(storageKey, publicUrl);
+    }
+  }
+  return urlsByStorageKey;
 }
 
 function buildCapturedMediaManifest(
@@ -1022,6 +1043,70 @@ Deno.serve((req: Request) =>
         | undefined;
       let scanInserted = false;
       let videoStorageUrls: string[] = [];
+      const markUploadAssetsFailedBestEffort = async (
+        storageKeys: string[],
+        failureReason: string,
+      ) => {
+        try {
+          await markStagedScanMediaAssetsFailed(
+            {
+              userId: user.id,
+              storageKeys,
+              failureReason,
+            },
+            supabaseAdmin,
+          );
+        } catch (error) {
+          logStructuredError("multimodal/upload_assets_mark_failed_error", {
+            user_id: user.id,
+            scan_id: generatedScanId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      };
+
+      const markUploadAssetsPromotedBestEffort = async (
+        urlsByStorageKey: Map<string, string>,
+      ) => {
+        try {
+          await markStagedScanMediaAssetsPromoted(
+            {
+              userId: user.id,
+              scanId: generatedScanId,
+              promotedUrlsByStorageKey: urlsByStorageKey,
+            },
+            supabaseAdmin,
+          );
+        } catch (error) {
+          logStructuredError("multimodal/upload_assets_mark_promoted_error", {
+            user_id: user.id,
+            scan_id: generatedScanId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      };
+
+      const markUploadAssetsDeletedBestEffort = async (
+        storageKeys: string[],
+      ) => {
+        try {
+          await markStagedScanMediaAssetsDeleted(
+            {
+              userId: user.id,
+              scanId: generatedScanId,
+              storageKeys,
+            },
+            supabaseAdmin,
+          );
+        } catch (error) {
+          logStructuredError("multimodal/upload_assets_mark_deleted_error", {
+            user_id: user.id,
+            scan_id: generatedScanId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      };
+
       try {
         await upsertGhostUserIfMissing(user.id, supabaseAdmin);
         const hasImagePayload = imageBase64s.length > 0 ||
@@ -1040,6 +1125,10 @@ Deno.serve((req: Request) =>
             console.error(
               "Multimodal moderation pipeline returned ERROR. Halting background data ingestion.",
             );
+            await markUploadAssetsFailedBestEffort(
+              [...r2ObjectKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
+              "moderation_pipeline_error",
+            );
             if (requireDurableVideo) {
               throw new Error("Multimodal moderation pipeline failed.");
             }
@@ -1051,6 +1140,10 @@ Deno.serve((req: Request) =>
           ) {
             console.error(
               "Multimodal media flagged by safety moderation. Halting background data ingestion.",
+            );
+            await markUploadAssetsFailedBestEffort(
+              [...r2ObjectKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
+              "moderation_rejected",
             );
             if (requireDurableVideo) {
               throw new Error("Multimodal media rejected by moderation.");
@@ -1079,6 +1172,10 @@ Deno.serve((req: Request) =>
               user_id: user.id,
               error: String(err),
             });
+            await markUploadAssetsFailedBestEffort(
+              videoR2ObjectKeys,
+              "video_promotion_failed",
+            );
             const r2Config = getR2Config();
             Promise.allSettled(
               videoR2ObjectKeys.map((key: string) =>
@@ -1203,6 +1300,16 @@ Deno.serve((req: Request) =>
           supabaseAdmin,
         );
         scanInserted = true;
+        await markUploadAssetsPromotedBestEffort(
+          new Map([
+            ...publicUrlsByStorageKey(
+              r2ObjectKeys,
+              modResult?.publicUrls ?? [],
+            ),
+            ...publicUrlsByStorageKey(videoR2ObjectKeys, videoStorageUrls),
+          ]),
+        );
+        await markUploadAssetsDeletedBestEffort(audioR2ObjectKeys);
         await refreshScanMediaAssetsBestEffort(generatedScanId, supabaseAdmin);
         if (audioR2ObjectKeys.length > 0) {
           const r2Config = getR2Config();
@@ -1386,6 +1493,13 @@ Deno.serve((req: Request) =>
           error: errorMsg,
           scan_inserted: scanInserted,
         });
+
+        if (!scanInserted) {
+          await markUploadAssetsFailedBestEffort(
+            [...r2ObjectKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
+            "scan_finalization_failed",
+          );
+        }
 
         // Dead-Letter Fallback
         if (!scanInserted) {

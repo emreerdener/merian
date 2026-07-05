@@ -145,12 +145,16 @@ Several utilities are shared across all Edge Functions via
 The `/generate-upload-urls` Edge Function signs direct-to-Cloudflare R2 `PUT`
 URLs for background staging. Current clients send a structured `files` manifest
 built by `MediaStagingContract` for the app queue. Each entry includes
-`fileName`, `mediaKind`, `contentType`, and `sizeBytes`. The Edge parser rejects
-unsanitized names, media-kind/content-type mismatches, over-budget audio or
-image files, batches above five files, and batches above two audio files before
-calling `generatePresignedPutUrl()`. Legacy `fileNames` remains accepted for
-older clients only; it is compatibility-only because it cannot express byte
-budgets. The limit and content-type contract is pinned in
+`fileName`, `mediaKind`, `contentType`, `sizeBytes`, and, for scan media,
+`clientScanId` plus `mediaRole`. When those scan fields are present, the signer
+creates staged `scan_media_assets` rows and returns `mediaAssetId` /
+`mediaSessionId` next to each signed URL. The Edge parser rejects unsanitized
+names, media-kind/content-type mismatches, invalid role/kind combinations,
+over-budget audio, video, or image files, batches above five files, and batches
+above two audio files before calling `generatePresignedPutUrl()`. Legacy
+`fileNames` remains accepted for older clients only; it is compatibility-only
+because it cannot express byte budgets or media asset sessions. The limit and
+content-type contract is pinned in
 `docs/contracts/media-staging-upload-manifest.json` and loaded by both Swift and
 Deno tests.
 
@@ -606,6 +610,10 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    promotion shortfall fails the video scan instead of inserting a frame-only
    row. Successful video inserts write both `video_storage_urls` and a
    `captured_media` video item before the client treats the scan as complete.
+   Upload-session rows created by `/generate-upload-urls` are linked to the scan
+   during this finalization step: promoted visual/video rows become `promoted`,
+   consumed audio rows become `deleted`, and failed finalization leaves a
+   retryable `failed` trail.
    The `scan_media_assets` lifecycle table is refreshed by the database trigger
    plus a best-effort Edge refresh call, so newer media readers can use ready
    display/playback rows instead of inferring user-visible media from

@@ -12,9 +12,11 @@
 
 CREATE TABLE IF NOT EXISTS public.scan_media_assets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    scan_id UUID NOT NULL REFERENCES public.scans(id) ON DELETE CASCADE,
+    scan_id UUID REFERENCES public.scans(id) ON DELETE CASCADE,
+    client_scan_id UUID,
+    upload_session_id UUID,
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    kind TEXT NOT NULL CHECK (kind IN ('image', 'video')),
+    kind TEXT NOT NULL CHECK (kind IN ('image', 'video', 'audio')),
     role TEXT NOT NULL DEFAULT 'display' CHECK (
         role IN ('display', 'playback', 'thumbnail', 'inference_frame', 'audio')
     ),
@@ -46,13 +48,55 @@ CREATE TABLE IF NOT EXISTS public.scan_media_assets (
     CONSTRAINT scan_media_assets_ready_visible_url CHECK (
         status <> 'ready'
         OR role NOT IN ('display', 'playback')
-        OR COALESCE(NULLIF(BTRIM(url), '') IS NOT NULL, FALSE)
+        OR (
+            scan_id IS NOT NULL
+            AND COALESCE(NULLIF(BTRIM(url), '') IS NOT NULL, FALSE)
+        )
     ),
-    UNIQUE (scan_id, source, role, order_index)
+    CONSTRAINT scan_media_assets_kind_role CHECK (
+        (kind = 'image' AND role IN ('display', 'thumbnail', 'inference_frame'))
+        OR (kind = 'video' AND role = 'playback')
+        OR (kind = 'audio' AND role = 'audio')
+    ),
+    CONSTRAINT scan_media_assets_upload_session CHECK (
+        source <> 'capture_upload'
+        OR upload_session_id IS NOT NULL
+    ),
+    CONSTRAINT scan_media_assets_capture_upload_identity CHECK (
+        source <> 'capture_upload'
+        OR (
+            client_scan_id IS NOT NULL
+            AND COALESCE(NULLIF(BTRIM(storage_key), '') IS NOT NULL, FALSE)
+        )
+    ),
+    CONSTRAINT scan_media_assets_capture_upload_promoted CHECK (
+        source <> 'capture_upload'
+        OR status <> 'promoted'
+        OR (
+            scan_id IS NOT NULL
+            AND COALESCE(NULLIF(BTRIM(url), '') IS NOT NULL, FALSE)
+        )
+    )
 );
 
 CREATE INDEX IF NOT EXISTS idx_scan_media_assets_scan_order
     ON public.scan_media_assets(scan_id, order_index);
+
+CREATE INDEX IF NOT EXISTS idx_scan_media_assets_client_scan
+    ON public.scan_media_assets(user_id, client_scan_id, order_index)
+    WHERE client_scan_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_scan_media_assets_upload_session
+    ON public.scan_media_assets(user_id, upload_session_id, order_index)
+    WHERE upload_session_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_scan_media_assets_generated_unique
+    ON public.scan_media_assets(scan_id, source, role, order_index)
+    WHERE scan_id IS NOT NULL AND source IN ('scan_refresh', 'backfill');
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_scan_media_assets_upload_session_unique
+    ON public.scan_media_assets(upload_session_id, order_index)
+    WHERE upload_session_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_scan_media_assets_scan_ready_order
     ON public.scan_media_assets(scan_id, order_index)
@@ -99,13 +143,22 @@ COMMENT ON TABLE public.scan_media_assets IS
   'Normalized scan media lifecycle assets. Readers show ready display/playback rows; video scans collapse sampled inference frames into one playback video asset with a poster thumbnail.';
 
 COMMENT ON COLUMN public.scan_media_assets.role IS
-  'Media lifecycle role. Explore and composer readers show ready display images and ready playback videos.';
+  'Media lifecycle role. Explore and composer readers show ready display images and ready playback videos; audio rows remain inference-only.';
 
 COMMENT ON COLUMN public.scan_media_assets.status IS
   'Lifecycle state for the asset. Only ready display/playback rows are user-visible.';
 
 COMMENT ON COLUMN public.scan_media_assets.source IS
   'Writer that created the asset row, such as scan_refresh, capture_upload, repair, backfill, or manual.';
+
+COMMENT ON COLUMN public.scan_media_assets.scan_id IS
+  'Owning scan once the scan row exists. Nullable for pre-scan upload-session assets.';
+
+COMMENT ON COLUMN public.scan_media_assets.client_scan_id IS
+  'Client-generated scan UUID used to correlate staged uploads before the scans row is inserted.';
+
+COMMENT ON COLUMN public.scan_media_assets.upload_session_id IS
+  'Server-generated upload session UUID shared by media assets signed in one upload-url request.';
 
 COMMENT ON COLUMN public.scan_media_assets.url IS
   'Current public media URL. Required for ready display/playback assets; staged and failed rows may only have storage_key or diagnostics.';
@@ -185,6 +238,7 @@ BEGIN
             IF image_url IS NOT NULL THEN
                 INSERT INTO public.scan_media_assets (
                     scan_id,
+                    client_scan_id,
                     user_id,
                     kind,
                     role,
@@ -200,6 +254,7 @@ BEGIN
                     metadata
                 )
                 VALUES (
+                    scan_row.id,
                     scan_row.id,
                     scan_row.user_id,
                     'image',
@@ -224,6 +279,7 @@ BEGIN
                 thumbnail_url := public.scan_media_reference_path(media_item #> '{video,_0,thumbnail}');
                 INSERT INTO public.scan_media_assets (
                     scan_id,
+                    client_scan_id,
                     user_id,
                     kind,
                     role,
@@ -239,6 +295,7 @@ BEGIN
                     metadata
                 )
                 VALUES (
+                    scan_row.id,
                     scan_row.id,
                     scan_row.user_id,
                     'video',
@@ -293,6 +350,7 @@ BEGIN
         FOR i IN 1..standalone_image_count LOOP
             INSERT INTO public.scan_media_assets (
                 scan_id,
+                client_scan_id,
                 user_id,
                 kind,
                 role,
@@ -308,6 +366,7 @@ BEGIN
                 metadata
             )
             VALUES (
+                scan_row.id,
                 scan_row.id,
                 scan_row.user_id,
                 'image',
@@ -335,6 +394,7 @@ BEGIN
             );
             INSERT INTO public.scan_media_assets (
                 scan_id,
+                client_scan_id,
                 user_id,
                 kind,
                 role,
@@ -350,6 +410,7 @@ BEGIN
                 metadata
             )
             VALUES (
+                scan_row.id,
                 scan_row.id,
                 scan_row.user_id,
                 'video',

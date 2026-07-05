@@ -32,10 +32,12 @@ multiple functions need the same behavior and the ownership boundary is clear.
   `mapWithConcurrencyLimit` for fanout work such as APNs delivery or remote
   object operations where unbounded `Promise.all(...)` could spike sockets,
   heap, provider throttles, or Postgres writes.
-- **`scanMediaAssets.ts`**: Normalized scan-media lifecycle helpers. Write paths
-  make best-effort `scan_media_assets` refresh calls after scan inserts or video
-  repair updates; composer and status paths prefer ready display/playback asset
-  rows before falling back to `captured_media` and legacy arrays.
+- **`scanMediaAssets.ts`**: Normalized scan-media lifecycle helpers. Upload
+  signing creates staged scan-media asset rows, identify finalization marks them
+  promoted/deleted/failed, and write paths make best-effort
+  `scan_media_assets` refresh calls after scan inserts or video repair updates.
+  Composer and status paths prefer ready display/playback asset rows before
+  falling back to `captured_media` and legacy arrays.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
   by `audio-spec` and `identify-multimodal`.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,
