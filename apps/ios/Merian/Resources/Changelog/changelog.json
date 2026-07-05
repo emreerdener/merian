@@ -116,7 +116,8 @@
           "title": "Fixed",
           "items": [
             "Fixed a crash that could happen after tapping stop on a Pro video recording while Merian extracted the clip's audio.",
-            "Upload-safe Pro video clips now still stage when playback compression is slow or unavailable."
+            "Upload-safe Pro video clips now still stage when playback compression is slow or unavailable.",
+            "Video scans now keep identifying when optional video audio is unusable, and background retry keeps the staged video clip attached."
           ]
         }
       ]

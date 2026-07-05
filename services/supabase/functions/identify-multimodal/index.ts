@@ -559,16 +559,20 @@ Deno.serve((req: Request) =>
           r2FetchFailedEvent: "multimodal/audio_r2_fetch_failed",
         });
       if (audioErrorResponse) return audioErrorResponse;
-      try {
-        for (const audioBuffer of audioBuffers) {
+      const hasVisualEvidence = resolvedImageBase64s.length > 0;
+      for (const audioBuffer of audioBuffers) {
+        try {
           processedAudios.push(await processWAV(audioBuffer));
+        } catch (wavErr) {
+          logStructuredError("multimodal/wav_parse_failed", {
+            user_id: user.id,
+            error: String(wavErr),
+            skipped: hasVisualEvidence,
+          });
+          if (!hasVisualEvidence) {
+            return jsonResponse({ error: "Invalid audio file format." }, 400);
+          }
         }
-      } catch (wavErr) {
-        logStructuredError("multimodal/wav_parse_failed", {
-          user_id: user.id,
-          error: String(wavErr),
-        });
-        return jsonResponse({ error: "Invalid audio file format." }, 400);
       }
     }
     const normalizedAudioMediaItems = normalizeAudioMediaItems(

@@ -556,7 +556,10 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    under the hard video byte cap. `visualMediaItems` is the preferred contract for
    telling the prompt which visual inputs are still photos and which are ordered
    frames from one or more short clips; `audioMediaItems` identifies standalone
-   audio versus audio extracted from a video clip. `videoFrameCount` remains a
+   audio versus audio extracted from a video clip. If optional video audio cannot
+   be parsed or is too short after trimming, the edge skips that audio when
+   visual evidence is present instead of rejecting the whole video scan.
+   `videoFrameCount` remains a
    legacy fallback when older clients omit explicit media metadata.
 2. **WAV Preprocessing**: Audio data is preflighted before decode/fetch. The
    endpoint rejects oversized declared request `Content-Length` headers before

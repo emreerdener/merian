@@ -1,7 +1,7 @@
-import Testing
-import SwiftData
 import Foundation
 @testable import Merian
+import SwiftData
+import Testing
 
 @MainActor
 struct OfflineQueueManagerTests {
@@ -150,11 +150,11 @@ struct OfflineQueueManagerTests {
             id: "scan_with_symbols",
             localImagePaths: ["image one.webp"],
             localAudioPaths: ["field/audio one.wav"],
-            localVideoPaths: []
+            localVideoPaths: ["fallback video.mp4"]
         )
 
         let items = MediaStagingContract.uploadItems(for: payload, userId: "USER/ABC")
-        #expect(items.count == 2)
+        #expect(items.count == 3)
 
         #expect(items[0].mediaKind == StagedMediaKind.image)
         #expect(items[0].fileName == "scan_with_symbols_image_one.webp")
@@ -166,14 +166,21 @@ struct OfflineQueueManagerTests {
         #expect(items[1].contentType == "audio/wav")
         #expect(items[1].objectKey == "staging/user_abc/scan_with_symbols_field_audio_one.wav")
 
+        #expect(items[2].mediaKind == StagedMediaKind.video)
+        #expect(items[2].fileName == "scan_with_symbols_fallback_video.mp4")
+        #expect(items[2].contentType == "video/mp4")
+        #expect(items[2].objectKey == "staging/user_abc/scan_with_symbols_fallback_video.mp4")
+
         let splitKeys = MediaStagingContract.splitObjectKeys(
             items.map(\.objectKey),
             scanId: payload.id,
             localImagePaths: payload.localImagePaths,
-            localAudioPaths: payload.localAudioPaths
+            localAudioPaths: payload.localAudioPaths,
+            localVideoPaths: payload.localVideoPaths
         )
         #expect(splitKeys.imageR2ObjectKeys == [items[0].objectKey])
         #expect(splitKeys.audioR2ObjectKeys == [items[1].objectKey])
+        #expect(splitKeys.videoR2ObjectKeys == [items[2].objectKey])
     }
 
     @Test func testMediaStagingUploadTaskDescriptionPreservesUnderscoredScanIds() {
@@ -248,7 +255,7 @@ struct OfflineQueueManagerTests {
 
         let ctx = try createIsolatedContext()
         let scanId = UUID().uuidString
-        let imageData = "dummy_image".data(using: .utf8)!
+        let imageData = Data("dummy_image".utf8)
 
         OfflineQueueManager.shared.enqueueCapture(
             imageDatas: [imageData],
@@ -309,7 +316,7 @@ struct OfflineQueueManagerTests {
 
         let ctx = try createIsolatedContext()
         let scanId = UUID().uuidString
-        let imageData = "queued_image".data(using: .utf8)!
+        let imageData = Data("queued_image".utf8)
         let audioFilename = try makeTempAudioFilename()
 
         OfflineQueueManager.shared.enqueueCapture(

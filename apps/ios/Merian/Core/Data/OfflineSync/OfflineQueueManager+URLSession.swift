@@ -202,7 +202,8 @@ extension OfflineQueueManager {
             scanId: scanId,
             userId: stagingUserId,
             localImagePaths: extracted.localImagePaths,
-            localAudioPaths: extracted.audioFilePaths ?? []
+            localAudioPaths: extracted.audioFilePaths ?? [],
+            localVideoPaths: extracted.videoFilePaths ?? []
         )
         let r2Keys = stagedKeys.all
         MerianLog.data.debug(
