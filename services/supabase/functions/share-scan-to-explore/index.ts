@@ -23,26 +23,33 @@ function makeHttpError(
   return error;
 }
 
-function normalizeRestoredObjectKeys(value: unknown, userId: string): string[] {
+function normalizeRestoredObjectKeys(
+  value: unknown,
+  userId: string,
+  fieldName = "restored_object_keys",
+  maxItems = 5,
+): string[] {
   if (value == null) return [];
   if (!Array.isArray(value)) {
-    throw makeHttpError(400, "restored_object_keys must be an array.");
+    throw makeHttpError(400, `${fieldName} must be an array.`);
   }
 
   const normalized = value.map((entry) => {
     if (typeof entry !== "string") {
       throw makeHttpError(
         400,
-        "restored_object_keys must only contain strings.",
+        `${fieldName} must only contain strings.`,
       );
     }
     return entry.trim();
   }).filter((entry) => entry.length > 0);
 
-  if (normalized.length > 5) {
+  if (normalized.length > maxItems) {
     throw makeHttpError(
       400,
-      "restored_object_keys cannot contain more than 5 items.",
+      `${fieldName} cannot contain more than ${maxItems} item${
+        maxItems === 1 ? "" : "s"
+      }.`,
     );
   }
 
@@ -50,7 +57,7 @@ function normalizeRestoredObjectKeys(value: unknown, userId: string): string[] {
   if (!normalized.every((entry) => entry.startsWith(expectedPrefix))) {
     throw makeHttpError(
       400,
-      "restored_object_keys must belong to the current user.",
+      `${fieldName} must belong to the current user.`,
     );
   }
 
@@ -226,6 +233,11 @@ Deno.serve((req: Request) =>
       body.restored_object_keys,
       user.id,
     );
+    const restoredVideoObjectKeys = normalizeRestoredObjectKeys(
+      body.restored_video_object_keys,
+      user.id,
+      "restored_video_object_keys",
+    );
     const speciesCommonName = normalizeSpeciesCommonName(
       body.species_common_name,
     );
@@ -240,6 +252,7 @@ Deno.serve((req: Request) =>
       scanId,
       user.id,
       restoredObjectKeys,
+      restoredVideoObjectKeys,
       supabaseAdmin,
     );
     await assertCommunityRequestCanPublishToExplore(

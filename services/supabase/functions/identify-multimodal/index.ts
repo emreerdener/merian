@@ -1007,11 +1007,14 @@ Deno.serve((req: Request) =>
       context != null && typeof context === "object" && !Array.isArray(context)
     ) as Record<string, unknown> | undefined;
 
+    const requireDurableVideo = videoR2ObjectKeys.length > 0;
+
     const runBackgroundIngestion = async () => {
       let modResult:
         | Awaited<ReturnType<typeof evaluateAndProcessPayload>>
         | undefined;
       let scanInserted = false;
+      let videoStorageUrls: string[] = [];
       try {
         await upsertGhostUserIfMissing(user.id, supabaseAdmin);
         const hasImagePayload = imageBase64s.length > 0 ||
@@ -1030,6 +1033,9 @@ Deno.serve((req: Request) =>
             console.error(
               "Multimodal moderation pipeline returned ERROR. Halting background data ingestion.",
             );
+            if (requireDurableVideo) {
+              throw new Error("Multimodal moderation pipeline failed.");
+            }
             return;
           }
           if (
@@ -1039,12 +1045,14 @@ Deno.serve((req: Request) =>
             console.error(
               "Multimodal media flagged by safety moderation. Halting background data ingestion.",
             );
+            if (requireDurableVideo) {
+              throw new Error("Multimodal media rejected by moderation.");
+            }
             return;
           }
         }
 
         let speciesId: string | null = null;
-        let videoStorageUrls: string[] = [];
         if (videoR2ObjectKeys.length > 0) {
           try {
             videoStorageUrls = await promoteSafeMedia({
@@ -1054,6 +1062,11 @@ Deno.serve((req: Request) =>
               userTier,
               r2Config: getR2Config(),
             });
+            if (videoStorageUrls.length !== videoR2ObjectKeys.length) {
+              throw new Error(
+                `Video promotion returned ${videoStorageUrls.length}/${videoR2ObjectKeys.length} URL(s).`,
+              );
+            }
           } catch (err) {
             logStructuredError("multimodal/video_promotion_failed", {
               user_id: user.id,
@@ -1067,6 +1080,7 @@ Deno.serve((req: Request) =>
             ).catch((e) =>
               console.error("multimodal: failed to cleanup staged video", e)
             );
+            throw err;
           }
         }
 
@@ -1261,8 +1275,6 @@ Deno.serve((req: Request) =>
           });
         }
 
-        const groupTagsResult = await groupTagsPromise;
-
         trackPostHogEvent(user.id, "scan_completed", {
           scan_id: generatedScanId,
           inference_tier: inferenceTier,
@@ -1309,29 +1321,49 @@ Deno.serve((req: Request) =>
           gemini_latency_ms: Date.now() - geminiStart,
         }).catch((e) => console.error("PostHog tracking failed:", e));
 
-        const bgWriteResults = await Promise.allSettled([
-          needsGroupTags && groupTagsResult?.group_tags?.length
-            ? updateGroupTags(
-              parsedData.scientific_name!,
-              groupTagsResult.group_tags,
-              supabaseAdmin,
-            )
-            : Promise.resolve(),
-          candidateEnrichmentTask,
-        ]);
-        for (const result of bgWriteResults) {
-          if (result.status === "rejected") {
+        const runOptionalSpeciesWrites = async () => {
+          try {
+            const groupTagsResult = await groupTagsPromise;
+            const bgWriteResults = await Promise.allSettled([
+              needsGroupTags && groupTagsResult?.group_tags?.length
+                ? updateGroupTags(
+                  parsedData.scientific_name!,
+                  groupTagsResult.group_tags,
+                  supabaseAdmin,
+                )
+                : Promise.resolve(),
+              candidateEnrichmentTask,
+            ]);
+            for (const result of bgWriteResults) {
+              if (result.status === "rejected") {
+                console.error(
+                  JSON.stringify({
+                    event: "multimodal/bg_species_write_failed",
+                    scan_id: generatedScanId,
+                    error: result.reason instanceof Error
+                      ? result.reason.message
+                      : String(result.reason),
+                    ts: new Date().toISOString(),
+                  }),
+                );
+              }
+            }
+          } catch (error) {
             console.error(
               JSON.stringify({
                 event: "multimodal/bg_species_write_failed",
                 scan_id: generatedScanId,
-                error: result.reason instanceof Error
-                  ? result.reason.message
-                  : String(result.reason),
+                error: error instanceof Error ? error.message : String(error),
                 ts: new Date().toISOString(),
               }),
             );
           }
+        };
+
+        if (requireDurableVideo) {
+          runBackground(runOptionalSpeciesWrites());
+        } else {
+          await runOptionalSpeciesWrites();
         }
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e);
@@ -1360,9 +1392,13 @@ Deno.serve((req: Request) =>
           }
         }
 
-        if (!scanInserted && modResult?.publicUrls?.length) {
+        const promotedPublicUrls = [
+          ...(modResult?.publicUrls ?? []),
+          ...videoStorageUrls,
+        ];
+        if (!scanInserted && promotedPublicUrls.length) {
           const r2Config = getR2Config();
-          const keysToPurge = modResult.publicUrls.map((url: string) =>
+          const keysToPurge = promotedPublicUrls.map((url: string) =>
             url.replace("https://media.merian.app/", "")
           );
           const rollbackResults = await Promise.allSettled(
@@ -1380,10 +1416,29 @@ Deno.serve((req: Request) =>
             });
           }
         }
+        if (requireDurableVideo) {
+          throw e;
+        }
       }
     };
 
-    runBackground(runBackgroundIngestion());
+    if (requireDurableVideo) {
+      try {
+        await runBackgroundIngestion();
+      } catch (error) {
+        logStructuredError("multimodal/video_durable_insert_failed", {
+          user_id: user.id,
+          scan_id: generatedScanId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return jsonResponse(
+          { error: "Video media could not be saved. Please retry." },
+          503,
+        );
+      }
+    } else {
+      runBackground(runBackgroundIngestion());
+    }
 
     return jsonResponse({ success: true, data: payloadReadyForClient }, 200);
   })

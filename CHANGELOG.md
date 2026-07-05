@@ -15,6 +15,7 @@ TestFlight, App Store, support, and QA.
 - Pro video clips now prefer compression for lighter scan-library playback, Explore sharing, and cloud storage while keeping AI analysis frames sampled from the original recording.
 - Improved Pro video staging so upload-safe clips still stage when playback compression is slow or unavailable.
 - Fixed video scan submission so unusable video audio no longer blocks identification, and background replay keeps the staged video clip attached.
+- Hardened video scan submission so saved video captures require a durable playback clip instead of silently falling back to sampled frames.
 - Fixed cloud-hydrated video scans so sampled analysis frames stay hidden behind the playable video instead of appearing as standalone Insight carousel images.
 - Improved camera shutter feedback so photo captures and video recording start with a stronger, prewarmed haptic cue, and video recording begins almost immediately after a brief hold.
 - Updated video scan analysis so Pro video scans sample five ordered frames, treat accompanying audio as evidence from the same video, and are no longer described as images.
@@ -28,9 +29,11 @@ TestFlight, App Store, support, and QA.
 ### Explore
 - Added public video Explore posts: shared video scans can now appear in Explore and Ask the Community with muted playback in feed/detail and thumbnail play indicators on compact surfaces.
 - Fixed video Explore sharing so composer-selected video clips publish, edit, and request Community ID from the captured-media manifest, while failed media snapshots no longer leave the Share sheet showing a phantom Explore post.
+- Improved video Explore sharing repair so scans with a surviving local `.mp4` can restore missing cloud video media before publishing.
 - Added Explore post management actions to the Insight top menu so published scans can be edited or opened without returning to the Share sheet.
 - Added a View insight action to your own Explore post menus, including posts opened from an Insight sheet or your Profile's published scans.
 - Fixed notification-opened comment reply threads so parent comments and replies include the same emoji reaction controls as regular Explore comments.
+- Hid reference images on shared human identifications so Explore pages show only the user's media.
 
 ### Scans
 - Added Image and Video media filters to the Scans filter sheet.
@@ -41,6 +44,7 @@ TestFlight, App Store, support, and QA.
 - Video scan media now starts muted playback once when its Insight sheet opens, with a bottom-left sound status toggle.
 - Fixed account-library video scans whose cloud record still listed sampled frames so Insight opens the playable video instead of a thumbnail sequence.
 - Video scans that only have sampled frames available now fall back to the middle frame instead of filling the Insight carousel with all five samples.
+- Hid reference images for human identifications so Insight shows only the user's captured media.
 - Added fullscreen playback for video scan media from the Insight carousel.
 - Added field-note visibility controls to the Field notes edit sheet, with Published and Private badges on shared Insight and Explore note cards.
 - Added a Non-biological pill and retention notice to non-biological Insight results, and hid biological-only field notes, tags, and collection actions from those scans.

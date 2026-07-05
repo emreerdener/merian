@@ -317,14 +317,22 @@ struct ExtractedScanData: Sendable {
     let originalTimestamp: Date
     /// Canonical persisted media timeline from the queued scan, preserving mixed-media order.
     let capturedMediaItems: [SerializedMediaItem]
+    /// Documents-relative images used for inference replay. New video rows keep sampled frames here
+    /// while `capturedMediaItems` keeps only the display/share timeline.
+    let inferenceImagePaths: [String]?
+    /// Encoded `[IdentifyVisualMediaItem]` aligned to `inferenceImagePaths`.
+    let visualMediaItemsJSON: String?
 
     var capturedMediaSnapshot: CapturedMediaSnapshot {
         CapturedMediaSnapshot(items: capturedMediaItems)
     }
 
-    /// Filenames of local images relative to the Documents directory.
+    /// Filenames of local inference images relative to the Documents directory.
     var localImagePaths: [String] {
-        capturedMediaSnapshot.thumbnailImagePaths
+        if let inferenceImagePaths, !inferenceImagePaths.isEmpty {
+            return inferenceImagePaths
+        }
+        return capturedMediaSnapshot.thumbnailImagePaths
     }
 
     var localUploadPaths: [String] {
@@ -353,6 +361,16 @@ struct ExtractedScanData: Sendable {
     var videoFilePaths: [String]? {
         let paths = capturedMediaSnapshot.videoPaths
         return paths.isEmpty ? nil : paths
+    }
+
+    var visualMediaItems: [IdentifyVisualMediaItem]? {
+        guard let visualMediaItemsJSON,
+              let data = visualMediaItemsJSON.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([IdentifyVisualMediaItem].self, from: data),
+              !decoded.isEmpty else {
+            return nil
+        }
+        return decoded
     }
 
     var audioMediaItems: [IdentifyAudioMediaItem]? {
@@ -395,8 +413,8 @@ struct OfflineScanProcessingResult {
     /// when the background path races ahead of the suspended live inference task.
     let speciesData: SpeciesData?
     /// True when the background context's save committed (inserting the `LocalScanRecord` on
-    /// success, or a no-op save on a confidence==0 failure). When true, the caller must invoke
-    /// `flushOfflineQueuedScan` on the main actor to delete the `OfflineQueuedScan` there.
+    /// success, or a no-op save on a confidence==0 failure). When true, the caller must delete
+    /// the `OfflineQueuedScan` through the main actor's queue path.
     ///
     /// The background context intentionally does NOT delete the `OfflineQueuedScan`. Delegating
     /// the deletion to the main actor guarantees the main `ModelContext` always has a real

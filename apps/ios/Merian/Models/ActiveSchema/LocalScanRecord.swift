@@ -284,7 +284,8 @@ extension LocalScanRecord {
     }
 
     var isHumanSubject: Bool {
-        commonName.lowercased() == "human" || scientificName.lowercased() == "homo sapiens"
+        commonName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "human"
+            || scientificName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "homo sapiens"
     }
 
     private static func isResolvedBiologicalName(_ value: String) -> Bool {

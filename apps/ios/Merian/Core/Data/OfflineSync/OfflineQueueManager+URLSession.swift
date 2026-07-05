@@ -239,7 +239,9 @@ extension OfflineQueueManager {
             r2Keys: r2Keys,
             container: extracted.container,
             originalTimestamp: extracted.originalTimestamp,
-            capturedMediaItems: extracted.capturedMediaItems
+            capturedMediaItems: extracted.capturedMediaItems,
+            inferenceImagePaths: extracted.inferenceImagePaths,
+            visualMediaItemsJSON: extracted.visualMediaItemsJSON
         )
         await dispatchInferenceDownloadTask(scanId: scanId, extracted: extractedWithKeys)
     }
@@ -348,7 +350,9 @@ extension OfflineQueueManager {
             r2Keys: scan.stagedR2Keys ?? [],
             container: container,
             originalTimestamp: scan.timestamp,
-            capturedMediaItems: scan.serializedCapturedMediaItems
+            capturedMediaItems: scan.serializedCapturedMediaItems,
+            inferenceImagePaths: scan.inferenceImagePaths,
+            visualMediaItemsJSON: scan.visualMediaItemsJSON
         )
     }
 
@@ -521,12 +525,21 @@ extension OfflineQueueManager {
             localAudioPaths: audioPaths,
             localVideoPaths: videoPaths
         )
+        let visualMediaItems = extracted.visualMediaItems
+        let validVisualMediaItems = visualMediaItems?.count == extracted.localImagePaths.count
+            ? visualMediaItems
+            : nil
+        let videoFrameCount = validVisualMediaItems?
+            .filter { $0.kind == .videoFrame }
+            .count ?? (videoPaths.isEmpty ? nil : extracted.localImagePaths.count)
         let request = try await MerianNetworkClient.shared.buildMultiModalRequest(
             r2ObjectKeys: stagedKeys.imageR2ObjectKeys,
             audioR2ObjectKeys: stagedKeys.audioR2ObjectKeys,
             videoR2ObjectKeys: stagedKeys.videoR2ObjectKeys,
             base64ImageDatas: [], // Uploads rely purely on references through R2 object keys.
             audioFilePaths: stagedKeys.audioR2ObjectKeys.isEmpty ? audioPaths : [],
+            videoFrameCount: videoFrameCount,
+            visualMediaItems: validVisualMediaItems,
             audioMediaItems: extracted.audioMediaItems,
             observationContextsJSON: extracted.observationContextsJSON ?? [],
             telemetry: finalTelemetry,
@@ -608,6 +621,7 @@ extension OfflineQueueManager {
             telemetry: extracted.telemetry,
             observationContextsJSON: extracted.observationContextsJSON,
             audioFilePaths: extracted.audioFilePaths,
+            videoFilePaths: extracted.videoFilePaths,
             capturedMediaJSON: extracted.capturedMediaJSON
         )
 
@@ -615,16 +629,25 @@ extension OfflineQueueManager {
         // any open sheet. The background actor intentionally left it alive (see wasCleaned doc);
         // this deletion guarantees the main context has a real pending change when it saves —
         // the only reliable @Query trigger in a presented sheet (SwiftData platform limitation).
-        let didFlushQueuedScan: Bool
+        //
+        // Route through deleteQueuedScan rather than flushOfflineQueuedScan so queue-only
+        // inference frames can be purged while media adopted by the final LocalScanRecord survives.
+        let didDeleteQueuedScan: Bool
         if processingResult.wasCleaned {
-            didFlushQueuedScan = await MainActor.run {
-                OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
-            }
+            let adoptedMediaPaths = processingResult.finalScanId == nil
+                ? []
+                : extracted.capturedMediaSnapshot.thumbnailImagePaths
+                    + (extracted.audioFilePaths ?? [])
+                    + (extracted.videoFilePaths ?? [])
+            didDeleteQueuedScan = await OfflineQueueManager.shared.deleteQueuedScan(
+                scanId: scanId,
+                explicitlyAdoptedMediaPaths: adoptedMediaPaths
+            )
         } else {
-            didFlushQueuedScan = false
+            didDeleteQueuedScan = false
         }
 
-        if didFlushQueuedScan,
+        if didDeleteQueuedScan,
            let speciesName = processingResult.resolvedSpeciesName,
            let dbScanId = processingResult.finalScanId {
             MerianLog.data.debug(
@@ -685,16 +708,16 @@ extension OfflineQueueManager {
             }
         }
 
-        if !didFlushQueuedScan {
+        if !didDeleteQueuedScan {
             MerianLog.data.debug(
-                "processInferenceDownloadResult: did not flush queued scanId=\(scanId, privacy: .public) wasCleaned=\(processingResult.wasCleaned, privacy: .public)"
+                "processInferenceDownloadResult: did not delete queued scanId=\(scanId, privacy: .public) wasCleaned=\(processingResult.wasCleaned, privacy: .public)"
             )
         }
         MerianLog.data.debug("⏱️ Background pipeline total: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
         await MainActor.run {
-            // updateUnsyncedItemCount() is already called by flushOfflineQueuedScan above;
-            // only call it here when flush was skipped or failed.
-            if !didFlushQueuedScan {
+            // updateUnsyncedItemCount() is already called by deleteQueuedScan above;
+            // only call it here when deletion was skipped or failed.
+            if !didDeleteQueuedScan {
                 OfflineQueueManager.shared.updateUnsyncedItemCount()
             }
             CircuitBreakerManager.shared.recordSuccess()
@@ -777,9 +800,13 @@ extension OfflineQueueManager {
     }
 
     private func recoverCompletedInferenceFromServer(scanId: String, reason: String) async -> Bool {
+        let requiredVideoCount = requiredVideoCountForQueuedScan(scanId: scanId)
         let status: String
         do {
-            status = try await MerianNetworkClient.shared.checkScanStatus(scanId: scanId)
+            status = try await MerianNetworkClient.shared.checkScanStatus(
+                scanId: scanId,
+                requiredVideoCount: requiredVideoCount
+            )
         } catch {
             MerianLog.data.debug(
                 "recoverCompletedInferenceFromServer: status check failed scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
@@ -788,7 +815,7 @@ extension OfflineQueueManager {
         }
 
         MerianLog.data.debug(
-            "recoverCompletedInferenceFromServer: scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) status=\(status, privacy: .public)"
+            "recoverCompletedInferenceFromServer: scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) status=\(status, privacy: .public) requiredVideos=\(requiredVideoCount, privacy: .public)"
         )
         guard status == "found" else { return false }
 
@@ -825,6 +852,14 @@ extension OfflineQueueManager {
 
         SyncStateManager.shared.completeSync()
         return true
+    }
+
+    private func requiredVideoCountForQueuedScan(scanId: String) -> Int {
+        guard let context = modelContext else { return 0 }
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        descriptor.fetchLimit = 1
+        guard let scan = (try? context.fetch(descriptor))?.first else { return 0 }
+        return scan.capturedMediaSnapshot.videoPaths.count
     }
 
     private func promoteRecoveredLocalScan(scanId: String) -> Bool {
@@ -887,8 +922,8 @@ extension OfflineQueueManager {
     /// Before retrying, polls `/check-scan-status` to detect the outbox gap: if the edge
     /// function already persisted the scan but the background download task never delivered
     /// the response, a naive retry would re-run inference and insert a duplicate row. When
-    /// the scan is found server-side, the queue entry is tombstoned and historical sync
-    /// recovers the `LocalScanRecord` on the next active-phase foreground transition.
+    /// the scan is found server-side, targeted historical sync restores the `LocalScanRecord`
+    /// and the queue entry is deleted.
     private func handleInferenceRetry(scanId: String, reason: String = "retry") async {
         guard let container = modelContext?.container else { return }
 

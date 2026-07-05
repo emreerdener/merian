@@ -65,6 +65,12 @@ or:
   manifest before legacy image/video URL arrays so video clips and poster
   thumbnails stay paired. `/share-scan-to-explore` resolves submitted
   `source_media_id` values through this same source list.
+- The iOS composer should prefer this endpoint for cloud-backed scans before
+  opening the share UI. It is server-authoritative for repaired video rows and
+  legacy rows whose `image_storage_urls` still contain sampled inference frames.
+  If the cloud row lacks a video item but the local scan still has a playback
+  `.mp4`, the client can fall back to local media long enough to attempt
+  `/share-scan-to-explore` repair.
 - Audio, Describe content, observation context, AI/reference images, and
   Dictionary media are not returned.
 - For first-share `scan_id` requests, all eligible media is selected by default.

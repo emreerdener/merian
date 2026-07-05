@@ -282,17 +282,46 @@ extension InsightShareButton {
         case .askCommunity:
             onAskCommunity?()
         case .composeExplorePost:
-            showingExploreComposer = true
+            openExploreComposer()
         case .publishExploreAnyway:
             showingExplorePublishConfirmation = true
         case .editExplorePost:
-            showingExploreComposer = true
+            openExploreComposer()
         case .editCommunityRequest:
             onEditCommunityRequest?()
         case .viewCommunityRequest:
             onViewCommunityRequest?()
         case .viewInExplore:
             onViewInExplore?()
+        }
+    }
+
+    func openExploreComposer() {
+        composerMediaItems = nil
+        guard let scanId else {
+            showingExploreComposer = true
+            return
+        }
+
+        Task {
+            let serverItems: [ExplorePostComposerMediaDraft]?
+            do {
+                let payload = try await MerianNetworkClient.shared.getExploreComposerMedia(scanId: scanId)
+                serverItems = ExplorePostComposerMediaDraft.sourceItems(from: payload.mediaItems)
+            } catch {
+                serverItems = nil
+            }
+
+            await MainActor.run {
+                if let serverItems, !serverItems.isEmpty {
+                    let localHasVideo = mediaItems.contains { $0.kind == .video }
+                    let serverHasVideo = serverItems.contains { $0.kind == .video }
+                    composerMediaItems = localHasVideo && !serverHasVideo
+                        ? mediaItems
+                        : serverItems
+                }
+                showingExploreComposer = true
+            }
         }
     }
 

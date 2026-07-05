@@ -24,6 +24,7 @@ struct InsightShareButton: View {
     var commonNameOptions: [String]
     var initialSelectedCommonName: String
     var heroImageUrl: String?
+    var scanId: String?
     var mediaItems: [ExplorePostComposerMediaDraft] = []
     var publicLocationLabel: String?
     var fieldNotesPreview: String?
@@ -41,6 +42,7 @@ struct InsightShareButton: View {
     @State var showingExploreComposer = false
     @State var showingExplorePublishConfirmation = false
     @State var pendingAction: PendingAction?
+    @State var composerMediaItems: [ExplorePostComposerMediaDraft]?
 
     private var showsExploreAction: Bool {
         onShareToExplore != nil
@@ -165,7 +167,7 @@ struct InsightShareButton: View {
         .alert("Publish to Explore anyway?", isPresented: $showingExplorePublishConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Publish anyway") {
-                showingExploreComposer = true
+                openExploreComposer()
             }
         } message: {
             Text(explorePublishConfirmationMessage)
@@ -183,7 +185,7 @@ struct InsightShareButton: View {
                 initialFieldNotesArePublic: sharedExplorePostId == nil ? true : fieldNotesArePublicOnExplore,
                 initialHashtags: sharedExplorePostId == nil ? [] : sharedExploreHashtags,
                 initialLocationSharing: initialLocationSharing,
-                mediaItems: mediaItems,
+                mediaItems: composerMediaItems ?? mediaItems,
                 hashtagSuggestionContext: hashtagSuggestionContext.updating(fieldNotes: fieldNotesPreview),
                 isSaving: sharedExplorePostId == nil ? isSharingToExplore : isUpdatingExplorePostContent,
                 onSubmit: { draft in

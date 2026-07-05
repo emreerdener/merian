@@ -169,6 +169,7 @@ export async function requestCommunityIdentification(
     scanId,
     userId,
     restoredObjectKeys,
+    [],
     supabaseAdmin,
   );
 

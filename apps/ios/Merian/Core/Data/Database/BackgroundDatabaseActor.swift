@@ -93,7 +93,9 @@ actor BackgroundDatabaseActor {
             let snapshot = scan.capturedMediaSnapshot
             return PendingScanPayload(
                 id: scan.id,
-                localImagePaths: snapshot.thumbnailImagePaths,
+                localImagePaths: scan.inferenceImagePaths?.isEmpty == false
+                    ? scan.inferenceImagePaths ?? []
+                    : snapshot.thumbnailImagePaths,
                 localAudioPaths: snapshot.audioPaths,
                 localVideoPaths: snapshot.videoPaths
             )
@@ -432,7 +434,7 @@ actor BackgroundDatabaseActor {
     /// Decodes edge inference results and persists a `LocalScanRecord` (when confidence > 0).
     ///
     /// The `OfflineQueuedScan` is intentionally **not** deleted here — that is delegated to
-    /// the main actor's `flushOfflineQueuedScan` so the main `ModelContext` always has a real
+    /// the main actor's queue-deletion path so the main `ModelContext` always has a real
     /// pending change on its save, which is the only reliable `@Query` re-evaluation trigger
     /// in a presented sheet (SwiftData platform limitation).
     func processAndCleanupOfflineScan(
@@ -443,6 +445,7 @@ actor BackgroundDatabaseActor {
         telemetry: CaptureTelemetry? = nil,
         observationContextsJSON: [String]? = nil,
         audioFilePaths: [String]? = nil,
+        videoFilePaths: [String]? = nil,
         capturedMediaJSON: String? = nil
     ) async -> OfflineScanProcessingResult {
         var inferenceFailed = true
@@ -476,6 +479,7 @@ actor BackgroundDatabaseActor {
             )
             mappedData.zoomFactor = telemetry?.zoomFactor.map { Double($0) }
             mappedData.audioFilePaths = audioFilePaths
+            mappedData.videoFilePaths = videoFilePaths
 
             if mappedData.confidenceScore > 0.0 {
                 inferenceFailed = false
@@ -507,6 +511,7 @@ actor BackgroundDatabaseActor {
                         originalImagePaths: originalImagePaths,
                         observationContextsJSON: observationContextsJSON,
                         audioFilePaths: audioFilePaths,
+                        videoFilePaths: videoFilePaths,
                         capturedMediaJSON: capturedMediaJSON
                     )
                 }
@@ -518,7 +523,7 @@ actor BackgroundDatabaseActor {
         // --- Step 4: Commit LocalScanRecord ---
         //
         // The `OfflineQueuedScan` is intentionally NOT deleted here. Delegation to the main
-        // actor's `flushOfflineQueuedScan` ensures the main `ModelContext` always has a real
+        // actor's queue-deletion path ensures the main `ModelContext` always has a real
         // pending deletion when it saves. SwiftData's `@Query` in a presented sheet only
         // re-evaluates reliably when the *main* context performs a save with actual pending
         // changes; background-context saves propagate via `NSPersistentStoreRemoteChangeNotification`
@@ -700,6 +705,7 @@ actor BackgroundDatabaseActor {
         originalImagePaths: [String],
         observationContextsJSON: [String]? = nil,
         audioFilePaths: [String]? = nil,
+        videoFilePaths: [String]? = nil,
         capturedMediaJSON: String? = nil
     ) async {
         if fetchLocalScanRecord(id: recordId) == nil {
@@ -711,7 +717,8 @@ actor BackgroundDatabaseActor {
                 resolvedCapturedMediaJSON = await buildCapturedMediaJSON(
                     localImagePaths: originalImagePaths,
                     observationContextsJSON: observationContextsJSON,
-                    audioFilePaths: audioFilePaths ?? mappedData.audioFilePaths
+                    audioFilePaths: audioFilePaths ?? mappedData.audioFilePaths,
+                    videoFilePaths: videoFilePaths ?? mappedData.videoFilePaths
                 )
             }
             

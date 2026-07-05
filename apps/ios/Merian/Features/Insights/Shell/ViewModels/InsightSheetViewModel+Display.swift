@@ -58,24 +58,35 @@ extension InsightSheetViewModel {
             .filter { !$0.isEmpty } ?? []
     }
 
+    var shouldSuppressReferenceImages: Bool {
+        if inferenceEngine?.speciesData?.isHumanSubject == true { return true }
+        if toolbarRecordSnapshot?.isHumanSubject == true { return true }
+        if activeLocalRecord?.isHumanSubject == true { return true }
+        return false
+    }
+
+    private func displayMedia(_ media: ActiveScanMedia) -> ActiveScanMedia {
+        shouldSuppressReferenceImages ? media.withoutReferenceImages : media
+    }
+
     var activeMedia: ActiveScanMedia {
         if queuedContext != nil {
-            return cachedActiveMedia ?? ActiveScanMedia()
+            return displayMedia(cachedActiveMedia ?? ActiveScanMedia())
         }
 
         let engineMedia = inferenceEngine?.activeMedia ?? ActiveScanMedia()
         if engineMedia.hasUserImage {
-            return engineMedia
+            return displayMedia(engineMedia)
         }
 
         guard var cachedMedia = cachedActiveMedia else {
-            return engineMedia
+            return displayMedia(engineMedia)
         }
 
         if cachedMedia.referenceState == .empty {
             cachedMedia.referenceState = engineMedia.referenceState
         }
-        return cachedMedia
+        return displayMedia(cachedMedia)
     }
 
     var observationContext: ObservationContext? {
@@ -124,10 +135,10 @@ extension InsightSheetViewModel {
     /// Resolves the ActiveScanMedia for the view, correctly prioritizing a live passed-in queuedScan context.
     func resolvedMedia(for explicitQueuedScan: QueuedScanContext?) -> ActiveScanMedia {
         if let queued = explicitQueuedScan ?? queuedContext {
-            if let cached = cachedActiveMedia { return cached }
-            return queued.capturedMediaSnapshot.activeScanMedia
+            if let cached = cachedActiveMedia { return displayMedia(cached) }
+            return displayMedia(queued.capturedMediaSnapshot.activeScanMedia)
         }
-        return activeMedia
+        return displayMedia(activeMedia)
     }
 
     // MARK: - Toolbar Capability Flags

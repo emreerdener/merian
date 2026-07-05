@@ -46,6 +46,7 @@ struct InsightBottomToolbar: ToolbarContent {
                         commonNameOptions: commonNameOptions,
                         initialSelectedCommonName: displaySpeciesName,
                         heroImageUrl: recordSnapshot?.coverImagePath ?? inferenceEngine.activeMedia.imagePathsForUpload.first,
+                        scanId: recordSnapshot?.scanId ?? speciesData.scanId,
                         mediaItems: recordSnapshot?.exploreMediaItems ?? [],
                         publicLocationLabel: publicLocationLabel,
                         fieldNotesPreview: fieldNotesPreview,

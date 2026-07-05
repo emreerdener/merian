@@ -3,6 +3,14 @@ import Foundation
 extension InsightSheetViewModel {
     // MARK: - Media & Share Exports
 
+    private func exportReferenceImageUrl(for inferenceEngine: InferenceEngine) -> String? {
+        guard !shouldSuppressReferenceImages,
+              inferenceEngine.speciesData?.isHumanSubject != true else {
+            return nil
+        }
+        return inferenceEngine.speciesData?.referenceImageUrl
+    }
+
     func saveUserPhotos(inferenceEngine: InferenceEngine) {
         guard !state.isSavingPhotos else { return }
         state.isSavingPhotos = true
@@ -10,12 +18,11 @@ extension InsightSheetViewModel {
         let exportMedia = activeMedia
         let liveData = exportMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
         let validPaths = exportMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }
-        let refUrls = inferenceEngine.speciesData?.referenceImageUrl
 
         InsightMediaExportManager.shared.saveUserPhotos(
             liveData: liveData,
             validPaths: validPaths,
-            referenceImageUrl: refUrls
+            referenceImageUrl: exportReferenceImageUrl(for: inferenceEngine)
         ) { photosSaved in
             self.state.isSavingPhotos = false
             if photosSaved > 0 {
@@ -32,14 +39,13 @@ extension InsightSheetViewModel {
         let liveData = exportMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
         let historicPath = exportMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }.first
             ?? toolbarRecordSnapshot?.coverImagePath
-        let refUrls = inferenceEngine.speciesData?.referenceImageUrl
 
         InsightMediaExportManager.shared.shareDiscovery(
             commonName: commonName,
             scientificName: scientificName,
             liveData: liveData,
             historicPath: historicPath,
-            referenceImageUrl: refUrls,
+            referenceImageUrl: exportReferenceImageUrl(for: inferenceEngine),
             presentShareSheet: { items in
                 ShareSheetUtility.present(items: items)
             }

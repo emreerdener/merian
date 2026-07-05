@@ -4,7 +4,7 @@ import Foundation
 ///
 /// **Why this exists**: Every view in the queued-scan path (`LibraryView`, `InsightSheetView`,
 /// `InsightSheetViewModel`, `AnalyzingContentView`) previously held a live `OfflineQueuedScan`
-/// reference. When `flushOfflineQueuedScan` calls `context.delete(scan)`, SwiftData tears down
+/// reference. When the queued scan is deleted, SwiftData tears down
 /// the object's backing store. During SwiftUI's subsequent dismissal animation (~300ms), the
 /// view hierarchy is still active and re-evaluates computed properties — accessing ANY
 /// unfaulted SwiftData attribute on the zombie causes the fatal "backing data detached" crash.

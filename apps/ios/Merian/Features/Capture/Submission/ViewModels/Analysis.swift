@@ -139,13 +139,15 @@ extension CaptureWorkspaceViewModel {
         )
         diContainer.offlineQueueManager.enqueueCapture(
             imageDatas: capturedInferenceImages.map(\.compressedData),
+            displayImageDatas: capturedDisplayImages.map(\.displayData),
             audioFilePaths: capturedAudioFilePaths,
             videoFilePaths: capturedVideoFilePaths,
             telemetry: immediateTelemetry,
             blurScore: nil,
             scanId: scanId,
             observationContexts: capturedObservationContexts,
-            mediaTimeline: capturedMediaTimeline
+            mediaTimeline: capturedMediaTimeline,
+            visualMediaItems: capturedVisualMediaItems
         )
 
         // If completely offline, skip live inference and show a toast immediately.

@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-05-video-durability",
+      "date": "2026-07-05",
+      "title": "Video scan durability",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Video scans now require a saved playback clip before completing, and Explore sharing can repair missing cloud video media when the local clip is still available."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-05-human-reference-images",
+      "date": "2026-07-05",
+      "title": "Human identification media",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Human identifications now hide reference images in Insight and shared Explore pages so only the user's captured media is shown."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-05-insight-video-autoplay",
       "date": "2026-07-05",
       "title": "Insight video playback",

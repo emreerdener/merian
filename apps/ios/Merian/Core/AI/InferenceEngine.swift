@@ -438,17 +438,15 @@ private struct GBIFMedia: Decodable {
         }
     }
 
-    private func completeQueuedLiveInferenceIfNeeded(scanId: String?, audioPathsToKeep: [String]) {
+    private func completeQueuedLiveInferenceIfNeeded(scanId: String?, mediaPathsToKeep: [String]) {
         guard let scanId else { return }
 
-        // flushOfflineQueuedScan gives the main context an immediate @Query wake-up on the
-        // happy path. deleteQueuedScan stays async so it can cancel any parallel URLSession
-        // upload and retry queue cleanup without blocking the visible success path.
-        OfflineQueueManager.shared.flushOfflineQueuedScan(scanId: scanId)
-        executeTrackedBackgroundTask { [audioPathsToKeep] in
+        // deleteQueuedScan owns both the row removal and disk cleanup so it can still inspect
+        // queue-only inference media before the SwiftData object disappears.
+        executeTrackedBackgroundTask { [mediaPathsToKeep] in
             await OfflineQueueManager.shared.deleteQueuedScan(
                 scanId: scanId,
-                explicitlyAdoptedAudioPaths: audioPathsToKeep
+                explicitlyAdoptedMediaPaths: mediaPathsToKeep
             )
         }
     }
@@ -726,15 +724,10 @@ private struct GBIFMedia: Decodable {
                     .count ?? ((videoFilePaths?.isEmpty == false) ? imageDatas.count : nil)
                 let videoR2ObjectKeys: [String]
                 if let videoFilePaths, !videoFilePaths.isEmpty {
-                    do {
-                        videoR2ObjectKeys = try await client.uploadStagedVideoFiles(
-                            videoFilePaths: videoFilePaths,
-                            scanId: resolvedClientScanId
-                        )
-                    } catch {
-                        videoR2ObjectKeys = []
-                        MerianLog.network.error("Video staging upload failed; continuing with sampled-frame inference: \(error, privacy: .private)")
-                    }
+                    videoR2ObjectKeys = try await client.uploadStagedVideoFiles(
+                        videoFilePaths: videoFilePaths,
+                        scanId: resolvedClientScanId
+                    )
                 } else {
                     videoR2ObjectKeys = []
                 }
@@ -801,7 +794,7 @@ private struct GBIFMedia: Decodable {
 
                     completeQueuedLiveInferenceIfNeeded(
                         scanId: scanId,
-                        audioPathsToKeep: mappedData.audioFilePaths ?? []
+                        mediaPathsToKeep: (mappedData.audioFilePaths ?? []) + (mappedData.videoFilePaths ?? [])
                     )
                     sendInferenceCompleteNotificationIfEnabled(for: mappedData)
 
@@ -975,7 +968,7 @@ private struct GBIFMedia: Decodable {
                     if shouldFlushQueuedScan {
                         completeQueuedLiveInferenceIfNeeded(
                             scanId: ownedScanId,
-                            audioPathsToKeep: mappedData.audioFilePaths ?? []
+                            mediaPathsToKeep: (mappedData.audioFilePaths ?? []) + (mappedData.videoFilePaths ?? [])
                         )
                     }
                     sendInferenceCompleteNotificationIfEnabled(for: mappedData)

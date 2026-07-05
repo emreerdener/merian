@@ -774,6 +774,37 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.totalImages == 2, "Final state should remain 2 after task cleanup")
     }
 
+    @Test func testHumanSubjectSuppressesReferenceImagesButKeepsUserMedia() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        viewModel.inferenceEngine = engine
+
+        engine.activeMedia = ActiveScanMedia(
+            items: [.image("documents/human-capture.webp"), .audio("documents/context.m4a")],
+            referenceState: .loaded([
+                "https://upload.wikimedia.org/human.jpg",
+                "https://static.inaturalist.org/photos/human.jpg"
+            ])
+        )
+        engine.speciesData = SpeciesData(
+            scanId: "human_reference_suppression",
+            commonName: "Human",
+            scientificName: "Homo sapiens",
+            insightData: InsightData(aiReasoning: "", hazardType: "none"),
+            confidenceScore: 0.96,
+            referenceImageUrl: "https://upload.wikimedia.org/human.jpg,https://static.inaturalist.org/photos/human.jpg",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+
+        #expect(viewModel.refUrls.isEmpty)
+        #expect(viewModel.activeMedia.items == [.image("documents/human-capture.webp"), .audio("documents/context.m4a")])
+        #expect(viewModel.activeMedia.referenceState == .empty)
+        #expect(viewModel.totalImages == 2)
+    }
+
     @Test func testPersistentScanIdUsesActiveScanIdDuringLiveAnalysis() {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()

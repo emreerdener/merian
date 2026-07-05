@@ -29,12 +29,12 @@ enum CaptureSubmissionMediaItem: Sendable, Equatable {
     }
 }
 
-enum IdentifyVisualMediaKind: String, Sendable {
+enum IdentifyVisualMediaKind: String, Codable, Sendable {
     case image
     case videoFrame = "video_frame"
 }
 
-struct IdentifyVisualMediaItem: Sendable, Equatable {
+struct IdentifyVisualMediaItem: Codable, Sendable, Equatable {
     let kind: IdentifyVisualMediaKind
     let sourceIndex: Int?
     let clipIndex: Int?
@@ -73,12 +73,12 @@ struct IdentifyVisualMediaItem: Sendable, Equatable {
     }
 }
 
-enum IdentifyAudioMediaKind: String, Sendable {
+enum IdentifyAudioMediaKind: String, Codable, Sendable {
     case audio
     case videoAudio = "video_audio"
 }
 
-struct IdentifyAudioMediaItem: Sendable, Equatable {
+struct IdentifyAudioMediaItem: Codable, Sendable, Equatable {
     let kind: IdentifyAudioMediaKind
     let sourceIndex: Int?
     let clipIndex: Int?

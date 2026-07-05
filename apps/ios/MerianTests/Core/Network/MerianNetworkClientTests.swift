@@ -1120,6 +1120,102 @@ struct MerianNetworkClientTests {
         #expect(urls[0].signedUrl == "https://example.com/put/image_1")
     }
 
+    @Test func testUploadStagedVideoFilesFallsBackToMovedDocumentsFile() async throws {
+        let fileName = "moved_video_playback.mp4"
+        let documentsURL = URL.documentsDirectory.appendingPathComponent(fileName)
+        let staleTemporaryURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try FileManager.default.createDirectory(
+            at: URL.documentsDirectory,
+            withIntermediateDirectories: true
+        )
+        try? FileManager.default.removeItem(at: staleTemporaryURL)
+        try Data("video-bytes".utf8).write(to: documentsURL, options: .atomic)
+        defer {
+            try? FileManager.default.removeItem(at: documentsURL)
+        }
+
+        let testData = """
+        {
+            "urls": [
+                {
+                    "fileName": "scan-video-fallback_moved_video_playback.mp4",
+                    "signedUrl": "https://example.com/put/moved-video",
+                    "objectKey": "staging/test-user/scan-video-fallback_moved_video_playback.mp4"
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+
+        MockURLProtocol.mockEndpoints["/generate-upload-urls"] = { request in
+            let bodyData = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+            let files = try #require(payload["files"] as? [[String: Any]])
+            #expect(files.count == 1)
+            #expect(files[0]["fileName"] as? String == "scan-video-fallback_moved_video_playback.mp4")
+            #expect(files[0]["mediaKind"] as? String == "video")
+            #expect(files[0]["contentType"] as? String == "video/mp4")
+            #expect(files[0]["sizeBytes"] as? Int == 11)
+            return (mockResponse, testData)
+        }
+        MockURLProtocol.mockEndpoints["/put/moved-video"] = { request in
+            #expect(request.httpMethod == "PUT")
+            #expect(request.value(forHTTPHeaderField: "Content-Type") == "video/mp4")
+            return (mockResponse, Data())
+        }
+
+        let objectKeys = try await MerianNetworkClient.shared.uploadStagedVideoFiles(
+            videoFilePaths: [staleTemporaryURL.path],
+            scanId: "scan-video-fallback"
+        )
+
+        #expect(objectKeys == ["staging/test-user/scan-video-fallback_moved_video_playback.mp4"])
+    }
+
+    @Test func testUploadStagedVideoFilesThrowsWhenAnyRequestedVideoIsMissing() async throws {
+        let existingFileName = "existing_video_playback.mp4"
+        let existingURL = URL.documentsDirectory.appendingPathComponent(existingFileName)
+        try FileManager.default.createDirectory(
+            at: URL.documentsDirectory,
+            withIntermediateDirectories: true
+        )
+        try Data("video-bytes".utf8).write(to: existingURL, options: .atomic)
+        defer {
+            try? FileManager.default.removeItem(at: existingURL)
+        }
+
+        MockURLProtocol.mockEndpoints["/generate-upload-urls"] = { _ in
+            Issue.record("Partial video restore should fail before requesting upload URLs")
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data("{}".utf8))
+        }
+
+        do {
+            _ = try await MerianNetworkClient.shared.uploadStagedVideoFiles(
+                videoFilePaths: [
+                    existingURL.path,
+                    FileManager.default.temporaryDirectory
+                        .appendingPathComponent("missing_video_playback.mp4")
+                        .path
+                ],
+                scanId: "scan-video-partial"
+            )
+            Issue.record("Expected missing video upload to throw")
+        } catch {
+            #expect((error as NSError).domain == NSCocoaErrorDomain)
+        }
+    }
+
     @Test func testDeleteScanEndpoint() async throws {
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         MockURLProtocol.mockEndpoints["/delete-scan"] = { request in

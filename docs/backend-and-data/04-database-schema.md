@@ -725,11 +725,14 @@ The transaction log for every successful identification.
   upload-bounded playback `.mp4` scan clips. These are normally compressed 720p
   exports, with upload-safe original recordings allowed as a client fallback.
   The AI receives five sampled frames and optional extracted accompanying audio,
-  not these public playback URLs.
+  not these public playback URLs. For new video scans this column is a
+  durability gate: if a requested playback video cannot be promoted, the scan
+  insert fails/retries instead of creating a frame-only video row.
 - `captured_media` (JSONB): Canonical captured-media timeline using the iOS
   `SerializedMediaItem` shape. Video entries attach the playback clip and poster
   thumbnail together so sampled inference frames do not hydrate as standalone
-  Insight carousel images.
+  Insight carousel images. Video rows should be present whenever
+  `video_storage_urls` is present.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` for
@@ -1736,14 +1739,23 @@ mirror for migration safety and compatibility.
 - `stagedR2Keys`: [String]? (Added in `MerianSchemaV33`. Cloudflare R2 object
   keys written atomically by `BackgroundDatabaseActor.markScanAsStaged` when the
   last media upload receives HTTP 200. The array may contain image staging keys
-  and queued-audio staging keys; `dispatchInferenceDownloadTask` splits them
-  into `r2ObjectKeys` and `audioR2ObjectKeys` based on the canonical media
+  plus queued-audio and queued-video staging keys;
+  `dispatchInferenceDownloadTask` splits them into `r2ObjectKeys`,
+  `audioR2ObjectKeys`, and `videoR2ObjectKeys` based on the canonical media
   timeline. Eliminating auth-dependent key reconstruction at inference time —
   keys are recorded at upload-completion time under the auth session that
   performed the upload, preventing the 403 IDOR edge case that occurred when
   keys were reconstructed hours later from an expired session. `nil` for scans
   migrated from V32; `replayInferenceForUploadedScans` falls back to
   reconstructing keys from the current session for those records.)
+- `inferenceImagePaths`: [String]? (Added in `MerianSchemaV47`. Documents-relative
+  image filenames used only for inference replay. Video captures store sampled
+  frames here while `capturedMediaJSON` keeps the user-facing media timeline as
+  one video item with a thumbnail.)
+- `visualMediaItemsJSON`: String? (Added in `MerianSchemaV47`. Encoded
+  `[IdentifyVisualMediaItem]` aligned one-to-one with `inferenceImagePaths`, so
+  replay can tell `/identify-multimodal` which inference images are still photos
+  versus ordered video frames.)
 
 ### `LocalScanRecord` (Scans)
 

@@ -601,9 +601,11 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    promoted playback clips land separately in `scans.video_storage_urls`. Staged audio,
    including extracted video audio, is an inference input, not a public media
    artifact; `identify-multimodal` deletes `audioR2ObjectKeys` from staging
-   after successful background ingestion. Staged video keys are promoted only
-   after the five sampled frames pass moderation and are otherwise deleted with the
-   staged image keys.
+   after successful background ingestion. Staged video keys are a durability gate:
+   they are promoted only after the sampled frames pass moderation, and any
+   promotion shortfall fails the video scan instead of inserting a frame-only
+   row. Successful video inserts write both `video_storage_urls` and a
+   `captured_media` video item before the client treats the scan as complete.
 
 ## The Explore Social Surface
 

@@ -5,8 +5,8 @@ struct CarouselPageBuilder {
     static func buildPages(
         for activeMedia: ActiveScanMedia,
         referenceWikipediaUrl: String?,
-        selectedIndex: Binding<Int>,
-        isVideoMuted: Binding<Bool>,
+        selectedIndex: Binding<Int> = .constant(0),
+        isVideoMuted: Binding<Bool> = .constant(true),
         onImageFailure: @escaping (String) -> Void,
         onDescriptionTap: (() -> Void)?
     ) -> [CarouselPageItem] {

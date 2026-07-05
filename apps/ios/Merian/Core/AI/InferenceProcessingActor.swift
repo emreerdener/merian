@@ -74,6 +74,7 @@ actor InferenceProcessingActor {
         )
         mappedData.zoomFactor = telemetry.zoomFactor.map { Double($0) }
         mappedData.audioFilePaths = audioFilePaths
+        mappedData.videoFilePaths = videoFilePaths
 
         try Task.checkCancellation()
 

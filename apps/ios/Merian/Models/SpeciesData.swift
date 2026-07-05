@@ -217,6 +217,7 @@ struct SpeciesData {
     var alternativesExhausted: Bool = false
 
     var audioFilePaths: [String]?
+    var videoFilePaths: [String]?
 }
 
 // MARK: - Subject Classification
@@ -227,7 +228,8 @@ extension SpeciesData {
     /// which are inappropriate to surface for human subjects.
     /// Checks both common and scientific name so either field alone is sufficient.
     var isHumanSubject: Bool {
-        commonName.lowercased() == "human" || scientificName.lowercased() == "homo sapiens"
+        commonName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "human"
+            || scientificName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "homo sapiens"
     }
 }
 
@@ -338,6 +340,7 @@ extension SpeciesData {
         self.isFlagged = false
         self.alternativesExhausted = false
         self.audioFilePaths = nil // Set by InferenceEngine or InferenceProcessingActor
+        self.videoFilePaths = nil
     }
 }
 
@@ -396,7 +399,8 @@ extension SpeciesData {
         userConfirmedIdentification: Bool = false,
         isFlagged: Bool = false,
         alternativesExhausted: Bool = false,
-        audioFilePaths: [String]? = nil
+        audioFilePaths: [String]? = nil,
+        videoFilePaths: [String]? = nil
     ) {
         self.scanId = scanId
         self.commonName = commonName
@@ -449,6 +453,7 @@ extension SpeciesData {
         self.isFlagged = isFlagged
         self.alternativesExhausted = alternativesExhausted
         self.audioFilePaths = audioFilePaths
+        self.videoFilePaths = videoFilePaths
     }
 }
 

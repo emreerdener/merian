@@ -216,7 +216,7 @@ When an offline scan completes while `InsightSheetView` is open, the sheet must 
 `LibraryView` uses `.sheet(isPresented: $isQueuedSheetPresented)` with a separate `scanToManage: QueuedScanContext?` state. This decouples sheet presentation from the context — clearing `scanToManage` does not close the sheet.
 
 ```
-OfflineQueueManager.flushOfflineQueuedScan()
+OfflineQueueManager.deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:)
     → ScanLibraryEvents.libraryDidUpdatePublisher() emits
     → InsightSheetView.attemptQueuedCompletionHandoff(...)
     → Retry up to 8 × 350 ms for LocalScanRecord with matching ID

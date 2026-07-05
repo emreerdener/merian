@@ -35,6 +35,7 @@ private extension String {
 private struct ExploreShareMediaSnapshot {
     let scanId: String
     let imagePaths: [String]
+    let videoPaths: [String]
     let coverImagePath: String?
     let fallbackImageData: Data?
     let scientificName: String
@@ -65,7 +66,9 @@ private struct ExploreShareMediaSnapshot {
 
     init(scan: LocalScanRecord, fallbackImageData: Data? = nil) {
         self.scanId = scan.id
-        self.imagePaths = scan.capturedMediaSnapshot.thumbnailImagePaths
+        let mediaSnapshot = scan.capturedMediaSnapshot
+        self.imagePaths = mediaSnapshot.thumbnailImagePaths
+        self.videoPaths = mediaSnapshot.videoPaths
         self.coverImagePath = scan.coverImagePath
         self.fallbackImageData = fallbackImageData
         self.scientificName = scan.scientificName
@@ -93,6 +96,15 @@ private struct ExploreShareMediaSnapshot {
         self.userIdentificationOverride = scan.userIdentificationOverride
         self.userConfirmedIdentification = scan.userConfirmedIdentification
         self.userReviewStateRaw = scan.userReviewStateRaw
+    }
+}
+
+private struct ExploreRestoreMediaObjectKeys {
+    let imageObjectKeys: [String]
+    let videoObjectKeys: [String]
+
+    var isEmpty: Bool {
+        imageObjectKeys.isEmpty && videoObjectKeys.isEmpty
     }
 }
 
@@ -1085,11 +1097,26 @@ final class MerianNetworkClient {
     }
 
     func uploadStagedVideoFiles(videoFilePaths: [String], scanId: String) async throws -> [String] {
-        let videoFileURLs = videoFilePaths
-            .map { resolvedLocalMediaURL(for: $0) }
-            .filter { FileManager.default.fileExists(atPath: $0.path) }
+        var videoFileURLs: [URL] = []
+        var missingVideoPaths: [String] = []
+        for videoFilePath in videoFilePaths {
+            if let fileURL = existingLocalMediaURL(for: videoFilePath) {
+                videoFileURLs.append(fileURL)
+            } else {
+                missingVideoPaths.append(videoFilePath)
+            }
+        }
 
-        guard !videoFileURLs.isEmpty else { return [] }
+        guard !videoFileURLs.isEmpty else {
+            MerianLog.network.error("Video staging upload requested but no local video files were found.")
+            throw CocoaError(.fileNoSuchFile)
+        }
+        if !missingVideoPaths.isEmpty {
+            MerianLog.network.error(
+                "Video staging upload missing \(missingVideoPaths.count, privacy: .public)/\(videoFilePaths.count, privacy: .public) requested local video file(s)."
+            )
+            throw CocoaError(.fileNoSuchFile)
+        }
 
         let uploadFiles = try videoFileURLs.map { fileURL in
             let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
@@ -1140,6 +1167,25 @@ final class MerianNetworkClient {
         return URL.documentsDirectory.appendingPathComponent(trimmed)
     }
 
+    private func existingLocalMediaURL(for path: String) -> URL? {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let primaryURL = resolvedLocalMediaURL(for: trimmed)
+        if FileManager.default.fileExists(atPath: primaryURL.path) {
+            return primaryURL
+        }
+
+        let fileName = primaryURL.lastPathComponent
+        guard !fileName.isEmpty else { return nil }
+
+        let fallbackURLs = [
+            URL.documentsDirectory.appendingPathComponent(fileName),
+            FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        ]
+        return fallbackURLs.first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
     private func validateR2UploadResponse(responseData: Data, response: URLResponse) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw MerianError.uploadFailed
@@ -1158,9 +1204,13 @@ final class MerianNetworkClient {
     /// Returns `"found"` or `"not_found"`. Called from `OfflineQueueManager.handleInferenceRetry`
     /// before resetting a scan to `.staged`, closing the gap where inference succeeded server-side
     /// but the background download task never delivered the response.
-    func checkScanStatus(scanId: String) async throws -> String {
+    func checkScanStatus(scanId: String, requiredVideoCount: Int? = nil) async throws -> String {
         let functionUrl = try endpointURL("check-scan-status")
-        let bodyData = try JSONSerialization.data(withJSONObject: ["scan_id": scanId])
+        var payload: [String: Any] = ["scan_id": scanId]
+        if let requiredVideoCount, requiredVideoCount > 0 {
+            payload["required_video_count"] = requiredVideoCount
+        }
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
         let decoded = try JSONDecoder().decode([String: String].self, from: data)
         return decoded["status"] ?? "not_found"
@@ -1982,6 +2032,7 @@ final class MerianNetworkClient {
     func shareScanToExplore(
         scanId: String,
         restoredObjectKeys: [String]? = nil,
+        restoredVideoObjectKeys: [String]? = nil,
         speciesCommonName: String? = nil,
         fieldNotes: String? = nil,
         hashtags: [String] = [],
@@ -2006,6 +2057,9 @@ final class MerianNetworkClient {
         }
         if let restoredObjectKeys, !restoredObjectKeys.isEmpty {
             payload["restored_object_keys"] = restoredObjectKeys
+        }
+        if let restoredVideoObjectKeys, !restoredVideoObjectKeys.isEmpty {
+            payload["restored_video_object_keys"] = restoredVideoObjectKeys
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
@@ -2041,10 +2095,11 @@ final class MerianNetworkClient {
                     throw error
                 }
 
-                MerianLog.network.debug("Explore share cloud scan recovery uploaded \(restoredObjectKeys.count, privacy: .public) media item(s); retrying.")
+                MerianLog.network.debug("Explore share cloud scan recovery uploaded \(restoredObjectKeys.imageObjectKeys.count + restoredObjectKeys.videoObjectKeys.count, privacy: .public) media item(s); retrying.")
                 return try await shareScanToExplore(
                     scanId: mediaSnapshot.scanId,
-                    restoredObjectKeys: restoredObjectKeys,
+                    restoredObjectKeys: restoredObjectKeys.imageObjectKeys,
+                    restoredVideoObjectKeys: restoredObjectKeys.videoObjectKeys,
                     speciesCommonName: speciesCommonName,
                     fieldNotes: fieldNotes,
                     hashtags: hashtags,
@@ -2057,14 +2112,18 @@ final class MerianNetworkClient {
                 throw error
             }
 
-            let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: mediaSnapshot)
+            let restoredObjectKeys = try await restoreExploreMediaObjectKeys(
+                for: mediaSnapshot,
+                includeImages: shouldRestoreExploreImages(after: error)
+            )
             guard !restoredObjectKeys.isEmpty else {
                 throw error
             }
 
             return try await shareScanToExplore(
                 scanId: mediaSnapshot.scanId,
-                restoredObjectKeys: restoredObjectKeys,
+                restoredObjectKeys: restoredObjectKeys.imageObjectKeys,
+                restoredVideoObjectKeys: restoredObjectKeys.videoObjectKeys,
                 speciesCommonName: speciesCommonName,
                 fieldNotes: fieldNotes,
                 hashtags: hashtags,
@@ -2121,15 +2180,15 @@ final class MerianNetworkClient {
                 MerianLog.network.debug("Community request missing cloud scan; attempting local scan recovery for \(mediaSnapshot.scanId, privacy: .private).")
                 try await ensureExploreCloudScanExists(for: mediaSnapshot, locationSharing: locationSharing)
                 let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: mediaSnapshot)
-                guard !restoredObjectKeys.isEmpty else {
+                guard !restoredObjectKeys.imageObjectKeys.isEmpty else {
                     MerianLog.network.debug("Community request cloud scan recovery could not find restorable local media for \(mediaSnapshot.scanId, privacy: .private).")
                     throw error
                 }
 
-                MerianLog.network.debug("Community request cloud scan recovery uploaded \(restoredObjectKeys.count, privacy: .public) media item(s); retrying.")
+                MerianLog.network.debug("Community request cloud scan recovery uploaded \(restoredObjectKeys.imageObjectKeys.count, privacy: .public) media item(s); retrying.")
                 return try await requestCommunityIdentification(
                     scanId: mediaSnapshot.scanId,
-                    restoredObjectKeys: restoredObjectKeys,
+                    restoredObjectKeys: restoredObjectKeys.imageObjectKeys,
                     speciesCommonName: speciesCommonName,
                     note: note,
                     locationSharing: locationSharing
@@ -2141,13 +2200,13 @@ final class MerianNetworkClient {
             }
 
             let restoredObjectKeys = try await restoreExploreMediaObjectKeys(for: mediaSnapshot)
-            guard !restoredObjectKeys.isEmpty else {
+            guard !restoredObjectKeys.imageObjectKeys.isEmpty else {
                 throw error
             }
 
             return try await requestCommunityIdentification(
                 scanId: mediaSnapshot.scanId,
-                restoredObjectKeys: restoredObjectKeys,
+                restoredObjectKeys: restoredObjectKeys.imageObjectKeys,
                 speciesCommonName: speciesCommonName,
                 note: note,
                 locationSharing: locationSharing
@@ -2460,12 +2519,29 @@ final class MerianNetworkClient {
     }
 
     private func shouldAttemptExploreMediaRestore(after error: Error) -> Bool {
-        guard case let MerianError.httpError(statusCode, message) = error,
-              statusCode == 409 else {
+        guard case let MerianError.httpError(statusCode, message) = error else {
+            return false
+        }
+
+        if statusCode == 400 {
+            return message.contains("Selected video media does not belong to this scan.")
+        }
+
+        guard statusCode == 409 else {
             return false
         }
 
         return message.contains("This scan no longer has shareable image media.")
+            || message.contains("This scan no longer has shareable media.")
+            || message.contains("Video thumbnail unavailable.")
+    }
+
+    private func shouldRestoreExploreImages(after error: Error) -> Bool {
+        guard case let MerianError.httpError(statusCode, message) = error else {
+            return true
+        }
+
+        return !(statusCode == 400 && message.contains("Selected video media does not belong to this scan."))
     }
 
     private func shouldAttemptExploreCloudScanRestore(after error: Error) -> Bool {
@@ -2605,7 +2681,21 @@ final class MerianNetworkClient {
         return "unreviewed"
     }
 
-    private func restoreExploreMediaObjectKeys(for scan: ExploreShareMediaSnapshot) async throws -> [String] {
+    private func restoreExploreMediaObjectKeys(
+        for scan: ExploreShareMediaSnapshot,
+        includeImages: Bool = true
+    ) async throws -> ExploreRestoreMediaObjectKeys {
+        let imageObjectKeys = includeImages
+            ? try await restoreExploreImageObjectKeys(for: scan)
+            : []
+        let videoObjectKeys = try await restoreExploreVideoObjectKeys(for: scan)
+        return ExploreRestoreMediaObjectKeys(
+            imageObjectKeys: imageObjectKeys,
+            videoObjectKeys: videoObjectKeys
+        )
+    }
+
+    private func restoreExploreImageObjectKeys(for scan: ExploreShareMediaSnapshot) async throws -> [String] {
         let localImagePaths = resolveRestorableImagePaths(for: scan)
         if localImagePaths.isEmpty {
             guard let fallbackImageData = scan.fallbackImageData,
@@ -2682,6 +2772,49 @@ final class MerianNetworkClient {
         return uploadUrls.map { $0.objectKey }
     }
 
+    private func restoreExploreVideoObjectKeys(for scan: ExploreShareMediaSnapshot) async throws -> [String] {
+        let localVideoPaths = resolveRestorableVideoPaths(for: scan)
+        guard !localVideoPaths.isEmpty else { return [] }
+        guard localVideoPaths.count <= MerianConfig.mediaStagingMaxVideoFilesPerRequest,
+              localVideoPaths.count <= MerianConfig.mediaStagingMaxFilesPerRequest else {
+            throw MerianError.payloadTooLarge
+        }
+
+        let uploadFiles = try localVideoPaths.enumerated().map { index, path in
+            let fileURL = localExploreRestoreFileURL(for: path)
+            let fileExtension = fileURL.pathExtension.isEmpty ? "mp4" : fileURL.pathExtension
+            let fileName = MediaStagingContract.sanitizedFileName(
+                "\(scan.scanId)_explore_restore_video_\(index).\(fileExtension)"
+            )
+            let sizeBytes = try MediaStagingContract.fileSizeBytes(at: fileURL)
+            guard sizeBytes <= MerianConfig.videoPayloadMaxBytes else {
+                throw MerianError.payloadTooLarge
+            }
+            return StagingUploadFile(
+                fileName: fileName,
+                mediaKind: .video,
+                contentType: StagedMediaKind.video.contentType(for: fileURL.path),
+                sizeBytes: sizeBytes
+            )
+        }
+
+        let uploadUrls = try await generateUploadURLs(uploadFiles: uploadFiles)
+        guard uploadUrls.count == localVideoPaths.count else {
+            throw MerianError.invalidResponse
+        }
+
+        for (path, uploadUrl) in zip(localVideoPaths, uploadUrls) {
+            let fileURL = localExploreRestoreFileURL(for: path)
+            try await uploadToR2(
+                url: uploadUrl.signedUrl,
+                fileURL: fileURL,
+                mimeType: StagedMediaKind.video.contentType(for: fileURL.path)
+            )
+        }
+
+        return uploadUrls.map(\.objectKey)
+    }
+
     private func resolveRestorableImagePaths(for scan: ExploreShareMediaSnapshot) -> [String] {
         var candidatePaths = scan.imagePaths
 
@@ -2697,6 +2830,17 @@ final class MerianNetworkClient {
             }
         }
 
+        return resolved
+    }
+
+    private func resolveRestorableVideoPaths(for scan: ExploreShareMediaSnapshot) -> [String] {
+        var resolved: [String] = []
+        for path in scan.videoPaths where !path.starts(with: "http") {
+            let fileURL = localExploreRestoreFileURL(for: path)
+            if FileManager.default.fileExists(atPath: fileURL.path), !resolved.contains(path) {
+                resolved.append(path)
+            }
+        }
         return resolved
     }
 

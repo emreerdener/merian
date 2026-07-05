@@ -1109,6 +1109,16 @@ enum MerianSchemaV46: VersionedSchema {
     }
 }
 
+enum MerianSchemaV47: VersionedSchema {
+    static var versionIdentifier = Schema.Version(47, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
+         ScanCollection.self, PendingCloudDeletionTask.self,
+         UserSpeciesPreference.self]
+    }
+}
+
 extension MerianSchemaV44 {
     @Model
     final class LocalScanRecord {
@@ -1665,7 +1675,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV43.self,
             MerianSchemaV44.self,
             MerianSchemaV45.self,
-            MerianSchemaV46.self
+            MerianSchemaV46.self,
+            MerianSchemaV47.self
         ]
     }
 
@@ -1715,9 +1726,15 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV42toV43,
             migrateV43toV44,
             migrateV44toV45,
-            migrateV45toV46
+            migrateV45toV46,
+            migrateV46toV47
         ]
     }
+
+    static let migrateV46toV47 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV46.self,
+        toVersion: MerianSchemaV47.self
+    )
 
     static let migrateV45toV46 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV45.self,

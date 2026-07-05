@@ -31,6 +31,13 @@ public final class OfflineQueuedScan {
     /// Eliminates auth-dependent key reconstruction at inference time.
     public var stagedR2Keys: [String]?
 
+    /// Documents-relative image files used for inference replay. This is intentionally separate
+    /// from `capturedMediaJSON`, whose images are user-visible display/share media.
+    @Attribute public var inferenceImagePaths: [String]?
+
+    /// Encoded `[IdentifyVisualMediaItem]` matching `inferenceImagePaths`.
+    @Attribute public var visualMediaItemsJSON: String?
+
     /// Private user-authored notes captured while the scan is still in flight.
     @Attribute public var fieldNotes: String?
 
@@ -64,6 +71,8 @@ public final class OfflineQueuedScan {
         zoomFactor: Double? = nil,
         scanState: ScanQueueState = .pending,
         stagedR2Keys: [String]? = nil,
+        inferenceImagePaths: [String]? = nil,
+        visualMediaItemsJSON: String? = nil,
         fieldNotes: String? = nil
     ) {
         self.id = id
@@ -86,6 +95,8 @@ public final class OfflineQueuedScan {
         self.zoomFactor = zoomFactor
         self.scanStateRaw = scanState.rawValue
         self.stagedR2Keys = stagedR2Keys
+        self.inferenceImagePaths = inferenceImagePaths
+        self.visualMediaItemsJSON = visualMediaItemsJSON
         self.fieldNotes = fieldNotes
     }
 }

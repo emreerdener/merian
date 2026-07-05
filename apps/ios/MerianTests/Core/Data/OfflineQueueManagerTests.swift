@@ -76,6 +76,13 @@ struct OfflineQueueManagerTests {
         return filename
     }
 
+    private func makeTempVideoFilename(prefix: String = "queued_video") throws -> String {
+        let filename = "\(prefix)_\(UUID().uuidString).mp4"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try Data(repeating: 0x42, count: 128).write(to: url)
+        return filename
+    }
+
     private func assertSerializedItems(
         _ items: [SerializedMediaItem],
         match expected: [ExpectedSerializedMedia]
@@ -366,6 +373,76 @@ struct OfflineQueueManagerTests {
                 break
             }
         }
+    }
+
+    @Test func testEnqueueCaptureSeparatesDisplayMediaFromInferenceFrames() async throws {
+        enableUnlimitedFreeScansForTest()
+        defer { restoreFreeScanLimitForTest() }
+
+        let ctx = try createIsolatedContext()
+        let scanId = UUID().uuidString
+        let videoFilename = try makeTempVideoFilename()
+
+        OfflineQueueManager.shared.enqueueCapture(
+            imageDatas: [
+                Data("video_frame_0".utf8),
+                Data("video_frame_1".utf8),
+                Data("still_inference".utf8)
+            ],
+            displayImageDatas: [
+                Data("video_cover".utf8),
+                Data("still_display".utf8)
+            ],
+            videoFilePaths: [videoFilename],
+            telemetry: dummyTelemetry,
+            scanId: scanId,
+            mediaTimeline: [
+                .video(videoFilename, posterImageIndex: 0),
+                .image(index: 1)
+            ],
+            visualMediaItems: [
+                .videoFrame(clipIndex: 0, frameIndex: 0),
+                .videoFrame(clipIndex: 0, frameIndex: 1),
+                .image(sourceIndex: 0)
+            ]
+        )
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+        let fetched = try #require(ctx.fetch(descriptor).first)
+        let inferenceImagePaths = try #require(fetched.inferenceImagePaths)
+        let capturedMediaJSON = try #require(fetched.capturedMediaJSON)
+        let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
+        let visualMediaItemsJSON = try #require(fetched.visualMediaItemsJSON)
+        let visualMediaItemsData = try #require(visualMediaItemsJSON.data(using: .utf8))
+        let visualMediaItems = try JSONDecoder().decode([IdentifyVisualMediaItem].self, from: visualMediaItemsData)
+
+        defer {
+            cleanupSerializedItems(items)
+            for inferenceImagePath in inferenceImagePaths {
+                try? FileManager.default.removeItem(
+                    at: URL.documentsDirectory.appendingPathComponent(inferenceImagePath)
+                )
+            }
+        }
+
+        #expect(inferenceImagePaths.count == 3)
+        #expect(visualMediaItems.count == inferenceImagePaths.count)
+        #expect(items.count == 2)
+
+        guard case .video(let videoReference) = items[0] else {
+            Issue.record("Expected queued mixed capture to serialize the video first")
+            return
+        }
+        let thumbnailPath = try #require(videoReference.thumbnail?.serializedPath)
+        #expect(!inferenceImagePaths.contains(thumbnailPath))
+
+        guard case .image(let imageReference) = items[1] else {
+            Issue.record("Expected queued mixed capture to serialize the display image second")
+            return
+        }
+        #expect(!inferenceImagePaths.contains(imageReference.serializedPath))
     }
 
     @Test func testEnqueueNonVisualCaptureSupportsAllowedCombinationMatrix() async throws {

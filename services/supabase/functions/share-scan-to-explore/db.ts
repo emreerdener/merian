@@ -1,5 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { getR2Config } from "../_shared/aws.ts";
+import { deleteR2Object, getR2Config } from "../_shared/aws.ts";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
@@ -24,6 +24,87 @@ export interface SelectedExplorePostMediaItem {
   order_index: number;
 }
 
+function cleanMediaUrls(value: string[] | null | undefined): string[] {
+  return (value ?? [])
+    .map((url) => typeof url === "string" ? url.trim() : "")
+    .filter((url) => url.length > 0);
+}
+
+function remoteMediaReference(
+  url: string,
+): { storage: "remoteURL"; path: string } {
+  return { storage: "remoteURL", path: url };
+}
+
+function hasManifestVideo(value: unknown[] | null | undefined): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some((entry) =>
+    entry != null &&
+    typeof entry === "object" &&
+    !Array.isArray(entry) &&
+    Object.hasOwn(entry as Record<string, unknown>, "video")
+  );
+}
+
+function imageManifestItem(url: string): Record<string, unknown> {
+  return { image: { _0: remoteMediaReference(url) } };
+}
+
+function videoManifestItem(
+  url: string,
+  thumbnailUrl: string | undefined,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    video: remoteMediaReference(url),
+  };
+  if (thumbnailUrl) {
+    payload.thumbnail = remoteMediaReference(thumbnailUrl);
+  }
+  return { video: { _0: payload } };
+}
+
+export function buildRestoredVideoCapturedMedia(
+  row: ShareEligibleScanRow,
+  videoUrls: string[],
+): unknown[] | null {
+  const sanitizedVideoUrls = cleanMediaUrls(videoUrls);
+  if (sanitizedVideoUrls.length === 0) return row.captured_media ?? null;
+  if (
+    hasManifestVideo(row.captured_media) &&
+    cleanMediaUrls(row.video_storage_urls).length >= sanitizedVideoUrls.length
+  ) {
+    return row.captured_media ?? null;
+  }
+
+  const imageUrls = cleanMediaUrls(row.image_storage_urls);
+  const expectedVideoFrameCount = sanitizedVideoUrls.length * 5;
+  const standaloneImageCount = Math.max(
+    imageUrls.length - expectedVideoFrameCount,
+    0,
+  );
+  const standaloneImageUrls = imageUrls.slice(0, standaloneImageCount);
+  const videoThumbnailUrls = imageUrls.slice(standaloneImageCount);
+
+  const items: unknown[] = standaloneImageUrls.map(imageManifestItem);
+  sanitizedVideoUrls.forEach((url, index) => {
+    const thumbnailUrl = videoThumbnailUrls[index * 5] ??
+      videoThumbnailUrls[0] ??
+      imageUrls[0];
+    items.push(videoManifestItem(url, thumbnailUrl));
+  });
+
+  return items.length > 0 ? items : null;
+}
+
+async function rollbackPromotedUrls(urls: string[]): Promise<void> {
+  const r2Config = getR2Config();
+  await Promise.allSettled(
+    urls.map((url) =>
+      deleteR2Object(url.replace("https://media.merian.app/", ""), r2Config)
+    ),
+  );
+}
+
 function makeHttpError(
   status: number,
   message: string,
@@ -37,6 +118,7 @@ export async function fetchShareEligibleScan(
   scanId: string,
   userId: string,
   restoredObjectKeys: string[],
+  restoredVideoObjectKeys: string[],
   supabaseAdmin: SupabaseClient,
 ): Promise<ShareEligibleScanRow> {
   const { data, error } = await supabaseAdmin
@@ -85,6 +167,54 @@ export async function fetchShareEligibleScan(
     if (updateError || !updatedRow) {
       throw new Error(
         `Failed to restore shareable scan media: ${
+          updateError?.message ?? "Unknown error"
+        }`,
+      );
+    }
+
+    row = updatedRow as ShareEligibleScanRow;
+  }
+
+  if (
+    (row.video_storage_urls?.length ?? 0) === 0 &&
+    restoredVideoObjectKeys.length > 0
+  ) {
+    const userTier = await getTierForUser(userId, supabaseAdmin);
+    const videoPublicUrls = await promoteSafeMedia(
+      {
+        userId,
+        r2ObjectKeys: restoredVideoObjectKeys,
+        imageBase64s: undefined,
+        userTier,
+        r2Config: getR2Config(),
+      },
+    );
+    if (videoPublicUrls.length !== restoredVideoObjectKeys.length) {
+      await rollbackPromotedUrls(videoPublicUrls);
+      throw makeHttpError(503, "Restored video media could not be saved.");
+    }
+
+    const capturedMedia = buildRestoredVideoCapturedMedia(
+      row,
+      videoPublicUrls,
+    );
+    const { data: updatedRow, error: updateError } = await supabaseAdmin
+      .from("scans")
+      .update({
+        video_storage_urls: videoPublicUrls,
+        captured_media: capturedMedia,
+      })
+      .eq("id", scanId)
+      .eq("user_id", userId)
+      .select(
+        "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id",
+      )
+      .single();
+
+    if (updateError || !updatedRow) {
+      await rollbackPromotedUrls(videoPublicUrls);
+      throw new Error(
+        `Failed to restore shareable scan video: ${
           updateError?.message ?? "Unknown error"
         }`,
       );

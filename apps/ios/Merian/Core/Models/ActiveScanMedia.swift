@@ -51,6 +51,10 @@ struct ActiveScanMedia: Equatable {
         return items.isEmpty && referenceState == .empty
     }
 
+    var withoutReferenceImages: ActiveScanMedia {
+        ActiveScanMedia(items: items, referenceState: .empty)
+    }
+
     var hasUserImage: Bool {
         liveImageData != nil || !imagePathsForUpload.isEmpty || !videoPaths.isEmpty
     }

@@ -655,8 +655,8 @@ sampled video inference frames from hydrating as standalone Insight carousel
 images. Any image promotion failure aborts the entire batch and immediately rolls
 back any already-promoted public objects from that same batch before returning
 `ERROR`; scans are not inserted with partial image arrays. Video promotion failure
-leaves the sampled frame imagery usable while the failed staged playback video is
-cleaned up.
+is also a durability failure for video captures: the edge cleans up promoted
+objects/staging where possible and does not insert a frame-only scan row.
 
 **Moderation failure handling**: If Gemini's `finishReason === "SAFETY"` or any
 `safetyRating.probability` is `"MEDIUM"` or `"HIGH"`, the staging object is
@@ -1936,7 +1936,11 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   an eligible biological scan with shareable public media. If a scan's public
   media URLs expired but the client can provide owner-scoped
   `restored_object_keys`, the function promotes safe image media back into
-  `image_storage_urls` before sharing.
+  `image_storage_urls` before sharing. If the local scan still has the original
+  playback `.mp4` and the cloud row is missing durable video media, clients may
+  provide `restored_video_object_keys`; the function promotes those videos into
+  `video_storage_urls`, rebuilds `captured_media`, and only then writes the
+  public Explore snapshot.
 - Sharing snapshots image and video URLs into `explore_post_media`, ordered for
   the public carousel. `hero_image_url` remains the required thumbnail and
   backward-compatible image field; video media without an image thumbnail is
@@ -1952,7 +1956,10 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   playback URLs and poster thumbnails stay paired even when sampled inference
   frames remain in compatibility image URL arrays. Share-state visibility
   requires a saved `explore_post_media` row, preventing failed media writes from
-  appearing as existing Explore posts.
+  appearing as existing Explore posts. When a selected video source is missing
+  from the cloud row, the endpoint returns a clean validation error so the iOS
+  client can attempt local `.mp4` repair instead of publishing an image-only
+  historical row.
 - When the scan has an active Identify request, sharing to Explore is blocked
   until that request resolves. Publishing a resolved Identify request marks the
   request with `explore_published_at`, materializes any new GBIF-backed resolved
@@ -2744,7 +2751,10 @@ ordered compositions of images, audio, and descriptive context.
   if the audio metadata count does not match the resolved audio buffer count,
   the prompt treats the audio as ordinary standalone audio. The playback clip is
   promoted only after those frames pass moderation and is not used as Gemini
-  inference or reference-media input.
+  inference or reference-media input. If `videoR2ObjectKeys` is non-empty, the
+  scan is only successful when every requested video key is promoted and
+  persisted into both `video_storage_urls` and `captured_media`; otherwise the
+  client receives a retryable failure rather than a frame-only video scan.
 - The edge writes `captured_media` for new multimodal scan rows. That JSON keeps
   still photos as image items but collapses ordered `video_frame` samples into a
   single video media item with a thumbnail reference, preserving playback-first
@@ -3400,8 +3410,13 @@ committed.
 ### Request Payload
 
 ```json
-{ "scan_id": "<UUID>" }
+{ "scan_id": "<UUID>", "required_video_count": 1 }
 ```
+
+`required_video_count` is optional. Omit it for legacy/image status probes. When
+present and greater than zero, the endpoint returns `"found"` only if the scan
+row exists for the authenticated user and has at least that many public
+`video_storage_urls` plus matching video entries in `captured_media`.
 
 ### Response Payload
 
@@ -3414,15 +3429,16 @@ committed.
 The `Authorization: Bearer` JWT is verified by `withEdgeHandler`. The DB query
 enforces ownership with a dual `.eq("id", scan_id).eq("user_id", user.id)`
 constraint — a user cannot probe another user's scan IDs. The query returns only
-the `id` column; no scan data is transmitted.
+the media fields needed for the durability check (`id`, `video_storage_urls`,
+and `captured_media`); no private scan content is transmitted.
 
 ### Architecture
 
-Follows the domain-driven module pattern: `index.ts` orchestrates auth and
-parameter validation; `db.ts` owns the
-`fetchScanOwnership(scanId, userId, supabaseAdmin): Promise<boolean>` PostgREST
-call. No `db.ts` writes occur. Errors from `fetchScanOwnership` are caught by
-`index.ts` and mapped to a structured `logStructuredError` + 500 response.
+Follows the domain-driven module pattern: `index.ts` orchestrates auth,
+parameter validation, and optional video-count gating; `db.ts` owns the
+`fetchScanStatusMedia(scanId, userId, supabaseAdmin)` PostgREST call. No `db.ts`
+writes occur. Errors from `fetchScanStatusMedia` are caught by `index.ts` and
+mapped to a structured `logStructuredError` + 500 response.
 
 ---
 

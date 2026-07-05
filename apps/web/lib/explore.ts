@@ -374,6 +374,11 @@ function normalizedStringList(values?: string[] | null) {
   return normalized;
 }
 
+function isHumanSubject(commonName?: string | null, scientificName?: string | null) {
+  return commonName?.trim().toLowerCase() === "human" ||
+    scientificName?.trim().toLowerCase() === "homo sapiens";
+}
+
 function referenceImageSource(urlString: string, index: number, wikipediaUrl?: string | null): ExploreReferenceImage["source"] {
   let host = "";
   try {
@@ -541,6 +546,20 @@ async function fetchExplorePostDetail(
   return detail ? mapExplorePostDetail(detail) : null;
 }
 
+function detailForPostSubject(
+  detail: ExplorePostDetail | null,
+  post: ExplorePost,
+): ExplorePostDetail | null {
+  if (!detail || !isHumanSubject(post.speciesCommonName, post.speciesScientificName)) {
+    return detail;
+  }
+
+  return {
+    ...detail,
+    referenceImages: [],
+  };
+}
+
 export async function fetchExplorePost(
   postId: string,
 ): Promise<ExplorePost | null> {
@@ -632,7 +651,7 @@ export async function fetchExplorePostPage(
     });
   }
 
-  return { post, detail };
+  return { post, detail: detailForPostSubject(detail, post) };
 }
 
 export async function fetchExploreFeedPosts(limit = 16): Promise<ExplorePost[]> {

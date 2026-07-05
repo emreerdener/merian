@@ -7,7 +7,7 @@ The client then uploads the multi-megabyte `Data` payloads natively to the Cloud
 ## Architecture
 
 - **`index.ts`**: The HTTP orchestrator. It safely catches `.json()` parse anomalies, accepts the structured `files` manifest (`fileName`, `mediaKind`, `contentType`, `sizeBytes`), keeps legacy `fileNames` compatibility, and blocks requests that exceed 5 media objects.
-- **`storage.ts`**: Validates media kind/content type/byte budgets before signing, enforces the `Promise.all` key generation mapping, injects the verified `userId` to strictly namespace objects dynamically, and executes regex sanitization against `fileName` to prevent `/../` directory traversal vulnerabilities on Cloudflare's staging bucket.
+- **`storage.ts`**: Validates media kind/content type/byte budgets before signing, enforces the `Promise.all` key generation mapping, injects the verified `userId` to strictly namespace objects dynamically, and executes regex sanitization against `fileName` to prevent `/../` directory traversal vulnerabilities on Cloudflare's staging bucket. Video signing is strict: the client supplies one upload-bounded `video/mp4` playback file per video capture or repair attempt, and downstream identify/share flows fail rather than silently accepting a partial video set.
 
 ## Avatar Uploads
 

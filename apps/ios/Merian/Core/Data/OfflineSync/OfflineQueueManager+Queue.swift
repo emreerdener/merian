@@ -16,11 +16,9 @@ extension OfflineQueueManager {
     /// presented `.sheet` does not reliably respond to those remote notifications. A main-context
     /// `save()` with actual pending changes (this deletion) is the only guaranteed trigger.
     ///
-    /// **Contract**: `BackgroundDatabaseActor.processAndCleanupOfflineScan` intentionally skips
-    /// deleting the `OfflineQueuedScan` from its own context — that work is always delegated here
-    /// so this function always finds and deletes a live record. If `wasCleaned == false` (save
-    /// failed in the background actor), this function is never called, leaving the record in the
-    /// queue for the next retry cycle.
+    /// Legacy cleanup path for callers that only need to remove the queue row. Video-aware
+    /// finalization should use `deleteQueuedScan(scanId:explicitlyAdoptedMediaPaths:)` so
+    /// inference-only frames can be purged without deleting adopted display media.
     ///
     /// When `@Query` re-evaluates after this save it fetches fresh data from the persistent store,
     /// picking up both the deleted `OfflineQueuedScan` and the newly inserted `LocalScanRecord`
@@ -120,7 +118,7 @@ extension OfflineQueueManager {
     /// Explicitly deletes an offline queued scan immediately.
     /// Cancels any in-flight background uploads and purges the item from disk.
     @discardableResult
-    func deleteQueuedScan(scanId: String, explicitlyAdoptedAudioPaths: [String] = []) async -> Bool {
+    func deleteQueuedScan(scanId: String, explicitlyAdoptedMediaPaths: [String] = []) async -> Bool {
         // 1. Cancel in-flight URLSession tasks (both upload chunks and inference download).
         let allTasks = await backgroundSession.allTasks
         for task in allTasks {
@@ -142,38 +140,73 @@ extension OfflineQueueManager {
         }
         guard let scan else { return true }
 
-        let adoptedAudioPaths = Set(explicitlyAdoptedAudioPaths)
+        func pathVariants(_ path: String) -> [String] {
+            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return [] }
+
+            var variants = Set([trimmed])
+            if trimmed.starts(with: "file://"), let url = URL(string: trimmed), url.isFileURL {
+                variants.insert(url.path)
+                variants.insert(url.lastPathComponent)
+            } else if trimmed.hasPrefix("/") {
+                let url = URL(fileURLWithPath: trimmed)
+                variants.insert(url.path)
+                variants.insert(url.lastPathComponent)
+            } else {
+                variants.insert(URL.documentsDirectory.appendingPathComponent(trimmed).path)
+                variants.insert(URL(fileURLWithPath: trimmed).lastPathComponent)
+            }
+            return Array(variants)
+        }
+
+        let adoptedMediaPaths = Set(explicitlyAdoptedMediaPaths.flatMap(pathVariants))
         var pathsToDelete: [String] = []
+
+        func appendDeletionCandidate(_ reference: StoredMediaReference) {
+            guard !reference.isRemote else { return }
+            var referenceVariants = pathVariants(reference.serializedPath)
+            if let resolvedURL = reference.resolvedURL {
+                referenceVariants.append(contentsOf: pathVariants(resolvedURL.path))
+            }
+            let variants = Set(referenceVariants)
+            guard variants.isDisjoint(with: adoptedMediaPaths) else { return }
+
+            if let targetURL = reference.resolvedURL {
+                pathsToDelete.append(targetURL.path)
+            } else {
+                pathsToDelete.append(reference.serializedPath)
+            }
+        }
 
         for item in scan.capturedMediaSnapshot.items {
             switch item {
             case .image(let reference):
-                if let targetURL = reference.resolvedURL, !reference.isRemote {
-                    pathsToDelete.append(targetURL.path)
-                } else {
-                    pathsToDelete.append(reference.serializedPath)
-                }
+                appendDeletionCandidate(reference)
             case .audio(let reference):
-                if !adoptedAudioPaths.contains(reference.serializedPath),
-                   let targetURL = reference.resolvedURL {
-                    pathsToDelete.append(targetURL.path)
-                }
+                appendDeletionCandidate(reference)
             case .video(let reference):
-                if let targetURL = reference.video.resolvedURL, !reference.video.isRemote {
-                    pathsToDelete.append(targetURL.path)
-                } else {
-                    pathsToDelete.append(reference.serializedPath)
+                appendDeletionCandidate(reference.video)
+                if let thumbnail = reference.thumbnail {
+                    appendDeletionCandidate(thumbnail)
+                }
+                if let audio = reference.audio {
+                    appendDeletionCandidate(audio)
                 }
             case .description:
                 break
             }
         }
 
+        for inferenceImagePath in scan.inferenceImagePaths ?? [] {
+            appendDeletionCandidate(.documents(inferenceImagePath))
+        }
+
         context.delete(scan)
         do {
             try context.save()
-            await FileIOActor.shared.deleteFiles(at: pathsToDelete)
+            await FileIOActor.shared.deleteFiles(at: Array(Set(pathsToDelete)))
             updateUnsyncedItemCount()
+            ScanLibraryEvents.postLibraryDidUpdate()
             return true
         } catch {
             context.rollback()
@@ -419,7 +452,9 @@ extension OfflineQueueManager {
                         r2Keys: reconstructedKeys,
                         container: extracted.container,
                         originalTimestamp: extracted.originalTimestamp,
-                        capturedMediaItems: extracted.capturedMediaItems
+                        capturedMediaItems: extracted.capturedMediaItems,
+                        inferenceImagePaths: extracted.inferenceImagePaths,
+                        visualMediaItemsJSON: extracted.visualMediaItemsJSON
                     )
                 } else {
                     finalExtracted = extracted
@@ -442,7 +477,8 @@ extension OfflineQueueManager {
     /// On any failure — disk write or context save — partial image files are cleaned up atomically.
     ///
     /// - Parameters:
-    ///   - imageDatas: Array of raw image data blobs pending staging constraints.
+    ///   - imageDatas: Inference image data blobs pending staging constraints.
+    ///   - displayImageDatas: Optional display timeline images for `captured_media`.
     ///   - telemetry: Core hardware and positional telemetry structured context payloads.
     ///   - blurScore: CoreML generated variance logic scoring to gate upload priority.
     ///   - scanId: A caller-supplied identifier that ties this queued record to a
@@ -451,6 +487,7 @@ extension OfflineQueueManager {
     ///   generated (used by callers that do not run a parallel live inference).
     func enqueueCapture(
         imageDatas: [Data],
+        displayImageDatas: [Data]? = nil,
         audioFilePaths: [String] = [],
         videoFilePaths: [String] = [],
         telemetry: CaptureTelemetry,
@@ -458,16 +495,18 @@ extension OfflineQueueManager {
         scanId: String? = nil,
         observationContexts: [ObservationContext] = [],
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
+        visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         captureDate: Date = Date(),
         onQueued: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
         let resolvedScanId = scanId ?? UUID().uuidString
         let documentsDirectory = URL.documentsDirectory
+        let resolvedDisplayImageDatas = displayImageDatas ?? imageDatas
         MerianLog.data.debug(
-            "enqueueCapture: requested scanId=\(resolvedScanId, privacy: .public) images=\(imageDatas.count, privacy: .public) bytes=\(imageDatas.reduce(0) { $0 + $1.count }, privacy: .public)"
+            "enqueueCapture: requested scanId=\(resolvedScanId, privacy: .public) inferenceImages=\(imageDatas.count, privacy: .public) displayImages=\(resolvedDisplayImageDatas.count, privacy: .public) bytes=\(imageDatas.reduce(0) { $0 + $1.count }, privacy: .public)"
         )
         let timeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
-            imageCount: imageDatas.count,
+            imageCount: resolvedDisplayImageDatas.count,
             observationContexts: observationContexts,
             audioFilePaths: audioFilePaths,
             videoFilePaths: videoFilePaths
@@ -482,9 +521,10 @@ extension OfflineQueueManager {
             }
             var fileURLs: [URL] = []
             do {
-                let fileNames = await FileIOActor.shared.writeTemporaryImages(imageDatas: imageDatas)
-                guard fileNames.count == imageDatas.count else {
-                    await FileIOActor.shared.deleteImages(at: fileNames)
+                let inferenceFileNames = await FileIOActor.shared.writeTemporaryImages(imageDatas: imageDatas)
+                fileURLs.append(contentsOf: inferenceFileNames.map { documentsDirectory.appendingPathComponent($0) })
+                guard inferenceFileNames.count == imageDatas.count else {
+                    await self.cleanupPersistedCaptureFiles(fileURLs)
                     MerianLog.data.error("enqueueCapture: failed to persist the full staged image set — scan will not be queued.")
                     if let onQueued {
                         await MainActor.run { onQueued(false) }
@@ -492,29 +532,57 @@ extension OfflineQueueManager {
                     return
                 }
 
-                fileURLs = fileNames.map { documentsDirectory.appendingPathComponent($0) }
+                let displayFileNames: [String]
+                if displayImageDatas == nil {
+                    displayFileNames = inferenceFileNames
+                } else {
+                    let persistedDisplayNames = await FileIOActor.shared.writeTemporaryImages(imageDatas: resolvedDisplayImageDatas)
+                    fileURLs.append(contentsOf: persistedDisplayNames.map { documentsDirectory.appendingPathComponent($0) })
+                    guard persistedDisplayNames.count == resolvedDisplayImageDatas.count else {
+                        await self.cleanupPersistedCaptureFiles(fileURLs)
+                        MerianLog.data.error("enqueueCapture: failed to persist the full display media set — scan will not be queued.")
+                        if let onQueued {
+                            await MainActor.run { onQueued(false) }
+                        }
+                        return
+                    }
+                    displayFileNames = persistedDisplayNames
+                }
+
                 MerianLog.data.debug(
-                    "enqueueCapture: persisted temp files scanId=\(resolvedScanId, privacy: .public) files=\(fileNames.joined(separator: ","), privacy: .public)"
+                    "enqueueCapture: persisted temp files scanId=\(resolvedScanId, privacy: .public) inferenceFiles=\(inferenceFileNames.joined(separator: ","), privacy: .public) displayFiles=\(displayFileNames.joined(separator: ","), privacy: .public)"
                 )
                 let persistedAudioNamesBySourcePath = try self.persistQueuedAudioFiles(
                     audioFilePaths,
                     documentsDirectory: documentsDirectory
                 )
+                fileURLs.append(contentsOf: persistedAudioNamesBySourcePath.values.map { documentsDirectory.appendingPathComponent($0) })
                 let persistedVideoNamesBySourcePath = try self.persistQueuedVideoFiles(
                     videoFilePaths,
                     documentsDirectory: documentsDirectory
                 )
+                fileURLs.append(contentsOf: persistedVideoNamesBySourcePath.values.map { documentsDirectory.appendingPathComponent($0) })
                 let capturedMediaJSON = self.makeCapturedMediaJSON(
                     mediaTimeline: timeline,
-                    imageFileNames: fileNames,
+                    imageFileNames: displayFileNames,
                     persistedAudioNamesBySourcePath: persistedAudioNamesBySourcePath,
                     persistedVideoNamesBySourcePath: persistedVideoNamesBySourcePath
                 )
+                let visualMediaItemsJSON: String?
+                if let visualMediaItems,
+                   visualMediaItems.count == inferenceFileNames.count,
+                   let encoded = try? JSONEncoder().encode(visualMediaItems) {
+                    visualMediaItemsJSON = String(data: encoded, encoding: .utf8)
+                } else {
+                    visualMediaItemsJSON = nil
+                }
 
                 let didQueue = await self.insertAndPersistRecord(
                     scanId: resolvedScanId,
                     fileURLs: fileURLs,
                     capturedMediaJSON: capturedMediaJSON,
+                    inferenceImagePaths: inferenceFileNames,
+                    visualMediaItemsJSON: visualMediaItemsJSON,
                     telemetry: telemetry,
                     blurScore: blurScore,
                     timestamp: captureDate
@@ -715,11 +783,18 @@ extension OfflineQueueManager {
         guard !audioFilePaths.isEmpty else { return [:] }
 
         var persistedAudioNamesBySourcePath: [String: String] = [:]
-        for audioFilePath in audioFilePaths {
-            persistedAudioNamesBySourcePath[audioFilePath] = try persistQueuedAudioFile(
-                audioFilePath,
-                documentsDirectory: documentsDirectory
-            )
+        do {
+            for audioFilePath in audioFilePaths {
+                persistedAudioNamesBySourcePath[audioFilePath] = try persistQueuedAudioFile(
+                    audioFilePath,
+                    documentsDirectory: documentsDirectory
+                )
+            }
+        } catch {
+            for persistedAudioName in persistedAudioNamesBySourcePath.values {
+                try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(persistedAudioName))
+            }
+            throw error
         }
         return persistedAudioNamesBySourcePath
     }
@@ -731,11 +806,18 @@ extension OfflineQueueManager {
         guard !videoFilePaths.isEmpty else { return [:] }
 
         var persistedVideoNamesBySourcePath: [String: String] = [:]
-        for videoFilePath in videoFilePaths {
-            persistedVideoNamesBySourcePath[videoFilePath] = try persistQueuedAudioFile(
-                videoFilePath,
-                documentsDirectory: documentsDirectory
-            )
+        do {
+            for videoFilePath in videoFilePaths {
+                persistedVideoNamesBySourcePath[videoFilePath] = try persistQueuedAudioFile(
+                    videoFilePath,
+                    documentsDirectory: documentsDirectory
+                )
+            }
+        } catch {
+            for persistedVideoName in persistedVideoNamesBySourcePath.values {
+                try? FileManager.default.removeItem(at: documentsDirectory.appendingPathComponent(persistedVideoName))
+            }
+            throw error
         }
         return persistedVideoNamesBySourcePath
     }
@@ -830,6 +912,8 @@ extension OfflineQueueManager {
         scanId: String,
         fileURLs: [URL],
         capturedMediaJSON: String?,
+        inferenceImagePaths: [String],
+        visualMediaItemsJSON: String?,
         telemetry: CaptureTelemetry,
         blurScore: Double?,
         timestamp: Date
@@ -874,7 +958,9 @@ extension OfflineQueueManager {
             relativeHumidity: nil,
             uvIndex: nil,
             zoomFactor: telemetry.zoomFactor.map { Double($0) },
-            scanState: .pending
+            scanState: .pending,
+            inferenceImagePaths: inferenceImagePaths.isEmpty ? nil : inferenceImagePaths,
+            visualMediaItemsJSON: visualMediaItemsJSON
         )
         if let capturedMediaJSON,
            let items = MediaJSONParser.serializedItems(jsonString: capturedMediaJSON) {

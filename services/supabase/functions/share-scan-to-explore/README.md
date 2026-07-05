@@ -13,6 +13,7 @@ separately from the backing scan's `geoprivacy`.
   "species_common_name": "Black-Tailed Deer",
   "hashtags": ["deer", "urbanwildlife"],
   "location_sharing": "obscured",
+  "restored_video_object_keys": ["staging/user-id/restored-video.mp4"],
   "media_items": [
     { "kind": "image", "source_media_id": "scan:uuid:image:0", "order_index": 0 },
     {
@@ -41,6 +42,13 @@ For video scans with `scans.captured_media`, `source_media_id` resolves through
 the same manifest-aware source list shown by the composer. This keeps the
 playback `.mp4` and poster thumbnail paired even when sampled inference frames
 also exist in legacy image URL arrays.
+
+`restored_video_object_keys` is optional and only used by repair-capable clients.
+If the owner still has the original local `.mp4` but the cloud scan row is
+missing `video_storage_urls`, the client uploads that clip to staging and sends
+the returned keys here. The function promotes the videos, rebuilds
+`captured_media`, and validates the selected video media again before publishing.
+Rows whose original local video is gone remain image-only historical rows.
 
 Valid location values:
 
@@ -76,6 +84,9 @@ Legacy `hidden` input is accepted as `private`.
 - Media selections are validated before the post is reported as shared. Public
   feed/share-state visibility requires at least one saved `explore_post_media`
   row, so a failed media snapshot cannot leave a phantom visible Explore post.
+- Restored video keys are promoted before the public media snapshot is written.
+  If promotion fails or selected video media still cannot be resolved, the
+  request fails cleanly instead of publishing sampled frames as a video.
 - Describe/observation context is private scan context. It is never copied into
   `field_notes`, hashtags, captions, media metadata, or the public media
   snapshot unless the user manually writes that text into the composer.
