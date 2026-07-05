@@ -82,6 +82,12 @@ jobs:
             supabase/functions/insight-chat/guards_test.ts \
             supabase/functions/insight-chat/prompt_test.ts
 
+      - name: Validate Supabase migration contracts
+        run: |
+          deno test --config supabase/functions/deno.json \
+            --allow-read=supabase/migrations \
+            supabase/functions/_tests/migrationMediaContract.test.ts
+
       - name: Link Project to CLI
         run: supabase link --project-ref $PROJECT_ID
 

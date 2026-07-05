@@ -17,10 +17,12 @@ The workflow performs the following steps:
 3. Fails fast if required deployment secrets are missing.
 4. Validates Edge Function formatting, lint, type checks, and focused shared
    helper tests.
-5. Links the Supabase project.
-6. Pushes database migrations.
-7. Deploys all Edge Function directories with `supabase functions deploy`.
-8. Smoke-tests the Community Taxonomy status endpoint and a dry-run bounded GBIF
+5. Validates static Supabase migration contracts, including media-schema drift
+   repair required before production `db push`.
+6. Links the Supabase project.
+7. Pushes database migrations.
+8. Deploys all Edge Function directories with `supabase functions deploy`.
+9. Smoke-tests the Community Taxonomy status endpoint and a dry-run bounded GBIF
    import with the production service-role credential.
 
 Actual GBIF taxonomy imports are intentionally separated into
@@ -153,6 +155,7 @@ deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/insight-chat/guards_test.ts \
   services/supabase/functions/insight-chat/prompt_test.ts
 
+make validate-supabase-migrations
 make db-push
 make functions-deploy
 ```

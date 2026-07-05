@@ -36,6 +36,19 @@ Run Deno tests:
 deno test --config deno.json --allow-env --allow-net _tests/
 ```
 
+### Testing Database Migrations
+
+Media durability migrations have an additional static contract test that runs
+without a local Postgres instance. It checks the normalized scan-media lifecycle
+schema, the scan-ingestion job ledger, and the drift-repair SQL that must run
+before media reconciliation indexes are created.
+
+From the repo root:
+
+```bash
+make validate-supabase-migrations
+```
+
 ## Local Development
 
 From the repo root, point the Supabase CLI at the backend service directory:
