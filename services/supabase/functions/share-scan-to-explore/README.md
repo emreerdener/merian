@@ -39,7 +39,7 @@ Audio, Describe content, AI/reference images, and Dictionary media are not valid
 Explore post media.
 
 For video scans, `source_media_id` resolves through the same source list shown
-by the composer: normalized `scan_media_assets` first, then
+by the composer: ready display/playback rows in `scan_media_assets` first, then
 `scans.captured_media`, then legacy URL arrays. This keeps the playback `.mp4`
 and poster thumbnail paired even when sampled inference frames also exist in
 legacy image URL arrays.

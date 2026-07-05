@@ -15,7 +15,7 @@
         {
           "title": "Improved",
           "items": [
-            "Cloud video scans now keep a more durable media record for future sharing and playback recovery."
+            "Cloud video scans now keep ready-state media records for future sharing and playback recovery."
           ]
         }
       ]

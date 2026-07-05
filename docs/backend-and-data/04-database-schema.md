@@ -732,9 +732,9 @@ The transaction log for every successful identification.
   `SerializedMediaItem` shape. Video entries attach the playback clip and poster
   thumbnail together so sampled inference frames do not hydrate as standalone
   Insight carousel images. Video rows should be present whenever
-  `video_storage_urls` is present. The `scan_media_assets` projection is rebuilt
-  from this manifest when present and falls back to legacy media arrays for older
-  rows.
+  `video_storage_urls` is present. Ready display/playback rows in
+  `scan_media_assets` are refreshed from this manifest when present and fall
+  back to legacy media arrays for older rows.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` for
@@ -1042,32 +1042,51 @@ post rows left by failed media writes are hidden until sharing succeeds.
 
 ### `scan_media_assets`
 
-Normalized user-visible scan media assets. Added in migration
+Normalized scan media lifecycle assets. Added in migration
 `20260705100000_add_scan_media_assets.sql`.
 
 - `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE): The owning scan.
 - `user_id` (UUID FK -> `users.id`, CASCADE DELETE): Denormalized owner for
   RLS and efficient owner-scoped media reads.
 - `kind` (TEXT): `image` or `video`.
-- `url` (TEXT): Public CDN URL for the user-visible image or playback video.
+- `role` (TEXT): Lifecycle role. Current user-visible rows use `display` for
+  still images and `playback` for playable video clips; reserved roles include
+  `thumbnail` and `inference_frame`.
+- `status` (TEXT): Lifecycle state: `staged`, `promoted`, `processing`,
+  `ready`, `failed`, or `deleted`. Explore/composer/status readers only surface
+  `ready` rows whose role is `display` or `playback`.
+- `source` (TEXT): Writer that created the row, such as `scan_refresh`,
+  `capture_upload`, `repair`, `backfill`, or `manual`.
+- `url` (TEXT, nullable): Current public CDN URL. Required for ready
+  display/playback rows; staged and failed rows may only have `storage_key` or
+  diagnostics.
+- `storage_key` (TEXT, nullable): Durable storage object key when known.
+  Legacy/backfilled rows may only have a public URL.
 - `thumbnail_url` (TEXT, nullable): Public image thumbnail for compact previews
   and video poster frames.
 - `order_index` (INT): Stable media order within the scan's captured-media
-  timeline.
+  timeline for ready display/playback rows.
 - `duration_seconds` (DOUBLE PRECISION, nullable): Reserved for video playback
   metadata.
 - `has_audio` (BOOLEAN): Whether the playback video may contain an audio track.
-- `metadata` (JSONB): Reserved structured metadata for dimensions, codec,
-  checksum, and future processing status.
-- `created_at` / `updated_at` (TIMESTAMPTZ): Projection lifecycle timestamps.
+- `content_type`, `byte_size`, `checksum_sha256`, `width`, `height`
+  (nullable): Optional durability, integrity, and presentation metadata.
+- `failure_reason`, `ready_at`, `deleted_at` (nullable): Lifecycle diagnostics
+  for failed, ready, and deleted assets.
+- `metadata` (JSONB): Reserved structured metadata for codecs, processing
+  details, repair context, and future media-specific fields.
+- `created_at` / `updated_at` (TIMESTAMPTZ): Asset lifecycle timestamps.
 
-`public.refresh_scan_media_assets(scan_id)` rebuilds the projection from
-`scans.captured_media` first. If the manifest is absent, it falls back to
-`image_storage_urls` / `video_storage_urls` and collapses legacy sampled video
-frames behind a single video asset. A trigger keeps the table synchronized after
-scan media inserts, updates, and deletes; Edge write paths also make best-effort
-refresh RPC calls after critical scan inserts and video-repair updates, but
-existing manifest/array fallbacks remain available if projection refresh fails.
+`public.refresh_scan_media_assets(scan_id)` rebuilds generated
+`scan_refresh`/`backfill` rows from `scans.captured_media` first. If the manifest
+is absent, it falls back to `image_storage_urls` / `video_storage_urls` and
+collapses legacy sampled video frames behind a single ready playback video
+asset. A trigger keeps generated rows synchronized after scan media inserts,
+updates, and deletes; Edge write paths also make best-effort refresh RPC calls
+after critical scan inserts and video-repair updates, but existing
+manifest/array fallbacks remain available if refresh fails. RLS lets owners read
+their lifecycle rows; public open-scan reads are limited to ready
+display/playback rows so staged/failed diagnostics stay private.
 
 ### `explore_post_media`
 
@@ -1090,9 +1109,10 @@ migration `20260703130000_add_explore_post_media.sql`.
 `public.explore_post_media_items(post_id)` returns ordered media JSON for feed,
 detail, author, hashtag, map, and Community ID read paths. Map, widget, profile
 grid, and compact surfaces should keep using `hero_image_url` thumbnails plus a
-play indicator when any returned media item is video. For scans with
-`scan_media_assets` first, then `captured_media`, and finally legacy URL arrays
-so playback video URLs and poster thumbnails remain paired.
+play indicator when any returned media item is video. Scan media source
+resolution prefers ready display/playback `scan_media_assets` rows, then
+`captured_media`, and finally legacy URL arrays so playback video URLs and
+poster thumbnails remain paired.
 
 ### `explore_post_hashtags`
 

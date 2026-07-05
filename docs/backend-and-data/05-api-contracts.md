@@ -652,10 +652,11 @@ moderated through five sampled frames, then the staged upload-bounded playback
 inserts also write `scans.captured_media`, a canonical ordered media timeline
 that attaches video playback URLs and poster thumbnails together; this prevents
 sampled video inference frames from hydrating as standalone Insight carousel
-images. The scan-media asset projection is refreshed by the database trigger
-plus a best-effort Edge refresh call, so server-side composer/status reads can
-prefer normalized user-visible media rows before falling back to compatibility
-arrays. Any image promotion failure aborts the entire batch and immediately rolls
+images. Ready display/playback scan-media asset rows are refreshed by the
+database trigger plus a best-effort Edge refresh call, so server-side
+composer/status reads can prefer lifecycle media rows before falling back to
+compatibility arrays. Any image promotion failure aborts the entire batch and
+immediately rolls
 back any already-promoted public objects from that same batch before returning
 `ERROR`; scans are not inserted with partial image arrays. Video promotion failure
 is also a durability failure for video captures: the edge cleans up promoted
@@ -1943,7 +1944,8 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   playback `.mp4` and the cloud row is missing durable video media, clients may
   provide `restored_video_object_keys`; the function promotes those videos into
   `video_storage_urls`, rebuilds `captured_media`, makes a best-effort
-  `scan_media_assets` refresh, and then writes the public Explore snapshot.
+  `scan_media_assets` refresh for ready playback rows, and then writes the
+  public Explore snapshot.
 - Sharing snapshots image and video URLs into `explore_post_media`, ordered for
   the public carousel. `hero_image_url` remains the required thumbnail and
   backward-compatible image field; video media without an image thumbnail is
@@ -1955,10 +1957,11 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   Describe/observation context, AI/reference images, and Dictionary media are
   rejected or ignored before the public post snapshot is written.
 - `source_media_id` values are resolved through the same media source list
-  returned to the composer: `scan_media_assets` first, `captured_media` second,
-  and legacy image/video URL arrays last. This keeps video playback URLs and
-  poster thumbnails paired even when sampled inference frames remain in
-  compatibility image URL arrays. Share-state visibility
+  returned to the composer: ready display/playback `scan_media_assets` rows
+  first, `captured_media` second, and legacy image/video URL arrays last. This
+  keeps video playback URLs and poster thumbnails paired even when sampled
+  inference frames remain in compatibility image URL arrays. Share-state
+  visibility
   requires a saved `explore_post_media` row, preventing failed media writes from
   appearing as existing Explore posts. When a selected video source is missing
   from the cloud row, the endpoint returns a clean validation error so the iOS
@@ -2763,10 +2766,10 @@ ordered compositions of images, audio, and descriptive context.
   still photos as image items but collapses ordered `video_frame` samples into a
   single video media item with a thumbnail reference, preserving playback-first
   Insight hydration for biological and non-biological video scans. The
-  `scan_media_assets` projection is refreshed from the same manifest by the
-  database trigger plus a best-effort Edge refresh call, so server-side composer
-  and status checks no longer need to infer video assets directly from sampled
-  frame arrays.
+  ready display/playback `scan_media_assets` rows are refreshed from the same
+  manifest by the database trigger plus a best-effort Edge refresh call, so
+  server-side composer and status checks no longer need to infer video assets
+  directly from sampled frame arrays.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use
@@ -3424,8 +3427,8 @@ committed.
 `required_video_count` is optional. Omit it for legacy/image status probes. When
 present and greater than zero, the endpoint returns `"found"` only if the scan
 row exists for the authenticated user and has at least that many public
-`video_storage_urls` plus matching video entries in `scan_media_assets` or
-`captured_media`.
+`video_storage_urls` plus matching ready playback entries in `scan_media_assets`
+or video entries in `captured_media`.
 
 ### Response Payload
 

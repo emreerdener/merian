@@ -606,9 +606,9 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    promotion shortfall fails the video scan instead of inserting a frame-only
    row. Successful video inserts write both `video_storage_urls` and a
    `captured_media` video item before the client treats the scan as complete.
-   The `scan_media_assets` projection is refreshed by the database trigger plus
-   a best-effort Edge refresh call, so newer media readers can use one
-   normalized image/video source instead of inferring user-visible media from
+   The `scan_media_assets` lifecycle table is refreshed by the database trigger
+   plus a best-effort Edge refresh call, so newer media readers can use ready
+   display/playback rows instead of inferring user-visible media from
    compatibility arrays.
 
 ## The Explore Social Surface

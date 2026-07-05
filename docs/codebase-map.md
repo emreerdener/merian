@@ -251,7 +251,7 @@ and perform identity checks inside shared handler code.
 
 | Surface | Current files | Responsibility |
 |---|---|---|
-| Scan media assets | `services/supabase/migrations/20260705100000_add_scan_media_assets.sql`, `services/supabase/functions/_shared/scanMediaAssets.ts` | Normalized user-visible scan media projection. `captured_media` remains the canonical manifest on `scans`; `scan_media_assets` is rebuilt from it, falls back to legacy image/video arrays for older rows, and lets composer/status reads avoid treating sampled video frames as standalone user media. |
+| Scan media assets | `services/supabase/migrations/20260705100000_add_scan_media_assets.sql`, `services/supabase/functions/_shared/scanMediaAssets.ts` | Normalized scan media lifecycle table. `captured_media` remains the canonical scan manifest for generated rows; readers prefer ready display/playback assets, fall back to the manifest and legacy image/video arrays for older rows, and avoid treating sampled video frames as standalone user media. |
 | Explore post media | `services/supabase/migrations/20260703130000_add_explore_post_media.sql`, `services/supabase/functions/_shared/explorePostMedia.ts` | Post-owned public media snapshot used by Explore feed/detail, Community ID, map/profile/widget previews, and public web read paths. |
 
 ## Test Inventory

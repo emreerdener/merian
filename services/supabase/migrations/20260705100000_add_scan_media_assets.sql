@@ -1,39 +1,73 @@
--- Normalize scan media into a first-class projection table.
+-- Normalize scan media into a first-class lifecycle table.
 --
 -- The legacy scan columns remain compatibility/indexing surfaces:
 --   - image_storage_urls
 --   - video_storage_urls
 --   - captured_media
 --
--- scan_media_assets is the durable server-side projection used by newer media
--- readers. It stores only user-visible scan media, so sampled video inference
--- frames are collapsed behind one video asset with a poster thumbnail.
+-- scan_media_assets is the durable server-side media lifecycle surface used by
+-- newer media readers. The initial backfill stores ready user-visible scan
+-- media, so sampled video inference frames are collapsed behind one playback
+-- video asset with a poster thumbnail.
 
 CREATE TABLE IF NOT EXISTS public.scan_media_assets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     scan_id UUID NOT NULL REFERENCES public.scans(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     kind TEXT NOT NULL CHECK (kind IN ('image', 'video')),
-    url TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'display' CHECK (
+        role IN ('display', 'playback', 'thumbnail', 'inference_frame', 'audio')
+    ),
+    status TEXT NOT NULL DEFAULT 'ready' CHECK (
+        status IN ('staged', 'promoted', 'processing', 'ready', 'failed', 'deleted')
+    ),
+    source TEXT NOT NULL DEFAULT 'scan_refresh' CHECK (
+        source IN ('scan_refresh', 'capture_upload', 'repair', 'backfill', 'manual')
+    ),
+    url TEXT,
+    storage_key TEXT,
     thumbnail_url TEXT,
     order_index INTEGER NOT NULL CHECK (order_index >= 0),
     duration_seconds DOUBLE PRECISION,
     has_audio BOOLEAN NOT NULL DEFAULT FALSE,
+    content_type TEXT,
+    byte_size BIGINT CHECK (byte_size IS NULL OR byte_size >= 0),
+    checksum_sha256 TEXT CHECK (
+        checksum_sha256 IS NULL OR checksum_sha256 ~ '^[A-Fa-f0-9]{64}$'
+    ),
+    width INTEGER CHECK (width IS NULL OR width > 0),
+    height INTEGER CHECK (height IS NULL OR height > 0),
+    failure_reason TEXT,
+    ready_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ,
     metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (scan_id, order_index)
+    CONSTRAINT scan_media_assets_ready_visible_url CHECK (
+        status <> 'ready'
+        OR role NOT IN ('display', 'playback')
+        OR COALESCE(NULLIF(BTRIM(url), '') IS NOT NULL, FALSE)
+    ),
+    UNIQUE (scan_id, source, role, order_index)
 );
 
 CREATE INDEX IF NOT EXISTS idx_scan_media_assets_scan_order
     ON public.scan_media_assets(scan_id, order_index);
+
+CREATE INDEX IF NOT EXISTS idx_scan_media_assets_scan_ready_order
+    ON public.scan_media_assets(scan_id, order_index)
+    WHERE status = 'ready' AND role IN ('display', 'playback');
 
 CREATE INDEX IF NOT EXISTS idx_scan_media_assets_user_scan
     ON public.scan_media_assets(user_id, scan_id);
 
 CREATE INDEX IF NOT EXISTS idx_scan_media_assets_video_scan
     ON public.scan_media_assets(scan_id)
-    WHERE kind = 'video';
+    WHERE kind = 'video' AND status = 'ready' AND role = 'playback';
+
+CREATE INDEX IF NOT EXISTS idx_scan_media_assets_unready_scan
+    ON public.scan_media_assets(scan_id, status, role)
+    WHERE status <> 'ready';
 
 ALTER TABLE public.scan_media_assets ENABLE ROW LEVEL SECURITY;
 
@@ -48,6 +82,9 @@ CREATE POLICY "Anyone can read open live scan media assets"
     ON public.scan_media_assets
     FOR SELECT
     USING (
+        status = 'ready'
+        AND role IN ('display', 'playback')
+        AND
         EXISTS (
             SELECT 1
             FROM public.scans s
@@ -59,16 +96,28 @@ CREATE POLICY "Anyone can read open live scan media assets"
     );
 
 COMMENT ON TABLE public.scan_media_assets IS
-  'Normalized user-visible media assets for scans. Video scans collapse sampled inference frames into one playback video asset with a poster thumbnail.';
+  'Normalized scan media lifecycle assets. Readers show ready display/playback rows; video scans collapse sampled inference frames into one playback video asset with a poster thumbnail.';
+
+COMMENT ON COLUMN public.scan_media_assets.role IS
+  'Media lifecycle role. Explore and composer readers show ready display images and ready playback videos.';
+
+COMMENT ON COLUMN public.scan_media_assets.status IS
+  'Lifecycle state for the asset. Only ready display/playback rows are user-visible.';
+
+COMMENT ON COLUMN public.scan_media_assets.source IS
+  'Writer that created the asset row, such as scan_refresh, capture_upload, repair, backfill, or manual.';
 
 COMMENT ON COLUMN public.scan_media_assets.url IS
-  'Public media URL for the user-visible image or playback video asset.';
+  'Current public media URL. Required for ready display/playback assets; staged and failed rows may only have storage_key or diagnostics.';
+
+COMMENT ON COLUMN public.scan_media_assets.storage_key IS
+  'Durable storage object key when known; legacy/backfilled rows may only have a public URL.';
 
 COMMENT ON COLUMN public.scan_media_assets.thumbnail_url IS
   'Image URL used for compact previews and video poster frames.';
 
 COMMENT ON COLUMN public.scan_media_assets.metadata IS
-  'Reserved structured metadata for future dimensions, codecs, checksums, and processing status.';
+  'Reserved structured metadata for codecs, processing details, repair context, and future media-specific fields.';
 
 CREATE OR REPLACE FUNCTION public.scan_media_reference_path(reference JSONB)
 RETURNS TEXT
@@ -123,7 +172,8 @@ BEGIN
     END IF;
 
     DELETE FROM public.scan_media_assets
-    WHERE scan_id = target_scan_id;
+    WHERE scan_id = target_scan_id
+      AND source IN ('scan_refresh', 'backfill');
 
     IF JSONB_TYPEOF(scan_row.captured_media) = 'array'
        AND JSONB_ARRAY_LENGTH(scan_row.captured_media) > 0 THEN
@@ -137,19 +187,33 @@ BEGIN
                     scan_id,
                     user_id,
                     kind,
+                    role,
+                    status,
+                    source,
                     url,
+                    storage_key,
                     thumbnail_url,
                     order_index,
-                    has_audio
+                    has_audio,
+                    content_type,
+                    ready_at,
+                    metadata
                 )
                 VALUES (
                     scan_row.id,
                     scan_row.user_id,
                     'image',
+                    'display',
+                    'ready',
+                    'scan_refresh',
                     image_url,
+                    NULL,
                     image_url,
                     order_idx,
-                    FALSE
+                    FALSE,
+                    'image/webp',
+                    NOW(),
+                    JSONB_BUILD_OBJECT('manifest_source', 'captured_media')
                 );
                 order_idx := order_idx + 1;
                 CONTINUE;
@@ -162,19 +226,33 @@ BEGIN
                     scan_id,
                     user_id,
                     kind,
+                    role,
+                    status,
+                    source,
                     url,
+                    storage_key,
                     thumbnail_url,
                     order_index,
-                    has_audio
+                    has_audio,
+                    content_type,
+                    ready_at,
+                    metadata
                 )
                 VALUES (
                     scan_row.id,
                     scan_row.user_id,
                     'video',
+                    'playback',
+                    'ready',
+                    'scan_refresh',
                     video_url,
+                    NULL,
                     thumbnail_url,
                     order_idx,
-                    TRUE
+                    TRUE,
+                    'video/mp4',
+                    NOW(),
+                    JSONB_BUILD_OBJECT('manifest_source', 'captured_media')
                 );
                 order_idx := order_idx + 1;
             END IF;
@@ -217,19 +295,33 @@ BEGIN
                 scan_id,
                 user_id,
                 kind,
+                role,
+                status,
+                source,
                 url,
+                storage_key,
                 thumbnail_url,
                 order_index,
-                has_audio
+                has_audio,
+                content_type,
+                ready_at,
+                metadata
             )
             VALUES (
                 scan_row.id,
                 scan_row.user_id,
                 'image',
+                'display',
+                'ready',
+                'scan_refresh',
                 image_urls[i],
+                NULL,
                 image_urls[i],
                 order_idx,
-                FALSE
+                FALSE,
+                'image/webp',
+                NOW(),
+                JSONB_BUILD_OBJECT('manifest_source', 'legacy_arrays')
             );
             order_idx := order_idx + 1;
         END LOOP;
@@ -245,19 +337,33 @@ BEGIN
                 scan_id,
                 user_id,
                 kind,
+                role,
+                status,
+                source,
                 url,
+                storage_key,
                 thumbnail_url,
                 order_index,
-                has_audio
+                has_audio,
+                content_type,
+                ready_at,
+                metadata
             )
             VALUES (
                 scan_row.id,
                 scan_row.user_id,
                 'video',
+                'playback',
+                'ready',
+                'scan_refresh',
                 video_urls[i],
+                NULL,
                 thumbnail_url,
                 order_idx,
-                TRUE
+                TRUE,
+                'video/mp4',
+                NOW(),
+                JSONB_BUILD_OBJECT('manifest_source', 'legacy_arrays')
             );
             order_idx := order_idx + 1;
         END LOOP;
@@ -303,7 +409,7 @@ BEGIN
         BEGIN
             PERFORM public.refresh_scan_media_assets(scan_row.id);
         EXCEPTION WHEN OTHERS THEN
-            RAISE NOTICE 'Skipping scan media asset projection for scan %: %', scan_row.id, SQLERRM;
+            RAISE NOTICE 'Skipping scan media asset refresh for scan %: %', scan_row.id, SQLERRM;
         END;
     END LOOP;
 END;

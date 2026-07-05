@@ -61,9 +61,10 @@ or:
 - Video rows include their playable public `.mp4` URL plus the required public
   poster image URL. The poster is selection metadata for the video row, not a
   separate image item unless the scan also contains that image as user media.
-- The response prefers normalized `scan_media_assets`, then falls back to
-  `scans.captured_media`, then legacy image/video URL arrays. This keeps video
-  clips and poster thumbnails paired while allowing old rows to keep working.
+- The response prefers ready display/playback rows in `scan_media_assets`, then
+  falls back to `scans.captured_media`, then legacy image/video URL arrays. This
+  keeps video clips and poster thumbnails paired while allowing old rows to keep
+  working.
   `/share-scan-to-explore` resolves submitted `source_media_id` values through
   this same source list.
 - The iOS composer should prefer this endpoint for cloud-backed scans before

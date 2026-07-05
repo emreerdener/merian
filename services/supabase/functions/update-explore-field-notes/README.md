@@ -46,10 +46,10 @@ the post's existing public image/video rows by URL. Arbitrary URLs are not
 accepted, and videos must resolve to an image-backed thumbnail.
 
 For video scans, `source_media_id` is resolved through the same source list used
-by `share-scan-to-explore` and `get-explore-composer-media`: normalized
-`scan_media_assets` first, then `scans.captured_media`, then legacy URL arrays.
-That keeps the playback `.mp4` paired with its poster thumbnail instead of
-relying on sampled frame indexes.
+by `share-scan-to-explore` and `get-explore-composer-media`: ready
+display/playback rows in `scan_media_assets` first, then `scans.captured_media`,
+then legacy URL arrays. That keeps the playback `.mp4` paired with its poster
+thumbnail instead of relying on sampled frame indexes.
 
 ## Response
 

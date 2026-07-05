@@ -1,22 +1,67 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 export type ScanMediaAssetKind = "image" | "video";
+export type ScanMediaAssetRole =
+  | "display"
+  | "playback"
+  | "thumbnail"
+  | "inference_frame"
+  | "audio";
+export type ScanMediaAssetStatus =
+  | "staged"
+  | "promoted"
+  | "processing"
+  | "ready"
+  | "failed"
+  | "deleted";
 
 export interface ScanMediaAssetRow {
   kind: ScanMediaAssetKind;
-  url: string;
+  role?: ScanMediaAssetRole | null;
+  status?: ScanMediaAssetStatus | null;
+  source?: string | null;
+  url?: string | null;
+  storage_key?: string | null;
   thumbnail_url?: string | null;
   order_index: number;
   duration_seconds?: number | null;
   has_audio?: boolean | null;
+  content_type?: string | null;
+  byte_size?: number | null;
+  checksum_sha256?: string | null;
+  width?: number | null;
+  height?: number | null;
+  failure_reason?: string | null;
+  ready_at?: string | null;
+  deleted_at?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
+
+type NormalizedScanMediaAssetRow = ScanMediaAssetRow & {
+  role: ScanMediaAssetRole;
+  status: ScanMediaAssetStatus;
+  url: string;
+  order_index: number;
+};
+
+export type ReadyScanMediaAssetRow =
+  & Omit<
+    NormalizedScanMediaAssetRow,
+    "role" | "status"
+  >
+  & {
+    role: "display" | "playback";
+    status: "ready";
+  };
 
 export function cleanScanMediaAssetRows(
   rows: ScanMediaAssetRow[] | null | undefined,
-): ScanMediaAssetRow[] {
+): ReadyScanMediaAssetRow[] {
   return (rows ?? [])
-    .map((row) => ({
+    .map((row): NormalizedScanMediaAssetRow => ({
       ...row,
+      role: normalizeAssetRole(row),
+      status: normalizeAssetStatus(row),
       url: typeof row.url === "string" ? row.url.trim() : "",
       thumbnail_url: typeof row.thumbnail_url === "string"
         ? row.thumbnail_url.trim()
@@ -25,10 +70,47 @@ export function cleanScanMediaAssetRows(
         ? row.order_index
         : Number.MAX_SAFE_INTEGER,
     }))
-    .filter((row) =>
-      (row.kind === "image" || row.kind === "video") && row.url.length > 0
-    )
+    .filter(isReadyVisibleAssetRow)
     .sort((lhs, rhs) => lhs.order_index - rhs.order_index);
+}
+
+function isReadyVisibleAssetRow(
+  row: NormalizedScanMediaAssetRow,
+): row is ReadyScanMediaAssetRow {
+  const isVisibleRole = row.role === "display" || row.role === "playback";
+  return (row.kind === "image" || row.kind === "video") &&
+    row.status === "ready" &&
+    isVisibleRole &&
+    row.url.length > 0;
+}
+
+function normalizeAssetRole(row: ScanMediaAssetRow): ScanMediaAssetRole {
+  const role = typeof row.role === "string" ? row.role.trim() : "";
+  switch (role) {
+    case "display":
+    case "playback":
+    case "thumbnail":
+    case "inference_frame":
+    case "audio":
+      return role;
+    default:
+      return row.kind === "video" ? "playback" : "display";
+  }
+}
+
+function normalizeAssetStatus(row: ScanMediaAssetRow): ScanMediaAssetStatus {
+  const status = typeof row.status === "string" ? row.status.trim() : "";
+  switch (status) {
+    case "staged":
+    case "promoted":
+    case "processing":
+    case "ready":
+    case "failed":
+    case "deleted":
+      return status;
+    default:
+      return "ready";
+  }
 }
 
 export function countVideoScanMediaAssets(
@@ -41,10 +123,12 @@ export function countVideoScanMediaAssets(
 export async function fetchScanMediaAssets(
   scanId: string,
   supabaseAdmin: SupabaseClient,
-): Promise<ScanMediaAssetRow[]> {
+): Promise<ReadyScanMediaAssetRow[]> {
   const { data, error } = await supabaseAdmin
     .from("scan_media_assets")
-    .select("kind,url,thumbnail_url,order_index,duration_seconds,has_audio")
+    .select(
+      "kind,role,status,source,url,storage_key,thumbnail_url,order_index,duration_seconds,has_audio,content_type,byte_size,checksum_sha256,width,height,failure_reason,ready_at,deleted_at,metadata",
+    )
     .eq("scan_id", scanId)
     .order("order_index", { ascending: true });
 
@@ -58,7 +142,7 @@ export async function fetchScanMediaAssets(
 export async function fetchScanMediaAssetsBestEffort(
   scanId: string,
   supabaseAdmin: SupabaseClient,
-): Promise<ScanMediaAssetRow[]> {
+): Promise<ReadyScanMediaAssetRow[]> {
   try {
     return await fetchScanMediaAssets(scanId, supabaseAdmin);
   } catch (error) {

@@ -20,6 +20,8 @@ Deno.test("buildComposerMediaSources prefers normalized scan media assets", () =
     media_assets: [
       {
         kind: "video",
+        role: "playback",
+        status: "ready",
         url: "https://media.merian.app/clip.mp4",
         thumbnail_url: "https://media.merian.app/poster.webp",
         order_index: 0,
@@ -28,6 +30,8 @@ Deno.test("buildComposerMediaSources prefers normalized scan media assets", () =
       },
       {
         kind: "image",
+        role: "display",
+        status: "ready",
         url: "https://media.merian.app/photo.webp",
         thumbnail_url: "https://media.merian.app/photo.webp",
         order_index: 1,
@@ -53,6 +57,68 @@ Deno.test("buildComposerMediaSources prefers normalized scan media assets", () =
       url: "https://media.merian.app/photo.webp",
       thumbnail_url: "https://media.merian.app/photo.webp",
       order_index: 1,
+      is_selected: false,
+      selection_order_index: null,
+    },
+  ]);
+});
+
+Deno.test("buildComposerMediaSources ignores unready normalized media assets", () => {
+  const media = buildComposerMediaSources({
+    id: "00000000-0000-0000-0000-000000000001",
+    image_storage_urls: [
+      "https://media.merian.app/frame-1.webp",
+      "https://media.merian.app/frame-2.webp",
+    ],
+    video_storage_urls: ["https://media.merian.app/clip.mp4"],
+    captured_media: [
+      {
+        video: {
+          _0: {
+            video: {
+              storage: "remoteURL",
+              path: "https://media.merian.app/clip.mp4",
+            },
+            thumbnail: {
+              storage: "remoteURL",
+              path: "https://media.merian.app/poster.webp",
+            },
+          },
+        },
+      },
+    ],
+    media_assets: [
+      {
+        kind: "video",
+        role: "playback",
+        status: "failed",
+        url: "https://media.merian.app/failed-clip.mp4",
+        thumbnail_url: "https://media.merian.app/failed-poster.webp",
+        order_index: 0,
+        duration_seconds: null,
+        has_audio: true,
+        failure_reason: "promotion_failed",
+      },
+      {
+        kind: "image",
+        role: "inference_frame",
+        status: "ready",
+        url: "https://media.merian.app/frame-only.webp",
+        thumbnail_url: "https://media.merian.app/frame-only.webp",
+        order_index: 1,
+        duration_seconds: null,
+        has_audio: false,
+      },
+    ],
+  });
+
+  assertEquals(media, [
+    {
+      source_media_id: "scan:00000000-0000-0000-0000-000000000001:video:0",
+      kind: "video",
+      url: "https://media.merian.app/clip.mp4",
+      thumbnail_url: "https://media.merian.app/poster.webp",
+      order_index: 0,
       is_selected: false,
       selection_order_index: null,
     },
