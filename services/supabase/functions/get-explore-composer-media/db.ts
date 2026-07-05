@@ -1,9 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   buildComposerMediaSources,
-  cleanMediaUrls,
   ExploreComposerMediaSource,
-  makeSourceMediaId,
 } from "../_shared/exploreComposerMedia.ts";
 
 function makeHttpError(
@@ -167,17 +165,16 @@ async function selectedSourceMediaForPost(
     throw new Error(`Failed to load Explore post media: ${error.message}`);
   }
 
-  const imageUrls = cleanMediaUrls(scan.image_storage_urls);
-  const videoUrls = cleanMediaUrls(scan.video_storage_urls);
   const orderBySourceId = new Map<string, number>();
   const thumbnailBySourceId = new Map<string, string>();
+  const mediaSources = buildComposerMediaSources(scan);
 
   for (const row of (data ?? []) as PostMediaRow[]) {
-    const urls = row.kind === "video" ? videoUrls : imageUrls;
-    const index = urls.findIndex((url) => url === row.url);
-    if (index < 0) continue;
-
-    const sourceMediaId = makeSourceMediaId(scan.id, row.kind, index);
+    const source = mediaSources.find((candidate) =>
+      candidate.kind === row.kind && candidate.url === row.url
+    );
+    if (!source) continue;
+    const sourceMediaId = source.source_media_id;
     orderBySourceId.set(sourceMediaId, row.order_index);
     if (row.thumbnail_url?.trim()) {
       thumbnailBySourceId.set(sourceMediaId, row.thumbnail_url.trim());

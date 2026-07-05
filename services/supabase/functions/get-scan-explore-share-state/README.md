@@ -88,6 +88,10 @@ No live shared post:
 - For Identify requests, `post_id` remains available for restoration, while
   `is_explore_feed_visible` says whether the post belongs in normal Explore
   feed/map/author/hashtag surfaces.
+- A post is considered live only when it has at least one saved
+  `explore_post_media` row. Media-less post rows left by failed snapshot writes
+  are treated like no live shared post, so local Share-sheet caches can clear
+  phantom Explore posts.
 - Resolved Identify requests remain hidden from normal Explore until the owner
   publishes them. That publish action now applies the owner-approved species
   consensus by setting `scans.confirmed_species_id` after materializing any new

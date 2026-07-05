@@ -1,10 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getR2Config } from "../_shared/aws.ts";
-import {
-  buildComposerMediaSources,
-  cleanMediaUrls,
-  parseSourceMediaId,
-} from "../_shared/exploreComposerMedia.ts";
+import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { getTierForUser } from "../_shared/tierCache.ts";
 
@@ -26,15 +22,6 @@ export interface SelectedExplorePostMediaItem {
   source_index?: number;
   thumbnail_source_index?: number;
   order_index: number;
-}
-
-interface ExplorePostMediaInsertRow {
-  kind: "image" | "video";
-  url: string;
-  thumbnail_url: string;
-  order_index: number;
-  duration_seconds: number | null;
-  has_audio: boolean;
 }
 
 function makeHttpError(
@@ -212,125 +199,9 @@ export async function upsertExplorePost(
   return post;
 }
 
-export function buildExplorePostMediaRows(
-  scan: ShareEligibleScanRow,
-  mediaItems: SelectedExplorePostMediaItem[] | undefined,
-): ExplorePostMediaInsertRow[] {
-  if (mediaItems !== undefined && mediaItems.length === 0) {
-    throw makeHttpError(400, "media_items must include at least one item.");
-  }
-
-  const composerSources = buildComposerMediaSources(scan);
-  const selectedSources = mediaItems === undefined
-    ? composerSources
-    : mediaItems
-      .slice()
-      .sort((lhs, rhs) => lhs.order_index - rhs.order_index)
-      .map((item) => sourceForSelection(item, scan, composerSources));
-
-  const rows = selectedSources.map((source, offset) => {
-    if (source.kind === "video" && source.thumbnail_url === source.url) {
-      throw makeHttpError(409, "Video thumbnail unavailable.");
-    }
-
-    return {
-      kind: source.kind,
-      url: source.url,
-      thumbnail_url: source.thumbnail_url,
-      order_index: offset,
-      duration_seconds: null,
-      has_audio: source.kind === "video",
-    };
-  });
-
-  if (rows.length === 0) {
-    throw makeHttpError(409, "This scan no longer has shareable media.");
-  }
-
-  return rows;
-}
-
-function sourceForSelection(
-  item: SelectedExplorePostMediaItem,
-  scan: ShareEligibleScanRow,
-  composerSources: ReturnType<typeof buildComposerMediaSources>,
-): {
-  kind: "image" | "video";
-  url: string;
-  thumbnail_url: string;
-} {
-  if (item.source_media_id) {
-    const parsed = parseSourceMediaId(item.source_media_id);
-    if (!parsed || parsed.scanId !== scan.id.toLowerCase()) {
-      throw makeHttpError(400, "Selected media does not belong to this scan.");
-    }
-    if (parsed.kind !== item.kind) {
-      throw makeHttpError(
-        400,
-        "Selected media kind does not match its source.",
-      );
-    }
-
-    const source = composerSources.find((candidate) =>
-      candidate.source_media_id === item.source_media_id &&
-      candidate.kind === item.kind
-    );
-    if (!source) {
-      throw makeHttpError(
-        400,
-        `Selected ${item.kind} media does not belong to this scan.`,
-      );
-    }
-
-    return source;
-  }
-
-  const imageUrls = cleanMediaUrls(scan.image_storage_urls);
-  const videoUrls = cleanMediaUrls(scan.video_storage_urls ?? []);
-  const source = sourceIndexForSelection(item);
-  if (item.kind === "image") {
-    const url = imageUrls[source.index];
-    if (!url) {
-      throw makeHttpError(
-        400,
-        "Selected image media does not belong to this scan.",
-      );
-    }
-
-    return {
-      kind: "image",
-      url,
-      thumbnail_url: url,
-    };
-  }
-
-  const url = videoUrls[source.index];
-  if (!url) {
-    throw makeHttpError(
-      400,
-      "Selected video media does not belong to this scan.",
-    );
-  }
-
-  const thumbnailIndex = item.thumbnail_source_index ?? Math.min(
-    source.index,
-    imageUrls.length - 1,
-  );
-  const thumbnailUrl = imageUrls[thumbnailIndex];
-  if (!thumbnailUrl) {
-    throw makeHttpError(409, "Video thumbnail unavailable.");
-  }
-
-  return {
-    kind: "video",
-    url,
-    thumbnail_url: thumbnailUrl,
-  };
-}
-
 async function replaceExplorePostMediaRows(
   postId: string,
-  rows: ExplorePostMediaInsertRow[],
+  rows: ReturnType<typeof buildExplorePostMediaRows>,
   supabaseAdmin: SupabaseClient,
 ): Promise<void> {
   const { error: deleteError } = await supabaseAdmin
@@ -353,16 +224,6 @@ async function replaceExplorePostMediaRows(
       `Failed to save Explore post media: ${insertError.message}`,
     );
   }
-}
-
-function sourceIndexForSelection(
-  item: SelectedExplorePostMediaItem,
-): { index: number } {
-  if (item.source_index == null) {
-    throw makeHttpError(400, "Selected media requires a source.");
-  }
-
-  return { index: item.source_index };
 }
 
 export async function replaceExplorePostHashtags(

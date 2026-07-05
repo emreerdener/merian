@@ -2036,6 +2036,12 @@ Rules:
 - `location_sharing`, when provided, updates only this Explore post. Valid
   values are `open`, `obscured`, and `private`; legacy `hidden` is treated as
   `private`.
+- `media_items`, when provided, replaces the post's public media snapshot. New
+  clients submit `source_media_id` values from `/get-explore-composer-media`;
+  those IDs resolve through the same manifest-aware source list as
+  `/share-scan-to-explore`, so captured-media videos keep their playback `.mp4`
+  and poster thumbnail paired during edit/reorder flows. Legacy URL-based
+  reorders are accepted only for rows already present on the post.
 - Changing `location_sharing` reprojects only the post-owned public location
   fields. It does not mutate `scans.geoprivacy` or the user's global default.
 - The update is scoped by `explore_posts.id`, `explore_posts.user_id`, and

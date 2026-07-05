@@ -9,7 +9,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Video clips selected in the Explore composer now publish correctly from the captured-media manifest, and failed media snapshots no longer make the Share sheet look like a post already exists."
+            "Video clips selected in the Explore composer now publish, edit, and request Community ID correctly from the captured-media manifest, and failed media snapshots no longer make the Share sheet look like a post already exists."
           ]
         }
       ]

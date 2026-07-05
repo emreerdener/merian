@@ -1,8 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import {
-  cleanMediaUrls,
-  parseSourceMediaId,
-} from "../_shared/exploreComposerMedia.ts";
+import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 
 export interface ExistingExplorePostMediaSelection {
   kind: "image" | "video";
@@ -230,7 +227,9 @@ async function mediaRowsFromSourceIds(
 ): Promise<Array<Record<string, unknown>>> {
   const { data, error } = await supabaseAdmin
     .from("scans")
-    .select("id,user_id,image_storage_urls,video_storage_urls,is_tombstoned")
+    .select(
+      "id,user_id,image_storage_urls,video_storage_urls,captured_media,is_tombstoned",
+    )
     .eq("id", scanId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -245,84 +244,15 @@ async function mediaRowsFromSourceIds(
     id: string;
     image_storage_urls: string[] | null;
     video_storage_urls: string[] | null;
+    captured_media: unknown[] | null;
     is_tombstoned: boolean;
   };
   if (scan.is_tombstoned) {
     throw makeHttpError(409, "Tombstoned scans cannot be shared to Explore.");
   }
 
-  const imageUrls = cleanMediaUrls(scan.image_storage_urls);
-  const videoUrls = cleanMediaUrls(scan.video_storage_urls);
-
-  return mediaItems
-    .slice()
-    .sort((lhs, rhs) => lhs.order_index - rhs.order_index)
-    .map((item, offset) => {
-      if (!item.source_media_id) {
-        throw makeHttpError(400, "Selected media requires a source.");
-      }
-      const source = parseSourceMediaId(item.source_media_id);
-      if (!source || source.scanId !== scan.id.toLowerCase()) {
-        throw makeHttpError(
-          400,
-          "Selected media does not belong to this scan.",
-        );
-      }
-      if (source.kind !== item.kind) {
-        throw makeHttpError(
-          400,
-          "Selected media kind does not match its source.",
-        );
-      }
-
-      if (item.kind === "image") {
-        const url = imageUrls[source.index];
-        if (!url) {
-          throw makeHttpError(
-            400,
-            "Selected image media does not belong to this scan.",
-          );
-        }
-
-        return {
-          post_id: postId,
-          kind: "image",
-          url,
-          thumbnail_url: url,
-          order_index: offset,
-          duration_seconds: null,
-          has_audio: false,
-        };
-      }
-
-      const url = videoUrls[source.index];
-      const requestedThumbnailUrl = nonEmptyString(item.thumbnail_url)
-        ? item.thumbnail_url!.trim()
-        : null;
-      const thumbnailUrl = requestedThumbnailUrl &&
-          imageUrls.includes(requestedThumbnailUrl)
-        ? requestedThumbnailUrl
-        : imageUrls[Math.min(source.index, imageUrls.length - 1)];
-      if (!url) {
-        throw makeHttpError(
-          400,
-          "Selected video media does not belong to this scan.",
-        );
-      }
-      if (!thumbnailUrl) {
-        throw makeHttpError(409, "Video thumbnail unavailable.");
-      }
-
-      return {
-        post_id: postId,
-        kind: "video",
-        url,
-        thumbnail_url: thumbnailUrl,
-        order_index: offset,
-        duration_seconds: null,
-        has_audio: true,
-      };
-    });
+  return buildExplorePostMediaRows(scan, mediaItems)
+    .map((row) => ({ ...row, post_id: postId }));
 }
 
 function nonEmptyString(value: string | null | undefined): boolean {

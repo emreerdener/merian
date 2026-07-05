@@ -1057,8 +1057,9 @@ migration `20260703130000_add_explore_post_media.sql`.
 detail, author, hashtag, map, and Community ID read paths. Map, widget, profile
 grid, and compact surfaces should keep using `hero_image_url` thumbnails plus a
 play indicator when any returned media item is video. For scans with
-`captured_media`, composer and share endpoints resolve public media from that
-manifest first so playback video URLs and poster thumbnails remain paired.
+`captured_media`, composer, share, edit, and Community request write paths
+resolve public media from that manifest first so playback video URLs and poster
+thumbnails remain paired.
 
 ### `explore_post_hashtags`
 

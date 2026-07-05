@@ -1,5 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { makeHttpError } from "../_shared/communityIdentification.ts";
+import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import {
   fetchShareEligibleScan,
   upsertExplorePost,
@@ -122,21 +123,37 @@ async function upsertCommunityExplorePost(
   }
 
   const post = data as { id: string; shared_at: string };
-  const { error: mediaError } = await supabaseAdmin.rpc(
-    "refresh_explore_post_media",
-    { target_post_id: post.id },
-  );
-
-  if (mediaError) {
-    const message = mediaError.message?.toLowerCase().includes(
-        "video thumbnail unavailable",
-      )
-      ? "Video thumbnail unavailable."
-      : mediaError.message ?? "Unknown error";
-    throw makeHttpError(409, message);
-  }
+  const mediaRows = buildExplorePostMediaRows(scan, undefined);
+  await replaceCommunityExplorePostMediaRows(post.id, mediaRows, supabaseAdmin);
 
   return post;
+}
+
+async function replaceCommunityExplorePostMediaRows(
+  postId: string,
+  rows: ReturnType<typeof buildExplorePostMediaRows>,
+  supabaseAdmin: SupabaseClient,
+): Promise<void> {
+  const { error: deleteError } = await supabaseAdmin
+    .from("explore_post_media")
+    .delete()
+    .eq("post_id", postId);
+
+  if (deleteError) {
+    throw new Error(
+      `Failed to clear Explore post media: ${deleteError.message}`,
+    );
+  }
+
+  const { error: insertError } = await supabaseAdmin
+    .from("explore_post_media")
+    .insert(rows.map((row) => ({ ...row, post_id: postId })));
+
+  if (insertError) {
+    throw new Error(
+      `Failed to save Explore post media: ${insertError.message}`,
+    );
+  }
 }
 
 export async function requestCommunityIdentification(

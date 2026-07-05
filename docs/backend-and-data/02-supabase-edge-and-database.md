@@ -660,13 +660,14 @@ indicators. Dictionary galleries and reference-image promotion remain
 image-only and read from the eligible scan image URLs rather than public video
 clips.
 
-For captured-media video scans, the Explore composer and
-`share-scan-to-explore` both resolve media from the same manifest-aware source
-list, pairing the playback `.mp4` with its poster thumbnail instead of treating
-sampled inference frames as standalone user media. A post row is not considered
-feed-visible by share state unless it has at least one saved
-`explore_post_media` row; this prevents failed media snapshot writes from
-surfacing as phantom shared posts in the Insight Share sheet.
+For captured-media video scans, the Explore composer, `share-scan-to-explore`,
+`update-explore-field-notes`, and Ask the Community request creation all resolve
+media from the same manifest-aware source list, pairing the playback `.mp4` with
+its poster thumbnail instead of treating sampled inference frames as standalone
+user media. A post row is not considered feed-visible by share state unless it
+has at least one saved `explore_post_media` row; this prevents failed media
+snapshot writes from surfacing as phantom shared posts in the Insight Share
+sheet.
 
 Author profile reads are split the same way as feed/detail reads.
 `get-explore-author-profile` returns a privacy-scoped profile sheet payload only

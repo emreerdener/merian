@@ -2,7 +2,7 @@ import {
   assertEquals,
   assertThrows,
 } from "https://deno.land/std@0.224.0/testing/asserts.ts";
-import { buildExplorePostMediaRows } from "./db.ts";
+import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
 import type {
   SelectedExplorePostMediaItem,
   ShareEligibleScanRow,

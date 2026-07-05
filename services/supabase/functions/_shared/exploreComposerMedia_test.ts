@@ -1,5 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/testing/asserts.ts";
 import { buildComposerMediaSources } from "./exploreComposerMedia.ts";
+import { sourceMediaIdForPostMedia } from "./explorePostMedia.ts";
 
 Deno.test("buildComposerMediaSources prefers captured media manifest for video scans", () => {
   const media = buildComposerMediaSources({
@@ -38,6 +39,42 @@ Deno.test("buildComposerMediaSources prefers captured media manifest for video s
       selection_order_index: null,
     },
   ]);
+});
+
+Deno.test("sourceMediaIdForPostMedia matches manifest video post media", () => {
+  const sourceMediaId = sourceMediaIdForPostMedia(
+    {
+      id: "00000000-0000-0000-0000-000000000001",
+      image_storage_urls: [
+        "https://media.merian.app/frame-1.webp",
+        "https://media.merian.app/frame-2.webp",
+      ],
+      video_storage_urls: ["https://media.merian.app/clip.mp4"],
+      captured_media: [
+        {
+          video: {
+            _0: {
+              video: {
+                storage: "remoteURL",
+                path: "https://media.merian.app/clip.mp4",
+              },
+              thumbnail: {
+                storage: "remoteURL",
+                path: "https://media.merian.app/poster.webp",
+              },
+            },
+          },
+        },
+      ],
+    },
+    "video",
+    "https://media.merian.app/clip.mp4",
+  );
+
+  assertEquals(
+    sourceMediaId,
+    "scan:00000000-0000-0000-0000-000000000001:video:0",
+  );
 });
 
 Deno.test("buildComposerMediaSources collapses legacy video frame URLs", () => {
