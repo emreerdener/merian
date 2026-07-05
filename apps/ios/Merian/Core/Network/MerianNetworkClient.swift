@@ -18,6 +18,56 @@ struct PreSignedURL: Codable {
     let mediaSessionId: String?
 }
 
+enum ScanCloudStatus: String, Decodable, Equatable, Sendable {
+    case found
+    case notFound = "not_found"
+}
+
+enum ScanIngestionJobStatus: String, Decodable, Equatable, Sendable {
+    case processing
+    case finalizing
+    case retrying
+    case failedRetryable = "failed_retryable"
+    case failed
+    case complete
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        if rawValue == "failed_terminal" {
+            self = .failed
+            return
+        }
+        guard let status = ScanIngestionJobStatus(rawValue: rawValue) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unknown scan ingestion job status: \(rawValue)"
+            )
+        }
+        self = status
+    }
+}
+
+struct ScanStatusResponse: Decodable, Equatable, Sendable {
+    let status: ScanCloudStatus
+    let jobStatus: ScanIngestionJobStatus?
+    let jobStage: String?
+    let jobAttemptCount: Int?
+    let retryAfter: String?
+    let lastError: String?
+
+    var isFound: Bool { status == .found }
+
+    private enum CodingKeys: String, CodingKey {
+        case status
+        case jobStatus = "job_status"
+        case jobStage = "job_stage"
+        case jobAttemptCount = "job_attempt_count"
+        case retryAfter = "retry_after"
+        case lastError = "last_error"
+    }
+}
+
 private struct UploadURLRequestBody: Encodable {
     let files: [StagingUploadFile]
     let userId: String
@@ -1205,10 +1255,8 @@ final class MerianNetworkClient {
     // MARK: - Outbox Confirmation
 
     /// Asks the server whether `scanId` exists in `public.scans` for the current user.
-    /// Returns `"found"` or `"not_found"`. Called from `OfflineQueueManager.handleInferenceRetry`
-    /// before resetting a scan to `.staged`, closing the gap where inference succeeded server-side
-    /// but the background download task never delivered the response.
-    func checkScanStatus(scanId: String, requiredVideoCount: Int? = nil) async throws -> String {
+    /// Returns the compatibility status plus optional scan-ingestion job state for recovery.
+    func checkScanStatusDetails(scanId: String, requiredVideoCount: Int? = nil) async throws -> ScanStatusResponse {
         let functionUrl = try endpointURL("check-scan-status")
         var payload: [String: Any] = ["scan_id": scanId]
         if let requiredVideoCount, requiredVideoCount > 0 {
@@ -1216,8 +1264,16 @@ final class MerianNetworkClient {
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        let decoded = try JSONDecoder().decode([String: String].self, from: data)
-        return decoded["status"] ?? "not_found"
+        return try JSONDecoder().decode(ScanStatusResponse.self, from: data)
+    }
+
+    /// Compatibility wrapper for older call sites that only need `"found"` / `"not_found"`.
+    func checkScanStatus(scanId: String, requiredVideoCount: Int? = nil) async throws -> String {
+        let response = try await checkScanStatusDetails(
+            scanId: scanId,
+            requiredVideoCount: requiredVideoCount
+        )
+        return response.status.rawValue
     }
 
     // MARK: - Data Mutation

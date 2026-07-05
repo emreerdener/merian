@@ -1,5 +1,9 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
+  fetchScanIngestionJob,
+  ScanIngestionJobRow,
+} from "../_shared/scanIngestionJobs.ts";
+import {
   fetchScanMediaAssetsBestEffort,
   ScanMediaAssetRow,
 } from "../_shared/scanMediaAssets.ts";
@@ -53,4 +57,12 @@ export async function fetchScanStatusMedia(
     ...row,
     media_assets: await fetchScanMediaAssetsBestEffort(scanId, supabaseAdmin),
   };
+}
+
+export async function fetchScanStatusJob(
+  scanId: string,
+  userId: string,
+  supabaseAdmin: SupabaseClient,
+): Promise<ScanIngestionJobRow | null> {
+  return await fetchScanIngestionJob(scanId, userId, supabaseAdmin);
 }

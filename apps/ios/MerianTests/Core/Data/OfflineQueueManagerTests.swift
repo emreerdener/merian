@@ -141,6 +141,47 @@ struct OfflineQueueManagerTests {
         )
     }
 
+    @Test func testScanStatusRecoveryActionRespectsServerIngestionState() throws {
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-07-05T15:00:00.000Z"))
+        let finalizing = ScanStatusResponse(
+            status: .notFound,
+            jobStatus: .finalizing,
+            jobStage: "video_promotion_started",
+            jobAttemptCount: 1,
+            retryAfter: "2026-07-05T15:02:00.000Z",
+            lastError: nil
+        )
+        let retryable = ScanStatusResponse(
+            status: .notFound,
+            jobStatus: .failedRetryable,
+            jobStage: "video_promotion_failed",
+            jobAttemptCount: 1,
+            retryAfter: nil,
+            lastError: "Video promotion failed."
+        )
+        let terminal = ScanStatusResponse(
+            status: .notFound,
+            jobStatus: .failed,
+            jobStage: "moderation_rejected",
+            jobAttemptCount: 1,
+            retryAfter: nil,
+            lastError: "Rejected by moderation."
+        )
+        let found = ScanStatusResponse(
+            status: .found,
+            jobStatus: nil,
+            jobStage: nil,
+            jobAttemptCount: nil,
+            retryAfter: nil,
+            lastError: nil
+        )
+
+        #expect(OfflineQueueManager.scanStatusRecoveryAction(for: found, now: now) == .recovered)
+        #expect(OfflineQueueManager.scanStatusRecoveryAction(for: finalizing, now: now) == .waitForServer(120))
+        #expect(OfflineQueueManager.scanStatusRecoveryAction(for: retryable, now: now) == .retryAfter(30))
+        #expect(OfflineQueueManager.scanStatusRecoveryAction(for: terminal, now: now) == .terminalFailure("Rejected by moderation."))
+    }
+
     @Test func testMediaStagingContractMatchesDocumentedUploadManifestContract() throws {
         let contract = try loadMediaStagingContract()
 

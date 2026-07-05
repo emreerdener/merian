@@ -40,6 +40,10 @@ multiple functions need the same behavior and the ownership boundary is clear.
   The `reconcile-scan-media-assets` worker owns stale staged-row repair and
   abandonment cleanup. Composer and status paths prefer ready display/playback
   asset rows before falling back to `captured_media` and legacy arrays.
+- **`scanIngestionJobs.ts`**: Durable scan-ingestion job helpers. The active
+  multimodal path claims a job row after media validation, updates server-side
+  stages through inference/finalization/failure, and `/check-scan-status`
+  exposes the owner-safe job state when the scan row is not complete yet.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
   by `audio-spec` and `identify-multimodal`.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,

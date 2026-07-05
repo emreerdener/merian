@@ -951,6 +951,40 @@ dashboard.
 for per-user lookups; `idx_failed_scan_ingestions_failed_at` on
 `(failed_at DESC)` for chronological monitoring sweeps.
 
+### `scan_ingestion_jobs`
+
+Durable server-side lifecycle ledger for accepted scan ingestion requests. Added
+in migration `20260705120000_add_scan_ingestion_jobs.sql`.
+
+- `scan_id` (TEXT): The client-generated scan id used for idempotent scan
+  insertion and status polling. TEXT keeps failure rows representable even when
+  a malformed legacy id never becomes a `public.scans.id`.
+- `user_id` (UUID): The submitting auth user. This intentionally does not FK to
+  `public.users`, because ghost-user upsert happens later in ingestion.
+- `endpoint` (TEXT): Current writer, usually `identify-multimodal`.
+- `status` (TEXT): `processing`, `finalizing`, `retrying`,
+  `failed_retryable`, `failed_terminal`, or `complete`.
+- `stage` (TEXT): Fine-grained state such as `ai_inference_started`,
+  `video_promotion_started`, `scan_insert_started`, or `scan_inserted`.
+- `attempt_count` (INT): Incremented by `public.claim_scan_ingestion_job(...)`
+  each time the same user/scan id is accepted again, unless the job is already
+  complete.
+- `media_counts` (JSONB): Count metadata such as image/audio/video counts,
+  required video count, video frame count, and description presence.
+- `media_object_keys` (JSONB): Staged R2 object-key references only. Raw media
+  bytes are never stored in this ledger.
+- `locked_at`, `lock_expires_at`, `retry_after`, `last_error`, `completed_at`:
+  Lease, retry, failure, and completion metadata for status polling and ops.
+
+`identify-multimodal` claims the row after request/media validation and updates
+it through AI inference, moderation, media promotion, scan insert, and failure
+paths. `/check-scan-status` keeps returning `status: "found" | "not_found"` for
+client compatibility, and includes optional `job_status`, `job_stage`,
+`job_attempt_count`, `retry_after`, and failed-job `last_error` fields when a
+scan row is not yet complete. RLS allows owners to read their own job rows;
+service-role writers own mutation, and the claim RPC is executable only by
+`service_role`.
+
 ### `user_blocks`
 
 Registers blocked users so they are excluded from Discovery and Explore

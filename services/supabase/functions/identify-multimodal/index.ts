@@ -56,6 +56,12 @@ import {
   readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
 import {
+  claimScanIngestionJob,
+  type ScanIngestionJobStatus,
+  scanIngestionMediaObjectKeys,
+  updateScanIngestionJob,
+} from "../_shared/scanIngestionJobs.ts";
+import {
   markStagedScanMediaAssetsDeleted,
   markStagedScanMediaAssetsFailed,
   markStagedScanMediaAssetsPromoted,
@@ -450,6 +456,10 @@ function capturedMediaVideoCount(
   return (capturedMedia ?? []).filter((item) => "video" in item).length;
 }
 
+function retryAfterIso(minutes = 5): string {
+  return new Date(Date.now() + minutes * 60_000).toISOString();
+}
+
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
     const fnStart = Date.now();
@@ -520,6 +530,39 @@ Deno.serve((req: Request) =>
       typeof client_scan_id === "string" && client_scan_id.length > 0
         ? client_scan_id
         : crypto.randomUUID();
+
+    const updateIngestionJobBestEffort = async (
+      status: ScanIngestionJobStatus,
+      stage: string,
+      options: {
+        lastError?: string | null;
+        retryAfter?: string | null;
+        leaseSeconds?: number;
+      } = {},
+    ) => {
+      try {
+        await updateScanIngestionJob(
+          {
+            scanId: generatedScanId,
+            userId: user.id,
+            status,
+            stage,
+            lastError: options.lastError ?? null,
+            retryAfter: options.retryAfter ?? null,
+            leaseSeconds: options.leaseSeconds,
+          },
+          supabaseAdmin,
+        );
+      } catch (error) {
+        logStructuredError("multimodal/scan_ingestion_job_update_failed", {
+          user_id: user.id,
+          scan_id: generatedScanId,
+          status,
+          stage,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
 
     const safeGpsLat: number | null =
       gpsLatitude != null && Number.isFinite(gpsLatitude) &&
@@ -699,6 +742,44 @@ Deno.serve((req: Request) =>
       }, 400);
     }
 
+    try {
+      await claimScanIngestionJob(
+        {
+          scanId: generatedScanId,
+          userId: user.id,
+          endpoint: "identify-multimodal",
+          mediaCounts: {
+            image_count: mediaTelemetry.imageCount,
+            audio_count: processedAudios.length,
+            video_count: mediaTelemetry.videoClipCount,
+            required_video_count: videoR2ObjectKeys.length,
+            video_frame_count: mediaTelemetry.declaredVideoFrameCount,
+            video_inference_frame_count:
+              mediaTelemetry.videoInferenceFrameCount,
+            has_description: hasObservationContextText,
+          },
+          mediaObjectKeys: scanIngestionMediaObjectKeys({
+            imageKeys: r2ObjectKeys,
+            audioKeys: audioR2ObjectKeys,
+            videoKeys: videoR2ObjectKeys,
+          }),
+          leaseSeconds: 300,
+        },
+        supabaseAdmin,
+      );
+      await updateIngestionJobBestEffort(
+        "processing",
+        "ai_inference_started",
+        { leaseSeconds: 300 },
+      );
+    } catch (error) {
+      logStructuredError("multimodal/scan_ingestion_job_claim_failed", {
+        user_id: user.id,
+        scan_id: generatedScanId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     // 4. Invocation
     const geminiStart = Date.now();
     let responseText = "";
@@ -743,6 +824,14 @@ Deno.serve((req: Request) =>
         user_id: user.id,
         error: String(genErr),
       });
+      await updateIngestionJobBestEffort(
+        "failed_retryable",
+        "ai_inference_failed",
+        {
+          lastError: genErr instanceof Error ? genErr.message : String(genErr),
+          retryAfter: retryAfterIso(),
+        },
+      );
       return jsonResponse(
         { error: "AI processing error. Please try again." },
         503,
@@ -759,6 +848,14 @@ Deno.serve((req: Request) =>
         user_id: user.id,
         finish_reason: finishReason,
       });
+      await updateIngestionJobBestEffort(
+        isPermanent ? "failed_terminal" : "failed_retryable",
+        "ai_inference_non_stop_finish",
+        {
+          lastError: `AI finish reason: ${finishReason}`,
+          retryAfter: isPermanent ? null : retryAfterIso(),
+        },
+      );
       return jsonResponse(
         { error: `AI processing error (${finishReason}).` },
         isPermanent ? 400 : 503,
@@ -769,6 +866,14 @@ Deno.serve((req: Request) =>
     try {
       parsedData = extractJson<MerianIdentification>(responseText);
     } catch {
+      await updateIngestionJobBestEffort(
+        "failed_retryable",
+        "ai_response_malformed",
+        {
+          lastError: "Malformed AI response.",
+          retryAfter: retryAfterIso(),
+        },
+      );
       return jsonResponse(
         { error: "Processing Error: Malformed AI response." },
         422,
@@ -1036,6 +1141,11 @@ Deno.serve((req: Request) =>
     ) as Record<string, unknown> | undefined;
 
     const requireDurableVideo = videoR2ObjectKeys.length > 0;
+    await updateIngestionJobBestEffort(
+      "finalizing",
+      "ai_inference_complete",
+      { leaseSeconds: requireDurableVideo ? 300 : 600 },
+    );
 
     const runBackgroundIngestion = async () => {
       let modResult:
@@ -1108,10 +1218,20 @@ Deno.serve((req: Request) =>
       };
 
       try {
+        await updateIngestionJobBestEffort(
+          "finalizing",
+          "background_ingestion_started",
+          { leaseSeconds: requireDurableVideo ? 300 : 600 },
+        );
         await upsertGhostUserIfMissing(user.id, supabaseAdmin);
         const hasImagePayload = imageBase64s.length > 0 ||
           r2ObjectKeys.length > 0;
         if (hasImagePayload) {
+          await updateIngestionJobBestEffort(
+            "finalizing",
+            "moderation_started",
+            { leaseSeconds: requireDurableVideo ? 300 : 600 },
+          );
           modResult = await evaluateAndProcessPayload(
             user.id,
             r2ObjectKeys,
@@ -1129,6 +1249,14 @@ Deno.serve((req: Request) =>
               [...r2ObjectKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
               "moderation_pipeline_error",
             );
+            await updateIngestionJobBestEffort(
+              "failed_retryable",
+              "moderation_pipeline_error",
+              {
+                lastError: "Multimodal moderation pipeline failed.",
+                retryAfter: retryAfterIso(),
+              },
+            );
             if (requireDurableVideo) {
               throw new Error("Multimodal moderation pipeline failed.");
             }
@@ -1145,6 +1273,11 @@ Deno.serve((req: Request) =>
               [...r2ObjectKeys, ...videoR2ObjectKeys, ...audioR2ObjectKeys],
               "moderation_rejected",
             );
+            await updateIngestionJobBestEffort(
+              "failed_terminal",
+              "moderation_rejected",
+              { lastError: "Multimodal media rejected by moderation." },
+            );
             if (requireDurableVideo) {
               throw new Error("Multimodal media rejected by moderation.");
             }
@@ -1155,6 +1288,11 @@ Deno.serve((req: Request) =>
         let speciesId: string | null = null;
         if (videoR2ObjectKeys.length > 0) {
           try {
+            await updateIngestionJobBestEffort(
+              "finalizing",
+              "video_promotion_started",
+              { leaseSeconds: 300 },
+            );
             videoStorageUrls = await promoteSafeMedia({
               userId: user.id,
               r2ObjectKeys: videoR2ObjectKeys,
@@ -1172,6 +1310,14 @@ Deno.serve((req: Request) =>
               user_id: user.id,
               error: String(err),
             });
+            await updateIngestionJobBestEffort(
+              "failed_retryable",
+              "video_promotion_failed",
+              {
+                lastError: err instanceof Error ? err.message : String(err),
+                retryAfter: retryAfterIso(),
+              },
+            );
             await markUploadAssetsFailedBestEffort(
               videoR2ObjectKeys,
               "video_promotion_failed",
@@ -1238,6 +1384,11 @@ Deno.serve((req: Request) =>
           normalizedVisualMediaItems,
         );
 
+        await updateIngestionJobBestEffort(
+          "finalizing",
+          "scan_insert_started",
+          { leaseSeconds: 300 },
+        );
         await insertScan(
           {
             id: generatedScanId,
@@ -1300,6 +1451,10 @@ Deno.serve((req: Request) =>
           supabaseAdmin,
         );
         scanInserted = true;
+        await updateIngestionJobBestEffort(
+          "complete",
+          "scan_inserted",
+        );
         await markUploadAssetsPromotedBestEffort(
           new Map([
             ...publicUrlsByStorageKey(
@@ -1487,6 +1642,17 @@ Deno.serve((req: Request) =>
         }
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e);
+        const terminalFailure = errorMsg.toLowerCase().includes("rejected");
+        await updateIngestionJobBestEffort(
+          terminalFailure ? "failed_terminal" : "failed_retryable",
+          terminalFailure
+            ? "moderation_rejected"
+            : "background_ingestion_failed",
+          {
+            lastError: errorMsg,
+            retryAfter: terminalFailure ? null : retryAfterIso(),
+          },
+        );
         logStructuredError("multimodal/background_ingestion_failed", {
           user_id: user.id,
           scan_id: generatedScanId,

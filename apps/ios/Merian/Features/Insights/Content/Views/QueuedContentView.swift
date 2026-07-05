@@ -82,6 +82,14 @@ struct QueuedContentView: View {
 
     let queuedContext: QueuedScanContext
 
+    private var serverJobStatus: ScanIngestionJobStatus? {
+        offlineQueueManager.scanIngestionJobStates[queuedContext.id]
+    }
+
+    private var queuedScanHasVideo: Bool {
+        !queuedContext.capturedMediaSnapshot.videoPaths.isEmpty
+    }
+
     /// The phrase displayed inside `ConfidenceBadge`'s analyzing capsule.
     /// Live system/connectivity status shown in the small `ConfidenceBadge` capsule.
     /// Always distinct from `displayTitle` so the two never duplicate each other:
@@ -96,6 +104,16 @@ struct QueuedContentView: View {
         case .staged:
             return "Preparing analysis"
         case .inferencing:
+            switch serverJobStatus {
+            case .finalizing:
+                return "Finishing..."
+            case .retrying, .failedRetryable:
+                return "Retrying..."
+            case .failed:
+                return "Needs attention"
+            case .processing, .complete, nil:
+                break
+            }
             return "Analyzing..."
         case .externalImport:
             return "Waiting..."
@@ -115,6 +133,14 @@ struct QueuedContentView: View {
         case .staged:
             return "Queued for analysis"
         case .inferencing:
+            switch serverJobStatus {
+            case .finalizing:
+                return queuedScanHasVideo ? "Finishing video scan" : "Finishing scan"
+            case .retrying, .failedRetryable:
+                return queuedScanHasVideo ? "Retrying video save" : "Retrying scan"
+            case .processing, .complete, .failed, nil:
+                break
+            }
             return "Analyzing"
         case .externalImport:
             return "Waiting"
@@ -128,8 +154,18 @@ struct QueuedContentView: View {
         case .pending, .uploading:
             return "This scan is saved locally and will be uploaded to Merian in the background."
         case .staged:
-            return "The image has uploaded and is waiting for identification."
+            return "The scan media has uploaded and is waiting for identification."
         case .inferencing:
+            switch serverJobStatus {
+            case .finalizing:
+                return queuedScanHasVideo
+                    ? "Merian is saving the playable video and will show results automatically."
+                    : "Merian is finishing this scan and will show results automatically."
+            case .retrying, .failedRetryable:
+                return "Merian is waiting for the server retry window before trying this scan again."
+            case .processing, .complete, .failed, nil:
+                break
+            }
             return "Merian is identifying this scan. Results will appear here automatically."
         case .externalImport:
             return "This scan is waiting for local recovery."

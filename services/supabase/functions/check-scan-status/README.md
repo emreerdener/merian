@@ -20,13 +20,27 @@ captured-media timeline.
 ## Response
 
 ```json
-{ "status": "found" }
+{
+  "status": "found",
+  "job_status": null,
+  "job_stage": null,
+  "job_attempt_count": null,
+  "retry_after": null,
+  "last_error": null
+}
 ```
 
 or:
 
 ```json
-{ "status": "not_found" }
+{
+  "status": "not_found",
+  "job_status": "finalizing",
+  "job_stage": "video_promotion_started",
+  "job_attempt_count": 1,
+  "retry_after": null,
+  "last_error": null
+}
 ```
 
 ## Rules
@@ -41,6 +55,9 @@ or:
 - This prevents the offline queue from treating a legacy frame-only cloud row as
   a completed video scan. If the durable playback `.mp4` is missing, the queue
   retries instead of deleting the local video.
+- `status` remains compatibility-only (`found` or `not_found`). When the scan
+  row is not yet complete, optional job fields come from `scan_ingestion_jobs`
+  and expose owner-safe processing/finalization/retry state.
 - The endpoint is read-only.
 
 ## Local Verification

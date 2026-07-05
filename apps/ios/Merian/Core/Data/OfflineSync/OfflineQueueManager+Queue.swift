@@ -373,13 +373,21 @@ extension OfflineQueueManager {
             })
             let preparingInferenceScanIds = await MainActor.run { self.inferencePreparationScanIds }
             let completingInferenceScanIds = await MainActor.run { self.inferenceCompletionScanIds }
+            let pollingInferenceScanIds = await MainActor.run { Set(self.serverIngestionPollTasks.keys) }
+            let locallyActiveInferenceScanIds = activeInferenceScanIds
+                .union(preparingInferenceScanIds)
+                .union(completingInferenceScanIds)
+                .union(pollingInferenceScanIds)
+            let serverOwnedInferenceScanIds = await self.serverOwnedInferencingScanIds(
+                excluding: locallyActiveInferenceScanIds,
+                reason: "orphan reconcile"
+            )
             MerianLog.data.debug(
-                "replayInferenceForUploadedScans: activeInferenceTasks=\(activeInferenceScanIds.count, privacy: .public) preparing=\(preparingInferenceScanIds.count, privacy: .public) completing=\(completingInferenceScanIds.count, privacy: .public)"
+                "replayInferenceForUploadedScans: activeInferenceTasks=\(activeInferenceScanIds.count, privacy: .public) preparing=\(preparingInferenceScanIds.count, privacy: .public) completing=\(completingInferenceScanIds.count, privacy: .public) polling=\(pollingInferenceScanIds.count, privacy: .public) serverOwned=\(serverOwnedInferenceScanIds.count, privacy: .public)"
             )
             await sharedActor.reconcileOrphanedInferencingScans(
-                activeInferenceScanIds: activeInferenceScanIds
-                    .union(preparingInferenceScanIds)
-                    .union(completingInferenceScanIds)
+                activeInferenceScanIds: locallyActiveInferenceScanIds
+                    .union(serverOwnedInferenceScanIds)
             )
             await MainActor.run { self.replayInferenceStagedScans() }
         }

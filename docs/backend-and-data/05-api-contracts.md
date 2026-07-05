@@ -3499,8 +3499,25 @@ or video entries in `captured_media`.
 ### Response Payload
 
 ```json
-{ "status": "found" | "not_found" }
+{
+  "status": "found",
+  "job_status": null,
+  "job_stage": null,
+  "job_attempt_count": null,
+  "retry_after": null,
+  "last_error": null
+}
 ```
+
+`status` remains the compatibility field and is still only `"found"` or
+`"not_found"`. When the scan row is not complete yet, newer clients and ops
+tools can inspect the optional job fields backed by `scan_ingestion_jobs`:
+`job_status` may be `processing`, `finalizing`, `retrying`,
+`failed_retryable`, `failed`, or `complete`; `job_stage` names the precise
+server step; `retry_after` and `last_error` are only populated for failed jobs.
+iOS decodes the full response via `ScanStatusResponse`: queued scans use these
+fields to keep server-owned `.inferencing` rows from being resubmitted while
+media promotion or scan insertion is still finalizing.
 
 ### Authentication & IDOR
 
@@ -3508,8 +3525,8 @@ The `Authorization: Bearer` JWT is verified by `withEdgeHandler`. The DB query
 enforces ownership with a dual `.eq("id", scan_id).eq("user_id", user.id)`
 constraint — a user cannot probe another user's scan IDs. The query returns only
 the media fields needed for the durability check (`id`, `video_storage_urls`,
-`captured_media`, and normalized scan-media asset rows); no private scan content
-is transmitted.
+`captured_media`, normalized scan-media asset rows, and the user's own
+scan-ingestion job state); no private scan content is transmitted.
 
 ### Architecture
 

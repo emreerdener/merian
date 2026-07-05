@@ -94,13 +94,13 @@ Both uploads and inference use the same background `URLSession` (`URLSessionConf
 
 ## Background Ingestion Dead-Letter Pattern
 
-When `identify/index.ts` fires `runBackgroundIngestion()` and `insertScan()` fails (FK violation, DB timeout, network partition), the iOS client has already received a `200 OK` with the AI result. The background task catches this failure and:
+When `identify-multimodal/index.ts` fires `runBackgroundIngestion()` and `insertScan()` fails (FK violation, DB timeout, network partition), the iOS client may already have received a `200 OK` with the AI result. The active multimodal path now claims a `scan_ingestion_jobs` row before AI inference and updates it through `processing`, `finalizing`, `failed_retryable`, `failed_terminal`, and `complete` states so `/check-scan-status` can report more than a bare not-found result. The background task still catches insertion failures and:
 
 1. Logs a structured error via `logStructuredError("background_ingestion_failed", { scan_id, user_id, error })`.
 2. Inserts a row into `public.failed_scan_ingestions` (dead-letter table) with the `scan_id`, `user_id`, and `error_message`.
 3. If the dead-letter insert also fails, logs `logStructuredError("dead_letter_write_failed", ...)` and continues — the primary failure is already logged.
 
-**Ops replay**: Query `failed_scan_ingestions` by `user_id` and `failed_at` to identify affected users. Replay by re-invoking the `identify` function with the same `client_scan_id`. The `ignoreDuplicates: true` guard in `insertScan` makes replay idempotent — a re-run will not create duplicate rows. The `ERROR` status guard in `identify/index.ts` prevents inserting scans where the moderation pipeline returned an error status (null images), so only genuine ingestion failures reach the dead-letter table.
+**Ops replay**: Start with `scan_ingestion_jobs` for current state, attempt count, stage, and retryability. Query `failed_scan_ingestions` by `user_id` and `failed_at` for the older dead-letter fallback and detailed insert failures. Replay by re-invoking the `identify` function with the same `client_scan_id`. The `ignoreDuplicates: true` guard in `insertScan` makes replay idempotent — a re-run will not create duplicate rows. The `ERROR` status guard in `identify/index.ts` prevents inserting scans where the moderation pipeline returned an error status (null images), so only genuine ingestion failures reach the dead-letter table.
 
 ## Startup and Auth Failures Are Recoverable
 

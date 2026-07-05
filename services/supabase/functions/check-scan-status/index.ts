@@ -4,8 +4,9 @@ import {
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { requireParams } from "../_shared/http.ts";
+import { scanIngestionClientState } from "../_shared/scanIngestionJobs.ts";
 import { countVideoScanMediaAssets } from "../_shared/scanMediaAssets.ts";
-import { fetchScanStatusMedia } from "./db.ts";
+import { fetchScanStatusJob, fetchScanStatusMedia } from "./db.ts";
 
 function normalizeRequiredVideoCount(value: unknown): number {
   if (value == null) return 0;
@@ -64,7 +65,27 @@ Deno.serve((req: Request) =>
           Math.max(manifestVideoCount, assetVideoCount) >= requiredVideoCount;
       }
 
-      return jsonResponse({ status: exists ? "found" : "not_found" }, 200);
+      let job = null;
+      if (!exists) {
+        try {
+          job = await fetchScanStatusJob(scan_id, user.id, supabaseAdmin);
+        } catch (error) {
+          logStructuredError("check_scan_status_job_fetch_failed", {
+            scan_id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      const jobState = scanIngestionClientState(job);
+
+      return jsonResponse({
+        status: exists ? "found" : "not_found",
+        job_status: jobState?.status ?? null,
+        job_stage: jobState?.stage ?? null,
+        job_attempt_count: jobState?.attempt_count ?? null,
+        retry_after: jobState?.retry_after ?? null,
+        last_error: jobState?.last_error ?? null,
+      }, 200);
     } catch (error) {
       logStructuredError("check_scan_status_failed", {
         scan_id,

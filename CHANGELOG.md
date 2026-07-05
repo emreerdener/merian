@@ -18,6 +18,8 @@ TestFlight, App Store, support, and QA.
 - Hardened video scan submission so saved video captures require a durable playback clip instead of silently falling back to sampled frames.
 - Added server-tracked upload sessions for scan media so staged videos, images, and audio have lifecycle state before final scan persistence.
 - Added server-side reconciliation for scan media uploads so stranded video staging objects can repair existing cloud scans and abandoned upload sessions are cleaned up automatically.
+- Added server-side scan ingestion job tracking so accepted video and mixed-media scans expose processing, finalizing, retryable failure, and completion state for recovery.
+- Updated iOS offline recovery so queued scans respect server ingestion job state instead of resubmitting while video/media finalization is still in progress.
 - Fixed cloud-hydrated video scans so sampled analysis frames stay hidden behind the playable video instead of appearing as standalone Insight carousel images.
 - Improved camera shutter feedback so photo captures and video recording start with a stronger, prewarmed haptic cue, and video recording begins almost immediately after a brief hold.
 - Updated video scan analysis so Pro video scans sample five ordered frames, treat accompanying audio as evidence from the same video, and are no longer described as images.

@@ -411,6 +411,14 @@ triggering excessive SwiftUI view rebuilds.
   this reset they would be stuck. Additionally,
   `replayInferenceForUploadedScans` cross-references live URLSession tasks on
   every call to catch orphans that bypass the catch block.
+- **Server-Owned Inference Recovery**: Before replay resets an orphaned
+  `.inferencing` scan, it polls `/check-scan-status` with the queued scan's
+  required video count. `found` scans are synced down and the queue row is
+  deleted, `processing` / `finalizing` / `retrying` server jobs keep the local row
+  in `.inferencing` and schedule another poll, `failed_retryable` respects the
+  server `retry_after` before retreating to `.staged`, and terminal failures
+  tombstone the queue row. This keeps video playback finalization from being
+  mistaken for a local inference failure after app suspension or restart.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5),
   `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (5),
   `mediaStagingMaxAudioFilesPerRequest` (2), `stagedImagePayloadMaxBytes` (5

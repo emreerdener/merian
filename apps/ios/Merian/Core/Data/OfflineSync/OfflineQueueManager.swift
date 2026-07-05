@@ -98,6 +98,14 @@ import SwiftData
     /// scan but lose the background response path; these probes recover from that gap.
     @ObservationIgnored var inferenceStatusProbeTasks: [String: Task<Void, Never>] = [:]
 
+    /// Delayed polls for scans owned by the server-side ingestion job after the
+    /// background URLSession task has finished or been cancelled locally.
+    @ObservationIgnored var serverIngestionPollTasks: [String: Task<Void, Never>] = [:]
+
+    /// Last server-side ingestion job status observed for queued scans. Used only for
+    /// user-facing transient copy while the backend remains the durable source of truth.
+    var scanIngestionJobStates: [String: ScanIngestionJobStatus] = [:]
+
     /// Scans whose inference response is being processed. During this window the
     /// URLSession task is already gone, but replay must not treat the scan as orphaned.
     @ObservationIgnored var inferenceCompletionScanIds: Set<String> = []
@@ -212,6 +220,8 @@ import SwiftData
                     self?.collectionSyncTask?.cancel()
                     // Cancel any pending backoff retry — it must not fire while offline.
                     self?.retryBackoffTask?.cancel()
+                    self?.serverIngestionPollTasks.values.forEach { $0.cancel() }
+                    self?.serverIngestionPollTasks.removeAll()
                     self?.isSyncing = false
                     self?.isCollectionSyncing = false
                     SyncStateManager.shared.forceIdle()

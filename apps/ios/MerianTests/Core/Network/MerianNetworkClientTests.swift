@@ -1224,6 +1224,52 @@ struct MerianNetworkClientTests {
         }
     }
 
+    @Test func testCheckScanStatusDetailsDecodesJobStateAndRequiredVideoCount() async throws {
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        let responseData = Data("""
+        {
+          "status": "not_found",
+          "job_status": "finalizing",
+          "job_stage": "video_promotion_started",
+          "job_attempt_count": 2,
+          "retry_after": "2026-07-05T15:00:00.000Z",
+          "last_error": null
+        }
+        """.utf8)
+
+        MockURLProtocol.mockEndpoints["/check-scan-status"] = { request in
+            #expect(request.url?.path.hasSuffix("/check-scan-status") == true)
+            let bodyData = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+            #expect(payload["scan_id"] as? String == "scan-video-status")
+            #expect(payload["required_video_count"] as? Int == 1)
+            return (mockResponse, responseData)
+        }
+
+        let status = try await MerianNetworkClient.shared.checkScanStatusDetails(
+            scanId: "scan-video-status",
+            requiredVideoCount: 1
+        )
+
+        #expect(status.status == .notFound)
+        #expect(status.jobStatus == .finalizing)
+        #expect(status.jobStage == "video_promotion_started")
+        #expect(status.jobAttemptCount == 2)
+        #expect(status.retryAfter == "2026-07-05T15:00:00.000Z")
+        #expect(status.lastError == nil)
+
+        let legacyStatus = try await MerianNetworkClient.shared.checkScanStatus(
+            scanId: "scan-video-status",
+            requiredVideoCount: 1
+        )
+        #expect(legacyStatus == "not_found")
+    }
+
     @Test func testDeleteScanEndpoint() async throws {
         let mockResponse = HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         MockURLProtocol.mockEndpoints["/delete-scan"] = { request in

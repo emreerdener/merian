@@ -9,6 +9,14 @@ private enum InferencePreparationFailure: Error {
     case timedOut
 }
 
+enum ScanStatusRecoveryAction: Equatable {
+    case recovered
+    case waitForServer(TimeInterval)
+    case retryAfter(TimeInterval)
+    case terminalFailure(String?)
+    case unresolved
+}
+
 // MARK: - URLSession Delegate
 
 extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegate {
@@ -728,6 +736,38 @@ extension OfflineQueueManager {
 
     // MARK: - Inference Failure Handling
 
+    static func scanStatusRecoveryAction(
+        for response: ScanStatusResponse,
+        now: Date = Date(),
+        defaultPollDelay: TimeInterval = 15,
+        defaultRetryDelay: TimeInterval = 30
+    ) -> ScanStatusRecoveryAction {
+        if response.isFound {
+            return .recovered
+        }
+
+        func boundedDelay(from isoString: String?, fallback: TimeInterval) -> TimeInterval {
+            guard let isoString,
+                  let date = ISO8601DateFormatter().date(from: isoString) else {
+                return fallback
+            }
+            return min(max(date.timeIntervalSince(now), 1), 300)
+        }
+
+        switch response.jobStatus {
+        case .processing, .finalizing:
+            return .waitForServer(boundedDelay(from: response.retryAfter, fallback: defaultPollDelay))
+        case .retrying:
+            return .waitForServer(boundedDelay(from: response.retryAfter, fallback: defaultRetryDelay))
+        case .failedRetryable:
+            return .retryAfter(boundedDelay(from: response.retryAfter, fallback: defaultRetryDelay))
+        case .failed:
+            return .terminalFailure(response.lastError)
+        case .complete, nil:
+            return .unresolved
+        }
+    }
+
     private func scheduleInferenceStatusProbe(scanId: String) {
         inferenceStatusProbeTasks[scanId]?.cancel()
         inferenceStatusProbeTasks[scanId] = Task { [weak self] in
@@ -742,7 +782,7 @@ extension OfflineQueueManager {
                     scanId: scanId,
                     reason: "delayed probe"
                 )
-                if recovered { return }
+                if recovered != .unresolved { return }
                 let activeTaskCount = await self.activeInferenceTaskCount(scanId: scanId)
                 MerianLog.data.debug(
                     "scheduleInferenceStatusProbe: scan still pending scanId=\(scanId, privacy: .public) activeTasks=\(activeTaskCount, privacy: .public)"
@@ -777,6 +817,78 @@ extension OfflineQueueManager {
         MerianLog.data.debug("cancelInferenceStatusProbe: cancelled scanId=\(scanId, privacy: .public)")
     }
 
+    private func clearServerIngestionState(scanId: String) {
+        serverIngestionPollTasks[scanId]?.cancel()
+        serverIngestionPollTasks[scanId] = nil
+        scanIngestionJobStates[scanId] = nil
+    }
+
+    private func scheduleServerIngestionPoll(
+        scanId: String,
+        delay: TimeInterval,
+        reason: String
+    ) {
+        serverIngestionPollTasks[scanId]?.cancel()
+        serverIngestionPollTasks[scanId] = Task { [weak self] in
+            let nanoseconds = UInt64(max(1, delay) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            guard !Task.isCancelled else { return }
+            guard let self else { return }
+            await MainActor.run {
+                self.serverIngestionPollTasks[scanId] = nil
+            }
+            guard await MainActor.run(body: { self.isOnline }) else { return }
+            await self.handleInferenceRetry(scanId: scanId, reason: reason)
+        }
+        MerianLog.data.debug(
+            "scheduleServerIngestionPoll: scheduled scanId=\(scanId, privacy: .public) delay=\(String(format: "%.1f", delay), privacy: .public)s reason=\(reason, privacy: .public)"
+        )
+    }
+
+    private func scheduleRetryableServerFailure(
+        scanId: String,
+        delay: TimeInterval,
+        reason: String
+    ) async {
+        guard let container = modelContext?.container else { return }
+        let retries = await MainActor.run { () -> Int in
+            let next = (uploadRetryCount[scanId] ?? 0) + 1
+            uploadRetryCount[scanId] = next
+            return next
+        }
+
+        guard retries < OfflineQueueManager.maxUploadRetries else {
+            MerianLog.data.debug(
+                "scheduleRetryableServerFailure: retry limit reached scanId=\(scanId, privacy: .private) reason=\(reason, privacy: .public)"
+            )
+            uploadRetryCount.removeValue(forKey: scanId)
+            softDeleteQueuedScan(scanId: scanId)
+            clearServerIngestionState(scanId: scanId)
+            return
+        }
+
+        serverIngestionPollTasks[scanId]?.cancel()
+        serverIngestionPollTasks[scanId] = Task { [weak self] in
+            let nanoseconds = UInt64(max(1, delay) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            guard !Task.isCancelled else { return }
+            guard let self else { return }
+            await MainActor.run {
+                self.serverIngestionPollTasks[scanId] = nil
+            }
+            guard await MainActor.run(body: { self.isOnline }) else { return }
+            let retryActor = await MainActor.run { self.resolvedInferenceDbActor(container: container) }
+            await retryActor.transitionScanToStaged(id: scanId)
+            await MainActor.run {
+                self.updateUnsyncedItemCount()
+                self.replayInferenceForUploadedScans()
+            }
+        }
+        MerianLog.data.debug(
+            "scheduleRetryableServerFailure: scheduled scanId=\(scanId, privacy: .public) delay=\(String(format: "%.1f", delay), privacy: .public)s retry=\(retries, privacy: .public)/\(OfflineQueueManager.maxUploadRetries, privacy: .public) reason=\(reason, privacy: .public)"
+        )
+    }
+
     private func isLiveInferenceTask(_ task: URLSessionTask, scanId: String) -> Bool {
         task.taskDescription == "inference_\(scanId)"
             && task.state != .canceling
@@ -799,11 +911,11 @@ extension OfflineQueueManager {
         return tasks.filter { isLiveInferenceTask($0, scanId: scanId) }.count
     }
 
-    private func recoverCompletedInferenceFromServer(scanId: String, reason: String) async -> Bool {
+    private func recoverCompletedInferenceFromServer(scanId: String, reason: String) async -> ScanStatusRecoveryAction {
         let requiredVideoCount = requiredVideoCountForQueuedScan(scanId: scanId)
-        let status: String
+        let response: ScanStatusResponse
         do {
-            status = try await MerianNetworkClient.shared.checkScanStatus(
+            response = try await MerianNetworkClient.shared.checkScanStatusDetails(
                 scanId: scanId,
                 requiredVideoCount: requiredVideoCount
             )
@@ -811,14 +923,51 @@ extension OfflineQueueManager {
             MerianLog.data.debug(
                 "recoverCompletedInferenceFromServer: status check failed scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
             )
-            return false
+            return .unresolved
         }
 
-        MerianLog.data.debug(
-            "recoverCompletedInferenceFromServer: scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) status=\(status, privacy: .public) requiredVideos=\(requiredVideoCount, privacy: .public)"
-        )
-        guard status == "found" else { return false }
+        if let jobStatus = response.jobStatus {
+            scanIngestionJobStates[scanId] = jobStatus
+        } else {
+            scanIngestionJobStates[scanId] = nil
+        }
 
+        let action = Self.scanStatusRecoveryAction(for: response)
+        MerianLog.data.debug(
+            "recoverCompletedInferenceFromServer: scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public) status=\(response.status.rawValue, privacy: .public) jobStatus=\((response.jobStatus?.rawValue ?? "nil"), privacy: .public) jobStage=\((response.jobStage ?? "nil"), privacy: .public) requiredVideos=\(requiredVideoCount, privacy: .public)"
+        )
+        switch action {
+        case .recovered:
+            return await recoverFoundScanFromServer(scanId: scanId, reason: reason) ? .recovered : .unresolved
+        case .waitForServer(let delay):
+            scheduleServerIngestionPoll(
+                scanId: scanId,
+                delay: delay,
+                reason: "server ingestion poll"
+            )
+            return action
+        case .retryAfter(let delay):
+            await scheduleRetryableServerFailure(
+                scanId: scanId,
+                delay: delay,
+                reason: reason
+            )
+            return action
+        case .terminalFailure(let message):
+            MerianLog.data.debug(
+                "recoverCompletedInferenceFromServer: terminal server failure scanId=\(scanId, privacy: .public) message=\((message ?? "nil"), privacy: .public)"
+            )
+            uploadRetryCount.removeValue(forKey: scanId)
+            softDeleteQueuedScan(scanId: scanId)
+            clearServerIngestionState(scanId: scanId)
+            return action
+        case .unresolved:
+            return .unresolved
+        }
+    }
+
+    private func recoverFoundScanFromServer(scanId: String, reason: String) async -> Bool {
+        clearServerIngestionState(scanId: scanId)
         cancelInferenceStatusProbe(scanId: scanId)
         uploadRetryCount.removeValue(forKey: scanId)
         let didSyncTarget: Bool
@@ -860,6 +1009,35 @@ extension OfflineQueueManager {
         descriptor.fetchLimit = 1
         guard let scan = (try? context.fetch(descriptor))?.first else { return 0 }
         return scan.capturedMediaSnapshot.videoPaths.count
+    }
+
+    func serverOwnedInferencingScanIds(
+        excluding locallyActiveScanIds: Set<String>,
+        reason: String
+    ) async -> Set<String> {
+        guard isOnline, let context = modelContext else { return [] }
+        let inferencingRaw = ScanQueueState.inferencing.rawValue
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.scanStateRaw == inferencingRaw }
+        )
+        let candidateIds = ((try? context.fetch(descriptor)) ?? [])
+            .map(\.id)
+            .filter { !locallyActiveScanIds.contains($0) }
+
+        var retained = Set<String>()
+        for scanId in candidateIds {
+            let action = await recoverCompletedInferenceFromServer(
+                scanId: scanId,
+                reason: reason
+            )
+            switch action {
+            case .waitForServer, .retryAfter:
+                retained.insert(scanId)
+            case .recovered, .terminalFailure, .unresolved:
+                break
+            }
+        }
+        return retained
     }
 
     private func promoteRecoveredLocalScan(scanId: String) -> Bool {
@@ -927,7 +1105,8 @@ extension OfflineQueueManager {
     private func handleInferenceRetry(scanId: String, reason: String = "retry") async {
         guard let container = modelContext?.container else { return }
 
-        if await recoverCompletedInferenceFromServer(scanId: scanId, reason: reason) {
+        let recoveryAction = await recoverCompletedInferenceFromServer(scanId: scanId, reason: reason)
+        if recoveryAction != .unresolved {
             return
         }
 
