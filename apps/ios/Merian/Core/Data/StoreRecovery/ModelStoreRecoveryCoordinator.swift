@@ -27,7 +27,10 @@ enum ModelStoreRecoveryCoordinator {
         "incompatible with the current model version",
         "incompatible version hash",
         "missing mapping model",
-        "model version"
+        "model version",
+        "staged migration",
+        "duplicate version checksums",
+        "version checksum"
     ]
 
     static func defaultStoreURL() -> URL {

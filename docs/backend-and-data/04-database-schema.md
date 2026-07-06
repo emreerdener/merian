@@ -1781,6 +1781,12 @@ The current active schema is `MerianSchemaV48`. Recent milestones:
   `invasiveRationale`, `invasiveConfidence`) to completed local scans, matching
   the cloud `scans` columns introduced by migration
   `20260703120000_add_invasive_context_to_scans.sql`.
+- V46 was a shipped no-op schema with the same SwiftData model checksum as V45.
+  It remains available as a historical type for compatibility fixtures, but it
+  must not appear in `MerianMigrationPlan.schemas` or
+  `MerianMigrationPlan.stages`; V45/V46-checksum stores advance through the
+  V45→V47 stage to avoid SwiftData's duplicate-version-checksum startup
+  rejection.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.

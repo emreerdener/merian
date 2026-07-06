@@ -24,6 +24,7 @@
           "title": "Fixed",
           "items": [
             "Recent TestFlight upgrades now reopen existing local scan libraries normally instead of launching in safe mode after a schema update.",
+            "Startup schema migration now skips a no-op historical schema stage that could make SwiftData reject the migration plan before opening the local library.",
             "Offline-queue schema upgrades now initialize durable retry state for existing queued scans instead of repeatedly reopening in safe mode.",
             "Startup safe mode now reports local library upgrade failures more clearly while keeping the existing store in place."
           ]

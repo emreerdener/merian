@@ -564,6 +564,30 @@ struct MigrationPlanTests {
         )
     }
 
+    @Test func noopV46SchemaIsCollapsedOutOfRuntimeMigrationPath() throws {
+        let source = try migrationPlanSource()
+        let requiredSnippets = [
+            "static let migrateV45toV47 = MigrationStage.lightweight",
+            "fromVersion: MerianSchemaV45.self",
+            "toVersion: MerianSchemaV47.self",
+            "Duplicate version checksums across stages detected"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "The released no-op V46 checksum must advance through V45->V47. Missing snippets:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            !source.contains("MerianSchemaV46.self"),
+            "MerianSchemaV46 has the same model checksum as V45 and must stay out of MerianMigrationPlan.schemas/stages."
+        )
+        #expect(
+            !source.contains("migrateV45toV46") && !source.contains("migrateV46toV47"),
+            "Do not reintroduce a staged V45->V46 or V46->V47 hop; V46 is a no-op checksum duplicate."
+        )
+    }
+
     @Test func migrationFromV44ToCurrentSchemaDoesNotSafeMode() throws {
         let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v44migration_test.sqlite")
         defer { removeSQLiteStore(at: url) }

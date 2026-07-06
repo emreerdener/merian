@@ -112,6 +112,8 @@ TestFlight, App Store, support, and QA.
   safely without signing the user out.
 - Fixed recent TestFlight upgrades so existing local scan libraries open
   normally instead of launching in safe mode after a schema update.
+- Fixed a startup safe-mode loop caused by a no-op historical schema version
+  being included as a separate SwiftData migration stage.
 - Fixed offline-queue schema upgrades so existing queued scans initialize their
   durable retry state instead of repeatedly reopening in safe mode.
 - Added broader startup migration safety checks so queued image, video, audio,

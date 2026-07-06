@@ -66,6 +66,19 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         XCTAssertEqual(fallback.telemetryReason, "persistent_store_migration_failed")
     }
 
+    func testDuplicateVersionChecksumFailureUsesUpgradeSafeModeDiagnostics() {
+        let duplicateChecksumError = NSError(
+            domain: "app.merian.model-container",
+            code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "Duplicate version checksums across stages detected."]
+        )
+
+        let fallback = ModelStoreRecoveryCoordinator.safeModeFallback(for: duplicateChecksumError)
+
+        XCTAssertTrue(fallback.message.contains("could not finish upgrading"))
+        XCTAssertEqual(fallback.telemetryReason, "persistent_store_migration_failed")
+    }
+
     func testGenericFailureUsesPersistentUnavailableSafeModeDiagnostics() {
         let genericError = NSError(
             domain: NSCocoaErrorDomain,

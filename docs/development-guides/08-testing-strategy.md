@@ -167,7 +167,9 @@ MerianTests/
     stages, active/global `FetchDescriptor` types inside `MerianMigrationPlan`,
     active model convenience helpers such as `replaceCapturedMedia(...)`, or
     bare active `CapturedMediaEntry` relationship targets inside retired
-    schemas.
+    schemas. They also keep the shipped no-op V46 schema collapsed out of the
+    runtime migration path so SwiftData cannot reject startup with duplicate
+    version checksums.
 - **`SerializedMediaItemTests.swift`**: Locks the active-schema mixed-media read
   precedence. `localScanRecordPrefersCapturedMediaJSONOverRelationshipMirror`
   and `offlineQueuedScanPrefersCapturedMediaJSONOverRelationshipMirror` seed

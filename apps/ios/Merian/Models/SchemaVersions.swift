@@ -2274,7 +2274,6 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV43.self,
             MerianSchemaV44.self,
             MerianSchemaV45.self,
-            MerianSchemaV46.self,
             MerianSchemaV47.self,
             MerianSchemaV48.self
         ]
@@ -2326,8 +2325,7 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV42toV43,
             migrateV43toV44,
             migrateV44toV45,
-            migrateV45toV46,
-            migrateV46toV47,
+            migrateV45toV47,
             migrateV47toV48
         ]
     }
@@ -2378,14 +2376,13 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         }
     )
 
-    static let migrateV46toV47 = MigrationStage.lightweight(
-        fromVersion: MerianSchemaV46.self,
-        toVersion: MerianSchemaV47.self
-    )
-
-    static let migrateV45toV46 = MigrationStage.lightweight(
+    // V46 was a released no-op schema with the same model checksum as V45. Keeping
+    // it as a staged migration source makes SwiftData reject the whole plan with
+    // "Duplicate version checksums across stages detected", so V45/V46-checksum
+    // stores advance through the next real model change here.
+    static let migrateV45toV47 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV45.self,
-        toVersion: MerianSchemaV46.self
+        toVersion: MerianSchemaV47.self
     )
 
     static let migrateV44toV45 = MigrationStage.lightweight(
