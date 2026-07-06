@@ -8,8 +8,10 @@ When building zero-OOM pipelines and heavily concurrent systems like Merian, min
 
 SwiftData staged migration plans cannot contain two schema versions with the
 same model checksum. Merian shipped V46 as a no-op after V45, so the primary
-`MerianMigrationPlan` keeps V46 out of `schemas` and advances the shared V45/V46
-checksum through V45→V47.
+`MerianMigrationPlan` keeps the duplicate-prone V44/V45/V46 recent cluster out
+of `schemas` and jumps older unknown stores from V43→V47. Source-isolated recent
+plans still handle V44, V45, and V46 stores directly; the shared V45/V46
+checksum advances through V45→V47 there.
 
 One extra wrinkle: a user may already have a local store stamped as V46.
 SwiftData can validate that on-disk source model alongside the primary plan's

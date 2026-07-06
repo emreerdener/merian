@@ -139,10 +139,12 @@ The full operating contract lives in `docs/backend-and-data/08-startup-store-rec
 - Startup reads SwiftData store metadata before creating the persistent
   container. Fresh/current stores open without a migration plan, known recent
   stores use source-isolated V47/V46/V45/V44 plans, and unknown older stores use
-  the full historical plan. V46 is a no-op checksum twin of V45, so its recent
-  plan routes through the V45 representative while V47 changes only the queued
-  scan model. Duplicate-checksum failures retry through the same recent-plan
-  ladder before safe mode.
+  the full historical plan. That full plan jumps V43→V47 so SwiftData does not
+  validate the duplicate-prone V44/V45/V46 recent cluster during older-store
+  migrations. V46 is a no-op checksum twin of V45, so its recent plan routes
+  through the V45 representative while V47 changes only the queued scan model.
+  Duplicate-checksum failures retry through the same recent-plan ladder before
+  safe mode.
 - Store quarantine is intentionally narrow and owned by `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`: Merian only moves `default.store`, `default.store-shm`, and `default.store-wal` when the failure matches a verified SQLite/Core Data corruption signature and those store artifacts exist. Generic container failures must boot safe mode without moving user data.
 - Quarantine directories include `recovery-manifest.json` with app/build/OS metadata, moved artifact names, and a sanitized error reason. This manifest is for support and debugging only; it must not include user IDs, paths outside the quarantine, access tokens, or profile data.
 - Store recovery must never clear Keychain auth, Supabase sessions, device identity, profile state, or cloud ownership. Local SwiftData recovery is isolated from account identity so a damaged local library cannot sign a user out or orphan Explore posts.

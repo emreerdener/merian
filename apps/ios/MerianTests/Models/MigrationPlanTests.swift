@@ -42,6 +42,34 @@ struct MigrationPlanTests {
         return String(remainder)
     }
 
+    private func migrationPlanSchemasListSource() throws -> String {
+        let source = try migrationPlanSource()
+        guard let schemasStart = source.range(of: "static var schemas")?.lowerBound else {
+            Issue.record("MerianMigrationPlan must declare schemas")
+            return ""
+        }
+        let remainder = source[schemasStart...]
+        guard let stagesStart = remainder.range(of: "\n    static var stages")?.lowerBound else {
+            Issue.record("MerianMigrationPlan schemas must precede stages")
+            return String(remainder)
+        }
+        return String(remainder[..<stagesStart])
+    }
+
+    private func migrationPlanStagesListSource() throws -> String {
+        let source = try migrationPlanSource()
+        guard let stagesStart = source.range(of: "static var stages")?.lowerBound else {
+            Issue.record("MerianMigrationPlan must declare stages")
+            return ""
+        }
+        let remainder = source[stagesStart...]
+        guard let firstStageStart = remainder.range(of: "\n    static let migrateV47toV48")?.lowerBound else {
+            Issue.record("MerianMigrationPlan stages must precede stage declarations")
+            return String(remainder)
+        }
+        return String(remainder[..<firstStageStart])
+    }
+
     private func recentV44MigrationPlanSource() throws -> String {
         let source = try schemaVersionsSource()
         guard let migrationStart = source.range(of: "enum MerianRecentV44MigrationPlan")?.lowerBound else {
@@ -534,11 +562,11 @@ struct MigrationPlanTests {
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
     }
 
-    /// Simulates the TestFlight V43 -> V44 path that adds pet identification.
-    /// V43 must be a frozen schema snapshot; if it accidentally points at the
-    /// active global LocalScanRecord, SwiftData sees V43 and V44 as duplicate
-    /// model checksums and aborts during NSLightweightMigrationStage setup.
-    @Test func migrationFromV43ToV44DoesNotCrash() throws {
+    /// Simulates the last stable pre-cluster source path.
+    /// V44/V45/V46 are recent duplicate-prone representatives, so the full
+    /// historical plan jumps V43 directly to V47 and leaves V44/V45/V46 to
+    /// source-isolated recent plans.
+    @Test func migrationFromV43ToCurrentSchemaDoesNotSafeMode() throws {
         let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v43migration_test.sqlite")
         defer { removeSQLiteStore(at: url) }
 
@@ -655,9 +683,14 @@ struct MigrationPlanTests {
         )
     }
 
-    @Test func noopV46SchemaIsCollapsedOutOfRuntimeMigrationPath() throws {
+    @Test func duplicateRecentSchemasAreCollapsedOutOfFullRuntimeMigrationPath() throws {
         let source = try migrationPlanSource()
+        let schemasSource = try migrationPlanSchemasListSource()
+        let stagesSource = try migrationPlanStagesListSource()
         let requiredSnippets = [
+            "static let migrateV43toV47 = MigrationStage.lightweight",
+            "fromVersion: MerianSchemaV43.self",
+            "toVersion: MerianSchemaV47.self",
             "static let migrateV45toV47 = MigrationStage.lightweight",
             "fromVersion: MerianSchemaV45.self",
             "toVersion: MerianSchemaV47.self",
@@ -667,11 +700,20 @@ struct MigrationPlanTests {
 
         #expect(
             missing.isEmpty,
-            "The released no-op V46 checksum must advance through V45->V47. Missing snippets:\n\(missing.joined(separator: "\n"))"
+            "The duplicate-prone recent schema cluster must advance through direct jumps. Missing snippets:\n\(missing.joined(separator: "\n"))"
         )
         #expect(
-            !source.contains("MerianSchemaV46.self"),
-            "MerianSchemaV46 has the same model checksum as V45 and must stay out of MerianMigrationPlan.schemas/stages."
+            !schemasSource.contains("MerianSchemaV44.self") &&
+                !schemasSource.contains("MerianSchemaV45.self") &&
+                !schemasSource.contains("MerianSchemaV46.self"),
+            "MerianMigrationPlan.schemas must omit duplicate-prone V44/V45/V46 representatives; source-isolated recent plans handle those stores."
+        )
+        #expect(
+            !stagesSource.contains("migrateV43toV44") &&
+                !stagesSource.contains("migrateV44toV45") &&
+                !stagesSource.contains("migrateV45toV47") &&
+                stagesSource.contains("migrateV43toV47"),
+            "The full historical stage list must jump V43->V47 and avoid V44/V45/V46 representatives."
         )
         #expect(
             !source.contains("migrateV45toV46") && !source.contains("migrateV46toV47"),

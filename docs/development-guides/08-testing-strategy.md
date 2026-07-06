@@ -171,9 +171,10 @@ MerianTests/
     bare active `CapturedMediaEntry` relationship targets inside retired
     schemas. V40→V41 media-entry backfill coverage also requires new
     relationship rows to be inserted through the migration `ModelContext` before
-    assignment. They also keep the shipped no-op V46 schema collapsed out of the
-    runtime migration path so SwiftData cannot reject startup with duplicate
-    version checksums. Disk-backed migration tests should open `ModelContainer`
+    assignment. They also keep the duplicate-prone V44/V45/V46 recent cluster
+    collapsed out of the full historical runtime migration path so SwiftData
+    cannot reject startup with duplicate version checksums. Disk-backed
+    migration tests should open `ModelContainer`
     through the Objective-C exception bridge so SwiftData `NSException`s are
     reported as test failures with their original reason instead of aborting the
     whole test runner. V47 must reuse the V45 checksum representative for

@@ -1797,12 +1797,15 @@ The current active schema is `MerianSchemaV48`. Recent milestones:
   the cloud `scans` columns introduced by migration
   `20260703120000_add_invasive_context_to_scans.sql`.
 - V46 was a shipped no-op schema with the same SwiftData model checksum as V45.
-  It remains available as a historical type for compatibility fixtures, but it
-  must not appear in `MerianMigrationPlan.schemas` or
-  `MerianMigrationPlan.stages`. V47 reuses the V45 model classes for unchanged
-  local-scan, captured-media, and collection entities, and only introduces a new
-  `OfflineQueuedScan`; V45/V46-checksum stores therefore advance through the
-  V45→V47 stage without forcing SwiftData to validate the no-op V46 classes.
+  V44/V45/V46 remain available as historical types and source-specific recovery
+  inputs, but they must not appear in the full historical
+  `MerianMigrationPlan.schemas` or `MerianMigrationPlan.stages`; that plan jumps
+  V43→V47 so unknown older stores do not force SwiftData to validate the
+  duplicate-prone recent representatives. V47 reuses the V45 model classes for
+  unchanged local-scan, captured-media, and collection entities, and only
+  introduces a new `OfflineQueuedScan`; V45/V46-checksum stores therefore
+  advance through the V45→V47 source-isolated stage without forcing SwiftData to
+  validate the no-op V46 classes.
   App startup reads store metadata before creating `ModelContainer`: fresh/current
   stores open without a migration plan, known recent stores use the source-isolated
   V47/V46/V45/V44 plans, and only unknown older stores use the full historical

@@ -459,11 +459,13 @@ before user workflows begin. The launch path must therefore avoid unnecessary
 deep migration validation. Startup reads the store metadata first: fresh/current
 stores open without a migration plan, known recent stores use the narrow
 source-isolated V47/V46/V45/V44 plans, and unknown older stores use the full
-historical migration plan. The V46 plan uses the V45 checksum representative
-because V46 was a shipped no-op schema, and V47 reuses that representative for
-unchanged models while adding only the queued-scan fields. Duplicate-checksum
-failures retry through the same recent-plan ladder before safe mode. This keeps
-the synchronous launch boundary bounded for normal upgrades while preserving a
+historical migration plan. The full plan jumps V43→V47 so older-store migration
+does not validate the duplicate-prone V44/V45/V46 recent cluster. The V46 plan
+uses the V45 checksum representative because V46 was a shipped no-op schema, and
+V47 reuses that representative for unchanged models while adding only the
+queued-scan fields. Duplicate-checksum failures retry through the same
+recent-plan ladder before safe mode. This keeps the synchronous launch boundary
+bounded for normal upgrades while preserving a
 deterministic recovery surface if SwiftData cannot open the store.
 
 ### App Boot SDK Stutter (`MerianApp`)

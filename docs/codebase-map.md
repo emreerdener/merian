@@ -89,8 +89,10 @@ Recent schema milestones:
 - V44 added optional dog/cat pet-identification display metadata on completed
   local scans.
 - V45 added optional invasive-status context to completed local scans. V46 was a
-  shipped no-op checksum twin of V45; runtime migration keeps V46 out of the
-  primary plan and uses the V45 representative for unchanged models.
+  shipped no-op checksum twin of V45; runtime migration keeps the
+  duplicate-prone V44/V45/V46 recent cluster out of the full historical plan,
+  jumps older stores V43→V47, and uses source-isolated recent plans for stores
+  already stamped V44, V45, or V46.
 - V47 added offline video inference replay fields so sampled frames can be
   queued separately from the user-visible playback video timeline. Its frozen
   schema reuses the V45 representative for unchanged local-scan,

@@ -173,10 +173,13 @@ disk-store migrations, V44/V45/V46/V47 source-isolated recent plans, V47→V48
 offline queue media fixtures, and source scans for migration safety invariants:
 no silent custom-stage saves, no active/global fetch descriptors or active model
 convenience helpers in `MerianMigrationPlan`, and no bare active
-`CapturedMediaEntry` relationship targets in retired schemas. Because V46 is a
-no-op checksum twin of V45, V47 must reuse the V45 representative for unchanged
-local-scan, captured-media, and collection models, and the V46 recent plan must
-route through the same V45 representative rather than reintroducing V46 classes.
+`CapturedMediaEntry` relationship targets in retired schemas. The full
+historical plan must skip the duplicate-prone V44/V45/V46 recent cluster by
+jumping V43→V47; the source-isolated V44/V45/V46 recent plans handle already
+stamped recent stores. Because V46 is a no-op checksum twin of V45, V47 must
+reuse the V45 representative for unchanged local-scan, captured-media, and
+collection models, and the V46 recent plan must route through the same V45
+representative rather than reintroducing V46 classes.
 
 **Custom migration save rule**: Never use `try? context.save()` inside `MerianMigrationPlan` custom stages. Every custom `didMigrate` save must call the shared migration save helper, rollback on failure, and rethrow so SwiftData aborts the migration rather than opening a store with missing backfilled fields. Scratchpad namespaces are cleared only after the save succeeds, and migration fetch failures must propagate instead of being logged and ignored. Migration-stage fetches must use the concrete source/target schema type for that stage, never `CurrentSchema`, active global model classes, or active-only convenience helpers, because SwiftData can trap while casting historical migration objects. Any relationship model introduced in a retired schema must be frozen in that schema too, even if the active model has the same fields. Custom migrations that create relationship rows must insert those rows into the migration `ModelContext` before assigning the relationship; relying on relationship assignment alone can crash during SwiftData store migration.
 
