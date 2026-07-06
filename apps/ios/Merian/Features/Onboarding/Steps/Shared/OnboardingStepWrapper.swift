@@ -1,11 +1,10 @@
-import RiveRuntime
 import SwiftUI
 
 // MARK: - Core Feature Presentation Primitive
 struct OnboardingStepWrapper: View {
     // MARK: - Visual Asset Matrix
     var imageName: String?
-    var iconColor: Color?
+    var iconColor: SwiftUI.Color?
     var iconText: String?
     var iconCornerRadius: CGFloat?
     
@@ -15,8 +14,8 @@ struct OnboardingStepWrapper: View {
     
     // MARK: - Primary Action Binding
     let primaryButtonTitle: String
-    let primaryButtonTextColor: Color
-    let primaryButtonColor: Color
+    let primaryButtonTextColor: SwiftUI.Color
+    let primaryButtonColor: SwiftUI.Color
     let primaryAction: () -> Void
     
     // MARK: - Secondary Action Fallback
@@ -53,20 +52,20 @@ struct OnboardingStepWrapper: View {
                     .fill(iconColor)
                     .frame(width: 300, height: 300)
                     .clipShape(RoundedRectangle(cornerRadius: iconCornerRadius, style: .continuous))
-                    .overlay(Text(iconText).foregroundColor(.gray))
+                    .overlay(Text(iconText).foregroundColor(SwiftUI.Color.gray))
             }
             
             // 2. Messaging Display
             VStack(spacing: 16) {
                 Text(title)
                     .font(.system(size: 44, weight: .bold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(SwiftUI.Color.primary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 
                 Text(subtitle)
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(SwiftUI.Color.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 32)
@@ -79,7 +78,7 @@ struct OnboardingStepWrapper: View {
                     Button(action: secondaryAction) {
                         Text(secondaryTitle)
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(SwiftUI.Color.secondary)
                     }
                 }
                 .padding(.horizontal, 32)
