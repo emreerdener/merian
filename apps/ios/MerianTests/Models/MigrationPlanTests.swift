@@ -136,10 +136,13 @@ struct MigrationPlanTests {
             }
     }
 
-    private func removeSQLiteStore(at url: URL) {
-        try? FileManager.default.removeItem(at: url)
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+    private func keepSQLiteStoreForProcessLifetime(at url: URL) {
+        // SwiftData/Core Data can keep SQLite and WAL descriptors alive after the
+        // last visible ModelContainer falls out of scope. Unlinking these files
+        // during the same test process causes sqlite "vnode unlinked while in use"
+        // traps on CI, so migration fixtures use unique temp URLs and let the
+        // simulator/temp-directory cleanup remove them after the process exits.
+        _ = url
     }
 
     private struct CurrentMigrationStore {
@@ -156,7 +159,8 @@ struct MigrationPlanTests {
     }
 
     private func migrationStoreURL(named name: String) -> URL {
-        URL.cachesDirectory.appendingPathComponent("\(UUID().uuidString)_\(name).sqlite")
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString)_\(name).sqlite")
     }
 
     private func makeModelContainer(
@@ -346,8 +350,8 @@ struct MigrationPlanTests {
     }
 
     @Test func currentSchemaColdStartPersistsCapturedMediaEntriesAcrossReload() throws {
-        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v41coldstart_test.sqlite")
-        defer { removeSQLiteStore(at: url) }
+        let url = migrationStoreURL(named: "v41coldstart_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
         let localId = "cold_start_local"
         let offlineId = "cold_start_offline"
@@ -439,7 +443,7 @@ struct MigrationPlanTests {
     ///  2. Reopens the same store with the full migration plan targeting V27.
     ///  3. Verifies no crash occurs during stage validation and store loading.
     @Test func migrationFromV26ToV27DoesNotCrash() throws {
-        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v26migration_test.sqlite")
+        let url = migrationStoreURL(named: "v26migration_test")
 
         // Step 1 — create a V26 store with no migration plan.
         let schema26 = Schema(versionedSchema: MerianSchemaV26.self)
@@ -473,17 +477,15 @@ struct MigrationPlanTests {
             configurations: [config27]
         )
 
-        // Clean up the temp file.
-        try? FileManager.default.removeItem(at: url)
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+        // Keep the temp store alive for the test process; see keepSQLiteStoreForProcessLifetime.
+        keepSQLiteStoreForProcessLifetime(at: url)
     }
 
     /// Simulates upgrading from V28 to V29 on-disk — verifies that adding
     /// `userIdentificationOverride` and `userConfirmedIdentification` (lightweight migration,
     /// no custom stage) does not crash during iOS 26 migration plan validation.
     @Test func migrationFromV28ToV29DoesNotCrash() throws {
-        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v28migration_test.sqlite")
+        let url = migrationStoreURL(named: "v28migration_test")
 
         // Step 1 — create a V28 store with no migration plan.
         let schema28 = Schema(versionedSchema: MerianSchemaV28.self)
@@ -516,17 +518,15 @@ struct MigrationPlanTests {
             configurations: [config29]
         )
 
-        // Clean up the temp file.
-        try? FileManager.default.removeItem(at: url)
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+        // Keep the temp store alive for the test process; see keepSQLiteStoreForProcessLifetime.
+        keepSQLiteStoreForProcessLifetime(at: url)
     }
 
     /// Simulates upgrading from V30 to V33 on-disk — verifies that adding
     /// `isFlagged` (V31), `isUploaded` (V32), and migrating to `scanStateRaw` (V33)
     /// does not crash during iOS 26 migration plan validation.
     @Test func migrationFromV30ToV33DoesNotCrash() throws {
-        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v30migration_test.sqlite")
+        let url = migrationStoreURL(named: "v30migration_test")
 
         // Step 1 — create a V30 store with no migration plan.
         let schema30 = Schema(versionedSchema: MerianSchemaV30.self)
@@ -559,10 +559,8 @@ struct MigrationPlanTests {
             configurations: [config33]
         )
 
-        // Clean up the temp file.
-        try? FileManager.default.removeItem(at: url)
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+        // Keep the temp store alive for the test process; see keepSQLiteStoreForProcessLifetime.
+        keepSQLiteStoreForProcessLifetime(at: url)
     }
 
     /// Simulates the last stable pre-cluster source path.
@@ -570,8 +568,8 @@ struct MigrationPlanTests {
     /// historical plan jumps V43 directly to V47 and leaves V44/V45/V46 to
     /// source-isolated recent plans.
     @Test func migrationFromV43ToCurrentSchemaDoesNotSafeMode() throws {
-        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v43migration_test.sqlite")
-        defer { removeSQLiteStore(at: url) }
+        let url = migrationStoreURL(named: "v43migration_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
         let scanId = "v43-pet-migration-scan"
 
@@ -705,7 +703,7 @@ struct MigrationPlanTests {
             "toVersion: MerianSchemaV48.self",
             "static let migrateV46toV48 = MigrationStage.custom",
             "fromVersion: MerianSchemaV46.self",
-            "Duplicate version checksums across stages detected"
+            "duplicate-checksum validator"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
 
@@ -859,8 +857,8 @@ struct MigrationPlanTests {
     }
 
     @Test func migrationFromV44ToCurrentSchemaDoesNotSafeMode() throws {
-        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v44migration_test.sqlite")
-        defer { removeSQLiteStore(at: url) }
+        let url = migrationStoreURL(named: "v44migration_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
         let scanId = "v44-current-migration-scan"
 
@@ -905,8 +903,8 @@ struct MigrationPlanTests {
     }
 
     @Test func migrationFromV45ToCurrentSchemaDoesNotSafeMode() throws {
-        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v45migration_test.sqlite")
-        defer { removeSQLiteStore(at: url) }
+        let url = migrationStoreURL(named: "v45migration_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
         let scanId = "v45-current-migration-scan"
         let queuedId = "v45-current-migration-queued"
@@ -973,8 +971,8 @@ struct MigrationPlanTests {
     }
 
     @Test func migrationFromV46ToCurrentSchemaDoesNotSafeMode() throws {
-        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v46migration_test.sqlite")
-        defer { removeSQLiteStore(at: url) }
+        let url = migrationStoreURL(named: "v46migration_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
         let scanId = "v46-current-migration-scan"
         let queuedId = "v46-current-migration-queued"
@@ -1045,7 +1043,7 @@ struct MigrationPlanTests {
 
     @Test func migrationFromV47ToCurrentSchemaDoesNotSafeMode() throws {
         let url = migrationStoreURL(named: "v47migration_test")
-        defer { removeSQLiteStore(at: url) }
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
         let queuedId = "v47-current-migration-video-queued"
         let capturedMediaJSON = try String(
@@ -1095,7 +1093,7 @@ struct MigrationPlanTests {
 
     @Test func migrationFromV47PreservesAllQueuedMediaKinds() throws {
         let url = migrationStoreURL(named: "v47_all_media_migration_test")
-        defer { removeSQLiteStore(at: url) }
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
         let fixtures = [
             QueuedMediaMigrationFixture(
@@ -1206,7 +1204,7 @@ struct MigrationPlanTests {
             MerianMigrationPlan._v38OfflineLocalImagesBackfill.removeAll()
         }
 
-        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v38migration_test.sqlite")
+        let url = migrationStoreURL(named: "v38migration_test")
 
         // Step 1 — create a V38 store with both model types carrying the singular fields.
         let schema38 = Schema(versionedSchema: MerianSchemaV38.self)
@@ -1293,10 +1291,8 @@ struct MigrationPlanTests {
             "capturedMediaJSON must contain localImagePaths"
         )
 
-        // Cleanup.
-        try? FileManager.default.removeItem(at: url)
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+        // Keep the temp store alive for the test process; see keepSQLiteStoreForProcessLifetime.
+        keepSQLiteStoreForProcessLifetime(at: url)
     }
     @Test func testFullMigrationV39ToV40BackfillsMediaJSON() throws {
         // Ensures cleanup of static state between runs.
@@ -1307,7 +1303,7 @@ struct MigrationPlanTests {
             MerianMigrationPlan._v39OfflineCoverBackfill.removeAll()
         }
 
-        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v39migration_test.sqlite")
+        let url = migrationStoreURL(named: "v39migration_test")
 
         // Step 1 — create a V39 store with plural fields populated.
         let schema39 = Schema(versionedSchema: MerianSchemaV39.self)
@@ -1409,14 +1405,12 @@ struct MigrationPlanTests {
             Issue.record("Failed to decode capturedMediaJSON for migratedOffline")
         }
 
-        // Cleanup.
-        try? FileManager.default.removeItem(at: url)
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+        // Keep the temp store alive for the test process; see keepSQLiteStoreForProcessLifetime.
+        keepSQLiteStoreForProcessLifetime(at: url)
     }
 
     @Test func testFullMigrationV40ToV41BackfillsCapturedMediaEntries() throws {
-        let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v40migration_test.sqlite")
+        let url = migrationStoreURL(named: "v40migration_test")
 
         let schema40 = Schema(versionedSchema: MerianSchemaV40.self)
         let config40 = ModelConfiguration(schema: schema40, url: url)
@@ -1483,9 +1477,7 @@ struct MigrationPlanTests {
         #expect(migratedOffline.serializedCapturedMediaItems == offlineItems)
         #expect(migratedOffline.coverImagePath == "migration_offline.webp")
 
-        try? FileManager.default.removeItem(at: url)
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
-        try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+        keepSQLiteStoreForProcessLifetime(at: url)
     }
 
     @Test func testSerializedMediaItemDecodesLegacyStringPayloadsIntoTypedReferences() throws {

@@ -139,6 +139,12 @@ write SwiftPM diagnostics under `~/Library/Caches/org.swift.swiftpm`. Treat that
 as an environment issue, not a recovery-code failure, and run the focused lane
 in a normal local or GitHub macOS runner.
 
+`MigrationPlanTests` intentionally keep disk-backed SwiftData store files alive
+for the test-process lifetime instead of deleting them in test cleanup. Core
+Data can retain SQLite/WAL descriptors after the last visible `ModelContainer`
+falls out of scope, and unlinking those files in-process can compromise later
+fixtures with sqlite `vnode unlinked while in use` traps.
+
 The GitHub Startup Safety workflow is scoped to iOS/project/workflow path
 changes, cancels stale runs on the same ref, restores Swift package checkouts,
 saves newly fetched checkouts even after a failure, and splits Xcode into two

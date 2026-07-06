@@ -180,7 +180,12 @@ MerianTests/
     whole test runner. V47 must reuse the V45 checksum representative for
     unchanged local-scan, captured-media, and collection models, while V45 and
     V46 recent plans must keep those sources isolated from each other and route
-    directly to V48.
+    directly to V48. Disk-backed SwiftData migration tests should use unique
+    temporary store URLs and must not unlink the `.sqlite`, `.sqlite-shm`, or
+    `.sqlite-wal` files during the test process. Core Data may keep those file
+    descriptors alive after the visible `ModelContainer` scope ends; deleting
+    them in-process can surface as sqlite `vnode unlinked while in use` traps in
+    later tests.
     The workflow's
     Swift package cache key depends on the checked-in
     `merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
