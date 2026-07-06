@@ -20,7 +20,9 @@ The workflow performs the following steps:
 5. Validates static Supabase migration contracts, including media-schema drift
    repair required before production `db push`.
 6. Prepares a Postgres connection string for database migrations without
-   calling `supabase link`.
+   calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
+   can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
+   `SUPABASE_DB_PASSWORD`.
 7. Pushes database migrations with `supabase db push --db-url`.
 8. Deploys all Edge Function directories with `supabase functions deploy`.
 9. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
@@ -69,18 +71,46 @@ when deno.land or esm.sh returns a transient 5xx during bundling.
 Set these in the repository's GitHub Actions secrets:
 
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
-- `SUPABASE_DB_URL` — full percent-encoded Postgres connection string for
-  migration pushes. Use the Supabase pooler/session connection string for GitHub
-  Actions; direct `db.<project-ref>.supabase.co:5432` hosts can resolve to IPv6
-  only and fail on runners without IPv6 egress.
+- One database connection path:
+  - Preferred: `SUPABASE_DB_URL` — full percent-encoded Postgres connection
+    string for migration pushes. Use the Supabase shared pooler session-mode
+    connection string for GitHub Actions.
+  - Alternative: `SUPABASE_DB_POOLER_HOST` plus `SUPABASE_DB_PASSWORD` — the
+    workflow builds
+    `postgresql://postgres.<project-ref>:<encoded-password>@<pooler-host>:5432/postgres?sslmode=require`.
+    Store only the host in `SUPABASE_DB_POOLER_HOST`, for example
+    `aws-0-us-east-1.pooler.supabase.com`.
+    Merian production is in `us-east-1`, so the expected production host is
+    `aws-0-us-east-1.pooler.supabase.com`.
+
+Optional GitHub Actions variables:
+
+- `SUPABASE_DB_POOLER_PORT` — defaults to `5432`, Supabase shared-pooler
+  session mode.
+- `SUPABASE_DB_NAME` — defaults to `postgres`.
+
+Use the shared pooler for CI because GitHub-hosted runners are IPv4-only in
+common configurations. Direct `db.<project-ref>.supabase.co:5432` hosts can
+resolve to IPv6 only and fail before Postgres authentication.
 
 The production Supabase project ref is intentionally stored in the workflow as
 `qlarqavoqhkuwzmevrmf`. Project refs are routing identifiers, not credentials;
 the deployment authority still comes from `SUPABASE_ACCESS_TOKEN` plus
-`SUPABASE_DB_URL`. Post-deploy smoke checks and manual taxonomy imports resolve
-the service-role key at runtime through
+the configured database connection. Post-deploy smoke checks and manual
+taxonomy imports resolve the service-role key at runtime through
 `supabase projects api-keys --project-ref qlarqavoqhkuwzmevrmf`, then mask it in
 GitHub Actions logs.
+
+If the Supabase dashboard or Management API is unavailable, do not guess the
+pooler region in production secrets. Wait for the dashboard to recover, or get
+the existing shared-pooler host from another operator who already has access.
+The `supabase link` command also uses the Management API, so `504` or `500`
+responses during a Supabase incident can block linking even when the migration
+SQL itself is fine.
+Using `db push --db-url` only removes the project-status lookup from the
+migration step. Edge Function deploys, service-role key lookup, and smoke tests
+still depend on Supabase's hosted APIs and can fail during an active platform
+incident.
 
 The workflow also inherits normal Supabase project Edge secrets at runtime.
 Those live in Supabase, not GitHub Actions, and are documented in
@@ -261,14 +291,23 @@ export SUPABASE_DB_URL='postgresql://...'
 make db-push
 ```
 
-If `SUPABASE_DB_URL` is unset, `make db-push` falls back to the linked-project
-CLI behavior. `supabase link` reaches Supabase's Management API to retrieve
-remote project status before it writes local link metadata. A `504` at that step
-is a transient remote/status lookup failure, not a migration failure. The GitHub
-workflow intentionally avoids that status lookup by requiring `SUPABASE_DB_URL`
-and using `db push --db-url` instead. Direct Supabase database hosts can resolve
-to IPv6-only addresses; use the pooler connection string in CI when a runner
-cannot reach IPv6. The warning
+Or export the pooler pieces and let the shared script construct the URL:
+
+```bash
+export SUPABASE_PROJECT_ID='qlarqavoqhkuwzmevrmf'
+export SUPABASE_DB_POOLER_HOST='aws-0-us-east-1.pooler.supabase.com'
+export SUPABASE_DB_PASSWORD='...'
+make db-push
+```
+
+If neither `SUPABASE_DB_URL` nor the pooler pieces are set, `make db-push` falls
+back to the linked-project CLI behavior. `supabase link` reaches Supabase's
+Management API to retrieve remote project status before it writes local link
+metadata. A `504` at that step is a transient remote/status lookup failure, not a
+migration failure. The GitHub workflow intentionally avoids that status lookup by
+requiring an explicit database connection and using `db push --db-url` instead.
+Direct Supabase database hosts can resolve to IPv6-only addresses; use the
+pooler connection string in CI when a runner cannot reach IPv6. The warning
 `environment variable is unset: SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` comes from
 parsing the local Auth config and is not fatal for `db push`; only treat it as
 actionable if a command fails while applying Auth provider config.
