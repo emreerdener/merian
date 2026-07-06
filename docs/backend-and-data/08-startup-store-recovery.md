@@ -125,7 +125,6 @@ destination="$(bash scripts/select-ios-simulator-destination.sh)"
 xcodebuild test \
   -scheme Merian \
   -project Merian.xcodeproj \
-  -disableAutomaticPackageResolution \
   -destination "$destination" \
   -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
   -only-testing:merianTests/MigrationPlanTests

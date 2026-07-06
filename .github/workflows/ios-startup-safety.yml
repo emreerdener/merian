@@ -33,7 +33,6 @@ jobs:
           xcodebuild test \
             -scheme Merian \
             -project Merian.xcodeproj \
-            -disableAutomaticPackageResolution \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
             -resultBundlePath "$XCODE_RESULT_BUNDLE" \
             -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
