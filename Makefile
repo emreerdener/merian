@@ -22,7 +22,12 @@ validate-supabase-migrations:
 		services/supabase/functions/_tests/migrationMediaContract.test.ts
 
 db-push:
-	supabase --workdir $(SUPABASE_WORKDIR) db push
+	@db_url="$${SUPABASE_DB_PUSH_URL:-$${SUPABASE_DB_URL:-}}"; \
+	if [ -n "$$db_url" ]; then \
+		supabase --workdir $(SUPABASE_WORKDIR) db push --db-url "$$db_url"; \
+	else \
+		supabase --workdir $(SUPABASE_WORKDIR) db push; \
+	fi
 
 functions-deploy:
 	supabase --workdir $(SUPABASE_WORKDIR) functions deploy

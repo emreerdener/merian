@@ -19,8 +19,9 @@ The workflow performs the following steps:
    helper tests.
 5. Validates static Supabase migration contracts, including media-schema drift
    repair required before production `db push`.
-6. Links the Supabase project.
-7. Pushes database migrations.
+6. Prepares a Postgres connection string for database migrations without
+   calling `supabase link`.
+7. Pushes database migrations with `supabase db push --db-url`.
 8. Deploys all Edge Function directories with `supabase functions deploy`.
 9. Smoke-tests the Community Taxonomy status endpoint, the scan-media health
    endpoint, and a dry-run bounded GBIF import with the production service-role
@@ -68,14 +69,18 @@ when deno.land or esm.sh returns a transient 5xx during bundling.
 Set these in the repository's GitHub Actions secrets:
 
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
-- `SUPABASE_DB_PASSWORD` — database password used by `supabase link` and
-  `supabase db push`.
+- `SUPABASE_DB_PASSWORD` — database password used to build the direct
+  `db.<project-ref>.supabase.co:5432` Postgres URL when `SUPABASE_DB_URL` is not
+  set.
+- `SUPABASE_DB_URL` (optional) — full percent-encoded Postgres connection string
+  for migration pushes. Prefer this if production should use a Supabase pooler
+  URL or if direct IPv6 database access is unreliable from GitHub Actions.
 
 The production Supabase project ref is intentionally stored in the workflow as
 `qlarqavoqhkuwzmevrmf`. Project refs are routing identifiers, not credentials;
-the deployment authority still comes from `SUPABASE_ACCESS_TOKEN` and
-`SUPABASE_DB_PASSWORD`. Post-deploy smoke checks and manual taxonomy imports
-resolve the service-role key at runtime through
+the deployment authority still comes from `SUPABASE_ACCESS_TOKEN` plus either
+`SUPABASE_DB_URL` or `SUPABASE_DB_PASSWORD`. Post-deploy smoke checks and manual
+taxonomy imports resolve the service-role key at runtime through
 `supabase projects api-keys --project-ref qlarqavoqhkuwzmevrmf`, then mask it in
 GitHub Actions logs.
 
@@ -250,23 +255,23 @@ make db-push
 make functions-deploy
 ```
 
-If `make db-push` reports a missing access token, authenticate the local CLI:
+For local emergency migration pushes that should avoid `supabase link`, export a
+database URL first:
 
 ```bash
-supabase login
+export SUPABASE_DB_URL='postgresql://...'
+make db-push
 ```
 
-For non-interactive local environments, export `SUPABASE_ACCESS_TOKEN` and
-`SUPABASE_DB_PASSWORD` instead of relying on a browser login or password prompt.
-
-`supabase link` reaches Supabase's Management API to retrieve remote project
-status before it writes local link metadata. A `504` at that step is a transient
-remote/status lookup failure, not a migration failure. The GitHub workflow
-retries link three times and runs the last attempt with `--debug` so the job
-captures diagnostics if Supabase's status API remains unavailable. The warning
+If `SUPABASE_DB_URL` is unset, `make db-push` falls back to the linked-project
+CLI behavior. `supabase link` reaches Supabase's Management API to retrieve
+remote project status before it writes local link metadata. A `504` at that step
+is a transient remote/status lookup failure, not a migration failure. The GitHub
+workflow intentionally avoids that status lookup by using `db push --db-url`
+instead. The warning
 `environment variable is unset: SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` comes from
-parsing the local Auth config and is not fatal for `link` or `db push`; only
-treat it as actionable if a command fails while applying Auth provider config.
+parsing the local Auth config and is not fatal for `db push`; only treat it as
+actionable if a command fails while applying Auth provider config.
 
 ## Post-Deploy Smoke Checks
 

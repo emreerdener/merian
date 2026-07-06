@@ -22,6 +22,7 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_ID: qlarqavoqhkuwzmevrmf
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
     steps:
       - name: Checkout repository
@@ -40,7 +41,9 @@ jobs:
       - name: Validate deployment secrets
         run: |
           : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN GitHub secret}"
-          : "${SUPABASE_DB_PASSWORD:?Missing SUPABASE_DB_PASSWORD GitHub secret}"
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            : "${SUPABASE_DB_PASSWORD:?Missing SUPABASE_DB_PASSWORD GitHub secret when SUPABASE_DB_URL is not set}"
+          fi
 
       - name: Validate Edge Function formatting
         run: |
@@ -110,30 +113,26 @@ jobs:
             --allow-read=supabase/migrations \
             supabase/functions/_tests/migrationMediaContract.test.ts
 
-      - name: Link Project to CLI
+      - name: Prepare database connection URL
         run: |
-          for attempt in 1 2 3; do
-            if [ "$attempt" = "3" ]; then
-              echo "Supabase link failed twice; running final attempt with --debug."
-              if supabase link --project-ref "$PROJECT_ID" --debug; then
-                exit 0
-              fi
-            elif supabase link --project-ref "$PROJECT_ID"; then
-              exit 0
-            fi
+          if [ -n "${SUPABASE_DB_URL:-}" ]; then
+            db_url="$SUPABASE_DB_URL"
+            echo "Using SUPABASE_DB_URL secret for migration push."
+          else
+            encoded_password="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["SUPABASE_DB_PASSWORD"], safe=""))')"
+            db_url="postgresql://postgres:${encoded_password}@db.${PROJECT_ID}.supabase.co:5432/postgres"
+            echo "Using direct Supabase database host db.${PROJECT_ID}.supabase.co for migration push."
+          fi
 
-            if [ "$attempt" = "3" ]; then
-              echo "Supabase link failed after $attempt attempts."
-              exit 1
-            fi
-
-            sleep_seconds=$((attempt * 20))
-            echo "Supabase link failed; retrying in ${sleep_seconds}s..."
-            sleep "$sleep_seconds"
-          done
+          echo "::add-mask::$db_url"
+          {
+            echo "SUPABASE_DB_PUSH_URL<<EOF"
+            echo "$db_url"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
 
       - name: Push Database Migrations
-        run: supabase db push
+        run: supabase db push --db-url "$SUPABASE_DB_PUSH_URL"
 
       - name: Deploy Edge Functions
         run: |
