@@ -30,7 +30,7 @@ public enum MerianError: LocalizedError, Equatable {
 | `uploadFailed`                  | R2 `PUT` returned non-200.                               | Retain in queue for recoverable codes (429, 5xx). Tombstone for auth failures (401, 403).                       |
 | `invalidResponse`               | HTTP error or auth failure from Edge.                    | For sync deletions: treat as terminal. For other callers: log and surface a UI error or route to offline queue. |
 | `decodingFailed`                | `JSONDecoder` failed on a network response.              | Surface "Analysis Failed" graceful degradation result in `InsightSheet`; queued retry keeps the consumed scan.  |
-| `networkTimeout`                | The network request timed out aggressively.              | Surface "Network timeout / Offline mode" placeholder + scan queued silently                                     |
+| `networkTimeout`                | The network request timed out aggressively.              | Surface a "Network timeout" retry placeholder + scan queued silently                                            |
 | `proRequiredForOfflineTracking` | Free user failed inference with no network               | Refund scan token, post `TriggerPaywall` notification. Never enqueue offline.                                   |
 | `hardwareUnavailable`           | LiDAR or other required physical drivers failed to boot. | Show UI alert explaining hardware constraints.                                                                  |
 
@@ -54,10 +54,12 @@ public enum MerianError: LocalizedError, Equatable {
    InsightSheet with degraded result.
 3. **All other errors (network failure, timeout, etc.)** — Record circuit
    failure via `CircuitBreakerManager.shared.recordFailure()`. Set `speciesData`
-   to a "Network timeout / Offline mode" placeholder. Do not refund and do not
-   re-enqueue — the scan is already in the offline queue and will be retried by
-   the background upload path. This placeholder is not a non-biological model
-   classification even though it suppresses the biological result UI.
+   to a "Network timeout" placeholder with automatic-retry recovery copy. Do not
+   refund and do not re-enqueue — the scan is already in the offline queue and
+   will be retried by the background upload path. This placeholder is not a
+   non-biological model classification even though it suppresses the biological
+   result UI, so it must not show the non-biological badge, collection copy, or
+   retention warning.
 
 ---
 
@@ -107,7 +109,7 @@ memory.
 | Error scenario                                            | UI outcome                                                                                                                                                                                                    |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Inference decoding failure (`MerianError.decodingFailed`) | InsightSheet opens with "Analysis Failed" / "Data Unreadable" placeholder result                                                                                                                              |
-| Network timeout (Pro user)                                | InsightSheet opens with "Network timeout" / "Offline mode" placeholder, explains automatic retry, and suppresses non-biological collection/retention copy                                                     |
+| Network timeout (Pro user)                                | InsightSheet opens with a "Network timeout" placeholder, explains automatic retry/reconnect behavior, and suppresses non-biological collection/retention copy                                                  |
 | Network timeout (Free user)                               | Paywall sheet presented via `TriggerPaywall` notification                                                                                                                                                     |
 | R2 upload failure (missing source file)                   | Queued scan remains visible with needs-attention copy plus retry/cancel actions                                                                                                                               |
 | R2 upload transient failure                               | Queued scan remains saved locally with persisted next retry time                                                                                                                                              |

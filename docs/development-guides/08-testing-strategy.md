@@ -294,6 +294,11 @@ MerianTests/
     insertion (asserting SwiftData record counts increment correctly), canonical
     mixed-media serialization, and `.purgeSoftDeletedRecords()` (asserting
     soft-deleted items are removed while undeleted items persist).
+  - **Media staging contract drift**: Loads
+    `docs/contracts/media-staging-upload-manifest.json` and asserts
+    `MerianConfig` matches the documented file, audio, and video budgets.
+    Also covers the canonical video scan upload shape: five sampled inference
+    frame files plus one playback video file must fit in one signing batch.
   - **Disk Teardown**: Confirms that sandbox files in `URL.documentsDirectory`
     are deleted during purges to prevent storage bloat.
   - **`isSyncing` Latch Safety
@@ -521,8 +526,11 @@ rows being left for repair instead of duplicate AI replay;
 media cleanup, active-job waiting, ownership matching by user plus scan id, and
 job completion/failure feedback; `_tests/scanMediaIngestionContract.test.ts` is
 the media-type matrix that keeps image, audio, text-only, and video replay,
-status, repair, and Explore-share contracts aligned; and
-`_tests/migrationMediaContract.test.ts` checks the scan-media, reconciliation,
+status, repair, and Explore-share contracts aligned;
+`_shared/mediaBudgets_test.ts` and `generate-upload-urls/storage_test.ts` keep
+the staged signing limits, allowed content types, and six-file video batch in
+sync with the documented contract; and `_tests/migrationMediaContract.test.ts`
+checks the scan-media, reconciliation, scanless staged-row repair,
 ingestion-job, manifest-checksum, intent-outbox, and replay-worker migrations.
 Run the migration contract test with `--allow-read=services/supabase/migrations`
 because it reads SQL files directly.

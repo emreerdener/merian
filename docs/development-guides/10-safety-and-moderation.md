@@ -86,8 +86,9 @@ file is normally the client's compressed 720p export, but the client may stage
 the original recording when compression is slow or unavailable and the source
 remains within the hard video byte cap. The playback video is never used for AI
 inference or reference-media promotion. `/generate-upload-urls` creates staged
-`scan_media_assets` rows for scan media uploads, and `identify-multimodal` moves
-those rows to `promoted`, `deleted`, or `failed` during finalization. The
+`scan_media_assets` rows for scan media uploads before the final `scans` row
+exists; `scan_id = NULL` is therefore valid for those staged rows until
+`identify-multimodal` promotes, deletes, or fails them during finalization. The
 ingestion request also claims `scan_ingestion_jobs` with media counts, staged
 object keys, recovered upload-session ids, and a normalized `manifest_checksum`,
 so retries and repair work can prove they are handling the same media set. A

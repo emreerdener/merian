@@ -148,10 +148,14 @@ built by `MediaStagingContract` for the app queue. Each entry includes
 `fileName`, `mediaKind`, `contentType`, `sizeBytes`, and, for scan media,
 `clientScanId` plus `mediaRole`. When those scan fields are present, the signer
 creates staged `scan_media_assets` rows and returns `mediaAssetId` /
-`mediaSessionId` next to each signed URL. The Edge parser rejects unsanitized
-names, media-kind/content-type mismatches, invalid role/kind combinations,
-over-budget audio, video, or image files, batches above five files, and batches
-above two audio files before calling `generatePresignedPutUrl()`. Legacy
+`mediaSessionId` next to each signed URL. These staged rows are allowed to keep
+`scan_id` null until `identify-multimodal` inserts the final scan and promotes
+the media. The Edge parser rejects unsanitized names, media-kind/content-type
+mismatches, invalid role/kind combinations, over-budget audio, video, or image
+files, batches above six files, batches above five images, batches above one
+video, and batches above two audio files before calling
+`generatePresignedPutUrl()`. The six-file cap is specifically for video scans
+that need five sampled inference frames plus one playback clip. Legacy
 `fileNames` remains accepted for older clients only; it is compatibility-only
 because it cannot express byte budgets or media asset sessions. The limit and
 content-type contract is pinned in

@@ -40,18 +40,24 @@ load that file so limits and allowed content types cannot drift silently.
 The server extracts the verified user identity from the `Authorization` Header
 JWT (`supabaseAdmin.auth.getUser()`), ignoring any `user_id` value in the
 request body. To prevent array-abuse memory locking on the Edge Node, the
-endpoint strictly requires exactly 1 to 5 `files`, with at most 2 audio files.
-The main app queue builds this manifest through `MediaStagingContract` and must
+endpoint strictly requires exactly 1 to 6 `files`, with at most 5 images, 2
+audio files, and 1 video file. The six-file ceiling exists for the canonical Pro
+video scan shape: five sampled `image/webp` inference frames plus one
+`video/mp4` playback clip. It is not a general expansion to six images. The
+main app queue builds this manifest through `MediaStagingContract` and must
 apply the same filename sanitization as the Edge function before upload URL
 generation. For scan uploads, each structured entry may also include
 `clientScanId` and `mediaRole`; when present, `/generate-upload-urls` creates a
 server-owned staged `scan_media_assets` row before returning the signed URL.
-Image roles may be `display`, `thumbnail`, or `inference_frame`; video uses
-`playback`; audio uses `audio`. The Edge parser rejects unsanitized filenames,
-invalid `mediaKind` values, invalid role/kind combinations, content-type/kind
-mismatches, and oversized media before signing. Structured manifests require
-`sizeBytes`; the legacy `fileNames` array remains accepted for older clients but
-is compatibility-only and cannot express byte budgets or media asset sessions.
+Those staged rows are valid with `scan_id = NULL` until the final scan row
+exists; they are keyed by user, client scan id, and upload session for later
+promotion or cleanup. Image roles may be `display`, `thumbnail`, or
+`inference_frame`; video uses `playback`; audio uses `audio`. The Edge parser
+rejects unsanitized filenames, invalid `mediaKind` values, invalid role/kind
+combinations, content-type/kind mismatches, and oversized media before signing.
+Structured manifests require `sizeBytes`; the legacy `fileNames` array remains
+accepted for older clients but is compatibility-only and cannot express byte
+budgets or media asset sessions.
 Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours).
 This extended window gives iOS `BackgroundTasks` flexibility to transmit
 overnight, subject to OS memory, thermal, and Wi-Fi conditions, without hitting

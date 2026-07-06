@@ -23,19 +23,22 @@ multiple functions need the same behavior and the ownership boundary is clear.
   replacement must use `deleteAvatarR2Object(...)` with the owning user ID.
 - **`mediaBudgets.ts`**: Shared media byte ceilings, allowed staging content
   types, inline/staged audio and image validation, clip-count limits, and
-  `Content-Length` prechecks. Request and response bodies that may be chunked or
-  omit `Content-Length` must be consumed through `readRequestJsonWithinBudget`,
-  `readResponseArrayBufferWithinBudget`, or `readStreamArrayBufferWithinBudget`
-  so the byte counter rejects oversized streams before V8 can allocate past the
-  Edge heap budget.
+  `Content-Length` prechecks. The shared staging cap is six files so one video
+  scan can sign five sampled inference frames plus one playback clip; image,
+  audio, and video sub-limits still prevent broad over-batching. Request and
+  response bodies that may be chunked or omit `Content-Length` must be consumed
+  through `readRequestJsonWithinBudget`, `readResponseArrayBufferWithinBudget`,
+  or `readStreamArrayBufferWithinBudget` so the byte counter rejects oversized
+  streams before V8 can allocate past the Edge heap budget.
 - **`concurrency.ts`**: Ordered promise mapping with a fixed worker width. Use
   `mapWithConcurrencyLimit` for fanout work such as APNs delivery or remote
   object operations where unbounded `Promise.all(...)` could spike sockets,
   heap, provider throttles, or Postgres writes.
 - **`scanMediaAssets.ts`**: Normalized scan-media lifecycle helpers. Upload
-  signing creates staged scan-media asset rows, identify finalization marks them
-  promoted/deleted/failed, and write paths make best-effort `scan_media_assets`
-  refresh calls after scan inserts or video repair updates. The
+  signing creates staged scan-media asset rows with `scan_id` null until the
+  final scan exists, identify finalization marks them promoted/deleted/failed,
+  and write paths make best-effort `scan_media_assets` refresh calls after scan
+  inserts or video repair updates. The
   `reconcile-scan-media-assets` worker owns stale staged-row repair and
   abandonment cleanup, while checking active ingestion jobs before abandoning
   staged upload-session media. Composer and status paths prefer ready

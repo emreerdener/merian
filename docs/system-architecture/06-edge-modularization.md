@@ -134,28 +134,31 @@ domain-specific streams explicitly executed via `runBackground`.
   functions must use this module for endpoint JSON body ceilings, audio clip
   count, inline base64 length, raw byte limits, staged R2 ownership/path
   traversal, allowed staging content types, and `Content-Length` prechecks
-  before parsing media bodies or allocating ArrayBuffers. `Content-Length` is
-  only a fast reject: request JSON and R2/HTTP response bodies must still flow
-  through `readRequestJsonWithinBudget`, `readResponseArrayBufferWithinBudget`,
-  or `readStreamArrayBufferWithinBudget` so missing-length and chunked bodies
-  are counted while streaming. Do not reintroduce raw `req.json()` or
-  `response.arrayBuffer()` in media-bearing Edge handlers.
+  before parsing media bodies or allocating ArrayBuffers. The staging-file cap
+  is six so a video scan can sign five sampled inference frames plus one
+  playback clip while image, audio, and video sub-limits remain enforced.
+  `Content-Length` is only a fast reject: request JSON and R2/HTTP response
+  bodies must still flow through `readRequestJsonWithinBudget`,
+  `readResponseArrayBufferWithinBudget`, or `readStreamArrayBufferWithinBudget`
+  so missing-length and chunked bodies are counted while streaming. Do not
+  reintroduce raw `req.json()` or `response.arrayBuffer()` in media-bearing Edge
+  handlers.
 - **`_shared/concurrency.ts`**: Shared bounded fanout helper. Use
   `mapWithConcurrencyLimit(items, width, fn)` when a handler needs many outbound
   calls but must preserve result order and cap in-flight work. The default APNs
   send path uses width `8`; other call sites should document any wider limit.
 - **`_shared/scanMediaAssets.ts`**: Shared scan-media lifecycle helpers.
   `/generate-upload-urls` creates staged upload-session rows for scan media,
-  `identify-multimodal` marks those rows promoted/deleted/failed during
-  finalization, and `reconcile-scan-media-assets` repairs or garbage-collects
-  stale staged rows. The helpers can recover upload-session ids for a scan's
-  staged media so the ingestion ledger can bind retries to the same upload
-  session. Write paths make best-effort `refreshScanMediaAssets(...)` calls
-  after scan inserts or video repair updates. Composer/status readers prefer
-  ready display/playback `scan_media_assets` rows before falling back to
-  `captured_media` and legacy media arrays. `scan-media-health` and the
-  scheduled monitor read this lifecycle state for operational drift detection
-  without mutating media.
+  with `scan_id` null until a final scan row exists. `identify-multimodal` marks
+  those rows promoted/deleted/failed during finalization, and
+  `reconcile-scan-media-assets` repairs or garbage-collects stale staged rows.
+  The helpers can recover upload-session ids for a scan's staged media so the
+  ingestion ledger can bind retries to the same upload session. Write paths make
+  best-effort `refreshScanMediaAssets(...)` calls after scan inserts or video
+  repair updates. Composer/status readers prefer ready display/playback
+  `scan_media_assets` rows before falling back to `captured_media` and legacy
+  media arrays. `scan-media-health` and the scheduled monitor read this
+  lifecycle state for operational drift detection without mutating media.
 - **`_shared/scanIngestionJobs.ts`**: Shared scan-ingestion lifecycle helpers.
   `identify-multimodal` claims a job with expected media counts, staged object
   keys, upload-session ids, and a normalized manifest checksum; status and

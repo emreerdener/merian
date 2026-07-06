@@ -37,6 +37,14 @@ Deploying all function directories is intentional. Shared modules such as
 at deploy time; deploying a hand-maintained partial list risks leaving
 production on mixed helper versions.
 
+Media-upload contract changes are migration-plus-function releases. For example,
+the video staging contract that allows five sampled inference frames plus one
+playback clip requires the `scan_media_assets.scan_id` nullable repair migration
+to be pushed before the updated `/generate-upload-urls` bundle handles six-file
+signing requests in production. A database-only deploy leaves clients on the old
+signing cap; a function-only deploy can still fail staged row creation if an
+early production table kept `scan_id NOT NULL`.
+
 Each deployed function directory must also have a `[functions.<name>]` entry in
 `services/supabase/config.toml` so JWT behavior is explicit. Most
 anonymous-compatible app routes set `verify_jwt = false` and then perform manual
@@ -196,14 +204,19 @@ cd /Users/emreerdener/Developer/merian
 deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/aws.ts \
   services/supabase/functions/_shared/aws_test.ts \
+  services/supabase/functions/_shared/mediaBudgets.ts \
+  services/supabase/functions/_shared/mediaBudgets_test.ts \
   services/supabase/functions/_shared/encoding.ts \
   services/supabase/functions/_shared/concurrency.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
   services/supabase/functions/_shared/scanIngestionCompatibility.ts \
   services/supabase/functions/_shared/scanIngestionCompatibility_test.ts \
   services/supabase/functions/_tests/scanMediaIngestionContract.test.ts \
+  services/supabase/functions/_tests/migrationMediaContract.test.ts \
   services/supabase/scripts/monitor_scan_media_health.ts \
   services/supabase/scripts/monitor_scan_media_health_test.ts \
+  services/supabase/functions/generate-upload-urls/index.ts \
+  services/supabase/functions/generate-upload-urls/storage_test.ts \
   services/supabase/functions/update-public-avatar/index.ts \
   services/supabase/functions/update-public-display-name/index.ts \
   services/supabase/functions/insight-chat/index.ts \
@@ -213,7 +226,9 @@ deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/replay-scan-ingestion/index.ts
 
 deno test --config services/supabase/functions/deno.json \
+  --allow-read=docs/contracts \
   services/supabase/functions/_shared/aws_test.ts \
+  services/supabase/functions/_shared/mediaBudgets_test.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
   services/supabase/functions/_shared/scanIngestionCompatibility_test.ts \
   services/supabase/functions/_tests/scanMediaIngestionContract.test.ts \
@@ -223,7 +238,12 @@ deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/insight-chat/guards_test.ts \
   services/supabase/functions/insight-chat/prompt_test.ts \
   services/supabase/functions/scan-media-health/health_test.ts \
-  services/supabase/functions/replay-scan-ingestion/worker_test.ts
+  services/supabase/functions/replay-scan-ingestion/worker_test.ts \
+  services/supabase/functions/generate-upload-urls/storage_test.ts
+
+deno test --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/migrations \
+  services/supabase/functions/_tests/migrationMediaContract.test.ts
 
 make validate-supabase-migrations
 make db-push
@@ -244,8 +264,13 @@ For non-interactive local environments, export `SUPABASE_ACCESS_TOKEN` and
 After deployment:
 
 - Confirm `supabase db push` applied the newest migration.
+- For video-upload contract releases, confirm `scan_media_assets.scan_id` is
+  nullable in production (`information_schema.columns.is_nullable = YES`) before
+  expecting six-file video signing to work.
 - Confirm `auto-purge-nonbio` and `delete-scan` were deployed after any
   `_shared/aws.ts` change.
+- Confirm `/generate-upload-urls` was deployed after any
+  `_shared/mediaBudgets.ts` or media-staging contract change.
 - Confirm `update-public-avatar` was deployed after
   `20260528120000_add_custom_public_avatars.sql`.
 - Inspect Cloudflare R2 lifecycle rules against `docs/r2-lifecycle.json` and
@@ -260,6 +285,9 @@ After deployment:
   `view = coverage` and returns the Birds coverage target quickly.
 - Confirm `scan-media-health` accepts a service-role request and returns
   `success = true` with a status of `ok`, `warning`, or `critical`.
+- Submit or replay a short video scan and verify Edge logs do not show
+  `Payload Too Large` for the normal six-file manifest or
+  `scan_media_assets.scan_id` nullability errors during staged row creation.
 - Confirm `sync-community-taxonomy-index` accepts a tiny `dry_run = true` Birds
   request without advancing `taxonomy_coverage_targets.next_import_offset`.
 - Smoke-test `/insight-chat` with `action: "load"` and
