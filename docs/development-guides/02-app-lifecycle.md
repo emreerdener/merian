@@ -118,7 +118,12 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
 ## 2026-04 Hardening Updates
 
 - App startup now uses corruption-specific store recovery. A generic `ModelContainer` init failure is no longer treated as permission to delete the local SwiftData store.
-- Recovery-first startup behavior is now: attempt normal open, inspect the error chain for SQLite/Core Data corruption signatures, quarantine the store bundle if corruption is confirmed, then retry container creation exactly once.
+- Recovery-first startup behavior is now: inspect store metadata, choose the
+  narrowest safe `ModelContainer` strategy (current-store open, source-isolated
+  recent migration plan, or full historical plan), inspect the error chain for
+  SQLite/Core Data corruption signatures if opening fails, quarantine the store
+  bundle only when corruption is confirmed, then retry container creation
+  exactly once.
 - `handleActivePhase()` continues to be the right place for replay recovery, but any new lifecycle work must not resurrect stale scan mutations. `InferenceEngine` now invalidates pending background writes whenever a scan is cancelled or a new scan begins.
 
 ## 2026-05 Startup Safety Update
@@ -131,6 +136,11 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
 The full operating contract lives in `docs/backend-and-data/08-startup-store-recovery.md`.
 
 - SwiftData/Core Data can raise Objective-C `NSException`s during `ModelContainer` initialization, which Swift `do/catch` cannot catch directly. `MerianApp` wraps container creation with a tiny Objective-C bridge so those launch-time exceptions become Swift errors and can enter the existing recovery path.
+- Startup reads SwiftData store metadata before creating the persistent
+  container. Fresh/current stores open without a migration plan, known recent
+  stores use source-isolated V47/V46/V45/V44 plans, and unknown older stores use
+  the full historical plan. Duplicate-checksum failures retry through the same
+  recent-plan ladder before safe mode.
 - Store quarantine is intentionally narrow and owned by `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`: Merian only moves `default.store`, `default.store-shm`, and `default.store-wal` when the failure matches a verified SQLite/Core Data corruption signature and those store artifacts exist. Generic container failures must boot safe mode without moving user data.
 - Quarantine directories include `recovery-manifest.json` with app/build/OS metadata, moved artifact names, and a sanitized error reason. This manifest is for support and debugging only; it must not include user IDs, paths outside the quarantine, access tokens, or profile data.
 - Store recovery must never clear Keychain auth, Supabase sessions, device identity, profile state, or cloud ownership. Local SwiftData recovery is isolated from account identity so a damaged local library cannot sign a user out or orphan Explore posts.

@@ -93,9 +93,9 @@ networking, and hardware orchestration logic.
   — Running checklist for bounded GBIF Community Taxonomy imports, completed
   Birds batches, next offsets, and operational follow-ups.
 - **[`/backend-and-data/08-startup-store-recovery.md`](./backend-and-data/08-startup-store-recovery.md)**
-  — Launch-time SwiftData store recovery contract: exception bridge,
-  corruption-gated quarantine, safe mode, auth isolation, manifest, telemetry,
-  and verification.
+  — Launch-time SwiftData store recovery contract: exception bridge, store-aware
+  migration selection, duplicate-checksum fallbacks, corruption-gated
+  quarantine, safe mode, auth isolation, manifest, telemetry, and verification.
 
 ### Features & Hardware
 

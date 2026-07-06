@@ -166,11 +166,25 @@ enum MerianSchemaV26: VersionedSchema {
 
 Only use `typealias` for models that are **unchanged AND not referenced by any relationship inside the schema** (e.g., `OfflineQueuedScan`, `PendingCloudDeletionTask`). Any model with a relationship to `LocalScanRecord` must be redeclared in each schema's enum body.
 
-**Two-tier regression test**: `apps/ios/MerianTests/Models/MigrationPlanTests.swift` has two tests — both must pass on an iOS 26 simulator on every schema bump:
-- `migrationPlanContainerInitializesWithoutCrash` — fresh store (no migration), covers init-time validation.
-- `migrationFromV26ToV27DoesNotCrash` — creates a disk-based V26 store then reopens with migration plan, covers the migration execution path where iOS 26 validates ALL custom stages.
-- The same suite also source-scans `SchemaVersions.swift` for migration safety invariants: no silent custom-stage saves, no active/global fetch descriptors or active model convenience helpers in `MerianMigrationPlan`, and no bare active `CapturedMediaEntry` relationship targets in retired schemas.
+**Migration regression tests**:
+`apps/ios/MerianTests/Models/MigrationPlanTests.swift` must pass on an iOS 26
+simulator on every schema bump. It covers fresh-store initialization, historical
+disk-store migrations, V44/V45/V46/V47 source-isolated recent plans, V47→V48
+offline queue media fixtures, and source scans for migration safety invariants:
+no silent custom-stage saves, no active/global fetch descriptors or active model
+convenience helpers in `MerianMigrationPlan`, and no bare active
+`CapturedMediaEntry` relationship targets in retired schemas.
 
 **Custom migration save rule**: Never use `try? context.save()` inside `MerianMigrationPlan` custom stages. Every custom `didMigrate` save must call the shared migration save helper, rollback on failure, and rethrow so SwiftData aborts the migration rather than opening a store with missing backfilled fields. Scratchpad namespaces are cleared only after the save succeeds, and migration fetch failures must propagate instead of being logged and ignored. Migration-stage fetches must use the concrete source/target schema type for that stage, never `CurrentSchema`, active global model classes, or active-only convenience helpers, because SwiftData can trap while casting historical migration objects. Any relationship model introduced in a retired schema must be frozen in that schema too, even if the active model has the same fields.
 
-**Startup recovery rule**: `ModelContainer` creation may raise Objective-C `NSException`s before Swift can throw. Merian routes those exceptions through `MerianObjCExceptionBridge`, but quarantine remains corruption-gated in `ModelStoreRecoveryCoordinator`: only verified SQLite/Core Data corruption signatures may move `default.store` artifacts, each quarantine writes a sanitized `recovery-manifest.json`, and recovery must not clear Keychain, Supabase auth state, or device identity. `ModelStoreRecoveryCoordinatorTests` source-scan this isolation rule.
+**Startup recovery rule**: `ModelContainer` creation may raise Objective-C
+`NSException`s before Swift can throw. Merian routes those exceptions through
+`MerianObjCExceptionBridge`, but startup first asks
+`ModelStoreRecoveryCoordinator` for a store-aware migration hint so fresh/current
+stores open without a migration plan and known recent stores use a
+source-isolated V47/V46/V45/V44 plan. Quarantine remains corruption-gated: only
+verified SQLite/Core Data corruption signatures may move `default.store`
+artifacts, each quarantine writes a sanitized `recovery-manifest.json`, and
+recovery must not clear Keychain, Supabase auth state, or device identity.
+`ModelStoreRecoveryCoordinatorTests` source-scan this isolation rule and cover
+the metadata parser.

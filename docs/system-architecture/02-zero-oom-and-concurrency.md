@@ -193,7 +193,15 @@ The camera shutter path (`CaptureWorkspaceViewModel.executeCapture`) captures ha
 
 ### Non-Crashing Startup Contract
 
-`MerianEnvironment.load()` now returns typed configuration plus issue diagnostics rather than calling `fatalError`. Missing Supabase config blocks network endpoint construction with `MerianError.invalidURL`; optional analytics/payment SDKs skip setup when their keys are absent. `MerianApp` attempts persistent SwiftData, corruption quarantine + retry, in-memory safe mode, and finally a startup-blocked UI if no `ModelContainer` can be created. No auth/config/store bootstrap path may hard-crash before user-visible recovery UI.
+`MerianEnvironment.load()` now returns typed configuration plus issue
+diagnostics rather than calling `fatalError`. Missing Supabase config blocks
+network endpoint construction with `MerianError.invalidURL`; optional
+analytics/payment SDKs skip setup when their keys are absent. `MerianApp` uses
+store-aware SwiftData startup selection (current-store open, recent
+source-isolated plan, or full historical migration), then corruption quarantine
+and retry, in-memory safe mode, and finally a startup-blocked UI if no
+`ModelContainer` can be created. No auth/config/store bootstrap path may
+hard-crash before user-visible recovery UI.
 
 ### Unbounded GBIF Reference Image Accumulation (`InferenceEngine`)
 
@@ -444,8 +452,17 @@ Two fixes were applied together:
 1. **Async deferral**: `configure` now returns immediately after injecting the queue context. The Favorites check runs inside `Task { @MainActor in }`, yielding the current synchronous callsite and running on the next main actor iteration.
 2. **O(1) fetch**: The full collection fetch was replaced with `modelContext.fetchCount(descriptor)` where `descriptor` uses `#Predicate { $0.name == "Favorites" }` and `fetchLimit = 1`. SQLite evaluates this as a `SELECT COUNT(*) WHERE name = 'Favorites' LIMIT 1` — constant time regardless of library size.
 
-### Synchronous SQLite Blocking (`MerianApp`)
-Wrapping the core `ModelContainer` SwiftData instantiation inside `MerianApp`'s `.init()` guaranteed a UI hitch. For power users booting thousands of scans, evaluating deep SQLite schema migrations synchronously before the `WindowGroup` rendered blocked the Main Thread and destroyed the camera's "Instant-On" latency. Merian removes this stutter by rendering `CaptureWorkspaceView` without a local container, offloading `ModelContainer(for: schema)` initialization into an asynchronous `.task` lifecycle modifier that attaches the SQLite container in the background.
+### Bounded SwiftData Startup (`MerianApp`)
+`MerianApp` still creates the app-wide `ModelContainer` during startup so the
+root SwiftUI environment, repository wiring, and safe-mode state are known
+before user workflows begin. The launch path must therefore avoid unnecessary
+deep migration validation. Startup reads the store metadata first: fresh/current
+stores open without a migration plan, known recent stores use the narrow
+source-isolated V47/V46/V45/V44 plans, and unknown older stores use the full
+historical migration plan. Duplicate-checksum failures retry through the same
+recent-plan ladder before safe mode. This keeps the synchronous launch boundary
+bounded for normal upgrades while preserving a deterministic recovery surface if
+SwiftData cannot open the store.
 
 ### App Boot SDK Stutter (`MerianApp`)
 Deferring external SDK boot sequences via `DispatchQueue.main.asyncAfter` caused a UI hitch milliseconds after `CaptureWorkspaceView` finished rendering. Merian avoids delayed startup jolts by doing only lightweight configuration in the launch path: TelemetryDeck stores config synchronously, and `PostHogManager.configure()` is idempotent and invoked before Supabase starts listening for restored auth sessions. Heavy hardware work remains outside the critical render path.
@@ -890,7 +907,13 @@ This ensures:
 
 ## 2026-04 Hardening Updates
 
-- `MerianApp` no longer wipes the SwiftData store on every `ModelContainer` init failure. Recovery is now corruption-specific, owned by `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`, quarantines `default.store` + WAL/SHM siblings only after verified corruption signatures, writes a sanitized manifest, and fails closed on non-corruption startup errors.
+- `MerianApp` no longer wipes the SwiftData store on every `ModelContainer` init
+  failure. Recovery is now store-aware and corruption-specific, owned by
+  `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`: it parses store
+  metadata for current/recent/full migration selection, quarantines
+  `default.store` + WAL/SHM siblings only after verified corruption signatures,
+  writes a sanitized manifest, and fails closed on non-corruption startup
+  errors.
 - `InferenceEngine` now guards background-write replay with a generation token. `prepareForNewScan()` and `cancelActiveRequest()` both clear pending closures and invalidate stale write tasks so cancelled work cannot mutate the next scan session.
 - `AudioCaptureManager` and `SpeechManager` now guarantee full teardown on startup cancellation and early failures: tap removal, engine stop, task cancellation, stream finishing, and session deactivation all happen on every exit path. `AudioSessionCoordinator` serializes activation/deactivation with lease tokens so stale teardown work cannot deactivate a newer session.
 - The spectrogram and SNR hot paths no longer use repeated `removeFirst()` array shifts. They now keep bounded circular buffers for visible spectrogram history and trailing noise-floor history.
@@ -899,7 +922,13 @@ This ensures:
 
 ## 2026-05 Stability Updates
 
-- **Non-fatal bootstrap boundaries**: auth presentation, Apple nonce generation, and `ModelContainer` startup are now recoverable paths. Startup routes SwiftData/Core Data Objective-C exceptions through the bridge, retries corruption recovery once, quarantines the store when signatures match, and falls back to an in-memory safe mode with a user-facing notice instead of crashing.
+- **Non-fatal bootstrap boundaries**: auth presentation, Apple nonce generation,
+  and `ModelContainer` startup are now recoverable paths. Startup selects a
+  store-aware migration strategy before opening, routes SwiftData/Core Data
+  Objective-C exceptions through the bridge, retries duplicate-checksum sources
+  with source-isolated recent plans, quarantines the store only when corruption
+  signatures match, and falls back to an in-memory safe mode with a user-facing
+  notice instead of crashing.
 - **Collection membership is scan-driven**: hot UI paths (`CollectionCard`, `CollectionsView`, `SelectMultipleScansView`, `CollectionDetailView`) and historical reconciliation no longer rely on `collection.scans` traversal. Membership snapshots are derived from `LocalScanRecord.collections` so SwiftData faults stay bounded.
 - **Offline file work is actor-owned**: queued-scan cleanup and media writes/adoption flow through `FileIOActor.deleteFiles(at:)` / `writeTemporaryImages(imageDatas:)`.
 - **File-backed restore uploads**: explore restore now re-uploads images and videos with `upload(for:fromFile:)` and a small task-group concurrency window, eliminating duplicate in-memory media buffers during restores.

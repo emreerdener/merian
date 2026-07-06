@@ -1704,14 +1704,15 @@ hourly cron payload with
 
 _Note: The iOS persistence layer is enforced via `ModelContainer` in
 `MerianApp.swift`. If a store open fails during a production app update, the
-application attempts corruption-specific quarantine and retry, then falls back
-to an in-memory safe-mode container, and finally shows a startup-blocked
-recovery surface if no container can be created. It must not silently wipe
-`URL.documentsDirectory`, and it must not hard-crash from bootstrap with
-`fatalError`. To prevent schema failures as the app evolves, Merian uses
-`MerianMigrationPlan` with lightweight and custom `.migrationStage` closures
-that safely transpose old structures (e.g. `MerianSchemaV8` to `MerianSchemaV9`)
-without corrupting local scan data._
+application first uses store metadata to choose the narrowest safe migration
+strategy, attempts corruption-specific quarantine and retry only for verified
+store corruption, then falls back to an in-memory safe-mode container, and
+finally shows a startup-blocked recovery surface if no container can be created.
+It must not silently wipe `URL.documentsDirectory`, and it must not hard-crash
+from bootstrap with `fatalError`. To prevent schema failures as the app evolves,
+Merian uses `MerianMigrationPlan` with lightweight and custom `.migrationStage`
+closures that safely transpose old structures (e.g. `MerianSchemaV8` to
+`MerianSchemaV9`) without corrupting local scan data._
 
 **File layout:** The universally active models natively live in the global
 namespace within `apps/ios/Merian/Models/ActiveSchema/`. Historical schema
