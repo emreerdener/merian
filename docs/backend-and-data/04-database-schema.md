@@ -1762,7 +1762,10 @@ bound to historical model metadata. Relationship models that are added in a
 historical schema must also be schema-scoped snapshots; V41 owns
 `MerianSchemaV41.CapturedMediaEntry` so V40→V41 can create media-entry rows
 without SwiftData casting V41 records to active `LocalScanRecord` or
-`OfflineQueuedScan`.
+`OfflineQueuedScan`. Custom migrations that create relationship rows must insert
+each new row into the migration `ModelContext` before assigning the relationship;
+relationship assignment alone is not a durable insert path while SwiftData is
+inside staged store migration.
 
 The current active schema is `MerianSchemaV48`. Recent milestones:
 

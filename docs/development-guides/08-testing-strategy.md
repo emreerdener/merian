@@ -169,9 +169,14 @@ MerianTests/
     stages, active/global `FetchDescriptor` types inside `MerianMigrationPlan`,
     active model convenience helpers such as `replaceCapturedMedia(...)`, or
     bare active `CapturedMediaEntry` relationship targets inside retired
-    schemas. They also keep the shipped no-op V46 schema collapsed out of the
+    schemas. V40→V41 media-entry backfill coverage also requires new
+    relationship rows to be inserted through the migration `ModelContext` before
+    assignment. They also keep the shipped no-op V46 schema collapsed out of the
     runtime migration path so SwiftData cannot reject startup with duplicate
-    version checksums. V47 must reuse the V45 checksum representative for
+    version checksums. Disk-backed migration tests should open `ModelContainer`
+    through the Objective-C exception bridge so SwiftData `NSException`s are
+    reported as test failures with their original reason instead of aborting the
+    whole test runner. V47 must reuse the V45 checksum representative for
     unchanged local-scan, captured-media, and collection models, and the V46
     recent plan must route through that same representative. The workflow's
     Swift package cache key depends on the checked-in

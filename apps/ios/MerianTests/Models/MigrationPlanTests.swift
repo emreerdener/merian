@@ -128,10 +128,33 @@ struct MigrationPlanTests {
         URL.cachesDirectory.appendingPathComponent("\(UUID().uuidString)_\(name).sqlite")
     }
 
+    private func makeModelContainer(
+        for schema: Schema,
+        configurations: [ModelConfiguration]
+    ) throws -> ModelContainer {
+        try MerianApp.makeContainerCatchingObjectiveCExceptions {
+            try ModelContainer(for: schema, configurations: configurations)
+        }
+    }
+
+    private func makeModelContainer<MigrationPlan: SchemaMigrationPlan>(
+        for schema: Schema,
+        migrationPlan: MigrationPlan.Type,
+        configurations: [ModelConfiguration]
+    ) throws -> ModelContainer {
+        try MerianApp.makeContainerCatchingObjectiveCExceptions {
+            try ModelContainer(
+                for: schema,
+                migrationPlan: migrationPlan,
+                configurations: configurations
+            )
+        }
+    }
+
     private func openCurrentMigrationStore(at url: URL) throws -> CurrentMigrationStore {
         let currentSchema = Schema(versionedSchema: CurrentSchema.self)
         let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
-        let currentContainer = try ModelContainer(
+        let currentContainer = try makeModelContainer(
             for: currentSchema,
             migrationPlan: MerianRecentV47MigrationPlan.self,
             configurations: [currentConfig]
@@ -236,6 +259,22 @@ struct MigrationPlanTests {
         )
     }
 
+    @Test func capturedMediaRelationshipBackfillInsertsRowsThroughMigrationContext() throws {
+        let source = try migrationPlanSource()
+        let requiredSnippets = [
+            "replaceMigratedCapturedMedia(on: scan, with: items, context: context)",
+            "let entries = MerianSchemaV41.CapturedMediaEntry.makeEntries(from: items)",
+            "entries.forEach { context.insert($0) }",
+            "scan.capturedMediaEntries = entries"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "V40->V41 must insert migrated CapturedMediaEntry rows into the migration ModelContext before assigning the relationship:\n\(missing.joined(separator: "\n"))"
+        )
+    }
+
     @Test func retiredSchemasDoNotReferenceActiveCapturedMediaEntryRelationships() throws {
         let source = try schemaVersionsSource()
         let retiredSchemaSource = source
@@ -268,7 +307,7 @@ struct MigrationPlanTests {
     @Test func migrationPlanContainerInitializesWithoutCrash() throws {
         let schema = Schema(versionedSchema: CurrentSchema.self)
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-        _ = try ModelContainer(
+        _ = try makeModelContainer(
             for: schema,
             migrationPlan: MerianMigrationPlan.self,
             configurations: [config]
@@ -294,7 +333,7 @@ struct MigrationPlanTests {
         do {
             let schema = Schema(versionedSchema: CurrentSchema.self)
             let config = ModelConfiguration(schema: schema, url: url)
-            let container = try ModelContainer(
+            let container = try makeModelContainer(
                 for: schema,
                 migrationPlan: MerianMigrationPlan.self,
                 configurations: [config]
@@ -327,7 +366,7 @@ struct MigrationPlanTests {
         do {
             let schema = Schema(versionedSchema: CurrentSchema.self)
             let config = ModelConfiguration(schema: schema, url: url)
-            let container = try ModelContainer(
+            let container = try makeModelContainer(
                 for: schema,
                 migrationPlan: MerianMigrationPlan.self,
                 configurations: [config]
@@ -374,7 +413,7 @@ struct MigrationPlanTests {
         // Step 1 — create a V26 store with no migration plan.
         let schema26 = Schema(versionedSchema: MerianSchemaV26.self)
         let config26 = ModelConfiguration(schema: schema26, url: url)
-        let container26 = try ModelContainer(for: schema26, configurations: [config26])
+        let container26 = try makeModelContainer(for: schema26, configurations: [config26])
 
         // Insert a minimal V26 record so the store actually has data and is not empty.
         let context26 = ModelContext(container26)
@@ -397,7 +436,7 @@ struct MigrationPlanTests {
         // On iOS 26, this triggers NSCustomMigrationStage construction for ALL custom stages.
         let schema27 = Schema(versionedSchema: CurrentSchema.self)
         let config27 = ModelConfiguration(schema: schema27, url: url)
-        _ = try ModelContainer(
+        _ = try makeModelContainer(
             for: schema27,
             migrationPlan: MerianMigrationPlan.self,
             configurations: [config27]
@@ -418,7 +457,7 @@ struct MigrationPlanTests {
         // Step 1 — create a V28 store with no migration plan.
         let schema28 = Schema(versionedSchema: MerianSchemaV28.self)
         let config28 = ModelConfiguration(schema: schema28, url: url)
-        let container28 = try ModelContainer(for: schema28, configurations: [config28])
+        let container28 = try makeModelContainer(for: schema28, configurations: [config28])
 
         // Insert a minimal V28 record so the store has data and is not empty.
         let context28 = ModelContext(container28)
@@ -440,7 +479,7 @@ struct MigrationPlanTests {
         // Step 2 — reopen with the full migration plan targeting the current schema (V29).
         let schema29 = Schema(versionedSchema: CurrentSchema.self)
         let config29 = ModelConfiguration(schema: schema29, url: url)
-        _ = try ModelContainer(
+        _ = try makeModelContainer(
             for: schema29,
             migrationPlan: MerianMigrationPlan.self,
             configurations: [config29]
@@ -461,7 +500,7 @@ struct MigrationPlanTests {
         // Step 1 — create a V30 store with no migration plan.
         let schema30 = Schema(versionedSchema: MerianSchemaV30.self)
         let config30 = ModelConfiguration(schema: schema30, url: url)
-        let container30 = try ModelContainer(for: schema30, configurations: [config30])
+        let container30 = try makeModelContainer(for: schema30, configurations: [config30])
 
         // Insert a minimal V30 record so the store has data and is not empty.
         let context30 = ModelContext(container30)
@@ -483,7 +522,7 @@ struct MigrationPlanTests {
         // Step 2 — reopen with the full migration plan targeting the current schema (V33).
         let schema33 = Schema(versionedSchema: CurrentSchema.self)
         let config33 = ModelConfiguration(schema: schema33, url: url)
-        _ = try ModelContainer(
+        _ = try makeModelContainer(
             for: schema33,
             migrationPlan: MerianMigrationPlan.self,
             configurations: [config33]
@@ -508,7 +547,7 @@ struct MigrationPlanTests {
         do {
             let schema43 = Schema(versionedSchema: MerianSchemaV43.self)
             let config43 = ModelConfiguration(schema: schema43, url: url)
-            let container43 = try ModelContainer(for: schema43, configurations: [config43])
+            let container43 = try makeModelContainer(for: schema43, configurations: [config43])
             let context43 = ModelContext(container43)
             let record = MerianSchemaV43.LocalScanRecord(
                 id: scanId,
@@ -530,7 +569,7 @@ struct MigrationPlanTests {
         do {
             let schema44 = Schema(versionedSchema: CurrentSchema.self)
             let config44 = ModelConfiguration(schema: schema44, url: url)
-            let container44 = try ModelContainer(
+            let container44 = try makeModelContainer(
                 for: schema44,
                 migrationPlan: MerianMigrationPlan.self,
                 configurations: [config44]
@@ -768,7 +807,7 @@ struct MigrationPlanTests {
         do {
             let schema44 = Schema(versionedSchema: MerianSchemaV44.self)
             let config44 = ModelConfiguration(schema: schema44, url: url)
-            let container44 = try ModelContainer(for: schema44, configurations: [config44])
+            let container44 = try makeModelContainer(for: schema44, configurations: [config44])
             let context44 = ModelContext(container44)
             let record = MerianSchemaV44.LocalScanRecord(
                 id: scanId,
@@ -788,7 +827,7 @@ struct MigrationPlanTests {
         do {
             let currentSchema = Schema(versionedSchema: CurrentSchema.self)
             let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
-            let currentContainer = try ModelContainer(
+            let currentContainer = try makeModelContainer(
                 for: currentSchema,
                 migrationPlan: MerianRecentV44MigrationPlan.self,
                 configurations: [currentConfig]
@@ -815,7 +854,7 @@ struct MigrationPlanTests {
         do {
             let schema45 = Schema(versionedSchema: MerianSchemaV45.self)
             let config45 = ModelConfiguration(schema: schema45, url: url)
-            let container45 = try ModelContainer(for: schema45, configurations: [config45])
+            let container45 = try makeModelContainer(for: schema45, configurations: [config45])
             let context45 = ModelContext(container45)
             let record = MerianSchemaV45.LocalScanRecord(
                 id: scanId,
@@ -843,7 +882,7 @@ struct MigrationPlanTests {
         do {
             let currentSchema = Schema(versionedSchema: CurrentSchema.self)
             let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
-            let currentContainer = try ModelContainer(
+            let currentContainer = try makeModelContainer(
                 for: currentSchema,
                 migrationPlan: MerianRecentV45MigrationPlan.self,
                 configurations: [currentConfig]
@@ -881,7 +920,7 @@ struct MigrationPlanTests {
         do {
             let schema46 = Schema(versionedSchema: MerianSchemaV46.self)
             let config46 = ModelConfiguration(schema: schema46, url: url)
-            let container46 = try ModelContainer(for: schema46, configurations: [config46])
+            let container46 = try makeModelContainer(for: schema46, configurations: [config46])
             let context46 = ModelContext(container46)
             let record = MerianSchemaV46.LocalScanRecord(
                 id: scanId,
@@ -912,7 +951,7 @@ struct MigrationPlanTests {
         do {
             let currentSchema = Schema(versionedSchema: CurrentSchema.self)
             let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
-            let currentContainer = try ModelContainer(
+            let currentContainer = try makeModelContainer(
                 for: currentSchema,
                 migrationPlan: MerianRecentV46MigrationPlan.self,
                 configurations: [currentConfig]
@@ -961,7 +1000,7 @@ struct MigrationPlanTests {
         do {
             let schema47 = Schema(versionedSchema: MerianSchemaV47.self)
             let config47 = ModelConfiguration(schema: schema47, url: url)
-            let container47 = try ModelContainer(for: schema47, configurations: [config47])
+            let container47 = try makeModelContainer(for: schema47, configurations: [config47])
             let context47 = ModelContext(container47)
             let queuedScan = MerianSchemaV47.OfflineQueuedScan(
                 id: queuedId,
@@ -1047,7 +1086,7 @@ struct MigrationPlanTests {
         do {
             let schema47 = Schema(versionedSchema: MerianSchemaV47.self)
             let config47 = ModelConfiguration(schema: schema47, url: url)
-            let container47 = try ModelContainer(for: schema47, configurations: [config47])
+            let container47 = try makeModelContainer(for: schema47, configurations: [config47])
             let context47 = ModelContext(container47)
             for fixture in fixtures {
                 context47.insert(MerianSchemaV47.OfflineQueuedScan(
@@ -1108,7 +1147,7 @@ struct MigrationPlanTests {
         // Step 1 — create a V38 store with both model types carrying the singular fields.
         let schema38 = Schema(versionedSchema: MerianSchemaV38.self)
         let config38 = ModelConfiguration(schema: schema38, url: url)
-        let container38 = try ModelContainer(for: schema38, configurations: [config38])
+        let container38 = try makeModelContainer(for: schema38, configurations: [config38])
         let context38 = ModelContext(container38)
 
         let localRecord = MerianSchemaV38.LocalScanRecord(
@@ -1141,7 +1180,7 @@ struct MigrationPlanTests {
         // Step 2 — reopen with the full migration plan targeting V40 (CurrentSchema).
         let schema40 = Schema(versionedSchema: CurrentSchema.self)
         let config40 = ModelConfiguration(schema: schema40, url: url)
-        let container40 = try ModelContainer(
+        let container40 = try makeModelContainer(
             for: schema40,
             migrationPlan: MerianMigrationPlan.self,
             configurations: [config40]
@@ -1209,7 +1248,7 @@ struct MigrationPlanTests {
         // Step 1 — create a V39 store with plural fields populated.
         let schema39 = Schema(versionedSchema: MerianSchemaV39.self)
         let config39 = ModelConfiguration(schema: schema39, url: url)
-        let container39 = try ModelContainer(for: schema39, configurations: [config39])
+        let container39 = try makeModelContainer(for: schema39, configurations: [config39])
         let context39 = ModelContext(container39)
 
         let localRecord = MerianSchemaV39.LocalScanRecord(
@@ -1244,7 +1283,7 @@ struct MigrationPlanTests {
         // Step 2 — reopen with the full migration plan targeting V40 (CurrentSchema).
         let schema40 = Schema(versionedSchema: CurrentSchema.self)
         let config40 = ModelConfiguration(schema: schema40, url: url)
-        let container40 = try ModelContainer(
+        let container40 = try makeModelContainer(
             for: schema40,
             migrationPlan: MerianMigrationPlan.self,
             configurations: [config40]
@@ -1317,7 +1356,7 @@ struct MigrationPlanTests {
 
         let schema40 = Schema(versionedSchema: MerianSchemaV40.self)
         let config40 = ModelConfiguration(schema: schema40, url: url)
-        let container40 = try ModelContainer(for: schema40, configurations: [config40])
+        let container40 = try makeModelContainer(for: schema40, configurations: [config40])
         let context40 = ModelContext(container40)
 
         let localItems: [SerializedMediaItem] = [
@@ -1355,7 +1394,7 @@ struct MigrationPlanTests {
 
         let schema41 = Schema(versionedSchema: CurrentSchema.self)
         let config41 = ModelConfiguration(schema: schema41, url: url)
-        let container41 = try ModelContainer(
+        let container41 = try makeModelContainer(
             for: schema41,
             migrationPlan: MerianMigrationPlan.self,
             configurations: [config41]

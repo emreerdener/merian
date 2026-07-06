@@ -401,7 +401,7 @@ struct MerianApp: App {
         return try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
     }
 
-    private static func makeContainerCatchingObjectiveCExceptions(
+    static func makeContainerCatchingObjectiveCExceptions(
         _ buildContainer: @escaping () throws -> ModelContainer
     ) throws -> ModelContainer {
         var container: ModelContainer?
