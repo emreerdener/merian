@@ -26,10 +26,23 @@ jobs:
           echo "Selected ${destination}"
 
       - name: Run startup and migration safety tests
+        timeout-minutes: 25
+        env:
+          XCODE_RESULT_BUNDLE: ${{ runner.temp }}/startup-safety.xcresult
         run: |
           xcodebuild test \
             -scheme Merian \
             -project Merian.xcodeproj \
+            -disableAutomaticPackageResolution \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -resultBundlePath "$XCODE_RESULT_BUNDLE" \
             -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
             -only-testing:merianTests/MigrationPlanTests
+
+      - name: Upload startup safety result bundle
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-startup-safety-xcresult-${{ github.run_number }}
+          path: ${{ runner.temp }}/startup-safety.xcresult
+          if-no-files-found: ignore
