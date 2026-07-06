@@ -69,18 +69,16 @@ when deno.land or esm.sh returns a transient 5xx during bundling.
 Set these in the repository's GitHub Actions secrets:
 
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
-- `SUPABASE_DB_PASSWORD` — database password used to build the direct
-  `db.<project-ref>.supabase.co:5432` Postgres URL when `SUPABASE_DB_URL` is not
-  set.
-- `SUPABASE_DB_URL` (optional) — full percent-encoded Postgres connection string
-  for migration pushes. Prefer this if production should use a Supabase pooler
-  URL or if direct IPv6 database access is unreliable from GitHub Actions.
+- `SUPABASE_DB_URL` — full percent-encoded Postgres connection string for
+  migration pushes. Use the Supabase pooler/session connection string for GitHub
+  Actions; direct `db.<project-ref>.supabase.co:5432` hosts can resolve to IPv6
+  only and fail on runners without IPv6 egress.
 
 The production Supabase project ref is intentionally stored in the workflow as
 `qlarqavoqhkuwzmevrmf`. Project refs are routing identifiers, not credentials;
-the deployment authority still comes from `SUPABASE_ACCESS_TOKEN` plus either
-`SUPABASE_DB_URL` or `SUPABASE_DB_PASSWORD`. Post-deploy smoke checks and manual
-taxonomy imports resolve the service-role key at runtime through
+the deployment authority still comes from `SUPABASE_ACCESS_TOKEN` plus
+`SUPABASE_DB_URL`. Post-deploy smoke checks and manual taxonomy imports resolve
+the service-role key at runtime through
 `supabase projects api-keys --project-ref qlarqavoqhkuwzmevrmf`, then mask it in
 GitHub Actions logs.
 
@@ -267,8 +265,10 @@ If `SUPABASE_DB_URL` is unset, `make db-push` falls back to the linked-project
 CLI behavior. `supabase link` reaches Supabase's Management API to retrieve
 remote project status before it writes local link metadata. A `504` at that step
 is a transient remote/status lookup failure, not a migration failure. The GitHub
-workflow intentionally avoids that status lookup by using `db push --db-url`
-instead. The warning
+workflow intentionally avoids that status lookup by requiring `SUPABASE_DB_URL`
+and using `db push --db-url` instead. Direct Supabase database hosts can resolve
+to IPv6-only addresses; use the pooler connection string in CI when a runner
+cannot reach IPv6. The warning
 `environment variable is unset: SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` comes from
 parsing the local Auth config and is not fatal for `db push`; only treat it as
 actionable if a command fails while applying Auth provider config.
