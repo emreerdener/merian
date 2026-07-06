@@ -37,8 +37,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache Swift package checkouts
-        uses: actions/cache@v4
+      - name: Restore Swift package checkouts
+        id: swift-package-cache
+        uses: actions/cache/restore@v4
         with:
           path: .build/xcode-source-packages
           key: ${{ runner.os }}-xcode-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
@@ -69,6 +70,13 @@ jobs:
             -resultBundlePath "$XCODE_RESULT_BUNDLE" \
             -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
             -only-testing:merianTests/MigrationPlanTests
+
+      - name: Save Swift package checkouts
+        if: always() && steps.swift-package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .build/xcode-source-packages
+          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Print startup safety failure summary
         if: failure()

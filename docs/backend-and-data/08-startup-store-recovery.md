@@ -136,8 +136,9 @@ as an environment issue, not a recovery-code failure, and run the focused lane
 in a normal local or GitHub macOS runner.
 
 The GitHub Startup Safety workflow is scoped to iOS/project/workflow path
-changes, cancels stale runs on the same ref, caches Swift package checkouts, and
-bounds this focused Xcode step at 25 minutes. On failure it prints the
+changes, cancels stale runs on the same ref, restores Swift package checkouts,
+saves newly fetched checkouts even after a test failure, and bounds this focused
+Xcode step at 25 minutes. On failure it prints the
 `.xcresult` test-failure summary into the job summary and uploads the
 `.xcresult` bundle plus extracted JSON summary so simulator hangs or compiler
 diagnostics remain inspectable without rerunning the log loop.
