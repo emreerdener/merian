@@ -50,13 +50,13 @@ fi
 pooler_host="$SUPABASE_DB_POOLER_HOST"
 case "$pooler_host" in
   *://*|*/*)
-    echo "SUPABASE_DB_POOLER_HOST must be a host only, for example aws-0-us-east-1.pooler.supabase.com." >&2
+    echo "SUPABASE_DB_POOLER_HOST must be the host only from Supabase Connect's Session pooler string." >&2
     exit 1
     ;;
   *.pooler.supabase.com)
     ;;
   *)
-    echo "SUPABASE_DB_POOLER_HOST must be a Supabase shared pooler host, for example aws-0-us-east-1.pooler.supabase.com." >&2
+    echo "SUPABASE_DB_POOLER_HOST must be a Supabase shared pooler host copied from the project's Connect panel." >&2
     exit 1
     ;;
 esac

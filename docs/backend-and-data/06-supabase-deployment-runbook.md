@@ -73,15 +73,19 @@ Set these in the repository's GitHub Actions secrets:
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
 - One database connection path:
   - Preferred: `SUPABASE_DB_URL` — full percent-encoded Postgres connection
-    string for migration pushes. Use the Supabase shared pooler session-mode
-    connection string for GitHub Actions.
+    string for migration pushes. Copy the Supabase shared pooler session-mode
+    connection string from the project's **Connect** panel for GitHub Actions.
   - Alternative: `SUPABASE_DB_POOLER_HOST` plus `SUPABASE_DB_PASSWORD` — the
     workflow builds
     `postgresql://postgres.<project-ref>:<encoded-password>@<pooler-host>:5432/postgres?sslmode=require`.
-    Store only the host in `SUPABASE_DB_POOLER_HOST`, for example
-    `aws-0-us-east-1.pooler.supabase.com`.
-    Merian production is in `us-east-1`, so the expected production host is
-    `aws-0-us-east-1.pooler.supabase.com`.
+    Store only the exact host from the same session-pooler connection string in
+    `SUPABASE_DB_POOLER_HOST`. Do not derive this host from the project region
+    alone; a region screenshot confirms geography but not the specific Supavisor
+    pooler tenant host. If the host is wrong, Supavisor can still accept the TCP
+    connection and then fail with
+    `tenant/user postgres.<project-ref> not found`.
+    Merian production's confirmed session-pooler host is
+    `aws-1-us-east-1.pooler.supabase.com`.
 
 Optional GitHub Actions variables:
 
@@ -102,9 +106,9 @@ taxonomy imports resolve the service-role key at runtime through
 GitHub Actions logs.
 
 If the Supabase dashboard or Management API is unavailable, do not guess the
-pooler region in production secrets. Wait for the dashboard to recover, or get
-the existing shared-pooler host from another operator who already has access.
-The `supabase link` command also uses the Management API, so `504` or `500`
+pooler host in production secrets. Wait for the dashboard to recover, or get the
+existing shared-pooler host from another operator who already has access. The
+`supabase link` command also uses the Management API, so `504` or `500`
 responses during a Supabase incident can block linking even when the migration
 SQL itself is fine.
 Using `db push --db-url` only removes the project-status lookup from the
@@ -295,7 +299,7 @@ Or export the pooler pieces and let the shared script construct the URL:
 
 ```bash
 export SUPABASE_PROJECT_ID='qlarqavoqhkuwzmevrmf'
-export SUPABASE_DB_POOLER_HOST='aws-0-us-east-1.pooler.supabase.com'
+export SUPABASE_DB_POOLER_HOST='aws-1-us-east-1.pooler.supabase.com'
 export SUPABASE_DB_PASSWORD='...'
 make db-push
 ```
