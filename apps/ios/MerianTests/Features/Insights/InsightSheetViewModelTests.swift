@@ -185,6 +185,61 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.resolvedHeaderTitle == "Non-biological")
     }
 
+    @Test func testNetworkTimeoutPlaceholderKeepsErrorTitle() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        let species = SpeciesData(
+            scanId: nil,
+            commonName: "Network timeout",
+            scientificName: "Offline mode",
+            insightData: InsightData(
+                aiReasoning: "Merian saved this scan and will retry automatically.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.0,
+            isBiological: false,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+        engine.speciesData = species
+        viewModel.inferenceEngine = engine
+
+        #expect(species.isInferenceErrorPlaceholder == true)
+        #expect(species.isClassifiedNonBiological == false)
+        #expect(viewModel.contentMode == .nonBiological)
+        #expect(viewModel.resolvedHeaderTitle == "Network timeout")
+    }
+
+    @Test func testNetworkTimeoutPlaceholderDoesNotShowNonBiologicalSuccessToast() throws {
+        let ctx = try createIsolatedContext()
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: nil,
+            commonName: "Network timeout",
+            scientificName: "Offline mode",
+            insightData: InsightData(
+                aiReasoning: "Merian saved this scan and will retry automatically.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.0,
+            isBiological: false,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+        viewModel.inferenceEngine = engine
+
+        viewModel.evaluateProcessingCompletion(
+            isStillProcessing: false,
+            inferenceEngine: engine,
+            modelContext: ctx
+        )
+
+        #expect(viewModel.state.toastMessage == nil)
+    }
+
     private func milestoneTestSpecies(
         commonName: String = "Monarch Butterfly",
         isBiological: Bool = true

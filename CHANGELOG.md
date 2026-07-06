@@ -74,6 +74,9 @@ TestFlight, App Store, support, and QA.
   interrupt capture or open the paywall.
 - Fixed non-biological scan saving so captures that omit ecology metadata are
   saved with an unknown ecology fallback instead of failing in the backend.
+- Fixed network timeout results so they keep the "Network timeout" title,
+  explain automatic retry, and no longer show non-biological collection or
+  retention messaging.
 - Hid live viewfinder hint pills once single-scan content is staged or
   multi-scan staging is full.
 
@@ -114,6 +117,11 @@ TestFlight, App Store, support, and QA.
   normally instead of launching in safe mode after a schema update.
 - Fixed a startup safe-mode loop caused by a no-op historical schema version
   being included as a separate SwiftData migration stage.
+- Fixed local libraries blocked by duplicate schema checksums by retrying
+  startup with short, recent-only migration plans before safe mode.
+- Improved launch migration selection so fresh and already-current local
+  libraries open without validating the full historical migration plan, while
+  recent older libraries use the smallest source-specific plan available.
 - Fixed offline-queue schema upgrades so existing queued scans initialize their
   durable retry state instead of repeatedly reopening in safe mode.
 - Added broader startup migration safety checks so queued image, video, audio,

@@ -2925,3 +2925,89 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         }
     )
 }
+
+/// Short recovery plan for V44 stores when the full historical chain trips
+/// SwiftData's duplicate-checksum validator before reaching the actual source.
+///
+/// V44, V45, and V46 are close enough that pairing them in a retry plan can
+/// still trigger duplicate-checksum validation. Each short plan therefore keeps
+/// exactly one possible source representative and jumps directly to the next
+/// model with real queue/media changes.
+enum MerianRecentV44MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            MerianSchemaV44.self,
+            MerianSchemaV47.self,
+            MerianSchemaV48.self
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            migrateV44toV47,
+            MerianMigrationPlan.migrateV47toV48
+        ]
+    }
+
+    static let migrateV44toV47 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV44.self,
+        toVersion: MerianSchemaV47.self
+    )
+}
+
+/// Short recovery plan for stores on the V45 representative.
+enum MerianRecentV45MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            MerianSchemaV45.self,
+            MerianSchemaV47.self,
+            MerianSchemaV48.self
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            MerianMigrationPlan.migrateV45toV47,
+            MerianMigrationPlan.migrateV47toV48
+        ]
+    }
+}
+
+/// Short recovery plan for stores already stamped with released no-op V46.
+enum MerianRecentV46MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            MerianSchemaV46.self,
+            MerianSchemaV47.self,
+            MerianSchemaV48.self
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            migrateV46toV47,
+            MerianMigrationPlan.migrateV47toV48
+        ]
+    }
+
+    static let migrateV46toV47 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV46.self,
+        toVersion: MerianSchemaV47.self
+    )
+}
+
+/// Short recovery plan for stores that already made it to V47.
+enum MerianRecentV47MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            MerianSchemaV47.self,
+            MerianSchemaV48.self
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            MerianMigrationPlan.migrateV47toV48
+        ]
+    }
+}

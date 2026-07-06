@@ -223,6 +223,22 @@ struct SpeciesData {
 // MARK: - Subject Classification
 
 extension SpeciesData {
+    /// True for local, non-persisted inference fallback rows such as network timeouts.
+    /// These placeholders use `isBiological == false` only to avoid biological result UI;
+    /// they are not model classifications and should not be treated as non-biological scans.
+    var isInferenceErrorPlaceholder: Bool {
+        guard scanId == nil else { return false }
+        let normalizedCommonName = commonName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return normalizedCommonName == "network timeout"
+            || normalizedCommonName == "analysis failed"
+    }
+
+    var isClassifiedNonBiological: Bool {
+        !isBiological && !isInferenceErrorPlaceholder
+    }
+
     /// True when the AI identified the subject as a human.
     /// Used to suppress candidates and third-party reference images (Wikipedia/GBIF)
     /// which are inappropriate to surface for human subjects.

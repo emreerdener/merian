@@ -79,6 +79,123 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         XCTAssertEqual(fallback.telemetryReason, "persistent_store_migration_failed")
     }
 
+    func testDetectsDuplicateVersionChecksumFailuresForTargetedRetry() {
+        let duplicateChecksumError = NSError(
+            domain: "app.merian.model-container",
+            code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "Duplicate version checksums across stages detected."]
+        )
+
+        XCTAssertTrue(ModelStoreRecoveryCoordinator.isDuplicateVersionChecksumFailure(duplicateChecksumError))
+    }
+
+    func testReadsSchemaMajorVersionFromStoreMetadataIdentifiers() {
+        let metadata: [String: Any] = [
+            "NSStoreModelVersionIdentifiers": ["MerianSchemaV48"]
+        ]
+
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.storedSchemaMajorVersion(from: metadata),
+            48
+        )
+    }
+
+    func testReadsSchemaMajorVersionFromSwiftDataVersionIdentifierText() {
+        let metadata: [String: Any] = [
+            "NSStoreModelVersionIdentifiers": ["Schema.Version(47, 0, 0)"]
+        ]
+
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.storedSchemaMajorVersion(from: metadata),
+            47
+        )
+    }
+
+    func testReadsHighestSchemaMajorVersionFromNestedMetadataIdentifiers() {
+        let metadata: [String: Any] = [
+            "NSStoreModelVersionIdentifiers": NSSet(array: ["V45", "V48"])
+        ]
+
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.storedSchemaMajorVersion(from: metadata),
+            48
+        )
+    }
+
+    func testStoreMigrationHintOpensFreshStoresAsCurrentStore() {
+        let hint = ModelStoreRecoveryCoordinator.migrationHint(
+            storedSchemaMajorVersion: nil,
+            hasStoreArtifacts: false,
+            currentSchemaMajor: 48
+        )
+
+        XCTAssertEqual(hint, .currentStore)
+    }
+
+    func testStoreMigrationHintOpensAlreadyCurrentStoresWithoutMigrationPlan() {
+        let hint = ModelStoreRecoveryCoordinator.migrationHint(
+            storedSchemaMajorVersion: 48,
+            hasStoreArtifacts: true,
+            currentSchemaMajor: 48
+        )
+
+        XCTAssertEqual(hint, .currentStore)
+    }
+
+    func testStoreMigrationHintUsesRecentPlansForRecentSourceStores() {
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.migrationHint(
+                storedSchemaMajorVersion: 44,
+                hasStoreArtifacts: true,
+                currentSchemaMajor: 48
+            ),
+            .recentSource(44)
+        )
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.migrationHint(
+                storedSchemaMajorVersion: 45,
+                hasStoreArtifacts: true,
+                currentSchemaMajor: 48
+            ),
+            .recentSource(45)
+        )
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.migrationHint(
+                storedSchemaMajorVersion: 46,
+                hasStoreArtifacts: true,
+                currentSchemaMajor: 48
+            ),
+            .recentSource(46)
+        )
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.migrationHint(
+                storedSchemaMajorVersion: 47,
+                hasStoreArtifacts: true,
+                currentSchemaMajor: 48
+            ),
+            .recentSource(47)
+        )
+    }
+
+    func testStoreMigrationHintUsesFullPlanForUnknownOrOlderExistingStores() {
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.migrationHint(
+                storedSchemaMajorVersion: nil,
+                hasStoreArtifacts: true,
+                currentSchemaMajor: 48
+            ),
+            .fullHistorical
+        )
+        XCTAssertEqual(
+            ModelStoreRecoveryCoordinator.migrationHint(
+                storedSchemaMajorVersion: 43,
+                hasStoreArtifacts: true,
+                currentSchemaMajor: 48
+            ),
+            .fullHistorical
+        )
+    }
+
     func testGenericFailureUsesPersistentUnavailableSafeModeDiagnostics() {
         let genericError = NSError(
             domain: NSCocoaErrorDomain,

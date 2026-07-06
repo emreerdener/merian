@@ -35,6 +35,58 @@ struct MigrationPlanTests {
             Issue.record("SchemaVersions.swift must declare MerianMigrationPlan")
             return ""
         }
+        let remainder = source[migrationStart...]
+        if let alternateStart = remainder.range(of: "\nenum MerianRecentV44MigrationPlan")?.lowerBound {
+            return String(remainder[..<alternateStart])
+        }
+        return String(remainder)
+    }
+
+    private func recentV44MigrationPlanSource() throws -> String {
+        let source = try schemaVersionsSource()
+        guard let migrationStart = source.range(of: "enum MerianRecentV44MigrationPlan")?.lowerBound else {
+            Issue.record("SchemaVersions.swift must declare MerianRecentV44MigrationPlan")
+            return ""
+        }
+        let remainder = source[migrationStart...]
+        if let nextStart = remainder.range(of: "\nenum MerianRecentV45MigrationPlan")?.lowerBound {
+            return String(remainder[..<nextStart])
+        }
+        return String(remainder)
+    }
+
+    private func recentV45MigrationPlanSource() throws -> String {
+        let source = try schemaVersionsSource()
+        guard let migrationStart = source.range(of: "enum MerianRecentV45MigrationPlan")?.lowerBound else {
+            Issue.record("SchemaVersions.swift must declare MerianRecentV45MigrationPlan")
+            return ""
+        }
+        let remainder = source[migrationStart...]
+        if let nextStart = remainder.range(of: "\nenum MerianRecentV46MigrationPlan")?.lowerBound {
+            return String(remainder[..<nextStart])
+        }
+        return String(remainder)
+    }
+
+    private func recentV46MigrationPlanSource() throws -> String {
+        let source = try schemaVersionsSource()
+        guard let migrationStart = source.range(of: "enum MerianRecentV46MigrationPlan")?.lowerBound else {
+            Issue.record("SchemaVersions.swift must declare MerianRecentV46MigrationPlan")
+            return ""
+        }
+        let remainder = source[migrationStart...]
+        if let nextStart = remainder.range(of: "\nenum MerianRecentV47MigrationPlan")?.lowerBound {
+            return String(remainder[..<nextStart])
+        }
+        return String(remainder)
+    }
+
+    private func recentV47MigrationPlanSource() throws -> String {
+        let source = try schemaVersionsSource()
+        guard let migrationStart = source.range(of: "enum MerianRecentV47MigrationPlan")?.lowerBound else {
+            Issue.record("SchemaVersions.swift must declare MerianRecentV47MigrationPlan")
+            return ""
+        }
         return String(source[migrationStart...])
     }
 
@@ -81,7 +133,7 @@ struct MigrationPlanTests {
         let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
         let currentContainer = try ModelContainer(
             for: currentSchema,
-            migrationPlan: MerianMigrationPlan.self,
+            migrationPlan: MerianRecentV47MigrationPlan.self,
             configurations: [currentConfig]
         )
         return CurrentMigrationStore(
@@ -588,6 +640,104 @@ struct MigrationPlanTests {
         )
     }
 
+    @Test func recentV44MigrationPlanAvoidsAdjacentDuplicateRepresentatives() throws {
+        let source = try recentV44MigrationPlanSource()
+        let requiredSnippets = [
+            "enum MerianRecentV44MigrationPlan",
+            "MerianSchemaV44.self",
+            "MerianSchemaV47.self",
+            "MerianSchemaV48.self",
+            "static let migrateV44toV47 = MigrationStage.lightweight",
+            "fromVersion: MerianSchemaV44.self",
+            "toVersion: MerianSchemaV47.self",
+            "MerianMigrationPlan.migrateV47toV48"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "The recent V44 recovery plan must stay available for V44 stores. Missing snippets:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            !source.contains("MerianSchemaV43.self") &&
+                !source.contains("MerianSchemaV45.self") &&
+                !source.contains("MerianSchemaV46.self"),
+            "The recent V44 recovery plan must include only one V44/V45/V46-family representative."
+        )
+    }
+
+    @Test func recentV45MigrationPlanAvoidsAdjacentDuplicateRepresentatives() throws {
+        let source = try recentV45MigrationPlanSource()
+        let requiredSnippets = [
+            "enum MerianRecentV45MigrationPlan",
+            "MerianSchemaV45.self",
+            "MerianSchemaV47.self",
+            "MerianSchemaV48.self",
+            "MerianMigrationPlan.migrateV45toV47",
+            "MerianMigrationPlan.migrateV47toV48"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "The recent V45 recovery plan must stay available for V45 stores. Missing snippets:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            !source.contains("MerianSchemaV43.self") &&
+                !source.contains("MerianSchemaV44.self") &&
+                !source.contains("MerianSchemaV46.self"),
+            "The recent V45 recovery plan must include only one V44/V45/V46-family representative."
+        )
+    }
+
+    @Test func recentV46MigrationPlanSupportsAlreadyStampedV46StoresWithoutAdjacentDuplicates() throws {
+        let source = try recentV46MigrationPlanSource()
+        let requiredSnippets = [
+            "enum MerianRecentV46MigrationPlan",
+            "MerianSchemaV46.self",
+            "MerianSchemaV47.self",
+            "MerianSchemaV48.self",
+            "static let migrateV46toV47 = MigrationStage.lightweight",
+            "fromVersion: MerianSchemaV46.self",
+            "toVersion: MerianSchemaV47.self",
+            "MerianMigrationPlan.migrateV47toV48"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "The V46 checksum representative plan must remain available for stores already stamped V46. Missing snippets:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            !source.contains("MerianSchemaV43.self") &&
+                !source.contains("MerianSchemaV44.self") &&
+                !source.contains("MerianSchemaV45.self"),
+            "The recent V46 recovery plan must include only one V44/V45/V46-family representative."
+        )
+    }
+
+    @Test func recentV47MigrationPlanOnlyRunsQueueMetadataMigration() throws {
+        let source = try recentV47MigrationPlanSource()
+        let requiredSnippets = [
+            "enum MerianRecentV47MigrationPlan",
+            "MerianSchemaV47.self",
+            "MerianSchemaV48.self",
+            "MerianMigrationPlan.migrateV47toV48"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "The recent V47 recovery plan must stay available for stores already on V47. Missing snippets:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            !source.contains("MerianSchemaV44.self") &&
+                !source.contains("MerianSchemaV45.self") &&
+                !source.contains("MerianSchemaV46.self"),
+            "The recent V47 recovery plan must not include duplicate-prone earlier representatives."
+        )
+    }
+
     @Test func migrationFromV44ToCurrentSchemaDoesNotSafeMode() throws {
         let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v44migration_test.sqlite")
         defer { removeSQLiteStore(at: url) }
@@ -619,7 +769,7 @@ struct MigrationPlanTests {
             let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
             let currentContainer = try ModelContainer(
                 for: currentSchema,
-                migrationPlan: MerianMigrationPlan.self,
+                migrationPlan: MerianRecentV44MigrationPlan.self,
                 configurations: [currentConfig]
             )
             let currentContext = ModelContext(currentContainer)
@@ -674,7 +824,7 @@ struct MigrationPlanTests {
             let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
             let currentContainer = try ModelContainer(
                 for: currentSchema,
-                migrationPlan: MerianMigrationPlan.self,
+                migrationPlan: MerianRecentV45MigrationPlan.self,
                 configurations: [currentConfig]
             )
             let currentContext = ModelContext(currentContainer)
@@ -743,7 +893,7 @@ struct MigrationPlanTests {
             let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
             let currentContainer = try ModelContainer(
                 for: currentSchema,
-                migrationPlan: MerianMigrationPlan.self,
+                migrationPlan: MerianRecentV46MigrationPlan.self,
                 configurations: [currentConfig]
             )
             let currentContext = ModelContext(currentContainer)

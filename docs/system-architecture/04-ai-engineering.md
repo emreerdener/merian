@@ -919,7 +919,7 @@ insight sheet display.
 - **5xx retry** (`MerianNetworkClient`): A single retry after a 2s pause on HTTP
   5xx responses absorbs transient Edge Function cold-start failures and
   momentary Deno isolate errors that would otherwise surface to the user as
-  "Network Timeout".
+  "Network timeout".
 - **Tier-conditional inference resolution**
   (`MerianConfig.inferenceImageMaxSize(isProActive:)`): Flash/free-tier captures
   are downsampled to **768 px** (single Gemini vision tile, ~258 input tokens);

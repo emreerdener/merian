@@ -561,7 +561,7 @@ dynamically—circumventing the dead `urlSessionDidFinishEvents` delegate path.
   (`engine.inferenceTask?.cancel()`), `engine.isProcessing` is set to `false`,
   and `engine.speciesData` is set to the already-decoded `SpeciesData` from the
   database actor. This prevents the live task from resuming after foregrounding,
-  finding a cold network, and showing "Network Timeout" on a scan whose result
+  finding a cold network, and showing "Network timeout" on a scan whose result
   is already committed to the database. The insight sheet's `InsightContentView`
   observer (`isProcessing == false && speciesData != nil`) transitions out of
   "Analyzing..." mode immediately.

@@ -782,7 +782,7 @@ final class MerianNetworkClient {
 
             // 5xx — transient server/Edge Function error. Retry once after a brief pause
             // so a cold-start or momentary Deno isolate failure doesn't surface as a permanent
-            // user-facing "Network Timeout". Only safe on idempotent callers (inference, reads).
+            // user-facing "Network timeout". Only safe on idempotent callers (inference, reads).
             if httpResponse.statusCode >= 500 && !isRetry {
                 MerianLog.network.debug("Server error \(httpResponse.statusCode, privacy: .public) — retrying in 2s.")
                 try? await Task.sleep(nanoseconds: 2_000_000_000)

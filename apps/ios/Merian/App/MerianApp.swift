@@ -368,13 +368,28 @@ struct MerianApp: App {
         }
     }
 
-    private static func makePersistentContainerUnchecked() throws -> ModelContainer {
+    private static func makePersistentContainerUnchecked<MigrationPlan: SchemaMigrationPlan>(
+        migrationPlan: MigrationPlan.Type
+    ) throws -> ModelContainer {
         let schema = Schema(versionedSchema: CurrentSchema.self)
         let config = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: TestExecutionCoordinator.isRunningTests
         )
-        return try ModelContainer(for: schema, migrationPlan: MerianMigrationPlan.self, configurations: [config])
+        return try ModelContainer(for: schema, migrationPlan: migrationPlan, configurations: [config])
+    }
+
+    private static func makePersistentContainerUnchecked() throws -> ModelContainer {
+        try makePersistentContainerUnchecked(migrationPlan: MerianMigrationPlan.self)
+    }
+
+    private static func makePersistentContainerUncheckedWithoutMigrationPlan() throws -> ModelContainer {
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let config = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: TestExecutionCoordinator.isRunningTests
+        )
+        return try ModelContainer(for: schema, configurations: [config])
     }
 
     private static func makeInMemoryContainerUnchecked() throws -> ModelContainer {
@@ -417,9 +432,141 @@ struct MerianApp: App {
         return container
     }
 
-    private static func makePersistentContainer() throws -> ModelContainer {
+    private static func makePersistentContainer<MigrationPlan: SchemaMigrationPlan>(
+        migrationPlan: MigrationPlan.Type
+    ) throws -> ModelContainer {
         try makeContainerCatchingObjectiveCExceptions {
-            try makePersistentContainerUnchecked()
+            try makePersistentContainerUnchecked(migrationPlan: migrationPlan)
+        }
+    }
+
+    private static func makePersistentContainer() throws -> ModelContainer {
+        try makePersistentContainer(migrationPlan: MerianMigrationPlan.self)
+    }
+
+    private static func makePersistentContainerWithoutMigrationPlan() throws -> ModelContainer {
+        try makeContainerCatchingObjectiveCExceptions {
+            try makePersistentContainerUncheckedWithoutMigrationPlan()
+        }
+    }
+
+    private static func makePersistentContainerRetryingChecksumRepresentative() throws -> ModelContainer {
+        do {
+            return try makePersistentContainer(migrationPlan: MerianMigrationPlan.self)
+        } catch {
+            return try makePersistentContainerRetryingChecksumRepresentative(after: error)
+        }
+    }
+
+    private static func makePersistentContainerRetryingChecksumRepresentative(
+        after error: Error
+    ) throws -> ModelContainer {
+        guard ModelStoreRecoveryCoordinator.isDuplicateVersionChecksumFailure(error) else {
+            throw error
+        }
+
+        MerianLog.general.error(
+            "ModelContainer migration plan hit duplicate version checksums; retrying with recent checksum-safe migration plans."
+        )
+
+        do {
+            let recovered = try makePersistentContainerWithoutMigrationPlan()
+            MerianLog.general.error(
+                "ModelContainer opened without a migration plan; store was already current."
+            )
+            return recovered
+        } catch let currentStoreError {
+            MerianLog.general.error(
+                "ModelContainer current-store retry failed: \(currentStoreError.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
+            let recovered = try makePersistentContainer(migrationPlan: MerianRecentV47MigrationPlan.self)
+            MerianLog.general.error(
+                "ModelContainer opened with the recent V47 checksum-safe migration plan."
+            )
+            return recovered
+        } catch let recentV47Error {
+            MerianLog.general.error(
+                "ModelContainer recent V47 checksum-safe retry failed: \(recentV47Error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
+            let recovered = try makePersistentContainer(migrationPlan: MerianRecentV46MigrationPlan.self)
+            MerianLog.general.error(
+                "ModelContainer opened with the recent V46 checksum-safe migration plan."
+            )
+            return recovered
+        } catch let recentV46Error {
+            MerianLog.general.error(
+                "ModelContainer recent V46 checksum-safe retry failed: \(recentV46Error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
+            let recovered = try makePersistentContainer(migrationPlan: MerianRecentV45MigrationPlan.self)
+            MerianLog.general.error(
+                "ModelContainer opened with the recent V45 checksum-safe migration plan."
+            )
+            return recovered
+        } catch let recentV45Error {
+            MerianLog.general.error(
+                "ModelContainer recent V45 checksum-safe retry failed: \(recentV45Error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
+            let recovered = try makePersistentContainer(migrationPlan: MerianRecentV44MigrationPlan.self)
+            MerianLog.general.error(
+                "ModelContainer opened with the recent V44 checksum-safe migration plan."
+            )
+            return recovered
+        } catch let recentV44Error {
+            MerianLog.general.error(
+                "ModelContainer recent V44 checksum-safe retry failed. Primary error: \(error.localizedDescription, privacy: .private) | Retry error: \(recentV44Error.localizedDescription, privacy: .private)"
+            )
+            throw error
+        }
+    }
+
+    private static func makePersistentContainer(
+        forStoreMigrationHint hint: ModelStoreRecoveryCoordinator.StoreMigrationHint
+    ) throws -> ModelContainer {
+        switch hint {
+        case .currentStore:
+            return try makePersistentContainerWithoutMigrationPlan()
+        case .recentSource(47):
+            return try makePersistentContainer(migrationPlan: MerianRecentV47MigrationPlan.self)
+        case .recentSource(46):
+            return try makePersistentContainer(migrationPlan: MerianRecentV46MigrationPlan.self)
+        case .recentSource(45):
+            return try makePersistentContainer(migrationPlan: MerianRecentV45MigrationPlan.self)
+        case .recentSource(44):
+            return try makePersistentContainer(migrationPlan: MerianRecentV44MigrationPlan.self)
+        case .recentSource:
+            return try makePersistentContainer(migrationPlan: MerianMigrationPlan.self)
+        case .fullHistorical:
+            return try makePersistentContainer(migrationPlan: MerianMigrationPlan.self)
+        }
+    }
+
+    private static func makePersistentContainerUsingStoreAwarePlan() throws -> ModelContainer {
+        let decision = ModelStoreRecoveryCoordinator.migrationDecision(
+            at: ModelStoreRecoveryCoordinator.defaultStoreURL(),
+            currentSchemaMajor: CurrentSchema.versionIdentifier.major
+        )
+        let detectedSchema = decision.storedSchemaMajorVersion.map { "V\($0)" } ?? "unavailable"
+
+        MerianLog.general.notice(
+            "ModelContainer store-aware migration selection: hasStoreArtifacts=\(decision.hasStoreArtifacts, privacy: .public) storedSchema=\(detectedSchema, privacy: .public) strategy=\(decision.hint.description, privacy: .public)"
+        )
+
+        do {
+            return try makePersistentContainer(forStoreMigrationHint: decision.hint)
+        } catch {
+            return try makePersistentContainerRetryingChecksumRepresentative(after: error)
         }
     }
 
@@ -429,10 +576,45 @@ struct MerianApp: App {
         }
     }
 
+    private static func migrationSchemaVersionSummary() -> String {
+        MerianMigrationPlan.schemas
+            .map { "\($0.versionIdentifier.major)" }
+            .joined(separator: ",")
+    }
+
+    private static func migrationStageVersionSummary() -> String {
+        MerianMigrationPlan.stages
+            .map { stage -> String in
+                switch stage {
+                case let .lightweight(fromVersion, toVersion):
+                    return "\(fromVersion.versionIdentifier.major)>\(toVersion.versionIdentifier.major):L"
+                case let .custom(fromVersion, toVersion, _, _):
+                    return "\(fromVersion.versionIdentifier.major)>\(toVersion.versionIdentifier.major):C"
+                @unknown default:
+                    return "unknown"
+                }
+            }
+            .joined(separator: ",")
+    }
+
+    private static func logModelContainerBootstrapDiagnostics() {
+        let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+        let currentSchema = CurrentSchema.versionIdentifier.major
+        let schemas = migrationSchemaVersionSummary()
+        let stages = migrationStageVersionSummary()
+
+        MerianLog.general.notice(
+            "ModelContainer bootstrap diagnostics: app=\(appVersion, privacy: .public)(\(buildNumber, privacy: .public)) currentSchema=V\(currentSchema, privacy: .public) migrationSchemas=[\(schemas, privacy: .public)] migrationStages=[\(stages, privacy: .public)]"
+        )
+    }
+
     private static func bootstrapModelContainer() -> ModelContainerBootstrapOutcome {
+        logModelContainerBootstrapDiagnostics()
+
         do {
             return ModelContainerBootstrapOutcome(
-                container: try makePersistentContainer(),
+                container: try makePersistentContainerUsingStoreAwarePlan(),
                 startupStoreState: .normal,
                 startupNotice: nil,
                 telemetryEvent: nil
@@ -447,7 +629,7 @@ struct MerianApp: App {
                         at: storeURL,
                         for: error
                     )
-                    let recoveredContainer = try makePersistentContainer()
+                    let recoveredContainer = try makePersistentContainerUsingStoreAwarePlan()
                     MerianLog.general.error(
                         "RECOVERY: Quarantined suspected-corrupt store artifacts to \(quarantineDirectory.lastPathComponent, privacy: .public) and recreated a fresh ModelContainer."
                     )

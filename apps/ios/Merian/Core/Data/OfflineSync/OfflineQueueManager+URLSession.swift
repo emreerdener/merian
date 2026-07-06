@@ -698,7 +698,7 @@ extension OfflineQueueManager {
                 // is suspended (no BackgroundTaskWrapper protects it), the background URLSession
                 // path races ahead and wins, but isProcessing stays true — leaving the insight
                 // sheet in "Analyzing..." until the live task eventually times out and shows
-                // "Network Timeout" even though the scan completed successfully.
+                // "Network timeout" even though the scan completed successfully.
                 //
                 // Cancelling inferenceTask causes its defer { isProcessing = false } to run
                 // cooperatively (URLError.cancelled → catch → return). Setting isProcessing and

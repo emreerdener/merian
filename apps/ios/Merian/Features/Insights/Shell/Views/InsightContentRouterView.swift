@@ -42,7 +42,7 @@ struct InsightContentRouterView: View {
                         NonBiologicalView(
                             viewModel: viewModel,
                             species: speciesData,
-                            commonName: speciesData.commonName.capitalized,
+                            commonName: speciesData.commonName,
                             timestamp: viewModel.activeRecordTimestamp
                         )
                         .transition(.opacity)

@@ -7,9 +7,33 @@ import Foundation
 /// files, but it must never clear Keychain, Supabase auth sessions, device identity,
 /// or cloud ownership state.
 enum ModelStoreRecoveryCoordinator {
+    enum StoreMigrationHint: Equatable, CustomStringConvertible {
+        case currentStore
+        case recentSource(Int)
+        case fullHistorical
+
+        var description: String {
+            switch self {
+            case .currentStore:
+                return "current-store"
+            case let .recentSource(version):
+                return "recent-source-v\(version)"
+            case .fullHistorical:
+                return "full-historical"
+            }
+        }
+    }
+
+    struct StoreMigrationDecision: Equatable {
+        let hasStoreArtifacts: Bool
+        let storedSchemaMajorVersion: Int?
+        let hint: StoreMigrationHint
+    }
+
     private static let sqliteCorruptionCodes: Set<Int> = [11, 26] // SQLITE_CORRUPT, SQLITE_NOTADB
     private static let unknownModelVersionErrorCode = 134_504
     private static let manifestFilename = "recovery-manifest.json"
+    private static let storeModelVersionIdentifiersKey = "NSStoreModelVersionIdentifiers"
     private static let corruptionPhrases = [
         "database disk image is malformed",
         "file is not a database",
@@ -35,6 +59,71 @@ enum ModelStoreRecoveryCoordinator {
 
     static func defaultStoreURL() -> URL {
         URL.applicationSupportDirectory.appending(path: "default.store")
+    }
+
+    static func migrationDecision(
+        at storeURL: URL,
+        fileManager: FileManager = .default,
+        currentSchemaMajor: Int
+    ) -> StoreMigrationDecision {
+        let hasArtifacts = hasStoreArtifacts(at: storeURL, fileManager: fileManager)
+        let storedSchemaMajor = hasArtifacts
+            ? storedSchemaMajorVersion(at: storeURL, fileManager: fileManager)
+            : nil
+
+        return StoreMigrationDecision(
+            hasStoreArtifacts: hasArtifacts,
+            storedSchemaMajorVersion: storedSchemaMajor,
+            hint: migrationHint(
+                storedSchemaMajorVersion: storedSchemaMajor,
+                hasStoreArtifacts: hasArtifacts,
+                currentSchemaMajor: currentSchemaMajor
+            )
+        )
+    }
+
+    static func migrationHint(
+        storedSchemaMajorVersion: Int?,
+        hasStoreArtifacts: Bool,
+        currentSchemaMajor: Int
+    ) -> StoreMigrationHint {
+        guard hasStoreArtifacts else { return .currentStore }
+        guard let storedSchemaMajorVersion else { return .fullHistorical }
+
+        if storedSchemaMajorVersion >= currentSchemaMajor {
+            return .currentStore
+        }
+
+        if (44...47).contains(storedSchemaMajorVersion) {
+            return .recentSource(storedSchemaMajorVersion)
+        }
+
+        return .fullHistorical
+    }
+
+    static func storedSchemaMajorVersion(
+        at storeURL: URL,
+        fileManager: FileManager = .default
+    ) -> Int? {
+        guard hasStoreArtifacts(at: storeURL, fileManager: fileManager) else { return nil }
+
+        do {
+            let metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(
+                ofType: NSSQLiteStoreType,
+                at: storeURL,
+                options: nil
+            )
+            return storedSchemaMajorVersion(from: metadata)
+        } catch {
+            MerianLog.general.error(
+                "Unable to read SwiftData store metadata before launch migration selection: \(error.localizedDescription, privacy: .private)"
+            )
+            return nil
+        }
+    }
+
+    static func storedSchemaMajorVersion(from metadata: [String: Any]) -> Int? {
+        schemaMajorVersions(from: metadata[storeModelVersionIdentifiersKey]).max()
     }
 
     static func shouldAttemptRecovery(for error: Error) -> Bool {
@@ -82,6 +171,22 @@ enum ModelStoreRecoveryCoordinator {
             message: "Merian started in safe mode after the persistent store failed to open. The app remains usable, but local changes in this session are temporary.",
             telemetryReason: "persistent_store_unavailable"
         )
+    }
+
+    static func isDuplicateVersionChecksumFailure(_ error: Error) -> Bool {
+        errorChain(from: error).contains { candidate in
+            let nsError = candidate as NSError
+            let normalizedText = [
+                nsError.localizedDescription,
+                nsError.userInfo[NSDebugDescriptionErrorKey] as? String,
+                nsError.userInfo[NSLocalizedFailureReasonErrorKey] as? String
+            ]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: "\n")
+
+            return normalizedText.contains("duplicate version checksums") ||
+                normalizedText.contains("version checksum")
+        }
     }
 
     static func hasStoreArtifacts(at storeURL: URL, fileManager: FileManager = .default) -> Bool {
@@ -162,6 +267,52 @@ enum ModelStoreRecoveryCoordinator {
             URL(fileURLWithPath: storeURL.path + "-wal")
         ]
         return candidates.filter { fileManager.fileExists(atPath: $0.path) }
+    }
+
+    private static func schemaMajorVersions(from value: Any?) -> [Int] {
+        guard let value else { return [] }
+
+        switch value {
+        case let number as NSNumber:
+            return [number.intValue]
+        case let string as String:
+            return schemaMajorVersion(from: string).map { [$0] } ?? []
+        case let strings as [String]:
+            return strings.compactMap(schemaMajorVersion(from:))
+        case let values as [Any]:
+            return values.flatMap(schemaMajorVersions(from:))
+        case let set as Set<String>:
+            return set.compactMap(schemaMajorVersion(from:))
+        case let set as NSSet:
+            return set.allObjects.flatMap(schemaMajorVersions(from:))
+        default:
+            return []
+        }
+    }
+
+    private static func schemaMajorVersion(from string: String) -> Int? {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let directVersion = Int(trimmed) {
+            return directVersion
+        }
+
+        let patterns = [
+            #"(?i)(?:MerianSchemaV|SchemaV|Schema\.Version\(|Version\(|\bV)(\d+)"#,
+            #"(?<!\d)(\d+)\.0\.0(?!\d)"#
+        ]
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let searchRange = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
+            guard let match = regex.firstMatch(in: trimmed, options: [], range: searchRange),
+                  match.numberOfRanges > 1,
+                  let range = Range(match.range(at: 1), in: trimmed) else {
+                continue
+            }
+            return Int(trimmed[range])
+        }
+
+        return nil
     }
 
     private static func errorChain(from rootError: Error) -> [Error] {

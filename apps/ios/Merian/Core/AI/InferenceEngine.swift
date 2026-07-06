@@ -845,7 +845,7 @@ private struct GBIFMedia: Decodable {
                     self.speciesData = makeErrorSpeciesData(
                         title: "Network timeout",
                         subtitle: "Offline mode",
-                        reasoning: "Please check your network connection and try again.",
+                        reasoning: Self.networkTimeoutRecoveryReason,
                         telemetry: telemetry
                     )
                 }
@@ -989,7 +989,7 @@ private struct GBIFMedia: Decodable {
                     self.speciesData = makeErrorSpeciesData(
                         title: "Network timeout",
                         subtitle: "Please try again",
-                        reasoning: "Please check your network connection and try again.",
+                        reasoning: Self.networkTimeoutRecoveryReason,
                         telemetry: telemetry
                     )
                 }
@@ -998,6 +998,10 @@ private struct GBIFMedia: Decodable {
     }
 
     // MARK: - Error State Factory
+
+    private static let networkTimeoutRecoveryReason =
+        "Merian saved this scan and will retry automatically when your connection is back. " +
+        "You can leave this screen and check Scans later, or try again after reconnecting."
 
     /// Builds an error-placeholder `SpeciesData` for the two failure paths in `analyze()`.
     /// Both branches share identical field layout — only the title, subtitle, and reasoning differ.

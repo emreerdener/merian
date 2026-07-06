@@ -9,9 +9,11 @@ struct NonBiologicalView: View {
     var body: some View {
         VStack(spacing: 24) {
             VStack(alignment: .center, spacing: 12) {
-                nonBiologicalPill
+                if !species.isInferenceErrorPlaceholder {
+                    nonBiologicalPill
+                }
 
-                Text(commonName)
+                Text(displayTitle)
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.center)
@@ -25,8 +27,10 @@ struct NonBiologicalView: View {
                         .padding(.top, 8)
                 }
 
-                nonBiologicalRetentionBanner
-                    .padding(.top, 4)
+                if !species.isInferenceErrorPlaceholder {
+                    nonBiologicalRetentionBanner
+                        .padding(.top, 4)
+                }
             }
             .frame(maxWidth: .infinity)
             .card()
@@ -34,6 +38,14 @@ struct NonBiologicalView: View {
             ScanInformationCard(speciesData: species, timestamp: timestamp)
         }
         .padding(.horizontal)
+    }
+
+    private var displayTitle: String {
+        let trimmed = commonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if species.isInferenceErrorPlaceholder {
+            return trimmed.isEmpty ? "Analysis unavailable" : trimmed
+        }
+        return trimmed.capitalized
     }
 
     private var nonBiologicalPill: some View {

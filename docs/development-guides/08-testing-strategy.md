@@ -156,12 +156,14 @@ MerianTests/
     migration fixtures and SwiftData checksum regressions.
 - **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
   damaged local stores. It verifies corruption-only quarantine, no quarantine
-  for generic startup failures, sanitized `recovery-manifest.json` output, and a
-  source-scan boundary that prevents store recovery from referencing
-  `KeychainManager`, `SupabaseManager`, sign-out flows, or current-user state.
-  The focused CI lane is `.github/workflows/ios-startup-safety.yml`; it runs
-  both `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` so startup
-  safe mode and schema-upgrade failures are caught together.
+  for generic startup failures, duplicate-checksum detection, store-metadata
+  version parsing, store-aware migration selection, sanitized
+  `recovery-manifest.json` output, and a source-scan boundary that prevents
+  store recovery from referencing `KeychainManager`, `SupabaseManager`, sign-out
+  flows, or current-user state. The focused CI lane is
+  `.github/workflows/ios-startup-safety.yml`; it runs both
+  `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` so startup safe
+  mode and schema-upgrade failures are caught together.
   - Source-level migration guardrails fail the suite if `SchemaVersions.swift`
     reintroduces `try? context.save()` / `try? modelContext.save()` in custom
     stages, active/global `FetchDescriptor` types inside `MerianMigrationPlan`,
@@ -169,7 +171,9 @@ MerianTests/
     bare active `CapturedMediaEntry` relationship targets inside retired
     schemas. They also keep the shipped no-op V46 schema collapsed out of the
     runtime migration path so SwiftData cannot reject startup with duplicate
-    version checksums.
+    version checksums, while preserving the short recent-only retry plans used
+    when full historical-plan construction still trips SwiftData's duplicate
+    checksum validator.
 - **`SerializedMediaItemTests.swift`**: Locks the active-schema mixed-media read
   precedence. `localScanRecordPrefersCapturedMediaJSONOverRelationshipMirror`
   and `offlineQueuedScanPrefersCapturedMediaJSONOverRelationshipMirror` seed

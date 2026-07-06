@@ -244,7 +244,13 @@ extension InsightSheetViewModel {
         if queuedContext != nil { return .queued }
         if isProcessing { return .analyzing }
         guard let data = inferenceEngine?.speciesData else { return .analyzing }
-        if !data.isBiological || data.commonName.lowercased() == "not applicable" { return .nonBiological }
+        let usesSimplifiedResultView =
+            data.isInferenceErrorPlaceholder ||
+            data.isClassifiedNonBiological ||
+            data.commonName.lowercased() == "not applicable"
+        if usesSimplifiedResultView {
+            return .nonBiological
+        }
         return .biological
     }
 
@@ -257,7 +263,10 @@ extension InsightSheetViewModel {
             return "Scanning subject..."
         }
         let common = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !species.isBiological || common.lowercased() == "not applicable" {
+        if species.isInferenceErrorPlaceholder {
+            return common.isEmpty ? "Analysis unavailable" : common
+        }
+        if species.isClassifiedNonBiological || common.lowercased() == "not applicable" {
             return "Non-biological"
         }
         if let petLabel = species.petIdentification?.label.trimmingCharacters(in: .whitespacesAndNewlines),

@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-06-network-timeout-placeholder",
+      "date": "2026-07-06",
+      "title": "Network timeout results",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Network timeout results now keep sentence-case wording, explain automatic retry, and no longer show non-biological collection or retention messaging."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-05-offline-queue-durability",
       "date": "2026-07-05",
       "title": "Offline queue reliability",
@@ -25,6 +38,8 @@
           "items": [
             "Recent TestFlight upgrades now reopen existing local scan libraries normally instead of launching in safe mode after a schema update.",
             "Startup schema migration now skips a no-op historical schema stage that could make SwiftData reject the migration plan before opening the local library.",
+            "Local libraries blocked by duplicate schema checksums now retry startup with short, recent-only migration plans before falling back to safe mode.",
+            "Fresh and already-current local libraries now open without validating the full historical migration plan, while recent older libraries use the smallest source-specific plan available.",
             "Offline-queue schema upgrades now initialize durable retry state for existing queued scans instead of repeatedly reopening in safe mode.",
             "Startup safe mode now reports local library upgrade failures more clearly while keeping the existing store in place."
           ]

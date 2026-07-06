@@ -1786,7 +1786,12 @@ The current active schema is `MerianSchemaV48`. Recent milestones:
   must not appear in `MerianMigrationPlan.schemas` or
   `MerianMigrationPlan.stages`; V45/V46-checksum stores advance through the
   V45→V47 stage to avoid SwiftData's duplicate-version-checksum startup
-  rejection.
+  rejection. App startup reads store metadata before creating `ModelContainer`:
+  fresh/current stores open without a migration plan, known recent stores use
+  the source-isolated V47/V46/V45/V44 plans, and only unknown older stores use
+  the full historical plan. Stores that still hit SwiftData's duplicate-checksum
+  validator during plan construction retry with the same source-isolated recent
+  plans before safe mode.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.

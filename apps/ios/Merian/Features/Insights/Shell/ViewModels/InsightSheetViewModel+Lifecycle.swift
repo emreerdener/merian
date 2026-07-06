@@ -6,7 +6,14 @@ extension InsightSheetViewModel {
 
     func evaluateVoiceOverAndCelebration(inferenceEngine: InferenceEngine) {
         let hazardType = inferenceEngine.speciesData?.insightData.hazardType ?? "none"
-        let commonName = inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
+        let commonName: String
+        if let speciesData = inferenceEngine.speciesData,
+           speciesData.isInferenceErrorPlaceholder {
+            let trimmedName = speciesData.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
+            commonName = trimmedName.isEmpty ? "Analysis unavailable" : trimmedName
+        } else {
+            commonName = inferenceEngine.speciesData?.commonName.capitalized ?? "Scanning subject..."
+        }
 
         if UIAccessibility.isVoiceOverRunning {
             let hazardWarning: String
@@ -53,7 +60,7 @@ extension InsightSheetViewModel {
                         }
                     }
                 }
-            } else if !data.isBiological {
+            } else if data.isClassifiedNonBiological {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                     self.state.toastMessage = "Scan succeeded. Added to non-biological collection."
                     self.toastActionTitle = "View"

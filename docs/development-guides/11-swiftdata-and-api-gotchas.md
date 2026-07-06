@@ -4,6 +4,31 @@ When building zero-OOM pipelines and heavily concurrent systems like Merian, min
 
 ---
 
+## 0. Duplicate Schema Checksums Need Store-Aware Representatives
+
+SwiftData staged migration plans cannot contain two schema versions with the
+same model checksum. Merian shipped V46 as a no-op after V45, so the primary
+`MerianMigrationPlan` keeps V46 out of `schemas` and advances the shared V45/V46
+checksum through V45→V47.
+
+One extra wrinkle: a user may already have a local store stamped as V46.
+SwiftData can validate that on-disk source model alongside the primary plan's
+V45 representative, which reintroduces the same duplicate-checksum startup
+failure even though V46 is not listed in the primary plan. Startup therefore
+reads the store metadata before creating `ModelContainer`. Fresh stores and
+stores already stamped at the current schema open without a migration plan;
+known recent sources open with the matching source-isolated plan (V47, V46, V45,
+or V44); only unknown or older existing stores use the full historical plan.
+If SwiftData still throws `Duplicate version checksums across stages detected`,
+startup falls back through the same source-isolated plans before safe mode.
+These plans avoid forcing SwiftData to validate unrelated older retired schemas
+or adjacent checksum-equivalent representatives while a recent store only needs
+to advance to the current version.
+
+When another no-op schema is ever shipped, keep only one representative in a
+single plan and add a targeted alternate plan for stores already stamped with
+the other version.
+
 ## 1. SwiftData `@ModelActor` and `#Predicate` Deletion Sync Drops
 
 When deleting records on a background executor (via an `@ModelActor` like `BackgroundDatabaseActor`), you must be extremely precise with how you request the `ModelContext` to purge the record. 

@@ -181,8 +181,8 @@ Enforces the paywall in frontend entry points.
   `isProActive || freeScansRemaining > 0`. The paywall is surfaced from two
   pre-scan gates only: `Capture.swift` (camera shutter) and
   `handlePhotoPickerSelection` (photo library picker). Network failures in
-  `InferenceEngine` never trigger the paywall — they surface a "Network Timeout"
-  error state and refund the token.
+  `InferenceEngine` never trigger the paywall — they surface a "Network timeout"
+  error state while the already-queued scan retries in the background.
 - `handlePhotoPickerSelection` snapshots the current quota once per picker batch
   before any background downsampling begins. If the batch is over quota, it
   clears the picker selection immediately, tracks the paywall impression, and
