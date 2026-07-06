@@ -51,6 +51,8 @@ xcuserdata/
 .build/
 .swiftpm/
 Package.resolved
+!merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+!Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # Fastlane
 fastlane/report.xml

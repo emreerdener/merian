@@ -640,6 +640,28 @@ struct MigrationPlanTests {
         )
     }
 
+    @Test func v47ReusesV45ChecksumRepresentativeForUnchangedModels() throws {
+        let source = try schemaVersionsSource()
+        let requiredSnippets = [
+            "extension MerianSchemaV47",
+            "typealias LocalScanRecord = MerianSchemaV45.LocalScanRecord",
+            "typealias CapturedMediaEntry = MerianSchemaV45.CapturedMediaEntry",
+            "typealias ScanCollection = MerianSchemaV45.ScanCollection"
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "V47 must reuse the V45 checksum representative for unchanged models so V45/V46 stores only migrate the changed queued-scan model:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            !source.contains("typealias LocalScanRecord = MerianSchemaV46.LocalScanRecord") &&
+                !source.contains("typealias CapturedMediaEntry = MerianSchemaV46.CapturedMediaEntry") &&
+                !source.contains("typealias ScanCollection = MerianSchemaV46.ScanCollection"),
+            "V47 cannot point unchanged models at the no-op V46 classes; that reintroduces duplicate-checksum migration validation failures."
+        )
+    }
+
     @Test func recentV44MigrationPlanAvoidsAdjacentDuplicateRepresentatives() throws {
         let source = try recentV44MigrationPlanSource()
         let requiredSnippets = [
@@ -694,12 +716,10 @@ struct MigrationPlanTests {
         let source = try recentV46MigrationPlanSource()
         let requiredSnippets = [
             "enum MerianRecentV46MigrationPlan",
-            "MerianSchemaV46.self",
+            "MerianSchemaV45.self",
             "MerianSchemaV47.self",
             "MerianSchemaV48.self",
-            "static let migrateV46toV47 = MigrationStage.lightweight",
-            "fromVersion: MerianSchemaV46.self",
-            "toVersion: MerianSchemaV47.self",
+            "MerianMigrationPlan.migrateV45toV47",
             "MerianMigrationPlan.migrateV47toV48"
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }
@@ -711,8 +731,9 @@ struct MigrationPlanTests {
         #expect(
             !source.contains("MerianSchemaV43.self") &&
                 !source.contains("MerianSchemaV44.self") &&
-                !source.contains("MerianSchemaV45.self"),
-            "The recent V46 recovery plan must include only one V44/V45/V46-family representative."
+                !source.contains("MerianSchemaV46.self") &&
+                !source.contains("migrateV46toV47"),
+            "The recent V46 recovery plan must use the V45 checksum representative instead of the no-op V46 classes."
         )
     }
 

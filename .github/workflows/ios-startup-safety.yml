@@ -42,7 +42,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build/xcode-source-packages
-          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-xcode-spm-
 
@@ -63,10 +63,11 @@ jobs:
         run: |
           xcodebuild test \
             -scheme Merian \
-            -project Merian.xcodeproj \
+            -project merian.xcodeproj \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
             -clonedSourcePackagesDirPath .build/xcode-source-packages \
             -skipPackageUpdates \
+            -disableAutomaticPackageResolution \
             -resultBundlePath "$XCODE_RESULT_BUNDLE" \
             -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
             -only-testing:merianTests/MigrationPlanTests
@@ -76,7 +77,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .build/xcode-source-packages
-          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Print startup safety failure summary
         if: failure()

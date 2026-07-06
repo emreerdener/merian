@@ -173,7 +173,10 @@ disk-store migrations, V44/V45/V46/V47 source-isolated recent plans, V47→V48
 offline queue media fixtures, and source scans for migration safety invariants:
 no silent custom-stage saves, no active/global fetch descriptors or active model
 convenience helpers in `MerianMigrationPlan`, and no bare active
-`CapturedMediaEntry` relationship targets in retired schemas.
+`CapturedMediaEntry` relationship targets in retired schemas. Because V46 is a
+no-op checksum twin of V45, V47 must reuse the V45 representative for unchanged
+local-scan, captured-media, and collection models, and the V46 recent plan must
+route through the same V45 representative rather than reintroducing V46 classes.
 
 **Custom migration save rule**: Never use `try? context.save()` inside `MerianMigrationPlan` custom stages. Every custom `didMigrate` save must call the shared migration save helper, rollback on failure, and rethrow so SwiftData aborts the migration rather than opening a store with missing backfilled fields. Scratchpad namespaces are cleared only after the save succeeds, and migration fetch failures must propagate instead of being logged and ignored. Migration-stage fetches must use the concrete source/target schema type for that stage, never `CurrentSchema`, active global model classes, or active-only convenience helpers, because SwiftData can trap while casting historical migration objects. Any relationship model introduced in a retired schema must be frozen in that schema too, even if the active model has the same fields.
 
@@ -182,7 +185,8 @@ convenience helpers in `MerianMigrationPlan`, and no bare active
 `MerianObjCExceptionBridge`, but startup first asks
 `ModelStoreRecoveryCoordinator` for a store-aware migration hint so fresh/current
 stores open without a migration plan and known recent stores use a
-source-isolated V47/V46/V45/V44 plan. Quarantine remains corruption-gated: only
+source-isolated V47/V46/V45/V44 plan; the V46 plan uses the V45 checksum
+representative internally. Quarantine remains corruption-gated: only
 verified SQLite/Core Data corruption signatures may move `default.store`
 artifacts, each quarantine writes a sanitized `recovery-manifest.json`, and
 recovery must not clear Keychain, Supabase auth state, or device identity.

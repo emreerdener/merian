@@ -141,6 +141,41 @@ Deno.test("scan media staged upload repair allows scanless pre-persistence rows"
   );
 });
 
+Deno.test("scan media refresh ambiguity repair qualifies legacy array aliases", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260706193954_fix_scan_media_refresh_image_url_ambiguity.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.refresh_scan_media_assets(target_scan_id UUID)",
+      "asset_image_url TEXT",
+      "asset_video_url TEXT",
+      "BTRIM(media_images.raw_image_url)",
+      "WITH ORDINALITY AS media_images(raw_image_url, ordinality)",
+      "BTRIM(media_videos.raw_video_url)",
+      "WITH ORDINALITY AS media_videos(raw_video_url, ordinality)",
+      "REVOKE ALL ON FUNCTION public.refresh_scan_media_assets(UUID) FROM PUBLIC, anon, authenticated",
+      "GRANT EXECUTE ON FUNCTION public.refresh_scan_media_assets(UUID) TO service_role",
+      "video_storage_urls",
+      "LIMIT 250",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("BTRIM(image_url)"),
+    "legacy fallback must not use ambiguous image_url identifiers",
+  );
+  assert(
+    !sql.includes("BTRIM(video_url)"),
+    "legacy fallback must not use ambiguous video_url identifiers",
+  );
+});
+
 Deno.test("scan media reconciliation migration keeps the scheduled worker idempotent and service-role-only", async () => {
   const sql = normalized(
     await migrationSql(

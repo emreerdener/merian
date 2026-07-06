@@ -14,11 +14,15 @@ checksum through V45→V47.
 One extra wrinkle: a user may already have a local store stamped as V46.
 SwiftData can validate that on-disk source model alongside the primary plan's
 V45 representative, which reintroduces the same duplicate-checksum startup
-failure even though V46 is not listed in the primary plan. Startup therefore
-reads the store metadata before creating `ModelContainer`. Fresh stores and
-stores already stamped at the current schema open without a migration plan;
-known recent sources open with the matching source-isolated plan (V47, V46, V45,
-or V44); only unknown or older existing stores use the full historical plan.
+failure even though V46 is not listed in the primary plan. V47 therefore reuses
+the V45 model classes for unchanged local-scan, captured-media, and collection
+entities; only `OfflineQueuedScan` changes in V47. The V46 recovery plan also
+uses the V45 checksum representative and relies on SwiftData's checksum match
+for V46-stamped stores. Startup reads the store metadata before creating
+`ModelContainer`. Fresh stores and stores already stamped at the current schema
+open without a migration plan; known recent sources open with the matching
+source-isolated plan (V47, V46, V45, or V44); only unknown or older existing
+stores use the full historical plan.
 If SwiftData still throws `Duplicate version checksums across stages detected`,
 startup falls back through the same source-isolated plans before safe mode.
 These plans avoid forcing SwiftData to validate unrelated older retired schemas
@@ -26,8 +30,8 @@ or adjacent checksum-equivalent representatives while a recent store only needs
 to advance to the current version.
 
 When another no-op schema is ever shipped, keep only one representative in a
-single plan and add a targeted alternate plan for stores already stamped with
-the other version.
+single plan and make any targeted alternate plan route through that checksum
+representative instead of reintroducing the no-op schema classes.
 
 ## 1. SwiftData `@ModelActor` and `#Predicate` Deletion Sync Drops
 

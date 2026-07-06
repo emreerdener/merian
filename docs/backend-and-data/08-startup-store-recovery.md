@@ -25,6 +25,9 @@ quarantined local store files, telemetry, and verification.
    - unknown older store → open with the full historical `MerianMigrationPlan`
 3. If SwiftData reports duplicate version checksums, retry through the
    source-isolated ladder: current-store open, then V47, V46, V45, and V44.
+   The V46 retry plan uses the V45 checksum representative because V46 was a
+   shipped no-op schema; V47 also reuses that representative for unchanged model
+   classes and only introduces the queued-scan model change.
 4. If SwiftData/Core Data raises an Objective-C exception, the bridge converts
    it into an error so the Swift recovery path can continue.
 5. Inspect the full error chain for verified SQLite/Core Data corruption

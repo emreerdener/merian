@@ -193,7 +193,13 @@ service-role endpoint. Start triage from the issue code:
   `replay_scan_ingestion_every_five_minutes` cron job is scheduled, then inspect
   `/functions/v1/replay-scan-ingestion` logs for dispatch failures. Rows that
   remain past due with `inline_media_redacted = true` are expected to wait for
-  the iOS queue. For a manual service-role retry, POST
+  the iOS queue. If `last_error` starts with
+  `insertScan: column reference "image_url" is ambiguous`, first confirm
+  migration
+  `20260706193954_fix_scan_media_refresh_image_url_ambiguity.sql` has reached
+  production; retrying before that migration is deployed will only re-create the
+  same failed job. For a manual service-role retry after the underlying error is
+  fixed, POST
   `{ "limit": 5, "awaitInvocations": true }` to
   `/functions/v1/replay-scan-ingestion`.
 - `video_scan_missing_captured_media_video`: inspect the scan's
@@ -202,8 +208,12 @@ service-role endpoint. Start triage from the issue code:
   the local `.mp4` restore path.
 - `video_scan_missing_ready_playback_asset`: run or inspect
   `refresh_scan_media_assets(scan_id)` for the sampled scan after confirming
-  `video_storage_urls` points at durable playback media. If the refresh still
-  leaves `ready_video_asset_count` below the durable video count, run
+  `video_storage_urls` points at durable playback media. If the health sample
+  also shows `captured_media_has_video = true`, the refresh should rebuild a
+  ready playback row from the manifest; if it only has legacy arrays, the
+  refresh falls back to `video_storage_urls` and chooses a poster thumbnail from
+  `image_storage_urls`. If the refresh still leaves `ready_video_asset_count`
+  below the durable video count, run
   `reconcile-scan-media-assets` with `dryRun = true` before allowing a repair.
 - `explore_video_missing_thumbnail`: inspect `explore_post_media.thumbnail_url`
   and the source scan's first safe image/poster thumbnail.
@@ -213,6 +223,47 @@ service-role endpoint. Start triage from the issue code:
 Manual dispatch can use `fail_on = warning` for stricter validation before a
 media-path release, or `fail_on = never` to collect a non-gating diagnostic
 snapshot.
+
+For one-off triage of a monitor sample, start with the scan-specific checks
+below using the sampled `scan_id`:
+
+```sql
+SELECT
+    s.id,
+    s.user_id,
+    s.image_storage_urls,
+    s.video_storage_urls,
+    s.captured_media,
+    COUNT(*) FILTER (
+        WHERE assets.status = 'ready'
+          AND assets.kind = 'video'
+          AND assets.role = 'playback'
+    ) AS ready_video_asset_count
+FROM public.scans s
+LEFT JOIN public.scan_media_assets assets ON assets.scan_id = s.id
+WHERE s.id = '<scan_id>'::UUID
+GROUP BY s.id;
+
+SELECT *
+FROM public.scan_ingestion_jobs
+WHERE scan_id = '<scan_id>'::UUID;
+
+SELECT *
+FROM public.scan_ingestion_intents
+WHERE scan_id = '<scan_id>'::UUID;
+```
+
+If the scan row exists and the only drift is a missing ready playback asset,
+refresh that scan and rerun the monitor with `fail_on = never`:
+
+```sql
+SELECT public.refresh_scan_media_assets('<scan_id>'::UUID);
+```
+
+If an ingestion job has no matching intent and the scan row does not exist,
+there is no durable server replay payload to reconstruct; mark it as a
+client-owned retry or a terminal ingestion failure after confirming there are no
+staged `scan_media_assets` or upload-session objects worth repairing.
 
 ## Manual Taxonomy Import
 

@@ -1140,9 +1140,9 @@ extension MerianSchemaV48 {
 }
 
 extension MerianSchemaV47 {
-    typealias LocalScanRecord = MerianSchemaV46.LocalScanRecord
-    typealias CapturedMediaEntry = MerianSchemaV46.CapturedMediaEntry
-    typealias ScanCollection = MerianSchemaV46.ScanCollection
+    typealias LocalScanRecord = MerianSchemaV45.LocalScanRecord
+    typealias CapturedMediaEntry = MerianSchemaV45.CapturedMediaEntry
+    typealias ScanCollection = MerianSchemaV45.ScanCollection
 
     @Model
     final class OfflineQueuedScan {
@@ -2974,10 +2974,12 @@ enum MerianRecentV45MigrationPlan: SchemaMigrationPlan {
 }
 
 /// Short recovery plan for stores already stamped with released no-op V46.
+/// V46 has the same model checksum as V45, so this plan uses the V45 source
+/// representative and lets SwiftData match the V46 store by checksum.
 enum MerianRecentV46MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
-            MerianSchemaV46.self,
+            MerianSchemaV45.self,
             MerianSchemaV47.self,
             MerianSchemaV48.self
         ]
@@ -2985,15 +2987,10 @@ enum MerianRecentV46MigrationPlan: SchemaMigrationPlan {
 
     static var stages: [MigrationStage] {
         [
-            migrateV46toV47,
+            MerianMigrationPlan.migrateV45toV47,
             MerianMigrationPlan.migrateV47toV48
         ]
     }
-
-    static let migrateV46toV47 = MigrationStage.lightweight(
-        fromVersion: MerianSchemaV46.self,
-        toVersion: MerianSchemaV47.self
-    )
 }
 
 /// Short recovery plan for stores that already made it to V47.

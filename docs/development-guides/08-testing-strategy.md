@@ -171,9 +171,14 @@ MerianTests/
     bare active `CapturedMediaEntry` relationship targets inside retired
     schemas. They also keep the shipped no-op V46 schema collapsed out of the
     runtime migration path so SwiftData cannot reject startup with duplicate
-    version checksums, while preserving the short recent-only retry plans used
-    when full historical-plan construction still trips SwiftData's duplicate
-    checksum validator.
+    version checksums. V47 must reuse the V45 checksum representative for
+    unchanged local-scan, captured-media, and collection models, and the V46
+    recent plan must route through that same representative. The workflow's
+    Swift package cache key depends on the checked-in
+    `merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
+    lockfile and runs with automatic package resolution disabled so startup
+    failures are not hidden behind cold dependency resolution or silent package
+    upgrades.
 - **`SerializedMediaItemTests.swift`**: Locks the active-schema mixed-media read
   precedence. `localScanRecordPrefersCapturedMediaJSONOverRelationshipMirror`
   and `offlineQueuedScanPrefersCapturedMediaJSONOverRelationshipMirror` seed

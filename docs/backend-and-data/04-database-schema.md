@@ -1140,7 +1140,10 @@ Normalized scan media lifecycle assets. Added in migration
 `20260705100000_add_scan_media_assets.sql`. Migration
 `20260706100000_allow_staged_scan_media_without_scan_id.sql` repairs early
 deployed tables by dropping any lingering `NOT NULL` requirement from
-`scan_id`.
+`scan_id`. Migration
+`20260706193954_fix_scan_media_refresh_image_url_ambiguity.sql` replaces the
+refresh helper after an early deployment exposed an ambiguous PL/pgSQL
+`image_url` reference in the legacy-array fallback path.
 
 - `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE, nullable): The owning scan
   once the scan row exists. Pre-scan upload-session rows keep this null until
@@ -1186,12 +1189,17 @@ deployed tables by dropping any lingering `NOT NULL` requirement from
 `scan_refresh`/`backfill` rows from `scans.captured_media` first. If the
 manifest is absent, it falls back to `image_storage_urls` / `video_storage_urls`
 and collapses legacy sampled video frames behind a single ready playback video
-asset. A trigger keeps generated rows synchronized after scan media inserts,
-updates, and deletes; Edge write paths also make best-effort refresh RPC calls
-after critical scan inserts and video-repair updates, but existing
-manifest/array fallbacks remain available if refresh fails. RLS lets owners read
-their lifecycle rows; public open-scan reads are limited to ready
-display/playback rows so staged/failed diagnostics stay private.
+asset. The fallback query uses qualified aliases such as
+`media_images.raw_image_url` and `media_videos.raw_video_url`; avoid
+unqualified names that match PL/pgSQL variables, because scan inserts execute
+this helper through the `scans` trigger. A trigger keeps generated rows
+synchronized after scan media inserts, updates, and deletes; Edge write paths
+also make best-effort refresh RPC calls after critical scan inserts and
+video-repair updates, but existing manifest/array fallbacks remain available if
+refresh fails. RLS lets owners read their lifecycle rows; public open-scan reads
+are limited to ready display/playback rows so staged/failed diagnostics stay
+private. The refresh helpers are service-role-only RPC surfaces; app roles
+should read `scan_media_assets`, not call refresh functions directly.
 
 `/generate-upload-urls` creates `capture_upload` rows with `status = 'staged'`
 when structured scan uploads include `clientScanId` and `mediaRole`.
@@ -1788,14 +1796,16 @@ The current active schema is `MerianSchemaV48`. Recent milestones:
 - V46 was a shipped no-op schema with the same SwiftData model checksum as V45.
   It remains available as a historical type for compatibility fixtures, but it
   must not appear in `MerianMigrationPlan.schemas` or
-  `MerianMigrationPlan.stages`; V45/V46-checksum stores advance through the
-  V45→V47 stage to avoid SwiftData's duplicate-version-checksum startup
-  rejection. App startup reads store metadata before creating `ModelContainer`:
-  fresh/current stores open without a migration plan, known recent stores use
-  the source-isolated V47/V46/V45/V44 plans, and only unknown older stores use
-  the full historical plan. Stores that still hit SwiftData's duplicate-checksum
-  validator during plan construction retry with the same source-isolated recent
-  plans before safe mode.
+  `MerianMigrationPlan.stages`. V47 reuses the V45 model classes for unchanged
+  local-scan, captured-media, and collection entities, and only introduces a new
+  `OfflineQueuedScan`; V45/V46-checksum stores therefore advance through the
+  V45→V47 stage without forcing SwiftData to validate the no-op V46 classes.
+  App startup reads store metadata before creating `ModelContainer`: fresh/current
+  stores open without a migration plan, known recent stores use the source-isolated
+  V47/V46/V45/V44 plans, and only unknown older stores use the full historical
+  plan. The V46 recent plan deliberately uses the V45 checksum representative.
+  Stores that still hit SwiftData's duplicate-checksum validator during plan
+  construction retry with the same source-isolated recent plans before safe mode.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.

@@ -98,5 +98,8 @@ deno check --config services/supabase/functions/deno.json \
 deno test --config services/supabase/functions/deno.json \
   services/supabase/scripts/monitor_scan_media_health_test.ts
 deno test --config services/supabase/functions/deno.json \
+  --allow-read=services/supabase/migrations \
+  services/supabase/functions/_tests/migrationMediaContract.test.ts
+deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/_tests/scanMediaIngestionContract.test.ts
 ```
