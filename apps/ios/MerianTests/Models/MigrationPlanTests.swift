@@ -563,7 +563,7 @@ struct MigrationPlanTests {
             let line = String(sourceLine)
             if let schemaName = retiredSchemaNames.first(where: { line.contains("enum \($0): VersionedSchema") }) {
                 currentSchemaName = schemaName
-            } else if line.contains("enum MerianSchemaV48: VersionedSchema") {
+            } else if line.contains("enum MerianSchemaV") {
                 currentSchemaName = nil
             }
 

@@ -135,6 +135,7 @@ write SwiftPM diagnostics under `~/Library/Caches/org.swift.swiftpm`. Treat that
 as an environment issue, not a recovery-code failure, and run the focused lane
 in a normal local or GitHub macOS runner.
 
-The GitHub Startup Safety workflow bounds this focused Xcode step at 25 minutes
-and uploads the `.xcresult` bundle on failure so simulator hangs or compiler
-diagnostics remain inspectable.
+The GitHub Startup Safety workflow bounds this focused Xcode step at 25 minutes,
+prints the `.xcresult` test-failure summary into the job summary, and uploads
+the `.xcresult` bundle plus extracted JSON summary on failure so simulator hangs
+or compiler diagnostics remain inspectable.

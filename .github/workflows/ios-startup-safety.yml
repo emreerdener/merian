@@ -38,10 +38,68 @@ jobs:
             -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
             -only-testing:merianTests/MigrationPlanTests
 
+      - name: Print startup safety failure summary
+        if: failure()
+        env:
+          XCODE_RESULT_BUNDLE: ${{ runner.temp }}/startup-safety.xcresult
+          XCODE_TEST_SUMMARY: ${{ runner.temp }}/startup-safety-test-summary.json
+        run: |
+          if [ ! -d "$XCODE_RESULT_BUNDLE" ]; then
+            echo "No startup safety result bundle was produced."
+            exit 0
+          fi
+
+          if ! xcrun xcresulttool get test-results summary \
+            --path "$XCODE_RESULT_BUNDLE" > "$XCODE_TEST_SUMMARY"; then
+            echo "Unable to extract startup safety test summary."
+            exit 0
+          fi
+
+          if ! command -v jq >/dev/null 2>&1; then
+            echo "jq is unavailable; raw startup safety test summary:"
+            cat "$XCODE_TEST_SUMMARY"
+            exit 0
+          fi
+
+          jq -r '
+            def clean:
+              tostring
+              | gsub("\\|"; "\\|")
+              | gsub("\r?\n"; "<br>");
+            def failures:
+              if (.testFailures | type) == "array" then .testFailures
+              elif (.testFailures | type) == "object" and (.testFailures | length) > 0 then [.testFailures]
+              else [] end;
+
+            [
+              "### Startup safety result",
+              "",
+              "- Result: `\(.result)`",
+              "- Passed: `\(.passedTests)`",
+              "- Failed: `\(.failedTests)`",
+              "- Skipped: `\(.skippedTests)`",
+              ""
+            ]
+            + (
+              if (failures | length) > 0 then
+                ["| Test | Failure |", "| --- | --- |"]
+                + (failures | map("| `\(.testName | clean)` | \(.failureText | clean) |"))
+              else
+                ["No individual test failures were reported in the result summary."]
+              end
+            )
+            | .[]
+          ' "$XCODE_TEST_SUMMARY" | tee -a "$GITHUB_STEP_SUMMARY" || {
+            echo "Unable to render startup safety failure summary."
+            cat "$XCODE_TEST_SUMMARY"
+          }
+
       - name: Upload startup safety result bundle
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ios-startup-safety-xcresult-${{ github.run_number }}
-          path: ${{ runner.temp }}/startup-safety.xcresult
+          path: |
+            ${{ runner.temp }}/startup-safety.xcresult
+            ${{ runner.temp }}/startup-safety-test-summary.json
           if-no-files-found: ignore
