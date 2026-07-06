@@ -2,10 +2,32 @@ name: iOS Startup Safety
 
 on:
   pull_request:
+    paths:
+      - ".github/workflows/ios-startup-safety.yml"
+      - "Makefile"
+      - "Merian.xcodeproj/**"
+      - "merian.xcodeproj/**"
+      - "apps/ios/**"
+      - "project.yml"
+      - "scripts/check-ios-project-resources.sh"
+      - "scripts/select-ios-simulator-destination.sh"
   push:
     branches:
       - main
+    paths:
+      - ".github/workflows/ios-startup-safety.yml"
+      - "Makefile"
+      - "Merian.xcodeproj/**"
+      - "merian.xcodeproj/**"
+      - "apps/ios/**"
+      - "project.yml"
+      - "scripts/check-ios-project-resources.sh"
+      - "scripts/select-ios-simulator-destination.sh"
   workflow_dispatch:
+
+concurrency:
+  group: ios-startup-safety-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   startup-store-recovery:
@@ -14,6 +36,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Cache Swift package checkouts
+        uses: actions/cache@v4
+        with:
+          path: .build/xcode-source-packages
+          key: ${{ runner.os }}-xcode-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-xcode-spm-
 
       - name: Validate generated project guardrails
         run: make validate-ios-project
@@ -34,6 +64,8 @@ jobs:
             -scheme Merian \
             -project Merian.xcodeproj \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -clonedSourcePackagesDirPath .build/xcode-source-packages \
+            -skipPackageUpdates \
             -resultBundlePath "$XCODE_RESULT_BUNDLE" \
             -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
             -only-testing:merianTests/MigrationPlanTests

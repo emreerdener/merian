@@ -2,10 +2,30 @@ name: iOS Project Guardrails
 
 on:
   pull_request:
+    paths:
+      - ".github/workflows/ios-project-guardrails.yml"
+      - "Makefile"
+      - "Merian.xcodeproj/**"
+      - "merian.xcodeproj/**"
+      - "apps/ios/**"
+      - "project.yml"
+      - "scripts/check-ios-project-resources.sh"
   push:
     branches:
       - main
+    paths:
+      - ".github/workflows/ios-project-guardrails.yml"
+      - "Makefile"
+      - "Merian.xcodeproj/**"
+      - "merian.xcodeproj/**"
+      - "apps/ios/**"
+      - "project.yml"
+      - "scripts/check-ios-project-resources.sh"
   workflow_dispatch:
+
+concurrency:
+  group: ios-project-guardrails-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate-generated-project:
