@@ -178,7 +178,10 @@ MerianTests/
     `merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
     lockfile and runs with automatic package resolution disabled so startup
     failures are not hidden behind cold dependency resolution or silent package
-    upgrades.
+    upgrades. The workflow also uploads the raw `xcodebuild` log and appends
+    build diagnostics to the job summary when Xcode fails before the selected
+    startup tests run, because `xcresulttool get test-results summary` reports
+    those build-only failures as `unknown` with zero tests.
 - **`SerializedMediaItemTests.swift`**: Locks the active-schema mixed-media read
   precedence. `localScanRecordPrefersCapturedMediaJSONOverRelationshipMirror`
   and `offlineQueuedScanPrefersCapturedMediaJSONOverRelationshipMirror` seed

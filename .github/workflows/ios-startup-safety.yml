@@ -59,8 +59,10 @@ jobs:
       - name: Run startup and migration safety tests
         timeout-minutes: 25
         env:
+          XCODE_BUILD_LOG: ${{ runner.temp }}/startup-safety-xcodebuild.log
           XCODE_RESULT_BUNDLE: ${{ runner.temp }}/startup-safety.xcresult
         run: |
+          set -o pipefail
           xcodebuild test \
             -scheme Merian \
             -project merian.xcodeproj \
@@ -70,7 +72,8 @@ jobs:
             -disableAutomaticPackageResolution \
             -resultBundlePath "$XCODE_RESULT_BUNDLE" \
             -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
-            -only-testing:merianTests/MigrationPlanTests
+            -only-testing:merianTests/MigrationPlanTests \
+            2>&1 | tee "$XCODE_BUILD_LOG"
 
       - name: Save Swift package checkouts
         if: always() && steps.swift-package-cache.outputs.cache-hit != 'true'
@@ -82,23 +85,52 @@ jobs:
       - name: Print startup safety failure summary
         if: failure()
         env:
+          XCODE_BUILD_LOG: ${{ runner.temp }}/startup-safety-xcodebuild.log
           XCODE_RESULT_BUNDLE: ${{ runner.temp }}/startup-safety.xcresult
+          XCODE_BUILD_DIAGNOSTICS: ${{ runner.temp }}/startup-safety-build-diagnostics.txt
           XCODE_TEST_SUMMARY: ${{ runner.temp }}/startup-safety-test-summary.json
         run: |
+          append_build_diagnostics() {
+            {
+              echo ""
+              echo "### Startup build diagnostics"
+              echo ""
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            if [ ! -f "$XCODE_BUILD_LOG" ]; then
+              echo "No xcodebuild log was produced." >> "$GITHUB_STEP_SUMMARY"
+              return 0
+            fi
+
+            grep -E "error:|fatal error:|xcodebuild: error|The following build commands failed|\\([0-9]+ failures\\)" "$XCODE_BUILD_LOG" > "$XCODE_BUILD_DIAGNOSTICS" || true
+            if [ ! -s "$XCODE_BUILD_DIAGNOSTICS" ]; then
+              tail -n 120 "$XCODE_BUILD_LOG" > "$XCODE_BUILD_DIAGNOSTICS"
+            fi
+
+            {
+              echo '```text'
+              head -n 120 "$XCODE_BUILD_DIAGNOSTICS"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          }
+
           if [ ! -d "$XCODE_RESULT_BUNDLE" ]; then
             echo "No startup safety result bundle was produced."
+            append_build_diagnostics
             exit 0
           fi
 
           if ! xcrun xcresulttool get test-results summary \
             --path "$XCODE_RESULT_BUNDLE" > "$XCODE_TEST_SUMMARY"; then
             echo "Unable to extract startup safety test summary."
+            append_build_diagnostics
             exit 0
           fi
 
           if ! command -v jq >/dev/null 2>&1; then
             echo "jq is unavailable; raw startup safety test summary:"
             cat "$XCODE_TEST_SUMMARY"
+            append_build_diagnostics
             exit 0
           fi
 
@@ -122,7 +154,9 @@ jobs:
               ""
             ]
             + (
-              if (failures | length) > 0 then
+              if (.result == "unknown" and (.passedTests // 0) == 0 and (.failedTests // 0) == 0 and (.skippedTests // 0) == 0) then
+                ["No selected startup tests ran. Xcode failed before the test phase; see build diagnostics below."]
+              elif (failures | length) > 0 then
                 ["| Test | Failure |", "| --- | --- |"]
                 + (failures | map("| `\(.testName | clean)` | \(.failureText | clean) |"))
               else
@@ -135,6 +169,10 @@ jobs:
             cat "$XCODE_TEST_SUMMARY"
           }
 
+          if jq -e '.result == "unknown" and (.passedTests // 0) == 0 and (.failedTests // 0) == 0 and (.skippedTests // 0) == 0' "$XCODE_TEST_SUMMARY" >/dev/null; then
+            append_build_diagnostics
+          fi
+
       - name: Upload startup safety result bundle
         if: failure()
         uses: actions/upload-artifact@v4
@@ -143,4 +181,6 @@ jobs:
           path: |
             ${{ runner.temp }}/startup-safety.xcresult
             ${{ runner.temp }}/startup-safety-test-summary.json
+            ${{ runner.temp }}/startup-safety-xcodebuild.log
+            ${{ runner.temp }}/startup-safety-build-diagnostics.txt
           if-no-files-found: ignore
