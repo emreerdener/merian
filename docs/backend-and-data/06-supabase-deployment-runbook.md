@@ -159,6 +159,10 @@ and Markdown summary artifacts, and appends the Markdown report to the job
 summary. The Markdown report includes an **Incident Actions** table that maps
 each issue code to an owner, next step, runbook, and sample-field hint; use that
 table as the first triage view before opening raw database rows.
+It also includes a visible **Sample Preview** table with the first sample row
+for each issue code. Expand the per-issue sample blocks or download the
+`scan-media-health-summary-<run_number>` artifact when you need the complete
+sample set.
 
 Scheduled runs use:
 
@@ -197,7 +201,10 @@ service-role endpoint. Start triage from the issue code:
   `scan_media_assets`; repair should go through `reconcile-scan-media-assets` or
   the local `.mp4` restore path.
 - `video_scan_missing_ready_playback_asset`: run or inspect
-  `refresh_scan_media_assets(scan_id)` and the reconciliation worker result.
+  `refresh_scan_media_assets(scan_id)` for the sampled scan after confirming
+  `video_storage_urls` points at durable playback media. If the refresh still
+  leaves `ready_video_asset_count` below the durable video count, run
+  `reconcile-scan-media-assets` with `dryRun = true` before allowing a repair.
 - `explore_video_missing_thumbnail`: inspect `explore_post_media.thumbnail_url`
   and the source scan's first safe image/poster thumbnail.
 - `latest_reconciliation_run_not_clean`: inspect

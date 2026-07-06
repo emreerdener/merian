@@ -307,6 +307,24 @@ export function renderMonitorMarkdown(
       ),
     );
 
+    const samplePreviewRows = health.issues
+      .filter((issue) => issue.sample.length > 0)
+      .map((issue) =>
+        `| \`${escapeMarkdownCell(issue.code)}\` | ${
+          escapeMarkdownCell(JSON.stringify(issue.sample[0]))
+        } |`
+      );
+    if (samplePreviewRows.length > 0) {
+      lines.push(
+        "",
+        "## Sample Preview",
+        "",
+        "| Code | First sample row |",
+        "| --- | --- |",
+        ...samplePreviewRows,
+      );
+    }
+
     for (const issue of health.issues) {
       if (issue.sample.length === 0) continue;
       const action = summary.incident_actions.find((entry) =>

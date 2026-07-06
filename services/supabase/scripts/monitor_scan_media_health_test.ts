@@ -137,6 +137,11 @@ Deno.test("renderMonitorMarkdown includes counts, breakdowns, and samples", () =
     markdown,
     "Refresh ready scan_media_assets from captured_media",
   );
+  assertStringIncludes(markdown, "## Sample Preview");
+  assertStringIncludes(
+    markdown,
+    '{"scan_id":"scan-1","ready_video_asset_count":0}',
+  );
   assertStringIncludes(markdown, "Sample hint:");
   assertStringIncludes(markdown, '"scan_id": "scan-1"');
 });

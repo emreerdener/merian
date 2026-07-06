@@ -82,9 +82,11 @@ minutes with `fail_on = critical`. The workflow writes JSON and Markdown
 artifacts for each run and appends the Markdown summary to the GitHub job
 summary. The summary includes an **Incident Actions** table with an owner,
 next-step, runbook, and sample-field hint for each issue code, so a critical run
-is immediately actionable without opening the endpoint source. Manual dispatch
-can use `fail_on = warning` for stricter validation or `fail_on = never` when
-collecting a non-gating diagnostic snapshot.
+is immediately actionable without opening the endpoint source. It also renders a
+visible **Sample Preview** table with the first sample row for each issue code;
+download the JSON artifact or expand the per-issue sample blocks for the full
+sample set. Manual dispatch can use `fail_on = warning` for stricter validation
+or `fail_on = never` when collecting a non-gating diagnostic snapshot.
 
 ## Validation
 
