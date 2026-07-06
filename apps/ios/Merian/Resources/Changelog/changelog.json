@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-06-field-notes-empty-badges",
+      "date": "2026-07-06",
+      "title": "Field notes badges",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Empty Field notes cards now hide Published and Private badges until notes have been saved."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-06-video-upload-staging",
       "date": "2026-07-06",
       "title": "Video scan uploads",

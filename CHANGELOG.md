@@ -145,6 +145,8 @@ TestFlight, App Store, support, and QA.
 - Added fullscreen playback for video scan media from the Insight carousel.
 - Added field-note visibility controls to the Field notes edit sheet, with
   Published and Private badges on shared Insight and Explore note cards.
+- Fixed empty Field notes cards so Published or Private badges only appear once
+  there are saved notes.
 - Added a Non-biological pill and retention notice to non-biological Insight
   results, and hid biological-only field notes, tags, and collection actions
   from those scans.

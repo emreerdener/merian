@@ -121,10 +121,11 @@ git diff --check
 Focused Xcode lane:
 
 ```sh
+destination="$(bash scripts/select-ios-simulator-destination.sh)"
 xcodebuild test \
   -scheme Merian \
   -project Merian.xcodeproj \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -destination "$destination" \
   -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
   -only-testing:merianTests/MigrationPlanTests
 ```

@@ -18,11 +18,18 @@ jobs:
       - name: Validate generated project guardrails
         run: make validate-ios-project
 
+      - name: Select iOS test simulator
+        id: ios-test-simulator
+        run: |
+          destination="$(bash scripts/select-ios-simulator-destination.sh)"
+          echo "destination=${destination}" >> "$GITHUB_OUTPUT"
+          echo "Selected ${destination}"
+
       - name: Run startup and migration safety tests
         run: |
           xcodebuild test \
             -scheme Merian \
             -project Merian.xcodeproj \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
             -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
             -only-testing:merianTests/MigrationPlanTests

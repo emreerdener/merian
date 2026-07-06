@@ -92,7 +92,7 @@ struct FieldNotesCard: View {
                         .font(.system(.headline))
                         .foregroundColor(.primary)
 
-                    if let visibility {
+                    if hasNotes, let visibility {
                         FieldNotesVisibilityBadge(visibility: visibility)
                     }
                 }
