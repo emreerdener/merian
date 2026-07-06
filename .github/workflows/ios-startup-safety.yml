@@ -56,24 +56,43 @@ jobs:
           echo "destination=${destination}" >> "$GITHUB_OUTPUT"
           echo "Selected ${destination}"
 
-      - name: Run startup and migration safety tests
-        timeout-minutes: 25
+      - name: Build startup safety test bundle
+        timeout-minutes: 18
         env:
           XCODE_BUILD_LOG: ${{ runner.temp }}/startup-safety-xcodebuild.log
-          XCODE_RESULT_BUNDLE: ${{ runner.temp }}/startup-safety.xcresult
+          XCODE_DERIVED_DATA: ${{ runner.temp }}/startup-safety-derived-data
         run: |
           set -o pipefail
-          xcodebuild test \
+          xcodebuild build-for-testing \
             -scheme Merian \
             -project merian.xcodeproj \
             -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
             -clonedSourcePackagesDirPath .build/xcode-source-packages \
             -skipPackageUpdates \
             -disableAutomaticPackageResolution \
+            -derivedDataPath "$XCODE_DERIVED_DATA" \
+            2>&1 | tee "$XCODE_BUILD_LOG"
+
+      - name: Run startup and migration safety tests
+        timeout-minutes: 12
+        env:
+          XCODE_BUILD_LOG: ${{ runner.temp }}/startup-safety-xcodebuild.log
+          XCODE_RESULT_BUNDLE: ${{ runner.temp }}/startup-safety.xcresult
+          XCODE_DERIVED_DATA: ${{ runner.temp }}/startup-safety-derived-data
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -scheme Merian \
+            -project merian.xcodeproj \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -clonedSourcePackagesDirPath .build/xcode-source-packages \
+            -skipPackageUpdates \
+            -disableAutomaticPackageResolution \
+            -derivedDataPath "$XCODE_DERIVED_DATA" \
             -resultBundlePath "$XCODE_RESULT_BUNDLE" \
             -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
             -only-testing:merianTests/MigrationPlanTests \
-            2>&1 | tee "$XCODE_BUILD_LOG"
+            2>&1 | tee -a "$XCODE_BUILD_LOG"
 
       - name: Save Swift package checkouts
         if: always() && steps.swift-package-cache.outputs.cache-hit != 'true'

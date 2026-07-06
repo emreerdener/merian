@@ -10,17 +10,18 @@ SwiftData staged migration plans cannot contain two schema versions with the
 same model checksum. Merian shipped V46 as a no-op after V45, so the primary
 `MerianMigrationPlan` keeps the duplicate-prone V44/V45/V46 recent cluster out
 of `schemas` and jumps older unknown stores from V43→V47. Source-isolated recent
-plans still handle V44, V45, and V46 stores directly; the shared V45/V46
-checksum advances through V45→V47 there.
+plans still handle V44, V45, and V46 stores directly; V45 and V46 stores jump
+through separate direct V45→V48 and V46→V48 plans.
 
 One extra wrinkle: a user may already have a local store stamped as V46.
 SwiftData can validate that on-disk source model alongside the primary plan's
-V45 representative, which reintroduces the same duplicate-checksum startup
-failure even though V46 is not listed in the primary plan. V47 therefore reuses
-the V45 model classes for unchanged local-scan, captured-media, and collection
-entities; only `OfflineQueuedScan` changes in V47. The V46 recovery plan also
-uses the V45 checksum representative and relies on SwiftData's checksum match
-for V46-stamped stores. Startup reads the store metadata before creating
+V47/V45-class representative, which reintroduces the same duplicate-checksum
+startup failure even though V46 is not listed in the primary plan. V47 therefore
+reuses the V45 model classes for unchanged local-scan, captured-media, and
+collection entities; only `OfflineQueuedScan` changes in V47. V45 and V46
+recovery plans skip V47 and use the actual source stamp as the only recent
+representative in the plan, then jump directly to V48. Startup reads the store
+metadata before creating
 `ModelContainer`. Fresh stores and stores already stamped at the current schema
 open without a migration plan; known recent sources open with the matching
 source-isolated plan (V47, V46, V45, or V44); only unknown or older existing

@@ -25,9 +25,10 @@ quarantined local store files, telemetry, and verification.
    - unknown older store → open with the full historical `MerianMigrationPlan`
 3. If SwiftData reports duplicate version checksums, retry through the
    source-isolated ladder: current-store open, then V47, V46, V45, and V44.
-   The V46 retry plan uses the V45 checksum representative because V46 was a
-   shipped no-op schema; V47 also reuses that representative for unchanged model
-   classes and only introduces the queued-scan model change.
+   The V45/V46 retry plans keep those source representatives isolated from each
+   other and use direct V48 targets because V46 was a shipped no-op schema; V47
+   also reuses the V45 representative for unchanged model classes and only
+   introduces the queued-scan model change on V43/V44 paths.
 4. If SwiftData/Core Data raises an Objective-C exception, the bridge converts
    it into an error so the Swift recovery path can continue.
 5. Inspect the full error chain for verified SQLite/Core Data corruption
@@ -140,8 +141,12 @@ in a normal local or GitHub macOS runner.
 
 The GitHub Startup Safety workflow is scoped to iOS/project/workflow path
 changes, cancels stale runs on the same ref, restores Swift package checkouts,
-saves newly fetched checkouts even after a test failure, and bounds this focused
-Xcode step at 25 minutes. On failure it prints the
-`.xcresult` test-failure summary into the job summary and uploads the
+saves newly fetched checkouts even after a failure, and splits Xcode into two
+bounded phases: `build-for-testing` compiles the app/test bundle, then
+`test-without-building` runs only the startup and migration tests from the same
+derived-data folder. Build failures should therefore appear as build diagnostics,
+while runtime migration failures should appear as selected test failures. On
+failure it prints the `.xcresult` test-failure summary when one exists, appends
+build diagnostics when Xcode fails before the test phase, and uploads the
 `.xcresult` bundle plus extracted JSON summary so simulator hangs or compiler
 diagnostics remain inspectable without rerunning the log loop.

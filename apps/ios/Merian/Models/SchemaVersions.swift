@@ -2328,49 +2328,78 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         ]
     }
 
+    private static func initializeV48OfflineQueueRecords(
+        in context: ModelContext,
+        stage: String
+    ) throws {
+        let now = Date()
+        let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>())
+
+        for scan in queuedScans {
+            scan.queueAttemptCount = 0
+            scan.queueLastAttemptAt = nil
+            scan.queueNextRetryAt = nil
+            scan.queueLastErrorCode = nil
+            scan.queueLastErrorMessage = nil
+            scan.queueLastHTTPStatus = nil
+            scan.queueLastServerStatus = nil
+            scan.queueLastServerStage = nil
+            scan.queueLastServerRetryAfter = nil
+            scan.queueUpdatedAt = now
+            scan.queueNeedsAttention = false
+
+            let jobId = "scan-ingestion:\(scan.id)"
+            let job = MerianSchemaV48.OfflineJobRecord(
+                id: jobId,
+                kind: .scanIngestion,
+                subjectId: scan.id,
+                priority: 100,
+                status: .pending,
+                createdAt: scan.timestamp,
+                updatedAt: now
+            )
+            context.insert(job)
+
+            context.insert(MerianSchemaV48.OfflineQueueEvent(
+                jobId: jobId,
+                scanId: scan.id,
+                kind: .queued,
+                createdAt: now,
+                message: "Queued scan migrated into durable offline scheduler."
+            ))
+        }
+
+        try saveMigrationContext(context, stage: stage)
+    }
+
     static let migrateV47toV48 = MigrationStage.custom(
         fromVersion: MerianSchemaV47.self,
         toVersion: MerianSchemaV48.self,
         willMigrate: nil,
         didMigrate: { context in
-            let now = Date()
-            let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>())
+            try initializeV48OfflineQueueRecords(in: context, stage: "V47->V48 didMigrate")
+        }
+    )
 
-            for scan in queuedScans {
-                scan.queueAttemptCount = 0
-                scan.queueLastAttemptAt = nil
-                scan.queueNextRetryAt = nil
-                scan.queueLastErrorCode = nil
-                scan.queueLastErrorMessage = nil
-                scan.queueLastHTTPStatus = nil
-                scan.queueLastServerStatus = nil
-                scan.queueLastServerStage = nil
-                scan.queueLastServerRetryAfter = nil
-                scan.queueUpdatedAt = now
-                scan.queueNeedsAttention = false
+    // V45/V46-checksum stores skip V47 because V47 intentionally reuses the V45
+    // model classes for unchanged entities. The source-isolated plans route each
+    // stamped source directly to V48 while still applying the durable queue
+    // metadata backfill.
+    static let migrateV45toV48 = MigrationStage.custom(
+        fromVersion: MerianSchemaV45.self,
+        toVersion: MerianSchemaV48.self,
+        willMigrate: nil,
+        didMigrate: { context in
+            try initializeV48OfflineQueueRecords(in: context, stage: "V45->V48 didMigrate")
+        }
+    )
 
-                let jobId = "scan-ingestion:\(scan.id)"
-                let job = MerianSchemaV48.OfflineJobRecord(
-                    id: jobId,
-                    kind: .scanIngestion,
-                    subjectId: scan.id,
-                    priority: 100,
-                    status: .pending,
-                    createdAt: scan.timestamp,
-                    updatedAt: now
-                )
-                context.insert(job)
-
-                context.insert(MerianSchemaV48.OfflineQueueEvent(
-                    jobId: jobId,
-                    scanId: scan.id,
-                    kind: .queued,
-                    createdAt: now,
-                    message: "Queued scan migrated into durable offline scheduler."
-                ))
-            }
-
-            try saveMigrationContext(context, stage: "V47->V48 didMigrate")
+    static let migrateV46toV48 = MigrationStage.custom(
+        fromVersion: MerianSchemaV46.self,
+        toVersion: MerianSchemaV48.self,
+        willMigrate: nil,
+        didMigrate: { context in
+            try initializeV48OfflineQueueRecords(in: context, stage: "V46->V48 didMigrate")
         }
     )
 
@@ -2380,15 +2409,6 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     // V47, while known recent stores use the source-isolated plans below.
     static let migrateV43toV47 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV43.self,
-        toVersion: MerianSchemaV47.self
-    )
-
-    // V46 was a released no-op schema with the same model checksum as V45. Keeping
-    // it as a staged migration source makes SwiftData reject the whole plan with
-    // "Duplicate version checksums across stages detected", so V45/V46-checksum
-    // stores advance through the next real model change in source-isolated plans.
-    static let migrateV45toV47 = MigrationStage.lightweight(
-        fromVersion: MerianSchemaV45.self,
         toVersion: MerianSchemaV47.self
     )
 
@@ -2957,35 +2977,31 @@ enum MerianRecentV45MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV45.self,
-            MerianSchemaV47.self,
             MerianSchemaV48.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV45toV47,
-            MerianMigrationPlan.migrateV47toV48
+            MerianMigrationPlan.migrateV45toV48
         ]
     }
 }
 
 /// Short recovery plan for stores already stamped with released no-op V46.
-/// V46 has the same model checksum as V45, so this plan uses the V45 source
-/// representative and lets SwiftData match the V46 store by checksum.
+/// V46 is safe here because this source-isolated plan does not include its V45
+/// checksum twin.
 enum MerianRecentV46MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
-            MerianSchemaV45.self,
-            MerianSchemaV47.self,
+            MerianSchemaV46.self,
             MerianSchemaV48.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV45toV47,
-            MerianMigrationPlan.migrateV47toV48
+            MerianMigrationPlan.migrateV46toV48
         ]
     }
 }

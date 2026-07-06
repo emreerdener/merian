@@ -92,7 +92,8 @@ Recent schema milestones:
   shipped no-op checksum twin of V45; runtime migration keeps the
   duplicate-prone V44/V45/V46 recent cluster out of the full historical plan,
   jumps older stores V43→V47, and uses source-isolated recent plans for stores
-  already stamped V44, V45, or V46.
+  already stamped V44, V45, or V46. V45 and V46 stores jump through separate
+  direct V45→V48 and V46→V48 plans.
 - V47 added offline video inference replay fields so sampled frames can be
   queued separately from the user-visible playback video timeline. Its frozen
   schema reuses the V45 representative for unchanged local-scan,

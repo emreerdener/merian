@@ -1803,13 +1803,15 @@ The current active schema is `MerianSchemaV48`. Recent milestones:
   V43→V47 so unknown older stores do not force SwiftData to validate the
   duplicate-prone recent representatives. V47 reuses the V45 model classes for
   unchanged local-scan, captured-media, and collection entities, and only
-  introduces a new `OfflineQueuedScan`; V45/V46-checksum stores therefore
-  advance through the V45→V47 source-isolated stage without forcing SwiftData to
-  validate the no-op V46 classes.
+  introduces a new `OfflineQueuedScan`. V44 stores can still jump V44→V47, but
+  V45 and V46 stores skip V47 and jump directly to V48 from source-isolated
+  V45→V48 and V46→V48 plans so SwiftData never migrates unchanged entities
+  across the V47 V45-class reuse boundary.
   App startup reads store metadata before creating `ModelContainer`: fresh/current
   stores open without a migration plan, known recent stores use the source-isolated
   V47/V46/V45/V44 plans, and only unknown older stores use the full historical
-  plan. The V46 recent plan deliberately uses the V45 checksum representative.
+  plan. The V45 and V46 recent plans deliberately use one matching source
+  representative each and a direct V48 target.
   Stores that still hit SwiftData's duplicate-checksum validator during plan
   construction retry with the same source-isolated recent plans before safe mode.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`

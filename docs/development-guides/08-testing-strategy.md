@@ -178,8 +178,10 @@ MerianTests/
     through the Objective-C exception bridge so SwiftData `NSException`s are
     reported as test failures with their original reason instead of aborting the
     whole test runner. V47 must reuse the V45 checksum representative for
-    unchanged local-scan, captured-media, and collection models, and the V46
-    recent plan must route through that same representative. The workflow's
+    unchanged local-scan, captured-media, and collection models, while V45 and
+    V46 recent plans must keep those sources isolated from each other and route
+    directly to V48.
+    The workflow's
     Swift package cache key depends on the checked-in
     `merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
     lockfile and runs with automatic package resolution disabled so startup
