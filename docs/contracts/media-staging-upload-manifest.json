@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "endpoint": "/generate-upload-urls",
-  "maxFilesPerRequest": 5,
+  "maxFilesPerRequest": 6,
   "maxImageBytes": 5242880,
   "maxAudioBytes": 2700000,
   "maxAudioFiles": 2,

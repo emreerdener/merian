@@ -59,6 +59,9 @@ TestFlight, App Store, support, and QA.
   progress.
 - Fixed cloud-hydrated video scans so sampled analysis frames stay hidden behind
   the playable video instead of appearing as standalone Insight carousel images.
+- Fixed video scan upload signing so five sampled inference frames plus the
+  playback clip fit the staging contract, and repaired staged media rows that
+  were blocked before the scan record existed.
 - Improved camera shutter feedback so photo captures and video recording start
   with a stronger, prewarmed haptic cue, and video recording begins almost
   immediately after a brief hold.

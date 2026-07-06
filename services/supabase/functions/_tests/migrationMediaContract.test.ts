@@ -124,6 +124,23 @@ Deno.test("scan media reconciliation migration repairs older asset-table shapes 
   }
 });
 
+Deno.test("scan media staged upload repair allows scanless pre-persistence rows", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260706100000_allow_staged_scan_media_without_scan_id.sql",
+    ),
+  );
+
+  assertStringIncludes(
+    sql,
+    "ALTER TABLE IF EXISTS public.scan_media_assets ALTER COLUMN scan_id DROP NOT NULL",
+  );
+  assertStringIncludes(
+    sql,
+    "NULL is valid for staged capture_upload rows before scan persistence",
+  );
+});
+
 Deno.test("scan media reconciliation migration keeps the scheduled worker idempotent and service-role-only", async () => {
   const sql = normalized(
     await migrationSql(

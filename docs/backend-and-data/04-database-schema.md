@@ -1137,7 +1137,10 @@ post rows left by failed media writes are hidden until sharing succeeds.
 ### `scan_media_assets`
 
 Normalized scan media lifecycle assets. Added in migration
-`20260705100000_add_scan_media_assets.sql`.
+`20260705100000_add_scan_media_assets.sql`. Migration
+`20260706100000_allow_staged_scan_media_without_scan_id.sql` repairs early
+deployed tables by dropping any lingering `NOT NULL` requirement from
+`scan_id`.
 
 - `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE, nullable): The owning scan
   once the scan row exists. Pre-scan upload-session rows keep this null until

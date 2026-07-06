@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-06-video-upload-staging",
+      "date": "2026-07-06",
+      "title": "Video scan uploads",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Video scan uploads now allow five sampled inference frames plus the playback clip in one staging batch, and staged media rows can be created before the final scan record exists."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-06-network-timeout-placeholder",
       "date": "2026-07-06",
       "title": "Network timeout results",

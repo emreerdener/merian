@@ -117,6 +117,41 @@ Deno.test("parseStagingUploadFiles accepts structured mixed-media manifests", ()
   assertEquals(parsed.files?.[2].mediaRole, "playback");
 });
 
+Deno.test("parseStagingUploadFiles accepts one video scan signing batch", () => {
+  const clientScanId = "00000000-0000-0000-0000-000000000001";
+  const parsed = parseStagingUploadFiles({
+    files: [
+      ...Array.from({ length: 5 }, (_, index) => ({
+        fileName: `scan-1_frame-${index}.webp`,
+        mediaKind: "image",
+        contentType: "image/webp",
+        sizeBytes: 125_000,
+        clientScanId,
+        mediaRole: "display",
+      })),
+      {
+        fileName: "scan-1_video.mp4",
+        mediaKind: "video",
+        contentType: "video/mp4",
+        sizeBytes: 840_000,
+        clientScanId,
+        mediaRole: "playback",
+      },
+    ],
+  });
+
+  assertEquals(parsed.error, undefined);
+  assertEquals(parsed.files?.length, 6);
+  assertEquals(
+    parsed.files?.filter((file) => file.mediaKind === "image").length,
+    5,
+  );
+  assertEquals(
+    parsed.files?.filter((file) => file.mediaKind === "video").length,
+    1,
+  );
+});
+
 Deno.test("parseStagingUploadFiles rejects invalid scan media session metadata", () => {
   const badClientScanId = parseStagingUploadFiles({
     files: [

@@ -227,8 +227,9 @@ Batch sizing is governed by `MerianConfig`:
   The selected scan batch is additionally capped by
   `MediaStagingContract.maxUploadItemsPerRequest` /
   `MerianConfig.mediaStagingMaxFilesPerRequest` to the `generate-upload-urls`
-  limit of 5 media files total, so a mixed scan with images + audio + video
-  cannot overrun the pre-signed URL contract.
+  limit of 6 media files total. This covers the canonical Pro video shape
+  (five sampled inference frames plus one playback clip) while keeping mixed
+  scans inside the pre-signed URL contract.
 - **`mediaStagingMaxAudioFilesPerRequest`** (2): maximum audio files in one
   upload-signing request, matching the Edge parser and the documented
   cross-language contract in
@@ -957,7 +958,7 @@ All magic numbers governing the sync pipeline live in `MerianConfig.swift`
 | ------------------------------------- | ------ | -------------------------------------------------------------------- |
 | `uploadBatchSize`                     | 5      | Scans dispatched per sync cycle                                      |
 | `pendingScanFetchLimit`               | 50     | `OfflineQueuedScan` records fetched per cycle                        |
-| `mediaStagingMaxFilesPerRequest`      | 5      | Media files allowed by `generate-upload-urls` per request            |
+| `mediaStagingMaxFilesPerRequest`      | 6      | Media files allowed by `generate-upload-urls` per request            |
 | `mediaStagingMaxVideoFilesPerRequest` | 1      | Video files allowed by `generate-upload-urls` per request            |
 | `stagedImagePayloadMaxBytes`          | 5 MB   | Maximum staged image bytes fetched by edge inference                 |
 | `audioPayloadMaxBytes`                | 2.7 MB | Maximum inline or staged audio bytes accepted for inference          |

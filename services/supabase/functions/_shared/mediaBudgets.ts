@@ -10,7 +10,7 @@ export const MEDIA_BUDGETS = {
   maxAudioJsonBodyBytes: 4 * 1024 * 1024,
   maxIdentifyJsonBodyBytes: 8 * 1024 * 1024,
   maxMultimodalJsonBodyBytes: 16 * 1024 * 1024,
-  maxStagingFiles: 5,
+  maxStagingFiles: 6,
   maxStagedAudioFiles: 2,
   maxVideoRawBytes: 12 * 1024 * 1024,
   maxStagedVideoFiles: 1,

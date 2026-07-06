@@ -433,7 +433,7 @@ triggering excessive SwiftUI view rebuilds.
   keeps video playback finalization from being mistaken for a local inference
   failure after app suspension or restart.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5),
-  `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (5),
+  `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (6),
   `mediaStagingMaxAudioFilesPerRequest` (2), `stagedImagePayloadMaxBytes` (5
   MB), and `audioPayloadMaxBytes` (2.7 MB) are governed by `MerianConfig`
   constants rather than inline literals.
@@ -691,7 +691,7 @@ triggering excessive SwiftUI view rebuilds.
 | --------------------------------- | ------ | -------------------------------------------------------------------------------- |
 | `uploadBatchSize`                 | 5      | `OfflineQueueManager+Sync`                                                       |
 | `pendingScanFetchLimit`           | 50     | `OfflineQueueManager+Sync`                                                       |
-| `mediaStagingMaxFilesPerRequest`  | 5      | `MediaStagingContract`                                                           |
+| `mediaStagingMaxFilesPerRequest`  | 6      | `MediaStagingContract`                                                           |
 | `stagedImagePayloadMaxBytes`      | 5 MB   | `MediaStagingContract`, Edge image fetch contract                                |
 | `audioPayloadMaxBytes`            | 2.7 MB | `MediaStagingContract`, `MerianNetworkClient`                                    |
 | `historicalSyncPageSize`          | 200    | `ScanRepository`                                                                 |

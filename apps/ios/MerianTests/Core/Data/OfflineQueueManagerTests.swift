@@ -34,6 +34,8 @@ struct OfflineQueueManagerTests {
         let maxImageBytes: Int
         let maxAudioBytes: Int
         let maxAudioFiles: Int
+        let maxVideoBytes: Int
+        let maxVideoFiles: Int
         let imageContentTypes: [String]
         let audioContentTypes: [String]
         let videoContentTypes: [String]
@@ -189,8 +191,10 @@ struct OfflineQueueManagerTests {
         #expect(contract.endpoint == "/generate-upload-urls")
         #expect(MerianConfig.mediaStagingMaxFilesPerRequest == contract.maxFilesPerRequest)
         #expect(MerianConfig.mediaStagingMaxAudioFilesPerRequest == contract.maxAudioFiles)
+        #expect(MerianConfig.mediaStagingMaxVideoFilesPerRequest == contract.maxVideoFiles)
         #expect(MerianConfig.stagedImagePayloadMaxBytes == contract.maxImageBytes)
         #expect(MerianConfig.audioPayloadMaxBytes == contract.maxAudioBytes)
+        #expect(MerianConfig.videoPayloadMaxBytes == contract.maxVideoBytes)
         #expect(StagedMediaKind.image.contentType(for: "queued.webp") == contract.canonicalQueuedImageContentType)
         #expect(StagedMediaKind.audio.contentType(for: "queued.wav") == contract.canonicalQueuedWavContentType)
         #expect(StagedMediaKind.audio.contentType(for: "queued.m4a") == contract.canonicalQueuedM4AContentType)
@@ -248,6 +252,38 @@ struct OfflineQueueManagerTests {
         #expect(splitKeys.imageR2ObjectKeys == [items[0].objectKey])
         #expect(splitKeys.audioR2ObjectKeys == [items[1].objectKey])
         #expect(splitKeys.videoR2ObjectKeys == [items[2].objectKey])
+    }
+
+    @Test func testMediaStagingContractAllowsCanonicalVideoScanUploadShape() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let imageNames = (0..<5).map { "video-frame-\($0).webp" }
+        let videoName = "playback.mp4"
+        for imageName in imageNames {
+            try Data(repeating: 0x21, count: 64).write(to: directory.appendingPathComponent(imageName))
+        }
+        try Data(repeating: 0x42, count: 128).write(to: directory.appendingPathComponent(videoName))
+
+        let payload = PendingScanPayload(
+            id: "scan-video-budget",
+            localImagePaths: imageNames,
+            localAudioPaths: [],
+            localVideoPaths: [videoName]
+        )
+        let items = MediaStagingContract.uploadItems(
+            for: payload,
+            userId: "user-a",
+            documentsDirectory: directory
+        )
+
+        #expect(items.count == 6)
+        try MediaStagingContract.validateUploadBudget(items)
+        let uploadFiles = try MediaStagingContract.uploadFiles(for: items)
+        #expect(uploadFiles.count == 6)
+        #expect(uploadFiles.filter { $0.mediaKind == .image }.count == 5)
+        #expect(uploadFiles.filter { $0.mediaKind == .video }.count == 1)
     }
 
     @Test func testMediaStagingUploadTaskDescriptionPreservesUnderscoredScanIds() {
