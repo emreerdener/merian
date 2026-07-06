@@ -7,8 +7,8 @@ combined submissions.
 ## Request Contract
 
 The endpoint accepts authenticated user requests through `withEdgeHandler`.
-Media can arrive inline for foreground requests or as staged Cloudflare R2 object
-keys for queued/offline requests.
+Media can arrive inline for foreground requests or as staged Cloudflare R2
+object keys for queued/offline requests.
 
 Common fields:
 
@@ -27,7 +27,10 @@ Common fields:
     { "kind": "video_audio", "clipIndex": 0 }
   ],
   "observation_contexts": [
-    { "freeText": "Growing beside the porch light", "addedAt": "2026-07-05T03:00:00.000Z" }
+    {
+      "freeText": "Growing beside the porch light",
+      "addedAt": "2026-07-05T03:00:00.000Z"
+    }
   ]
 }
 ```
@@ -63,22 +66,28 @@ The endpoint writes two server-side records before AI inference:
 - `scan_ingestion_jobs`: the mutable state machine for claim, stage,
   retryability, required media counts, upload-session ids, and
   `manifest_checksum`.
-- `scan_ingestion_intents`: the sanitized replay intent for the accepted request.
-  It stores telemetry, observation context, media descriptors, staged object
-  keys, upload-session ids, and `payload_checksum`.
+- `scan_ingestion_intents`: the sanitized replay intent for the accepted
+  request. It stores telemetry, observation context, media descriptors, staged
+  object keys, upload-session ids, and `payload_checksum`.
 
 Replay intents deliberately do not store raw base64 media bytes or local device
 paths. If a request used inline foreground media, the intent is marked
 `resumable = false` and `inline_media_redacted = true`; the iOS queue remains
-the recovery source for that request. Staged-media requests are resumable because
-the payload contains only server-owned object keys and metadata.
+the recovery source for that request. Staged-media requests are resumable
+because the payload contains only server-owned object keys and metadata.
+
+Compatibility scan-producing endpoints (`identify`, `identify-describe`, and
+`audio-spec`) write the same job/intent ledger before returning success. Their
+sanitized intents target this endpoint for replay and preserve the legacy route
+name as `compatibilityEndpoint`; inline base64 media remains redacted and
+non-resumable.
 
 ## Recovery And Health
 
 - `/check-scan-status` is the owner-safe polling endpoint. It reports completed
   scan rows and, when requested, server-side ingestion job state.
-- `/replay-scan-ingestion` claims due resumable staged intents and dispatches
-  them back through this endpoint with the same `client_scan_id`.
+- `/replay-scan-ingestion` claims due resumable staged or text-only intents and
+  dispatches them back through this endpoint with the same `client_scan_id`.
 - `/reconcile-scan-media-assets` repairs or abandons staged media lifecycle
   drift but does not replay AI inference.
 - `/scan-media-health` reports stuck jobs, stale media assets, missing replay

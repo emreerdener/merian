@@ -82,12 +82,17 @@ boundaries:
 
 ## Core Suites
 
-Tests are organized under `apps/ios/MerianTests/Core` and `apps/ios/MerianTests/Features`:
+Tests are organized under `apps/ios/MerianTests/Core` and
+`apps/ios/MerianTests/Features`:
 
-- `Core/<CoreArea>/` mirrors cross-feature services, managers, actors, infrastructure, and shared app policies from `apps/ios/Merian/Core`.
-- `Features/<Feature>/<ProductArea>/` mirrors user-facing product areas from `apps/ios/Merian/Features`.
-- If a test covers a Core manager that happens to surface in a feature screen, keep the test under `Core`.
-- If a test covers local product-area behavior, view models, display policy, or feature-only helpers, keep the test under the matching feature folder.
+- `Core/<CoreArea>/` mirrors cross-feature services, managers, actors,
+  infrastructure, and shared app policies from `apps/ios/Merian/Core`.
+- `Features/<Feature>/<ProductArea>/` mirrors user-facing product areas from
+  `apps/ios/Merian/Features`.
+- If a test covers a Core manager that happens to surface in a feature screen,
+  keep the test under `Core`.
+- If a test covers local product-area behavior, view models, display policy, or
+  feature-only helpers, keep the test under the matching feature folder.
 
 Example:
 
@@ -138,21 +143,25 @@ MerianTests/
     (backfilling `scanStateRaw` from the old booleans) in a single migration
     pass. Update the "from" version and description when a new schema is added.
     Run both tests on an iOS 26 simulator on every schema bump.
-  - Media-schema coverage now includes
+  - Media-schema coverage now includes reusable disk-store fixture helpers,
     `testFullMigrationV39ToV40BackfillsMediaJSON()`,
     `testFullMigrationV40ToV41BackfillsCapturedMediaEntries()`, typed
     `StoredMediaReference` round-trips, and
-    `testCapturedMediaSnapshotBuildsSharedDerivedViews()`. This is the
-    preferred place for schema-version migration fixtures and SwiftData checksum
-    regressions.
+    `testCapturedMediaSnapshotBuildsSharedDerivedViews()`. V47→V48 coverage also
+    keeps disk-based queued-scan fixtures for image, video, audio,
+    description-only, and mixed-media submissions, with display video media,
+    inference-only frame paths, durable retry defaults, and a
+    `scan-ingestion:{id}` scheduler row so startup-safe-mode regressions are
+    caught before release. This is the preferred place for schema-version
+    migration fixtures and SwiftData checksum regressions.
 - **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
   damaged local stores. It verifies corruption-only quarantine, no quarantine
   for generic startup failures, sanitized `recovery-manifest.json` output, and a
   source-scan boundary that prevents store recovery from referencing
   `KeychainManager`, `SupabaseManager`, sign-out flows, or current-user state.
-  The focused CI lane is `.github/workflows/ios-startup-safety.yml`.
-    regression net for the ordered mixed-media timeline, typed storage metadata,
-    and the V41 `CapturedMediaEntry` backfill.
+  The focused CI lane is `.github/workflows/ios-startup-safety.yml`; it runs
+  both `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` so startup
+  safe mode and schema-upgrade failures are caught together.
   - Source-level migration guardrails fail the suite if `SchemaVersions.swift`
     reintroduces `try? context.save()` / `try? modelContext.save()` in custom
     stages, active/global `FetchDescriptor` types inside `MerianMigrationPlan`,
@@ -313,9 +322,10 @@ MerianTests/
     `queueNextRetryAt`, server `retry_after`, and app relaunch behavior. Video
     cases must assert durable playback media remains required while image,
     audio, and description-only scans use the same scheduler.
-- **`CompositeLibraryTests.swift`** (`apps/ios/MerianTests/Features/Scans/Library/`): Validates
-  the bounding behaviors of the composite `ScansGrid` that renders both
-  `OfflineQueuedScan` and `LocalScanRecord` items in the same `LazyVGrid`.
+- **`CompositeLibraryTests.swift`**
+  (`apps/ios/MerianTests/Features/Scans/Library/`): Validates the bounding
+  behaviors of the composite `ScansGrid` that renders both `OfflineQueuedScan`
+  and `LocalScanRecord` items in the same `LazyVGrid`.
   - **Unique ID Guarantee**: Inserts three `OfflineQueuedScan` records and
     asserts all three `id` values are distinct, guarding against accidental
     identifier collisions inside the grid's `ForEach` key space.
@@ -411,12 +421,11 @@ MerianTests/
   generated description text, field-notes opt-in behavior, public Explore URL
   inclusion, and `merian://scan/{id}` / `merian://scans` deep-link parsing.
 - **`ExploreHashtagSuggestionTests.swift`**: Covers the share composer's
-  AI-assisted hashtag suggestions, including species/taxonomy/location/field-note
-  ranking, selected-tag exclusion, five-tag slot handling, and normalization of
-  typed hashtag input before publishing.
-- **`ScansManagerTests.swift`**: Verifies search-index construction,
-  incremental reindexing, sort behavior, and selection limits for the Scans
-  library.
+  AI-assisted hashtag suggestions, including
+  species/taxonomy/location/field-note ranking, selected-tag exclusion, five-tag
+  slot handling, and normalization of typed hashtag input before publishing.
+- **`ScansManagerTests.swift`**: Verifies search-index construction, incremental
+  reindexing, sort behavior, and selection limits for the Scans library.
 - **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine
   progression, ensuring hardware fallback steps prevent `Int` scalar
   out-of-bounds crashes. Tests core persistence loops simulating `@AppStorage`
@@ -496,15 +505,21 @@ Media-ingestion durability has focused Deno coverage as well:
 `_shared/scanIngestionJobs_test.ts` locks client-safe job-state projection and
 the deterministic manifest checksum; `_shared/scanIngestionIntents_test.ts`
 locks sanitized replay-intent construction and inline-media redaction;
-`replay-scan-ingestion/worker_test.ts` covers staged payload reconstruction,
-existing complete scan short-circuiting, and incomplete video rows being left
-for repair instead of duplicate AI replay;
+`_shared/scanIngestionCompatibility_test.ts` locks the legacy
+identify/describe/audio compatibility bridge so staged media and text-only
+requests replay through `/identify-multimodal` while inline media stays redacted
+and non-resumable; `replay-scan-ingestion/worker_test.ts` covers staged payload
+reconstruction, existing complete scan short-circuiting, and incomplete video
+rows being left for repair instead of duplicate AI replay;
 `reconcile-scan-media-assets/worker_test.ts` covers video repair, abandoned
 media cleanup, active-job waiting, ownership matching by user plus scan id, and
-job completion/failure feedback; and `_tests/migrationMediaContract.test.ts`
-checks the scan-media, reconciliation, ingestion-job, manifest-checksum,
-intent-outbox, and replay-worker migrations. Run the migration contract test with
-`--allow-read=services/supabase/migrations` because it reads SQL files directly.
+job completion/failure feedback; `_tests/scanMediaIngestionContract.test.ts` is
+the media-type matrix that keeps image, audio, text-only, and video replay,
+status, repair, and Explore-share contracts aligned; and
+`_tests/migrationMediaContract.test.ts` checks the scan-media, reconciliation,
+ingestion-job, manifest-checksum, intent-outbox, and replay-worker migrations.
+Run the migration contract test with `--allow-read=services/supabase/migrations`
+because it reads SQL files directly.
 
 ### `validate_edge_dtos.ts`
 
@@ -564,6 +579,7 @@ intent-outbox, and replay-worker migrations. Run the migration contract test wit
   `jsonResponse(...)` can merge endpoint-specific cache headers without dropping
   standard JSON/CORS headers. `/species-dictionary` uses this path for cacheable
   `200 OK` public dictionary responses; error responses stay uncached.
+
 ### `export-dwca/index_test.ts`
 
 - **Global Anonymization**: Evaluates `generateDwcARow` mathematically, ensuring

@@ -48,14 +48,14 @@ generation. For scan uploads, each structured entry may also include
 server-owned staged `scan_media_assets` row before returning the signed URL.
 Image roles may be `display`, `thumbnail`, or `inference_frame`; video uses
 `playback`; audio uses `audio`. The Edge parser rejects unsanitized filenames,
-invalid `mediaKind` values, invalid role/kind combinations,
-content-type/kind mismatches, and oversized media before signing. Structured
-manifests require `sizeBytes`; the legacy `fileNames` array remains accepted for
-older clients but is compatibility-only and cannot express byte budgets or media
-asset sessions. Pre-signed `PUT` URLs include an `X-Amz-Expires=86400`
-parameter (24 hours). This extended window
-gives iOS `BackgroundTasks` flexibility to transmit overnight, subject to OS
-memory, thermal, and Wi-Fi conditions, without hitting 403 errors.
+invalid `mediaKind` values, invalid role/kind combinations, content-type/kind
+mismatches, and oversized media before signing. Structured manifests require
+`sizeBytes`; the legacy `fileNames` array remains accepted for older clients but
+is compatibility-only and cannot express byte budgets or media asset sessions.
+Pre-signed `PUT` URLs include an `X-Amz-Expires=86400` parameter (24 hours).
+This extended window gives iOS `BackgroundTasks` flexibility to transmit
+overnight, subject to OS memory, thermal, and Wi-Fi conditions, without hitting
+403 errors.
 
 The Edge function uses the `fileName` parameter from the JSON body (after
 applying basic sanitization to prevent path traversal vectors) rather than
@@ -137,9 +137,10 @@ their staged rows failed. Before treating an orphan as abandoned, it checks the
 matching `scan_ingestion_jobs` row: active leases and future retry windows keep
 the media pending, repaired scans mark the job complete when required video
 media is present, and TTL-abandoned media marks the job `failed_terminal`.
-Sanitized `scan_ingestion_intents` rows preserve staged-media replay metadata for
-operations and `replay-scan-ingestion`, but this worker does not replay AI
-inference for scans that never created a cloud scan row.
+Sanitized `scan_ingestion_intents` rows preserve staged media/audio/video and
+text-only replay metadata for operations and `replay-scan-ingestion`, but this
+worker does not replay AI inference for scans that never created a cloud scan
+row.
 
 ---
 
@@ -177,12 +178,20 @@ Response payload:
 
 The worker claims due `scan_ingestion_jobs` rows whose paired
 `scan_ingestion_intents` are `resumable = true` and not inline-redacted,
-reconstructs the staged-media request from the sanitized intent payload, and
-invokes `/identify-multimodal` with the original `client_scan_id`. The
-multimodal endpoint still owns AI inference, moderation, media promotion, scan
-insert idempotency, and the strict playback-video durability gate. Inline
-foreground requests remain client-owned because their raw media bytes are never
-stored server-side.
+reconstructs the staged media/audio/video or text-only request from the
+sanitized intent payload, and invokes `/identify-multimodal` with the original
+`client_scan_id`. The multimodal endpoint still owns AI inference, moderation,
+media promotion, scan insert idempotency, and the strict playback-video
+durability gate. Inline foreground requests remain client-owned because their
+raw media bytes are never stored server-side.
+
+Compatibility scan-producing endpoints (`/identify`, `/identify-describe`, and
+`/audio-spec`) also write `scan_ingestion_jobs` plus sanitized
+`scan_ingestion_intents` before returning success. Those intents set
+`endpoint: "identify-multimodal"` inside the replay payload and preserve the
+legacy route name as `compatibilityEndpoint`, so staged legacy image/audio and
+text-only rows recover through the same replay worker. Inline base64 media is
+represented only by redacted counts and is marked non-resumable.
 
 If the scan row already exists and has the required video media plus a video
 entry in `captured_media`, the worker marks the job complete without replaying
@@ -260,7 +269,9 @@ retryable work. The endpoint does not repair media; writers remain
 `identify-multimodal`, `reconcile-scan-media-assets`, and the iOS offline queue.
 The scheduled **Scan Media Health Monitor** workflow calls this endpoint every
 30 minutes, stores JSON/Markdown artifacts, and fails only on `critical` by
-default.
+default. The monitor's Markdown summary adds an **Incident Actions** table for
+each issue code with owner, next step, runbook, and sample-field hints; use that
+as the first operational response before querying individual scan/media rows.
 
 ---
 
@@ -839,19 +850,19 @@ inside Cloudflare R2, and the CDN URL
 `scans.image_storage_urls`. For the `imageBase64s` path, the bytes are uploaded
 directly to the public destination without a staging step. Safe video media is
 moderated through five sampled frames, then the staged upload-bounded playback
-`.mp4` is promoted separately and persisted in `scans.video_storage_urls`. Multimodal
-inserts also write `scans.captured_media`, a canonical ordered media timeline
-that attaches video playback URLs and poster thumbnails together; this prevents
-sampled video inference frames from hydrating as standalone Insight carousel
-images. Ready display/playback scan-media asset rows are refreshed by the
-database trigger plus a best-effort Edge refresh call, so server-side
+`.mp4` is promoted separately and persisted in `scans.video_storage_urls`.
+Multimodal inserts also write `scans.captured_media`, a canonical ordered media
+timeline that attaches video playback URLs and poster thumbnails together; this
+prevents sampled video inference frames from hydrating as standalone Insight
+carousel images. Ready display/playback scan-media asset rows are refreshed by
+the database trigger plus a best-effort Edge refresh call, so server-side
 composer/status reads can prefer lifecycle media rows before falling back to
 compatibility arrays. Any image promotion failure aborts the entire batch and
-immediately rolls
-back any already-promoted public objects from that same batch before returning
-`ERROR`; scans are not inserted with partial image arrays. Video promotion failure
-is also a durability failure for video captures: the edge cleans up promoted
-objects/staging where possible and does not insert a frame-only scan row.
+immediately rolls back any already-promoted public objects from that same batch
+before returning `ERROR`; scans are not inserted with partial image arrays.
+Video promotion failure is also a durability failure for video captures: the
+edge cleans up promoted objects/staging where possible and does not insert a
+frame-only scan row.
 
 **Moderation failure handling**: If Gemini's `finishReason === "SAFETY"` or any
 `safetyRating.probability` is `"MEDIUM"` or `"HIGH"`, the staging object is
@@ -2153,12 +2164,11 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   first, `captured_media` second, and legacy image/video URL arrays last. This
   keeps video playback URLs and poster thumbnails paired even when sampled
   inference frames remain in compatibility image URL arrays. Share-state
-  visibility
-  requires a saved `explore_post_media` row, preventing failed media writes from
-  appearing as existing Explore posts. When a selected video source is missing
-  from the cloud row, the endpoint returns a clean validation error so the iOS
-  client can attempt local `.mp4` repair instead of publishing an image-only
-  historical row.
+  visibility requires a saved `explore_post_media` row, preventing failed media
+  writes from appearing as existing Explore posts. When a selected video source
+  is missing from the cloud row, the endpoint returns a clean validation error
+  so the iOS client can attempt local `.mp4` repair instead of publishing an
+  image-only historical row.
 - When the scan has an active Identify request, sharing to Explore is blocked
   until that request resolves. Publishing a resolved Identify request marks the
   request with `explore_published_at`, materializes any new GBIF-backed resolved
@@ -2939,45 +2949,46 @@ ordered compositions of images, audio, and descriptive context.
 - Video scans send five ordered sampled frames through the image payload path,
   extracted accompanying audio through the audio payload path when available,
   and stage the upload-bounded playback `.mp4` in `videoR2ObjectKeys`. That
-  staged video is normally a compressed 720p export, but clients may fall back to
-  the original recording when it is already within the hard video byte cap. New clients send
-  `visualMediaItems` (or snake-case `visual_media_items`) with one entry per
-  resolved visual input so the prompt can distinguish still photos from ordered
-  `video_frame` samples by `clipIndex` and `frameIndex`; `audioMediaItems` (or
-  `audio_media_items`) identifies standalone audio versus `video_audio` by
-  `clipIndex`. If the visual metadata count does not match the resolved image
-  count, the edge ignores it and falls back to the legacy `videoFrameCount` hint;
-  if the audio metadata count does not match the resolved audio buffer count,
-  the prompt treats the audio as ordinary standalone audio. The playback clip is
-  promoted only after those frames pass moderation and is not used as Gemini
-  inference or reference-media input. If `videoR2ObjectKeys` is non-empty, the
-  scan is only successful when every requested video key is promoted and
-  persisted into `video_storage_urls` and `captured_media`; otherwise the client
-  receives a retryable failure rather than a frame-only video scan. Uploads
-  signed with `clientScanId`/`mediaRole` already have staged
-  `scan_media_assets` rows; this endpoint links those rows to the scan as
-  `promoted`, marks consumed audio rows `deleted`, and marks failed finalization
-  rows `failed`.
+  staged video is normally a compressed 720p export, but clients may fall back
+  to the original recording when it is already within the hard video byte cap.
+  New clients send `visualMediaItems` (or snake-case `visual_media_items`) with
+  one entry per resolved visual input so the prompt can distinguish still photos
+  from ordered `video_frame` samples by `clipIndex` and `frameIndex`;
+  `audioMediaItems` (or `audio_media_items`) identifies standalone audio versus
+  `video_audio` by `clipIndex`. If the visual metadata count does not match the
+  resolved image count, the edge ignores it and falls back to the legacy
+  `videoFrameCount` hint; if the audio metadata count does not match the
+  resolved audio buffer count, the prompt treats the audio as ordinary
+  standalone audio. The playback clip is promoted only after those frames pass
+  moderation and is not used as Gemini inference or reference-media input. If
+  `videoR2ObjectKeys` is non-empty, the scan is only successful when every
+  requested video key is promoted and persisted into `video_storage_urls` and
+  `captured_media`; otherwise the client receives a retryable failure rather
+  than a frame-only video scan. Uploads signed with `clientScanId`/`mediaRole`
+  already have staged `scan_media_assets` rows; this endpoint links those rows
+  to the scan as `promoted`, marks consumed audio rows `deleted`, and marks
+  failed finalization rows `failed`.
 - Before inference work starts, the endpoint claims a `scan_ingestion_jobs` row
   for the authenticated user and `client_scan_id`. The claim records media
-  counts, staged image/audio/video object keys, recovered upload-session ids, and
-  a normalized `manifest_checksum`; subsequent stage updates make
+  counts, staged image/audio/video object keys, recovered upload-session ids,
+  and a normalized `manifest_checksum`; subsequent stage updates make
   `/check-scan-status`, health checks, and reconciliation agree on whether the
   scan is processing, retryable, complete, or terminal.
 - The endpoint also records a `scan_ingestion_intents` row for server recovery.
-  That row stores a sanitized replay payload with telemetry, observation context,
-  media descriptors, staged keys, upload-session ids, and a `payload_checksum`.
-  It never stores raw base64 media bytes or local device paths. Requests that
-  used inline foreground media are marked `resumable = false` with
-  `inline_media_redacted = true`; queued/staged-media requests are resumable.
+  That row stores a sanitized replay payload with telemetry, observation
+  context, media descriptors, staged keys, upload-session ids, and a
+  `payload_checksum`. It never stores raw base64 media bytes or local device
+  paths. Requests that used inline foreground media are marked
+  `resumable = false` with `inline_media_redacted = true`; queued/staged
+  media/audio/video and text-only requests are resumable.
 - The edge writes `captured_media` for new multimodal scan rows. That JSON keeps
   still photos as image items but collapses ordered `video_frame` samples into a
   single video media item with a thumbnail reference, preserving playback-first
-  Insight hydration for biological and non-biological video scans. The
-  ready display/playback `scan_media_assets` rows are refreshed from the same
-  manifest by the database trigger plus a best-effort Edge refresh call, so
-  server-side composer and status checks no longer need to infer video assets
-  directly from sampled frame arrays.
+  Insight hydration for biological and non-biological video scans. The ready
+  display/playback `scan_media_assets` rows are refreshed from the same manifest
+  by the database trigger plus a best-effort Edge refresh call, so server-side
+  composer and status checks no longer need to infer video assets directly from
+  sampled frame arrays.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use
@@ -3062,6 +3073,12 @@ entries into the multimodal prompt server-side. The first structured context
 object is also persisted to `public.scans.user_observation_context` for
 scan-level provenance. The iOS client guards on `ObservationContext.isEmpty`
 before allowing submission.
+
+Legacy `/identify-describe` requests still use a top-level `description` field,
+but that compatibility endpoint records a multimodal-shaped
+`scan_ingestion_intents` row before returning success. Retryable text-only
+compatibility rows therefore recover through `/identify-multimodal` with the
+same `client_scan_id`.
 
 `r2ObjectKeys`, `imageBase64s`, and `audioBase64s` are intentionally absent —
 there is no media in a text-only submission. `scans.image_storage_urls` is
@@ -3307,8 +3324,8 @@ users, including active trial users, are exempt.
 ## Deno `/insight-chat` Edge Node
 
 Private Pro follow-up chat for completed biological Insight sheets. The endpoint
-uses the authenticated Supabase user from `withEdgeHandler`, verifies ownership of
-`scan_id`, and resolves the effective tier through `_shared/tierCache.ts`.
+uses the authenticated Supabase user from `withEdgeHandler`, verifies ownership
+of `scan_id`, and resolves the effective tier through `_shared/tierCache.ts`.
 
 ### Request Payload
 
@@ -3360,25 +3377,25 @@ text:
 ```
 
 `action` accepts `load`, `send`, `delete`, `feedback`, `feature_feedback`,
-`summarize_notes`, or `suggest_prompts`.
-`load` returns the single saved conversation for the scan when one exists.
-`send` creates that conversation when missing, requires `message_text`, and may
-include `client_message_id` for idempotency. `delete` clears the scan's saved
-chat. `feedback` stores private owner-only answer feedback for an assistant
-`message_id` with `feedback_rating` (`helpful`, `not_helpful`, `wrong`,
-`unsafe`, `other`) and optional `feedback_note`. `feature_feedback` stores
-private owner-only feedback on the Field chat sheet itself with optional
-`feature_feedback_sentiment` (`positive` or `negative`) and optional
-`feedback_note`; at least one is required. `summarize_notes` returns a reviewable
-field-notes draft from the current saved chat and scan context; the client must
-append it only after user confirmation and must never replace existing field
-notes. `suggest_prompts` returns three short, non-persisted prompt chip
-suggestions plus allowlisted categories for telemetry; it uses the same owned
-scan context and recent saved chat history, does not consume the daily send
-limit, and is best-effort so load/send chat behavior remains independent if
-prompt generation fails. The server caps v1 at 600 characters per user message,
-30 total messages per conversation, and 20 sends per Pro user per day across all
-of that user's Insight chats. Effective Pro includes active trial users.
+`summarize_notes`, or `suggest_prompts`. `load` returns the single saved
+conversation for the scan when one exists. `send` creates that conversation when
+missing, requires `message_text`, and may include `client_message_id` for
+idempotency. `delete` clears the scan's saved chat. `feedback` stores private
+owner-only answer feedback for an assistant `message_id` with `feedback_rating`
+(`helpful`, `not_helpful`, `wrong`, `unsafe`, `other`) and optional
+`feedback_note`. `feature_feedback` stores private owner-only feedback on the
+Field chat sheet itself with optional `feature_feedback_sentiment` (`positive`
+or `negative`) and optional `feedback_note`; at least one is required.
+`summarize_notes` returns a reviewable field-notes draft from the current saved
+chat and scan context; the client must append it only after user confirmation
+and must never replace existing field notes. `suggest_prompts` returns three
+short, non-persisted prompt chip suggestions plus allowlisted categories for
+telemetry; it uses the same owned scan context and recent saved chat history,
+does not consume the daily send limit, and is best-effort so load/send chat
+behavior remains independent if prompt generation fails. The server caps v1 at
+600 characters per user message, 30 total messages per conversation, and 20
+sends per Pro user per day across all of that user's Insight chats. Effective
+Pro includes active trial users.
 
 ### Prompt and Privacy Boundary
 
@@ -3398,12 +3415,12 @@ requesting, revealing, or reconstructing exact GPS coordinates.
 
 The Gemini request uses `gemini-2.5-flash` with a stable prompt prefix,
 `maxOutputTokens: 700`, no streaming, no Google Search grounding, and thinking
-disabled. Assistant messages store model/token telemetry, including cached tokens
-when Gemini reports implicit cache hits.
+disabled. Assistant messages store model/token telemetry, including cached
+tokens when Gemini reports implicit cache hits.
 
 Prompt suggestions are generated with the same text-only privacy boundary. The
-model must return exactly three short prompt strings with safe categories such as
-`evidence`, `lookalike_compare`, `habitat`, `season`, `hazard`, `invasive`,
+model must return exactly three short prompt strings with safe categories such
+as `evidence`, `lookalike_compare`, `habitat`, `season`, `hazard`, `invasive`,
 `confidence`, `field_notes`, or `generic`. The guardrail prompt forbids edible
 certainty, medical/veterinary treatment, illegal collection, pesticide/poison
 instructions, exact-location requests, and human-subject identification.
@@ -3503,16 +3520,17 @@ For `summarize_notes`:
 ### Safety and Errors
 
 The system prompt states the assistant has no raw image access and answers only
-from stored scan evidence. The Edge Function refuses or redirects edible/foraging
-certainty, medical/veterinary treatment, dangerous handling, illegal collection,
-pesticide/poison instructions, and human-subject identification requests.
+from stored scan evidence. The Edge Function refuses or redirects
+edible/foraging certainty, medical/veterinary treatment, dangerous handling,
+illegal collection, pesticide/poison instructions, and human-subject
+identification requests.
 
-| Status | Body | Meaning |
-| ------ | ---- | ------- |
-| `400` | `{ "code": "unsupported_scan", ... }` | Scan is non-biological or request shape is invalid |
-| `402` | `{ "code": "pro_required", ... }` | Effective tier is not Pro/trial |
-| `404` | `{ "code": "scan_not_ready", ... }` | No owned completed scan row exists yet |
-| `429` | `{ "code": "daily_limit_reached", ... }` | Daily send cap reached |
+| Status | Body                                     | Meaning                                            |
+| ------ | ---------------------------------------- | -------------------------------------------------- |
+| `400`  | `{ "code": "unsupported_scan", ... }`    | Scan is non-biological or request shape is invalid |
+| `402`  | `{ "code": "pro_required", ... }`        | Effective tier is not Pro/trial                    |
+| `404`  | `{ "code": "scan_not_ready", ... }`      | No owned completed scan row exists yet             |
+| `429`  | `{ "code": "daily_limit_reached", ... }` | Daily send cap reached                             |
 
 Telemetry emits `InsightChatSent`, `InsightChatAnswered`, `InsightChatRefused`,
 `InsightChatRateLimited`, `InsightChatModelError`,
@@ -3598,11 +3616,12 @@ and `collection_scans` schemas, handling diffing and missing FK references.
    single-flight latch. `OfflineQueueManager` retains the active
    `collectionSyncTask`, so concurrent callers await the same request instead of
    launching parallel pushes. A monotonic `collectionSyncRevision` is captured
-   when each request starts; the coalesced `OfflineJobRecord(id:
-   "collection-sync")` is marked complete only if no newer collection mutation
-   was enqueued while that request was in flight. This prevents race conditions
-   where a stale `.upsert()` snapshot lands after a newer `.delete()`, causing
-   ghost resurrections.
+   when each request starts; the coalesced
+   `OfflineJobRecord(id:
+   "collection-sync")` is marked complete only if no
+   newer collection mutation was enqueued while that request was in flight. This
+   prevents race conditions where a stale `.upsert()` snapshot lands after a
+   newer `.delete()`, causing ghost resurrections.
 
 > **Parameter naming**: The `syncMembershipDelta` function parameter names were
 > updated from `validCollections`/`activeIds` to `ownedCollections`/`ownedIds`
@@ -3655,12 +3674,12 @@ or video entries in `captured_media`.
 `status` remains the compatibility field and is still only `"found"` or
 `"not_found"`. When the scan row is not complete yet, newer clients and ops
 tools can inspect the optional job fields backed by `scan_ingestion_jobs`:
-`job_status` may be `processing`, `finalizing`, `retrying`,
-`failed_retryable`, `failed`, or `complete`; `job_stage` names the precise
-server step; `retry_after` and `last_error` are only populated for failed jobs.
-iOS decodes the full response via `ScanStatusResponse`: queued scans use these
-fields to keep server-owned `.inferencing` rows from being resubmitted while
-media promotion or scan insertion is still finalizing.
+`job_status` may be `processing`, `finalizing`, `retrying`, `failed_retryable`,
+`failed`, or `complete`; `job_stage` names the precise server step;
+`retry_after` and `last_error` are only populated for failed jobs. iOS decodes
+the full response via `ScanStatusResponse`: queued scans use these fields to
+keep server-owned `.inferencing` rows from being resubmitted while media
+promotion or scan insertion is still finalizing.
 
 ### Authentication & IDOR
 
@@ -4147,8 +4166,8 @@ scope.
 The endpoint does not refresh coverage, claim jobs, cache GBIF taxa, materialize
 Dictionary rows, or attach scan media. It only reports the current database
 state available to the service role. Import operators and deploy smoke checks
-should use `view = "coverage"` unless they explicitly need source/rank counts
-or enrichment queue health.
+should use `view = "coverage"` unless they explicitly need source/rank counts or
+enrichment queue health.
 
 ---
 
@@ -4410,8 +4429,8 @@ No JSON body is required. The cron trigger issues an empty POST request.
    triggers.
 3. Aggregates all R2 `image_storage_urls` and `video_storage_urls` across the
    500 scans and passes them to `deleteScanMediaR2Objects([])`, which filters to
-   `public_uploads/free|pro/` before using the bounded R2 delete helper.
-   Durable `avatars/` profile images are skipped.
+   `public_uploads/free|pro/` before using the bounded R2 delete helper. Durable
+   `avatars/` profile images are skipped.
 4. Executes the discrete `.delete().in("id", [...])` cascade against PostgreSQL
    only after successfully purging the R2 remote hashes, preventing orphan
    binaries.

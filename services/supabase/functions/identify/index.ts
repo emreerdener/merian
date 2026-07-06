@@ -58,6 +58,7 @@ import {
   MEDIA_BUDGETS,
   readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
+import { createCompatibilityScanIngestionLedger } from "../_shared/scanIngestionCompatibility.ts";
 import {
   canonicalizeDomesticPetScientificName,
   sanitizePetIdentification,
@@ -689,6 +690,38 @@ Deno.serve((req: Request) =>
       }
     }
 
+    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
+      {
+        scanId: generatedScanId,
+        userId: user.id,
+        endpoint: "identify",
+        imageKeys: r2ObjectKeys ?? [],
+        inlineImageCount: imageBase64s?.length ?? 0,
+        description,
+        mimeType,
+        telemetry: {
+          timestamp,
+          gpsLatitude: safeGpsLat,
+          gpsLongitude: safeGpsLon,
+          gpsElevation,
+          semanticLocation,
+          publicLocationLabel: publicExploreLocationLabel,
+          weatherCondition,
+          weatherTemperatureF,
+          deviceLocale,
+          deviceTimeZone,
+          deviceRegion,
+          currentMonth: normalizedCurrentMonth,
+          timeOfDay,
+          depthScaleText,
+          zoomFactor,
+          estimatedSizeCm: estimated_size_cm,
+        },
+        logStructuredError,
+      },
+      supabaseAdmin,
+    );
+
     const runBackgroundIngestion = async () => {
       // modResult is hoisted outside the try so the catch can reference publicUrls
       // for R2 rollback if insertScan fails after media has already been committed.
@@ -718,6 +751,10 @@ Deno.serve((req: Request) =>
           console.error(
             "Moderation pipeline returned ERROR. Halting background data ingestion.",
           );
+          await compatibilityLedger.markRetryableFailure(
+            "moderation_error",
+            "Moderation pipeline returned ERROR.",
+          );
           return;
         }
         if (
@@ -726,6 +763,10 @@ Deno.serve((req: Request) =>
         ) {
           console.error(
             "Media flagged by safety moderation. Halting background data ingestion.",
+          );
+          await compatibilityLedger.markTerminalFailure(
+            "moderation_rejected",
+            "Media rejected by moderation.",
           );
           return;
         }
@@ -909,6 +950,7 @@ Deno.serve((req: Request) =>
           supabaseAdmin,
         );
         scanInserted = true;
+        await compatibilityLedger.markComplete();
 
         // Capture the candidate enrichment promise before the final bgWriteTasks await so
         // EdgeRuntime.waitUntil cannot terminate the isolate while external DNS resolution
@@ -1067,22 +1109,19 @@ Deno.serve((req: Request) =>
           scan_id: generatedScanId,
           error: errorMsg,
         });
+        if (!scanInserted) {
+          await compatibilityLedger.markRetryableFailure(
+            "background_ingestion_failed",
+            errorMsg,
+          );
+        }
 
-        // Write to dead-letter table so failed ingestions are durable and retryable.
-        // The iOS client already received a 200 and holds the scan in local SwiftData,
-        // but without this record the server-side row is permanently missing (multi-device
-        // sync gap, absent from DwC-A exports). Ops can query failed_scan_ingestions to
-        // identify and manually trigger recovery for affected users.
+        // Keep the legacy dead-letter row as detailed insert-failure evidence.
+        // The compatibility scan_ingestion_jobs / scan_ingestion_intents rows above
+        // are now the primary recovery surface; this table remains useful for ops
+        // history and older tooling.
         // Best-effort: if this insert also fails (e.g. DB is down), the structured log
         // above is still the recovery signal.
-        //
-        // TODO(transactional-outbox): Replace this reactive dead-letter pattern with a
-        // proactive transactional outbox. Before returning 200 to the iOS client, write a
-        // "pending" outbox record. The background task marks it "done" on success; a
-        // separate worker retries "pending" records older than N minutes automatically.
-        // This eliminates the window where the iOS client has the scan locally but the
-        // server row is permanently missing (current gap: failure between 200 response and
-        // DB insert). Tracked: search codebase for "transactional-outbox".
         try {
           const { error: dlErr } = await supabaseAdmin
             .from("failed_scan_ingestions")

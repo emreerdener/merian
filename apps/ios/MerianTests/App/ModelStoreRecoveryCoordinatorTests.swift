@@ -36,6 +36,49 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         XCTAssertFalse(ModelStoreRecoveryCoordinator.shouldAttemptRecovery(for: migrationError))
     }
 
+    func testMigrationFailureUsesUpgradeSafeModeDiagnostics() {
+        let migrationError = NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSPersistentStoreIncompatibleVersionHashError,
+            userInfo: [NSLocalizedDescriptionKey: "Persistent store is incompatible with the current model version."]
+        )
+
+        let fallback = ModelStoreRecoveryCoordinator.safeModeFallback(for: migrationError)
+
+        XCTAssertTrue(fallback.message.contains("could not finish upgrading"))
+        XCTAssertEqual(fallback.telemetryReason, "persistent_store_migration_failed")
+    }
+
+    func testNestedMigrationFailureUsesUpgradeSafeModeDiagnostics() {
+        let underlying = NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSPersistentStoreIncompatibleVersionHashError,
+            userInfo: [NSLocalizedFailureReasonErrorKey: "Cannot migrate store to the current model version."]
+        )
+        let wrapped = NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSFileReadUnknownError,
+            userInfo: [NSUnderlyingErrorKey: underlying]
+        )
+
+        let fallback = ModelStoreRecoveryCoordinator.safeModeFallback(for: wrapped)
+
+        XCTAssertEqual(fallback.telemetryReason, "persistent_store_migration_failed")
+    }
+
+    func testGenericFailureUsesPersistentUnavailableSafeModeDiagnostics() {
+        let genericError = NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSFileReadNoPermissionError,
+            userInfo: [NSLocalizedDescriptionKey: "The file could not be opened because permission was denied."]
+        )
+
+        let fallback = ModelStoreRecoveryCoordinator.safeModeFallback(for: genericError)
+
+        XCTAssertTrue(fallback.message.contains("persistent store failed to open"))
+        XCTAssertEqual(fallback.telemetryReason, "persistent_store_unavailable")
+    }
+
     func testAcceptsSQLiteCorruptionFailures() {
         let corruptionError = sqliteCorruptionError()
 

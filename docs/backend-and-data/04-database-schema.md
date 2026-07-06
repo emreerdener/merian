@@ -634,9 +634,9 @@ The transaction log for every successful identification.
   orchestrator from Gemini's `image_quality.sharpness` score to reduce
   generation latency.
 - `zoom_factor` (Float, nullable): Non-default camera zoom factor at capture.
-  Added in migration `20260628100000_add_zoom_factor_to_scans.sql` so server-side
-  follow-up surfaces can use the same capture-quality context shown locally.
-  `NULL` for 1x captures, unsupported modalities, and older scans.
+  Added in migration `20260628100000_add_zoom_factor_to_scans.sql` so
+  server-side follow-up surfaces can use the same capture-quality context shown
+  locally. `NULL` for 1x captures, unsupported modalities, and older scans.
 - `gps_lat_exact` / `gps_long_exact` (Float): **CHECK constraints**
   (`20260405000005`): `gps_lat_exact` bounded `[-90, 90]`, `gps_long_exact`
   bounded `[-180, 180]`. Added `NOT VALID` — future inserts/updates validated;
@@ -718,8 +718,8 @@ The transaction log for every successful identification.
   counts from `usageMetadata` per scan.
 - `current_month` (Int)
 - `image_storage_urls` (Text Array): Public Cloudflare image links generated
-  after moderation. For video scans, this remains a compatibility/storage surface
-  for moderated sampled frames; the app-facing media timeline comes from
+  after moderation. For video scans, this remains a compatibility/storage
+  surface for moderated sampled frames; the app-facing media timeline comes from
   `captured_media`.
 - `video_storage_urls` (Text Array): Public Cloudflare video links for promoted
   upload-bounded playback `.mp4` scan clips. These are normally compressed 720p
@@ -834,27 +834,29 @@ added in `20260629100000_add_insight_chat_feature_feedback.sql`.
   saved Field chat per scan.
 - `user_id` (UUID FK -> `users.id`, cascade delete): Owner. RLS allows users to
   read, insert, update, and delete only rows where `auth.uid() = user_id`.
-- `created_at`, `updated_at`: Conversation timestamps; `updated_at` is maintained
-  by the shared timestamp trigger.
+- `created_at`, `updated_at`: Conversation timestamps; `updated_at` is
+  maintained by the shared timestamp trigger.
 - `insight_chat_messages.id` (UUID): Primary key.
-- `conversation_id` (UUID FK -> `insight_chat_conversations.id`, cascade delete):
-  Parent conversation. Deleting a scan deletes its conversation and messages.
-- `scan_id`, `user_id`: Denormalized owner bounds for indexes, RLS, analytics, and
-  daily send limits.
+- `conversation_id` (UUID FK -> `insight_chat_conversations.id`, cascade
+  delete): Parent conversation. Deleting a scan deletes its conversation and
+  messages.
+- `scan_id`, `user_id`: Denormalized owner bounds for indexes, RLS, analytics,
+  and daily send limits.
 - `role`: CHECK-constrained to `user` or `assistant`.
 - `message_text`: Plain text message content. User messages are capped by the
   Edge Function at 600 characters.
 - `client_message_id`: Optional client-generated UUID for idempotent user sends;
   unique per conversation when present.
 - `model`, `llm_prompt_tokens`, `llm_candidate_tokens`, `llm_thinking_tokens`,
-  `llm_total_tokens`, `llm_cached_tokens`: Gemini telemetry for assistant replies.
+  `llm_total_tokens`, `llm_cached_tokens`: Gemini telemetry for assistant
+  replies.
 - `is_refusal`, `refusal_reason`, `safety_metadata`: Safety/refusal audit fields
   for local guardrail refusals and model-declared refusals.
 - `insight_chat_message_feedback.id` (UUID): Primary key for private answer
   feedback.
-- `message_id`, `conversation_id`, `scan_id`, `user_id`: Owner and cascade-delete
-  bounds. Feedback is unique per `(message_id, user_id)` and deletes with the
-  assistant message, conversation, scan, or user.
+- `message_id`, `conversation_id`, `scan_id`, `user_id`: Owner and
+  cascade-delete bounds. Feedback is unique per `(message_id, user_id)` and
+  deletes with the assistant message, conversation, scan, or user.
 - `rating`: CHECK-constrained to `helpful`, `not_helpful`, `wrong`, `unsafe`, or
   `other`.
 - `note`: Optional short private feedback note, capped at 1000 characters.
@@ -930,20 +932,23 @@ Dead-letter table for background scan ingestion failures. Added in migration
 - `error_message` (TEXT, nullable): The error thrown by `insertScan()`.
 - `failed_at` (TIMESTAMPTZ, DEFAULT NOW()): When the ingestion failed.
 
-**Context**: When `identify/index.ts` fires `runBackgroundIngestion()` and
-`insertScan()` fails (FK violation, DB timeout, network partition), the iOS
-client has already received a `200` with the AI result. Without this table the
-failure is only visible in edge function logs — the scan is permanently missing
-from the server DB, breaking multi-device sync and DwC-A exports for that user.
-Insight-originated Explore sharing and Ask the Community now repair the
+**Context**: Older background ingestion originally wrote this row only after
+`insertScan()` failed (FK violation, DB timeout, network partition) even though
+the iOS client had already received a `200` with the AI result. Current
+scan-producing paths should first write `scan_ingestion_jobs` plus sanitized
+`scan_ingestion_intents`; `/identify-multimodal` does this natively and the
+compatibility endpoints (`/identify`, `/identify-describe`, `/audio-spec`) use
+the shared compatibility ledger. `failed_scan_ingestions` remains as legacy ops
+evidence and detailed insert-failure history, not the primary recovery surface.
+Insight-originated Explore sharing and Ask the Community can still repair the
 user-facing path by recreating a minimal owned `public.scans` row from the local
-record before retrying media restore, but ops replay is still the authoritative
-way to backfill every ingestion-derived column.
+record before retrying media restore.
 
 **Ops workflow**: Query by `user_id` and `failed_at` to identify affected users.
-For current staged multimodal rows, prefer `scan_ingestion_jobs` plus
-`scan_ingestion_intents` and let `replay-scan-ingestion` re-invoke
-`identify-multimodal` with the same `client_scan_id`. The
+Prefer `scan_ingestion_jobs` plus `scan_ingestion_intents` for current rows and
+let `replay-scan-ingestion` re-invoke `identify-multimodal` with the same
+`client_scan_id` when the intent is resumable. Inline-media compatibility rows
+are intentionally non-resumable because raw media bytes are redacted. The
 `ignoreDuplicates: true` guard in `insertScan` makes replay safe. Row Level
 Security is enabled; the table is never read by the client SDK — only the edge
 function (service role) writes to it and ops queries it via the Supabase
@@ -964,8 +969,8 @@ in migration `20260705120000_add_scan_ingestion_jobs.sql`.
 - `user_id` (UUID): The submitting auth user. This intentionally does not FK to
   `public.users`, because ghost-user upsert happens later in ingestion.
 - `endpoint` (TEXT): Current writer, usually `identify-multimodal`.
-- `status` (TEXT): `processing`, `finalizing`, `retrying`,
-  `failed_retryable`, `failed_terminal`, or `complete`.
+- `status` (TEXT): `processing`, `finalizing`, `retrying`, `failed_retryable`,
+  `failed_terminal`, or `complete`.
 - `stage` (TEXT): Fine-grained state such as `ai_inference_started`,
   `video_promotion_started`, `scan_insert_started`, or `scan_inserted`.
 - `attempt_count` (INT): Incremented by `public.claim_scan_ingestion_job(...)`
@@ -1005,8 +1010,7 @@ marked `failed_terminal` with a reconciliation stage for operator review.
 ### `scan_ingestion_intents`
 
 Service-role-only sanitized request snapshots for accepted scan ingestion
-attempts. Added in migration
-`20260705140000_add_scan_ingestion_intents.sql`.
+attempts. Added in migration `20260705140000_add_scan_ingestion_intents.sql`.
 
 - `scan_id` / `user_id` (TEXT / UUID): Same ownership key as
   `scan_ingestion_jobs`.
@@ -1027,7 +1031,7 @@ attempts. Added in migration
   omitted.
 - `last_replayed_at`, `replay_attempt_count`, `last_replay_error`: Control
   fields maintained by `replay-scan-ingestion` when it claims and dispatches a
-  resumable staged-media retry.
+  resumable staged media/audio/video or text-only retry.
 
 The table has RLS enabled with no client read policy; only service-role Edge
 code and operators should read the sanitized intent. The
@@ -1143,16 +1147,16 @@ Normalized scan media lifecycle assets. Added in migration
 - `upload_session_id` (UUID, nullable): Server-generated upload session UUID
   shared by media assets signed for one scan in a `/generate-upload-urls`
   request.
-- `user_id` (UUID FK -> `users.id`, CASCADE DELETE): Denormalized owner for
-  RLS and efficient owner-scoped media reads.
+- `user_id` (UUID FK -> `users.id`, CASCADE DELETE): Denormalized owner for RLS
+  and efficient owner-scoped media reads.
 - `kind` (TEXT): `image`, `video`, or `audio`. Audio rows are lifecycle
   diagnostics for inference input, not user-visible media.
 - `role` (TEXT): Lifecycle role. Current user-visible rows use `display` for
   still images and `playback` for playable video clips; reserved roles include
   `thumbnail` and `inference_frame`.
-- `status` (TEXT): Lifecycle state: `staged`, `promoted`, `processing`,
-  `ready`, `failed`, or `deleted`. Explore/composer/status readers only surface
-  `ready` rows whose role is `display` or `playback`.
+- `status` (TEXT): Lifecycle state: `staged`, `promoted`, `processing`, `ready`,
+  `failed`, or `deleted`. Explore/composer/status readers only surface `ready`
+  rows whose role is `display` or `playback`.
 - `source` (TEXT): Writer that created the row, such as `scan_refresh`,
   `capture_upload`, `repair`, `backfill`, or `manual`.
 - `url` (TEXT, nullable): Current public CDN URL. Required for ready
@@ -1167,8 +1171,8 @@ Normalized scan media lifecycle assets. Added in migration
 - `duration_seconds` (DOUBLE PRECISION, nullable): Reserved for video playback
   metadata.
 - `has_audio` (BOOLEAN): Whether the playback video may contain an audio track.
-- `content_type`, `byte_size`, `checksum_sha256`, `width`, `height`
-  (nullable): Optional durability, integrity, and presentation metadata.
+- `content_type`, `byte_size`, `checksum_sha256`, `width`, `height` (nullable):
+  Optional durability, integrity, and presentation metadata.
 - `failure_reason`, `ready_at`, `deleted_at` (nullable): Lifecycle diagnostics
   for failed, ready, and deleted assets.
 - `metadata` (JSONB): Reserved structured metadata for codecs, processing
@@ -1176,9 +1180,9 @@ Normalized scan media lifecycle assets. Added in migration
 - `created_at` / `updated_at` (TIMESTAMPTZ): Asset lifecycle timestamps.
 
 `public.refresh_scan_media_assets(scan_id)` rebuilds generated
-`scan_refresh`/`backfill` rows from `scans.captured_media` first. If the manifest
-is absent, it falls back to `image_storage_urls` / `video_storage_urls` and
-collapses legacy sampled video frames behind a single ready playback video
+`scan_refresh`/`backfill` rows from `scans.captured_media` first. If the
+manifest is absent, it falls back to `image_storage_urls` / `video_storage_urls`
+and collapses legacy sampled video frames behind a single ready playback video
 asset. A trigger keeps generated rows synchronized after scan media inserts,
 updates, and deletes; Edge write paths also make best-effort refresh RPC calls
 after critical scan inserts and video-repair updates, but existing
@@ -1211,9 +1215,9 @@ in migration `20260705110000_schedule_scan_media_asset_reconciliation.sql`.
 - `started_at` / `finished_at` (TIMESTAMPTZ): Worker execution window.
 - `status` (TEXT): `success`, `partial_failure`, `failed`, or `dry_run`.
 - `scanned_count`, `promoted_count`, `repaired_video_scan_count`,
-  `deleted_staging_object_count`, `failed_asset_count`,
-  `missing_object_count`, `still_pending_count`, `error_count` (INT): Bounded
-  operational counters for media lifecycle drift.
+  `deleted_staging_object_count`, `failed_asset_count`, `missing_object_count`,
+  `still_pending_count`, `error_count` (INT): Bounded operational counters for
+  media lifecycle drift.
 - `errors` (JSONB): Truncated structured error list for rows that could not be
   reconciled in that run.
 
@@ -1777,9 +1781,9 @@ The current active schema is `MerianSchemaV48`. Recent milestones:
   `invasiveRationale`, `invasiveConfidence`) to completed local scans, matching
   the cloud `scans` columns introduced by migration
   `20260703120000_add_invasive_context_to_scans.sql`.
-- V47 added `OfflineQueuedScan.inferenceImagePaths` and
-  `visualMediaItemsJSON` so queued video replay can keep sampled inference frames
-  separate from the user-visible playback video timeline.
+- V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
+  so queued video replay can keep sampled inference frames separate from the
+  user-visible playback video timeline.
 - V48 added persisted queue retry metadata on `OfflineQueuedScan`, plus
   `OfflineJobRecord` and bounded `OfflineQueueEvent` models for scan ingestion,
   cloud deletion, collection sync, diagnostics, and future offline work.
@@ -1937,30 +1941,39 @@ mirror for migration safety and compatibility.
   keys were reconstructed hours later from an expired session. `nil` for scans
   migrated from V32; `replayInferenceForUploadedScans` falls back to
   reconstructing keys from the current session for those records.)
-- `inferenceImagePaths`: [String]? (Added in `MerianSchemaV47`. Documents-relative
-  image filenames used only for inference replay. Video captures store sampled
-  frames here while `capturedMediaJSON` keeps the user-facing media timeline as
-  one video item with a thumbnail.)
+- `inferenceImagePaths`: [String]? (Added in `MerianSchemaV47`.
+  Documents-relative image filenames used only for inference replay. Video
+  captures store sampled frames here while `capturedMediaJSON` keeps the
+  user-facing media timeline as one video item with a thumbnail.)
 - `visualMediaItemsJSON`: String? (Added in `MerianSchemaV47`. Encoded
   `[IdentifyVisualMediaItem]` aligned one-to-one with `inferenceImagePaths`, so
   replay can tell `/identify-multimodal` which inference images are still photos
   versus ordered video frames.)
-- `queueAttemptCount`: Int (Added in `MerianSchemaV48`. Persisted retry count for
-  the queued scan. Replaces the older process-local `uploadRetryCount` authority.)
+- `queueAttemptCount`: Int (Added in `MerianSchemaV48`. Persisted retry count
+  for the queued scan. Replaces the older process-local `uploadRetryCount`
+  authority.)
 - `queueLastAttemptAt`, `queueNextRetryAt`: Date? (Added in V48. Used by
   `OfflineQueueRetryPolicy` and the scheduler to survive app relaunch without
   losing backoff state.)
 - `queueLastErrorCode`, `queueLastErrorMessage`: String? (Added in V48.
   User/support-facing last local retry or terminal error.)
-- `queueLastHTTPStatus`: Int? (Added in V48. Last HTTP response status associated
-  with upload or inference retry handling.)
-- `queueLastServerStatus`, `queueLastServerStage`: String? (Added in V48. Mirrors
-  `/check-scan-status` ingestion job state for server-owned work.)
-- `queueLastServerRetryAfter`: Date? (Added in V48. Parsed server retry window for
-  retryable ingestion jobs.)
+- `queueLastHTTPStatus`: Int? (Added in V48. Last HTTP response status
+  associated with upload or inference retry handling.)
+- `queueLastServerStatus`, `queueLastServerStage`: String? (Added in V48.
+  Mirrors `/check-scan-status` ingestion job state for server-owned work.)
+- `queueLastServerRetryAfter`: Date? (Added in V48. Parsed server retry window
+  for retryable ingestion jobs.)
 - `queueUpdatedAt`: Date (Added in V48. Last durable queue metadata mutation.)
 - `queueNeedsAttention`: Bool (Added in V48. Terminal user-actionable local
   problems stay visible instead of being purged as disposable tombstones.)
+
+The V47→V48 migration is custom. It initializes the new retry/status fields for
+every existing queued scan and creates a `scan-ingestion:{scanId}`
+`OfflineJobRecord` so stores that already contain queued image, video, audio, or
+description scans reopen persistently instead of falling back to safe mode after
+the schema update. Preserve the display timeline (`capturedMediaJSON` /
+`capturedMediaEntries`) and inference-only video frame fields during this
+backfill.
 
 ### `OfflineJobRecord`
 
@@ -1988,9 +2001,9 @@ values are `pending`, `running`, `waiting`, `needsAttention`, `complete`, and
 
 ### `OfflineQueueEvent`
 
-Added in `MerianSchemaV48`. Bounded local diagnostics rows for support export and
-developer debugging. Events are metadata-only; raw media bytes and private media
-paths must never be stored here.
+Added in `MerianSchemaV48`. Bounded local diagnostics rows for support export
+and developer debugging. Events are metadata-only; raw media bytes and private
+media paths must never be stored here.
 
 - `id`: String
 - `jobId`: String?
@@ -2055,10 +2068,10 @@ Tracks locally synchronized species scans for the Scans library.
 - `isBiological`: Bool (from Edge)
 - `isLiveCapture`: Bool (from Edge)
 - `isInvasive`: Bool (from Edge)
-- `invasiveStatusRegion`: String? (from Edge; region label used by the
-  original AI invasive-status assessment)
-- `invasiveRationale`: String? (from Edge; concise explanation for the
-  original AI invasive-status assessment)
+- `invasiveStatusRegion`: String? (from Edge; region label used by the original
+  AI invasive-status assessment)
+- `invasiveRationale`: String? (from Edge; concise explanation for the original
+  AI invasive-status assessment)
 - `invasiveConfidence`: Double? (from Edge; 0.0–1.0 confidence for the
   invasive-status assessment, separate from identification confidence)
 - `ecologyType`: String (from Edge)

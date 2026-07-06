@@ -4,16 +4,19 @@ Service-role-only dispatcher for server-side scan ingestion replay.
 
 ## Purpose
 
-`identify-multimodal` records two durable rows for accepted scan requests:
+`identify-multimodal` records two durable rows for accepted scan requests. The
+legacy scan-producing endpoints (`identify`, `identify-describe`, and
+`audio-spec`) record compatible rows before returning success:
 
 - `scan_ingestion_jobs`: mutable state, stage, leases, retry timing, and media
   manifest checksums.
-- `scan_ingestion_intents`: sanitized replay payloads for staged-media requests.
+- `scan_ingestion_intents`: sanitized replay payloads for staged
+  media/audio/video requests and text-only compatibility requests.
 
 This worker turns those rows into real recovery. It claims retryable or
 lease-expired jobs whose paired intent is `resumable = true`, reconstructs the
-staged-media request, and invokes `/identify-multimodal` with the same
-`client_scan_id`.
+staged media/audio/video or text-only request, and invokes
+`/identify-multimodal` with the same `client_scan_id`.
 
 Inline foreground media is never replayed by the server because raw base64 media
 bytes are intentionally redacted from `scan_ingestion_intents`.
@@ -45,8 +48,8 @@ moderation, promotion, insert idempotency, and video durability gates.
 
 ## Rules
 
-- Only staged-media or description-only intents marked `resumable = true` are
-  eligible.
+- Only staged media/audio/video or description-only intents marked
+  `resumable = true` are eligible.
 - Completed and terminal jobs are never replayed.
 - A cloud scan row that already has all required video media is marked complete
   without replaying AI.

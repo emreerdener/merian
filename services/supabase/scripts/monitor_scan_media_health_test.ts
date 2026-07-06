@@ -7,6 +7,7 @@ import {
 import {
   assertSuccessfulHealthResponse,
   buildMonitorSummary,
+  issueActionFor,
   parseMonitorArgs,
   renderMonitorMarkdown,
   type ScanMediaHealthResponse,
@@ -130,7 +131,48 @@ Deno.test("renderMonitorMarkdown includes counts, breakdowns, and samples", () =
     markdown,
     "`video_scan_missing_ready_playback_asset`",
   );
+  assertStringIncludes(markdown, "## Incident Actions");
+  assertStringIncludes(markdown, "scan media assets");
+  assertStringIncludes(
+    markdown,
+    "Refresh ready scan_media_assets from captured_media",
+  );
+  assertStringIncludes(markdown, "Sample hint:");
   assertStringIncludes(markdown, '"scan_id": "scan-1"');
+});
+
+Deno.test("issueActionFor maps known and future issue codes to operator guidance", () => {
+  assertEquals(
+    issueActionFor({
+      code: "frame_only_video_smells",
+      severity: "critical",
+      message: "Likely video scan without video.",
+      count: 1,
+      sample: [],
+    }),
+    {
+      code: "frame_only_video_smells",
+      severity: "critical",
+      owner: "video durability",
+      next_step:
+        "Repair only if the original local/staged mp4 exists; otherwise treat as image-only historical data.",
+      runbook:
+        "docs/backend-and-data/05-api-contracts.md#share-scan-to-explore-and-unshare-explore-post",
+      sample_hint:
+        "Use scan_id and image count to identify likely sampled video frames without playback media.",
+    },
+  );
+
+  assertEquals(
+    issueActionFor({
+      code: "future_media_issue",
+      severity: "warning",
+      message: "A future issue.",
+      count: 1,
+      sample: [],
+    }).owner,
+    "scan media on-call",
+  );
 });
 
 function healthResponse(

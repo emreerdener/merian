@@ -80,8 +80,11 @@ review if unexpected.
 `.github/workflows/scan-media-health-monitor.yml` calls this endpoint every 30
 minutes with `fail_on = critical`. The workflow writes JSON and Markdown
 artifacts for each run and appends the Markdown summary to the GitHub job
-summary. Manual dispatch can use `fail_on = warning` for stricter validation or
-`fail_on = never` when collecting a non-gating diagnostic snapshot.
+summary. The summary includes an **Incident Actions** table with an owner,
+next-step, runbook, and sample-field hint for each issue code, so a critical run
+is immediately actionable without opening the endpoint source. Manual dispatch
+can use `fail_on = warning` for stricter validation or `fail_on = never` when
+collecting a non-gating diagnostic snapshot.
 
 ## Validation
 
@@ -92,4 +95,6 @@ deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/scan-media-health/index.ts
 deno test --config services/supabase/functions/deno.json \
   services/supabase/scripts/monitor_scan_media_health_test.ts
+deno test --config services/supabase/functions/deno.json \
+  services/supabase/functions/_tests/scanMediaIngestionContract.test.ts
 ```

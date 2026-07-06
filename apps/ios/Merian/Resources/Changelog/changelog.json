@@ -1,29 +1,37 @@
 {
   "schemaVersion": 1,
-    "entries": [
+  "entries": [
+    {
+      "id": "2026-07-05-offline-queue-durability",
+      "date": "2026-07-05",
+      "title": "Offline queue reliability",
+      "sections": [
         {
-            "id": "2026-07-05-offline-queue-durability",
-            "date": "2026-07-05",
-            "title": "Offline queue reliability",
-            "sections": [
-                {
-                    "title": "Improved",
-                    "items": [
-                        "Queued image, video, audio, and description scans now keep retry state across app restarts, show clearer retry or needs-attention status, and preserve user media during transient failures.",
-                        "Support diagnostics can now export redacted offline queue metadata and recent queue events without including private media."
-                    ]
-                }
-            ]
-        },
-        {
-            "id": "2026-07-05-startup-schema-migration",
+          "title": "Improved",
+          "items": [
+            "Queued image, video, audio, and description scans now keep retry state across app restarts, show clearer retry or needs-attention status, and preserve user media during transient failures.",
+            "Support diagnostics can now export redacted offline queue metadata and recent queue events without including private media."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-05-startup-schema-migration",
       "date": "2026-07-05",
       "title": "Startup library migration",
       "sections": [
         {
           "title": "Fixed",
           "items": [
-            "Recent TestFlight upgrades now reopen existing local scan libraries normally instead of launching in safe mode after a schema update."
+            "Recent TestFlight upgrades now reopen existing local scan libraries normally instead of launching in safe mode after a schema update.",
+            "Offline-queue schema upgrades now initialize durable retry state for existing queued scans instead of repeatedly reopening in safe mode.",
+            "Startup safe mode now reports local library upgrade failures more clearly while keeping the existing store in place."
+          ]
+        },
+        {
+          "title": "Improved",
+          "items": [
+            "Upgrade safety checks now cover queued image, video, audio, description, and mixed-media scans together before release."
           ]
         }
       ]
@@ -49,6 +57,9 @@
             "Server recovery now verifies the exact media manifest for a scan before completing repair or abandoning staged uploads.",
             "Server recovery now keeps a sanitized replay intent for staged scan uploads without storing raw media bytes.",
             "Server recovery can now retry resumable staged scan uploads automatically when the app exits or a transient backend failure interrupts finalization.",
+            "Server recovery now tracks image, description, and audio compatibility scan submissions in the same ingestion ledger before reporting success.",
+            "Scan media reliability checks now cover image, video, audio, description, replay, repair, and Explore sharing contracts together before backend deploys.",
+            "Scan media health reports now include clearer incident guidance when production recovery needs attention.",
             "Queued video scans now wait for server finalization instead of retrying too early when the app resumes mid-save."
           ]
         }

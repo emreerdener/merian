@@ -18,10 +18,11 @@ jobs:
       - name: Validate generated project guardrails
         run: make validate-ios-project
 
-      - name: Run startup store-recovery tests
+      - name: Run startup and migration safety tests
         run: |
           xcodebuild test \
             -scheme Merian \
-            -project merian.xcodeproj \
+            -project Merian.xcodeproj \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
-            -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests
+            -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
+            -only-testing:merianTests/MigrationPlanTests

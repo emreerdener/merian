@@ -1,9 +1,13 @@
 # Identify Edge Function
 
-The `identify` Edge Function is the absolute nexus of the Merian AI
-identification pipeline. Because speed is our highest UX priority (optimizing
-for Time-To-First-Meaning), this directory is aggressively modularized to keep
-the core orchestrator (`index.ts`) as fast, readable, and atomic as possible.
+The `identify` Edge Function is the still-image compatibility endpoint for
+legacy visual scan requests. The primary shipped inference path is
+`identify-multimodal`, but this route remains deployed for older image clients,
+shared still-image primitives, and route-parity tests.
+
+Because speed is still the UX priority for this compatibility path, the
+directory stays modularized to keep the orchestrator (`index.ts`) readable and
+atomic.
 
 ## Directory Structure
 
@@ -13,13 +17,14 @@ to modify the pipeline, modify the exact module below rather than cluttering
 
 - **`index.ts`** The main orchestrator. It handles the critical path: routing
   payloads, calling the Vision Model, checking the cache, returning the payload,
-  and spinning up the heavy Database Background Task.
+  claiming the compatibility ingestion ledger, and spinning up the heavy
+  Database Background Task.
 - **`schema.ts`** The semantic brain. Contains the massive `systemInstruction`
   prompt sent to Gemini Vision, as well as the strongly-typed
   `merianResponseSchema` defining what the AI is allowed to return. **Modify
   this file when you want to change how the Vision AI specifically behaves or
-  interprets subjects.** Dog/cat breed, mix, coat-pattern, and body-type
-  display hints belong here as `pet_identification`, not as replacement species
+  interprets subjects.** Dog/cat breed, mix, coat-pattern, and body-type display
+  hints belong here as `pet_identification`, not as replacement species
   taxonomy.
 - **`types.ts`** The structural contracts. Contains `MerianIdentification` and
   `ClientPayload` to ensure Swift client expectations remain strictly
@@ -59,6 +64,25 @@ else silently _after_ the user receives their fast ID.
   telemetry inserts, species table caching, and R2 moderation purges into the
   Background Engine.
 
+## Ingestion Durability
+
+Before returning success, this compatibility endpoint records a
+`scan_ingestion_jobs` row plus a sanitized `scan_ingestion_intents` row through
+`_shared/scanIngestionCompatibility.ts`.
+
+- Staged image keys and optional description text are shaped as
+  `identify-multimodal` replay payloads so `replay-scan-ingestion` can recover
+  retryable failures with the same `client_scan_id`.
+- Inline image bytes are never stored in the intent. They are counted in
+  `redacted_media_counts`, marked `inline_media_redacted = true`, and remain
+  client-retry only.
+- Successful background insert marks the ingestion job `complete`; insert
+  failures mark it `failed_retryable`; moderation rejection marks it
+  `failed_terminal`.
+- `failed_scan_ingestions` is still written as legacy ops history, but
+  `scan_ingestion_jobs` / `scan_ingestion_intents` are the primary recovery
+  surface for current rows.
+
 ## Pet Identification
 
 `common_name` and `scientific_name` remain the authoritative biological result.
@@ -71,7 +95,11 @@ For `Canis lupus familiaris` and `Felis catus`, the response may also include:
     "label": "Australian Cattle Dog mix",
     "label_type": "breed_mix",
     "confidence_score": 0.82,
-    "evidence": ["blue-roan ticking", "black saddle patch", "compact herding-dog build"]
+    "evidence": [
+      "blue-roan ticking",
+      "black saddle patch",
+      "compact herding-dog build"
+    ]
   }
 }
 ```
@@ -90,3 +118,10 @@ they do not live here. Merian uses shared micro-agents available globally:
 - `../_shared/group-tags.ts`: Gemini Flash text agent for categorization tags.
 - `../_shared/encyclopedic.ts`: The secondary encyclopedic enrichment (supplying
   `colors` and `hazard_type`).
+
+## Local Verification
+
+```sh
+deno check --config services/supabase/functions/deno.json services/supabase/functions/identify/index.ts services/supabase/functions/_shared/scanIngestionCompatibility.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/identify/index.test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts
+```

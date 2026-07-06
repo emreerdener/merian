@@ -1,6 +1,9 @@
 # Safety & Moderation Pipeline
 
-Merian runs all user-submitted media through a two-layer moderation system before persisting any scan to the database. The shared implementation lives in `_shared/identify/moderation.ts` and is used by both `/identify` and `/identify-multimodal`. It never blocks the HTTP response.
+Merian runs all user-submitted media through a two-layer moderation system
+before persisting any scan to the database. The shared implementation lives in
+`_shared/identify/moderation.ts` and is used by both `/identify` and
+`/identify-multimodal`. It never blocks the HTTP response.
 
 ## Architecture Overview
 
@@ -26,46 +29,98 @@ Merian runs all user-submitted media through a two-layer moderation system befor
 
 ## Gemini Safety Ratings Evaluation
 
-Before any data is persisted, the Edge Function checks two Gemini safety signals:
+Before any data is persisted, the Edge Function checks two Gemini safety
+signals:
 
-1. **`finishReason === "SAFETY"`** — Gemini refused to generate a full response due to content policy. Immediately flagged as unsafe.
-2. **`safetyRatings[]` probability** — If any individual safety category is rated `"MEDIUM"` or `"HIGH"`, the media is flagged regardless of `finishReason`.
+1. **`finishReason === "SAFETY"`** — Gemini refused to generate a full response
+   due to content policy. Immediately flagged as unsafe.
+2. **`safetyRatings[]` probability** — If any individual safety category is
+   rated `"MEDIUM"` or `"HIGH"`, the media is flagged regardless of
+   `finishReason`.
 
-`"LOW"` and `"NEGLIGIBLE"` probability ratings are treated as safe and do not trigger moderation.
+`"LOW"` and `"NEGLIGIBLE"` probability ratings are treated as safe and do not
+trigger moderation.
 
 ## Abuse Strike System
 
-Each unsafe media submission increments `users.abuse_strikes` in the Supabase `users` table:
+Each unsafe media submission increments `users.abuse_strikes` in the Supabase
+`users` table:
 
-| Strike Count | Status Returned | Behavior |
-|---|---|---|
-| 1–2 | `DELETED_WARNING` | Staging image deleted, scan not persisted, no user-facing message |
-| 3+ | `SHADOWBANNED` | Same as above, plus `users.is_shadowbanned = true` |
+| Strike Count | Status Returned   | Behavior                                                          |
+| ------------ | ----------------- | ----------------------------------------------------------------- |
+| 1–2          | `DELETED_WARNING` | Staging image deleted, scan not persisted, no user-facing message |
+| 3+           | `SHADOWBANNED`    | Same as above, plus `users.is_shadowbanned = true`                |
 
-The strike counter is read and written via the Supabase service role in `_shared/identify/moderation.ts`. The read uses `.select("abuse_strikes").eq("id", userId).single()`. `PGRST116` (no row found) falls back to `0`; any other read/write failure aborts moderation with `ERROR` so the caller never believes a strike was recorded when the DB write actually failed.
+The strike counter is read and written via the Supabase service role in
+`_shared/identify/moderation.ts`. The read uses
+`.select("abuse_strikes").eq("id", userId).single()`. `PGRST116` (no row found)
+falls back to `0`; any other read/write failure aborts moderation with `ERROR`
+so the caller never believes a strike was recorded when the DB write actually
+failed.
 
 ### Shadowban Behavior
 
-`is_shadowbanned` is a boolean column on the `users` table (default `false`). Shadowbanned users are not informed of their status. The expected downstream effect is that their scans are silently dropped (background ingestion halts at the moderation gate), so the app appears to function normally from their perspective while no data is persisted.
+`is_shadowbanned` is a boolean column on the `users` table (default `false`).
+Shadowbanned users are not informed of their status. The expected downstream
+effect is that their scans are silently dropped (background ingestion halts at
+the moderation gate), so the app appears to function normally from their
+perspective while no data is persisted.
 
-**Important**: The shadowban is applied at the scan ingestion level only. The iOS client still receives a successful `200 OK` response with AI identification data — the background task halts invisibly. No iOS-layer check for `is_shadowbanned` currently exists.
+**Important**: The shadowban is applied at the scan ingestion level only. The
+iOS client still receives a successful `200 OK` response with AI identification
+data — the background task halts invisibly. No iOS-layer check for
+`is_shadowbanned` currently exists.
 
 ## Media Promotion Pipeline
 
-For safe scans, `moderation.ts` promotes images from temporary staging storage to permanent public storage. Short video scans still moderate through the five ordered sampled frames sent to Gemini; when available, extracted accompanying audio can also inform identification but is not reference media. Once the frames are safe, `identify-multimodal` must also promote every requested staged upload-bounded playback `.mp4` into `video_storage_urls` before inserting the scan row. If playback-video promotion fails or returns fewer URLs than requested, the edge returns a retryable failure, preserves the staged playback object for retry, and does not create a frame-only video scan. That playback file is normally the client's compressed 720p export, but the client may stage the original recording when compression is slow or unavailable and the source remains within the hard video byte cap. The playback video is never used for AI inference or reference-media promotion. `/generate-upload-urls` creates staged `scan_media_assets` rows for scan media uploads, and `identify-multimodal` moves those rows to `promoted`, `deleted`, or `failed` during finalization. The ingestion request also claims `scan_ingestion_jobs` with media counts, staged object keys, recovered upload-session ids, and a normalized `manifest_checksum`, so retries and repair work can prove they are handling the same media set. A paired `scan_ingestion_intents` row stores the sanitized replay request without raw media bytes; inline foreground media is redacted and marked non-resumable. The scheduled `replay-scan-ingestion` worker retries resumable staged-media requests by dispatching them back through `identify-multimodal`; the scheduled `reconcile-scan-media-assets` worker revisits stale staged rows when a scan row already exists or when media has aged past its abandonment TTL. If a scan row exists, reconciliation can promote a surviving playback video and rebuild the manifest; if no scan row exists after the TTL, it deletes the staging object, marks the asset failed, and marks the matching ingestion job terminal unless an active lease or future retry window still owns that media. The same table is refreshed from `captured_media` after scan insert or repair so newer readers can resolve only ready display/playback media without treating sampled frames as standalone user media. When a user shares that scan, Explore snapshots post-owned public video media from the promoted video URL and requires an image-backed poster thumbnail. Videos are not Dictionary/reference-media inputs in v1.
+For safe scans, `moderation.ts` promotes images from temporary staging storage
+to permanent public storage. Short video scans still moderate through the five
+ordered sampled frames sent to Gemini; when available, extracted accompanying
+audio can also inform identification but is not reference media. Once the frames
+are safe, `identify-multimodal` must also promote every requested staged
+upload-bounded playback `.mp4` into `video_storage_urls` before inserting the
+scan row. If playback-video promotion fails or returns fewer URLs than
+requested, the edge returns a retryable failure, preserves the staged playback
+object for retry, and does not create a frame-only video scan. That playback
+file is normally the client's compressed 720p export, but the client may stage
+the original recording when compression is slow or unavailable and the source
+remains within the hard video byte cap. The playback video is never used for AI
+inference or reference-media promotion. `/generate-upload-urls` creates staged
+`scan_media_assets` rows for scan media uploads, and `identify-multimodal` moves
+those rows to `promoted`, `deleted`, or `failed` during finalization. The
+ingestion request also claims `scan_ingestion_jobs` with media counts, staged
+object keys, recovered upload-session ids, and a normalized `manifest_checksum`,
+so retries and repair work can prove they are handling the same media set. A
+paired `scan_ingestion_intents` row stores the sanitized replay request without
+raw media bytes; inline foreground media is redacted and marked non-resumable.
+The scheduled `replay-scan-ingestion` worker retries resumable staged
+media/audio/video and text-only requests by dispatching them back through
+`identify-multimodal`; the scheduled `reconcile-scan-media-assets` worker
+revisits stale staged rows when a scan row already exists or when media has aged
+past its abandonment TTL. If a scan row exists, reconciliation can promote a
+surviving playback video and rebuild the manifest; if no scan row exists after
+the TTL, it deletes the staging object, marks the asset failed, and marks the
+matching ingestion job terminal unless an active lease or future retry window
+still owns that media. The same table is refreshed from `captured_media` after
+scan insert or repair so newer readers can resolve only ready display/playback
+media without treating sampled frames as standalone user media. When a user
+shares that scan, Explore snapshots post-owned public video media from the
+promoted video URL and requires an image-backed poster thumbnail. Videos are not
+Dictionary/reference-media inputs in v1.
 
 ### R2 Bucket Layout
 
-| Purpose | Path Pattern |
-|---|---|
-| Temporary staging (pre-moderation) | `staging/{userId}/{filename}.webp` |
-| Temporary playback video (pre-moderation) | `staging/{userId}/{filename}.mp4` |
-| Permanent public storage (post-moderation) | `public_uploads/{tier}/{userId}/{filename}.webp` |
-| Permanent playback video storage (post-moderation) | `public_uploads/{tier}/{userId}/{filename}.mp4` |
-| Durable public profile avatars | `avatars/{userId}/{uuid}.webp|jpg` |
-| CDN base URL | `https://media.merian.app/` |
+| Purpose                                            | Path Pattern                                     |
+| -------------------------------------------------- | ------------------------------------------------ |
+| Temporary staging (pre-moderation)                 | `staging/{userId}/{filename}.webp`               |
+| Temporary playback video (pre-moderation)          | `staging/{userId}/{filename}.mp4`                |
+| Permanent public storage (post-moderation)         | `public_uploads/{tier}/{userId}/{filename}.webp` |
+| Permanent playback video storage (post-moderation) | `public_uploads/{tier}/{userId}/{filename}.mp4`  |
+| Durable public profile avatars                     | `avatars/{userId}/{uuid}.webp                    |
+| CDN base URL                                       | `https://media.merian.app/`                      |
 
-`{tier}` is either `"pro"` or `"free"`, determined from `userTier` resolved on the critical path.
+`{tier}` is either `"pro"` or `"free"`, determined from `userTier` resolved on
+the critical path.
 
 `avatars/` is not part of the scan moderation pipeline. Custom profile pictures
 are promoted by `/update-public-avatar` after a user-owned staged upload and are
@@ -75,26 +130,44 @@ moderation rollback, and storage lifecycle jobs must not target `avatars/`.
 ### Two Promotion Paths
 
 **Path A — R2 Staging Key** (standard offline queue flow):
-1. Copy the object from `staging/{userId}/...` to `public_uploads/{tier}/{userId}/...` via `copyR2Object`
+
+1. Copy the object from `staging/{userId}/...` to
+   `public_uploads/{tier}/{userId}/...` via `copyR2Object`
 2. Delete the staging object via `deleteR2Object`
 3. Return the CDN URL as `https://media.merian.app/{publicUploadKey}`
 
 **Path B — Base64 Direct Upload** (instant capture flow):
+
 1. Decode the base64 string
-2. `PUT` the bytes directly to `public_uploads/{tier}/{userId}/{filename}` via a signed S3 request
+2. `PUT` the bytes directly to `public_uploads/{tier}/{userId}/{filename}` via a
+   signed S3 request
 3. Return the CDN URL
 
-The filename is derived from `r2ObjectKeys[i].split("/").pop()` when available; otherwise a random UUID is generated. When uploading from base64, `r2ObjectKeys` carries only the desired destination filename, not a staging object to copy.
+The filename is derived from `r2ObjectKeys[i].split("/").pop()` when available;
+otherwise a random UUID is generated. When uploading from base64, `r2ObjectKeys`
+carries only the desired destination filename, not a staging object to copy.
 
 ### Upload Failure Handling
 
-If any image promotion step fails (non-OK direct upload, failed staging copy, or staging delete after copy), the shared moderation helper aborts the entire promotion batch and rolls back any already-promoted public objects from that batch before returning `ERROR`. The scan is not inserted with a partial `image_storage_urls` array.
+If any image promotion step fails (non-OK direct upload, failed staging copy, or
+staging delete after copy), the shared moderation helper aborts the entire
+promotion batch and rolls back any already-promoted public objects from that
+batch before returning `ERROR`. The scan is not inserted with a partial
+`image_storage_urls` array.
 
-For video scans, unsafe moderation deletes any additional staged playback video keys passed by `identify-multimodal` along with staged image keys. Safe video promotion is a durability gate: if any requested playback video cannot be promoted, `identify-multimodal` does not insert a frame-only video scan and the client can retry through the offline queue. The reconciliation worker exists for drift after that boundary, such as a scan row that already exists while its staged playback asset row was never finalized; it must consult `scan_ingestion_jobs` before abandoning orphaned staged media.
+For video scans, unsafe moderation deletes any additional staged playback video
+keys passed by `identify-multimodal` along with staged image keys. Safe video
+promotion is a durability gate: if any requested playback video cannot be
+promoted, `identify-multimodal` does not insert a frame-only video scan and the
+client can retry through the offline queue. The reconciliation worker exists for
+drift after that boundary, such as a scan row that already exists while its
+staged playback asset row was never finalized; it must consult
+`scan_ingestion_jobs` before abandoning orphaned staged media.
 
 ### R2 Rollback on Scan Insert Failure
 
-If `modResult.publicUrls` is populated but `insertScan` throws, `index.ts` rolls back the already-promoted public objects:
+If `modResult.publicUrls` is populated but `insertScan` throws, `index.ts` rolls
+back the already-promoted public objects:
 
 ```typescript
 if (!scanInserted && modResult?.publicUrls?.length) {
@@ -102,38 +175,47 @@ if (!scanInserted && modResult?.publicUrls?.length) {
     url.replace("https://media.merian.app/", "")
   );
   await Promise.allSettled(
-    keysToPurge.map((key) => deleteR2Object(key, r2Config))
+    keysToPurge.map((key) => deleteR2Object(key, r2Config)),
   );
 }
 ```
 
-This prevents orphaned public objects when the database write fails after media has already been committed.
+This prevents orphaned public objects when the database write fails after media
+has already been committed.
 
 ## Moderation Status Codes
 
-| Status | Meaning | Ingestion Continues? |
-|---|---|---|
-| `PROMOTED` | Media safe, promoted to public storage | Yes |
-| `DELETED_WARNING` | Unsafe (strike 1–2), staging deleted | No |
-| `SHADOWBANNED` | Unsafe (strike 3+), user shadowbanned | No |
-| `ERROR` | Internal exception in moderation pipeline | No (scan is NOT inserted — ingestion halts) |
+| Status            | Meaning                                   | Ingestion Continues?                        |
+| ----------------- | ----------------------------------------- | ------------------------------------------- |
+| `PROMOTED`        | Media safe, promoted to public storage    | Yes                                         |
+| `DELETED_WARNING` | Unsafe (strike 1–2), staging deleted      | No                                          |
+| `SHADOWBANNED`    | Unsafe (strike 3+), user shadowbanned     | No                                          |
+| `ERROR`           | Internal exception in moderation pipeline | No (scan is NOT inserted — ingestion halts) |
 
-The `ERROR` status now halts ingestion in `identify/index.ts` — when `modResult.status === "ERROR"`, the scan insert is skipped entirely. Without this guard, a moderation pipeline failure (e.g. abuse strike DB write failed) would create a permanent DB record with `image_storage_urls: null`. The outer catch in `moderation.ts` now uses `logStructuredError` instead of bare `console.error` for alertable observability. Abuse strike fetch/write failures now throw rather than log-and-continue — returning `SHADOWBANNED` or `DELETED_WARNING` when the DB write silently failed would falsely indicate the penalty was recorded.
+The `ERROR` status now halts ingestion in `identify/index.ts` — when
+`modResult.status === "ERROR"`, the scan insert is skipped entirely. Without
+this guard, a moderation pipeline failure (e.g. abuse strike DB write failed)
+would create a permanent DB record with `image_storage_urls: null`. The outer
+catch in `moderation.ts` now uses `logStructuredError` instead of bare
+`console.error` for alertable observability. Abuse strike fetch/write failures
+now throw rather than log-and-continue — returning `SHADOWBANNED` or
+`DELETED_WARNING` when the DB write silently failed would falsely indicate the
+penalty was recorded.
 
 ## Insight Chat Safety
 
-`/insight-chat` is a post-identification text-only follow-up surface, not a media
-moderation path. It never receives raw image bytes or cloud image URLs. The Edge
-Function builds context from private stored scan evidence and the species
-dictionary, then calls `gemini-2.5-flash` only after ownership, Pro tier, and
-rate-limit checks pass.
+`/insight-chat` is a post-identification text-only follow-up surface, not a
+media moderation path. It never receives raw image bytes or cloud image URLs.
+The Edge Function builds context from private stored scan evidence and the
+species dictionary, then calls `gemini-2.5-flash` only after ownership, Pro
+tier, and rate-limit checks pass.
 
 The chat prompt may include stored private species and scan text such as
 taxonomy, hazard/invasive flags, review provenance, observed traits, ecological
 annotations, species group tags, field notes, weather/elevation labels, and
 image/capture-quality scores. It must not include raw image bytes, cloud image
-URLs, storage keys, internal scan IDs, exact GPS coordinates,
-Explore/community content, or export payloads.
+URLs, storage keys, internal scan IDs, exact GPS coordinates, Explore/community
+content, or export payloads.
 
 AI-generated quick prompt chips are produced through the same `/insight-chat`
 privacy boundary with `action: "suggest_prompts"`. They must remain short,
@@ -151,7 +233,9 @@ than giving action instructions.
 
 ## Flagged Reviews (User-Reported)
 
-Separate from the automated moderation system, users can manually report a scan via the flag flow in `BiologicalView`. This writes a row to the `flagged_reviews` table via the `/flag-issue` Edge Function:
+Separate from the automated moderation system, users can manually report a scan
+via the flag flow in `BiologicalView`. This writes a row to the
+`flagged_reviews` table via the `/flag-issue` Edge Function:
 
 - `scan_id` — The scan being reported
 - `user_id` — The reporting user
@@ -159,16 +243,25 @@ Separate from the automated moderation system, users can manually report a scan 
 - `user_suggestion` — Optional free-text from the user
 - `status` — Defaults to `PENDING_REVIEW`
 
-Flagged reviews require human review and do not trigger automatic action. The automated abuse strike system and the flagged review system are entirely independent pipelines.
+Flagged reviews require human review and do not trigger automatic action. The
+automated abuse strike system and the flagged review system are entirely
+independent pipelines.
 
 ## Database Columns
 
 ### `users` table additions
 
-- `abuse_strikes` (INT, DEFAULT 0) — Incremented on each unsafe media detection. Never decremented automatically.
-- `is_shadowbanned` (BOOLEAN, DEFAULT false) — Set to `true` when `abuse_strikes >= 3`. Read by the moderation module; not currently read by the iOS client.
+- `abuse_strikes` (INT, DEFAULT 0) — Incremented on each unsafe media detection.
+  Never decremented automatically.
+- `is_shadowbanned` (BOOLEAN, DEFAULT false) — Set to `true` when
+  `abuse_strikes >= 3`. Read by the moderation module; not currently read by the
+  iOS client.
 
 ### `scans` table
 
-- `is_flagged` (BOOLEAN) — Set by the `/flag-issue` Edge Function when a user-reported flag reaches a review threshold. Managed via `00005_flagged_reviews.sql`.
-- `is_tombstoned` (BOOLEAN) — GDPR-compliant account deletion marker. Anonymizes scan metadata while preserving the row for offline cache continuity. Managed via `00006_apply_user_tombstone.sql`.
+- `is_flagged` (BOOLEAN) — Set by the `/flag-issue` Edge Function when a
+  user-reported flag reaches a review threshold. Managed via
+  `00005_flagged_reviews.sql`.
+- `is_tombstoned` (BOOLEAN) — GDPR-compliant account deletion marker. Anonymizes
+  scan metadata while preserving the row for offline cache continuity. Managed
+  via `00006_apply_user_tombstone.sql`.

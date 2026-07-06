@@ -9,8 +9,8 @@ triggering excessive SwiftUI view rebuilds.
 ### `SpeechManager`
 
 - `@MainActor @Observable final class` living at
-  `apps/ios/Merian/Features/Capture/Describe/Managers/SpeechManager.swift`, registered
-  in `AppDIContainer` and distributed to the view hierarchy via
+  `apps/ios/Merian/Features/Capture/Describe/Managers/SpeechManager.swift`,
+  registered in `AppDIContainer` and distributed to the view hierarchy via
   `DIContainerModifier`.
 - Owns the full `AVAudioEngine` + `SFSpeechRecognizer` pipeline for live voice
   dictation on the Describe page.
@@ -257,12 +257,12 @@ triggering excessive SwiftUI view rebuilds.
   result. Native achievement notifications are also foreground-suppressed via
   `completionHandler([])` so the SwiftUI milestone banner owns active in-app
   unlock UX without stacking under an iOS banner. Background delivery bypasses
-  the delegate and remains native.
-  **Both notification call sites (`InferenceEngine` and
-  `OfflineQueueManager+URLSession`) schedule notifications unconditionally —
-  without any `applicationState != .active` guard.** Foreground suppression is
-  delegated entirely to this `willPresent` path; background delivery bypasses
-  the delegate and is shown automatically by the OS.
+  the delegate and remains native. **Both notification call sites
+  (`InferenceEngine` and `OfflineQueueManager+URLSession`) schedule
+  notifications unconditionally — without any `applicationState != .active`
+  guard.** Foreground suppression is delegated entirely to this `willPresent`
+  path; background delivery bypasses the delegate and is shown automatically by
+  the OS.
 - **App Icon Badge Synchronization**: Exposes `setBadgeCount(_:)` to mirror the
   application's `hasUnseenScan` state into the OS-level app icon badge count,
   seamlessly providing a visual indicator on the Home screen. This cleanly
@@ -376,32 +376,32 @@ triggering excessive SwiftUI view rebuilds.
 - Uses `BackgroundTaskWrapper.execute(name:operation:)` to wrap operations in
   `UIBackgroundTaskIdentifier` windows, preventing system suspension mid-flight.
 - **Durable job control plane**: `OfflineJobScheduler` is the reconnect facade.
-  It delegates existing scan upload/replay execution back to `OfflineQueueManager`
-  while scheduling cloud deletion and collection sync through `OfflineJobRecord`
-  rows. `OfflineQueuedScan.queue*` fields and bounded `OfflineQueueEvent` rows
-  replace the old process-local retry authority, so app relaunch preserves
-  attempts, next retry time, last server stage, and user-attention state.
+  It delegates existing scan upload/replay execution back to
+  `OfflineQueueManager` while scheduling cloud deletion and collection sync
+  through `OfflineJobRecord` rows. `OfflineQueuedScan.queue*` fields and bounded
+  `OfflineQueueEvent` rows replace the old process-local retry authority, so app
+  relaunch preserves attempts, next retry time, last server stage, and
+  user-attention state.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
   across images, videos, audio clips, and descriptions. Images, video clips, and
   video poster thumbnails are written to `.documentsDirectory` via
   `FileIOActor`. Pro video capture samples five inference frames and extracts
   video-audio WAVs from the original temporary recording, then stages an
   upload-bounded playback `.mp4` for local review, scan-library playback,
-  Explore sharing, and cloud storage. The preferred playback file is a compressed
-  network-optimized 720p export, but compression failure or timeout falls back to
-  the original recording only when it remains within the hard video upload cap.
-  Extracted video-audio WAVs are exported into
-  Documents with `AVAssetReader` + `AVAssetWriter` and attached to the video
-  media reference for inference replay rather than displayed as separate audio
-  pages.
-  The queue/database layers derive legacy arrays (`localImagePaths`,
+  Explore sharing, and cloud storage. The preferred playback file is a
+  compressed network-optimized 720p export, but compression failure or timeout
+  falls back to the original recording only when it remains within the hard
+  video upload cap. Extracted video-audio WAVs are exported into Documents with
+  `AVAssetReader` + `AVAssetWriter` and attached to the video media reference
+  for inference replay rather than displayed as separate audio pages. The
+  queue/database layers derive legacy arrays (`localImagePaths`,
   `localVideoPaths`, `audioFilePaths`, `observationContextsJSON`) from that same
-  timeline at the edges. For video, `thumbnailImagePaths` includes the poster for
-  thumbnails and upload previews, while `activeScanMedia` emits the video page
-  itself so Insight does not show a duplicate image before the clip. Cloud-backed
-  scan refreshes prefer `scans.captured_media`; older rows with video URLs are
-  normalized into playback video items so sampled inference frames do not appear
-  as standalone carousel media.
+  timeline at the edges. For video, `thumbnailImagePaths` includes the poster
+  for thumbnails and upload previews, while `activeScanMedia` emits the video
+  page itself so Insight does not show a duplicate image before the clip.
+  Cloud-backed scan refreshes prefer `scans.captured_media`; older rows with
+  video URLs are normalized into playback video items so sampled inference
+  frames do not appear as standalone carousel media.
 - **Recursive Queue Draining**: The `URLSession` delegate calls
   `syncPendingScans()` recursively when a completed batch detects
   `unsyncedItemsCount > 0`, draining the queue automatically without user
@@ -425,13 +425,13 @@ triggering excessive SwiftUI view rebuilds.
   the server `retry_after` before retreating to `.staged`, and terminal failures
   mark the queue row as needing attention. The server job was claimed with the
   same media counts, staged object keys, upload-session ids, and manifest
-  checksum that the queue submitted, and the paired `scan_ingestion_intents`
-  row stores the sanitized replay request for staged-media scans. The scheduled
-  `replay-scan-ingestion` worker may complete that authoritative server attempt
-  before the app wakes again, so local replay waits on status polling instead of
-  guessing from process-local retry state. This keeps video playback
-  finalization from being mistaken for a local inference failure after app
-  suspension or restart.
+  checksum that the queue submitted, and the paired `scan_ingestion_intents` row
+  stores the sanitized replay request for staged media/audio/video and text-only
+  scans. The scheduled `replay-scan-ingestion` worker may complete that
+  authoritative server attempt before the app wakes again, so local replay waits
+  on status polling instead of guessing from process-local retry state. This
+  keeps video playback finalization from being mistaken for a local inference
+  failure after app suspension or restart.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5),
   `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (5),
   `mediaStagingMaxAudioFilesPerRequest` (2), `stagedImagePayloadMaxBytes` (5
@@ -441,10 +441,10 @@ triggering excessive SwiftUI view rebuilds.
   images, audio, and video: sanitized filename, deterministic
   `staging/{userId}/...` key, media kind, content type, `sizeBytes`,
   `clientScanId`, `mediaRole`, upload task description, audio-file count, and
-  byte-budget validation before `.pending → .uploading`.
-  The same manifest is sent to `/generate-upload-urls`, whose Edge parser
-  validates kind/type/size/role before signing and creates staged media-asset
-  session rows for scan uploads. Swift and Deno tests both load
+  byte-budget validation before `.pending → .uploading`. The same manifest is
+  sent to `/generate-upload-urls`, whose Edge parser validates
+  kind/type/size/role before signing and creates staged media-asset session rows
+  for scan uploads. Swift and Deno tests both load
   `docs/contracts/media-staging-upload-manifest.json` to catch drift in limits,
   allowed content types, and optional session fields. This prevents upload
   completion, replay, request construction, and Edge signing from reconstructing
@@ -504,8 +504,8 @@ triggering excessive SwiftUI view rebuilds.
   - `.uploading(count: Int)` — media files are being PUT to R2 staging
   - `.inferencing` — the Gemini Edge function is running
   - `.finalizing` — writing `LocalScanRecord` and cleaning up queue entries
-- The `.finalizing` phase may represent a live/background dual-path race for
-  the same stable scan ID. Local persistence is serialized by
+- The `.finalizing` phase may represent a live/background dual-path race for the
+  same stable scan ID. Local persistence is serialized by
   `ScanFinalizationCoordinator`, which is acquired by
   `processAndCleanupOfflineScan`, `saveLiveScanRecord`, and
   `saveNonVisualRecord` before writing `LocalScanRecord.id`. Do not bypass this
@@ -633,11 +633,11 @@ triggering excessive SwiftUI view rebuilds.
 - **`semanticTags` composition**: Assembled at write time in
   `BackgroundDatabaseActor` and `ScanRepository` as
   `[commonName, scientificName, optional pet label] + colors + groupTags`.
-  `groupTags` are the 1–5
-  broad-to-specific categorical labels (e.g. `["animal", "bird", "songbird"]`)
-  sourced from `species_dictionary.group_tags` — generated once per species by a
-  background Gemini Flash call and returned in the `/identify` response on cache
-  hit. `group_tags` is a `TEXT[]` column on `species_dictionary`, not `scans`.
+  `groupTags` are the 1–5 broad-to-specific categorical labels (e.g.
+  `["animal", "bird", "songbird"]`) sourced from `species_dictionary.group_tags`
+  — generated once per species by a background Gemini Flash call and returned in
+  the `/identify` response on cache hit. `group_tags` is a `TEXT[]` column on
+  `species_dictionary`, not `scans`.
 - **Detached Primitive Sort Engine**: `ScansManager` maps pure `@Model` objects
   into `ScanSortPrimitive` arrays before offloading large sorts to
   `Task.detached`. The "no query / all categories" path caches sorted ID arrays
@@ -733,8 +733,8 @@ triggering excessive SwiftUI view rebuilds.
 | `invertZoomDirection`                  | `"invertZoomDirection"`                  | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView`                                                                                                           |
 | `zoomSideLeft`                         | `"zoomSideLeft"`                         | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView`                                                                                                                           |
 | `zoomSliderVisible`                    | `"zoomSliderVisible"`                    | `ZoomSliderView`, `CameraSettingsView`                                                                                                                                              |
-| `needsCollectionSync`                  | `"needsCollectionSync"`                  | Legacy one-release bridge only. `ScanRepository.configure(with:)` imports it into `OfflineJobRecord(id: "collection-sync")`; active scheduling should use the job record.          |
-| `hiddenSmartCollectionIDs`             | `"hiddenSmartCollectionIDs"`             | `SmartCollectionPreferences` stores locally hidden smart collection ids; these are UI-only and are not synced through `/sync-collections`.                                           |
+| `needsCollectionSync`                  | `"needsCollectionSync"`                  | Legacy one-release bridge only. `ScanRepository.configure(with:)` imports it into `OfflineJobRecord(id: "collection-sync")`; active scheduling should use the job record.           |
+| `hiddenSmartCollectionIDs`             | `"hiddenSmartCollectionIDs"`             | `SmartCollectionPreferences` stores locally hidden smart collection ids; these are UI-only and are not synced through `/sync-collections`.                                          |
 | `speciesPreferredNamePrefix`           | `"speciesPreferredName_"`                | `SpeciesPreferredNameStore` bridge for per-species display-name overrides used by Insights and Explore.                                                                             |
 
 `KeychainKeys.hasAuthenticatedOAuth` is the single source of truth for the

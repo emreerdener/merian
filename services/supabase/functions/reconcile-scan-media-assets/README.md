@@ -16,22 +16,22 @@ Service-role worker for staged scan-media upload-session reconciliation.
     playable video item.
 - If no scan row exists after the abandonment TTL, deletes any remaining staging
   object and marks the asset failed for audit.
-- Checks `scan_ingestion_jobs` before abandoning orphaned staged media:
-  active leases and future `retry_after` windows keep media pending, repaired
-  scans can mark their job complete once required video media exists, and
-  TTL-abandoned media marks the job `failed_terminal`.
+- Checks `scan_ingestion_jobs` before abandoning orphaned staged media: active
+  leases and future `retry_after` windows keep media pending, repaired scans can
+  mark their job complete once required video media exists, and TTL-abandoned
+  media marks the job `failed_terminal`.
 - Writes summary rows to `scan_media_reconciliation_runs` and logs structured
   completion counts.
 
 ## Invocation
 
 The function is scheduled hourly by
-`20260705110000_schedule_scan_media_asset_reconciliation.sql` through
-`pg_cron` / `pg_net`. It uses `verify_jwt = false` at the gateway, then requires
-`Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` inside the function.
-The scheduling migration also repairs early `scan_media_assets` table shapes
-before creating the staged capture-upload index, so remote databases that
-already applied an older media-assets migration can deploy the worker safely.
+`20260705110000_schedule_scan_media_asset_reconciliation.sql` through `pg_cron`
+/ `pg_net`. It uses `verify_jwt = false` at the gateway, then requires
+`Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` inside the function. The
+scheduling migration also repairs early `scan_media_assets` table shapes before
+creating the staged capture-upload index, so remote databases that already
+applied an older media-assets migration can deploy the worker safely.
 
 Optional POST body:
 
@@ -47,6 +47,7 @@ Optional POST body:
 The worker deliberately does not replay AI inference. It only finalizes existing
 scan rows, updates the ingestion-job ledger around media repair/abandonment, or
 cleans abandoned staging artifacts. Sanitized `scan_ingestion_intents` rows give
-`replay-scan-ingestion` the accepted staged-media request shape; this worker does
-not consume those intents. Inline/redacted scans still depend on the iOS offline
-queue, while resumable staged scans are retried by `replay-scan-ingestion`.
+`replay-scan-ingestion` the accepted staged media/audio/video or text-only
+request shape; this worker does not consume those intents. Inline/redacted scans
+still depend on the iOS offline queue, while resumable staged media/audio/video
+and text-only scans are retried by `replay-scan-ingestion`.

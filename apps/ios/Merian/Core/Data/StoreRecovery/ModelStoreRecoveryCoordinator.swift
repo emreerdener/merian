@@ -21,6 +21,14 @@ enum ModelStoreRecoveryCoordinator {
         "cannot use staged migration with an unknown model version",
         "unknown model version"
     ]
+    private static let migrationFailurePhrases = [
+        "migration",
+        "migrate",
+        "incompatible with the current model version",
+        "incompatible version hash",
+        "missing mapping model",
+        "model version"
+    ]
 
     static func defaultStoreURL() -> URL {
         URL.applicationSupportDirectory.appending(path: "default.store")
@@ -57,6 +65,20 @@ enum ModelStoreRecoveryCoordinator {
         fileManager: FileManager = .default
     ) -> Bool {
         shouldAttemptRecovery(for: error) && hasStoreArtifacts(at: storeURL, fileManager: fileManager)
+    }
+
+    static func safeModeFallback(for error: Error) -> ModelStoreSafeModeFallback {
+        if isLikelyMigrationFailure(error) {
+            return ModelStoreSafeModeFallback(
+                message: "Merian started in safe mode because the local library could not finish upgrading. Your saved scans are still on disk, and local changes in this session are temporary until the app restarts with a healthy library.",
+                telemetryReason: "persistent_store_migration_failed"
+            )
+        }
+
+        return ModelStoreSafeModeFallback(
+            message: "Merian started in safe mode after the persistent store failed to open. The app remains usable, but local changes in this session are temporary.",
+            telemetryReason: "persistent_store_unavailable"
+        )
     }
 
     static func hasStoreArtifacts(at storeURL: URL, fileManager: FileManager = .default) -> Bool {
@@ -157,6 +179,31 @@ enum ModelStoreRecoveryCoordinator {
 
         return collected
     }
+
+    private static func isLikelyMigrationFailure(_ error: Error) -> Bool {
+        errorChain(from: error).contains { candidate in
+            let nsError = candidate as NSError
+            if nsError.domain == NSCocoaErrorDomain,
+               nsError.code == NSPersistentStoreIncompatibleVersionHashError {
+                return true
+            }
+
+            let normalizedText = [
+                nsError.localizedDescription,
+                nsError.userInfo[NSDebugDescriptionErrorKey] as? String,
+                nsError.userInfo[NSLocalizedFailureReasonErrorKey] as? String
+            ]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: "\n")
+
+            return migrationFailurePhrases.contains { normalizedText.contains($0) }
+        }
+    }
+}
+
+struct ModelStoreSafeModeFallback: Equatable {
+    let message: String
+    let telemetryReason: String
 }
 
 struct ModelStoreRecoveryManifest: Codable, Equatable {

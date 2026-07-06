@@ -1129,6 +1129,16 @@ enum MerianSchemaV48: VersionedSchema {
     }
 }
 
+private typealias MerianSchemaV48OfflineQueuedScan = OfflineQueuedScan
+private typealias MerianSchemaV48OfflineJobRecord = OfflineJobRecord
+private typealias MerianSchemaV48OfflineQueueEvent = OfflineQueueEvent
+
+extension MerianSchemaV48 {
+    fileprivate typealias OfflineQueuedScan = MerianSchemaV48OfflineQueuedScan
+    fileprivate typealias OfflineJobRecord = MerianSchemaV48OfflineJobRecord
+    fileprivate typealias OfflineQueueEvent = MerianSchemaV48OfflineQueueEvent
+}
+
 extension MerianSchemaV47 {
     typealias LocalScanRecord = MerianSchemaV46.LocalScanRecord
     typealias CapturedMediaEntry = MerianSchemaV46.CapturedMediaEntry
@@ -2322,9 +2332,50 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
         ]
     }
 
-    static let migrateV47toV48 = MigrationStage.lightweight(
+    static let migrateV47toV48 = MigrationStage.custom(
         fromVersion: MerianSchemaV47.self,
-        toVersion: MerianSchemaV48.self
+        toVersion: MerianSchemaV48.self,
+        willMigrate: nil,
+        didMigrate: { context in
+            let now = Date()
+            let queuedScans = try context.fetch(FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>())
+
+            for scan in queuedScans {
+                scan.queueAttemptCount = 0
+                scan.queueLastAttemptAt = nil
+                scan.queueNextRetryAt = nil
+                scan.queueLastErrorCode = nil
+                scan.queueLastErrorMessage = nil
+                scan.queueLastHTTPStatus = nil
+                scan.queueLastServerStatus = nil
+                scan.queueLastServerStage = nil
+                scan.queueLastServerRetryAfter = nil
+                scan.queueUpdatedAt = now
+                scan.queueNeedsAttention = false
+
+                let jobId = "scan-ingestion:\(scan.id)"
+                let job = MerianSchemaV48.OfflineJobRecord(
+                    id: jobId,
+                    kind: .scanIngestion,
+                    subjectId: scan.id,
+                    priority: 100,
+                    status: .pending,
+                    createdAt: scan.timestamp,
+                    updatedAt: now
+                )
+                context.insert(job)
+
+                context.insert(MerianSchemaV48.OfflineQueueEvent(
+                    jobId: jobId,
+                    scanId: scan.id,
+                    kind: .queued,
+                    createdAt: now,
+                    message: "Queued scan migrated into durable offline scheduler."
+                ))
+            }
+
+            try saveMigrationContext(context, stage: "V47->V48 didMigrate")
+        }
     )
 
     static let migrateV46toV47 = MigrationStage.lightweight(

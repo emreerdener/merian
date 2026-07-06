@@ -1,9 +1,9 @@
 # Supabase Deployment Runbook
 
-Merian's long-term Supabase release path is GitHub Actions, not an
-interactive developer shell. Local `supabase login` is useful for emergency
-maintenance, but production deploys should be repeatable from CI with explicit
-secrets and validation.
+Merian's long-term Supabase release path is GitHub Actions, not an interactive
+developer shell. Local `supabase login` is useful for emergency maintenance, but
+production deploys should be repeatable from CI with explicit secrets and
+validation.
 
 ## Production Path
 
@@ -33,25 +33,25 @@ cursors.
 
 Deploying all function directories is intentional. Shared modules such as
 `functions/_shared/aws.ts`, `functions/_shared/mediaBudgets.ts`, and
-`functions/_shared/concurrency.ts` are bundled into each dependent Edge
-Function at deploy time; deploying a hand-maintained partial list risks leaving
+`functions/_shared/concurrency.ts` are bundled into each dependent Edge Function
+at deploy time; deploying a hand-maintained partial list risks leaving
 production on mixed helper versions.
 
 Each deployed function directory must also have a `[functions.<name>]` entry in
 `services/supabase/config.toml` so JWT behavior is explicit. Most
-anonymous-compatible app routes set `verify_jwt = false` and then perform
-manual auth inside Deno; the known authenticated-only exceptions are documented
-in `docs/backend-and-data/02-supabase-edge-and-database.md`.
+anonymous-compatible app routes set `verify_jwt = false` and then perform manual
+auth inside Deno; the known authenticated-only exceptions are documented in
+`docs/backend-and-data/02-supabase-edge-and-database.md`.
 
 The deploy command relies on `services/supabase/functions/deno.json`, which the
 current Supabase CLI discovers during function graph creation. Do not pass the
-old `--import-map` flag; newer Supabase CLIs reject that flag during deploy.
-The Deno config keeps dependency resolution stable while Supabase builds each
-function graph: historical `https://esm.sh/@supabase/supabase-js@2.49.1`
-imports are remapped to the npm package, and runtime dependencies such as
-`aws4fetch` and `jszip` also resolve through npm instead of esm.sh. Edge
-entrypoints should use `Deno.serve(...)` directly rather than importing `serve`
-from Deno std. Shared runtime helpers should prefer local utilities such as
+old `--import-map` flag; newer Supabase CLIs reject that flag during deploy. The
+Deno config keeps dependency resolution stable while Supabase builds each
+function graph: historical `https://esm.sh/@supabase/supabase-js@2.49.1` imports
+are remapped to the npm package, and runtime dependencies such as `aws4fetch`
+and `jszip` also resolve through npm instead of esm.sh. Edge entrypoints should
+use `Deno.serve(...)` directly rather than importing `serve` from Deno std.
+Shared runtime helpers should prefer local utilities such as
 `_shared/encoding.ts` for base64/hex helpers so production deploys do not fail
 when deno.land or esm.sh returns a transient 5xx during bundling.
 
@@ -109,7 +109,9 @@ The **Scan Media Health Monitor** workflow runs every 30 minutes and can also be
 started manually from GitHub Actions. It resolves the production service-role
 key at runtime through the Supabase CLI, calls `/scan-media-health`, writes JSON
 and Markdown summary artifacts, and appends the Markdown report to the job
-summary.
+summary. The Markdown report includes an **Incident Actions** table that maps
+each issue code to an owner, next step, runbook, and sample-field hint; use that
+table as the first triage view before opening raw database rows.
 
 Scheduled runs use:
 
@@ -145,8 +147,8 @@ service-role endpoint. Start triage from the issue code:
   `/functions/v1/replay-scan-ingestion`.
 - `video_scan_missing_captured_media_video`: inspect the scan's
   `video_storage_urls`, `captured_media`, and ready playback
-  `scan_media_assets`; repair should go through `reconcile-scan-media-assets`
-  or the local `.mp4` restore path.
+  `scan_media_assets`; repair should go through `reconcile-scan-media-assets` or
+  the local `.mp4` restore path.
 - `video_scan_missing_ready_playback_asset`: run or inspect
   `refresh_scan_media_assets(scan_id)` and the reconciliation worker result.
 - `explore_video_missing_thumbnail`: inspect `explore_post_media.thumbnail_url`
@@ -197,6 +199,9 @@ deno check --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/encoding.ts \
   services/supabase/functions/_shared/concurrency.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
+  services/supabase/functions/_shared/scanIngestionCompatibility.ts \
+  services/supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+  services/supabase/functions/_tests/scanMediaIngestionContract.test.ts \
   services/supabase/scripts/monitor_scan_media_health.ts \
   services/supabase/scripts/monitor_scan_media_health_test.ts \
   services/supabase/functions/update-public-avatar/index.ts \
@@ -210,6 +215,8 @@ deno check --config services/supabase/functions/deno.json \
 deno test --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/aws_test.ts \
   services/supabase/functions/_shared/concurrency_test.ts \
+  services/supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+  services/supabase/functions/_tests/scanMediaIngestionContract.test.ts \
   services/supabase/scripts/monitor_scan_media_health_test.ts \
   services/supabase/functions/update-public-avatar/avatar_test.ts \
   services/supabase/functions/_tests/updatePublicDisplayName.test.ts \
@@ -255,5 +262,6 @@ After deployment:
   `success = true` with a status of `ok`, `warning`, or `critical`.
 - Confirm `sync-community-taxonomy-index` accepts a tiny `dry_run = true` Birds
   request without advancing `taxonomy_coverage_targets.next_import_offset`.
-- Smoke-test `/insight-chat` with `action: "load"` and `action:
+- Smoke-test `/insight-chat` with `action: "load"` and
+  `action:
   "suggest_prompts"` against an owned completed biological scan.

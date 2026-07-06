@@ -1,7 +1,7 @@
 import Foundation
-import Testing
-import SwiftData
 @testable import Merian
+import SwiftData
+import Testing
 
 /// Validates the SwiftData migration plan structurally — ensures no two consecutive custom migration
 /// stages produce the same NSManagedObjectModel, which causes a fatal crash on iOS 26+.
@@ -57,6 +57,78 @@ struct MigrationPlanTests {
         try? FileManager.default.removeItem(at: url)
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-shm"))
         try? FileManager.default.removeItem(at: url.deletingPathExtension().appendingPathExtension("sqlite-wal"))
+    }
+
+    private struct CurrentMigrationStore {
+        let container: ModelContainer
+        let context: ModelContext
+    }
+
+    private struct QueuedMediaMigrationFixture {
+        let id: String
+        let items: [SerializedMediaItem]
+        let cover: String?
+        let inferencePaths: [String]?
+        let visualJSON: String?
+    }
+
+    private func migrationStoreURL(named name: String) -> URL {
+        URL.cachesDirectory.appendingPathComponent("\(UUID().uuidString)_\(name).sqlite")
+    }
+
+    private func openCurrentMigrationStore(at url: URL) throws -> CurrentMigrationStore {
+        let currentSchema = Schema(versionedSchema: CurrentSchema.self)
+        let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
+        let currentContainer = try ModelContainer(
+            for: currentSchema,
+            migrationPlan: MerianMigrationPlan.self,
+            configurations: [currentConfig]
+        )
+        return CurrentMigrationStore(
+            container: currentContainer,
+            context: ModelContext(currentContainer)
+        )
+    }
+
+    private func encodedMediaJSON(_ items: [SerializedMediaItem]) throws -> String {
+        try #require(String(data: JSONEncoder().encode(items), encoding: .utf8))
+    }
+
+    private func fetchCurrentQueuedScan(id: String, context: ModelContext) throws -> OfflineQueuedScan {
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == id }
+        )
+        descriptor.fetchLimit = 1
+        return try #require(context.fetch(descriptor).first)
+    }
+
+    private func assertCurrentScanIngestionJob(
+        scanId: String,
+        context: ModelContext
+    ) throws {
+        let jobId = "scan-ingestion:\(scanId)"
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let migratedJob = try #require(context.fetch(jobDescriptor).first)
+        #expect(migratedJob.kind == .scanIngestion)
+        #expect(migratedJob.subjectId == scanId)
+        #expect(migratedJob.status == .pending)
+        #expect(migratedJob.attemptCount == 0)
+    }
+
+    private func assertCurrentQueuedScanHasFreshRetryState(_ scan: OfflineQueuedScan) {
+        #expect(scan.queueAttemptCount == 0)
+        #expect(scan.queueLastAttemptAt == nil)
+        #expect(scan.queueNextRetryAt == nil)
+        #expect(scan.queueLastErrorCode == nil)
+        #expect(scan.queueLastHTTPStatus == nil)
+        #expect(scan.queueLastServerStatus == nil)
+        #expect(scan.queueLastServerStage == nil)
+        #expect(scan.queueLastServerRetryAfter == nil)
+        #expect(scan.queueUpdatedAt.timeIntervalSinceReferenceDate > 0)
+        #expect(scan.queueNeedsAttention == false)
     }
 
     @Test func migrationPlanCustomStagesDoNotUseSilentSaves() throws {
@@ -459,6 +531,39 @@ struct MigrationPlanTests {
         )
     }
 
+    @Test func latestQueueMetadataMigrationStaysDurable() throws {
+        let source = try migrationPlanSource()
+        let requiredSnippets = [
+            "static let migrateV47toV48 = MigrationStage.custom",
+            "FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>",
+            "scan.queueAttemptCount = 0",
+            "scan.queueLastAttemptAt = nil",
+            "scan.queueNextRetryAt = nil",
+            "scan.queueLastErrorCode = nil",
+            "scan.queueLastErrorMessage = nil",
+            "scan.queueLastHTTPStatus = nil",
+            "scan.queueLastServerStatus = nil",
+            "scan.queueLastServerStage = nil",
+            "scan.queueLastServerRetryAfter = nil",
+            "scan.queueUpdatedAt = now",
+            "scan.queueNeedsAttention = false",
+            #"let jobId = "scan-ingestion:\(scan.id)""#,
+            "MerianSchemaV48.OfflineJobRecord",
+            "MerianSchemaV48.OfflineQueueEvent",
+            #"try saveMigrationContext(context, stage: "V47->V48 didMigrate")"#
+        ]
+        let missing = requiredSnippets.filter { !source.contains($0) }
+
+        #expect(
+            missing.isEmpty,
+            "V47->V48 must remain a custom durable queue migration. Missing snippets:\n\(missing.joined(separator: "\n"))"
+        )
+        #expect(
+            !source.contains("static let migrateV47toV48 = MigrationStage.lightweight"),
+            "V47->V48 cannot be lightweight because existing queued scans need retry metadata and scheduler rows."
+        )
+    }
+
     @Test func migrationFromV44ToCurrentSchemaDoesNotSafeMode() throws {
         let url = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + "_v44migration_test.sqlite")
         defer { removeSQLiteStore(at: url) }
@@ -637,6 +742,143 @@ struct MigrationPlanTests {
             #expect(migratedQueuedScan.fieldNotes == "queued during video capture build")
             #expect(migratedQueuedScan.inferenceImagePaths == nil)
             #expect(migratedQueuedScan.visualMediaItemsJSON == nil)
+        }
+    }
+
+    @Test func migrationFromV47ToCurrentSchemaDoesNotSafeMode() throws {
+        let url = migrationStoreURL(named: "v47migration_test")
+        defer { removeSQLiteStore(at: url) }
+
+        let queuedId = "v47-current-migration-video-queued"
+        let capturedMediaJSON = try String(
+            data: JSONEncoder().encode([
+                SerializedMediaItem.video(StoredVideoMediaReference(
+                    .documents("queued-v47-video.mp4"),
+                    thumbnail: .documents("queued-v47-thumbnail.webp")
+                ))
+            ]),
+            encoding: .utf8
+        )
+        let visualMediaItemsJSON = """
+        [{"kind":"video_frame","path":"queued-v47-frame-1.webp"},{"kind":"video_frame","path":"queued-v47-frame-2.webp"}]
+        """
+
+        do {
+            let schema47 = Schema(versionedSchema: MerianSchemaV47.self)
+            let config47 = ModelConfiguration(schema: schema47, url: url)
+            let container47 = try ModelContainer(for: schema47, configurations: [config47])
+            let context47 = ModelContext(container47)
+            let queuedScan = MerianSchemaV47.OfflineQueuedScan(
+                id: queuedId,
+                capturedMediaJSON: capturedMediaJSON,
+                coverImagePath: "queued-v47-thumbnail.webp",
+                stagedR2Keys: ["queued/v47/video.mp4"],
+                inferenceImagePaths: ["queued-v47-frame-1.webp", "queued-v47-frame-2.webp"],
+                visualMediaItemsJSON: visualMediaItemsJSON,
+                fieldNotes: "queued before durable retry metadata"
+            )
+            context47.insert(queuedScan)
+            try context47.save()
+        }
+
+        do {
+            let store = try openCurrentMigrationStore(at: url)
+            let migratedQueuedScan = try fetchCurrentQueuedScan(id: queuedId, context: store.context)
+            #expect(migratedQueuedScan.capturedMediaJSON == capturedMediaJSON)
+            #expect(migratedQueuedScan.coverImagePath == "queued-v47-thumbnail.webp")
+            #expect(migratedQueuedScan.stagedR2Keys == ["queued/v47/video.mp4"])
+            #expect(migratedQueuedScan.inferenceImagePaths == ["queued-v47-frame-1.webp", "queued-v47-frame-2.webp"])
+            #expect(migratedQueuedScan.visualMediaItemsJSON == visualMediaItemsJSON)
+            #expect(migratedQueuedScan.fieldNotes == "queued before durable retry metadata")
+            assertCurrentQueuedScanHasFreshRetryState(migratedQueuedScan)
+            try assertCurrentScanIngestionJob(scanId: queuedId, context: store.context)
+        }
+    }
+
+    @Test func migrationFromV47PreservesAllQueuedMediaKinds() throws {
+        let url = migrationStoreURL(named: "v47_all_media_migration_test")
+        defer { removeSQLiteStore(at: url) }
+
+        let fixtures = [
+            QueuedMediaMigrationFixture(
+                id: "v47-image-queued",
+                items: [.image(.documents("queued-image.webp"))],
+                cover: "queued-image.webp",
+                inferencePaths: nil,
+                visualJSON: nil
+            ),
+            QueuedMediaMigrationFixture(
+                id: "v47-video-queued",
+                items: [
+                    .video(StoredVideoMediaReference(
+                        .documents("queued-video.mp4"),
+                        thumbnail: .documents("queued-video-thumbnail.webp"),
+                        audio: .documents("queued-video-audio.wav")
+                    ))
+                ],
+                cover: "queued-video-thumbnail.webp",
+                inferencePaths: ["queued-video-frame-1.webp", "queued-video-frame-2.webp"],
+                visualJSON: """
+                [{"kind":"video_frame","path":"queued-video-frame-1.webp"},{"kind":"video_frame","path":"queued-video-frame-2.webp"}]
+                """
+            ),
+            QueuedMediaMigrationFixture(
+                id: "v47-audio-queued",
+                items: [.audio(.documents("queued-audio.wav"))],
+                cover: nil,
+                inferencePaths: nil,
+                visualJSON: nil
+            ),
+            QueuedMediaMigrationFixture(
+                id: "v47-description-queued",
+                items: [.description(ObservationContext(freeText: "Queued description-only observation"))],
+                cover: nil,
+                inferencePaths: nil,
+                visualJSON: nil
+            ),
+            QueuedMediaMigrationFixture(
+                id: "v47-mixed-queued",
+                items: [
+                    .image(.documents("mixed-image.webp")),
+                    .audio(.documents("mixed-audio.wav")),
+                    .description(ObservationContext(freeText: "Mixed queued observation"))
+                ],
+                cover: "mixed-image.webp",
+                inferencePaths: nil,
+                visualJSON: nil
+            )
+        ]
+
+        do {
+            let schema47 = Schema(versionedSchema: MerianSchemaV47.self)
+            let config47 = ModelConfiguration(schema: schema47, url: url)
+            let container47 = try ModelContainer(for: schema47, configurations: [config47])
+            let context47 = ModelContext(container47)
+            for fixture in fixtures {
+                context47.insert(MerianSchemaV47.OfflineQueuedScan(
+                    id: fixture.id,
+                    capturedMediaJSON: try encodedMediaJSON(fixture.items),
+                    coverImagePath: fixture.cover,
+                    stagedR2Keys: ["queued/v47/\(fixture.id)"],
+                    inferenceImagePaths: fixture.inferencePaths,
+                    visualMediaItemsJSON: fixture.visualJSON,
+                    fieldNotes: "fixture \(fixture.id)"
+                ))
+            }
+            try context47.save()
+        }
+
+        let store = try openCurrentMigrationStore(at: url)
+        for fixture in fixtures {
+            let migratedQueuedScan = try fetchCurrentQueuedScan(id: fixture.id, context: store.context)
+            #expect(migratedQueuedScan.serializedCapturedMediaItems == fixture.items)
+            #expect(migratedQueuedScan.coverImagePath == fixture.cover)
+            #expect(migratedQueuedScan.stagedR2Keys == ["queued/v47/\(fixture.id)"])
+            #expect(migratedQueuedScan.inferenceImagePaths == fixture.inferencePaths)
+            #expect(migratedQueuedScan.visualMediaItemsJSON == fixture.visualJSON)
+            #expect(migratedQueuedScan.fieldNotes == "fixture \(fixture.id)")
+            assertCurrentQueuedScanHasFreshRetryState(migratedQueuedScan)
+            try assertCurrentScanIngestionJob(scanId: fixture.id, context: store.context)
         }
     }
 
@@ -996,7 +1238,7 @@ struct MigrationPlanTests {
             SerializedMediaItem.audio(.documents("recording.wav"))
         ])
 
-        let jsonString = String(decoding: encoded, as: UTF8.self)
+        let jsonString = try #require(String(data: encoded, encoding: .utf8))
         #expect(jsonString.contains("\"storage\":\"remoteURL\""))
         #expect(jsonString.contains("\"storage\":\"documents\""))
         #expect(MediaJSONParser.hasCloudImage(jsonString: jsonString))

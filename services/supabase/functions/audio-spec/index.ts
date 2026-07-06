@@ -33,6 +33,7 @@ import {
   MEDIA_BUDGETS,
   readRequestJsonWithinBudget,
 } from "../_shared/mediaBudgets.ts";
+import { createCompatibilityScanIngestionLedger } from "../_shared/scanIngestionCompatibility.ts";
 
 import {
   AudioCandidate,
@@ -455,6 +456,35 @@ Deno.serve((req: Request) =>
       };
     }
 
+    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
+      {
+        scanId: generatedScanId,
+        userId: user.id,
+        endpoint: "audio-spec",
+        audioKeys: audio_base64 ? [] : [audio_r2_key!],
+        inlineAudioCount: audio_base64 ? 1 : 0,
+        audioMediaItems: [{ kind: "audio", sourceIndex: 0, clipIndex: 0 }],
+        telemetry: {
+          timestamp,
+          gpsLatitude: safeGpsLat,
+          gpsLongitude: safeGpsLon,
+          gpsElevation: gps_elevation,
+          semanticLocation: semantic_location,
+          publicLocationLabel: public_location_label,
+          geoprivacy,
+          weatherCondition: weather_condition,
+          weatherTemperatureF: weather_temperature_f,
+          deviceLocale: device_locale,
+          deviceTimeZone: device_time_zone,
+          deviceRegion: device_region,
+          currentMonth: normalizedCurrentMonth,
+          timeOfDay: time_of_day,
+        },
+        logStructuredError,
+      },
+      supabaseAdmin,
+    );
+
     // 8. Background ingestion: ghost user, species enrichment, scan insert, R2 cleanup
     const runBackgroundIngestion = async () => {
       let scanInserted = false;
@@ -628,6 +658,7 @@ Deno.serve((req: Request) =>
           supabaseAdmin,
         );
         scanInserted = true;
+        await compatibilityLedger.markComplete();
 
         // Delete audio staging file after successful scan insert (R2 path only).
         if (audio_r2_key && r2Config) {
@@ -669,6 +700,10 @@ Deno.serve((req: Request) =>
         });
 
         if (!scanInserted) {
+          await compatibilityLedger.markRetryableFailure(
+            "background_ingestion_failed",
+            errorMsg,
+          );
           try {
             const { error: dlErr } = await supabaseAdmin
               .from("failed_scan_ingestions")

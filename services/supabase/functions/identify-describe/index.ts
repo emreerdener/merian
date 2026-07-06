@@ -35,6 +35,7 @@ import {
 } from "../identify/sanitize.ts";
 
 import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
+import { createCompatibilityScanIngestionLedger } from "../_shared/scanIngestionCompatibility.ts";
 import {
   getDescribeResponseSchema,
   getDescribeSystemInstruction,
@@ -465,7 +466,35 @@ Deno.serve((req: Request) =>
       }
     }
 
+    const compatibilityLedger = await createCompatibilityScanIngestionLedger(
+      {
+        scanId: generatedScanId,
+        userId: user.id,
+        endpoint: "identify-describe",
+        description,
+        telemetry: {
+          timestamp,
+          gpsLatitude: safeGpsLat,
+          gpsLongitude: safeGpsLon,
+          gpsElevation,
+          semanticLocation,
+          publicLocationLabel: publicExploreLocationLabel,
+          geoprivacy,
+          weatherCondition,
+          weatherTemperatureF,
+          deviceLocale,
+          deviceTimeZone,
+          deviceRegion,
+          currentMonth: normalizedCurrentMonth,
+          timeOfDay,
+        },
+        logStructuredError,
+      },
+      supabaseAdmin,
+    );
+
     const runBackgroundIngestion = async () => {
+      let scanInserted = false;
       try {
         await upsertGhostUserIfMissing(user.id, supabaseAdmin);
 
@@ -586,6 +615,8 @@ Deno.serve((req: Request) =>
           },
           supabaseAdmin,
         );
+        scanInserted = true;
+        await compatibilityLedger.markComplete();
 
         const resolvedGroupTags = await groupTagsPromise;
         if (resolvedGroupTags?.group_tags?.length && isIdentifiedBio) {
@@ -640,9 +671,17 @@ Deno.serve((req: Request) =>
           scientific_name: parsedData.scientific_name,
         }).catch((e) => console.error("PostHog tracking failed:", e));
       } catch (bgError) {
+        if (!scanInserted) {
+          await compatibilityLedger.markRetryableFailure(
+            "background_ingestion_failed",
+            bgError,
+          );
+        }
         logStructuredError("identify-describe/background_ingestion_failed", {
           user_id: user.id,
+          scan_id: generatedScanId,
           error: bgError instanceof Error ? bgError.message : String(bgError),
+          scan_inserted: scanInserted,
         });
       }
     };

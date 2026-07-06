@@ -474,14 +474,17 @@ struct MerianApp: App {
             }
 
             MerianLog.general.error("ModelContainer recovery skipped because the failure did not match a verified corruption signature.")
+            let safeModeFallback = ModelStoreRecoveryCoordinator.safeModeFallback(for: error)
             return fallbackInMemoryBootstrap(
-                reason: "Merian started in safe mode after the persistent store failed to open. The app remains usable, but local changes in this session are temporary."
+                reason: safeModeFallback.message,
+                telemetryReason: safeModeFallback.telemetryReason
             )
         }
     }
 
     static func fallbackInMemoryBootstrap(
         reason: String,
+        telemetryReason: String = "persistent_store_unavailable",
         makeInMemoryContainer: () throws -> ModelContainer = makeInMemoryContainer
     ) -> ModelContainerBootstrapOutcome {
         do {
@@ -494,7 +497,7 @@ struct MerianApp: App {
                 ),
                 telemetryEvent: StartupRecoveryTelemetryEvent(
                     outcome: "safe_mode",
-                    reason: "persistent_store_unavailable"
+                    reason: telemetryReason
                 )
             )
         } catch {

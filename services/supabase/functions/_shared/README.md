@@ -15,13 +15,12 @@ multiple functions need the same behavior and the ownership boundary is clear.
   parsing, body-size checks, and constant-time comparison helpers.
 - **`auth.ts`**: Supabase user/session validation helpers.
 - **`aws.ts`**: Cloudflare R2/S3-compatible presigned upload, object HEAD/copy,
-  and batch deletion helpers. `deleteR2Objects` uses
-  `mapWithConcurrencyLimit` internally so lifecycle workers do not run
-  unbounded delete fanout. Prefix helpers classify `staging/`, `quarantine/`,
-  and `exports/` as temporary, `public_uploads/free|pro/` as scan media, and
-  `avatars/` as durable profile media. Scan purge flows must use
-  `deleteScanMediaR2Objects(...)`; avatar replacement must use
-  `deleteAvatarR2Object(...)` with the owning user ID.
+  and batch deletion helpers. `deleteR2Objects` uses `mapWithConcurrencyLimit`
+  internally so lifecycle workers do not run unbounded delete fanout. Prefix
+  helpers classify `staging/`, `quarantine/`, and `exports/` as temporary,
+  `public_uploads/free|pro/` as scan media, and `avatars/` as durable profile
+  media. Scan purge flows must use `deleteScanMediaR2Objects(...)`; avatar
+  replacement must use `deleteAvatarR2Object(...)` with the owning user ID.
 - **`mediaBudgets.ts`**: Shared media byte ceilings, allowed staging content
   types, inline/staged audio and image validation, clip-count limits, and
   `Content-Length` prechecks. Request and response bodies that may be chunked or
@@ -35,27 +34,28 @@ multiple functions need the same behavior and the ownership boundary is clear.
   heap, provider throttles, or Postgres writes.
 - **`scanMediaAssets.ts`**: Normalized scan-media lifecycle helpers. Upload
   signing creates staged scan-media asset rows, identify finalization marks them
-  promoted/deleted/failed, and write paths make best-effort
-  `scan_media_assets` refresh calls after scan inserts or video repair updates.
-  The `reconcile-scan-media-assets` worker owns stale staged-row repair and
+  promoted/deleted/failed, and write paths make best-effort `scan_media_assets`
+  refresh calls after scan inserts or video repair updates. The
+  `reconcile-scan-media-assets` worker owns stale staged-row repair and
   abandonment cleanup, while checking active ingestion jobs before abandoning
   staged upload-session media. Composer and status paths prefer ready
-  display/playback asset rows before falling back to `captured_media` and legacy arrays.
-  `scan-media-health` reads the same lifecycle state for deploy smoke checks and
-  operational drift alerts, but does not mutate media rows.
+  display/playback asset rows before falling back to `captured_media` and legacy
+  arrays. `scan-media-health` reads the same lifecycle state for deploy smoke
+  checks and operational drift alerts, but does not mutate media rows.
 - **`scanIngestionJobs.ts`**: Durable scan-ingestion job helpers. The active
   multimodal path claims a job row after media validation, updates server-side
   stages through inference/finalization/failure, and `/check-scan-status`
-  exposes the owner-safe job state when the scan row is not complete yet.
-  Claims include expected media counts, staged object keys, recovered
-  upload-session ids, and a normalized manifest checksum so retries, server
-  replay, and repair work can detect accidental media-shape drift.
+  exposes the owner-safe job state when the scan row is not complete yet. Claims
+  include expected media counts, staged object keys, recovered upload-session
+  ids, and a normalized manifest checksum so retries, server replay, and repair
+  work can detect accidental media-shape drift.
 - **`scanIngestionIntents.ts`**: Sanitized scan-ingestion replay intent helpers.
   `identify-multimodal` records telemetry, observation context, media
-  descriptors, staged object keys, upload-session ids, and payload checksums into
-  `scan_ingestion_intents` without raw base64 media bytes or local device paths.
-  Inline-media requests are marked non-resumable so `replay-scan-ingestion` and
-  health checks know they still depend on the client queue.
+  descriptors, staged object keys, upload-session ids, and payload checksums
+  into `scan_ingestion_intents` without raw base64 media bytes or local device
+  paths. Inline-media requests are marked non-resumable so
+  `replay-scan-ingestion` and health checks know they still depend on the client
+  queue.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
   by `audio-spec` and `identify-multimodal`.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,
@@ -85,6 +85,12 @@ multiple functions need the same behavior and the ownership boundary is clear.
   content refresh outputs.
 - **`taxonomy.ts`**: Taxonomic normalization helpers and test-backed taxonomy
   transformations.
+- **`scanIngestionCompatibility.ts`**: Compatibility ledger for scan-producing
+  legacy endpoints. `/identify`, `/identify-describe`, and `/audio-spec` record
+  `scan_ingestion_jobs` plus multimodal-shaped sanitized
+  `scan_ingestion_intents` before returning success. Staged media and text-only
+  intents can be replayed through `replay-scan-ingestion`; inline base64 media
+  is redacted and marked non-resumable.
 
 ## Identify Subdomain
 

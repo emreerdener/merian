@@ -161,8 +161,8 @@ Deno tests.
 Profile avatar uploads also use this signing path. The iOS client uploads a
 single prepared square WebP or JPEG to `staging/{userId}/...`, then calls
 `/update-public-avatar` to promote that object into the durable `avatars/`
-prefix. The signing endpoint stays generic; ownership and avatar MIME policy
-are enforced by the promotion endpoint.
+prefix. The signing endpoint stays generic; ownership and avatar MIME policy are
+enforced by the promotion endpoint.
 
 ## The Scan Media Reconciliation Worker (`reconcile-scan-media-assets`)
 
@@ -182,8 +182,8 @@ offline queue remains responsible for inline/redacted scans, while
 `replay-scan-ingestion` retries resumable staged scans that never reached
 completion.
 
-The worker now reads `scan_ingestion_jobs` before deciding whether stale media is
-truly abandoned. Active `processing` / `finalizing` leases and future
+The worker now reads `scan_ingestion_jobs` before deciding whether stale media
+is truly abandoned. Active `processing` / `finalizing` leases and future
 `retry_after` windows keep media pending; repaired existing scans can mark the
 job `complete` once the required video count and captured-media manifest match;
 media abandoned after the TTL marks the job `failed_terminal` so status polling
@@ -194,8 +194,8 @@ and health checks have one server-authoritative reason.
 The `replay-scan-ingestion` Edge Function is an internal service-role worker
 scheduled every five minutes by pg_cron. It claims retryable or lease-expired
 `scan_ingestion_jobs` rows whose paired `scan_ingestion_intents` are resumable,
-reconstructs the sanitized staged-media request, and invokes
-`identify-multimodal` with the same `client_scan_id`.
+reconstructs the sanitized staged media/audio/video or text-only request, and
+invokes `identify-multimodal` with the same `client_scan_id`.
 
 This worker is deliberately a dispatcher, not a second inference pipeline.
 `identify-multimodal` remains the only owner of Gemini calls, moderation,
@@ -203,6 +203,15 @@ playback-video promotion, scan insertion, `captured_media`, and asset
 finalization. Existing complete scan rows are marked complete without replay;
 existing incomplete video rows are left retryable for media reconciliation or
 local-video repair.
+
+Legacy scan-producing endpoints (`identify`, `identify-describe`, and
+`audio-spec`) write compatibility `scan_ingestion_jobs` and
+`scan_ingestion_intents` before returning success. Their sanitized intents are
+shaped as multimodal replay payloads, so staged image/audio and text-only
+requests can recover through the same worker. Requests that used inline base64
+media are recorded with redacted counts and `resumable = false`; the iOS offline
+queue remains the recovery owner because the server never stores raw private
+media bytes.
 
 ## Scan Media Health (`scan-media-health`)
 
@@ -215,13 +224,16 @@ media reconciliation run status.
 
 The endpoint is intentionally read-only. It does not promote R2 objects, mutate
 scan rows, replay inference, or delete staged media. Repairs stay owned by
-`identify-multimodal`, `replay-scan-ingestion`,
-`reconcile-scan-media-assets`, and the iOS offline queue.
-Deploy smoke tests call it with a small sample to prove the service-role status
-surface is reachable after migrations and function deployment.
-The scheduled **Scan Media Health Monitor** GitHub workflow calls the same
-endpoint every 30 minutes, stores JSON/Markdown artifacts, and fails only on
-`critical` by default so warnings remain visible without paging the deploy path.
+`identify-multimodal`, `replay-scan-ingestion`, `reconcile-scan-media-assets`,
+and the iOS offline queue. Deploy smoke tests call it with a small sample to
+prove the service-role status surface is reachable after migrations and function
+deployment. The scheduled **Scan Media Health Monitor** GitHub workflow calls
+the same endpoint every 30 minutes, stores JSON/Markdown artifacts, and fails
+only on `critical` by default so warnings remain visible without paging the
+deploy path. Its Markdown artifact includes an **Incident Actions** table that
+maps each issue code to an owner, next step, runbook, and sample-field hint, so
+production drift triage starts from the generated report instead of raw table
+inspection.
 
 ## The Public Avatar Promotion Node (`update-public-avatar`)
 
@@ -250,7 +262,8 @@ On success the function:
 1. Copies the staged object to `avatars/{userId}/{uuid}.webp` or
    `avatars/{userId}/{uuid}.jpg`.
 2. Updates `public.users.custom_avatar_url`,
-   `public.users.custom_avatar_updated_at`, and `public.users.public_avatar_url`.
+   `public.users.custom_avatar_updated_at`, and
+   `public.users.public_avatar_url`.
 3. Deletes only the previous custom avatar when it is a
    `https://media.merian.app/avatars/{sameUserId}/...` URL.
 4. Returns:
@@ -281,8 +294,9 @@ The request body is:
 ```
 
 The function trims and collapses whitespace, rejects empty/control-character
-names, caps names at 40 characters, and updates `public.users.public_author_name`
-with `public_identity_source = 'display_name'`. On success it returns:
+names, caps names at 40 characters, and updates
+`public.users.public_author_name` with
+`public_identity_source = 'display_name'`. On success it returns:
 
 ```json
 {
@@ -329,26 +343,29 @@ The `/identify` Edge Function acts as the inference proxy:
    pipeline, GBIF scrape, Wikipedia enrichment, and PostgreSQL UPSERTs) is
    deferred off the response path via `runBackground(task)` from
    `_shared/edgeHandler.ts`. The taxonomy payload is returned to the iOS client
-   immediately. **Accepted requests claim a scan-ingestion job** after media
-   validation and before AI inference. `identify-multimodal` updates
+   immediately. **Accepted multimodal requests claim a scan-ingestion job**
+   after media validation and before AI inference. `identify-multimodal` updates
    `public.scan_ingestion_jobs` through AI inference, moderation, media
-   promotion, scan insert, and complete/failure states. Background ingestion
-   failures are still captured in the older dead-letter table: if
+   promotion, scan insert, and complete/failure states. Compatibility
+   scan-producing endpoints claim the same ledger after inference and before
+   returning success, using multimodal-shaped sanitized intents so staged media
+   and text-only rows have the same recovery surface. Background ingestion
+   failures are still captured in the older dead-letter table as a fallback: if
    `insertScan()` throws inside `runBackgroundIngestion()` (FK violation, DB
    timeout, network partition), the catch block writes a row to
    `public.failed_scan_ingestions` with the `scan_id`, `user_id`, and
    `error_message`. The job ledger gives `/check-scan-status` live state,
    including bulk status probes and video-completeness checks via
-   `required_video_count`; dead letters remain the ops replay fallback. Replay
-   is safe because `insertScan` uses `ignoreDuplicates: true`.
+   `required_video_count`; dead letters are now legacy ops evidence rather than
+   the primary recovery surface. Replay is safe because `insertScan` uses
+   `ignoreDuplicates: true`.
 6. **Moderation Pipeline (`_shared/identify/moderation.ts`)**: Evaluates Gemini
    Safety Ratings before any write occurs. Unsafe media sets the user's status
    to `SHADOWBANNED`, increments abuse strikes, and deletes the R2 object. Safe
    biological media is promoted into durable scan storage under the current
-   `.userTier` prefix. The
-   shared moderation module calls `getR2Config()` once at the top and reuses the
-   resulting `AwsClient`. **Moderation ERROR guard**: When
-   `modResult.status === "ERROR"` (e.g. abuse strike DB write failed or a
+   `.userTier` prefix. The shared moderation module calls `getR2Config()` once
+   at the top and reuses the resulting `AwsClient`. **Moderation ERROR guard**:
+   When `modResult.status === "ERROR"` (e.g. abuse strike DB write failed or a
    promotion batch fails), background ingestion halts immediately. The scan is
    not inserted, and any already-promoted public objects from that failed batch
    are rolled back before the function returns `ERROR`.
@@ -596,14 +613,13 @@ Key rules:
   `license = "Used with permission via Merian"`, and the public author label in
   `attribution`. This uses `public_author_name`, not the username handle unless
   the display label itself is the default username. Source scan/post/user IDs
-  remain in the private
-  `species_reference_image_merian_sources` table along with the private
-  confidence/provenance snapshot used for promotion.
+  remain in the private `species_reference_image_merian_sources` table along
+  with the private confidence/provenance snapshot used for promotion.
 - If an Explore post is unshared, media is cleared, the source scan geoprivacy
   becomes private, the scan is tombstoned, or the author is shadowbanned, the
   next refresh removes the corresponding Merian public reference image. This
-  reference-image promotion gate is stricter than ordinary Explore visibility:
-  a post-level `private` location setting can still leave the post visible, but
+  reference-image promotion gate is stricter than ordinary Explore visibility: a
+  post-level `private` location setting can still leave the post visible, but
   private backing scans are not promoted into species reference imagery.
 
 ## The Unified Multi-Modal Inference Node (`identify-multimodal`)
@@ -616,19 +632,19 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    `audioBase64s`, staged `audioR2ObjectKeys`, staged `videoR2ObjectKeys`,
    `visualMediaItems` / `visual_media_items`, `audioMediaItems` /
    `audio_media_items`, `videoFrameCount`, and `observation_contexts` arrays.
-   Video scans send five ordered sampled frames through the normal image payload path
-   for AI inference and, when available, send an extracted accompanying Int16 PCM
-   WAV audio track through the normal audio path. The upload-bounded playback `.mp4`
-   is staged only for persistence after moderation; it is usually a compressed
-   720p export, with an original-file fallback only when the source remains
-   under the hard video byte cap. `visualMediaItems` is the preferred contract for
-   telling the prompt which visual inputs are still photos and which are ordered
-   frames from one or more short clips; `audioMediaItems` identifies standalone
-   audio versus audio extracted from a video clip. If optional video audio cannot
-   be parsed or is too short after trimming, the edge skips that audio when
-   visual evidence is present instead of rejecting the whole video scan.
-   `videoFrameCount` remains a
-   legacy fallback when older clients omit explicit media metadata.
+   Video scans send five ordered sampled frames through the normal image payload
+   path for AI inference and, when available, send an extracted accompanying
+   Int16 PCM WAV audio track through the normal audio path. The upload-bounded
+   playback `.mp4` is staged only for persistence after moderation; it is
+   usually a compressed 720p export, with an original-file fallback only when
+   the source remains under the hard video byte cap. `visualMediaItems` is the
+   preferred contract for telling the prompt which visual inputs are still
+   photos and which are ordered frames from one or more short clips;
+   `audioMediaItems` identifies standalone audio versus audio extracted from a
+   video clip. If optional video audio cannot be parsed or is too short after
+   trimming, the edge skips that audio when visual evidence is present instead
+   of rejecting the whole video scan. `videoFrameCount` remains a legacy
+   fallback when older clients omit explicit media metadata.
 2. **WAV Preprocessing**: Audio data is preflighted before decode/fetch. The
    endpoint rejects oversized declared request `Content-Length` headers before
    body parsing, then uses `readRequestJsonWithinBudget` as the authoritative
@@ -666,30 +682,29 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    common names are attached synchronously when available, and cache misses are
    enriched in the background so the next scan is warm.
 6. Persisted multimodal scan imagery still lands in `scans.image_storage_urls`;
-   promoted playback clips land separately in `scans.video_storage_urls`. Staged audio,
-   including extracted video audio, is an inference input, not a public media
-   artifact; `identify-multimodal` deletes `audioR2ObjectKeys` from staging
-   after successful background ingestion. Staged video keys are a durability gate:
-   they are promoted only after the sampled frames pass moderation, and any
-   promotion shortfall fails the video scan instead of inserting a frame-only
-   row. Successful video inserts write both `video_storage_urls` and a
-   `captured_media` video item before the client treats the scan as complete.
-   Upload-session rows created by `/generate-upload-urls` are linked to the scan
-   during this finalization step: promoted visual/video rows become `promoted`,
-   consumed audio rows become `deleted`, and failed finalization leaves a
-   retryable `failed` trail. Before AI inference starts, the same request claims
-   `scan_ingestion_jobs` with expected media counts, staged object keys,
-   recovered upload-session ids, and a normalized `manifest_checksum`; that job
-   row is the server-side source of truth for status polling, retry ownership,
-   and later media reconciliation. The request also records a
-   `scan_ingestion_intents` row with the sanitized replay payload and a
-   `payload_checksum`; inline base64 media is redacted and marks the intent
-   non-resumable, while queued/staged media requests become eligible for future
-   server-side replay.
-   The `scan_media_assets` lifecycle table is refreshed by the database trigger
-   plus a best-effort Edge refresh call, so newer media readers can use ready
-   display/playback rows instead of inferring user-visible media from
-   compatibility arrays.
+   promoted playback clips land separately in `scans.video_storage_urls`. Staged
+   audio, including extracted video audio, is an inference input, not a public
+   media artifact; `identify-multimodal` deletes `audioR2ObjectKeys` from
+   staging after successful background ingestion. Staged video keys are a
+   durability gate: they are promoted only after the sampled frames pass
+   moderation, and any promotion shortfall fails the video scan instead of
+   inserting a frame-only row. Successful video inserts write both
+   `video_storage_urls` and a `captured_media` video item before the client
+   treats the scan as complete. Upload-session rows created by
+   `/generate-upload-urls` are linked to the scan during this finalization step:
+   promoted visual/video rows become `promoted`, consumed audio rows become
+   `deleted`, and failed finalization leaves a retryable `failed` trail. Before
+   AI inference starts, the same request claims `scan_ingestion_jobs` with
+   expected media counts, staged object keys, recovered upload-session ids, and
+   a normalized `manifest_checksum`; that job row is the server-side source of
+   truth for status polling, retry ownership, and later media reconciliation.
+   The request also records a `scan_ingestion_intents` row with the sanitized
+   replay payload and a `payload_checksum`; inline base64 media is redacted and
+   marks the intent non-resumable, while queued/staged media requests become
+   eligible for future server-side replay. The `scan_media_assets` lifecycle
+   table is refreshed by the database trigger plus a best-effort Edge refresh
+   call, so newer media readers can use ready display/playback rows instead of
+   inferring user-visible media from compatibility arrays.
 
 ## The Explore Social Surface
 
@@ -739,12 +754,11 @@ names or the scientific name only for legacy posts without a snapshot.
 Explore post media is also a post-owned snapshot. Sharing copies safe public
 image and video URLs from the scan into `explore_post_media` and keeps
 `hero_image_url` as the backward-compatible universal thumbnail. Feed, detail,
-author, hashtag, map, and Community ID reads include ordered `media_items`
-JSON. Feed/detail surfaces may play muted videos conservatively, while maps,
-widgets, profile grids, and compact previews stay thumbnail-first with play
-indicators. Dictionary galleries and reference-image promotion remain
-image-only and read from the eligible scan image URLs rather than public video
-clips.
+author, hashtag, map, and Community ID reads include ordered `media_items` JSON.
+Feed/detail surfaces may play muted videos conservatively, while maps, widgets,
+profile grids, and compact previews stay thumbnail-first with play indicators.
+Dictionary galleries and reference-image promotion remain image-only and read
+from the eligible scan image URLs rather than public video clips.
 
 For captured-media video scans, the Explore composer, `share-scan-to-explore`,
 `update-explore-field-notes`, and Ask the Community request creation all resolve
@@ -809,12 +823,12 @@ The map path is intentionally split into two layers.
 `explore_posts`, `scans`, `users`, and `species_dictionary`;
 `get-explore-map-points` adds species-type category counts, applies requested
 species categories before clustering, and returns either clusters or individual
-post rows. Explore now stores the author-selected post
-geoprivacy on `explore_posts.location_sharing` and projects post-owned public
-map fields when that value is `open`. `obscured` and `private` posts can still
-be visible on non-map Explore surfaces when otherwise eligible, but the map does
-not return them. Protected-species and coordinate-uncertainty rules can still
-downgrade an `open` post to rounded public coordinates with
+post rows. Explore now stores the author-selected post geoprivacy on
+`explore_posts.location_sharing` and projects post-owned public map fields when
+that value is `open`. `obscured` and `private` posts can still be visible on
+non-map Explore surfaces when otherwise eligible, but the map does not return
+them. Protected-species and coordinate-uncertainty rules can still downgrade an
+`open` post to rounded public coordinates with
 `coordinate_visibility = 'obscured'`. The Nearby feed uses the same stored
 post-owned public coordinates for spatial matching, so non-owned `obscured` and
 `private` posts do not appear through Nearby even though they can appear in
@@ -840,22 +854,22 @@ moving existing scan media between R2 prefixes. Both `public_uploads/free/` and
 update `users.subscription_tier`, `users.subscription_expires_at`, and the
 in-process tier cache. The webhook secret is validated using
 `timingSafeCompare()`, a constant-time XOR comparison, rather than plain string
-equality — this prevents timing attacks.
-**Tier cache invalidation**: After writing the new tier to the `users` table,
-the function immediately calls `setTierCache(userId, tier)` from
-`_shared/tierCache.ts` to update the in-process isolate cache. Without this, a
-Pro purchaser would receive `gemini-2.5-flash` calls (free tier) for up to 5
-minutes while the TTL-based cache holds the stale `"free"` entry.
+equality — this prevents timing attacks. **Tier cache invalidation**: After
+writing the new tier to the `users` table, the function immediately calls
+`setTierCache(userId, tier)` from `_shared/tierCache.ts` to update the
+in-process isolate cache. Without this, a Pro purchaser would receive
+`gemini-2.5-flash` calls (free tier) for up to 5 minutes while the TTL-based
+cache holds the stale `"free"` entry.
 
 Standard subscription purchases (`INITIAL_PURCHASE`, `RENEWAL`,
-`UNCANCELLATION`) clear `subscription_expires_at`; exact
-`merian_7_day_pass` `NON_RENEWING_PURCHASE` events set it to
-`purchased_at_ms + 7 days`. On `EXPIRATION` for standard subscriptions, or
-refund/cancellation-style events for the pass, Merian downgrades the account
-tier and updates the in-process tier cache. Existing scan media remains in
-place because both `public_uploads/free/` and `public_uploads/pro/` are durable
-scan-media prefixes. The scheduled `expire-subscription-passes` worker performs
-the same downgrade when a timed pass reaches `subscription_expires_at`.
+`UNCANCELLATION`) clear `subscription_expires_at`; exact `merian_7_day_pass`
+`NON_RENEWING_PURCHASE` events set it to `purchased_at_ms + 7 days`. On
+`EXPIRATION` for standard subscriptions, or refund/cancellation-style events for
+the pass, Merian downgrades the account tier and updates the in-process tier
+cache. Existing scan media remains in place because both `public_uploads/free/`
+and `public_uploads/pro/` are durable scan-media prefixes. The scheduled
+`expire-subscription-passes` worker performs the same downgrade when a timed
+pass reaches `subscription_expires_at`.
 
 Before saving `image_storage_urls` to PostgreSQL, the function strips AWS
 signature query string parameters from the URL to prevent Cloudflare R2
@@ -949,8 +963,8 @@ that operate on anonymous IDFV boundaries:
 
 - The `GEMINI_API_KEY` is absent from the iOS client bundle (`Info.plist` and
   `.xcconfig`). All LLM calls go through Supabase Edge Functions (`identify`,
-  `identify-multimodal`, `enrich-scan`, `insight-chat`, etc.), which hold the key
-  server-side.
+  `identify-multimodal`, `enrich-scan`, `insight-chat`, etc.), which hold the
+  key server-side.
 - App-facing anonymous-compatible Edge Functions set `verify_jwt = false` in
   `config.toml`. Authenticated endpoints then perform manual JWT verification
   via `requireAuth` inside `withEdgeHandler`. This is mandatory for
@@ -971,11 +985,11 @@ that operate on anonymous IDFV boundaries:
     species-level iNaturalist aggregates and cache metadata. Local Merian
     observation data is not sent to this endpoint.
   - **Internal service-role workers**: Keep `verify_jwt = false` so `pg_net`,
-    GitHub Actions, or another trusted server caller can reach the Deno
-    runtime, then enforce the service-role bearer header inside Deno with
-    `timingSafeCompare`. This includes species refresh, reference-image
-    refresh, taxonomy import/status/refresh, consensus processing, and
-    non-biological purge workers.
+    GitHub Actions, or another trusted server caller can reach the Deno runtime,
+    then enforce the service-role bearer header inside Deno with
+    `timingSafeCompare`. This includes species refresh, reference-image refresh,
+    taxonomy import/status/refresh, consensus processing, and non-biological
+    purge workers.
 - **Rule for new Edge Functions**: Every new function directory under
   `services/supabase/functions/` MUST have a corresponding `[functions.<name>]`
   entry in `config.toml` before deployment. Use `verify_jwt = false` for
@@ -1003,8 +1017,10 @@ following:
 - `idx_scans_lifecycle` on `scans (timestamp) WHERE image_storage_urls != '{}'`
   — supports media-present scans queries used by public/feed/reference-image
   projections.
-- `idx_scans_nonbio_lifecycle` on `scans (timestamp) WHERE
-  is_biological_subject = false` — scopes the non-biological cleanup worker.
+- `idx_scans_nonbio_lifecycle` on
+  `scans (timestamp) WHERE
+  is_biological_subject = false` — scopes the
+  non-biological cleanup worker.
 
 Additional migration-specific indexes:
 
@@ -1062,8 +1078,9 @@ so only `public_uploads/free/` and `public_uploads/pro/` URLs are eligible for
 scan purge deletion. `avatars/`, `staging/`, `quarantine/`, and `exports/` URLs
 are skipped even if a malformed scan row contains them.
 
-The iOS app mirrors this retention boundary locally. `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)`
-is invoked on foreground and when `NonBiologicalScansView` opens. It delegates to
+The iOS app mirrors this retention boundary locally.
+`ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)` is invoked on
+foreground and when `NonBiologicalScansView` opens. It delegates to
 `BackgroundDatabaseActor.purgeExpiredNonBiologicalScans(cutoffDate:)`, which
 fetches a bounded batch of expired local non-biological records, deletes rows,
 queues `PendingCloudDeletionTask` tombstones, commits SwiftData first, and only
@@ -1086,7 +1103,7 @@ Run these in **Supabase → SQL Editor → Save** to pin them as named queries:
 | File                              | Purpose                                                                                                                                                                                                                                            |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `token_cost_summary.sql`          | Estimated scan inference spend by tier for any date window. Applies current Gemini pricing constants (Flash: $0.30/M input, $0.03/M cached, $2.50/M output; Pro: $1.25/M input, $10/M output) against actual stored token counts.                  |
-| `insight_chat_cost_summary.sql`   | Estimated Gemini 2.5 Flash spend for Pro Insight chat assistant replies, using token telemetry persisted on `insight_chat_messages`.                                                                                                                |
+| `insight_chat_cost_summary.sql`   | Estimated Gemini 2.5 Flash spend for Pro Insight chat assistant replies, using token telemetry persisted on `insight_chat_messages`.                                                                                                               |
 | `cache_effectiveness.sql`         | Daily Flash implicit cache hit rate and savings in cents. A hit is any scan where `llm_cached_tokens > 0`. Only meaningful for Flash scans after the system instruction exceeded the 2,048-token caching threshold.                                |
 | `thinking_token_distribution.sql` | P50/P90/P95/max thinking token usage by tier, plus `pct_at_budget_ceiling` — the percentage of scans where thinking usage approached the configured budget (2,048 Flash / 5,000 Pro). A high ceiling-hit rate signals the budget should be raised. |
 | `daily_cost_trend.sql`            | Per-day API spend by tier for the last 30 days. Use to spot cost anomalies from traffic surges or pricing changes.                                                                                                                                 |
@@ -1223,9 +1240,8 @@ Individual scan deletion severs the record from both Supabase and Cloudflare R2:
   Deno config, preferably to npm specifiers, so Supabase's bundler is not forced
   to fetch deno.land or esm.sh modules while creating every function graph.
   Historical Supabase JS URL imports are still remapped by the Deno config for
-  compatibility. New
-  entrypoints should call `Deno.serve(...)` directly, and runtime base64/hex work
-  should use `_shared/encoding.ts`.
+  compatibility. New entrypoints should call `Deno.serve(...)` directly, and
+  runtime base64/hex work should use `_shared/encoding.ts`.
 - **`_shared` Utilities**: The `http.ts`, `edgeHandler.ts`, `biology.ts`,
   `external.ts`, `tierCache.ts`, `posthog.ts`, `gemini.ts`, `aws.ts`,
   `encoding.ts`, and `auth.ts` domains cleanly separate the core proxy engine
@@ -1350,9 +1366,9 @@ history is merged into the new authenticated identity:
    `purgeGhostUser`**: the `collections` table references
    `auth.users(id) ON DELETE CASCADE`, so deleting the ghost from `auth.users`
    would silently drop all collections if this step is skipped.
-5. `transferExplorePosts` — re-parents denormalized `explore_posts.user_id`
-   rows so Explore feeds, profile previews, author sheets, and owned-viewer
-   checks follow the new account.
+5. `transferExplorePosts` — re-parents denormalized `explore_posts.user_id` rows
+   so Explore feeds, profile previews, author sheets, and owned-viewer checks
+   follow the new account.
 6. `transferCommunityRequests` — re-parents
    `explore_community_requests.requested_by`. This must run before
    `public.users(ghost_id)` is deleted because Community request ownership

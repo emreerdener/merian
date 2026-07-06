@@ -427,11 +427,11 @@ or audio attached:
   biology-specific fields (`ecology_type`, `is_invasive`,
   `invasive_status_region`, `invasive_rationale`, `invasive_confidence`,
   `life_stage`, `reproductive_condition`, `sex`, `sex_confidence`,
-  `sex_evidence`, `individual_count`, `ecological_interactions`) are declared with
-  `nullable: true` and are absent from the `required` array. `scientific_name`
-  and `common_name` are likewise `nullable: true` to support identifiable
-  geological subjects (rocks, minerals) while permitting omission for generic
-  debris.
+  `sex_evidence`, `individual_count`, `ecological_interactions`) are declared
+  with `nullable: true` and are absent from the `required` array.
+  `scientific_name` and `common_name` are likewise `nullable: true` to support
+  identifiable geological subjects (rocks, minerals) while permitting omission
+  for generic debris.
 - **Two-Call Identification Architecture (Optimised TTFM)**: Every scan follows
   a two-stage pipeline designed for absolute lowest "Time-To-First-Meaning"
   (latency from shutter to first UI render):
@@ -450,9 +450,9 @@ or audio attached:
      until textual evidence is written. The invasive-status assessment
      (`is_invasive` plus region, rationale, and confidence) also securely
      remains here, pulling natively from the user's GPS/coarse location; forcing
-     this to a secondary text payload would incur a sequential ~500ms network penalty. Heavy
-     structure-agnostic generation fields (`hazard_type`, `colors`,
-     `blur_score`) were explicitly **stripped** from the Vision schema
+     this to a secondary text payload would incur a sequential ~500ms network
+     penalty. Heavy structure-agnostic generation fields (`hazard_type`,
+     `colors`, `blur_score`) were explicitly **stripped** from the Vision schema
      properties and prompt omissions to boost inference speed.
      - **Structured Markdown Directives & Darwin Core Dictionary**:
        `getSystemInstruction()` in
@@ -460,7 +460,7 @@ or audio attached:
        instructions natively in Markdown. This serves two purposes: (1) grouping
        rules semantically improves LLM instruction-following versus dense
        paragraphs; (2) appending an extensive `Darwin Core Semantics Dictionary`
-      block pushes the system instruction above the 2,048-token implicit
+       block pushes the system instruction above the 2,048-token implicit
        caching threshold for `gemini-2.5-flash` while enforcing machine-exact
        semantics for DwC-A export. Key constraints include: `scientificName`
        must omit author citations/hybrid markers; exact phenotype boundaries for
@@ -505,9 +505,8 @@ or audio attached:
   `_shared/tierCache.ts` (5-minute TTL worker-level cache). This resolver
   separates model choice from paid storage: paid subscribers and active paid
   7-day passes return `plan = "pro_paid"`, dynamic 7-day trial users return
-  `plan = "pro_trial"` while usually keeping raw
-  `subscription_tier = "free"`, and expired free/timed-pass users return
-  `plan = "free"`.
+  `plan = "pro_trial"` while usually keeping raw `subscription_tier = "free"`,
+  and expired free/timed-pass users return `plan = "free"`.
 - **Fossil, Geological & Non-Biological Handling**: The system instruction
   explicitly distinguishes liveness from biological identity. Fossils, pressed
   plants, museum specimens, and dried organisms are
@@ -576,26 +575,25 @@ or audio attached:
   `usageMetadata.cachedContentTokenCount`) to track implicit cache hit volume —
   a non-zero value means Google served those prefix tokens from cache at the 75%
   discount rate.
-- **Insight Chat (`insight-chat`)**: Pro follow-up chat uses
-  `gemini-2.5-flash` from an authenticated Edge Function and appears as an
-  Insight bottom-sheet conversation surface. The client never sends raw image
-  data for chat turns; the server assembles a text-only context from the owned
-  scan row, species dictionary fields, AI reasoning, identification provenance,
-  observed traits, ecology annotations, species group tags, telemetry,
-  candidates/lookalikes, coarse field context, and image/capture-quality
-  metadata. Exact GPS coordinates, raw image bytes, storage keys, internal scan
-  IDs, cloud image URLs, Explore/community content, and export payloads are
-  excluded. Chat conversations, messages, answer feedback, and sheet-level
-  feature feedback are private rows in `insight_chat_conversations`,
-  `insight_chat_messages`, `insight_chat_message_feedback`, and
-  `insight_chat_feature_feedback`; each scan has one saved conversation per
-  user. User messages are capped at 600 characters, each conversation is capped
-  at 30 messages, and all chats share the 20 sends per Pro user per day. Token
-  usage is stored on assistant message rows and tracked with
-  `InsightChatAnswered`, `InsightChatRefused`, `InsightChatRateLimited`,
-  `InsightChatModelError`, `InsightChatFeedbackSubmitted`, and
-  `InsightChatNotesSummarized`; send/answer events include a deterministic
-  `answer_category` for prompt and cost review.
+- **Insight Chat (`insight-chat`)**: Pro follow-up chat uses `gemini-2.5-flash`
+  from an authenticated Edge Function and appears as an Insight bottom-sheet
+  conversation surface. The client never sends raw image data for chat turns;
+  the server assembles a text-only context from the owned scan row, species
+  dictionary fields, AI reasoning, identification provenance, observed traits,
+  ecology annotations, species group tags, telemetry, candidates/lookalikes,
+  coarse field context, and image/capture-quality metadata. Exact GPS
+  coordinates, raw image bytes, storage keys, internal scan IDs, cloud image
+  URLs, Explore/community content, and export payloads are excluded. Chat
+  conversations, messages, answer feedback, and sheet-level feature feedback are
+  private rows in `insight_chat_conversations`, `insight_chat_messages`,
+  `insight_chat_message_feedback`, and `insight_chat_feature_feedback`; each
+  scan has one saved conversation per user. User messages are capped at 600
+  characters, each conversation is capped at 30 messages, and all chats share
+  the 20 sends per Pro user per day. Token usage is stored on assistant message
+  rows and tracked with `InsightChatAnswered`, `InsightChatRefused`,
+  `InsightChatRateLimited`, `InsightChatModelError`,
+  `InsightChatFeedbackSubmitted`, and `InsightChatNotesSummarized`; send/answer
+  events include a deterministic `answer_category` for prompt and cost review.
   The same Edge Function also supports `action: "suggest_prompts"` for
   AI-generated quick prompt chips. Prompt suggestions use the same private
   text-only scan context plus recent saved chat history, return exactly three
@@ -633,8 +631,8 @@ or audio attached:
     model is not asked to conditionally self-suppress (which was unreliable).
     Candidates are persisted per-scan to `public.scans.candidates` (JSONB) and
     on-device to `LocalScanRecord.candidatesData` (Data blob,
-    `MerianSchemaV28`). Persisted candidates do not automatically render UI:
-    the iOS client filters them through `CandidateReviewVisibilityPolicy`.
+    `MerianSchemaV28`). Persisted candidates do not automatically render UI: the
+    iOS client filters them through `CandidateReviewVisibilityPolicy`.
     Candidate-review UI appears when the primary confidence is below the tier's
     Strong threshold, or when a Strong primary has a top candidate with
     `confidenceScore >= 0.80` within `0.15` of the primary confidence. The same
@@ -648,9 +646,10 @@ or audio attached:
     confirmation affordance plus a Review alternatives path that opens
     `CandidateSwipeModal`; the swipe modal owns stack/grid review, skip/reject,
     candidate confirmation, exhausted-state recovery, optional reanalysis, and
-    Ask the Community routing. The scan insight top menu uses the same policy-filtered
-    candidate list for `Confirm species` and `Review alternatives`, while
-    `Reanalyze species` and `Ask the community` remain separately gated.
+    Ask the Community routing. The scan insight top menu uses the same
+    policy-filtered candidate list for `Confirm species` and
+    `Review alternatives`, while `Reanalyze species` and `Ask the community`
+    remain separately gated.
     - `InferenceEngine` exposes three methods for this flow:
     - `applyIdentificationOverride(scientificName:modelContext:)`: Immediately
       wipes all stale contextual fields (`wikipediaOverview`,
@@ -673,11 +672,11 @@ or audio attached:
     - `resetIdentificationReview(modelContext:)`: Clears
       `userIdentificationOverride`, `userConfirmedIdentification`, the legacy
       `isFlagged` bit, and `alternativesExhausted`, reverts
-      `speciesData.scientificName` to
-      `aiScientificName`, persists locally (passing `.unreviewed`), zeros the
-      review columns via `syncIdentificationReviewToCloud`, and re-hydrates the
-      AI's original species data via `fetchAndPatchOverrideData`. Called by
-      Undo, Change, and the alternatives-exhausted reset path.
+      `speciesData.scientificName` to `aiScientificName`, persists locally
+      (passing `.unreviewed`), zeros the review columns via
+      `syncIdentificationReviewToCloud`, and re-hydrates the AI's original
+      species data via `fetchAndPatchOverrideData`. Called by Undo, Change, and
+      the alternatives-exhausted reset path.
     - `fetchAndPatchOverrideData(scientificName:scanId:modelContext:restoringAiReasoning:)`:
       Queries `species_dictionary` via a PostgREST array select with `.limit(1)`
       and takes `.first` (the Supabase Swift SDK does not provide a
@@ -782,15 +781,20 @@ or audio attached:
   updates then expose processing, finalizing, retryable, terminal, and complete
   states to `/check-scan-status` and the media reconciliation worker. The same
   request records `scan_ingestion_intents`, a service-role-only sanitized replay
-  payload with a `payload_checksum`; raw inline media bytes are redacted and mark
-  the intent non-resumable. The scheduled `replay-scan-ingestion` worker claims
-  due resumable intents and dispatches them back through `identify-multimodal`
-  with the same `client_scan_id`; inline-media rows remain client retry only.
-  On failure, a JSON-structured log line is emitted via
-  `console.error` including `event`, `user_id`, `scan_id`, `error`, and `ts`
-  fields. This replaces the previous silent swallow of background errors and
-  makes failures observable in Supabase Edge Function logs without exposing
-  internals to the client.
+  payload with a `payload_checksum`; raw inline media bytes are redacted and
+  mark the intent non-resumable. The scheduled `replay-scan-ingestion` worker
+  claims due resumable intents and dispatches them back through
+  `identify-multimodal` with the same `client_scan_id`; inline-media rows remain
+  client retry only. Compatibility scan-producing endpoints (`identify`,
+  `identify-describe`, and `audio-spec`) now use
+  `_shared/scanIngestionCompatibility.ts` to write the same ledger before
+  returning success. Their staged media and text-only intents are shaped as
+  multimodal replay requests, while inline media is recorded only as redacted
+  counts. On failure, a JSON-structured log line is emitted via `console.error`
+  including `event`, `user_id`, `scan_id`, `error`, and `ts` fields. This
+  replaces the previous silent swallow of background errors and makes failures
+  observable in Supabase Edge Function logs without exposing internals to the
+  client.
 - **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client
   (from `@google/genai@1.0.0`) is instantiated once at module scope (`_genAI`)
   in `_shared/gemini.ts` and imported by `identify`, `enrich-scan`, and
