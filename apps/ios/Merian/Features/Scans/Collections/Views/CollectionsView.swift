@@ -366,22 +366,25 @@ struct CollectionsView: View {
 
     private var scanSmartCollectionSignature: String {
         allScans
-            .map { scan in
-                [
-                    scan.id,
-                    String(scan.timestamp.timeIntervalSince1970),
-                    scan.isBiological ? "1" : "0",
-                    scan.locationName ?? "",
-                    scan.taxonomyKingdom ?? "",
-                    scan.taxonomyClass ?? "",
-                    scan.isInvasive ? "1" : "0",
-                    scan.hazardType,
-                    String(scan.confidenceScore ?? -1),
-                    String(scan.candidatesData?.count ?? 0),
-                    scan.userReviewState.rawValue
-                ].joined(separator: ":")
-            }
+            .map { scanSmartCollectionSignatureComponent(for: $0) }
             .joined(separator: "|")
+    }
+
+    private func scanSmartCollectionSignatureComponent(for scan: LocalScanRecord) -> String {
+        let components: [String] = [
+            scan.id,
+            String(scan.timestamp.timeIntervalSince1970),
+            scan.isBiological ? "1" : "0",
+            scan.locationName ?? "",
+            scan.taxonomyKingdom ?? "",
+            scan.taxonomyClass ?? "",
+            scan.isInvasive ? "1" : "0",
+            scan.hazardType,
+            String(scan.confidenceScore ?? -1),
+            String(scan.candidatesData?.count ?? 0),
+            scan.userReviewState.rawValue
+        ]
+        return components.joined(separator: ":")
     }
 
     private func refreshCollectionSnapshot() {
