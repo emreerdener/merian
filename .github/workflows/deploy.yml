@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - ".github/workflows/deploy.yml"
+      - "scripts/supabase-db-url.sh"
+      - "services/supabase/**"
   workflow_dispatch:
 
 concurrency:

@@ -7,8 +7,10 @@ validation.
 
 ## Production Path
 
-Pushes to `main` and manual `workflow_dispatch` runs execute
-`.github/workflows/deploy.yml`.
+Pushes to `main` that touch Supabase backend or deployment-support paths, plus
+manual `workflow_dispatch` runs, execute `.github/workflows/deploy.yml`.
+Frontend-only and docs-only commits do not automatically deploy production
+backend changes.
 
 The workflow performs the following steps:
 

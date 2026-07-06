@@ -1,4 +1,3 @@
-import CoreLocation
 import SwiftUI
 
 struct LocationPermissionStepView: View {
