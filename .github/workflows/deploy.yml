@@ -111,7 +111,26 @@ jobs:
             supabase/functions/_tests/migrationMediaContract.test.ts
 
       - name: Link Project to CLI
-        run: supabase link --project-ref $PROJECT_ID
+        run: |
+          for attempt in 1 2 3; do
+            if [ "$attempt" = "3" ]; then
+              echo "Supabase link failed twice; running final attempt with --debug."
+              if supabase link --project-ref "$PROJECT_ID" --debug; then
+                exit 0
+              fi
+            elif supabase link --project-ref "$PROJECT_ID"; then
+              exit 0
+            fi
+
+            if [ "$attempt" = "3" ]; then
+              echo "Supabase link failed after $attempt attempts."
+              exit 1
+            fi
+
+            sleep_seconds=$((attempt * 20))
+            echo "Supabase link failed; retrying in ${sleep_seconds}s..."
+            sleep "$sleep_seconds"
+          done
 
       - name: Push Database Migrations
         run: supabase db push

@@ -259,6 +259,15 @@ supabase login
 For non-interactive local environments, export `SUPABASE_ACCESS_TOKEN` and
 `SUPABASE_DB_PASSWORD` instead of relying on a browser login or password prompt.
 
+`supabase link` reaches Supabase's Management API to retrieve remote project
+status before it writes local link metadata. A `504` at that step is a transient
+remote/status lookup failure, not a migration failure. The GitHub workflow
+retries link three times and runs the last attempt with `--debug` so the job
+captures diagnostics if Supabase's status API remains unavailable. The warning
+`environment variable is unset: SUPABASE_AUTH_EXTERNAL_APPLE_SECRET` comes from
+parsing the local Auth config and is not fatal for `link` or `db push`; only
+treat it as actionable if a command fails while applying Auth provider config.
+
 ## Post-Deploy Smoke Checks
 
 After deployment:
