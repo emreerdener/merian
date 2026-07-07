@@ -132,6 +132,19 @@ extension Array where Element == CaptureSubmissionMediaItem {
         }
     }
 
+    var discardableLocalMediaFilePaths: [String] {
+        flatMap { item -> [String] in
+            switch item {
+            case .audio(let path):
+                return [path]
+            case .video(let path, _, let audioFilePath):
+                return [path, audioFilePath].compactMap { $0 }
+            case .image, .description:
+                return []
+            }
+        }
+    }
+
     var observationContexts: [ObservationContext] {
         compactMap { item in
             guard case .description(let context) = item else { return nil }
@@ -255,6 +268,13 @@ struct StagedCapture {
                 return .description(stagedObservationContext.context)
             }
         }
+    }
+
+    var discardableLocalMediaFilePaths: [String] {
+        audios.map(\.filePath)
+            + videos.flatMap { video in
+                [video.filePath, video.audioFilePath].compactMap { $0 }
+            }
     }
 
     // MARK: - Mutation

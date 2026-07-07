@@ -737,7 +737,8 @@ The transaction log for every successful identification.
 - `captured_media` (JSONB): Canonical captured-media timeline using the iOS
   `SerializedMediaItem` shape. Video entries attach the playback clip and poster
   thumbnail together so sampled inference frames do not hydrate as standalone
-  Insight carousel images. Video rows should be present whenever
+  Insight carousel images, and include an audio reference only when extracted
+  video audio was actually persisted. Video rows should be present whenever
   `video_storage_urls` is present. Ready display/playback rows in
   `scan_media_assets` are refreshed from this manifest when present and fall
   back to legacy media arrays for older rows.
@@ -1163,7 +1164,10 @@ deployed tables by dropping any lingering `NOT NULL` requirement from
 Migration
 `20260706193954_fix_scan_media_refresh_image_url_ambiguity.sql` replaces the
 refresh helper after an early deployment exposed an ambiguous PL/pgSQL
-`image_url` reference in the legacy-array fallback path.
+`image_url` reference in the legacy-array fallback path. Migration
+`20260707041259_fix_video_has_audio_metadata.sql` corrects video `has_audio`
+derivation so generated media rows and Explore snapshots only mark audio when a
+captured-media video audio reference exists.
 
 - `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE, nullable): The owning scan
   once the scan row exists. Pre-scan upload-session rows keep this null until
@@ -1196,7 +1200,9 @@ refresh helper after an early deployment exposed an ambiguous PL/pgSQL
   timeline for ready display/playback rows.
 - `duration_seconds` (DOUBLE PRECISION, nullable): Reserved for video playback
   metadata.
-- `has_audio` (BOOLEAN): Whether the playback video may contain an audio track.
+- `has_audio` (BOOLEAN): Whether the playback video has a persisted audio
+  companion. This must be derived from normalized media metadata or a
+  `captured_media` video audio reference, not merely from `kind = 'video'`.
 - `content_type`, `byte_size`, `checksum_sha256`, `width`, `height` (nullable):
   Optional durability, integrity, and presentation metadata.
 - `failure_reason`, `ready_at`, `deleted_at` (nullable): Lifecycle diagnostics
@@ -1209,7 +1215,8 @@ refresh helper after an early deployment exposed an ambiguous PL/pgSQL
 `scan_refresh`/`backfill` rows from `scans.captured_media` first. If the
 manifest is absent, it falls back to `image_storage_urls` / `video_storage_urls`
 and collapses legacy sampled video frames behind a single ready playback video
-asset. The fallback query uses qualified aliases such as
+asset whose `has_audio` is false because legacy URL arrays cannot prove that an
+audio companion was persisted. The fallback query uses qualified aliases such as
 `media_images.raw_image_url` and `media_videos.raw_video_url`; avoid
 unqualified names that match PL/pgSQL variables, because scan inserts execute
 this helper through the `scans` trigger. A trigger keeps generated rows
@@ -1270,8 +1277,10 @@ migration `20260703130000_add_explore_post_media.sql`.
 - `order_index` (INT): Stable carousel ordering within the post.
 - `duration_seconds` (DOUBLE PRECISION, nullable): Reserved for video playback
   metadata.
-- `has_audio` (BOOLEAN): Whether the video may contain an audio track. Public
-  playback starts muted; audio requires explicit viewer action.
+- `has_audio` (BOOLEAN): Whether the video has a persisted audio companion.
+  Public playback starts muted; audio requires explicit viewer action. Snapshot
+  writers copy this from ready media rows or from the `captured_media` video
+  audio reference; legacy URL-array video sources default false.
 - `created_at` / `updated_at` (TIMESTAMPTZ): Snapshot lifecycle timestamps.
 
 `public.explore_post_media_items(post_id)` returns ordered media JSON for feed,
@@ -2328,12 +2337,13 @@ both queued and completed scans.
 
 - `id`: String (UUID)
 - `orderIndex`: Int (stable position inside the scan's ordered media timeline)
-- `kindRaw`: String (`image` | `audio` | `description`)
+- `kindRaw`: String (`image` | `video` | `audio` | `description`)
 - `storageRaw`: String (`documents` | `remoteURL` | `absolutePath`; empty for
   descriptions)
-- `mediaPath`: String (serialized image/audio path; empty for descriptions)
+- `mediaPath`: String (serialized image/video/audio path; empty for
+  descriptions)
 - `observationContextJSON`: String (serialized `ObservationContext`; empty for
-  images/audio)
+  images/video/audio)
 - `localScanRecord`: Local scan relationship (cascade delete)
 - `offlineQueuedScan`: Queue relationship (cascade delete)
 
@@ -2345,6 +2355,7 @@ layout and export code do not fault child rows unless the scalar mirror is
 unavailable.
 
 - image paths and image references
+- video paths, poster references, and extracted-audio references
 - audio paths and audio references
 - description text and serialized observation contexts
 - `CapturedMediaSummary`

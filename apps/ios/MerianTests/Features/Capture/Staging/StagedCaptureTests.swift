@@ -131,6 +131,7 @@ struct StagedCaptureTests {
         )
         capture.images.append(image)
         capture.audios.append(StagedAudio(filePath: "call.wav"))
+        capture.videos.append(StagedVideo(filePath: "clip.mp4", sampledImages: [image], audioFilePath: "clip-audio.wav"))
         capture.observationContexts.append(
             StagedObservationContext(context: ObservationContext(freeText: "Green body"))
         )
@@ -140,7 +141,44 @@ struct StagedCaptureTests {
         #expect(capture.isEmpty)
         #expect(capture.images.isEmpty)
         #expect(capture.audios.isEmpty)
+        #expect(capture.videos.isEmpty)
         #expect(capture.observationContexts.isEmpty)
+    }
+
+    @Test func discardableLocalMediaFilePathsIncludesAudioVideoAndVideoAudio() {
+        var capture = StagedCapture()
+        let image = StagedImage(
+            compressedData: Data([0x00]),
+            displayData: Data([0x00]),
+            uiImage: UIImage(),
+            original: IdentifiableImage(image: UIImage())
+        )
+
+        capture.audios.append(StagedAudio(filePath: "standalone.wav"))
+        capture.videos.append(
+            StagedVideo(
+                filePath: "/tmp/video-playback.mp4",
+                sampledImages: [image],
+                audioFilePath: "video-audio.wav"
+            )
+        )
+
+        #expect(
+            Set(capture.discardableLocalMediaFilePaths) == [
+                "standalone.wav",
+                "/tmp/video-playback.mp4",
+                "video-audio.wav"
+            ],
+            "Cancel cleanup must include standalone audio, playback video, and extracted video audio"
+        )
+        #expect(
+            Set(capture.submissionMediaTimeline.discardableLocalMediaFilePaths) == [
+                "standalone.wav",
+                "/tmp/video-playback.mp4",
+                "video-audio.wav"
+            ],
+            "Submission snapshots need the same cleanup list when queue ownership fails"
+        )
     }
 
     @Test func availableSlotsUsesTotalMixedItemCount() {

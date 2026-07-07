@@ -91,6 +91,13 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         return filename
     }
 
+    private func makeTempVideoFilename(prefix: String = "capture_vm_video") throws -> String {
+        let filename = "\(prefix)_\(UUID().uuidString).mp4"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try Data(repeating: 0x56, count: 256).write(to: url)
+        return filename
+    }
+
     private func cleanupQueuedScans(in context: ModelContext) {
         let scans = (try? context.fetch(FetchDescriptor<OfflineQueuedScan>())) ?? []
         for scan in scans {
@@ -571,6 +578,65 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         try await waitUntil { viewModel.offlineToastMessage == "No network connection. Queued for upload." }
         XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
         XCTAssertNil(viewModel.activeSheet)
+    }
+
+    func testOfflineVisualQueueFailureDiscardsStagedVideoFiles() async throws {
+        let diContainer = AppDIContainer.preview
+        let originalContext = OfflineQueueManager.shared.modelContext
+        let originalOnline = OfflineQueueManager.shared.isOnline
+        let modelContext = try makeModelContext()
+        OfflineQueueManager.shared.modelContext = modelContext
+        OfflineQueueManager.shared.isOnline = false
+
+        let videoFilename = try makeTempVideoFilename()
+        let audioFilename = try makeTempAudioFilename()
+        let videoURL = FileManager.default.temporaryDirectory.appendingPathComponent(videoFilename)
+        let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent(audioFilename)
+
+        defer {
+            cleanupQueuedScans(in: modelContext)
+            try? FileManager.default.removeItem(at: videoURL)
+            try? FileManager.default.removeItem(at: audioURL)
+            OfflineQueueManager.shared.modelContext = originalContext
+            OfflineQueueManager.shared.isOnline = originalOnline
+        }
+
+        let uiImage = makeUIImage()
+        let oversizedFrameData = Data(
+            repeating: 0x7A,
+            count: Int(MerianConfig.offlineQueueSinglePayloadSoftLimitBytes) + 1
+        )
+        let stagedFrame = StagedImage(
+            compressedData: oversizedFrameData,
+            displayData: Data([0x01]),
+            uiImage: uiImage,
+            original: IdentifiableImage(image: uiImage)
+        )
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: diContainer,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        viewModel.stagedCapture.videos = [
+            StagedVideo(
+                filePath: videoFilename,
+                sampledImages: [stagedFrame],
+                audioFilePath: audioFilename
+            )
+        ]
+
+        viewModel.submitStagedCapture(modelContext: modelContext)
+
+        try await waitUntil { viewModel.offlineToastMessage == "Unable to save capture. Please try again." }
+        try await waitUntil {
+            !FileManager.default.fileExists(atPath: videoURL.path)
+                && !FileManager.default.fileExists(atPath: audioURL.path)
+        }
+
+        XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
+        XCTAssertNil(viewModel.activeSheet)
+        XCTAssertTrue(viewModel.stagedCapture.isEmpty)
+        XCTAssertEqual(try modelContext.fetch(FetchDescriptor<OfflineQueuedScan>()).count, 0)
     }
 
     func testOfflineAudioSubmissionDoesNotActivateInferenceProcessingAndQueuesPending() async throws {

@@ -19,6 +19,7 @@ export interface ExploreComposerMediaSource {
   url: string;
   thumbnail_url: string;
   order_index: number;
+  has_audio: boolean;
   is_selected?: boolean;
   selection_order_index?: number | null;
 }
@@ -97,6 +98,7 @@ export function buildComposerMediaSources(
       url,
       thumbnail_url: url,
       order_index: rows.length,
+      has_audio: false,
       is_selected: selectedSourceMediaIds.has(sourceMediaId),
       selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ?? null,
     });
@@ -115,6 +117,7 @@ export function buildComposerMediaSources(
       url,
       thumbnail_url: thumbnailUrl,
       order_index: rows.length,
+      has_audio: false,
       is_selected: selectedSourceMediaIds.has(sourceMediaId),
       selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ?? null,
     });
@@ -151,6 +154,7 @@ function buildComposerMediaSourcesFromAssets(
       url: asset.url,
       thumbnail_url: thumbnailUrl,
       order_index: rows.length,
+      has_audio: asset.kind === "video" && asset.has_audio === true,
       is_selected: selectedSourceMediaIds.has(sourceMediaId),
       selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ?? null,
     });
@@ -189,6 +193,7 @@ function buildComposerMediaSourcesFromManifest(
         url: imageUrl,
         thumbnail_url: imageUrl,
         order_index: rows.length,
+        has_audio: false,
         is_selected: selectedSourceMediaIds.has(sourceMediaId),
         selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ??
           null,
@@ -204,6 +209,7 @@ function buildComposerMediaSourcesFromManifest(
 
     const thumbnailUrl = storedReferencePath(videoPayload.thumbnail) ??
       videoUrl;
+    const hasAudio = storedReferencePath(videoPayload.audio) !== null;
     const sourceMediaId = makeSourceMediaId(scan.id, "video", videoIndex);
     rows.push({
       source_media_id: sourceMediaId,
@@ -211,6 +217,7 @@ function buildComposerMediaSourcesFromManifest(
       url: videoUrl,
       thumbnail_url: thumbnailUrl,
       order_index: rows.length,
+      has_audio: hasAudio,
       is_selected: selectedSourceMediaIds.has(sourceMediaId),
       selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ?? null,
     });

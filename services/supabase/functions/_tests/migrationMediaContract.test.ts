@@ -194,6 +194,34 @@ Deno.test("scan media refresh ambiguity repair qualifies legacy array aliases", 
   );
 });
 
+Deno.test("scan media refresh derives video audio metadata from captured media", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260707041259_fix_video_has_audio_metadata.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "asset_audio_url TEXT",
+      "asset_audio_url := public.scan_media_reference_path(media_item #> '{video,_0,audio}')",
+      "asset_audio_url IS NOT NULL",
+      "Video has_audio is true only when a captured_media video includes an audio reference.",
+      "REVOKE ALL ON FUNCTION public.refresh_scan_media_assets(UUID) FROM PUBLIC, anon, authenticated",
+      "GRANT EXECUTE ON FUNCTION public.refresh_scan_media_assets(UUID) TO service_role",
+      "PERFORM public.refresh_scan_media_assets(repair_scan.id)",
+      "LIMIT 500",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assertStringIncludes(
+    sql,
+    "JSONB_BUILD_OBJECT('manifest_source', 'legacy_arrays')",
+  );
+});
+
 Deno.test("scan media reconciliation migration keeps the scheduled worker idempotent and service-role-only", async () => {
   const sql = normalized(
     await migrationSql(

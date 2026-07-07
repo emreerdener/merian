@@ -563,7 +563,8 @@ status, repair, and Explore-share contracts aligned;
 the staged signing limits, allowed content types, and six-file video batch in
 sync with the documented contract; and `_tests/migrationMediaContract.test.ts`
 checks the scan-media, reconciliation, scanless staged-row repair,
-ingestion-job, manifest-checksum, intent-outbox, and replay-worker migrations.
+video-audio metadata backfill, ingestion-job, manifest-checksum, intent-outbox,
+and replay-worker migrations.
 Run the migration contract test with `--allow-read=services/supabase/migrations`
 because it reads SQL files directly.
 

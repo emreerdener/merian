@@ -55,6 +55,10 @@ decode; staged media is fetched through bounded stream readers.
 - `captured_media` is the canonical scan timeline. Video frames collapse behind
   one video item with a poster thumbnail; sampled frames must not become
   standalone shareable image media.
+- Video audio metadata is evidence-based. `captured_media` includes a video
+  audio reference only when extracted audio was actually provided, and generated
+  media rows should set `has_audio` from that reference rather than from
+  `kind === "video"`.
 
 ## Ingestion Durability
 

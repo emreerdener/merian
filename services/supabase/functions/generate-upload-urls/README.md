@@ -13,9 +13,9 @@ session.
 - **`index.ts`**: The HTTP orchestrator. It safely catches `.json()` parse
   anomalies, accepts the structured `files` manifest (`fileName`, `mediaKind`,
   `contentType`, `sizeBytes`, optional `clientScanId`, optional `mediaRole`),
-  keeps legacy `fileNames` compatibility, blocks requests that exceed 5 media
-  objects, and creates staged `scan_media_assets` rows for scan media before
-  returning signed URLs.
+  keeps legacy `fileNames` compatibility, blocks requests that exceed the
+  shared six-file staging cap, and creates staged `scan_media_assets` rows for
+  scan media before returning signed URLs.
 - **`storage.ts`**: Validates media kind/content type/byte budgets and role/kind
   combinations before signing, enforces the `Promise.all` key generation
   mapping, injects the verified `userId` to strictly namespace objects
@@ -24,6 +24,9 @@ session.
   Video signing is strict: the client supplies one upload-bounded `video/mp4`
   playback file per video capture or repair attempt, and downstream
   identify/share flows fail rather than silently accepting a partial video set.
+  The sixth staging slot exists for the Pro video shape: five sampled
+  `image/webp` inference frames plus one playback `.mp4`; image, audio, and
+  video sub-limits still prevent broader over-batching.
 
 ## Avatar Uploads
 

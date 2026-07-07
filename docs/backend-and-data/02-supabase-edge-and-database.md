@@ -179,7 +179,9 @@ If the scan row already exists, the worker only performs safe finalization:
 matching image rows are marked `promoted`, consumed audio staging objects are
 deleted and marked `deleted`, and stranded playback video objects are promoted
 from `staging/` into `public_uploads/` before the scan's video URL array and
-captured-media manifest are repaired. If no scan row exists after the
+captured-media manifest are repaired. Rebuilt video rows derive `has_audio` from
+the captured-media video audio reference, not from video kind alone. If no scan
+row exists after the
 abandonment TTL, remaining staging objects are deleted and the asset row is
 marked `failed` for audit. The worker does not replay AI inference; the iOS
 offline queue remains responsible for inline/redacted scans, while

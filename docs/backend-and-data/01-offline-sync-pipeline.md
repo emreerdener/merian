@@ -44,7 +44,7 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
 
 1. A stable `scanId` UUID is generated. This UUID is shared by both the offline
    queue record and the concurrent live inference request.
-2. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:)`
+2. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:onQueued:)`
    is called **synchronously on the main actor**, before any `async` boundary is
    crossed. It wraps its work in a `.userInitiated` priority
    `BackgroundTaskWrapper`, dispatching disk writes to `FileIOActor` to prevent
@@ -60,16 +60,21 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    inference request is dispatched, and the hydrated values are written back to
    `OfflineQueuedScan` so the background URLSession delegate can read them on
    result delivery.
-3. **Immediate Offline Network Interceptor**: `submitActiveScan` then
+3. The visual submit path waits for `onQueued` before presenting queued/offline
+   success or starting live analysis. A durable-queue rejection rolls back the
+   pending live scan, shows an error, and deletes orphaned source video/audio
+   files because neither the live path nor the queue now owns them.
+4. **Immediate Offline Network Interceptor**: `submitActiveScan` then
    synchronously evaluates `OfflineQueueManager.shared.isOnline`. If the device
    currently lacks network connectivity, the function completely drops the
    execution thread. It blocks the UI router from presenting the
    `"Analyzing..."` skeleton `InsightSheetView` overlay and completely skips the
    creation of the live analysis `Task` below, returning control to the
    viewfinder immediately. A non-intrusive `ToastBanner` natively informs the
-   user that the `"Scan [is] queued for upload"`, saving battery and tokens by
-   recognizing that live inference would inevitably result in a network timeout.
-4. Concurrently (if online), a `Task {}` awaits the pre-fetched
+   user that there is no network connection and the scan is queued for upload,
+   saving battery and tokens by recognizing that live inference would
+   inevitably result in a network timeout.
+5. Concurrently (if online), a `Task {}` awaits the pre-fetched
    `EnvironmentContext` (GPS + WeatherKit, started at shutter press) and fires
    `InferenceEngine.analyze(scanId:imageDatas:...)` with the full telemetry once
    it resolves. This is the **live inference path** — it delivers results faster
@@ -121,6 +126,12 @@ video/audio files already moved into Documents, and routes cleanup for rejected
 inserts or failed saves through `FileIOActor.deleteFiles(at:)`. Inline
 `Data.write` / `FileManager.removeItem` calls on the queue path are no longer
 allowed.
+
+Temporary staged-media cleanup has explicit ownership. UI reset after submit
+clears references only, leaving media for the queue or live persistence path to
+adopt. Cancel, remove, replace, session-timeout discard, and queue-rejection
+paths collect staged playback video paths plus companion audio paths and delete
+them through `FileIOActor.deleteFiles(at:)`.
 
 Video captures split display media from inference media before entering the
 queue. `capturedMediaJSON` and `capturedMediaEntries` remain the user-facing

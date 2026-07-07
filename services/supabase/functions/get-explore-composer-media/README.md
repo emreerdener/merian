@@ -34,6 +34,7 @@ or:
         "url": "https://public.example/images/photo.webp",
         "thumbnail_url": "https://public.example/images/photo.webp",
         "order_index": 0,
+        "has_audio": false,
         "is_selected": true,
         "selection_order_index": 0
       },
@@ -43,6 +44,7 @@ or:
         "url": "https://public.example/videos/clip.mp4",
         "thumbnail_url": "https://public.example/images/poster.webp",
         "order_index": 1,
+        "has_audio": true,
         "is_selected": false,
         "selection_order_index": null
       }
@@ -67,6 +69,8 @@ or:
   working.
   `/share-scan-to-explore` resolves submitted `source_media_id` values through
   this same source list.
+- `has_audio` is true only when normalized media or `captured_media` proves that
+  a video has an audio companion; legacy URL-array video sources default false.
 - The iOS composer should prefer this endpoint for cloud-backed scans before
   opening the share UI. It is server-authoritative for repaired video rows and
   legacy rows whose `image_storage_urls` still contain sampled inference frames.

@@ -182,7 +182,7 @@ export async function createStagedScanMediaAssets(
     thumbnail_url: null,
     order_index: input.orderIndex,
     duration_seconds: null,
-    has_audio: input.kind === "video",
+    has_audio: false,
     content_type: input.contentType,
     byte_size: input.byteSize ?? null,
     failure_reason: null,

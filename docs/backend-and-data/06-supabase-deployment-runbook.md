@@ -87,6 +87,12 @@ production. A database-only deploy leaves clients on the old signing cap; a
 function-only deploy can still fail staged row creation if an early production
 table kept `scan_id NOT NULL` or `url NOT NULL`.
 
+Video audio-metadata fixes are also migration-plus-function releases. The
+`20260707041259_fix_video_has_audio_metadata.sql` helper/backfill and the
+composer/share/edit function bundles must deploy together so
+`scan_media_assets` and `explore_post_media` only set `has_audio` when
+`captured_media` proves an audio companion exists.
+
 Each deployed function directory must also have a `[functions.<name>]` entry in
 `services/supabase/config.toml` so JWT behavior is explicit. Most
 anonymous-compatible app routes set `verify_jwt = false` and then perform manual
@@ -443,6 +449,9 @@ After deployment:
 - Submit or replay a short video scan and verify Edge logs do not show
   `Payload Too Large` for the normal six-file manifest or
   `scan_media_assets` nullability errors during staged row creation.
+- Share one video scan with extracted audio and one without microphone/audio
+  evidence, then verify composer/share payloads preserve `has_audio = true` and
+  `false` respectively.
 - Confirm `sync-community-taxonomy-index` accepts a tiny `dry_run = true` Birds
   request without advancing `taxonomy_coverage_targets.next_import_offset`.
 - Smoke-test `/insight-chat` with `action: "load"` and

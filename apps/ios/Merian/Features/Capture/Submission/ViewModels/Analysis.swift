@@ -91,14 +91,6 @@ extension CaptureWorkspaceViewModel {
             return
         }
 
-        let isOnline = diContainer.offlineQueueManager.isOnline
-
-        // 1. Eagerly set the live Insight sheet only when live inference will run.
-        if isOnline {
-            diContainer.inferenceEngine.prepareForNewScan()
-            activeSheet = .insight
-        }
-
         // 2. Capture the context needed for inference before clearing the staging buffers.
         let capturedPreFetchTask       = preFetchTask
         let targetEradicationScanId    = baseRefinementContext?.scanId
@@ -116,6 +108,7 @@ extension CaptureWorkspaceViewModel {
         // 4. Generate a stable scanId shared by the queue record and live inference.
         let scanId = UUID().uuidString.lowercased()
         pendingAnalyzeScanId = scanId
+        let capturedMediaFilePaths = capturedMediaTimeline.discardableLocalMediaFilePaths
 
         // 5. Enqueue immediately — in-foreground — so the scan reaches disk and SwiftData
         //    before any async boundary is crossed. Carries the observation context JSON so
@@ -147,48 +140,68 @@ extension CaptureWorkspaceViewModel {
             scanId: scanId,
             observationContexts: capturedObservationContexts,
             mediaTimeline: capturedMediaTimeline,
-            visualMediaItems: capturedVisualMediaItems
-        )
+            visualMediaItems: capturedVisualMediaItems,
+            onQueued: { [weak self] didQueue in
+                guard let self else { return }
+                guard self.pendingAnalyzeScanId == scanId else {
+                    if !didQueue {
+                        self.discardLocalMediaFiles(at: capturedMediaFilePaths)
+                    }
+                    return
+                }
 
-        // If completely offline, skip live inference and show a toast immediately.
-        guard isOnline else {
-            pendingAnalyzeScanId = nil
-            self.offlineToastMessage = "No network connection. Queued for upload."
-            return
-        }
+                guard didQueue else {
+                    self.pendingAnalyzeScanId = nil
+                    self.activeSheet = nil
+                    self.offlineToastMessage = "Unable to save capture. Please try again."
+                    self.discardLocalMediaFiles(at: capturedMediaFilePaths)
+                    return
+                }
 
-        // 6. Concurrently resolve the full telemetry and fire live inference.
-        Task {
-            let resolvedContext = await capturedPreFetchTask?.value
+                guard self.diContainer.offlineQueueManager.isOnline else {
+                    self.pendingAnalyzeScanId = nil
+                    self.offlineToastMessage = "No network connection. Queued for upload."
+                    return
+                }
 
-            let telemetry = await CaptureTelemetry.resolveForActiveScan(
-                resolvedContext: resolvedContext,
-                historicalContext: capturedDisplayImages.first?.original.environmentContext,
-                isGalleryPhoto: primaryImageIsGalleryPhoto,
-                firstImageData: capturedDisplayImages.first?.compressedData,
-                distanceMeters: diContainer.cameraManager.subjectDistanceInMeters,
-                zoomFactor: capturedZoomFactor,
-                defaultZoomFactor: defaultZoomFactor
-            )
+                self.diContainer.inferenceEngine.prepareForNewScan()
+                self.activeSheet = .insight
 
-            await MainActor.run {
-                guard self.pendingAnalyzeScanId == scanId else { return }
-                self.diContainer.inferenceEngine.analyze(
-                    scanId: scanId,
-                    imageDatas: capturedInferenceImages.map(\.compressedData),
-                    displayDatas: capturedDisplayImages.map(\.displayData),
-                    audioFilePaths: capturedAudioFilePaths.isEmpty ? nil : capturedAudioFilePaths,
-                    videoFilePaths: capturedVideoFilePaths.isEmpty ? nil : capturedVideoFilePaths,
-                    telemetry: telemetry,
-                    observationContexts: capturedObservationContexts,
-                    mediaTimeline: capturedMediaTimeline,
-                    visualMediaItems: capturedVisualMediaItems,
-                    audioMediaItems: capturedAudioMediaItems,
-                    modelContext: modelContext,
-                    targetEradicationScanId: targetEradicationScanId
-                )
+                // 6. Concurrently resolve the full telemetry and fire live inference.
+                Task { [weak self] in
+                    guard let self else { return }
+                    let resolvedContext = await capturedPreFetchTask?.value
+
+                    let telemetry = await CaptureTelemetry.resolveForActiveScan(
+                        resolvedContext: resolvedContext,
+                        historicalContext: capturedDisplayImages.first?.original.environmentContext,
+                        isGalleryPhoto: primaryImageIsGalleryPhoto,
+                        firstImageData: capturedDisplayImages.first?.compressedData,
+                        distanceMeters: self.diContainer.cameraManager.subjectDistanceInMeters,
+                        zoomFactor: capturedZoomFactor,
+                        defaultZoomFactor: defaultZoomFactor
+                    )
+
+                    await MainActor.run {
+                        guard self.pendingAnalyzeScanId == scanId else { return }
+                        self.diContainer.inferenceEngine.analyze(
+                            scanId: scanId,
+                            imageDatas: capturedInferenceImages.map(\.compressedData),
+                            displayDatas: capturedDisplayImages.map(\.displayData),
+                            audioFilePaths: capturedAudioFilePaths.isEmpty ? nil : capturedAudioFilePaths,
+                            videoFilePaths: capturedVideoFilePaths.isEmpty ? nil : capturedVideoFilePaths,
+                            telemetry: telemetry,
+                            observationContexts: capturedObservationContexts,
+                            mediaTimeline: capturedMediaTimeline,
+                            visualMediaItems: capturedVisualMediaItems,
+                            audioMediaItems: capturedAudioMediaItems,
+                            modelContext: modelContext,
+                            targetEradicationScanId: targetEradicationScanId
+                        )
+                    }
+                }
             }
-        }
+        )
     }
 
     // MARK: - Inference Processing Change

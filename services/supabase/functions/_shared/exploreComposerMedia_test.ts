@@ -48,6 +48,7 @@ Deno.test("buildComposerMediaSources prefers normalized scan media assets", () =
       url: "https://media.merian.app/clip.mp4",
       thumbnail_url: "https://media.merian.app/poster.webp",
       order_index: 0,
+      has_audio: true,
       is_selected: false,
       selection_order_index: null,
     },
@@ -57,6 +58,7 @@ Deno.test("buildComposerMediaSources prefers normalized scan media assets", () =
       url: "https://media.merian.app/photo.webp",
       thumbnail_url: "https://media.merian.app/photo.webp",
       order_index: 1,
+      has_audio: false,
       is_selected: false,
       selection_order_index: null,
     },
@@ -119,6 +121,7 @@ Deno.test("buildComposerMediaSources ignores unready normalized media assets", (
       url: "https://media.merian.app/clip.mp4",
       thumbnail_url: "https://media.merian.app/poster.webp",
       order_index: 0,
+      has_audio: false,
       is_selected: false,
       selection_order_index: null,
     },
@@ -158,6 +161,7 @@ Deno.test("buildComposerMediaSources prefers captured media manifest for video s
       url: "https://media.merian.app/clip.mp4",
       thumbnail_url: "https://media.merian.app/poster.webp",
       order_index: 0,
+      has_audio: false,
       is_selected: false,
       selection_order_index: null,
     },
@@ -217,4 +221,5 @@ Deno.test("buildComposerMediaSources collapses legacy video frame URLs", () => {
   assertEquals(media[0].kind, "video");
   assertEquals(media[0].url, "https://media.merian.app/clip.mp4");
   assertEquals(media[0].thumbnail_url, "https://media.merian.app/frame-1.webp");
+  assertEquals(media[0].has_audio, false);
 });

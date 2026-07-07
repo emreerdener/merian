@@ -36,6 +36,13 @@ networking, and hardware orchestration logic.
   contract matrix covering image, audio, text-only, video, status, repair, and
   Explore-share seams. Production scan-media health reports include incident
   actions with owner/runbook/sample hints for each issue code.
+- **Video media contract**: Pro video remains a short capture surface, not
+  arbitrary gallery import. The app submits five sampled frames plus optional
+  extracted WAV audio for inference, stages one upload-bounded playback `.mp4`
+  for storage/sharing, and treats `captured_media` plus ready
+  `scan_media_assets` rows as the canonical playback timeline. Public
+  `has_audio` metadata is true only when captured-media or normalized media rows
+  prove that an audio companion exists.
 
 ## Directory Structure
 

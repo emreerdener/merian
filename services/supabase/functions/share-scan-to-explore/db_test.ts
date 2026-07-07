@@ -60,6 +60,40 @@ Deno.test("buildExplorePostMediaRows resolves selected manifest videos by source
       thumbnail_url: "https://media.merian.app/poster.webp",
       order_index: 0,
       duration_seconds: null,
+      has_audio: false,
+    },
+  ]);
+});
+
+Deno.test("buildExplorePostMediaRows marks manifest video audio only when audio reference exists", () => {
+  const scan = makeVideoScan([
+    {
+      video: {
+        _0: {
+          video: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/clip.mp4",
+          },
+          thumbnail: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/poster.webp",
+          },
+          audio: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/clip-audio.wav",
+          },
+        },
+      },
+    },
+  ]);
+
+  assertEquals(buildExplorePostMediaRows(scan, undefined), [
+    {
+      kind: "video",
+      url: "https://media.merian.app/clip.mp4",
+      thumbnail_url: "https://media.merian.app/poster.webp",
+      order_index: 0,
+      duration_seconds: null,
       has_audio: true,
     },
   ]);

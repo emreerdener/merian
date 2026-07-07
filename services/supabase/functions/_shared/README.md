@@ -43,8 +43,11 @@ multiple functions need the same behavior and the ownership boundary is clear.
   abandonment cleanup, while checking active ingestion jobs before abandoning
   staged upload-session media. Composer and status paths prefer ready
   display/playback asset rows before falling back to `captured_media` and legacy
-  arrays. `scan-media-health` reads the same lifecycle state for deploy smoke
-  checks and operational drift alerts, but does not mutate media rows.
+  arrays. Generated video rows derive `has_audio` only from captured-media audio
+  references; legacy video arrays default false because they cannot prove an
+  audio companion survived. `scan-media-health` reads the same lifecycle state
+  for deploy smoke checks and operational drift alerts, but does not mutate
+  media rows.
 - **`scanIngestionJobs.ts`**: Durable scan-ingestion job helpers. The active
   multimodal path claims a job row after media validation, updates server-side
   stages through inference/finalization/failure, and `/check-scan-status`

@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-07-video-storage-cleanup",
+      "date": "2026-07-07",
+      "title": "Video capture storage",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Video captures now clean up temporary playback and audio files when canceled or rejected, and analysis waits until queued media is safely saved."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-07-queued-scan-retry",
       "date": "2026-07-07",
       "title": "Queued scan retry",

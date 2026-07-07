@@ -260,7 +260,7 @@ Deno.test("scan media ingestion contract keeps Explore video share source paired
     thumbnail_url: `${IMAGE_URL}?frame=0`,
     order_index: 0,
     duration_seconds: null,
-    has_audio: true,
+    has_audio: false,
   }]);
 });
 

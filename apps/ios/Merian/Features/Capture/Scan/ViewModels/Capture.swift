@@ -10,6 +10,18 @@ private struct PreparedCameraCapture: Sendable {
 private struct PreparedVideoPlaybackClip: Sendable {
     let fileURL: URL
     let isCompressed: Bool
+    let originalBytes: Int
+    let playbackBytes: Int
+    let preparationDuration: TimeInterval
+
+    var sourceDescription: String {
+        isCompressed ? "compressed" : "original"
+    }
+
+    var compressionRatio: Double {
+        guard originalBytes > 0 else { return 1.0 }
+        return Double(playbackBytes) / Double(originalBytes)
+    }
 }
 
 private actor AssetWriterFinisher {
@@ -315,14 +327,23 @@ extension CaptureWorkspaceViewModel {
                     compressedBytes=\(compressedSize, privacy: .public)
                     """
                 )
-                return PreparedVideoPlaybackClip(fileURL: videoURL, isCompressed: false)
+                return PreparedVideoPlaybackClip(
+                    fileURL: videoURL,
+                    isCompressed: false,
+                    originalBytes: originalSize,
+                    playbackBytes: originalSize,
+                    preparationDuration: CFAbsoluteTimeGetCurrent() - exportStart
+                )
             }
             MerianLog.hardware.debug(
                 """
                 Video compression completed. \
                 duration=\(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - exportStart), privacy: .public)s, \
                 originalBytes=\(originalSize, privacy: .public), \
-                compressedBytes=\(compressedSize, privacy: .public)
+                compressedBytes=\(compressedSize, privacy: .public), \
+                compressionRatio=\(String(format: "%.3f", Double(compressedSize) / Double(max(originalSize, 1))), privacy: .public), \
+                source=compressed, \
+                fallback=false
                 """
             )
             if compressedSize >= originalSize, originalSize <= MerianConfig.videoPayloadMaxBytes {
@@ -331,12 +352,27 @@ extension CaptureWorkspaceViewModel {
                     """
                     Video compression was not smaller; staging original upload-safe clip. \
                     originalBytes=\(originalSize, privacy: .public), \
-                    compressedBytes=\(compressedSize, privacy: .public)
+                    compressedBytes=\(compressedSize, privacy: .public), \
+                    compressionRatio=\(String(format: "%.3f", Double(compressedSize) / Double(max(originalSize, 1))), privacy: .public), \
+                    source=original, \
+                    fallback=true
                     """
                 )
-                return PreparedVideoPlaybackClip(fileURL: videoURL, isCompressed: false)
+                return PreparedVideoPlaybackClip(
+                    fileURL: videoURL,
+                    isCompressed: false,
+                    originalBytes: originalSize,
+                    playbackBytes: originalSize,
+                    preparationDuration: CFAbsoluteTimeGetCurrent() - exportStart
+                )
             }
-            return PreparedVideoPlaybackClip(fileURL: compressedURL, isCompressed: true)
+            return PreparedVideoPlaybackClip(
+                fileURL: compressedURL,
+                isCompressed: true,
+                originalBytes: originalSize,
+                playbackBytes: compressedSize,
+                preparationDuration: CFAbsoluteTimeGetCurrent() - exportStart
+            )
         } catch {
             MerianLog.hardware.error("Video compression failed: \(error, privacy: .private)")
             guard originalSize <= MerianConfig.videoPayloadMaxBytes else {
@@ -353,10 +389,18 @@ extension CaptureWorkspaceViewModel {
                 """
                 Video compression unavailable; staging original upload-safe clip. \
                 originalBytes=\(originalSize, privacy: .public), \
-                maxBytes=\(MerianConfig.videoPayloadMaxBytes, privacy: .public)
+                maxBytes=\(MerianConfig.videoPayloadMaxBytes, privacy: .public), \
+                source=original, \
+                fallback=true
                 """
             )
-            return PreparedVideoPlaybackClip(fileURL: videoURL, isCompressed: false)
+            return PreparedVideoPlaybackClip(
+                fileURL: videoURL,
+                isCompressed: false,
+                originalBytes: originalSize,
+                playbackBytes: originalSize,
+                preparationDuration: CFAbsoluteTimeGetCurrent() - exportStart
+            )
         }
     }
 
@@ -779,7 +823,16 @@ extension CaptureWorkspaceViewModel {
                         audioFilePath: extractedAudioFilePath
                     ))
                     MerianLog.hardware.debug(
-                        "Video staged: frames=\(stagedFrames.count, privacy: .public), file=\(playbackClip.fileURL.lastPathComponent, privacy: .public)."
+                        """
+                        Video staged: frames=\(stagedFrames.count, privacy: .public), \
+                        file=\(playbackClip.fileURL.lastPathComponent, privacy: .public), \
+                        source=\(playbackClip.sourceDescription, privacy: .public), \
+                        originalBytes=\(playbackClip.originalBytes, privacy: .public), \
+                        playbackBytes=\(playbackClip.playbackBytes, privacy: .public), \
+                        compressionRatio=\(String(format: "%.3f", playbackClip.compressionRatio), privacy: .public), \
+                        preparationDuration=\(String(format: "%.3f", playbackClip.preparationDuration), privacy: .public)s, \
+                        fallback=\(!playbackClip.isCompressed, privacy: .public).
+                        """
                     )
                     AppDIContainer.shared.hapticManager.triggerSuccessPulse()
                 }

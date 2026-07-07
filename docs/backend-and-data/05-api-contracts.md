@@ -2221,6 +2221,9 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   is missing from the cloud row, the endpoint returns a clean validation error
   so the iOS client can attempt local `.mp4` repair instead of publishing an
   image-only historical row.
+- Video `has_audio` metadata is copied from ready media rows or derived from
+  the `captured_media` video audio reference. Legacy URL-array video sources
+  default false because they do not prove that an audio companion exists.
 - When the scan has an active Identify request, sharing to Explore is blocked
   until that request resolves. Publishing a resolved Identify request marks the
   request with `explore_published_at`, materializes any new GBIF-backed resolved
@@ -2308,8 +2311,10 @@ Rules:
   clients submit `source_media_id` values from `/get-explore-composer-media`;
   those IDs resolve through the same asset-first source list as
   `/share-scan-to-explore`, so captured-media videos keep their playback `.mp4`
-  and poster thumbnail paired during edit/reorder flows. Legacy URL-based
-  reorders are accepted only for rows already present on the post.
+  and poster thumbnail paired during edit/reorder flows. Video `has_audio`
+  metadata follows the selected source's actual audio evidence instead of the
+  media kind. Legacy URL-based reorders are accepted only for rows already
+  present on the post.
 - Changing `location_sharing` reprojects only the post-owned public location
   fields. It does not mutate `scans.geoprivacy` or the user's global default.
 - The update is scoped by `explore_posts.id`, `explore_posts.user_id`, and
@@ -3036,7 +3041,10 @@ ordered compositions of images, audio, and descriptive context.
 - The edge writes `captured_media` for new multimodal scan rows. That JSON keeps
   still photos as image items but collapses ordered `video_frame` samples into a
   single video media item with a thumbnail reference, preserving playback-first
-  Insight hydration for biological and non-biological video scans. The ready
+  Insight hydration for biological and non-biological video scans. The video
+  item carries an audio reference only when extracted video audio exists, so
+  downstream `scan_media_assets` and Explore rows can set `has_audio`
+  accurately. The ready
   display/playback `scan_media_assets` rows are refreshed from the same manifest
   by the database trigger plus a best-effort Edge refresh call, so server-side
   composer and status checks no longer need to infer video assets directly from

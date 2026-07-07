@@ -87,6 +87,9 @@ TestFlight, App Store, support, and QA.
   retention messaging.
 - Hid live viewfinder hint pills once single-scan content is staged or
   multi-scan staging is full.
+- Fixed video staging cleanup so canceled or failed captures discard temporary
+  playback/audio files, and visual analysis only starts after the offline queue
+  has durable ownership.
 
 ### Explore
 
@@ -103,6 +106,8 @@ TestFlight, App Store, support, and QA.
   can restore missing cloud video media before publishing.
 - Hardened video media recovery so cloud scans keep ready-state image/video
   media records for future sharing and playback repairs.
+- Fixed Explore video audio metadata so posts only mark video as audio-backed
+  when the captured video manifest actually includes an audio companion.
 - Added Explore post management actions to the Insight top menu so published
   scans can be edited or opened without returning to the Share sheet.
 - Added a View insight action to your own Explore post menus, including posts

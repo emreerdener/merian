@@ -64,13 +64,22 @@ public actor FileIOActor {
     /// Deletes a mix of absolute filesystem paths and Documents-relative filenames.
     public func deleteFiles(at paths: [String]) {
         let docs = URL.documentsDirectory
+        let temporaryDirectory = FileManager.default.temporaryDirectory
         for path in paths where !path.isEmpty {
             guard !path.starts(with: "http") else { continue }
-            let targetURL = path.hasPrefix("/") ? URL(fileURLWithPath: path) : docs.appendingPathComponent(path)
-            do {
-                try FileManager.default.removeItem(at: targetURL)
-            } catch {
-                MerianLog.data.debug("FileIOActor: Failed dropping file \(path, privacy: .private): \(error, privacy: .private)")
+            let candidateURLs = path.hasPrefix("/")
+                ? [URL(fileURLWithPath: path)]
+                : [
+                    docs.appendingPathComponent(path),
+                    temporaryDirectory.appendingPathComponent(path)
+                ]
+            for targetURL in candidateURLs {
+                guard FileManager.default.fileExists(atPath: targetURL.path) else { continue }
+                do {
+                    try FileManager.default.removeItem(at: targetURL)
+                } catch {
+                    MerianLog.data.debug("FileIOActor: Failed dropping file \(path, privacy: .private): \(error, privacy: .private)")
+                }
             }
         }
     }

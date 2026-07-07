@@ -252,7 +252,7 @@ struct CaptureWorkspaceView: View {
                                     viewModel.diContainer.inferenceEngine.load(from: record)
                                     viewModel.activeSheet = .insight
                                 }
-                                viewModel.clearStagedCaptureAndCropState()
+                                viewModel.clearStagedCaptureAndCropState(discardStagedMediaFiles: true)
                                 viewModel.cancelRefinementStaging()
                                 if isCancelingRefinement {
                                     observationContext = ObservationContext()

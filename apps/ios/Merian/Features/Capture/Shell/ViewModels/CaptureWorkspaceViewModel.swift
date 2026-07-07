@@ -350,7 +350,7 @@ final class CaptureWorkspaceViewModel {
 
         // Only wipe staged content if no active workflow should survive the background transition.
         if !shouldPreserveStagingOnBackground {
-            clearStagedCaptureAndCropState()
+            clearStagedCaptureAndCropState(discardStagedMediaFiles: true)
             selectedPhotoItems.removeAll()
             cancelRefinementStaging()
         }
@@ -565,9 +565,12 @@ final class CaptureWorkspaceViewModel {
         presentNextRequiredGalleryCrop()
     }
 
-    func clearStagedCaptureAndCropState() {
+    func clearStagedCaptureAndCropState(discardStagedMediaFiles: Bool = false) {
         activeCropTask?.cancel()
         requiredGalleryCropImageIds.removeAll()
+        if discardStagedMediaFiles {
+            discardLocalMediaFiles(at: stagedCapture.discardableLocalMediaFilePaths)
+        }
         stagedCapture.clearAll()
         editingCropIndex = nil
         imageToCrop = nil
@@ -576,12 +579,16 @@ final class CaptureWorkspaceViewModel {
     func removeStagedVideo(at index: Int) {
         guard stagedCapture.videos.indices.contains(index) else { return }
         let removedVideo = stagedCapture.videos.remove(at: index)
-        try? FileManager.default.removeItem(at: URL(fileURLWithPath: removedVideo.filePath))
-        if let audioFilePath = removedVideo.audioFilePath {
-            let audioURL = audioFilePath.hasPrefix("/")
-                ? URL(fileURLWithPath: audioFilePath)
-                : URL.documentsDirectory.appendingPathComponent(audioFilePath)
-            try? FileManager.default.removeItem(at: audioURL)
+        discardLocalMediaFiles(
+            at: [removedVideo.filePath, removedVideo.audioFilePath].compactMap { $0 }
+        )
+    }
+
+    func discardLocalMediaFiles(at paths: [String]) {
+        let uniquePaths = Array(Set(paths.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }))
+        guard !uniquePaths.isEmpty else { return }
+        Task(priority: .utility) {
+            await FileIOActor.shared.deleteFiles(at: uniquePaths)
         }
     }
 

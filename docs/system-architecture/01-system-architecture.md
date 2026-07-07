@@ -83,6 +83,10 @@ flowchart TD
   using `SwiftData` inside `MerianApp`. The durable unit is a canonical ordered
   mixed-media timeline, persisted once at submission time and reused across live
   inference, offline replay, thumbnails, and result hydration.
+- Visual submissions wait for the queue acceptance callback before starting
+  live analysis. If the queue cannot durably write the scan, the UI reports the
+  failure and discards orphaned source media instead of showing a false queued
+  or analyzing state.
 - `NWPathMonitor` observes off-grid boundaries, debouncing signals for 3 seconds
   when connectivity returns. `OfflineJobScheduler` then drains runnable scan
   ingestion, cloud deletion, and collection-sync jobs according to persisted
@@ -101,6 +105,8 @@ flowchart TD
   uploads plus inline audio and description payloads. It handles image R2
   streams and inline non-visual media under a shared validation path, enforcing
   a strict cumulative payload cap before evaluating the combined user context.
+  Video scans send five sampled frames and optional extracted audio as evidence;
+  the playback `.mp4` is promoted only as bounded display/share media.
   Legacy scan-producing routes record the same ingestion job/intent ledger
   before returning success so staged image/audio and text-only compatibility
   rows can recover through the multimodal replay worker.

@@ -44,6 +44,10 @@ by the composer: ready display/playback rows in `scan_media_assets` first, then
 and poster thumbnail paired even when sampled inference frames also exist in
 legacy image URL arrays.
 
+Video `has_audio` metadata is copied from normalized media rows or derived from
+the `captured_media` video audio reference. Legacy URL-array videos default to
+`false` because those rows do not prove that an audio companion was persisted.
+
 `restored_video_object_keys` is optional and only used by repair-capable clients.
 If the owner still has the original local `.mp4` but the cloud scan row is
 missing `video_storage_urls`, the client uploads that clip to staging and sends

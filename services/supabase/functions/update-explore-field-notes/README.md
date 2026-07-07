@@ -49,7 +49,9 @@ For video scans, `source_media_id` is resolved through the same source list used
 by `share-scan-to-explore` and `get-explore-composer-media`: ready
 display/playback rows in `scan_media_assets` first, then `scans.captured_media`,
 then legacy URL arrays. That keeps the playback `.mp4` paired with its poster
-thumbnail instead of relying on sampled frame indexes.
+thumbnail instead of relying on sampled frame indexes. Video `has_audio`
+metadata follows the selected source's actual audio evidence; legacy URL-array
+video sources default false.
 
 ## Response
 

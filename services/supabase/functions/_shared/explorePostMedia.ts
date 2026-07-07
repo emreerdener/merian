@@ -61,7 +61,7 @@ export function buildExplorePostMediaRows(
       thumbnail_url: source.thumbnail_url,
       order_index: offset,
       duration_seconds: null,
-      has_audio: source.kind === "video",
+      has_audio: source.has_audio,
     };
   });
 
@@ -147,6 +147,7 @@ function legacySourceForSelection(
       url,
       thumbnail_url: url,
       order_index: 0,
+      has_audio: false,
     };
   }
 
@@ -173,5 +174,6 @@ function legacySourceForSelection(
     url,
     thumbnail_url: thumbnailUrl,
     order_index: 0,
+    has_audio: false,
   };
 }

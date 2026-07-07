@@ -46,6 +46,20 @@ struct FileIOActorTests {
         #expect(FileManager.default.fileExists(atPath: fullPath.path) == false, "FileIOActor must natively purge files")
     }
 
+    @Test func testDeleteFilesDropsBareTemporaryFilenames() async throws {
+        let filename = "mock_temp_deletion_file_\(UUID().uuidString).wav"
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try Data(repeating: 0x14, count: 32).write(to: tempURL)
+        #expect(FileManager.default.fileExists(atPath: tempURL.path) == true)
+
+        await FileIOActor.shared.deleteFiles(at: [filename])
+
+        #expect(
+            FileManager.default.fileExists(atPath: tempURL.path) == false,
+            "Bare staged audio filenames may still live in NSTemporaryDirectory and must be purged"
+        )
+    }
+
     @Test func testValidPathsFiltersDeadPaths() async throws {
         // Arrange
         let mockData = Data(repeating: 0x05, count: 32)
