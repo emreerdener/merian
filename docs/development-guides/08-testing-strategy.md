@@ -170,7 +170,9 @@ MerianTests/
   simulator job spends time resolving packages, building, or booting a
   simulator. Startup Safety is path-filtered to startup/schema/recovery
   surfaces, manual dispatch, and the daily drift check; broad iOS UI changes do
-  not automatically enter the simulator lane.
+  not automatically enter the simulator lane. Workflow/tooling-only changes can
+  start the Startup Safety workflow to validate cheap guardrails, but the
+  simulator steps are skipped unless startup runtime files changed.
   - Source-level migration guardrails fail if `SchemaVersions.swift`
     reintroduces `try? context.save()` / `try? modelContext.save()` in custom
     stages, active/global `FetchDescriptor` types inside `MerianMigrationPlan`,

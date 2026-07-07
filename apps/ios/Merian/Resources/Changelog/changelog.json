@@ -22,7 +22,8 @@
         {
           "title": "Fixed",
           "items": [
-            "Video scan uploads now allow five sampled inference frames plus the playback clip in one staging batch, and staged media rows can be created before the final scan record exists."
+            "Video scan uploads now allow five sampled inference frames plus the playback clip in one staging batch, and staged media rows can be created before the final scan record exists.",
+            "Video scan upload signing now works on production tables that still required a public media URL before staged uploads were promoted."
           ]
         }
       ]

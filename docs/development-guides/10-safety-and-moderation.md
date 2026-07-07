@@ -87,11 +87,12 @@ the original recording when compression is slow or unavailable and the source
 remains within the hard video byte cap. The playback video is never used for AI
 inference or reference-media promotion. `/generate-upload-urls` creates staged
 `scan_media_assets` rows for scan media uploads before the final `scans` row
-exists; `scan_id = NULL` is therefore valid for those staged rows until
-`identify-multimodal` promotes, deletes, or fails them during finalization. The
-ingestion request also claims `scan_ingestion_jobs` with media counts, staged
-object keys, recovered upload-session ids, and a normalized `manifest_checksum`,
-so retries and repair work can prove they are handling the same media set. A
+exists or a public media URL is available; `scan_id = NULL` and `url = NULL` are
+therefore valid for those staged rows until `identify-multimodal` promotes,
+deletes, or fails them during finalization. The ingestion request also claims
+`scan_ingestion_jobs` with media counts, staged object keys, recovered
+upload-session ids, and a normalized `manifest_checksum`, so retries and repair
+work can prove they are handling the same media set. A
 paired `scan_ingestion_intents` row stores the sanitized replay request without
 raw media bytes; inline foreground media is redacted and marked non-resumable.
 The scheduled `replay-scan-ingestion` worker retries resumable staged

@@ -141,6 +141,24 @@ Deno.test("scan media staged upload repair allows scanless pre-persistence rows"
   );
 });
 
+Deno.test("scan media staged upload repair allows rows before public URLs exist", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260707020956_allow_staged_scan_media_without_url.sql",
+    ),
+  );
+
+  assertStringIncludes(
+    sql,
+    "ALTER TABLE IF EXISTS public.scan_media_assets ALTER COLUMN url DROP NOT NULL",
+  );
+  assertStringIncludes(
+    sql,
+    "Required for ready display/playback and promoted capture_upload assets",
+  );
+  assertStringIncludes(sql, "NOTIFY pgrst, 'reload schema'");
+});
+
 Deno.test("scan media refresh ambiguity repair qualifies legacy array aliases", async () => {
   const sql = normalized(
     await migrationSql(

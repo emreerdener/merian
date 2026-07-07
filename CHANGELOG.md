@@ -31,6 +31,8 @@ TestFlight, App Store, support, and QA.
   playback clip instead of silently falling back to sampled frames.
 - Added server-tracked upload sessions for scan media so staged videos, images,
   and audio have lifecycle state before final scan persistence.
+- Fixed video scan upload signing for production tables that still required a
+  public media URL before staged uploads were promoted.
 - Added server-side reconciliation for scan media uploads so stranded video
   staging objects can repair existing cloud scans and abandoned upload sessions
   are cleaned up automatically.

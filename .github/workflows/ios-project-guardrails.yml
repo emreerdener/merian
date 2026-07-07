@@ -11,6 +11,7 @@ on:
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
       - "scripts/check-ios-migration-source-guardrails.sh"
+      - "scripts/ci-detect-startup-safety-source-changes.sh"
       - "scripts/ci-run-summary.sh"
   push:
     branches:
@@ -24,6 +25,7 @@ on:
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
       - "scripts/check-ios-migration-source-guardrails.sh"
+      - "scripts/ci-detect-startup-safety-source-changes.sh"
       - "scripts/ci-run-summary.sh"
   workflow_dispatch:
 

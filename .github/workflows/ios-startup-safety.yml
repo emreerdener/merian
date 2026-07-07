@@ -18,6 +18,7 @@ on:
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
       - "scripts/check-ios-migration-source-guardrails.sh"
+      - "scripts/ci-detect-startup-safety-source-changes.sh"
       - "scripts/select-ios-simulator-destination.sh"
   push:
     branches:
@@ -38,6 +39,7 @@ on:
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
       - "scripts/check-ios-migration-source-guardrails.sh"
+      - "scripts/ci-detect-startup-safety-source-changes.sh"
       - "scripts/select-ios-simulator-destination.sh"
   schedule:
     - cron: "17 10 * * *"
@@ -63,7 +65,18 @@ jobs:
           WORKFLOW_REASON: "Runs for startup/schema/recovery/project changes, manual dispatch, and a daily scheduled drift check. It is not part of the Supabase backend deployment gate."
         run: bash scripts/ci-run-summary.sh
 
+      - name: Validate generated project guardrails
+        run: make validate-ios-project
+
+      - name: Validate SwiftData migration source guardrails
+        run: make validate-ios-migration-guardrails
+
+      - name: Determine startup simulator scope
+        id: startup-scope
+        run: bash scripts/ci-detect-startup-safety-source-changes.sh
+
       - name: Restore Swift package checkouts
+        if: steps.startup-scope.outputs.should_run == 'true'
         id: swift-package-cache
         uses: actions/cache/restore@v4
         with:
@@ -72,13 +85,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-xcode-spm-
 
-      - name: Validate generated project guardrails
-        run: make validate-ios-project
-
-      - name: Validate SwiftData migration source guardrails
-        run: make validate-ios-migration-guardrails
-
       - name: Select iOS test simulator
+        if: steps.startup-scope.outputs.should_run == 'true'
         id: ios-test-simulator
         run: |
           destination="$(bash scripts/select-ios-simulator-destination.sh)"
@@ -86,6 +94,7 @@ jobs:
           echo "Selected ${destination}"
 
       - name: Build startup safety test bundle
+        if: steps.startup-scope.outputs.should_run == 'true'
         timeout-minutes: 18
         env:
           XCODE_BUILD_LOG: ${{ runner.temp }}/startup-safety-xcodebuild.log
@@ -103,6 +112,7 @@ jobs:
             2>&1 | tee "$XCODE_BUILD_LOG"
 
       - name: Run startup and migration safety tests
+        if: steps.startup-scope.outputs.should_run == 'true'
         timeout-minutes: 12
         env:
           XCODE_BUILD_LOG: ${{ runner.temp }}/startup-safety-xcodebuild.log
@@ -124,14 +134,14 @@ jobs:
             2>&1 | tee -a "$XCODE_BUILD_LOG"
 
       - name: Save Swift package checkouts
-        if: always() && steps.swift-package-cache.outputs.cache-hit != 'true'
+        if: always() && steps.startup-scope.outputs.should_run == 'true' && steps.swift-package-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: .build/xcode-source-packages
           key: ${{ runner.os }}-xcode-spm-${{ hashFiles('merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Print startup safety failure summary
-        if: failure()
+        if: failure() && steps.startup-scope.outputs.should_run == 'true'
         env:
           XCODE_BUILD_LOG: ${{ runner.temp }}/startup-safety-xcodebuild.log
           XCODE_RESULT_BUNDLE: ${{ runner.temp }}/startup-safety.xcresult
@@ -222,7 +232,7 @@ jobs:
           fi
 
       - name: Upload startup safety result bundle
-        if: failure()
+        if: failure() && steps.startup-scope.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ios-startup-safety-xcresult-${{ github.run_number }}

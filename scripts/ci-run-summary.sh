@@ -40,7 +40,7 @@ if [ -z "$changed_files" ] && [ -z "${GITHUB_EVENT_PATH:-}" ] && git cat-file -e
 fi
 
 if [ -z "$changed_files" ] && git cat-file -e HEAD^{commit} 2>/dev/null; then
-  changed_files="$(git diff-tree --no-commit-id --name-only -r HEAD || true)"
+  changed_files="$(git diff-tree -m --no-commit-id --name-only -r HEAD | sort -u || true)"
 fi
 
 category_lines="$(

@@ -154,12 +154,15 @@ falls out of scope, and unlinking those files in-process can compromise later
 fixtures with sqlite `vnode unlinked while in use` traps.
 
 The GitHub Startup Safety workflow is scoped to startup/schema/recovery/project
-path changes plus a daily scheduled drift check. Ordinary iOS UI changes keep
-running the cheap project guardrails, but they do not automatically boot a
-macOS simulator unless they touch the startup-recovery contract or the workflow
-is started manually. Startup Safety cancels stale runs on the same ref, restores
-Swift package checkouts, saves newly fetched checkouts even after a failure, and
-runs the source migration guardrail before selecting a simulator. It then splits
+path changes plus a daily scheduled drift check. Workflow, Makefile, and helper
+script edits still start the workflow so the cheap guardrails validate, but the
+simulator lane is skipped unless the changed files touch the startup-recovery
+runtime contract, the workflow is started manually, or the daily schedule runs.
+Ordinary iOS UI changes keep running the cheap project guardrails, but they do
+not automatically boot a macOS simulator. Startup Safety cancels stale runs on
+the same ref, restores Swift package checkouts only when the simulator lane is
+needed, saves newly fetched checkouts even after a simulator failure, and runs
+the source migration guardrail before selecting a simulator. It then splits
 Xcode into two bounded phases: `build-for-testing` compiles the app/test bundle,
 then `test-without-building` runs only the startup and migration tests from the
 same derived-data folder. Build failures should therefore appear as build

@@ -50,8 +50,9 @@ generation. For scan uploads, each structured entry may also include
 `clientScanId` and `mediaRole`; when present, `/generate-upload-urls` creates a
 server-owned staged `scan_media_assets` row before returning the signed URL.
 Those staged rows are valid with `scan_id = NULL` until the final scan row
-exists; they are keyed by user, client scan id, and upload session for later
-promotion or cleanup. Image roles may be `display`, `thumbnail`, or
+exists and with `url = NULL` until media promotion produces a public URL; they
+are keyed by user, client scan id, and upload session for later promotion or
+cleanup. Image roles may be `display`, `thumbnail`, or
 `inference_frame`; video uses `playback`; audio uses `audio`. The Edge parser
 rejects unsanitized filenames, invalid `mediaKind` values, invalid role/kind
 combinations, content-type/kind mismatches, and oversized media before signing.

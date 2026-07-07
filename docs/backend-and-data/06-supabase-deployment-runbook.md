@@ -53,11 +53,12 @@ production on mixed helper versions.
 
 Media-upload contract changes are migration-plus-function releases. For example,
 the video staging contract that allows five sampled inference frames plus one
-playback clip requires the `scan_media_assets.scan_id` nullable repair migration
-to be pushed before the updated `/generate-upload-urls` bundle handles six-file
-signing requests in production. A database-only deploy leaves clients on the old
-signing cap; a function-only deploy can still fail staged row creation if an
-early production table kept `scan_id NOT NULL`.
+playback clip requires the `scan_media_assets.scan_id` and
+`scan_media_assets.url` nullable repair migrations to be pushed before the
+updated `/generate-upload-urls` bundle handles six-file signing requests in
+production. A database-only deploy leaves clients on the old signing cap; a
+function-only deploy can still fail staged row creation if an early production
+table kept `scan_id NOT NULL` or `url NOT NULL`.
 
 Each deployed function directory must also have a `[functions.<name>]` entry in
 `services/supabase/config.toml` so JWT behavior is explicit. Most
@@ -390,9 +391,10 @@ actionable if a command fails while applying Auth provider config.
 After deployment:
 
 - Confirm `supabase db push` applied the newest migration.
-- For video-upload contract releases, confirm `scan_media_assets.scan_id` is
-  nullable in production (`information_schema.columns.is_nullable = YES`) before
-  expecting six-file video signing to work.
+- For video-upload contract releases, confirm `scan_media_assets.scan_id` and
+  `scan_media_assets.url` are nullable in production
+  (`information_schema.columns.is_nullable = YES`) before expecting six-file
+  video signing to work.
 - Confirm `auto-purge-nonbio` and `delete-scan` were deployed after any
   `_shared/aws.ts` change.
 - Confirm `/generate-upload-urls` was deployed after any
@@ -413,7 +415,7 @@ After deployment:
   `success = true` with a status of `ok`, `warning`, or `critical`.
 - Submit or replay a short video scan and verify Edge logs do not show
   `Payload Too Large` for the normal six-file manifest or
-  `scan_media_assets.scan_id` nullability errors during staged row creation.
+  `scan_media_assets` nullability errors during staged row creation.
 - Confirm `sync-community-taxonomy-index` accepts a tiny `dry_run = true` Birds
   request without advancing `taxonomy_coverage_targets.next_import_offset`.
 - Smoke-test `/insight-chat` with `action: "load"` and

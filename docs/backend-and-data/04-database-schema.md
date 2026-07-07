@@ -1141,6 +1141,9 @@ Normalized scan media lifecycle assets. Added in migration
 `20260706100000_allow_staged_scan_media_without_scan_id.sql` repairs early
 deployed tables by dropping any lingering `NOT NULL` requirement from
 `scan_id`. Migration
+`20260707020956_allow_staged_scan_media_without_url.sql` does the same for
+`url`, because staged upload rows exist before a public media URL is available.
+Migration
 `20260706193954_fix_scan_media_refresh_image_url_ambiguity.sql` replaces the
 refresh helper after an early deployment exposed an ambiguous PL/pgSQL
 `image_url` reference in the legacy-array fallback path.
