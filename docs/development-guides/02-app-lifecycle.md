@@ -71,7 +71,7 @@ Recording the background timestamp only on `.background` means the limited photo
 - `activeSheet`, `pendingExplorePostId`, `imageToCrop`, `editingCropIndex` — sheets hold UI locks and must not reopen stale.
 
 **Conditionally preserved — governed by `shouldPreserveStagingOnBackground`:**
-- `stagedCapture` (the `StagedCapture` value — `images: [StagedImage]` bundling compressed inference copy, 2048 px display copy, `UIImage` thumbnail, and full-resolution original, plus staged video/audio/description items) plus pending required gallery crop routing. When `shouldPreserveStagingOnBackground` returns `false`, the reset uses `clearStagedCaptureAndCropState(discardStagedMediaFiles: true)` so temporary playback videos and companion WAV files are deleted instead of only dropping UI references.
+- `stagedCapture` (the `StagedCapture` value — `images: [StagedImage]` bundling compressed inference copy, 2048 px display copy, bounded `UIImage` thumbnail, and crop/metadata bundle, plus staged video/audio/description items) plus pending required gallery crop routing. When `shouldPreserveStagingOnBackground` returns `false`, the reset uses `clearStagedCaptureAndCropState(discardStagedMediaFiles: true)` so temporary playback videos and companion WAV files are deleted instead of only dropping UI references.
 
 `shouldPreserveStagingOnBackground` is a private computed property that returns `true` when the user has images staged in the Active Scan Toolbar (`!stagedCapture.isEmpty`). This prevents a brief background trip (e.g. switching apps momentarily) from silently discarding the user's in-progress scan workflow.
 

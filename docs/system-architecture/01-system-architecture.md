@@ -215,6 +215,10 @@ single-responsibility functions under `/services/supabase/functions/`.
   thrashing during 120Hz `LazyVGrid` and `TabView` scrolling. This prevents OOM
   crashes and micro-stutters by capping at ~100 thumbnail entries, with iOS
   memory pressure controlling eviction.
+- **Still-Image Preparation (`MediaPreparationActor`):** File-backed gallery,
+  refinement, and avatar imports enter a dedicated actor before UI staging. The
+  actor owns bounded ImageIO downsampling, WebP/JPEG encoding, and payload
+  metrics so SwiftUI never retains full original PhotosPicker files.
 - **Asynchronous Grid Downsampling:** Image-heavy views (`ScansSheetView`,
   `ScansGrid`, `InsightSheetView`, and the insight carousel) offload decoding
   onto a CPU pool using `ImageIO`'s `CGImageSourceCreateThumbnailAtIndex`,

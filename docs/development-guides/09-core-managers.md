@@ -854,6 +854,18 @@ and `KeychainManager` migration logic. Do not inline
 
 ## Media & Image Processing
 
+### `MediaPreparationActor`
+
+- Actor-owned Zero-OOM boundary for file-backed still-image preparation.
+- Gallery imports and refinement staging call
+  `prepareStillImage(fileURL:isPro:)`, receiving only bounded inference bytes,
+  bounded display bytes, a sendable preview `CGImage`, and
+  `MediaPreparationMetrics`.
+- Avatar crop previews call `preparePreviewImage(fileURL:maxSize:)` before any
+  `UIImage` is constructed on `@MainActor`.
+- Enforces Merian's image contract in code: non-empty encoded payloads, longest
+  edge caps from `MerianConfig`, and the 5 MB staged image byte ceiling.
+
 ### `LocalImageLoader`
 
 - A Zero-OOM actor governing remote image fetches, APFS extraction, and

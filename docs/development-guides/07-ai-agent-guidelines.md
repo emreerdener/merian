@@ -29,7 +29,7 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
 - `Core/`: Foundational logic organized into subdirectories:
   - `AI/`: `InferenceEngine`, `InferenceProcessingActor`
   - `Data/Database/`: `BackgroundDatabaseActor`, `FileIOActor`, `HistoricalDatabaseActor`, `ScanRepository`
-  - `Data/Images/`: `LocalImageLoader`, `ImageCache`, `ArchiveManager`, `PhotoLibraryManager`
+  - `Data/Images/`: `MediaPreparationActor`, `LocalImageLoader`, `ImageCache`, `ArchiveManager`, `PhotoLibraryManager`
   - `Data/OfflineSync/`: `OfflineQueueManager`, `SyncStateManager`
   - `Hardware/`: `CameraManager`, `HardwareOrchestrator`, `EnvironmentContextManager`, `AudioCaptureManager`, `SpectrogramActor`
   - `Network/`: `MerianNetworkClient`, `SupabaseManager`
@@ -57,7 +57,7 @@ when changing web routes.
 - iOS Background limitations severely constrain API requests. Any heavy file I/O operations must be decoupled via `Task.detached(priority: .background)`.
 - Image conversions (e.g. `downsampleImage`) or large JSON parsing must occur off the Main thread to prevent 60FPS UI stutters.
 - Avoid forcing `.isHighResolutionCaptureEnabled` without throttling image loads via `ImageIO` `CGImageSourceCreateThumbnailAtIndex` bounded logic. A full 12MP–48MP uncompressed capture will cause iOS Out of Memory (OOM) crashes if repeatedly appended array buffers are allocated without bounds.
-- Do not use `UIImage(contentsOfFile:)` or `UIImage(data:)` on user-selected originals, avatar picks, scan media, or share/export flows. Route previews through `ImageDownsampler.downsampledUIImage(...)` or `downsampledSendableImage(...)`, and route payloads through bounded `CGImage` encoding so the full raster never enters RAM.
+- Do not use `UIImage(contentsOfFile:)` or `UIImage(data:)` on user-selected originals, avatar picks, scan media, or share/export flows. Route file-backed still-image staging and avatar previews through `MediaPreparationActor`; use `ImageDownsampler.downsampledUIImage(...)` only for already-bounded crop/display bytes. The full raster must never enter RAM.
 - **UI Lifecycle Triggers for Hardware**: Never bind `AVCaptureSession` or heavy hardware drivers to Swift UI sheet closures like `.onAppear` or `.onDismiss`. In iOS 16+, rapid presentation state changes or `.scenePhase` background sweeps can cause these closures to fire out of order, permanently deadlocking the backend AV queue. Always use deterministic `.onChange(of: stateVariable)` observers guarded by `scenePhase == .active`.
 - **AVFoundation queue ownership**: Never read `AVCaptureSession.inputs` or configure an `AVCaptureDevice` synchronously on `@MainActor`. Resolve inputs and run `lockForConfiguration()` inside the camera queue, then publish observable state back through `Task { @MainActor in ... }`.
 - **Image encoding — WebP first, JPEG fallback only through ImageIO**: Image payloads produced by the app (inference, display, offline queue, manual crop) attempt lossy WebP via `CGImageDestinationCreateWithData` with `UTType.webP.identifier`, using `MerianConfig.imageCompressionQuality`. If ImageIO cannot create a WebP destination in the current runtime, the shared encoder may fall back to `UTType.jpeg` with the same quality setting and the client must label the MIME type from the payload magic bytes. Never introduce `UIImage.jpegData(compressionQuality:)` or ad hoc JPEG branches outside the shared ImageIO encoder.

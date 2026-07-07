@@ -13,7 +13,7 @@ This document traces the full journey of an image from physical shutter press to
 - **OOM risk**: Decoding a full 12–48 MP `CMSampleBuffer` without throttling instantly spikes RAM and triggers JetSam.
 - **Mitigation**: An atomic `nonisolated(unsafe) private var activeInferencePaused` boolean short-circuits the entire `captureOutput` pipeline when the viewfinder AI is halted. No histogram allocation occurs for a paused session. Additionally, `defer { CVPixelBufferUnlockBaseAddress }` is unconditionally applied to prevent AVFoundation buffer leaks.
 
-### 2. Dual-Path Downsample (`ImageDownsampler`)
+### 2. Dual-Path Preparation (`MediaPreparationActor` + `ImageDownsampler`)
 
 Every capture produces **two independent downsampled images** from the same raw source buffer. The two paths serve different purposes and are sized accordingly.
 
@@ -22,18 +22,13 @@ Every capture produces **two independent downsampled images** from the same raw 
 | **Inference** | `MerianConfig.inferenceImageMaxSize(isProActive:)` | **768 px** (Flash/free) or **1024 px** (Pro) longest edge | Base64-encoded and sent to Gemini; discarded after encoding (scan durability is owned by the offline queue) |
 | **Display** | `MerianConfig.displayImageMaxSize` | 2048 px longest edge | Written to disk by `FileIOActor`; read by the insight sheet carousel and scan library |
 
-```swift
-// Camera shutter path (Capture.swift) — same captureData source, two passes
-// Runs inside DetachedWork.value(category: .imagePreparation), not on @MainActor.
-let prepared = try await CaptureWorkspaceViewModel.prepareCameraCapture(...)
-
-// Gallery picker path (CaptureWorkspaceViewModel) — same dual pattern from a file URL
-let inferenceCGImage = ImageDownsampler.downsample(
-    url: validUrl,
-    maxSize: MerianConfig.inferenceImageMaxSize(isProActive: self.diContainer.revenueCatManager.isProActive))
-let displayCGImage = ImageDownsampler.downsample(
-    url: validUrl, maxSize: MerianConfig.displayImageMaxSize)
-```
+For file-backed still images, `MediaPreparationActor` is the policy boundary.
+Gallery imports, refinement staging, and avatar crop previews send only file
+URLs into the actor. The actor owns the two bounded `ImageDownsampler` passes,
+WebP/JPEG encoding, non-empty checks, and `MediaPreparationMetrics` assertions
+for byte count and pixel dimensions. Callers receive only bounded inference
+bytes, bounded display bytes, and a sendable preview `CGImage`; they do not
+receive the original file bytes or a full-resolution `UIImage`.
 
 After downsampling, a **composing-zone-aware square crop** is applied to both payloads before WebP encoding. The crop geometry is calculated from the on-screen UI layout: `CaptureWorkspaceView` measures the vertical center of the composing zone (the open area between the mode toggle at the top and the capture button row at the bottom) using the existing full-screen `GeometryReader` and stores it as `CaptureWorkspaceViewModel.composingZoneVerticalCenter` (a fraction of screen height, e.g. ~0.42 on iPhone 15 Pro). `ImageCropProcessor.squareCrop(_:verticalCenterFraction:)` then crops each downsampled `CGImage` to the largest centered square, biasing the crop center to that fraction rather than 0.5 (geometric center). This aligns what Gemini analyzes with where the user actually framed their subject, rather than the dead center of the sensor image — a meaningful correction on tall-screen iPhones where the bottom chrome (shutter row + tab bar) occupies significantly more vertical space than the top chrome (mode toggle).
 
@@ -44,9 +39,9 @@ Three staging buffers are populated in `CaptureWorkspaceViewModel` after each ca
 
 The camera shutter path explicitly separates orchestration from ImageIO work. `executeCapture()` snapshots location, composing-zone center, and Pro tier on the main actor, then calls `DetachedWork.value(category: .imagePreparation)` to downsample, crop, and encode the 12MP buffer. The detached worker returns bounded inference/display bytes plus a `SendableCGImage` preview wrapper. No `CGImageSourceCreateThumbnailAtIndex` or `CGImageDestinationFinalize` work is allowed to inherit the view model's `@MainActor` executor.
 
-The gallery picker now uses a bounded snapshot pipeline. `CaptureWorkspaceViewModel.handlePhotoPickerSelection` snapshots the staged-image budget (`availableSlots`) and paywall gate once on `@MainActor`, clears `selectedPhotoItems`, and then performs all file-backed downsampling in a detached task. Historical GPS/weather metadata is converted into a `HistoricalEnvironmentContextSnapshot: Sendable` before leaving the main actor, and the detached task returns only `PreparedStagedImage` values (`Data` + sendable metadata). A single main-actor commit then appends the final `StagedImage` array entries. For user-selected photo-library imports, that commit passes `requiresCrop: true`; the view model tracks the staged image IDs in `requiredGalleryCropImageIds` and presents the square crop editor before any analysis submission can start. This preserves Swift 6 isolation rules while removing repeated `MainActor.run` hops during gallery imports.
+The gallery picker now uses a bounded snapshot pipeline. `CaptureWorkspaceViewModel.handlePhotoPickerSelection` snapshots the staged-image budget (`availableSlots`) and paywall gate once on `@MainActor`, clears `selectedPhotoItems`, and then performs all file-backed preparation through `MediaPreparationActor`. Historical GPS/weather metadata is converted into a `HistoricalEnvironmentContextSnapshot: Sendable` before leaving the main actor, and the detached task returns only `PreparedStagedImage` values (`Data` + sendable metadata + budget metrics). A single main-actor commit then appends the final `StagedImage` array entries. For user-selected photo-library imports, that commit passes `requiresCrop: true`; the view model tracks the staged image IDs in `requiredGalleryCropImageIds` and presents the square crop editor before any analysis submission can start. This preserves Swift 6 isolation rules while removing repeated `MainActor.run` hops during gallery imports.
 
-The refinement path now shares that same prepared-image staging helper instead of issuing an eager `Data(contentsOf:)` copy of the stored scan image. `startRefinementScan(from:)` builds a `PreparedStagedImageRequest`, sends it through the injected `PreparedStagedImageLoader`, and then commits the result on the main actor without `requiresCrop`. In production the loader always runs two bounded `ImageDownsampler` passes: the tier-sized inference payload and the 2048 px display payload. Tests stub the same seam to verify request routing and staging state transitions without UI automation. Refinement staging must never retain the original full-size file bytes in `StagedImage.displayData`.
+The refinement path now shares that same actor-backed prepared-image staging helper instead of issuing an eager `Data(contentsOf:)` copy of the stored scan image. `startRefinementScan(from:)` builds a `PreparedStagedImageRequest`, sends it through the injected async `PreparedStagedImageLoader`, and then commits the result on the main actor without `requiresCrop`. In production the loader delegates to `MediaPreparationActor.prepareStillImage(fileURL:isPro:)`, so both the tier-sized inference payload and the 2048 px display payload pass the same dimension/byte-budget contract as gallery imports. Tests stub the same seam to verify request routing and staging state transitions without UI automation, while `MediaPreparationActorTests` pins the production budgets directly. Refinement staging must never retain the original full-size file bytes in `StagedImage.displayData`.
 
 `PreparedStagedImage` now also carries a sendable preview `CGImage`, so `commitPreparedStagedImages` can build the toolbar thumbnail from an already-decoded image instead of calling `UIImage(data:)` on the main actor during the final commit step.
 
@@ -56,7 +51,7 @@ Using the already-decoded `CGImage` directly for camera captures eliminates a We
 
 `Analysis.submitActiveScan()` first calls `enqueueCapture` synchronously — before any `async` boundary — writing media to disk and dispatching the background URLSession upload while the app is in the foreground (see [Offline Sync Pipeline → Scan Submission & Immediate Durability](../backend-and-data/01-offline-sync-pipeline.md)). Visual live analysis starts only after the queue reports durable acceptance through `onQueued`; if the queue rejects the write, the UI reports the failure and any unowned source video/audio files are deleted. The successful path then passes both image `Data` arrays to `InferenceEngine.analyze(imageDatas:displayDatas:)`. Inside the engine, `imageDatas` is base64-encoded for the AI call and discarded after encoding — there is no retained inference buffer; durability is fully owned by the offline queue. `displayDatas.first` is assigned to `activeImageData: Data?` and wrapped into `activeMedia` as a single-frame preview used by the insight sheet carousel during the inference window. The full `displayDatas` array is forwarded to `InferenceProcessingActor.parseAndSave(displayDatas:)` and written to disk via `FileIOActor.writeTemporaryImages`; once saved, the persisted user timeline is rebuilt into `activeMedia` and the carousel switches from the live preview to on-disk `MediaItem.image` entries (two-phase transition). The AI never receives the larger display-image payload.
 
-**Empty-payload guard (both paths)**: Both the camera shutter path (`Capture.swift`) and the gallery picker path (`CaptureWorkspaceViewModel.handlePhotoPickerSelection`) check `guard !finalSafeData.isEmpty` before appending a `StagedImage` to `stagedCapture.images`. If WebP encoding fails for any reason (e.g., low-memory `CGImageDestinationCreateWithData` failure), the item is skipped entirely rather than appending `Data()`. Sending an empty base64 string (`Data().base64EncodedString() == ""`) causes Gemini to reject the request with an opaque AI processing error; the guard prevents this at the source.
+**Empty-payload guard (both paths)**: The camera shutter path (`Capture.swift`) checks `guard !finalSafeData.isEmpty` before appending a `StagedImage`, and the gallery/refinement path relies on `MediaPreparationActor` to reject empty encoded inference or display payloads before returning `PreparedStillImage`. If WebP/JPEG encoding fails for any reason (e.g., low-memory `CGImageDestinationCreateWithData` failure), the item is skipped entirely rather than appending `Data()`. Sending an empty base64 string (`Data().base64EncodedString() == ""`) causes Gemini to reject the request with an opaque AI processing error; the guard prevents this at the source.
 
 `InferenceEngine.analyze` adds a second-layer filter: after `encodeBase64`, any empty strings are removed from `base64Strings`. If all strings are empty after filtering, the scan is refunded immediately without a network call. The Edge Function (`identify/index.ts`) applies a third-layer check: each element of `imageBase64s` is validated non-empty before being forwarded to Gemini, returning a clear `400 Bad Request` instead of an opaque AI error.
 
@@ -90,7 +85,7 @@ to promote it to `avatars/{userId}/...`. Avatar images are public profile media,
 not scan media, so scan purge and moderation rollback paths must never delete
 that prefix.
 
-The avatar picker preview itself uses `ImageDownsampler.downsampledSendableImage(url:maxSize:)` from the temporary PhotosPicker file URL before presenting the crop sheet, then wraps the returned `CGImage` in `UIImage` on `@MainActor`. Do not use `UIImage(contentsOfFile:)` for avatar selection; it decodes the full original raster and can OOM on high-megapixel library assets before the bounded avatar encoder runs.
+The avatar picker preview itself uses `MediaPreparationActor.preparePreviewImage(fileURL:maxSize:)` from the temporary PhotosPicker file URL before presenting the crop sheet, then wraps the returned `CGImage` in `UIImage` on `@MainActor`. Do not use `UIImage(contentsOfFile:)` for avatar selection; it decodes the full original raster and can OOM on high-megapixel library assets before the bounded avatar encoder runs.
 
 **`autoreleasepool`**: Both display and inference downsample calls — and the `CGImageDestination` WebP encoding that follows each — are wrapped in `autoreleasepool` so intermediate CoreGraphics allocations are released immediately. Furthermore, all standalone `UIImage(data:)` inflations have been officially deprecated across the codebase in favor of bounds-checked `ImageDownsampler` extractions to prevent unbounded 48 MP uncompressed byte payloads from instantly destroying active JetSam RAM limits.
 
@@ -216,6 +211,7 @@ The same file-backed rule now applies to explore-media restore. `MerianNetworkCl
 | Component | Location | Responsibility |
 |---|---|---|
 | `ImageDownsampler` | `Core/Utilities/` | CGImageSource thumbnail decoding; `public enum` with `static func` — no actor overhead; autoreleasepool |
+| `MediaPreparationActor` | `Core/Data/Images/` | File-backed still-image preparation; owns inference/display encoding and budget metrics |
 | `FileIOActor` | `Core/Data/Database/` | Disk reads/writes; isolated from Main and SwiftData actors |
 | `LocalImageLoader` | `Core/Data/Images/` | Load orchestration; RAM cache hits; request coalescing; local/remote routing |
 | `ImageCache` | `Core/Data/Images/` | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap |

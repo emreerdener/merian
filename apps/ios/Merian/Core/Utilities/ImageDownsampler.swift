@@ -10,7 +10,7 @@ public enum ImageDownsampler {
     public struct SendableImage: @unchecked Sendable {
         public let cgImage: CGImage
 
-        fileprivate init(cgImage: CGImage) {
+        init(cgImage: CGImage) {
             self.cgImage = cgImage
         }
     }

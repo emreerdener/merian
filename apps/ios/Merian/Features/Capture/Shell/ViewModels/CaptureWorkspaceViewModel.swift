@@ -60,6 +60,7 @@ struct PreparedStagedImage: Sendable {
     let displayData: Data
     let historicalContext: HistoricalEnvironmentContextSnapshot?
     let previewCGImage: SendableCGImage
+    let metrics: MediaPreparationMetrics? = nil
 }
 
 struct RefinementScanContext: Equatable {
@@ -84,7 +85,7 @@ struct PreparedStagedImageRequest: Sendable, Equatable {
     let historicalContext: HistoricalEnvironmentContextSnapshot?
 }
 
-typealias PreparedStagedImageLoader = @Sendable (PreparedStagedImageRequest) throws -> PreparedStagedImage?
+typealias PreparedStagedImageLoader = @Sendable (PreparedStagedImageRequest) async throws -> PreparedStagedImage?
 
 @Observable
 @MainActor
@@ -269,32 +270,16 @@ final class CaptureWorkspaceViewModel {
     }
 
     nonisolated private static let livePreparedImageLoader: PreparedStagedImageLoader = { request in
-        // Inference payload: tier-conditional longest edge — 768 px for Flash (free),
-        // 1024 px for Pro. Matches the camera shutter path for consistent token costs per tier.
-        guard let inferenceCGImage = ImageDownsampler.downsample(
-            url: request.fileURL,
-            maxSize: MerianConfig.inferenceImageMaxSize(isProActive: request.isPro)
-        ) else { return nil }
-
-        let compressedData = ImageCropProcessor.encode(inferenceCGImage) ?? Data()
-        guard !compressedData.isEmpty else { return nil }
-
-        let displayData = autoreleasepool {
-            guard let displayCGImage = ImageDownsampler.downsample(
-                url: request.fileURL,
-                maxSize: MerianConfig.displayImageMaxSize
-            ) else {
-                return compressedData
-            }
-            return ImageCropProcessor.encode(displayCGImage) ?? compressedData
-        }
-
-        guard !displayData.isEmpty else { return nil }
+        let prepared = try await MediaPreparationActor.shared.prepareStillImage(
+            fileURL: request.fileURL,
+            isPro: request.isPro
+        )
         return PreparedStagedImage(
-            compressedData: compressedData,
-            displayData: displayData,
+            compressedData: prepared.inferenceData,
+            displayData: prepared.displayData,
             historicalContext: request.historicalContext,
-            previewCGImage: SendableCGImage(image: inferenceCGImage)
+            previewCGImage: SendableCGImage(image: prepared.previewImage.cgImage),
+            metrics: prepared.metrics
         )
     }
     
@@ -438,7 +423,7 @@ final class CaptureWorkspaceViewModel {
                         isPro: isPro,
                         historicalContext: historicalContext
                     )
-                    guard let preparedImport = try? self.preparedImageLoader(request) else { continue }
+                    guard let preparedImport = try? await self.preparedImageLoader(request) else { continue }
                     preparedImports.append(preparedImport)
                 }
             }
@@ -725,7 +710,7 @@ final class CaptureWorkspaceViewModel {
                     isPro: isPro,
                     historicalContext: nil
                 )
-                guard let preparedRefinement = try self.preparedImageLoader(request) else {
+                guard let preparedRefinement = try await self.preparedImageLoader(request) else {
                     await MainActor.run { self.isStagingRefinement = false }
                     return
                 }

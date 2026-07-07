@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-07-bounded-image-preparation",
+      "date": "2026-07-07",
+      "title": "Large photo stability",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Photo-library scans, reanalysis images, and profile avatar previews now use stricter image-size limits before staging, reducing memory pressure when very large photos are selected."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-07-species-dictionary-enrichment",
       "date": "2026-07-07",
       "title": "Species dictionary details",

@@ -404,6 +404,11 @@ MerianTests/
 	  and the failure path (`isStagingRefinement` drops back to `false` without
   appending a stale image). This gives deterministic coverage over refinement
   staging behavior without simulator-driven UI automation.
+- **`MediaPreparationActorTests.swift`**: Pins the production still-image
+  contract directly: file URL inputs return bounded inference/display payloads,
+  metrics stay within byte and dimension limits, avatar/crop previews return
+  bounded sendable `CGImage` values, and invalid files are rejected before any
+  staged media is produced.
 - **`HardwareOrchestratorTests.swift`**: Mocks
   `ProcessInfo.processInfo.thermalState` boundaries to verify the camera
   throttles FPS dynamically without restarting instances. Verifies the

@@ -263,15 +263,10 @@ struct UserProfile: View {
                 let fileURL = wrapper.url
                 defer { try? FileManager.default.removeItem(at: fileURL) }
 
-                let preview = try await Task.detached(priority: .userInitiated) {
-                    guard let preview = ImageDownsampler.downsampledSendableImage(
-                        url: fileURL,
-                        maxSize: MerianConfig.displayImageMaxSize
-                    ) else {
-                        throw ProfileAvatarImagePreparationError.unreadableImage
-                    }
-                    return preview
-                }.value
+                let preview = try await MediaPreparationActor.shared.preparePreviewImage(
+                    fileURL: fileURL,
+                    maxSize: MerianConfig.displayImageMaxSize
+                )
 
                 avatarImageToCrop = IdentifiableImage(image: UIImage(cgImage: preview.cgImage))
             } catch {

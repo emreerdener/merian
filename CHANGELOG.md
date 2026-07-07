@@ -14,6 +14,9 @@ TestFlight, App Store, support, and QA.
 
 ### Capture
 
+- Improved large-photo handling so gallery scans, reanalysis images, and profile
+  avatar previews are bounded before staging, reducing memory pressure when very
+  large local photos are selected.
 - Added automatic audio submission when a recording reaches the full time limit
   and confirm-before-submit is turned off.
 - Added video recording controls so Pro video scans show remaining time, can be

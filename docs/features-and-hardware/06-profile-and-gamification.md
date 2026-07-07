@@ -109,8 +109,10 @@ guest upgrades to Apple or Google sign-in.
 
 The Profile card lets guest and signed-in users choose a custom public profile
 picture with `PhotosPicker`. `UserProfile` loads the selected item as an
-`ImageFileWrapper`, then `ProfileAvatarImagePreparer` downsamples, square-crops,
-and encodes it as WebP with JPEG fallback. `ProfileViewModel` uploads the
+`ImageFileWrapper`, asks `MediaPreparationActor` for a bounded crop-preview
+`CGImage`, then hands the confirmed crop bytes to
+`ProfileAvatarImagePreparer` for downsample, square-crop, and WebP/JPEG
+encoding. `ProfileViewModel` uploads the
 prepared bytes to R2 staging through the same `/generate-upload-urls` manifest
 used by scan media, then calls `MerianNetworkClient.updatePublicAvatar(...)`.
 
