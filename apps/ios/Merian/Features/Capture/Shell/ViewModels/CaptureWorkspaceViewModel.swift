@@ -60,7 +60,21 @@ struct PreparedStagedImage: Sendable {
     let displayData: Data
     let historicalContext: HistoricalEnvironmentContextSnapshot?
     let previewCGImage: SendableCGImage
-    let metrics: MediaPreparationMetrics? = nil
+    let metrics: MediaPreparationMetrics?
+
+    init(
+        compressedData: Data,
+        displayData: Data,
+        historicalContext: HistoricalEnvironmentContextSnapshot?,
+        previewCGImage: SendableCGImage,
+        metrics: MediaPreparationMetrics? = nil
+    ) {
+        self.compressedData = compressedData
+        self.displayData = displayData
+        self.historicalContext = historicalContext
+        self.previewCGImage = previewCGImage
+        self.metrics = metrics
+    }
 }
 
 struct RefinementScanContext: Equatable {
