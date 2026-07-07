@@ -11,8 +11,8 @@ legacy `public.get_species_content_refresh_queue(...)` provenance queue.
 
 ## Security
 
-- `verify_jwt = false` in `services/supabase/config.toml` so `pg_net` can invoke the
-  function without gateway JWT validation.
+- `verify_jwt = false` in `services/supabase/config.toml` so `pg_net` can invoke
+  the function without gateway JWT validation.
 - The function still requires
   `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and compares it with
   `timingSafeCompare`.
@@ -90,12 +90,18 @@ Migration `20260622030000_long_term_community_taxonomy_index.sql` adds:
   `public.complete_species_enrichment_job(...)`, executable only by
   `service_role`.
 
+Migration `20260707153931_species_dictionary_enrichment_queue_backfill.sql` adds
+the `species_dictionary` insert trigger and sparse-row backfill that feed
+`gbif_wikipedia_reference` jobs into this worker and model-heavy jobs into
+`refresh-species-model-content`.
+
 ## Boundaries
 
-The worker does not refresh model-heavy or review-heavy fields in V1:
-`common_names`, `habitat_description`, `lookalikes`, `group_tags`,
-`iucn_red_list_status`, and `hazard_type` are skipped until curation/model
-refresh tooling can update them safely.
+The worker does not refresh model-heavy or review-heavy fields: `common_names`,
+`habitat_description`, `lookalikes`, `group_tags`, `iucn_red_list_status`, and
+`hazard_type` are skipped here. Habitat, lookalikes, and group tags are handled
+by `/refresh-species-model-content`; common-name overrides, conservation, and
+hazard data remain curation-owned.
 
 ## Local Verification
 

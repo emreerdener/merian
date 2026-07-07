@@ -62,8 +62,9 @@ different ways across Edge Functions and SQL RPCs.
 
 ## Scope 4 — Provenance And Refresh Metadata
 
-Status: service-role refresh queue and scheduled external refresh worker
-implemented; curation/model refresh tools still planned.
+Status: service-role refresh queue, scheduled external refresh worker, automatic
+insert/backfill queue coverage, and scheduled model-heavy worker implemented;
+manual curation tools still planned.
 
 - [x] Track source and freshness for overview, habitat, taxonomy, GBIF key,
       images, common names, group tags, conservation/hazard fields, and
@@ -76,6 +77,11 @@ implemented; curation/model refresh tools still planned.
 - [x] Build the scheduled refresh worker that consumes
       `get_species_content_refresh_queue(...)` and selectively refreshes stale
       content.
+- [x] Route new and existing sparse dictionary rows into `species_enrichment_jobs`
+      with missing `gbif_wikipedia_reference`, `habitat`, `lookalikes`, and
+      `group_tags` work.
+- [x] Build the scheduled model-heavy refresh worker for habitat prose,
+      lookalikes, and group tags.
 - [ ] Add curation tools that can write `manual_curation` provenance with no
       automatic refresh deadline.
 
@@ -89,9 +95,13 @@ Current rules:
   bounds without overwhelming GBIF/Wikipedia.
 - V1 refreshes only externally authoritative fields: alternate common names,
   taxonomy, Wikipedia URL/overview, GBIF taxon key, and reference images.
-- Model-heavy or review-heavy fields (`common_names`, habitat prose, lookalikes,
-  group tags, IUCN status, and hazard type) are skipped until curation/model
-  refresh tooling exists.
+- `refresh-species-model-content` runs through the same service-role cron
+  pattern with `limit = 12` and claims `habitat`, `lookalikes`, and
+  `group_tags` jobs.
+- New species dictionary inserts enqueue only missing enrichment groups with
+  `source_trigger = 'species_dictionary_insert'`; the sparse-row backfill uses
+  `source_trigger = 'species_dictionary_sparse_backfill'`.
+- Common-name overrides, IUCN status, and hazard type stay curation-owned.
 - `public.replace_species_reference_images(...)` keeps normalized reference
   imagery aligned with refreshed URLs while preserving existing
   license/attribution metadata.

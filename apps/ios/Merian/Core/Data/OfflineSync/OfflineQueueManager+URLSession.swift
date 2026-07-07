@@ -1114,7 +1114,21 @@ extension OfflineQueueManager {
         }
 
         let currentAttempt = await MainActor.run { queueAttemptCount(for: scanId) }
-        let delay = OfflineQueueRetryPolicy.delay(forAttempt: currentAttempt + 1)
+        guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(currentAttempt: currentAttempt) else {
+            await MainActor.run {
+                markQueuedScanNeedsAttention(
+                    scanId: scanId,
+                    code: "automatic_retry_limit_reached",
+                    message: OfflineQueueRetryPolicy.automaticRetryLimitMessage()
+                )
+            }
+            MerianLog.data.debug(
+                "Inference retry limit reached for \(scanId, privacy: .private) after \(currentAttempt, privacy: .public) attempts"
+            )
+            return
+        }
+
+        let delay = OfflineQueueRetryPolicy.jitteredDelay(forAttempt: currentAttempt + 1)
         let retries = await MainActor.run {
             updateQueuedScanForRetry(
                 scanId: scanId,

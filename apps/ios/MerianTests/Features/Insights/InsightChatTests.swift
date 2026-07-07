@@ -388,6 +388,111 @@ struct InsightChatTests {
         #expect(response.prompts[0].category == "evidence")
     }
 
+    @Test func testIdentificationConcernPromptDetection() {
+        let concernPrompts = [
+            "I think this identification is incorrect",
+            "This ID is wrong.",
+            "This is wrong",
+            "That's not it",
+            "It's not right",
+            "This doesn't seem right",
+            "This seems off",
+            "I'm not convinced",
+            "Are you sure this is the right species?",
+            "I don't think this is a monarch.",
+            "It doesn't look like this species.",
+            "I think this is something else",
+            "Could this be a different species?",
+            "Could it be Alaus myops instead?",
+            "This looks more like Alaus myops",
+            "The markings don't match",
+            "The color doesn't match",
+            "The habitat doesn't fit",
+            "The location seems unlikely for this species",
+            "Can you check again?",
+            "Analyze this again",
+            "Can Merian take another look?",
+            "Reanalyze this species"
+        ]
+
+        for prompt in concernPrompts {
+            #expect(InsightChatViewModel.isIdentificationConcernPrompt(prompt))
+        }
+
+        let ordinaryPrompts = [
+            "What traits support this identification?",
+            "How do I tell it apart from Queen?",
+            "Are you sure this is safe to touch?",
+            "Could this be poisonous?",
+            "What if something else changed?",
+            "What should I check again next time?",
+            "Should I use a different angle next time?",
+            "What color should I look for?"
+        ]
+
+        for prompt in ordinaryPrompts {
+            #expect(!InsightChatViewModel.isIdentificationConcernPrompt(prompt))
+        }
+    }
+
+    @Test func testIdentificationReviewActionsAttachToAssistantReplyAfterConcern() {
+        let viewModel = InsightChatViewModel()
+        viewModel.messages = [
+            InsightChatMessage(
+                id: "user_1",
+                conversationId: "conv1",
+                scanId: "chat_scan",
+                role: .user,
+                text: "I think this identification is incorrect",
+                clientMessageId: nil,
+                model: nil,
+                isRefusal: false,
+                refusalReason: nil,
+                createdAt: Date()
+            ),
+            InsightChatMessage(
+                id: "assistant_1",
+                conversationId: "conv1",
+                scanId: "chat_scan",
+                role: .assistant,
+                text: "Here is what the saved evidence says.",
+                clientMessageId: nil,
+                model: "gemini-2.5-flash",
+                isRefusal: false,
+                refusalReason: nil,
+                createdAt: Date()
+            ),
+            InsightChatMessage(
+                id: "user_2",
+                conversationId: "conv1",
+                scanId: "chat_scan",
+                role: .user,
+                text: "What should I look for nearby?",
+                clientMessageId: nil,
+                model: nil,
+                isRefusal: false,
+                refusalReason: nil,
+                createdAt: Date()
+            ),
+            InsightChatMessage(
+                id: "assistant_2",
+                conversationId: "conv1",
+                scanId: "chat_scan",
+                role: .assistant,
+                text: "Check nearby host plants.",
+                clientMessageId: nil,
+                model: "gemini-2.5-flash",
+                isRefusal: false,
+                refusalReason: nil,
+                createdAt: Date()
+            )
+        ]
+
+        #expect(viewModel.shouldOfferIdentificationReviewActions(forAssistantMessageAt: 1))
+        #expect(!viewModel.shouldOfferIdentificationReviewActions(forAssistantMessageAt: 3))
+        #expect(!viewModel.shouldOfferIdentificationReviewActions(forAssistantMessageAt: 0))
+    }
+
     @Test func testForbiddenChatErrorExplainsAccountOwnership() {
         let message = InsightChatViewModel.userFacingMessage(
             for: MerianError.httpError(statusCode: 403, message: #"{"error":"Forbidden"}"#)

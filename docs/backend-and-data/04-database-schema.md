@@ -595,6 +595,11 @@ claims `habitat`, `lookalikes`, and `group_tags` jobs and reuses the same
 species-level primitives behind `enrich-scan`. New GBIF-backed species
 materialized from Community ID publish enqueue all four content groups so
 external refresh and model-heavy enrichment can proceed independently.
+`20260707153931_species_dictionary_enrichment_queue_backfill.sql` adds an
+insert trigger on `species_dictionary` so every future species row, regardless
+of creator, queues only the enrichment groups it is missing. The same migration
+backfills existing sparse rows into `species_enrichment_jobs` with
+`source_trigger = 'species_dictionary_sparse_backfill'`.
 `community-taxonomy-status` exposes queue counts, next queued jobs, and recent
 failures for service-role monitoring.
 
@@ -1049,7 +1054,9 @@ attempts. Added in migration `20260705140000_add_scan_ingestion_intents.sql`.
   omitted.
 - `last_replayed_at`, `replay_attempt_count`, `last_replay_error`: Control
   fields maintained by `replay-scan-ingestion` when it claims and dispatches a
-  resumable staged media/audio/video or text-only retry.
+  resumable staged media/audio/video or text-only retry. Server replay is capped
+  at 10 automatic claims per sanitized intent before the paired ingestion job is
+  marked `failed_terminal`.
 
 The table has RLS enabled with no client read policy; only service-role Edge
 code and operators should read the sanitized intent. The
@@ -1061,7 +1068,10 @@ code and operators should read the sanitized intent. The
 RPC atomically claims due retryable or lease-expired jobs whose paired intent is
 resumable and not inline-redacted, moves the job to
 `stage = 'server_replay_claimed'`, increments the intent replay counter, and
-returns the sanitized request payload to the scheduled replay dispatcher.
+returns the sanitized request payload to the scheduled replay dispatcher. The
+follow-up migration `20260707143157_cap_scan_ingestion_replay_attempts.sql`
+keeps the same RPC signature but excludes over-budget intents from new claims
+and marks them terminal at `server_replay_limit_reached`.
 
 ### `user_blocks`
 
@@ -1598,8 +1608,9 @@ coordinates to the client contract.
   species-content hydration/provenance keys for alternate names, Wikipedia,
   habitat, reference images, lookalikes, and group tags. The scheduled
   `refresh-species-content` worker fills its supported GBIF/Wikipedia-backed
-  subset, while model-heavy fields continue through the existing `enrich-scan`
-  cache paths.
+  subset, while `refresh-species-model-content` fills habitat, lookalikes, and
+  group tags through the same species-level biology primitives used by
+  `enrich-scan`.
 - `public.publish_resolved_community_request_to_explore(target_post_id UUID, self_id UUID)`:
   Internal service-role helper used by `/share-scan-to-explore` when the owner
   accepts a resolved Identify request. It materializes the resolved species,
@@ -2013,7 +2024,7 @@ mirror for migration safety and compatibility.
   versus ordered video frames.)
 - `queueAttemptCount`: Int (Added in `MerianSchemaV48`. Persisted retry count
   for the queued scan. Replaces the older process-local `uploadRetryCount`
-  authority.)
+  authority and feeds the automatic retry budget.)
 - `queueLastAttemptAt`, `queueNextRetryAt`: Date? (Added in V48. Used by
   `OfflineQueueRetryPolicy` and the scheduler to survive app relaunch without
   losing backoff state.)
@@ -2053,6 +2064,9 @@ values are `pending`, `running`, `waiting`, `needsAttention`, `complete`, and
 - `createdAt`, `updatedAt`: Date
 - `lastAttemptAt`, `nextRunAt`: Date?
 - `attemptCount`: Int
+  Tracks bounded automatic retry attempts for durable offline jobs. Scan
+  ingestion, cloud deletion, and collection sync pause at `needsAttention` after
+  `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts` automatic failures.
 - `lastErrorCode`, `lastErrorMessage`: String?
 - `lastHTTPStatus`: Int?
 - `serverStatus`, `serverStage`, `serverRetryAfter`: server ingestion status

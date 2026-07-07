@@ -194,11 +194,8 @@ struct QueuedContentView: View {
         if !queuedContext.mediaKinds.isEmpty {
             details.append(queuedContext.mediaKinds.joined(separator: " + "))
         }
-        if queuedContext.queueAttemptCount > 0 {
-            details.append("Attempt \(queuedContext.queueAttemptCount + 1)")
-        }
         if let nextRetryAt = queuedContext.queueNextRetryAt {
-            details.append("Retry \(nextRetryAt.formatted(date: .omitted, time: .shortened))")
+            details.append("Automatic retry \(nextRetryAt.formatted(date: .omitted, time: .shortened))")
         }
         if queuedContext.approximateQueuedBytes > 0 {
             details.append(ByteCountFormatter.string(

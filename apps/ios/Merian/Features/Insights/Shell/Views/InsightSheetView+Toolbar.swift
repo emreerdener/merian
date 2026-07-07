@@ -58,7 +58,7 @@ extension InsightSheetView {
                 }
             } : nil,
             onReviewAlternatives: viewModel.canReviewAlternatives ? {
-                viewModel.state.isCandidateSwipePresented = true
+                viewModel.presentCandidateSwipe()
             } : nil,
             onConfirmIdentification: viewModel.canConfirm ? {
                 HapticManager.shared.triggerSuccessPulse()

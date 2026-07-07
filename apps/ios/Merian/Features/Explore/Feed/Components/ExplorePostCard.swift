@@ -518,6 +518,8 @@ struct ExplorePublicMediaView: View {
     @State private var configuredVideoURL: String?
     @State private var playbackEndObserver: NSObjectProtocol?
     @State private var isPlaying = false
+    @State private var showsPlaybackControl = true
+    @State private var playbackControlFadeTask: Task<Void, Never>?
     @AppStorage("MerianExplorePublicVideoMuted") private var isMuted = true
 
     init(
@@ -575,6 +577,7 @@ struct ExplorePublicMediaView: View {
                   activeId != playerId else { return }
             player?.pause()
             isPlaying = false
+            showPlaybackControlPersistently()
         }
     }
 
@@ -592,11 +595,21 @@ struct ExplorePublicMediaView: View {
             Color.clear
                 .contentShape(Rectangle())
                 .gesture(mediaTapGesture)
+        } else if shouldRevealPlaybackControlOnTap {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    showPlaybackControlTemporarily()
+                }
         }
     }
 
     private var hasMediaTapActions: Bool {
         onSingleTap != nil || onDoubleTap != nil
+    }
+
+    private var shouldRevealPlaybackControlOnTap: Bool {
+        mediaItem.kind == .video && showsVideoControls && isPlaying && !showsPlaybackControl
     }
 
     private var mediaTapGesture: some Gesture {
@@ -624,6 +637,11 @@ struct ExplorePublicMediaView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isPlaying ? "Pause video" : "Play video")
+                .accessibilityHidden(!showsPlaybackControl)
+                .allowsHitTesting(showsPlaybackControl)
+                .opacity(showsPlaybackControl ? 1 : 0)
+                .scaleEffect(showsPlaybackControl ? 1 : 0.96)
+                .animation(.easeInOut(duration: 0.22), value: showsPlaybackControl)
             } else {
                 VStack {
                     HStack {
@@ -673,6 +691,7 @@ struct ExplorePublicMediaView: View {
 
         cleanupPlayer()
         isPlaying = false
+        showPlaybackControlPersistently()
         let player = AVPlayer(url: url)
         player.isMuted = isMuted
         player.actionAtItemEnd = .none
@@ -694,6 +713,8 @@ struct ExplorePublicMediaView: View {
     private func cleanupPlayer() {
         player?.pause()
         isPlaying = false
+        playbackControlFadeTask?.cancel()
+        playbackControlFadeTask = nil
         if let playbackEndObserver {
             NotificationCenter.default.removeObserver(playbackEndObserver)
             self.playbackEndObserver = nil
@@ -712,6 +733,7 @@ struct ExplorePublicMediaView: View {
         if isPlaying || player.timeControlStatus == .playing {
             player.pause()
             isPlaying = false
+            showPlaybackControlPersistently()
         } else {
             startAutoplayIfNeeded(force: true)
         }
@@ -725,6 +747,37 @@ struct ExplorePublicMediaView: View {
         ExploreVideoAutoplayCoordinator.activate(playerId)
         player.play()
         isPlaying = true
+        showPlaybackControlTemporarily()
+    }
+
+    private func showPlaybackControlPersistently() {
+        playbackControlFadeTask?.cancel()
+        playbackControlFadeTask = nil
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showsPlaybackControl = true
+        }
+    }
+
+    private func showPlaybackControlTemporarily() {
+        playbackControlFadeTask?.cancel()
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showsPlaybackControl = true
+        }
+        guard isPlaying else {
+            playbackControlFadeTask = nil
+            return
+        }
+
+        playbackControlFadeTask = Task {
+            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard isPlaying else { return }
+                withAnimation(.easeInOut(duration: 0.26)) {
+                    showsPlaybackControl = false
+                }
+            }
+        }
     }
 }
 

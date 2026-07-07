@@ -472,8 +472,9 @@ Insight or Explore tap that carries a dictionary ID can warm a later
 scientific-name route for the same species. The cache is cleared in DEBUG
 whenever tests swap the injected `URLSession`.
 
-Invalidation is currently TTL-based: rows refreshed by the scheduled
-`refresh-species-content` worker become visible after the iOS memo TTL and the
+Invalidation is currently TTL-based: rows refreshed by the scheduled species
+workers (`refresh-species-content`, `refresh-species-model-content`, and
+`refresh-merian-reference-images`) become visible after the iOS memo TTL and the
 HTTP freshness window expire. Future curation tooling that needs immediate
 public web visibility should add a CDN/cache purge step alongside the dictionary
 write.
@@ -494,6 +495,12 @@ same state when older payloads omit it. `complete` pages render normally.
 species header so missing sections read as limited dictionary coverage, not
 broken layout. The page still renders every available section and continues to
 fall back gracefully when images or text are missing.
+
+Sparse and needs-enrichment records also feed durable background enrichment.
+`20260707153931_species_dictionary_enrichment_queue_backfill.sql` enqueues
+missing content groups for existing sparse rows and adds an insert trigger so
+future dictionary rows created by scans, Community ID materialization, taxonomy
+imports, or service-role repair share the same queue contract.
 
 TelemetryDeck tracks `SpeciesDictionaryOpened`, `SpeciesDictionaryLoaded`,
 `SpeciesDictionaryNotFound`, `SpeciesDictionaryRetry`, and
@@ -588,13 +595,18 @@ Provenance:
 - The iOS page does not display provenance or freshness metadata in V1.
 - Backend writers record source/freshness rows in `species_content_provenance`
   for dictionary fields and durable lookalikes.
-- `refresh-species-content` consumes
-  `public.get_species_content_refresh_queue(...)` on an hourly service-role cron
-  and refreshes only GBIF/Wikipedia-backed fields in V1: alternate common names,
-  taxonomy, Wikipedia URL/overview, GBIF taxon key, and reference images.
-- The worker reports unsupported queued keys as skipped. Common names, habitat
-  prose, lookalikes, group tags, IUCN status, and hazard type remain reserved
-  for future curation/model refresh tooling.
+- `refresh-species-content` claims `gbif_wikipedia_reference` jobs from
+  `species_enrichment_jobs` first, then falls back to
+  `public.get_species_content_refresh_queue(...)` for older
+  provenance-driven refreshes. It refreshes GBIF/Wikipedia-backed fields:
+  alternate common names, taxonomy, Wikipedia URL/overview, GBIF taxon key, and
+  reference images.
+- `refresh-species-model-content` claims `habitat`, `lookalikes`, and
+  `group_tags` jobs from the same queue and reuses the species-level biology
+  primitives behind `enrich-scan` without pretending a user rescanned the
+  organism.
+- Common-name overrides, IUCN status, and hazard type remain curation-owned and
+  are not overwritten by either scheduled worker.
 - Reference image refreshes update both the legacy comma-separated cache and
   normalized `species_reference_images` rows through
   `public.replace_species_reference_images(...)`, preserving existing
@@ -641,8 +653,9 @@ same response safely without an authenticated session.
 Backend:
 
 ```sh
-deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts
-deno test --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-model-content/index.ts services/supabase/functions/refresh-species-model-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts
+deno test --allow-read=services/supabase/migrations --config services/supabase/functions/deno.json services/supabase/functions/_tests/speciesContentMigrationContract.test.ts
 ```
 
 iOS:

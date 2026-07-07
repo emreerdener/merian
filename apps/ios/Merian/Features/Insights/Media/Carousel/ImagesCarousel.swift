@@ -5,6 +5,7 @@ struct CarouselPageBuilder {
     static func buildPages(
         for activeMedia: ActiveScanMedia,
         referenceWikipediaUrl: String?,
+        isProcessing: Bool = false,
         selectedIndex: Binding<Int> = .constant(0),
         isVideoMuted: Binding<Bool> = .constant(true),
         onImageFailure: @escaping (String) -> Void,
@@ -49,7 +50,8 @@ struct CarouselPageBuilder {
                         path: resolvedPath,
                         pageIndex: pageIndex,
                         selectedIndex: selectedIndex,
-                        isMuted: isVideoMuted
+                        isMuted: isVideoMuted,
+                        shouldLoopDuringProcessing: isProcessing
                     ))
                 ))
             }
@@ -190,6 +192,7 @@ private struct VideoPlaybackCarouselPage: View {
     let pageIndex: Int
     @Binding var selectedIndex: Int
     @Binding var isMuted: Bool
+    let shouldLoopDuringProcessing: Bool
 
     @State private var player: AVPlayer?
     @State private var hasAutoplayed = false
@@ -220,6 +223,12 @@ private struct VideoPlaybackCarouselPage: View {
         .onChange(of: isMuted) { _, newValue in
             player?.isMuted = newValue
         }
+        .onChange(of: shouldLoopDuringProcessing) { _, _ in
+            if let player {
+                installPlaybackEndObserver(for: player)
+            }
+            updatePlaybackForSelection()
+        }
         .onDisappear {
             player?.pause()
             isPlaying = false
@@ -249,26 +258,43 @@ private struct VideoPlaybackCarouselPage: View {
     private func updatePlaybackForSelection() {
         guard let player else { return }
 
-        if isSelected, !hasAutoplayed {
-            player.seek(to: .zero)
-            player.isMuted = isMuted
-            player.play()
-            hasAutoplayed = true
-            isPlaying = true
+        if isSelected {
+            if !hasAutoplayed {
+                startPlayback(fromBeginning: true)
+            } else if shouldLoopDuringProcessing && !isPlaying {
+                startPlayback(fromBeginning: true)
+            }
         } else if !isSelected, isPlaying {
             player.pause()
             isPlaying = false
         }
     }
 
+    private func startPlayback(fromBeginning: Bool) {
+        guard let player else { return }
+        if fromBeginning {
+            player.seek(to: .zero)
+        }
+        player.isMuted = isMuted
+        player.play()
+        hasAutoplayed = true
+        isPlaying = true
+    }
+
     private func installPlaybackEndObserver(for player: AVPlayer) {
+        removePlaybackEndObserver()
         playbackEndObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: player.currentItem,
             queue: .main
         ) { _ in
-            isPlaying = false
             player.seek(to: .zero)
+            if shouldLoopDuringProcessing, isSelected {
+                player.play()
+                isPlaying = true
+            } else {
+                isPlaying = false
+            }
         }
     }
 
@@ -441,6 +467,7 @@ struct ImagesCarousel: View {
         CarouselPageBuilder.buildPages(
             for: activeMedia,
             referenceWikipediaUrl: referenceWikipediaUrl,
+            isProcessing: isProcessing,
             selectedIndex: $selectedIndex,
             isVideoMuted: $isVideoMuted,
             onImageFailure: { handleImageFailure(identifier: $0) },

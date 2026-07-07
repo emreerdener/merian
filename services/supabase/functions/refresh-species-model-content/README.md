@@ -3,8 +3,13 @@
 Scheduled service-role worker for model-heavy species enrichment jobs.
 
 The worker claims `species_enrichment_jobs` for `habitat`, `lookalikes`, and
-`group_tags`. It reuses the same biology primitives behind `enrich-scan`
-without pretending a user rescanned the organism.
+`group_tags`. It reuses the same biology primitives behind `enrich-scan` without
+pretending a user rescanned the organism.
+
+Jobs are queued by the `species_dictionary` insert trigger and the sparse-row
+backfill in `20260707153931_species_dictionary_enrichment_queue_backfill.sql`,
+plus any explicit service-role calls to
+`public.enqueue_species_enrichment_jobs(...)`.
 
 ## Security
 

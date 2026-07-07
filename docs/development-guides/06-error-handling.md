@@ -70,26 +70,31 @@ determines queue behavior:
 
 ```
 Upload (background URLSession upload task)
+    ├── generateUploadURLs failure → reset .uploading scans to .pending and persist queueNextRetryAt until retry budget ends
     ├── File missing (NSURLErrorFileDoesNotExist / CannotOpenFile)
     │   └── mark queueNeedsAttention; keep local row for retry/cancel
     ├── Transient connectivity error (TimedOut / NetworkConnectionLost /
     │   NotConnectedToInternet / DataNotAllowed / InternationalRoamingOff)
-    │   └── retain in queue with persisted queueNextRetryAt
-    ├── Other transport error → log, retain in queue with persisted retry metadata
+    │   └── retain in queue with persisted queueNextRetryAt until retry budget ends
+    ├── Other transport error → log, retain in queue with persisted retry metadata until retry budget ends
     ├── HTTP 200 → dispatch background inference download task ("inference_{scanId}")
     ├── HTTP 429 / 5xx → retain in queue (recoverable)
     ├── HTTP 401 / 403 → needs attention (auth failure, terminal)
     └── HTTP 4xx (other) → needs attention (terminal)
 
 Inference (background URLSession download task)
-    ├── Transport error → handleInferenceRetry: persist retry and reset to .staged
+    ├── Transport error → handleInferenceRetry: persist retry and reset to .staged until retry budget ends
     ├── HTTP 200 → processInferenceDownloadResult → persist LocalScanRecord, delete OfflineQueuedScan
     ├── HTTP 4xx → needs attention (permanent failure, terminal)
-    └── HTTP 5xx / 429 → handleInferenceRetry: persist retry and reset to .staged
+    └── HTTP 5xx / 429 → handleInferenceRetry: persist retry and reset to .staged until retry budget ends
 
 Cloud deletion (PendingCloudDeletionTask)
     ├── MerianError.invalidResponse → tombstone (resource already gone, no point retrying)
-    └── All other errors → retain as OfflineJobRecord waiting for nextRunAt
+    └── All other errors → retain as OfflineJobRecord waiting for nextRunAt until retry budget ends
+
+Collection sync (OfflineJobRecord id "collection-sync")
+    ├── HTTP 200 → mark complete and clear pending bridge bit
+    └── Push failure → retain as OfflineJobRecord waiting for nextRunAt until retry budget ends
 ```
 
 Both uploads and inference use the same background `URLSession`

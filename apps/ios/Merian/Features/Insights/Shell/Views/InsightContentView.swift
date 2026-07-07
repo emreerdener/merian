@@ -140,11 +140,11 @@ struct InsightContentView: View {
         )) {
             explorePostComposerSheet
         }
-        .sheet(isPresented: $viewModel.state.isCandidateSwipePresented) {
-            let candidates = viewModel.reviewAlternativeCandidates
+        .sheet(isPresented: candidateSwipePresentedBinding) {
+            let candidates = viewModel.candidateSwipeCandidates
             if let speciesData = inferenceEngine.speciesData, !candidates.isEmpty {
                 CandidateSwipeModal(
-                    isPresented: $viewModel.state.isCandidateSwipePresented,
+                    isPresented: candidateSwipePresentedBinding,
                     candidates: candidates,
                     aiScientificName: speciesData.scientificName,
                     confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
@@ -195,6 +195,18 @@ struct InsightContentView: View {
 
 // MARK: - Subcomponents
 private extension InsightContentView {
+
+    var candidateSwipePresentedBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.state.isCandidateSwipePresented },
+            set: { isPresented in
+                viewModel.state.isCandidateSwipePresented = isPresented
+                if !isPresented {
+                    viewModel.state.candidateSwipePresentationSource = .standard
+                }
+            }
+        )
+    }
 
     @ViewBuilder
     var explorePostComposerSheet: some View {

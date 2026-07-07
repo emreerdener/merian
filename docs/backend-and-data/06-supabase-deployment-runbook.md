@@ -236,7 +236,11 @@ service-role endpoint. Start triage from the issue code:
   `replay_scan_ingestion_every_five_minutes` cron job is scheduled, then inspect
   `/functions/v1/replay-scan-ingestion` logs for dispatch failures. Rows that
   remain past due with `inline_media_redacted = true` are expected to wait for
-  the iOS queue. If `last_error` starts with
+  the iOS queue. Rows with `status = 'failed_terminal'` and
+  `stage = 'server_replay_limit_reached'` exhausted the 10-claim server replay
+  ceiling and should be reviewed as terminal incidents, not rescheduled by hand
+  unless the replay payload or backend bug has been fixed first. If `last_error`
+  starts with
   `insertScan: column reference "image_url" is ambiguous`, first confirm
   migration
   `20260706193954_fix_scan_media_refresh_image_url_ambiguity.sql` has reached

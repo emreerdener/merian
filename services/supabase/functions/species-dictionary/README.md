@@ -197,11 +197,16 @@ ignore it. Public readers omit rows whose `review_status` is `rejected`.
 
 Provenance and refresh metadata are stored separately in
 `public.species_content_provenance`. The public response does not include those
-fields in V1. The scheduled `refresh-species-content` worker consumes
-`public.get_species_content_refresh_queue(...)` hourly and refreshes only
-GBIF/Wikipedia-backed fields in V1: alternate common names, taxonomy, Wikipedia
-URL/overview, GBIF taxon key, and reference images. Model-heavy or review-heavy
-keys remain skipped until curation/model refresh tooling exists.
+fields in V1. The scheduled `refresh-species-content` worker claims
+`gbif_wikipedia_reference` jobs from `species_enrichment_jobs` first, falls back
+to `public.get_species_content_refresh_queue(...)` for older provenance-driven
+refreshes, and refreshes GBIF/Wikipedia-backed fields: alternate common names,
+taxonomy, Wikipedia URL/overview, GBIF taxon key, and reference images.
+`refresh-species-model-content` claims `habitat`, `lookalikes`, and
+`group_tags` jobs from the same queue. New dictionary rows and existing sparse
+rows enter that queue through
+`20260707153931_species_dictionary_enrichment_queue_backfill.sql`.
+Common-name overrides, conservation, and hazard data remain curation-owned.
 Merian source scan/post/user provenance is stored privately in
 `public.species_reference_image_merian_sources`; the public dictionary response
 exposes only URL, source, license, attribution, and optional image dimensions.
@@ -241,8 +246,9 @@ projection fields listed above.
 ## Local Verification
 
 ```sh
-deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/_shared/identify/db.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts
-deno test --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/_shared/identify/db_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/_shared/identify/db.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-model-content/index.ts services/supabase/functions/refresh-species-model-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/_shared/identify/db_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts
+deno test --allow-read=services/supabase/migrations --config services/supabase/functions/deno.json services/supabase/functions/_tests/speciesContentMigrationContract.test.ts
 ```
 
 ## Related Endpoint

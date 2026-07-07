@@ -110,6 +110,12 @@ struct InsightSheetView: View {
 	                    onAppendToFieldNotes: { text, kind in
 	                        appendInsightChatTextToFieldNotes(text, kind: kind)
 	                    },
+                        onReviewAlternatives: viewModel.canReviewIdentificationConcernCandidates ? {
+                            openIdentificationConcernCandidatesFromChat()
+                        } : nil,
+                        onReanalyzeSpecies: viewModel.canReanalyze ? {
+                            startReanalysisFromInsightChat()
+                        } : nil,
 	                    onClose: {
 	                        viewModel.state.isInsightChatSheetPresented = false
 	                    }
@@ -216,6 +222,36 @@ private extension InsightSheetView {
 
         viewModel.updateFieldNotes(combined, modelContext: modelContext)
         viewModel.state.dismissedFieldNotesCardScanId = nil
+    }
+
+    func openIdentificationConcernCandidatesFromChat() {
+        viewModel.state.isInsightChatSheetPresented = false
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            guard viewModel.canReviewIdentificationConcernCandidates else { return }
+            viewModel.presentCandidateSwipe(source: .identificationConcern)
+        }
+    }
+
+    func startReanalysisFromInsightChat() {
+        guard RevenueCatManager.shared.isProActive else {
+            viewModel.state.isInsightChatSheetPresented = false
+            viewModel.state.showPaywall = true
+            return
+        }
+
+        guard let scanId = viewModel.activeLocalRecord?.id ?? viewModel.activeLocalRecordId else { return }
+        viewModel.state.isInsightChatSheetPresented = false
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            HapticManager.shared.triggerSelectionPulse()
+            AppEventPublisher.shared.send(.triggerRefinement(
+                scanId: scanId,
+                initialDescription: viewModel.shareableFieldNotes
+            ))
+        }
     }
 }
 

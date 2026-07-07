@@ -87,6 +87,10 @@ Bulk responses include the probed scan id on each result:
 - `status` remains compatibility-only (`found` or `not_found`). When the scan
   row is not yet complete, optional job fields come from `scan_ingestion_jobs`
   and expose owner-safe processing/finalization/retry state.
+- Terminal replay exhaustion appears through those optional job fields as
+  `job_status = "failed_terminal"` and
+  `job_stage = "server_replay_limit_reached"`; iOS treats it as a user-visible
+  needs-attention state rather than continuing local automatic retry.
 - The response intentionally does not expose `media_object_keys`,
   `upload_session_ids`, `manifest_checksum`, `request_payload`, or
   `payload_checksum`; those remain server/operator diagnostics for tying retries

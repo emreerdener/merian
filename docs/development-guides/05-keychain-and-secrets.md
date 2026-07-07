@@ -51,8 +51,9 @@ environment variable.**
 - `SUPABASE_SERVICE_ROLE_KEY` — lives in Supabase Edge secrets or server-side
   web deployment secrets only. Never in the iOS app, never in `Config.xcconfig`,
   and never in a `NEXT_PUBLIC_` variable. Internal cron/webhook workers such as
-  `refresh-species-content`, `refresh-merian-reference-images`, and
-  `auto-purge-nonbio` may receive it only as a server-to-server
+  `refresh-species-content`, `refresh-species-model-content`,
+  `refresh-merian-reference-images`, and `auto-purge-nonbio` may receive it only
+  as a server-to-server
   `Authorization: Bearer ...` header from `pg_net`/Vault. The Next.js web app
   may read it only from server-rendered route/helpers such as
   `apps/web/lib/supabase.ts`.

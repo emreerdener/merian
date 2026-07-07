@@ -10,12 +10,31 @@ enum OfflineQueueRetryDisposition: Equatable {
 }
 
 enum OfflineQueueRetryPolicy {
+    static let maximumAutomaticRetryAttempts = 10
     static let maximumRetryDelay: TimeInterval = 15 * 60
+    static let retryJitterFraction = 0.2
 
     static func delay(forAttempt attempt: Int) -> TimeInterval {
-        let exponent = max(0, min(attempt, 8))
+        let exponent = max(0, attempt)
         let base = pow(2.0, Double(exponent))
         return min(maximumRetryDelay, max(5, base))
+    }
+
+    static func jitteredDelay(forAttempt attempt: Int) -> TimeInterval {
+        let baseDelay = delay(forAttempt: attempt)
+        let multiplier = Double.random(in: (1 - retryJitterFraction)...(1 + retryJitterFraction))
+        return min(maximumRetryDelay, max(5, baseDelay * multiplier))
+    }
+
+    static func canScheduleAutomaticRetry(currentAttempt: Int) -> Bool {
+        currentAttempt < maximumAutomaticRetryAttempts
+    }
+
+    static func automaticRetryLimitMessage() -> String {
+        [
+            "Merian retried this scan several times and paused automatic retry.",
+            "You can retry manually when the connection or Merian service is stable."
+        ].joined(separator: " ")
     }
 
     static func classifyUpload(error: Error?, statusCode: Int?, currentAttempt: Int) -> OfflineQueueRetryDisposition {
@@ -33,29 +52,29 @@ enum OfflineQueueRetryPolicy {
                      NSURLErrorNotConnectedToInternet,
                      NSURLErrorDataNotAllowed,
                      NSURLErrorInternationalRoamingOff:
-                    return .retry(
-                        after: delay(forAttempt: currentAttempt + 1),
+                    return retryOrPause(
+                        currentAttempt: currentAttempt,
                         code: "network_unavailable",
                         message: error.localizedDescription
                     )
                 default:
-                    return .retry(
-                        after: delay(forAttempt: currentAttempt + 1),
+                    return retryOrPause(
+                        currentAttempt: currentAttempt,
                         code: "upload_transport_error",
                         message: error.localizedDescription
                     )
                 }
             }
-            return .retry(
-                after: delay(forAttempt: currentAttempt + 1),
+            return retryOrPause(
+                currentAttempt: currentAttempt,
                 code: "upload_error",
                 message: error.localizedDescription
             )
         }
 
         guard let statusCode else {
-            return .retry(
-                after: delay(forAttempt: currentAttempt + 1),
+            return retryOrPause(
+                currentAttempt: currentAttempt,
                 code: "upload_missing_status",
                 message: "The upload finished without an HTTP status."
             )
@@ -63,8 +82,8 @@ enum OfflineQueueRetryPolicy {
 
         if statusCode == 200 { return .success }
         if [408, 409, 425, 429, 500, 502, 503, 504].contains(statusCode) {
-            return .retry(
-                after: delay(forAttempt: currentAttempt + 1),
+            return retryOrPause(
+                currentAttempt: currentAttempt,
                 code: "upload_http_\(statusCode)",
                 message: "The media upload endpoint returned HTTP \(statusCode)."
             )
@@ -73,6 +92,24 @@ enum OfflineQueueRetryPolicy {
         return .needsAttention(
             code: "upload_rejected_http_\(statusCode)",
             message: "The media upload endpoint permanently rejected the queued media with HTTP \(statusCode)."
+        )
+    }
+
+    private static func retryOrPause(
+        currentAttempt: Int,
+        code: String,
+        message: String?
+    ) -> OfflineQueueRetryDisposition {
+        guard canScheduleAutomaticRetry(currentAttempt: currentAttempt) else {
+            return .needsAttention(
+                code: "automatic_retry_limit_reached",
+                message: automaticRetryLimitMessage()
+            )
+        }
+        return .retry(
+            after: jitteredDelay(forAttempt: currentAttempt + 1),
+            code: code,
+            message: message
         )
     }
 }

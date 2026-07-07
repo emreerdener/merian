@@ -432,10 +432,12 @@ or audio attached:
     to fill the field. This covers species stored before the enrichment pipeline
     was introduced.
   - **Scheduled public-content refresh**: `refresh-species-content` is not part
-    of the live inference path. It consumes `species_content_provenance` hourly
-    and refreshes only GBIF/Wikipedia-backed public fields, leaving model-heavy
-    fields (`habitat_description`, lookalikes, group tags, IUCN status, and
-    hazard type) for explicit enrichment or future curation tooling.
+    of the live inference path. It claims `gbif_wikipedia_reference` jobs from
+    `species_enrichment_jobs`, falls back to `species_content_provenance`, and
+    refreshes GBIF/Wikipedia-backed public fields. The paired
+    `refresh-species-model-content` worker handles queued habitat, lookalikes,
+    and group tags; IUCN status, hazard type, and common-name overrides remain
+    curation-owned.
 - **Flat Object Schema (Non-Biological Bounds)**: `getMerianResponseSchema()` in
   `services/supabase/functions/_shared/identify/schema.ts` returns a single flat
   `OBJECT` schema — not a top-level `anyOf` with discriminated branches. All
@@ -802,7 +804,9 @@ or audio attached:
   mark the intent non-resumable. The scheduled `replay-scan-ingestion` worker
   claims due resumable intents and dispatches them back through
   `identify-multimodal` with the same `client_scan_id`; inline-media rows remain
-  client retry only. Compatibility scan-producing endpoints (`identify`,
+  client retry only. Server replay is capped at 10 claims per sanitized intent,
+  after which the job becomes `failed_terminal / server_replay_limit_reached`.
+  Compatibility scan-producing endpoints (`identify`,
   `identify-describe`, and `audio-spec`) now use
   `_shared/scanIngestionCompatibility.ts` to write the same ledger before
   returning success. Their staged media and text-only intents are shaped as

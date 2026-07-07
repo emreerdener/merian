@@ -287,6 +287,40 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.canReanalyze == true)
     }
 
+    @Test func testIdentificationConcernCandidatesUseStoredAlternativesWithoutChangingToolbarPolicy() {
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "strong_hidden_candidates",
+            commonName: "Genista Broom Moth",
+            scientificName: "Uresiphita reversalis",
+            insightData: InsightData(aiReasoning: "A strong identification.", hazardType: "none"),
+            confidenceScore: 0.96,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild",
+            inferenceTier: "flash",
+            candidates: [
+                IdentificationCandidate(
+                    scientificName: "Pieris rapae",
+                    commonName: "Cabbage White",
+                    confidenceScore: 0.70
+                )
+            ]
+        )
+        viewModel.inferenceEngine = engine
+        viewModel.activeLocalRecordId = "strong_hidden_candidates"
+
+        #expect(viewModel.canReviewAlternatives == false)
+        #expect(viewModel.canReviewIdentificationConcernCandidates == true)
+        #expect(viewModel.candidateSwipeCandidates.isEmpty)
+
+        viewModel.presentCandidateSwipe(source: .identificationConcern)
+
+        #expect(viewModel.candidateSwipeCandidates.map(\.scientificName) == ["Pieris rapae"])
+    }
+
     @Test func testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates() {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()

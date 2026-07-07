@@ -372,3 +372,29 @@ Deno.test("scan ingestion replay migration claims resumable jobs and schedules t
     assertStringIncludes(sql, fragment);
   }
 });
+
+Deno.test("scan ingestion replay retry limit migration caps automatic server replay", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260707143157_cap_scan_ingestion_replay_attempts.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION public.claim_replayable_scan_ingestion_jobs",
+      "max_replay_attempts INTEGER := 10",
+      "i.replay_attempt_count >= max_replay_attempts",
+      "status = 'failed_terminal'",
+      "stage = 'server_replay_limit_reached'",
+      "Server replay retry limit reached after 10 attempts.",
+      "LIMIT claim_limit",
+      "i.replay_attempt_count < max_replay_attempts",
+      "replay_attempt_count = i.replay_attempt_count + 1",
+      "REVOKE ALL ON FUNCTION public.claim_replayable_scan_ingestion_jobs",
+      "GRANT EXECUTE ON FUNCTION public.claim_replayable_scan_ingestion_jobs",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});

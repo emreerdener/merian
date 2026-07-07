@@ -61,7 +61,8 @@ multiple functions need the same behavior and the ownership boundary is clear.
   into `scan_ingestion_intents` without raw base64 media bytes or local device
   paths. Inline-media requests are marked non-resumable so
   `replay-scan-ingestion` and health checks know they still depend on the client
-  queue.
+  queue. Server replay is capped at 10 claims per sanitized intent before the
+  paired job is marked `failed_terminal / server_replay_limit_reached`.
 - **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
   by `audio-spec` and `identify-multimodal`.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,

@@ -2,6 +2,58 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-07-07-species-dictionary-enrichment",
+      "date": "2026-07-07",
+      "title": "Species dictionary details",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Species dictionary records now queue missing public reference details for scheduled enrichment, helping sparse pages gain Wikipedia, GBIF, reference image, habitat, lookalike, and group-tag coverage over time."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-07-field-chat-id-review-actions",
+      "date": "2026-07-07",
+      "title": "Field chat identification review",
+      "sections": [
+        {
+          "title": "Added",
+          "items": [
+            "Field chat now offers Review alternatives and Reanalyze species actions when your follow-up wording suggests the current ID is wrong, uncertain, a different species, mismatched to visible traits, or worth checking again."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-07-staged-video-preview-dismiss",
+      "date": "2026-07-07",
+      "title": "Video preview dismissal",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Staged video previews can now be dismissed with a downward swipe before submitting the scan for analysis."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-07-07-insight-video-analysis-loop",
+      "date": "2026-07-07",
+      "title": "Insight video analysis playback",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Video scan media now loops during active analysis so the scanning overlay keeps moving over playback until results arrive."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-07-07-video-storage-cleanup",
       "date": "2026-07-07",
       "title": "Video capture storage",
@@ -22,7 +74,8 @@
         {
           "title": "Fixed",
           "items": [
-            "Queued scan retry now gives visible feedback, refreshes the open Insight sheet, and leaves cancellation to the existing top-right trash control."
+            "Queued scan retry now gives visible feedback, refreshes the open Insight sheet, and leaves cancellation to the existing top-right trash control.",
+            "Automatic offline retries now use jittered backoff and pause for attention after repeated scan upload, analysis, cloud-deletion, or collection-sync failures, while repeated server replay failures turn terminal instead of retrying indefinitely."
           ]
         }
       ]
@@ -35,7 +88,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Explore video posts now autoplay when opened, fill their square preview, use a centered play/pause control, and keep mute or sound-on state synced across videos."
+            "Explore video posts now autoplay when opened, fill their square preview, use a centered play/pause control that fades during playback, and keep mute or sound-on state synced across videos."
           ]
         }
       ]
@@ -181,7 +234,7 @@
         {
           "title": "Improved",
           "items": [
-            "Video scan media now starts muted playback once when its Insight sheet opens, with a bottom-left sound status toggle.",
+            "Video scan media now starts muted playback when its Insight sheet opens, with a bottom-left sound status toggle.",
             "Account-library video scans whose cloud record still listed sampled frames now open the playable video instead of a thumbnail sequence.",
             "Video scans that only have sampled frames available now fall back to the middle frame instead of filling the Insight carousel with all five samples."
           ]

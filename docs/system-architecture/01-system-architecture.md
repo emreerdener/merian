@@ -155,8 +155,12 @@ single-responsibility functions under `/services/supabase/functions/`.
   - `/species-dictionary`: Public species-level dictionary projection for the
     in-app species page and future web frontend.
   - `/refresh-species-content`: Internal service-role cron worker that consumes
-    `species_content_provenance`, refreshes GBIF/Wikipedia-backed fields, and
-    synchronizes normalized reference imagery.
+    `species_enrichment_jobs` plus legacy `species_content_provenance`,
+    refreshes GBIF/Wikipedia-backed fields, and synchronizes normalized
+    reference imagery.
+  - `/refresh-species-model-content`: Internal service-role cron worker that
+    fills queued Species Dictionary habitat, lookalikes, and group tags through
+    the same species-level biology primitives behind `enrich-scan`.
   - `/refresh-merian-reference-images`: Internal service-role cron worker that
     promotes high-quality published Explore media into Merian-sourced species
     reference images and mirrors source visibility.

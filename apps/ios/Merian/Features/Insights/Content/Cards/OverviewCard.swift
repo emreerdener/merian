@@ -124,7 +124,7 @@ struct OverviewCard: View {
 
                                 Text(val)
                                     .font(.system(.subheadline))
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.primary)
                                     .multilineTextAlignment(.leading)
                                     .lineLimit(nil)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -360,7 +360,7 @@ private struct InvasiveStatusSummary: View {
                         VStack(alignment: .leading, spacing: 8) {
                             if let formattedExplanation {
                                 Text(formattedExplanation)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.primary)
                                     .multilineTextAlignment(.leading)
                                     .lineLimit(nil)
                                     .fixedSize(horizontal: false, vertical: true)

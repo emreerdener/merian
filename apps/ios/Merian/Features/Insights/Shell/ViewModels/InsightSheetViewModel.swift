@@ -8,6 +8,11 @@ enum InsightExplorePresentationTarget: Equatable {
     case communityRequest
 }
 
+enum CandidateSwipePresentationSource: Equatable {
+    case standard
+    case identificationConcern
+}
+
 /// Defines the unified local state graph and primary business logic orchestrating the `InsightSheetView` presentation and data actions.
 @MainActor
 @Observable
@@ -68,6 +73,7 @@ final class InsightSheetViewModel {
         var showNewCollectionAlert = false
         var isInsightChatSheetPresented = false
         var isCandidateSwipePresented = false
+        var candidateSwipePresentationSource: CandidateSwipePresentationSource = .standard
         var showPaywall = false
         var toastMessage: String?
         var newCollectionName = ""
@@ -97,6 +103,11 @@ final class InsightSheetViewModel {
     }
 
     var state = UIState()
+
+    func presentCandidateSwipe(source: CandidateSwipePresentationSource = .standard) {
+        state.candidateSwipePresentationSource = source
+        state.isCandidateSwipePresented = true
+    }
 
     func bindSettings(_ appSettings: AppSettings) {
         self.appSettings = appSettings

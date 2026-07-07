@@ -13,7 +13,8 @@ a sanitized `scan_ingestion_intents` row through
 `_shared/scanIngestionCompatibility.ts`.
 
 - Staged `audio_r2_key` requests are shaped as multimodal replay payloads with
-  `audioR2ObjectKeys` and `audioMediaItems`.
+  `audioR2ObjectKeys` and `audioMediaItems`, subject to the shared 10-claim
+  server replay ceiling.
 - Inline `audio_base64` bytes are never stored in the intent. They are counted
   in `redacted_media_counts`, marked `inline_media_redacted = true`, and remain
   client-retry only.

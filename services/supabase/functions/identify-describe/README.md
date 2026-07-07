@@ -17,7 +17,8 @@ row plus a sanitized `scan_ingestion_intents` row through
 - Because no raw media bytes are needed, text-only compatibility intents are
   `resumable = true`.
 - `replay-scan-ingestion` can recover retryable failures by invoking
-  `/identify-multimodal` with the same `client_scan_id`.
+  `/identify-multimodal` with the same `client_scan_id`, subject to the shared
+  10-claim server replay ceiling.
 - Successful background insert marks the job `complete`; insert failures mark it
   `failed_retryable`.
 

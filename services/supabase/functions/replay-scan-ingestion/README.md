@@ -21,6 +21,11 @@ staged media/audio/video or text-only request, and invokes
 Inline foreground media is never replayed by the server because raw base64 media
 bytes are intentionally redacted from `scan_ingestion_intents`.
 
+Automatic replay is capped at 10 claims per sanitized intent. Once
+`replay_attempt_count` reaches that ceiling, the claim RPC marks the paired job
+`failed_terminal` with `stage = 'server_replay_limit_reached'` instead of
+claiming it again.
+
 ## Invocation
 
 The worker is scheduled every five minutes by
@@ -51,6 +56,8 @@ moderation, promotion, insert idempotency, and video durability gates.
 - Only staged media/audio/video or description-only intents marked
   `resumable = true` are eligible.
 - Completed and terminal jobs are never replayed.
+- Over-budget intents are terminal-marked in bounded batches using the same
+  claim window as normal replay work.
 - A cloud scan row that already has all required video media is marked complete
   without replaying AI.
 - A cloud scan row that exists but lacks required video media is left retryable

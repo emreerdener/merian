@@ -13,6 +13,8 @@ struct InsightChatSheet: View {
     let timestamp: Date?
     let onToast: (String) -> Void
     let onAppendToFieldNotes: (String, InsightChatFieldNotesAppendKind) -> Void
+    let onReviewAlternatives: (() -> Void)?
+    let onReanalyzeSpecies: (() -> Void)?
     let onClose: () -> Void
 
     @FocusState private var composerFocused: Bool
@@ -211,6 +213,10 @@ struct InsightChatSheet: View {
                                         scientificNames: scientificNames,
                                         isLastMessage: index == viewModel.messages.count - 1 && viewModel.pendingUserMessage == nil,
                                         feedbackRating: viewModel.submittedFeedback[message.id],
+                                        identificationReviewActions: identificationReviewActions(
+                                            for: message,
+                                            at: index
+                                        ),
                                         onAction: { action in
                                             handleAction(action, message: message)
                                         },
@@ -449,6 +455,36 @@ struct InsightChatSheet: View {
         }
     }
 
+    private func identificationReviewActions(
+        for message: InsightChatMessage,
+        at index: Int
+    ) -> InsightChatIdentificationReviewActions? {
+        guard viewModel.shouldOfferIdentificationReviewActions(forAssistantMessageAt: index) else {
+            return nil
+        }
+
+        let reviewAlternatives = onReviewAlternatives.map { action in
+            {
+                HapticManager.shared.triggerSelectionPulse()
+                trackAction("review_alternatives_from_identification_concern", message: message)
+                action()
+            }
+        }
+        let reanalyzeSpecies = onReanalyzeSpecies.map { action in
+            {
+                HapticManager.shared.triggerSelectionPulse()
+                trackAction("reanalyze_species_from_identification_concern", message: message)
+                action()
+            }
+        }
+
+        guard reviewAlternatives != nil || reanalyzeSpecies != nil else { return nil }
+        return InsightChatIdentificationReviewActions(
+            onReviewAlternatives: reviewAlternatives,
+            onReanalyzeSpecies: reanalyzeSpecies
+        )
+    }
+
     private func submitFeedback(_ rating: InsightChatFeedbackRating) {
         guard let message = pendingFeedbackMessage else { return }
         pendingFeedbackMessage = nil
@@ -507,11 +543,17 @@ private enum InsightChatReplyAction: String, CaseIterable {
     case copyAnswer = "copy_answer"
 }
 
+private struct InsightChatIdentificationReviewActions {
+    let onReviewAlternatives: (() -> Void)?
+    let onReanalyzeSpecies: (() -> Void)?
+}
+
 private struct InsightChatBubble: View {
     let message: InsightChatMessage
     let scientificNames: [String]
     let isLastMessage: Bool
     let feedbackRating: InsightChatFeedbackRating?
+    let identificationReviewActions: InsightChatIdentificationReviewActions?
     let onAction: (InsightChatReplyAction) -> Void
     let onPositiveFeedback: () -> Void
     let onNegativeFeedback: () -> Void
@@ -558,6 +600,11 @@ private struct InsightChatBubble: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
 
+                if let identificationReviewActions {
+                    InsightChatIdentificationReviewPanel(actions: identificationReviewActions)
+                        .padding(.top, 4)
+                }
+
                 InsightChatAnswerControls(
                     feedbackRating: feedbackRating,
                     onPositiveFeedback: onPositiveFeedback,
@@ -577,6 +624,77 @@ private struct InsightChatBubble: View {
         }
     }
 
+}
+
+private struct InsightChatIdentificationReviewPanel: View {
+    let actions: InsightChatIdentificationReviewActions
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Review identification", systemImage: "checkmark.seal")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Text("Compare the saved alternatives or add more evidence for a fresh pass.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                if let onReviewAlternatives = actions.onReviewAlternatives {
+                    actionButton(
+                        title: "Review alternatives",
+                        systemImage: "person.fill.checkmark.and.xmark",
+                        action: onReviewAlternatives
+                    )
+                }
+
+                if let onReanalyzeSpecies = actions.onReanalyzeSpecies {
+                    actionButton(
+                        title: "Reanalyze species",
+                        systemImage: "arrow.2.circlepath",
+                        action: onReanalyzeSpecies
+                    )
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.22), lineWidth: 1)
+        )
+    }
+
+    private func actionButton(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 9)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color(uiColor: .systemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.primary.opacity(0.10), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+    }
 }
 
 private struct InsightChatPendingUserBubble: View {

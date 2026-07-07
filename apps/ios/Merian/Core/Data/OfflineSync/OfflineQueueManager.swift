@@ -123,14 +123,8 @@ import SwiftData
     @ObservationIgnored var replayedStagedScanCount: Int = 0
 #endif
 
-    /// Maximum delay between `generateUploadURLs` failure retries (seconds).
-    static let maxUploadRetryDelay: TimeInterval = 30
-
     // MARK: - Backoff & Debounce State
 
-    /// Current exponential-backoff delay for `generateUploadURLs` failures.
-    /// Doubles on each consecutive failure up to `maxUploadRetryDelay`; reset to 0 on success.
-    @ObservationIgnored var uploadRetryDelay: TimeInterval = 0
     /// Cancellable task that fires a delayed `syncPendingScans()` retry after a URL-generation failure.
     /// Cancelled on connectivity loss so stale retries never fire after going offline.
     @ObservationIgnored var retryBackoffTask: Task<Void, Never>?

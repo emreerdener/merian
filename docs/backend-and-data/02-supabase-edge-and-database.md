@@ -203,6 +203,12 @@ scheduled every five minutes by pg_cron. It claims retryable or lease-expired
 reconstructs the sanitized staged media/audio/video or text-only request, and
 invokes `identify-multimodal` with the same `client_scan_id`.
 
+`claim_replayable_scan_ingestion_jobs` caps automatic replay at 10 claims per
+sanitized intent. Rows at or above that budget are handled in the same bounded
+claim window and marked `failed_terminal` with
+`stage = 'server_replay_limit_reached'`, so the scheduled worker cannot churn
+forever on a permanently broken replay payload.
+
 This worker is deliberately a dispatcher, not a second inference pipeline.
 `identify-multimodal` remains the only owner of Gemini calls, moderation,
 playback-video promotion, scan insertion, `captured_media`, and asset
@@ -514,6 +520,10 @@ Key rules:
 - The additive `content_quality` field classifies each row as `complete`,
   `sparse`, or `needs_enrichment` from public imagery, overview,
   habitat/distribution, and taxonomy signals.
+- New `species_dictionary` inserts enqueue missing species-level hydration work
+  through the database trigger added in
+  `20260707153931_species_dictionary_enrichment_queue_backfill.sql`, so scan,
+  Community ID, taxonomy import, and repair paths share one enrichment contract.
 - The response must not include scan IDs, user IDs, Explore post IDs, field
   notes, comments, locations, local user media, per-scan AI reasoning, or
   preferred-name overrides.
@@ -568,12 +578,13 @@ iOS surface.
 ## The Scheduled Species Content Refresh Node (`refresh-species-content`)
 
 The `/refresh-species-content` Edge Function is an internal service-role worker
-invoked by `pg_cron`/`pg_net`. It consumes
-`public.get_species_content_refresh_queue(...)`, batches stale rows by species,
-refreshes supported public fields from GBIF/Wikipedia, writes updated dictionary
-fields, synchronizes normalized reference imagery through
-`public.replace_species_reference_images(...)`, and records fresh provenance
-rows.
+invoked by `pg_cron`/`pg_net`. It claims `gbif_wikipedia_reference` work from
+`species_enrichment_jobs`, falls back to
+`public.get_species_content_refresh_queue(...)` when no first-class jobs are
+available, batches stale rows by species, refreshes supported public fields from
+GBIF/Wikipedia, writes updated dictionary fields, synchronizes normalized
+reference imagery through `public.replace_species_reference_images(...)`, and
+records fresh provenance rows.
 
 Key rules:
 
@@ -583,20 +594,45 @@ Key rules:
 - The scheduled job `refresh_species_content_hourly` runs at minute 17 every
   hour with `{ "limit": 25 }`; manual service-role calls may use `dry_run`,
   `as_of`, `limit`, and `content_keys`.
+- Newly inserted or backfilled sparse dictionary rows are queued in
+  `species_enrichment_jobs`; this worker claims `gbif_wikipedia_reference`
+  jobs before falling back to the older provenance queue.
 - Per-species refresh work runs with a concurrency cap of 4 to stay within Edge
   runtime bounds without overwhelming GBIF/Wikipedia.
 - V1 refreshes only fields backed by authoritative external APIs:
   `alternative_common_names`, `taxonomy`, `wikipedia_url`, `wikipedia_overview`,
   `gbif_taxon_key`, and `reference_images`.
 - Unsupported queued keys are reported as skipped rather than overwritten.
-  `common_names`, `habitat_description`, `lookalikes`, `group_tags`,
-  `iucn_red_list_status`, and `hazard_type` remain reserved for future
-  curation/model refresh workflows.
+  `habitat_description`, `lookalikes`, and `group_tags` are handled by
+  `/refresh-species-model-content`; common-name overrides,
+  `iucn_red_list_status`, and `hazard_type` remain curation-owned.
 - Reference image refreshes update the legacy comma-separated cache and the
   normalized `species_reference_images` table. Existing license/attribution
   metadata is preserved when a refreshed URL matches an existing row. Merian
   community rows are preserved and ordered separately by the Merian reference
   image worker.
+
+## The Scheduled Species Model Content Node (`refresh-species-model-content`)
+
+The `/refresh-species-model-content` Edge Function is the paired internal
+service-role worker for model-heavy species dictionary hydration. It claims
+`habitat`, `lookalikes`, and `group_tags` jobs from
+`species_enrichment_jobs`, reuses the species-level biology primitives behind
+`enrich-scan`, writes results to `species_dictionary` and
+`species_lookalikes`, records provenance, and marks each job succeeded or
+failed.
+
+Key rules:
+
+- `verify_jwt = false` is configured for `pg_net` compatibility, but every
+  request must include `Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}` and
+  is checked with `timingSafeCompare`.
+- The scheduled job runs with `{ "limit": 12 }`; manual service-role calls may
+  use `dry_run`, `as_of`, `limit`, and `content_groups`.
+- Refresh work runs with a concurrency cap of 2 to avoid stampeding Gemini.
+- The worker never attaches media to a species and never changes scan identity;
+  scan-to-species attachment remains owner publish through
+  `confirmed_species_id`.
 
 ## The Scheduled Merian Reference Image Node (`refresh-merian-reference-images`)
 

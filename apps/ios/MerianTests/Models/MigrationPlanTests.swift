@@ -655,10 +655,15 @@ struct MigrationPlanTests {
         let source = try migrationPlanSource()
         let requiredSnippets = [
             "private static func initializeV48OfflineQueueRecords",
+            "private struct V47QueuedScanMigrationSnapshot",
+            "_v47QueuedScanBackfill",
             "static let migrateV47toV48 = MigrationStage.custom",
             "static let migrateV45toV48 = MigrationStage.custom",
             "static let migrateV46toV48 = MigrationStage.custom",
+            "FetchDescriptor<MerianSchemaV47.OfflineQueuedScan>",
             "FetchDescriptor<MerianSchemaV48.OfflineQueuedScan>",
+            "snapshot.apply(to: existingScan)",
+            "snapshot.makeV48QueuedScan()",
             "scan.queueAttemptCount = 0",
             "scan.queueLastAttemptAt = nil",
             "scan.queueNextRetryAt = nil",
@@ -676,6 +681,7 @@ struct MigrationPlanTests {
             #"try initializeV48OfflineQueueRecords(in: context, stage: "V47->V48 didMigrate")"#,
             #"try initializeV48OfflineQueueRecords(in: context, stage: "V45->V48 didMigrate")"#,
             #"try initializeV48OfflineQueueRecords(in: context, stage: "V46->V48 didMigrate")"#,
+            "_v47QueuedScanBackfill.removeAll(namespace: namespace)",
             #"try saveMigrationContext(context, stage: stage)"#
         ]
         let missing = requiredSnippets.filter { !source.contains($0) }

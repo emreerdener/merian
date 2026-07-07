@@ -35,6 +35,7 @@ extension OfflineQueueManager {
                 didBackfillJob = true
             }
             guard let record = job?.record else { return true }
+            guard isRunnableCloudDeletionStatus(record.statusRaw) else { return false }
             if let nextRunAt = record.nextRunAt, nextRunAt > now {
                 return false
             }
@@ -167,12 +168,28 @@ extension OfflineQueueManager {
                 message: "Cloud deletion completed."
             ))
         } else {
+            job.lastAttemptAt = Date()
+            job.lastErrorMessage = error?.localizedDescription
+            guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(currentAttempt: job.attemptCount) else {
+                job.status = .needsAttention
+                job.nextRunAt = nil
+                job.lastErrorCode = "cloud_deletion_retry_limit_reached"
+                context.insert(OfflineQueueEvent(
+                    jobId: job.id,
+                    scanId: scanId,
+                    kind: .needsAttention,
+                    message: "Cloud deletion paused after repeated failures.",
+                    errorCode: "cloud_deletion_retry_limit_reached"
+                ))
+                return
+            }
+
             job.status = .waiting
             job.attemptCount += 1
-            job.lastAttemptAt = Date()
-            job.nextRunAt = Date().addingTimeInterval(OfflineQueueRetryPolicy.delay(forAttempt: job.attemptCount))
+            job.nextRunAt = Date().addingTimeInterval(
+                OfflineQueueRetryPolicy.jitteredDelay(forAttempt: job.attemptCount)
+            )
             job.lastErrorCode = "cloud_deletion_failed"
-            job.lastErrorMessage = error?.localizedDescription
             context.insert(OfflineQueueEvent(
                 jobId: job.id,
                 scanId: scanId,
@@ -181,6 +198,12 @@ extension OfflineQueueManager {
                 errorCode: "cloud_deletion_failed"
             ))
         }
+    }
+
+    private func isRunnableCloudDeletionStatus(_ statusRaw: String) -> Bool {
+        statusRaw == OfflineJobStatus.pending.rawValue ||
+            statusRaw == OfflineJobStatus.waiting.rawValue ||
+            statusRaw == OfflineJobStatus.running.rawValue
     }
 
     private func ensureCloudDeletionJob(
@@ -353,8 +376,6 @@ extension OfflineQueueManager {
                 MerianLog.data.debug(
                     "syncPendingScans: received presigned URLs=\(presignedUrls.count, privacy: .public)"
                 )
-                await MainActor.run { self.uploadRetryDelay = 0 }
-
                 let dispatchedScanIDs = await self.dispatchUploadTasks(
                     session: session,
                     uploadItems: claimedUploadItems,
@@ -383,7 +404,12 @@ extension OfflineQueueManager {
                 await MainActor.run {
                     self.uploadPreparationScanIds.subtract(claimedScanIds)
                 }
-                await self.handleSyncNetworkFailure(error: error, session: session, dbActor: dbActor)
+                await self.handleSyncNetworkFailure(
+                    error: error,
+                    affectedScanIds: claimedScanIds,
+                    session: session,
+                    dbActor: dbActor
+                )
                 return
             }
 
@@ -514,34 +540,60 @@ extension OfflineQueueManager {
         }
     }
 
-    private func handleSyncNetworkFailure(error: Error, session: URLSession, dbActor: BackgroundDatabaseActor) async {
+    private func handleSyncNetworkFailure(
+        error: Error,
+        affectedScanIds: Set<String>,
+        session: URLSession,
+        dbActor: BackgroundDatabaseActor
+    ) async {
         MerianLog.data.debug("syncPendingScans: staging URL request failed: \(error, privacy: .private)")
-        
+
         // Reset orphaned uploads
         let liveTasks = await session.allTasks
         let activeUploadIds = Set(liveTasks.compactMap { task in
             MediaStagingContract.parseUploadTaskDescription(task.taskDescription)?.scanId
         })
         await dbActor.reconcileOrphanedUploadingScans(activeScanIds: activeUploadIds)
-        
-        // Exponential backoff
-        let delay: TimeInterval = await MainActor.run {
-            let current = self.uploadRetryDelay
-            let next = current == 0 ? 1.0 : min(current * 2.0, OfflineQueueManager.maxUploadRetryDelay)
-            self.uploadRetryDelay = next
-            return next
-        }
-        
-        await MainActor.run {
-            self.isSyncing = false
-            SyncStateManager.shared.completeUploadPhase()
-            self.retryBackoffTask?.cancel()
-            self.retryBackoffTask = Task { [weak self] in
-                guard let self else { return }
-                try? await Task.sleep(for: .seconds(delay))
-                guard !Task.isCancelled else { return }
-                self.syncPendingScans()
+
+        var retryDelays: [TimeInterval] = []
+        for scanId in affectedScanIds {
+            let currentAttempt = queueAttemptCount(for: scanId)
+            guard OfflineQueueRetryPolicy.canScheduleAutomaticRetry(currentAttempt: currentAttempt) else {
+                markQueuedScanNeedsAttention(
+                    scanId: scanId,
+                    code: "automatic_retry_limit_reached",
+                    message: OfflineQueueRetryPolicy.automaticRetryLimitMessage()
+                )
+                continue
             }
+
+            let delay = OfflineQueueRetryPolicy.jitteredDelay(forAttempt: currentAttempt + 1)
+            updateQueuedScanForRetry(
+                scanId: scanId,
+                code: "upload_url_generation_failed",
+                message: error.localizedDescription,
+                delay: delay,
+                resetTo: .pending
+            )
+            retryDelays.append(delay)
+        }
+
+        guard let delay = retryDelays.min() else {
+            isSyncing = false
+            SyncStateManager.shared.completeUploadPhase()
+            retryBackoffTask?.cancel()
+            retryBackoffTask = nil
+            return
+        }
+
+        isSyncing = false
+        SyncStateManager.shared.completeUploadPhase()
+        retryBackoffTask?.cancel()
+        retryBackoffTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            self.syncPendingScans()
         }
     }
 
@@ -652,8 +704,11 @@ extension OfflineQueueManager {
                 priority: 80
             )
             job.status = .pending
+            job.attemptCount = 0
             job.updatedAt = Date()
             job.nextRunAt = nil
+            job.lastErrorCode = nil
+            job.lastErrorMessage = nil
             context.insert(OfflineQueueEvent(
                 jobId: job.id,
                 kind: .queued,
@@ -692,12 +747,31 @@ extension OfflineQueueManager {
             UserDefaults.standard.set(false, forKey: UserDefaultsKeys.needsCollectionSync)
             context.insert(OfflineQueueEvent(jobId: job.id, kind: .completed, message: "Collection sync completed."))
         } else if !success {
-            job.attemptCount += 1
-            job.status = .waiting
             job.lastAttemptAt = Date()
-            job.nextRunAt = Date().addingTimeInterval(OfflineQueueRetryPolicy.delay(forAttempt: job.attemptCount))
-            job.lastErrorCode = "collection_sync_failed"
-            context.insert(OfflineQueueEvent(jobId: job.id, kind: .retryScheduled, message: "Collection sync will retry.", errorCode: "collection_sync_failed"))
+            if OfflineQueueRetryPolicy.canScheduleAutomaticRetry(currentAttempt: job.attemptCount) {
+                job.attemptCount += 1
+                job.status = .waiting
+                job.nextRunAt = Date().addingTimeInterval(
+                    OfflineQueueRetryPolicy.jitteredDelay(forAttempt: job.attemptCount)
+                )
+                job.lastErrorCode = "collection_sync_failed"
+                context.insert(OfflineQueueEvent(
+                    jobId: job.id,
+                    kind: .retryScheduled,
+                    message: "Collection sync will retry.",
+                    errorCode: "collection_sync_failed"
+                ))
+            } else {
+                job.status = .needsAttention
+                job.nextRunAt = nil
+                job.lastErrorCode = "collection_sync_retry_limit_reached"
+                context.insert(OfflineQueueEvent(
+                    jobId: job.id,
+                    kind: .needsAttention,
+                    message: "Collection sync paused after repeated failures.",
+                    errorCode: "collection_sync_retry_limit_reached"
+                ))
+            }
         }
         do {
             try context.save()

@@ -824,4 +824,72 @@ struct OfflineQueueManagerTests {
             "A failed collection sync must keep the pending bit set so a later retry can pick it up"
         )
     }
+
+    @Test func testFinishCollectionSyncAttemptPausesAfterRetryBudget() async throws {
+        let ctx = try createIsolatedContext()
+        let manager = OfflineQueueManager.shared
+        let originalRevision = manager.collectionSyncRevision
+        let originalSyncing = manager.isCollectionSyncing
+        let originalTask = manager.collectionSyncTask
+        defer {
+            manager.collectionSyncRevision = originalRevision
+            manager.isCollectionSyncing = originalSyncing
+            manager.collectionSyncTask = originalTask
+        }
+
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.collectionSyncJobId,
+            kind: .collectionSync,
+            status: .running,
+            attemptCount: OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts
+        )
+        ctx.insert(job)
+        try ctx.save()
+
+        manager.isCollectionSyncing = true
+        manager.finishCollectionSyncAttempt(success: false, capturedRevision: 1)
+
+        let jobId = OfflineQueueManager.collectionSyncJobId
+        let descriptor = FetchDescriptor<OfflineJobRecord>(predicate: #Predicate { $0.id == jobId })
+        let fetched = try #require(ctx.fetch(descriptor).first)
+        #expect(fetched.status == .needsAttention)
+        #expect(fetched.nextRunAt == nil)
+        #expect(fetched.attemptCount == OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts)
+        #expect(fetched.lastErrorCode == "collection_sync_retry_limit_reached")
+        #expect(!manager.hasPendingCollectionSyncJob)
+    }
+
+    @Test func testMarkCollectionSyncPendingResetsRetryBudgetForNewMutation() async throws {
+        let ctx = try createIsolatedContext()
+        let manager = OfflineQueueManager.shared
+        let originalRevision = manager.collectionSyncRevision
+        let originalPending = UserDefaults.standard.bool(forKey: UserDefaultsKeys.needsCollectionSync)
+        defer {
+            manager.collectionSyncRevision = originalRevision
+            UserDefaults.standard.set(originalPending, forKey: UserDefaultsKeys.needsCollectionSync)
+        }
+
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.collectionSyncJobId,
+            kind: .collectionSync,
+            status: .needsAttention,
+            attemptCount: OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts,
+            nextRunAt: Date().addingTimeInterval(600),
+            lastErrorCode: "collection_sync_retry_limit_reached",
+            lastErrorMessage: "Paused."
+        )
+        ctx.insert(job)
+        try ctx.save()
+
+        manager.markCollectionSyncPending()
+
+        let jobId = OfflineQueueManager.collectionSyncJobId
+        let descriptor = FetchDescriptor<OfflineJobRecord>(predicate: #Predicate { $0.id == jobId })
+        let fetched = try #require(ctx.fetch(descriptor).first)
+        #expect(fetched.status == .pending)
+        #expect(fetched.attemptCount == 0)
+        #expect(fetched.nextRunAt == nil)
+        #expect(fetched.lastErrorCode == nil)
+        #expect(fetched.lastErrorMessage == nil)
+    }
 }

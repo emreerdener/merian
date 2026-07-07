@@ -297,7 +297,8 @@ MerianTests/
   `InsightChatTests.swift` covers Field chat request/response decoding,
   feedback/summary/prompt-suggestion DTO decoding, local fallback and
   AI-generated quick prompt merging/filtering, failed outgoing recovery state,
-  deterministic unavailable-state hiding, and the 600-character draft cap.
+  deterministic unavailable-state hiding, identification-concern action buckets
+  plus negative examples, and the 600-character draft cap.
   `UserTagsMutationControllerTests.swift` verifies tag saves commit locally
   before external cloud/search side effects can run.
 - **`CaptureTelemetryTests.swift`**: Directly validates that offline/historic
@@ -356,10 +357,10 @@ MerianTests/
     queue metadata remains unchanged. Guards against dispatching a second
     pipeline for a scan already in `.inferencing` state — the function only
     queries `.staged` scans.
-  - **Exponential backoff math (`testUploadRetryDelayExponentialBackoff`)**:
-    Replicates the `syncPendingScans` backoff formula inline and asserts the
-    full delay sequence (0→1→2→4→8→16→30) and cap behavior. Also asserts
-    `maxUploadRetryDelay == 30`.
+  - **Durable retry backoff math**:
+    Asserts `OfflineQueueRetryPolicy` floors short retries, clamps long retries
+    to `maximumRetryDelay`, and stops scheduling automatic work once
+    `maximumAutomaticRetryAttempts` is exhausted.
   - **Durable queue retry policy**: `OfflineQueueRetryPolicy` tests should cover
     transient network/server failures, local-media terminal failures, persisted
     `queueNextRetryAt`, server `retry_after`, and app relaunch behavior. Video
@@ -615,6 +616,18 @@ because it reads SQL files directly.
   payload mapping, and provenance writes with a mocked Supabase client. It
   should be updated whenever the worker supports a new `content_key` or changes
   refresh safety rules.
+- **Scheduled species model-content worker**:
+  `refresh-species-model-content/db.test.ts` verifies request validation,
+  service-role job claiming, habitat/lookalike/group-tag persistence, and
+  provenance/job completion behavior with a mocked Supabase client. It should
+  be updated whenever the model-heavy `content_group` set or retry semantics
+  change.
+- **Species dictionary enrichment migration contract**:
+  `_tests/speciesContentMigrationContract.test.ts` reads
+  `20260707153931_species_dictionary_enrichment_queue_backfill.sql` directly and
+  asserts that sparse rows and every future insert path enqueue only the missing
+  `gbif_wikipedia_reference`, `habitat`, `lookalikes`, and `group_tags` jobs.
+  Run it with `--allow-read=services/supabase/migrations`.
 - **Scheduled Merian reference-image worker**:
   `refresh-merian-reference-images/db.test.ts` verifies request validation and
   RPC invocation; `_tests/merianReferenceImagesDb.test.ts` verifies threshold

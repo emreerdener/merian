@@ -40,7 +40,7 @@ struct QueuedScanSnapshot: Identifiable, Equatable {
     var gridId: String { "q_\(id)" }
 
     var canRetryNow: Bool {
-        queueState == .failed || queueNextRetryAt != nil || queueNeedsAttention
+        queueState == .failed || queueNeedsAttention
     }
 }
 

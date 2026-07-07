@@ -381,7 +381,9 @@ triggering excessive SwiftUI view rebuilds.
   through `OfflineJobRecord` rows. `OfflineQueuedScan.queue*` fields and bounded
   `OfflineQueueEvent` rows replace the old process-local retry authority, so app
   relaunch preserves attempts, next retry time, last server stage, and
-  user-attention state.
+  user-attention state. Automatic scan upload, inference, cloud deletion, and
+  collection-sync retries all share `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`;
+  after that ceiling the job moves to `needsAttention` instead of rescheduling.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
   across images, videos, audio clips, and descriptions. Images, video clips, and
   video poster thumbnails are written to `.documentsDirectory` via
@@ -412,9 +414,11 @@ triggering excessive SwiftUI view rebuilds.
   those claimed files. If the claim save fails, the actor rolls back and no
   URLSession tasks are launched. If the URL-generation request fails after a
   successful claim (e.g. task cancelled when the user backgrounds), any scans
-  already transitioned to `.uploading` are reset to `.pending` before the retry
-  is scheduled — `syncPendingScans` only fetches `.pending` records, so without
-  this reset they would be stuck. Additionally,
+  already transitioned to `.uploading` are reset to `.pending`, then each
+  affected scan records durable retry metadata through `OfflineQueueRetryPolicy`.
+  When the shared automatic retry budget is exhausted, those rows move to
+  `queueNeedsAttention` rather than scheduling another in-memory retry.
+  Additionally,
   `replayInferenceForUploadedScans` cross-references live URLSession tasks on
   every call to catch orphans that bypass the catch block.
 - **Server-Owned Inference Recovery**: Before replay resets an orphaned
@@ -431,7 +435,9 @@ triggering excessive SwiftUI view rebuilds.
   authoritative server attempt before the app wakes again, so local replay waits
   on status polling instead of guessing from process-local retry state. This
   keeps video playback finalization from being mistaken for a local inference
-  failure after app suspension or restart.
+  failure after app suspension or restart. Server-side replay is also capped at
+  10 claims per sanitized intent; over-budget jobs are marked
+  `failed_terminal` at `server_replay_limit_reached`.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5),
   `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (6),
   `mediaStagingMaxAudioFilesPerRequest` (2), `stagedImagePayloadMaxBytes` (5

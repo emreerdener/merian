@@ -434,17 +434,18 @@ the `FileManager.copyItem` and `uploadTask` creation for each image are fanned
 out concurrently via `withTaskGroup`. For a 3-image scan this eliminates 500
 ms–2 s of head-of-line blocking before the background session takes ownership.
 
-**Exponential backoff for `generateUploadURLs` failures**: When the pre-signed
-URL request fails, `syncPendingScans` first calls
+**Bounded backoff for `generateUploadURLs` failures**: When the pre-signed URL
+request fails, `syncPendingScans` first calls
 `reconcileOrphanedUploadingScans(activeScanIds:)` to reset any `.uploading`
 scans — which were transitioned before `generateUploadURLs` was called — back to
 `.pending`. Without this reset those scans would be invisible to the retry since
-`fetchPendingScans` only returns `.pending` records. After the reset,
-`syncPendingScans` schedules a `retryBackoffTask` that waits before the next
-attempt. The delay doubles on each consecutive failure (1 s → 2 s → 4 s → …
-capped at 30 s), stored in `OfflineQueueManager.uploadRetryDelay`. The delay
-resets to 0 on any successful URL generation. The retry task is cancelled
-immediately on connectivity loss so stale retries never fire while offline.
+`fetchPendingScans` only returns `.pending` records. After the reset, each
+affected scan records durable retry metadata through `OfflineQueueRetryPolicy`.
+Retries use jittered backoff capped by `maximumRetryDelay`; once
+`maximumAutomaticRetryAttempts` is exhausted, the queued scan is marked
+`queueNeedsAttention` instead of scheduling another process-local retry. The
+retry task is cancelled immediately on connectivity loss so stale retries never
+fire while offline.
 
 All this payload work runs inside a `BackgroundTaskWrapper.execute` block so iOS
 does not suspend the process during disk I/O or URL generation. The expiration
@@ -475,13 +476,15 @@ dynamically—circumventing the dead `urlSessionDidFinishEvents` delegate path.
     `NSURLErrorNetworkConnectionLost`, `NSURLErrorNotConnectedToInternet`,
     `NSURLErrorDataNotAllowed`, `NSURLErrorInternationalRoamingOff`): retain in
     queue, persist `queueAttemptCount`, `queueLastError*`, and
-    `queueNextRetryAt` via `OfflineQueueRetryPolicy`.
+    `queueNextRetryAt` via `OfflineQueueRetryPolicy` until the automatic retry
+    budget is exhausted.
   - **Transport errors — other**: logged, retained in queue with persisted retry
-    metadata.
+    metadata until the automatic retry budget is exhausted.
   - **HTTP 429 / 5xx**: Recoverable — retain in queue and persist the next retry
-    time. **HTTP 503** returned by the `identify` Edge function for transient
-    Gemini errors (including non-STOP finish reasons) falls into this category —
-    the scan is retained for retry rather than tombstoned.
+    time until the automatic retry budget is exhausted. **HTTP 503** returned by
+    the `identify` Edge function for transient Gemini errors (including non-STOP
+    finish reasons) falls into this category — the scan is retained for retry
+    rather than tombstoned while retry budget remains.
   - **HTTP 401 / 403 and other permanent 4xx**: mark `queueNeedsAttention`. The
     user media is not silently deleted after a fixed retry count.
   - **HTTP 200**: Evaluates the image against `session.allTasks` to ensure it is
@@ -489,10 +492,16 @@ dynamically—circumventing the dead `urlSessionDidFinishEvents` delegate path.
 
   > **Retry durability**: `uploadRetryCount` is no longer the source of truth.
   > Retry ownership lives on `OfflineQueuedScan.queue*` fields and the paired
-  > `OfflineJobRecord`. A process kill no longer resets retry history or deletes
-  > user media after three local failures. Successful upload/inference paths
-  > clear retry metadata; server-owned work persists `job_status`, `job_stage`,
-  > and `retry_after` from `/check-scan-status`.
+  > `OfflineJobRecord`. Automatic scan-ingestion retries are capped by
+  > `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`, use jittered
+  > backoff up to `maximumRetryDelay`, and then move to `queueNeedsAttention`.
+  > A process kill no longer resets retry history or deletes user media after
+  > three local failures. Successful upload/inference paths clear retry metadata;
+  > server-owned work persists `job_status`, `job_stage`, and `retry_after` from
+  > `/check-scan-status`.
+  > Server-side resumable replay is also bounded: after 10 replay claims for the
+  > same sanitized intent, `claim_replayable_scan_ingestion_jobs` marks the job
+  > `failed_terminal` at `server_replay_limit_reached`.
 
   > **Failed Upload Notifications**: Any pathway that natively tombstones a
   > queue payload (due to transient exhaustion, HTTP 4xx permanence, or explicit
@@ -559,8 +568,9 @@ dynamically—circumventing the dead `urlSessionDidFinishEvents` delegate path.
   `.inferencing` and another server poll is scheduled. `failed_retryable` honors
   the server `retry_after` before returning the row to `.staged`; terminal
   failure marks the queue row as needing attention. Unresolved `not_found`
-  responses or status-probe failures fall back to persisted retry handling
-  instead of a fixed process-local attempt cap.
+  responses or status-probe failures fall back to the same persisted retry budget
+  (`OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`) used by upload
+  staging, rather than a separate process-local attempt counter.
 
   **InferenceEngine hydration (background-wins race)**: After the awards
   debounce task is set up, if `processingResult.speciesData` is non-nil,
@@ -729,8 +739,10 @@ user with 10 offline deletions the wall time still drops from ~4 s (serial) to
 ~600 ms (concurrent).
 
 `NetworkError.invalidResponse` (resource already gone) is treated as terminal
-and the task is removed. All other errors retain the task for the next cycle.
-The result-processing loop builds a `[String: PendingCloudDeletionTask]`
+and the task is removed. All other errors retain the task for the next cycle
+until `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts` is exhausted; the
+paired `OfflineJobRecord` then moves to `needsAttention` and is no longer
+runnable. The result-processing loop builds a `[String: PendingCloudDeletionTask]`
 dictionary once before iterating results, making each lookup O(1) instead of the
 previous O(n) linear scan (was O(n²) overall for large batches).
 
@@ -755,7 +767,11 @@ disconnected.
    `SyncCollectionPayload` arrays to the `sync-collections` Edge function. The
    upload is wrapped in `BackgroundTaskWrapper.execute(name: "CollectionSync")`
    so iOS grants additional background time if the user closes the app
-   immediately after creating a collection.
+   immediately after creating a collection. Repeated automatic push failures use
+   the same bounded retry budget as other offline jobs; after the budget is
+   exhausted, the coalesced job moves to `needsAttention`. A later local
+   collection mutation re-queues the job and resets that retry budget because it
+   represents new user intent.
 
    **Diff-based Edge sync**: The `sync-collections` Deno function handles
    explicitly passed soft-deletions (`is_deleted: true` or `isDeleted: true`)

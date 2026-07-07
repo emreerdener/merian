@@ -6,13 +6,19 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Species Dictionary
+
+- Added durable species dictionary enrichment queueing so new and existing
+  sparse species records can backfill Wikipedia, GBIF, reference image,
+  habitat, lookalike, and group-tag details through the scheduled workers.
+
 ### Capture
 
 - Added automatic audio submission when a recording reaches the full time limit
   and confirm-before-submit is turned off.
 - Added video recording controls so Pro video scans show remaining time, can be
-  canceled before staging, and open staged clips in a full-screen preview where
-  they can be removed before identifying.
+  canceled before staging, and open staged clips in a full-screen preview that
+  can be dismissed with a downward swipe or removed before identifying.
 - Added Pro short video scans from the visual shutter: tap still takes a photo,
   while a brief hold latches into a 5-second video recording with saved playback
   and image-based thumbnails.
@@ -97,8 +103,9 @@ TestFlight, App Store, support, and QA.
   and Ask the Community with muted playback in feed/detail and thumbnail play
   indicators on compact surfaces.
 - Fixed Explore video playback so shared video posts autoplay when opened, fill
-  their square preview, and use a centered play/pause control instead of a
-  static marker; muting or unmuting one Explore video now applies to the rest.
+  their square preview, and use a centered play/pause control that fades during
+  playback instead of a static marker; muting or unmuting one Explore video now
+  applies to the rest.
 - Fixed video Explore sharing so composer-selected video clips publish, edit,
   and request Community ID from the server media source list, while failed media
   snapshots no longer leave the Share sheet showing a phantom Explore post.
@@ -125,6 +132,10 @@ TestFlight, App Store, support, and QA.
 - Fixed queued scan retry from Insight sheets so Retry now gives visible
   feedback, refreshes the open scan state, and no longer duplicates the existing
   cancel control.
+- Capped automatic offline retries with jittered backoff so repeated scan
+  upload, analysis, cloud-deletion, or collection-sync failures pause for
+  attention, and repeated server replay failures turn terminal, instead of
+  retrying indefinitely.
 - Added redacted offline queue diagnostics for support, including queued job
   state and recent queue events without private media.
 - Added Image and Video media filters to the Scans filter sheet.
@@ -150,8 +161,8 @@ TestFlight, App Store, support, and QA.
 
 ### Insight Sheet
 
-- Video scan media now starts muted playback once when its Insight sheet opens,
-  with a bottom-left sound status toggle.
+- Video scan media now starts muted playback when its Insight sheet opens,
+  loops while analysis is running, and keeps a bottom-left sound status toggle.
 - Fixed account-library video scans whose cloud record still listed sampled
   frames so Insight opens the playable video instead of a thumbnail sequence.
 - Video scans that only have sampled frames available now fall back to the
@@ -217,6 +228,9 @@ TestFlight, App Store, support, and QA.
   launching into a 403 error.
 - Increased Field chat message text size so questions and answers are easier to
   read.
+- Field chat now offers Review alternatives and Reanalyze species actions when
+  follow-up wording suggests the current ID is wrong, uncertain, a different
+  species, mismatched to visible traits, or worth checking again.
 
 ### Image Viewer & Reference Gallery
 

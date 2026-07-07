@@ -160,9 +160,36 @@ extension InsightSheetViewModel {
         return !reviewAlternativeCandidates.isEmpty
     }
 
+    var canReviewIdentificationConcernCandidates: Bool {
+        !identificationConcernCandidates.isEmpty
+    }
+
     var reviewAlternativeCandidates: [IdentificationCandidate] {
         guard queuedContext == nil else { return [] }
         return CandidateReviewVisibilityPolicy.visibleCandidates(for: inferenceEngine?.speciesData)
+    }
+
+    var identificationConcernCandidates: [IdentificationCandidate] {
+        guard queuedContext == nil,
+              let speciesData = inferenceEngine?.speciesData,
+              speciesData.isBiological,
+              speciesData.scientificName != "Taxonomy Unavailable",
+              !speciesData.isHumanSubject,
+              speciesData.userIdentificationOverride == nil,
+              !speciesData.userConfirmedIdentification else {
+            return []
+        }
+
+        return speciesData.candidates ?? []
+    }
+
+    var candidateSwipeCandidates: [IdentificationCandidate] {
+        switch state.candidateSwipePresentationSource {
+        case .standard:
+            return reviewAlternativeCandidates
+        case .identificationConcern:
+            return identificationConcernCandidates
+        }
     }
 
     var canConfirm: Bool {

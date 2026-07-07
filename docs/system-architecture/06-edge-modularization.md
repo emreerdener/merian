@@ -175,7 +175,8 @@ domain-specific streams explicitly executed via `runBackground`.
   staged image/audio or text-only requests as multimodal replay payloads.
   `replay-scan-ingestion` consumes only resumable staged media/audio/video or
   text-only intents and dispatches them back through the existing multimodal
-  endpoint.
+  endpoint. Replay is capped at 10 claims per sanitized intent; exhausted rows
+  become `failed_terminal / server_replay_limit_reached`.
 
 **Structured error logging (`_shared/edgeHandler.ts`)**: In addition to
 `withEdgeHandler` and `runBackground`, `edgeHandler.ts` exports
@@ -399,13 +400,15 @@ IDs, user IDs, field notes, coordinates, AI reasoning, or preference fields leak
 into a public species projection.
 
 **Public Species Refresh Rule:** Internal refresh work must consume
+`species_enrichment_jobs` or the legacy
 `public.get_species_content_refresh_queue(...)` instead of scanning
 `species_dictionary` directly. The shipped `refresh-species-content` worker
-updates only GBIF/Wikipedia-backed fields and writes fresh
-`species_content_provenance` rows; model-backed keys stay skipped until a
-curation/model refresh surface owns their overwrite rules. Reference-image
-refreshes must use `public.replace_species_reference_images(...)` so normalized
-media rows stay aligned while existing rights metadata is preserved.
+updates GBIF/Wikipedia-backed fields and writes fresh
+`species_content_provenance` rows; `refresh-species-model-content` owns habitat,
+lookalikes, and group tags. Common-name overrides, conservation, and hazard data
+remain curation-owned. Reference-image refreshes must use
+`public.replace_species_reference_images(...)` so normalized media rows stay
+aligned while existing rights metadata is preserved.
 
 **`fetchSimilarSpecies` Returns `SimilarSpeciesEntry[]` — Taxonomy-Grounded Name
 Pairs:** `fetchSimilarSpecies` in `_shared/biology.ts` accepts an optional

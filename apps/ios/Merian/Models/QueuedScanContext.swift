@@ -49,7 +49,7 @@ struct QueuedScanContext: Identifiable, Equatable {
     }
 
     var canRetryNow: Bool {
-        queueState == .failed || queueNextRetryAt != nil || queueNeedsAttention
+        queueState == .failed || queueNeedsAttention
     }
 
     /// Initialises the context by resolving all attribute faults on the live `OfflineQueuedScan`.

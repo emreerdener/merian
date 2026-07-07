@@ -192,6 +192,12 @@ media promotion, scan insert idempotency, and the strict playback-video
 durability gate. Inline foreground requests remain client-owned because their
 raw media bytes are never stored server-side.
 
+Automatic replay is capped at 10 claims per sanitized intent. The claim RPC
+excludes over-budget intents from new replay work and marks the paired
+`scan_ingestion_jobs` row `failed_terminal` with
+`stage = 'server_replay_limit_reached'` in the same bounded claim window, so a
+permanently broken replay payload cannot churn forever.
+
 Compatibility scan-producing endpoints (`/identify`, `/identify-describe`, and
 `/audio-spec`) also write `scan_ingestion_jobs` plus sanitized
 `scan_ingestion_intents` before returning success. Those intents set
@@ -1226,9 +1232,11 @@ Provenance and refresh metadata:
   Wikipedia content, habitat, GBIF keys, reference images, group tags,
   hazard/conservation fields, and lookalikes.
 - `refresh-species-content` uses `public.get_species_content_refresh_queue(...)`
-  rather than scanning `species_dictionary` directly for stale content. V1
-  refreshes only GBIF/Wikipedia-backed fields and leaves model/curation-backed
-  fields untouched.
+  as its legacy fallback rather than scanning `species_dictionary` directly for
+  stale content. First-class `gbif_wikipedia_reference` jobs come from
+  `species_enrichment_jobs`; `refresh-species-model-content` owns the paired
+  `habitat`, `lookalikes`, and `group_tags` jobs. Common-name overrides,
+  conservation, and hazard data remain curation-owned.
 - Reference image refreshes call `public.replace_species_reference_images(...)`
   so normalized rows stay aligned with the legacy compatibility cache while
   preserving existing license/attribution metadata.
@@ -3037,7 +3045,9 @@ ordered compositions of images, audio, and descriptive context.
   `payload_checksum`. It never stores raw base64 media bytes or local device
   paths. Requests that used inline foreground media are marked
   `resumable = false` with `inline_media_redacted = true`; queued/staged
-  media/audio/video and text-only requests are resumable.
+  media/audio/video and text-only requests are resumable. Server-side replay of
+  those resumable intents is capped at 10 automatic claims before the paired job
+  becomes `failed_terminal / server_replay_limit_reached`.
 - The edge writes `captured_media` for new multimodal scan rows. That JSON keeps
   still photos as image items but collapses ordered `video_frame` samples into a
   single video media item with a thumbnail reference, preserving playback-first
@@ -3601,7 +3611,13 @@ deterministic `answer_category` so token cost can be reviewed by broad question
 type. Prompt generation events include prompt categories, fallback/error state,
 and token usage when available. iOS also emits `InsightChatActionTapped` to
 PostHog for local answer actions, prompt-chip taps, the sheet options menu, and
-feedback affordances.
+feedback affordances. When iOS detects local identification-concern intent -
+direct wrong-ID language, soft doubt, alternate-ID suggestions, trait mismatch,
+or recheck/reanalysis requests - it can attach local
+`review_alternatives_from_identification_concern` and
+`reanalyze_species_from_identification_concern` actions to the next assistant
+reply; these actions route through existing on-device candidates/reanalysis
+flows and do not change the `/insight-chat` response payload.
 
 ---
 
@@ -3735,11 +3751,14 @@ or video entries in `captured_media`.
 `"not_found"`. When the scan row is not complete yet, newer clients and ops
 tools can inspect the optional job fields backed by `scan_ingestion_jobs`:
 `job_status` may be `processing`, `finalizing`, `retrying`, `failed_retryable`,
-`failed`, or `complete`; `job_stage` names the precise server step;
-`retry_after` and `last_error` are only populated for failed jobs. iOS decodes
-the full response via `ScanStatusResponse`: queued scans use these fields to
-keep server-owned `.inferencing` rows from being resubmitted while media
-promotion or scan insertion is still finalizing.
+`failed_terminal`, or `complete`; `job_stage` names the precise server step,
+including `server_replay_limit_reached` when the scheduled replay budget is
+exhausted. `retry_after` and `last_error` are only populated for failed jobs.
+iOS decodes the full response via `ScanStatusResponse`: queued scans use these
+fields to keep server-owned `.inferencing` rows from being resubmitted while
+media promotion or scan insertion is still finalizing, and to surface terminal
+server replay exhaustion as needs-attention instead of continuing automatic
+retry.
 
 ### Authentication & IDOR
 
@@ -4108,11 +4127,19 @@ Manual service-role calls may also include:
 6. Records new `species_content_provenance` rows for refreshed keys and marks
    claimed enrichment jobs succeeded or failed.
 
+`20260707153931_species_dictionary_enrichment_queue_backfill.sql` is the source
+of new queue coverage: it adds a `species_dictionary` insert trigger for future
+rows and backfills existing sparse rows into the same `species_enrichment_jobs`
+contract. The trigger intentionally runs only on insert so refresh updates do
+not continuously reopen completed enrichment jobs.
+
 Per-species refreshes run with a concurrency cap of 4.
 
 Unsupported provenance keys (`common_names`, `habitat_description`,
 `lookalikes`, `group_tags`, `iucn_red_list_status`, and `hazard_type`) are
-skipped until curation/model refresh tooling exists.
+skipped by this worker rather than overwritten. Habitat, lookalikes, and group
+tags are handled by `/refresh-species-model-content`; common-name overrides,
+IUCN status, and hazard type remain curation-owned.
 
 ---
 

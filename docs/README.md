@@ -28,8 +28,9 @@ networking, and hardware orchestration logic.
   `/identify-describe`, and `/audio-spec` remain documented for compatibility,
   but scan-producing compatibility requests now write the same ingestion ledger;
   staged media and text-only intents can be replayed through
-  `/identify-multimodal`, while inline media remains client-retry only because
-  raw bytes are never stored server-side. The shared identify boundary demotes
+  `/identify-multimodal`, capped at 10 server replay claims per sanitized intent,
+  while inline media remains client-retry only because raw bytes are never stored
+  server-side. The shared identify boundary demotes
   manufactured or processed materials to non-biological before candidates,
   dictionary novelty, or `species_dictionary` writes can run.
 - **Media durability safety net**: Backend deploys run a media-ingestion
@@ -154,7 +155,7 @@ networking, and hardware orchestration logic.
   — Standalone public species dictionary page, `species-dictionary` Edge
   Function detail/catalog/user-scanned tree contracts, similar-species entry
   points from Insight and Explore detail, cache rules, content quality, media
-  attribution, and refresh provenance.
+  attribution, enrichment queue/backfill, and refresh provenance.
 - **[`/features-and-hardware/17-public-web-share-pages.md`](./features-and-hardware/17-public-web-share-pages.md)**
   — Next.js public web share pages for `merian.earth`, including Explore post
   links, Supabase server reads, metadata, privacy boundaries, and the Universal
@@ -189,8 +190,8 @@ networking, and hardware orchestration logic.
   plan for repo hygiene, behavior-preserving file splits, and ownership cleanup.
 - **[`/rfcs/species-dictionary-long-term-todo.md`](./rfcs/species-dictionary-long-term-todo.md)**
   — Long-term species dictionary TODO covering canonical identity, reference
-  media normalization, public projections, provenance and refresh, caching,
-  licensing, and analytics.
+  media normalization, public projections, enrichment queues, provenance and
+  refresh, caching, licensing, and analytics.
 - **[`/rfcs/geological-expansions.md`](./rfcs/geological-expansions.md)** —
   Roadmap for extending inference to rocks, minerals, and fossils.
 

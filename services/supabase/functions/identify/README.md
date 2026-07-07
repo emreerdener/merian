@@ -72,7 +72,8 @@ Before returning success, this compatibility endpoint records a
 
 - Staged image keys and optional description text are shaped as
   `identify-multimodal` replay payloads so `replay-scan-ingestion` can recover
-  retryable failures with the same `client_scan_id`.
+  retryable failures with the same `client_scan_id`, subject to the shared
+  10-claim server replay ceiling.
 - Inline image bytes are never stored in the intent. They are counted in
   `redacted_media_counts`, marked `inline_media_redacted = true`, and remain
   client-retry only.
