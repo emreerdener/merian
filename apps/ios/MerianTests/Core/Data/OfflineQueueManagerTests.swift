@@ -873,8 +873,8 @@ struct OfflineQueueManagerTests {
             id: OfflineQueueManager.collectionSyncJobId,
             kind: .collectionSync,
             status: .needsAttention,
-            attemptCount: OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts,
             nextRunAt: Date().addingTimeInterval(600),
+            attemptCount: OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts,
             lastErrorCode: "collection_sync_retry_limit_reached",
             lastErrorMessage: "Paused."
         )

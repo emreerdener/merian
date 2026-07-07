@@ -8,8 +8,8 @@ Service-role health endpoint for scan media durability.
   their lease window or have retryable failures past `retry_after`; operators
   can inspect the job's `manifest_checksum` and `upload_session_ids` to match
   the stuck attempt back to staged scan media.
-- Surfaces replay exhaustion as terminal ingestion state: server replay is capped
-  at 10 claims per sanitized intent and over-budget jobs are marked
+- Surfaces replay exhaustion as terminal ingestion state: server replay is
+  capped at 10 claims per sanitized intent and over-budget jobs are marked
   `server_replay_limit_reached`.
 - Reports in-flight/retryable ingestion jobs that are missing
   `scan_ingestion_intents` rows or whose intents are non-resumable because
