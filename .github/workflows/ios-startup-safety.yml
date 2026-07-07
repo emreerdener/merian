@@ -129,6 +129,7 @@ jobs:
             -disableAutomaticPackageResolution \
             -derivedDataPath "$XCODE_DERIVED_DATA" \
             -resultBundlePath "$XCODE_RESULT_BUNDLE" \
+            -parallel-testing-enabled NO \
             -only-testing:merianTests/ModelStoreRecoveryCoordinatorTests \
             -only-testing:merianTests/MigrationPlanTests \
             2>&1 | tee -a "$XCODE_BUILD_LOG"
